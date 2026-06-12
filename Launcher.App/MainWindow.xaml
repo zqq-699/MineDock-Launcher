@@ -12,6 +12,7 @@
         WindowStyle="None"
         AllowsTransparency="False"
         Background="Transparent"
+        FontFamily="Microsoft YaHei UI"
         ResizeMode="CanResize"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
@@ -35,6 +36,9 @@
             <Setter Property="Margin" Value="8,3" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="Foreground" Value="#F2F2F2" />
+            <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -792,31 +796,9 @@
                   Grid.RowSpan="2"
                   Visibility="{Binding CurrentPage, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=Account}">
                 <Border x:Name="AccountSecondaryMenuPanel"
-                        Width="224"
-                        Margin="24,48,0,38"
-                        HorizontalAlignment="Left"
-                        Background="#5A4A4A4A"
-                        BorderBrush="#35FFFFFF"
-                        BorderThickness="1"
-                        CornerRadius="14"
-                        ClipToBounds="True">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled"
-                                  ClipToBounds="True">
-                        <ScrollViewer.Resources>
-                            <Style TargetType="ScrollBar" BasedOn="{StaticResource SlimVerticalScrollBarStyle}">
-                                <Setter Property="Margin" Value="0,10,5,14" />
-                                <Setter Property="Opacity" Value="0" />
-                                <Setter Property="IsHitTestVisible" Value="False" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsMouseOver, ElementName=AccountSecondaryMenuPanel}" Value="True">
-                                        <Setter Property="Opacity" Value="1" />
-                                        <Setter Property="IsHitTestVisible" Value="True" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ScrollViewer.Resources>
-                        <StackPanel Margin="14,18,14,0">
+                        Style="{StaticResource SecondaryMenuPanelStyle}">
+                    <ScrollViewer Style="{StaticResource SecondaryMenuScrollViewerStyle}">
+                        <StackPanel Style="{StaticResource SecondaryMenuItemsPanelStyle}">
                             <ItemsControl ItemsSource="{Binding Accounts}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type models:LauncherAccount}">
@@ -826,7 +808,7 @@
                                                     Background="Transparent"
                                                     CornerRadius="10" />
 
-                                            <Button Style="{StaticResource AccountButtonStyle}"
+                                            <Button Style="{StaticResource SecondaryMenuButtonStyle}"
                                                     Margin="0"
                                                     Click="Account_Click">
                                                 <Grid>
@@ -859,7 +841,7 @@
                                                     Margin="0,0,6,0"
                                                     Click="DeleteAccount_Click">
                                                 <Button.Style>
-                                                    <Style TargetType="Button" BasedOn="{StaticResource AccountDeleteButtonStyle}">
+                                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryMenuDeleteButtonStyle}">
                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsMouseOver, ElementName=AccountItemRoot}" Value="True">
@@ -882,7 +864,7 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
-                            <Button Style="{StaticResource AccountButtonStyle}"
+                            <Button Style="{StaticResource SecondaryMenuButtonStyle}"
                                     Click="AddAccount_Click">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -905,8 +887,7 @@
                                                VerticalAlignment="Center" />
                                 </Grid>
                             </Button>
-                            <Border Height="18"
-                                    IsHitTestVisible="False" />
+                            <Border Style="{StaticResource SecondaryMenuBottomSpacerStyle}" />
                         </StackPanel>
                     </ScrollViewer>
                 </Border>
@@ -1006,44 +987,17 @@
             </Grid>
 
             <Grid x:Name="AddAccountDialogOverlay"
-                  Grid.ColumnSpan="2"
-                  Grid.RowSpan="2"
-                  Background="#99000000"
-                  Opacity="0"
-                  Visibility="Collapsed"
-                  shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                  Style="{StaticResource DialogOverlayStyle}">
                 <Border Width="420"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Background="#01000000"
-                        CornerRadius="16"
-                        IsHitTestVisible="False">
-                    <Border.Effect>
-                        <DropShadowEffect BlurRadius="28"
-                                          Color="#000000"
-                                          Opacity="0.34"
-                                          ShadowDepth="0" />
-                    </Border.Effect>
-                </Border>
+                        Style="{StaticResource DialogShadowStyle}" />
                 <Border x:Name="AddAccountDialogSurface"
                         Width="420"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Background="Transparent"
-                        BorderBrush="#42FFFFFF"
-                        BorderThickness="1"
-                        CornerRadius="16"
-                        ClipToBounds="True">
+                        Style="{StaticResource DialogSurfaceStyle}">
                     <Grid ClipToBounds="True">
                         <Border x:Name="AddAccountDialogBlurLayer"
-                                IsHitTestVisible="False"
-                                CornerRadius="16">
-                            <Border.Background>
-                                <ImageBrush Stretch="Fill" />
-                            </Border.Background>
-                        </Border>
+                                Style="{StaticResource DialogBlurLayerStyle}" />
 
-                        <Grid Margin="24">
+                        <Grid Style="{StaticResource DialogContentGridStyle}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -1052,24 +1006,16 @@
 
                         <StackPanel>
                             <TextBlock Text="{Binding AddAccountDialogTitle}"
-                                       Foreground="#F4F4F4"
-                                       FontSize="22"
-                                       FontWeight="SemiBold" />
+                                       Style="{StaticResource DialogTitleTextStyle}" />
                             <TextBlock Text="{Binding AddAccountDialogSubtitle}"
-                                       Margin="0,8,0,0"
-                                       Foreground="#AFFFFFFF"
-                                       FontSize="13" />
+                                       Style="{StaticResource DialogSubtitleTextStyle}" />
                         </StackPanel>
 
                         <ListBox Grid.Row="1"
                                  ItemsSource="{Binding AccountTypeOptions}"
                                  SelectedItem="{Binding SelectedAccountTypeOption, Mode=TwoWay}"
-                                 ItemContainerStyle="{StaticResource AccountTypeItemStyle}"
-                                 Background="Transparent"
-                                 BorderThickness="0"
-                                 Margin="0,22,0,18"
-                                 Visibility="{Binding IsAccountTypeStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}"
-                                 shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                                 Style="{StaticResource DialogChoiceListStyle}"
+                                 Visibility="{Binding IsAccountTypeStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
                             <ListBox.ItemTemplate>
                                 <DataTemplate DataType="{x:Type models:AccountTypeOption}">
                                     <Grid>
@@ -1103,76 +1049,51 @@
                         </ListBox>
 
                         <StackPanel Grid.Row="1"
-                                    Margin="0,24,0,26"
+                                    Style="{StaticResource DialogFormPanelStyle}"
                                     Visibility="{Binding IsOfflineNameStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
                             <TextBlock Text="&#x7528;&#x6237;&#x540D;"
-                                       Foreground="#F4F4F4"
-                                       FontSize="13"
-                                       Margin="0,0,0,8" />
-                            <TextBox Style="{StaticResource DialogTextBoxStyle}"
+                                       Style="{StaticResource DialogFieldLabelTextStyle}" />
+                            <TextBox Style="{StaticResource LauncherDialogTextBoxStyle}"
                                      Text="{Binding NewOfflineAccountName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                             <TextBlock Text="&#x7528;&#x6237;&#x540D;&#x4E0D;&#x53EF;&#x4E3A;&#x7A7A;"
-                                       Margin="2,8,0,0"
-                                       Foreground="#FFFF8A8A"
-                                       FontSize="12"
+                                       Style="{StaticResource DialogValidationTextStyle}"
                                        Visibility="{Binding IsNewOfflineAccountNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                         </StackPanel>
 
-                        <StackPanel Grid.Row="2"
-                                    Orientation="Horizontal"
-                                    HorizontalAlignment="Right">
-                            <Button Style="{StaticResource DialogButtonStyle}"
-                                    Content="&#x53D6;&#x6D88;"
-                                    Click="CancelAddAccount_Click" />
-                            <Button Style="{StaticResource PrimaryDialogButtonStyle}"
-                                    Margin="10,0,0,0"
-                                    Content="&#x786E;&#x5B9A;"
-                                    Click="ConfirmAddAccount_Click" />
-                        </StackPanel>
+                        <Grid Grid.Row="2">
+                            <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                    HorizontalAlignment="Left"
+                                    Content="&#x4E0A;&#x4E00;&#x6B65;"
+                                    Click="BackAddAccount_Click"
+                                    Visibility="{Binding IsOfflineNameStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+
+                            <StackPanel Style="{StaticResource DialogFooterStyle}">
+                                <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                        Content="&#x53D6;&#x6D88;"
+                                        Click="CancelAddAccount_Click" />
+                                <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                        Margin="{StaticResource DialogTrailingButtonMargin}"
+                                        Content="&#x786E;&#x5B9A;"
+                                        Click="ConfirmAddAccount_Click" />
+                            </StackPanel>
+                        </Grid>
                         </Grid>
                     </Grid>
                 </Border>
             </Grid>
 
             <Grid x:Name="DeleteAccountDialogOverlay"
-                  Grid.ColumnSpan="2"
-                  Grid.RowSpan="2"
-                  Background="#99000000"
-                  Opacity="0"
-                  Visibility="Collapsed"
-                  shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                  Style="{StaticResource DialogOverlayStyle}">
                 <Border Width="380"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Background="#01000000"
-                        CornerRadius="16"
-                        IsHitTestVisible="False">
-                    <Border.Effect>
-                        <DropShadowEffect BlurRadius="28"
-                                          Color="#000000"
-                                          Opacity="0.34"
-                                          ShadowDepth="0" />
-                    </Border.Effect>
-                </Border>
+                        Style="{StaticResource DialogShadowStyle}" />
                 <Border x:Name="DeleteAccountDialogSurface"
                         Width="380"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Background="Transparent"
-                        BorderBrush="#42FFFFFF"
-                        BorderThickness="1"
-                        CornerRadius="16"
-                        ClipToBounds="True">
+                        Style="{StaticResource DialogSurfaceStyle}">
                     <Grid ClipToBounds="True">
                         <Border x:Name="DeleteAccountDialogBlurLayer"
-                                IsHitTestVisible="False"
-                                CornerRadius="16">
-                            <Border.Background>
-                                <ImageBrush Stretch="Fill" />
-                            </Border.Background>
-                        </Border>
+                                Style="{StaticResource DialogBlurLayerStyle}" />
 
-                        <Grid Margin="24">
+                        <Grid Style="{StaticResource DialogContentGridStyle}">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -1180,25 +1101,20 @@
                             </Grid.RowDefinitions>
 
                             <TextBlock Text="&#x5220;&#x9664;&#x8D26;&#x6237;"
-                                       Foreground="#F4F4F4"
-                                       FontSize="22"
-                                       FontWeight="SemiBold" />
+                                       Style="{StaticResource DialogTitleTextStyle}" />
 
                             <TextBlock Grid.Row="1"
                                        Margin="0,16,0,24"
                                        Text="&#x662F;&#x5426;&#x786E;&#x5B9A;&#x5220;&#x9664;&#x8BE5;&#x8D26;&#x6237;&#xFF1F;"
-                                       Foreground="#CFFFFFFF"
-                                       FontSize="14"
-                                       TextWrapping="Wrap" />
+                                       Style="{StaticResource DialogBodyTextStyle}" />
 
                             <StackPanel Grid.Row="2"
-                                        Orientation="Horizontal"
-                                        HorizontalAlignment="Right">
-                                <Button Style="{StaticResource DialogButtonStyle}"
+                                        Style="{StaticResource DialogFooterStyle}">
+                                <Button Style="{StaticResource LauncherDialogButtonStyle}"
                                         Content="&#x53D6;&#x6D88;"
                                         Click="CancelDeleteAccount_Click" />
-                                <Button Style="{StaticResource DangerDialogButtonStyle}"
-                                        Margin="10,0,0,0"
+                                <Button Style="{StaticResource LauncherDangerDialogButtonStyle}"
+                                        Margin="{StaticResource DialogTrailingButtonMargin}"
                                         Content="&#x5220;&#x9664;"
                                         Click="ConfirmDeleteAccount_Click" />
                             </StackPanel>

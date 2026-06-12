@@ -20,9 +20,13 @@ public partial class MainWindow : Window
     private const double CollapsedMenuWidth = 62;
     private const double ExpandedMenuWidth = 210;
     private const double DialogBlurRadius = 42;
+    private const double DialogSizeAnimationThreshold = 1;
     private static readonly Duration DialogFadeInDuration = TimeSpan.FromMilliseconds(160);
     private static readonly Duration DialogFadeOutDuration = TimeSpan.FromMilliseconds(180);
+    private static readonly Duration DialogSizeTransitionDuration = TimeSpan.FromMilliseconds(240);
     private static readonly Color DialogBlurTintColor = Color.FromArgb(0x8A, 0x25, 0x25, 0x25);
+
+    private bool isDialogSizeAnimating;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -30,15 +34,13 @@ public partial class MainWindow : Window
         DataContext = viewModel;
         AcrylicWindow.Enable(this);
         SizeChanged += (_, _) => QueueOpenDialogBlurRefresh();
-        AccountSecondaryMenuPanel.SizeChanged += (_, _) => ApplyRoundedClip(AccountSecondaryMenuPanel, 14);
-        AddAccountDialogSurface.SizeChanged += (_, _) => QueueOpenDialogBlurRefresh();
-        DeleteAccountDialogSurface.SizeChanged += (_, _) => QueueOpenDialogBlurRefresh();
+        AddAccountDialogSurface.SizeChanged += (_, _) => QueueDialogBlurRefreshWhenIdle();
+        DeleteAccountDialogSurface.SizeChanged += (_, _) => QueueDialogBlurRefreshWhenIdle();
         Loaded += async (_, _) =>
         {
             await viewModel.InitializeCommand.ExecuteAsync(null);
             IsMenuExpanded = viewModel.IsMenuExpanded;
             MenuColumn.Width = new GridLength(IsMenuExpanded ? ExpandedMenuWidth : CollapsedMenuWidth);
-            ApplyRoundedClip(AccountSecondaryMenuPanel, 14);
         };
     }
 
@@ -110,7 +112,17 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel viewModel)
         {
             viewModel.CancelAddAccountDialog();
-            HideDialogOverlay(AddAccountDialogOverlay);
+            HideDialogOverlay(AddAccountDialogOverlay, viewModel.ResetAddAccountDialog);
+        }
+    }
+
+    private void BackAddAccount_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel)
+        {
+            var previousHeight = AddAccountDialogSurface.ActualHeight;
+            viewModel.BackToAddAccountTypeStep();
+            AnimateDialogSizeChange(AddAccountDialogSurface, AddAccountDialogBlurLayer, previousHeight);
         }
     }
 
@@ -118,11 +130,12 @@ public partial class MainWindow : Window
     {
         if (DataContext is MainViewModel viewModel)
         {
+            var previousHeight = AddAccountDialogSurface.ActualHeight;
             viewModel.ConfirmAddAccountDialog();
             if (viewModel.IsAddAccountDialogOpen)
-                RefreshDialogBlurNow(AddAccountDialogSurface, AddAccountDialogBlurLayer);
+                AnimateDialogSizeChange(AddAccountDialogSurface, AddAccountDialogBlurLayer, previousHeight);
             else
-                HideDialogOverlay(AddAccountDialogOverlay);
+                HideDialogOverlay(AddAccountDialogOverlay, viewModel.ResetAddAccountDialog);
         }
     }
 
@@ -167,6 +180,12 @@ public partial class MainWindow : Window
             QueueDialogBlurRefresh(DeleteAccountDialogSurface, DeleteAccountDialogBlurLayer, 5);
     }
 
+    private void QueueDialogBlurRefreshWhenIdle()
+    {
+        if (!isDialogSizeAnimating)
+            QueueOpenDialogBlurRefresh();
+    }
+
     private void QueueDialogBlurRefresh(FrameworkElement dialog, Border target, int attempts = 5)
     {
         Dispatcher.BeginInvoke(
@@ -185,15 +204,46 @@ public partial class MainWindow : Window
         UpdateDialogBlur(dialog, target);
     }
 
-    private static void ApplyRoundedClip(FrameworkElement element, double radius)
+    private void AnimateDialogSizeChange(Border dialog, Border blurTarget, double previousHeight)
     {
-        if (element.ActualWidth <= 0 || element.ActualHeight <= 0)
-            return;
+        dialog.BeginAnimation(HeightProperty, null);
+        dialog.Height = double.NaN;
+        isDialogSizeAnimating = true;
 
-        element.Clip = new RectangleGeometry(
-            new Rect(0, 0, element.ActualWidth, element.ActualHeight),
-            radius,
-            radius);
+        UpdateLayout();
+        var targetHeight = dialog.ActualHeight;
+
+        if (previousHeight <= 0
+            || targetHeight <= 0
+            || Math.Abs(previousHeight - targetHeight) <= DialogSizeAnimationThreshold)
+        {
+            dialog.Height = double.NaN;
+            isDialogSizeAnimating = false;
+            RefreshDialogBlurNow(dialog, blurTarget);
+            return;
+        }
+
+        dialog.Height = previousHeight;
+        UpdateLayout();
+        UpdateDialogBlur(dialog, blurTarget);
+
+        var animation = new DoubleAnimation
+        {
+            From = previousHeight,
+            To = targetHeight,
+            Duration = DialogSizeTransitionDuration,
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
+            FillBehavior = FillBehavior.Stop
+        };
+
+        animation.Completed += (_, _) =>
+        {
+            dialog.Height = double.NaN;
+            isDialogSizeAnimating = false;
+            RefreshDialogBlurNow(dialog, blurTarget);
+        };
+
+        dialog.BeginAnimation(HeightProperty, animation);
     }
 
     private void ShowDialogOverlay(Grid overlay, FrameworkElement dialog, Border blurTarget)
@@ -216,7 +266,7 @@ public partial class MainWindow : Window
         overlay.BeginAnimation(OpacityProperty, animation);
     }
 
-    private static void HideDialogOverlay(Grid overlay)
+    private static void HideDialogOverlay(Grid overlay, Action? completed = null)
     {
         var currentOpacity = overlay.Opacity;
         overlay.BeginAnimation(OpacityProperty, null);
@@ -225,6 +275,7 @@ public partial class MainWindow : Window
         if (currentOpacity <= 0)
         {
             overlay.Visibility = Visibility.Collapsed;
+            completed?.Invoke();
             return;
         }
 
@@ -241,6 +292,7 @@ public partial class MainWindow : Window
         {
             overlay.Opacity = 0;
             overlay.Visibility = Visibility.Collapsed;
+            completed?.Invoke();
         };
 
         overlay.BeginAnimation(OpacityProperty, animation);
@@ -306,11 +358,22 @@ public partial class MainWindow : Window
 
         var dialogBackground = CreateDialogBackgroundBitmap(blurredTarget, dpi);
 
-        if (target.Background is not ImageBrush brush)
-            return false;
-
+        var brush = EnsureLocalDialogBrush(target);
         brush.ImageSource = dialogBackground;
         return true;
+    }
+
+    private static ImageBrush EnsureLocalDialogBrush(Border target)
+    {
+        if (target.ReadLocalValue(Border.BackgroundProperty) is ImageBrush localBrush && !localBrush.IsFrozen)
+            return localBrush;
+
+        var brush = new ImageBrush
+        {
+            Stretch = Stretch.Fill
+        };
+        target.Background = brush;
+        return brush;
     }
 
     private static BitmapSource CreateBlurredBitmap(BitmapSource source, DpiScale dpi)

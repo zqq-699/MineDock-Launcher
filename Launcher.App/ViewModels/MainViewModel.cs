@@ -207,8 +207,19 @@ public sealed partial class MainViewModel : ObservableObject
     public void CancelAddAccountDialog()
     {
         IsAddAccountDialogOpen = false;
+    }
+
+    public void ResetAddAccountDialog()
+    {
         AddAccountDialogStep = "Type";
         NewOfflineAccountName = string.Empty;
+        IsNewOfflineAccountNameInvalid = false;
+        SelectedAccountTypeOption = AccountTypeOptions.FirstOrDefault();
+    }
+
+    public void BackToAddAccountTypeStep()
+    {
+        AddAccountDialogStep = "Type";
         IsNewOfflineAccountNameInvalid = false;
     }
 
@@ -248,9 +259,6 @@ public sealed partial class MainViewModel : ObservableObject
         Accounts.Add(account);
         SelectAccount(account);
 
-        NewOfflineAccountName = string.Empty;
-        IsNewOfflineAccountNameInvalid = false;
-        AddAccountDialogStep = "Type";
         IsAddAccountDialogOpen = false;
         StatusMessage = $"\u5df2\u6dfb\u52a0\u79bb\u7ebf\u8d26\u6237 {accountName}";
     }
