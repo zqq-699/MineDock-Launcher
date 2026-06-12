@@ -12,4 +12,14 @@ public sealed partial class NavigationItem : ObservableObject
 
     [ObservableProperty]
     private bool isSelected;
+
+    [ObservableProperty]
+    private string? avatarUrl;
+
+    public bool HasAvatar => !string.IsNullOrWhiteSpace(AvatarUrl);
+
+    partial void OnAvatarUrlChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasAvatar));
+    }
 }

@@ -56,6 +56,34 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private LauncherAccount? selectedAccount;
 
+    [ObservableProperty]
+    private bool isAddAccountDialogOpen;
+
+    [ObservableProperty]
+    private AccountTypeOption? selectedAccountTypeOption;
+
+    [ObservableProperty]
+    private string addAccountDialogStep = "Type";
+
+    [ObservableProperty]
+    private string newOfflineAccountName = string.Empty;
+
+    [ObservableProperty]
+    private bool isNewOfflineAccountNameInvalid;
+
+    [ObservableProperty]
+    private bool isDeleteAccountDialogOpen;
+
+    [ObservableProperty]
+    private LauncherAccount? accountPendingDelete;
+
+    public bool IsAccountTypeStep => AddAccountDialogStep == "Type";
+    public bool IsOfflineNameStep => AddAccountDialogStep == "OfflineName";
+    public string AddAccountDialogTitle => IsOfflineNameStep ? "\u79bb\u7ebf\u8d26\u6237" : "\u6dfb\u52a0\u8d26\u6237";
+    public string AddAccountDialogSubtitle => IsOfflineNameStep
+        ? "\u8f93\u5165\u8981\u6dfb\u52a0\u7684\u79bb\u7ebf\u8d26\u6237\u540d\u3002"
+        : "\u9009\u62e9\u8981\u6dfb\u52a0\u7684\u8d26\u6237\u7c7b\u578b\u3002";
+
     public ObservableCollection<NavigationItem> NavigationItems { get; } =
     [
         new() { Page = "Account", Title = "\u8d26\u6237", Icon = "\uE77B" },
@@ -68,6 +96,23 @@ public sealed partial class MainViewModel : ObservableObject
 
     public ObservableCollection<NavigationItem> SecondaryItems { get; } = [];
     public ObservableCollection<LauncherAccount> Accounts { get; } = [];
+    public ObservableCollection<AccountTypeOption> AccountTypeOptions { get; } =
+    [
+        new()
+        {
+            Kind = "Offline",
+            Title = "\u79bb\u7ebf\u8d26\u6237",
+            Description = "\u4f7f\u7528\u672c\u5730\u7528\u6237\u540d\u8fdb\u5165\u6e38\u620f\u3002",
+            Icon = "\uE77B"
+        },
+        new()
+        {
+            Kind = "Microsoft",
+            Title = "\u6b63\u7248\u8d26\u6237",
+            Description = "\u901a\u8fc7 Microsoft \u8d26\u6237\u767b\u5f55\u5e76\u83b7\u53d6\u76ae\u80a4\u5934\u50cf\u3002",
+            Icon = "\uE72E"
+        }
+    ];
     public ObservableCollection<GameInstance> Instances { get; } = [];
     public ObservableCollection<MinecraftVersionInfo> MinecraftVersions { get; } = [];
     public ObservableCollection<NavigationItem> LoaderItems { get; } = [];
@@ -146,6 +191,98 @@ public sealed partial class MainViewModel : ObservableObject
         SelectedAccount = account;
         foreach (var item in Accounts)
             item.IsSelected = ReferenceEquals(item, account);
+
+        UpdateAccountNavigationAvatar();
+    }
+
+    public void OpenAddAccountDialog()
+    {
+        AddAccountDialogStep = "Type";
+        NewOfflineAccountName = string.Empty;
+        IsNewOfflineAccountNameInvalid = false;
+        SelectedAccountTypeOption = AccountTypeOptions.FirstOrDefault();
+        IsAddAccountDialogOpen = true;
+    }
+
+    public void CancelAddAccountDialog()
+    {
+        IsAddAccountDialogOpen = false;
+        AddAccountDialogStep = "Type";
+        NewOfflineAccountName = string.Empty;
+        IsNewOfflineAccountNameInvalid = false;
+    }
+
+    public void ConfirmAddAccountDialog()
+    {
+        if (SelectedAccountTypeOption is null)
+            return;
+
+        if (IsAccountTypeStep)
+        {
+            if (SelectedAccountTypeOption.Kind is "Offline")
+            {
+                AddAccountDialogStep = "OfflineName";
+                return;
+            }
+
+            IsAddAccountDialogOpen = false;
+            StatusMessage = "\u6b63\u7248\u8d26\u6237\u767b\u5f55\u540e\u7eed\u63a5\u5165";
+            return;
+        }
+
+        var accountName = NewOfflineAccountName.Trim();
+        if (string.IsNullOrWhiteSpace(accountName))
+        {
+            IsNewOfflineAccountNameInvalid = true;
+            StatusMessage = "\u8bf7\u8f93\u5165\u79bb\u7ebf\u8d26\u6237\u540d";
+            return;
+        }
+
+        var account = new LauncherAccount
+        {
+            Id = $"offline-{Guid.NewGuid():N}",
+            DisplayName = accountName,
+            IsOffline = true
+        };
+
+        Accounts.Add(account);
+        SelectAccount(account);
+
+        NewOfflineAccountName = string.Empty;
+        IsNewOfflineAccountNameInvalid = false;
+        AddAccountDialogStep = "Type";
+        IsAddAccountDialogOpen = false;
+        StatusMessage = $"\u5df2\u6dfb\u52a0\u79bb\u7ebf\u8d26\u6237 {accountName}";
+    }
+
+    public void OpenDeleteAccountDialog(LauncherAccount account)
+    {
+        AccountPendingDelete = account;
+        IsDeleteAccountDialogOpen = true;
+    }
+
+    public void CancelDeleteAccountDialog()
+    {
+        IsDeleteAccountDialogOpen = false;
+        AccountPendingDelete = null;
+    }
+
+    public void ConfirmDeleteAccountDialog()
+    {
+        if (AccountPendingDelete is null)
+            return;
+
+        var deletedName = AccountPendingDelete.DisplayName;
+        if (ReferenceEquals(SelectedAccount, AccountPendingDelete))
+        {
+            SelectedAccount = null;
+            UpdateAccountNavigationAvatar();
+        }
+
+        Accounts.Remove(AccountPendingDelete);
+        IsDeleteAccountDialogOpen = false;
+        AccountPendingDelete = null;
+        StatusMessage = $"\u5df2\u5220\u9664\u8d26\u6237 {deletedName}";
     }
 
     [RelayCommand]
@@ -354,6 +491,20 @@ public sealed partial class MainViewModel : ObservableObject
         _ = RefreshModsAsync();
     }
 
+    partial void OnAddAccountDialogStepChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsAccountTypeStep));
+        OnPropertyChanged(nameof(IsOfflineNameStep));
+        OnPropertyChanged(nameof(AddAccountDialogTitle));
+        OnPropertyChanged(nameof(AddAccountDialogSubtitle));
+    }
+
+    partial void OnNewOfflineAccountNameChanged(string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+            IsNewOfflineAccountNameInvalid = false;
+    }
+
     private IProgress<LauncherProgress> CreateProgress()
     {
         return new Progress<LauncherProgress>(progress =>
@@ -412,5 +563,13 @@ public sealed partial class MainViewModel : ObservableObject
         });
 
         SelectedAccount = null;
+        UpdateAccountNavigationAvatar();
+    }
+
+    private void UpdateAccountNavigationAvatar()
+    {
+        var accountItem = NavigationItems.FirstOrDefault(item => item.Page == "Account");
+        if (accountItem is not null)
+            accountItem.AvatarUrl = SelectedAccount?.AvatarUrl;
     }
 }

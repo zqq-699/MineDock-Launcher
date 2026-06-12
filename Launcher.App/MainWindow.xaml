@@ -12,7 +12,12 @@
         WindowStyle="None"
         AllowsTransparency="False"
         Background="Transparent"
-        ResizeMode="CanResize">
+        ResizeMode="CanResize"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        TextOptions.TextHintingMode="Fixed">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="48"
                             CornerRadius="8"
@@ -22,6 +27,9 @@
     </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
+        <SolidColorBrush x:Key="MenuButtonSelectedBackgroundBrush" Color="#30808080" />
+        <SolidColorBrush x:Key="MenuButtonHoverBackgroundBrush" Color="#30606060" />
+
         <Style x:Key="MenuButtonStyle" TargetType="Button">
             <Setter Property="Height" Value="46" />
             <Setter Property="Margin" Value="8,3" />
@@ -37,35 +45,70 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
+                                Background="Transparent"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="12">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="Center" />
+                            <Grid>
+                                <Border x:Name="SelectedBackground"
+                                        Background="{StaticResource MenuButtonSelectedBackgroundBrush}"
+                                        CornerRadius="12"
+                                        Opacity="0" />
+                                <Border x:Name="HoverBackground"
+                                        Background="{StaticResource MenuButtonHoverBackgroundBrush}"
+                                        CornerRadius="12"
+                                        Opacity="0" />
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="Center" />
+                            </Grid>
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.16">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="HoverBackground" Property="Opacity" Value="1" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
+                                <Setter TargetName="Root" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="12"
+                                                          Color="#1f1f1f"
+                                                          Opacity="0.2"
+                                                          ShadowDepth="0" />
+                                    </Setter.Value>
+                                </Setter>
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#24FFFFFF" />
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#35FFFFFF" />
-                </Trigger>
-                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                    <Setter Property="Background" Value="#0891fe" />
-                    <Setter Property="Effect">
-                        <Setter.Value>
-                            <DropShadowEffect BlurRadius="12"
-                                              Color="#2A96ee"
-                                              Opacity="0.2"
-                                              ShadowDepth="0" />
-                        </Setter.Value>
-                    </Setter>
-                </DataTrigger>
-            </Style.Triggers>
         </Style>
 
         <Style x:Key="CaptionButtonStyle" TargetType="Button">
@@ -80,17 +123,53 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
                                 CornerRadius="6">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
+                            <Grid>
+                                <Border Background="{TemplateBinding Background}"
+                                        CornerRadius="6" />
+                                <Border x:Name="HoverBackground"
+                                        Background="#24FFFFFF"
+                                        CornerRadius="6"
+                                        Opacity="0" />
+                                <Border x:Name="PressedBackground"
+                                        Background="#38FFFFFF"
+                                        CornerRadius="6"
+                                        Opacity="0" />
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                            </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#24FFFFFF" />
-                            </Trigger>
+                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.16">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#38FFFFFF" />
+                                <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -99,9 +178,9 @@
         </Style>
 
         <Style x:Key="AccountButtonStyle" TargetType="Button">
-            <Setter Property="Height" Value="48" />
-            <Setter Property="Margin" Value="0,0,0,8" />
-            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="Padding" Value="12,4" />
             <Setter Property="Foreground" Value="#F2F2F2" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
@@ -112,25 +191,497 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
                                 CornerRadius="10">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="Center" />
+                            <Grid>
+                                <Border Background="{TemplateBinding Background}"
+                                        CornerRadius="10" />
+                                <Border x:Name="SelectedBackground"
+                                        Background="#3D3D3D"
+                                        CornerRadius="10"
+                                        Opacity="0" />
+                                <Border x:Name="HoverBackground"
+                                        Background="#22FFFFFF"
+                                        CornerRadius="10"
+                                        Opacity="0" />
+                                <Border x:Name="PressedBackground"
+                                        Background="#34FFFFFF"
+                                        CornerRadius="10"
+                                        Opacity="0" />
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="Center" />
+                            </Grid>
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.16">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#22FFFFFF" />
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#34FFFFFF" />
-                </Trigger>
-                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                    <Setter Property="Background" Value="#260891FE" />
-                </DataTrigger>
-            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AccountDeleteButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Foreground" Value="#FF2F2F" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                CornerRadius="7">
+                            <Grid>
+                                <Border Background="{TemplateBinding Background}"
+                                        CornerRadius="7" />
+                                <Border x:Name="HoverBackground"
+                                        Background="#18FF4A4A"
+                                        CornerRadius="7"
+                                        Opacity="0" />
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.16">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="#FF4A4A" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Foreground" Value="#E00000" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SlimScrollRepeatButtonStyle" TargetType="RepeatButton">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="IsTabStop" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border Background="Transparent" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SlimScrollThumbStyle" TargetType="Thumb">
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Background" Value="#5CFFFFFF" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border x:Name="Root"
+                                Width="5"
+                                Margin="1,2"
+                                HorizontalAlignment="Center"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="3" />
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#84FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#A8FFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SlimVerticalScrollBarStyle" TargetType="ScrollBar">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="MinWidth" Value="8" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Background="Transparent">
+                            <Track x:Name="PART_Track"
+                                   IsDirectionReversed="True">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static ScrollBar.PageUpCommand}"
+                                                  Style="{StaticResource SlimScrollRepeatButtonStyle}" />
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Style="{StaticResource SlimScrollThumbStyle}" />
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static ScrollBar.PageDownCommand}"
+                                                  Style="{StaticResource SlimScrollRepeatButtonStyle}" />
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AccountTypeItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Foreground" Value="#F4F4F4" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Root"
+                                CornerRadius="10">
+                            <Grid>
+                                <Border Background="#12FFFFFF"
+                                        CornerRadius="10" />
+                                <Border x:Name="SelectedBackground"
+                                        Background="#3D3D3D"
+                                        CornerRadius="10"
+                                        Opacity="0" />
+                                <Border x:Name="HoverBackground"
+                                        Background="#20FFFFFF"
+                                        CornerRadius="10"
+                                        Opacity="0" />
+                                <ContentPresenter Margin="14"
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.16">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DialogButtonStyle" TargetType="Button">
+            <Setter Property="MinWidth" Value="86" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="Foreground" Value="#F4F4F4" />
+            <Setter Property="Background" Value="#20FFFFFF" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                CornerRadius="8">
+                            <Grid>
+                                <Border Background="{TemplateBinding Background}"
+                                        CornerRadius="8" />
+                                <Border x:Name="HoverBackground"
+                                        Background="#32FFFFFF"
+                                        CornerRadius="8"
+                                        Opacity="0" />
+                                <Border x:Name="PressedBackground"
+                                        Background="#50808080"
+                                        CornerRadius="8"
+                                        Opacity="0" />
+                                <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.16">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryDialogButtonStyle" TargetType="Button">
+            <Setter Property="MinWidth" Value="86" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="Background" Value="#0891FE" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                CornerRadius="8">
+                            <Grid>
+                                <Border Background="{TemplateBinding Background}"
+                                        CornerRadius="8" />
+                                <Border x:Name="HoverBackground"
+                                        Background="#047EDC"
+                                        CornerRadius="8"
+                                        Opacity="0" />
+                                <Border x:Name="PressedBackground"
+                                        Background="#036FC2"
+                                        CornerRadius="8"
+                                        Opacity="0" />
+                                <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.16">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DangerDialogButtonStyle" TargetType="Button">
+            <Setter Property="MinWidth" Value="86" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="Background" Value="#D94343" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                CornerRadius="8">
+                            <Grid>
+                                <Border Background="{TemplateBinding Background}"
+                                        CornerRadius="8" />
+                                <Border x:Name="HoverBackground"
+                                        Background="#B83232"
+                                        CornerRadius="8"
+                                        Opacity="0" />
+                                <Border x:Name="PressedBackground"
+                                        Background="#982828"
+                                        CornerRadius="8"
+                                        Opacity="0" />
+                                <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.16">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DialogTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Foreground" Value="#F4F4F4" />
+            <Setter Property="Background" Value="#22FFFFFF" />
+            <Setter Property="BorderBrush" Value="#30FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CaretBrush" Value="#F4F4F4" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#7ABEFF" />
+                                <Setter TargetName="Root" Property="Background" Value="#2AFFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
@@ -140,6 +691,7 @@
             Background="Transparent"
             SnapsToDevicePixels="True">
         <Grid Background="Transparent">
+            <Grid x:Name="WindowContentLayer">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition x:Name="MenuColumn" Width="62" />
                 <ColumnDefinition Width="*" />
@@ -177,11 +729,49 @@
                                 <Button Style="{StaticResource MenuButtonStyle}"
                                         Click="Navigation_Click">
                                     <StackPanel Orientation="Horizontal" Margin="8,0">
-                                        <TextBlock Width="30"
-                                                   Text="{Binding Icon}"
-                                                   FontFamily="Segoe MDL2 Assets"
-                                                   FontSize="22"
-                                                   TextAlignment="Center" />
+                                        <Grid Width="30">
+                                            <TextBlock Text="{Binding Icon}"
+                                                       FontFamily="Segoe MDL2 Assets"
+                                                       FontSize="22"
+                                                       TextAlignment="Center"
+                                                       VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasAvatar}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+
+                                            <Border Width="24"
+                                                    Height="24"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    ClipToBounds="True">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasAvatar}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Border.Effect>
+                                                    <DropShadowEffect BlurRadius="8"
+                                                                      Color="#000000"
+                                                                      Opacity="0.42"
+                                                                      ShadowDepth="1" />
+                                                </Border.Effect>
+                                                <Image Source="{Binding AvatarUrl}"
+                                                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                            </Border>
+                                        </Grid>
                                         <TextBlock Margin="12,0,0,0"
                                                    Text="{Binding Page, Converter={StaticResource PageTitleConverter}}"
                                                    VerticalAlignment="Center"
@@ -201,47 +791,123 @@
             <Grid Grid.Column="1"
                   Grid.RowSpan="2"
                   Visibility="{Binding CurrentPage, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=Account}">
-                <Border Width="224"
+                <Border x:Name="AccountSecondaryMenuPanel"
+                        Width="224"
                         Margin="24,48,0,38"
                         HorizontalAlignment="Left"
                         Background="#5A4A4A4A"
                         BorderBrush="#35FFFFFF"
                         BorderThickness="1"
-                        CornerRadius="14">
+                        CornerRadius="14"
+                        ClipToBounds="True">
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
-                        <ItemsControl ItemsSource="{Binding Accounts}"
-                                      Margin="14,18,14,10">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type models:LauncherAccount}">
-                                    <Button Style="{StaticResource AccountButtonStyle}"
-                                            Click="Account_Click">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="32" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  ClipToBounds="True">
+                        <ScrollViewer.Resources>
+                            <Style TargetType="ScrollBar" BasedOn="{StaticResource SlimVerticalScrollBarStyle}">
+                                <Setter Property="Margin" Value="0,10,5,14" />
+                                <Setter Property="Opacity" Value="0" />
+                                <Setter Property="IsHitTestVisible" Value="False" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMouseOver, ElementName=AccountSecondaryMenuPanel}" Value="True">
+                                        <Setter Property="Opacity" Value="1" />
+                                        <Setter Property="IsHitTestVisible" Value="True" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ScrollViewer.Resources>
+                        <StackPanel Margin="14,18,14,0">
+                            <ItemsControl ItemsSource="{Binding Accounts}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type models:LauncherAccount}">
+                                        <Grid x:Name="AccountItemRoot"
+                                              Margin="0,0,0,6">
+                                            <Border x:Name="AccountItemBackground"
+                                                    Background="Transparent"
+                                                    CornerRadius="10" />
 
-                                            <Border Width="26"
-                                                    Height="26"
-                                                    HorizontalAlignment="Center"
+                                            <Button Style="{StaticResource AccountButtonStyle}"
+                                                    Margin="0"
+                                                    Click="Account_Click">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="50" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="10" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <Border Width="24"
+                                                            Height="24"
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            ClipToBounds="True">
+                                                        <Image Source="{Binding AvatarUrl}"
+                                                               RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                                    </Border>
+
+                                                    <TextBlock Grid.Column="1"
+                                                               Margin="4,0,8,0"
+                                                               Text="{Binding DisplayName}"
+                                                               Foreground="#F4F4F4"
+                                                               FontSize="16"
+                                                               VerticalAlignment="Center" />
+                                                </Grid>
+                                            </Button>
+
+                                            <Button HorizontalAlignment="Right"
                                                     VerticalAlignment="Center"
-                                                    ClipToBounds="True">
-                                                <Image Source="{Binding AvatarUrl}"
-                                                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
-                                            </Border>
-
-                                            <TextBlock Grid.Column="1"
-                                                       Margin="12,0,0,0"
-                                                       Text="{Binding DisplayName}"
-                                                       Foreground="#F4F4F4"
-                                                       FontSize="16"
-                                                       VerticalAlignment="Center" />
+                                                    Margin="0,0,6,0"
+                                                    Click="DeleteAccount_Click">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource AccountDeleteButtonStyle}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsMouseOver, ElementName=AccountItemRoot}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                                <TextBlock Text="&#xE74D;"
+                                                           FontFamily="Segoe MDL2 Assets"
+                                                           FontSize="14" />
+                                            </Button>
                                         </Grid>
-                                    </Button>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                <Setter TargetName="AccountItemBackground" Property="Background" Value="#3D3D3D" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Button Style="{StaticResource AccountButtonStyle}"
+                                    Click="AddAccount_Click">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="50" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="10" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Width="24"
+                                               Text="&#xE710;"
+                                               FontFamily="Segoe MDL2 Assets"
+                                               FontSize="18"
+                                               TextAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1"
+                                               Margin="4,0,0,0"
+                                               Text="&#x6DFB;&#x52A0;&#x8D26;&#x6237;"
+                                               Foreground="#F4F4F4"
+                                               FontSize="16"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                            </Button>
+                            <Border Height="18"
+                                    IsHitTestVisible="False" />
+                        </StackPanel>
                     </ScrollViewer>
                 </Border>
 
@@ -336,6 +1002,210 @@
                                Text="&#xE8BB;" />
                 </Button>
             </StackPanel>
+
+            </Grid>
+
+            <Grid x:Name="AddAccountDialogOverlay"
+                  Grid.ColumnSpan="2"
+                  Grid.RowSpan="2"
+                  Background="#99000000"
+                  Opacity="0"
+                  Visibility="Collapsed"
+                  shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                <Border Width="420"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="#01000000"
+                        CornerRadius="16"
+                        IsHitTestVisible="False">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="28"
+                                          Color="#000000"
+                                          Opacity="0.34"
+                                          ShadowDepth="0" />
+                    </Border.Effect>
+                </Border>
+                <Border x:Name="AddAccountDialogSurface"
+                        Width="420"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="Transparent"
+                        BorderBrush="#42FFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="16"
+                        ClipToBounds="True">
+                    <Grid ClipToBounds="True">
+                        <Border x:Name="AddAccountDialogBlurLayer"
+                                IsHitTestVisible="False"
+                                CornerRadius="16">
+                            <Border.Background>
+                                <ImageBrush Stretch="Fill" />
+                            </Border.Background>
+                        </Border>
+
+                        <Grid Margin="24">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel>
+                            <TextBlock Text="{Binding AddAccountDialogTitle}"
+                                       Foreground="#F4F4F4"
+                                       FontSize="22"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding AddAccountDialogSubtitle}"
+                                       Margin="0,8,0,0"
+                                       Foreground="#AFFFFFFF"
+                                       FontSize="13" />
+                        </StackPanel>
+
+                        <ListBox Grid.Row="1"
+                                 ItemsSource="{Binding AccountTypeOptions}"
+                                 SelectedItem="{Binding SelectedAccountTypeOption, Mode=TwoWay}"
+                                 ItemContainerStyle="{StaticResource AccountTypeItemStyle}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Margin="0,22,0,18"
+                                 Visibility="{Binding IsAccountTypeStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}"
+                                 shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type models:AccountTypeOption}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="30" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{Binding Icon}"
+                                                   FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="22"
+                                                   Foreground="#F4F4F4"
+                                                   TextAlignment="Center"
+                                                   VerticalAlignment="Center" />
+
+                                        <StackPanel Grid.Column="1"
+                                                    Margin="6,0,0,0">
+                                            <TextBlock Text="{Binding Title}"
+                                                       Foreground="#F4F4F4"
+                                                       FontSize="16"
+                                                       FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Description}"
+                                                       Margin="0,5,0,0"
+                                                       Foreground="#AFFFFFFF"
+                                                       FontSize="12"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <StackPanel Grid.Row="1"
+                                    Margin="0,24,0,26"
+                                    Visibility="{Binding IsOfflineNameStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                            <TextBlock Text="&#x7528;&#x6237;&#x540D;"
+                                       Foreground="#F4F4F4"
+                                       FontSize="13"
+                                       Margin="0,0,0,8" />
+                            <TextBox Style="{StaticResource DialogTextBoxStyle}"
+                                     Text="{Binding NewOfflineAccountName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Text="&#x7528;&#x6237;&#x540D;&#x4E0D;&#x53EF;&#x4E3A;&#x7A7A;"
+                                       Margin="2,8,0,0"
+                                       Foreground="#FFFF8A8A"
+                                       FontSize="12"
+                                       Visibility="{Binding IsNewOfflineAccountNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="2"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Right">
+                            <Button Style="{StaticResource DialogButtonStyle}"
+                                    Content="&#x53D6;&#x6D88;"
+                                    Click="CancelAddAccount_Click" />
+                            <Button Style="{StaticResource PrimaryDialogButtonStyle}"
+                                    Margin="10,0,0,0"
+                                    Content="&#x786E;&#x5B9A;"
+                                    Click="ConfirmAddAccount_Click" />
+                        </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Grid x:Name="DeleteAccountDialogOverlay"
+                  Grid.ColumnSpan="2"
+                  Grid.RowSpan="2"
+                  Background="#99000000"
+                  Opacity="0"
+                  Visibility="Collapsed"
+                  shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                <Border Width="380"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="#01000000"
+                        CornerRadius="16"
+                        IsHitTestVisible="False">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="28"
+                                          Color="#000000"
+                                          Opacity="0.34"
+                                          ShadowDepth="0" />
+                    </Border.Effect>
+                </Border>
+                <Border x:Name="DeleteAccountDialogSurface"
+                        Width="380"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="Transparent"
+                        BorderBrush="#42FFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="16"
+                        ClipToBounds="True">
+                    <Grid ClipToBounds="True">
+                        <Border x:Name="DeleteAccountDialogBlurLayer"
+                                IsHitTestVisible="False"
+                                CornerRadius="16">
+                            <Border.Background>
+                                <ImageBrush Stretch="Fill" />
+                            </Border.Background>
+                        </Border>
+
+                        <Grid Margin="24">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Text="&#x5220;&#x9664;&#x8D26;&#x6237;"
+                                       Foreground="#F4F4F4"
+                                       FontSize="22"
+                                       FontWeight="SemiBold" />
+
+                            <TextBlock Grid.Row="1"
+                                       Margin="0,16,0,24"
+                                       Text="&#x662F;&#x5426;&#x786E;&#x5B9A;&#x5220;&#x9664;&#x8BE5;&#x8D26;&#x6237;&#xFF1F;"
+                                       Foreground="#CFFFFFFF"
+                                       FontSize="14"
+                                       TextWrapping="Wrap" />
+
+                            <StackPanel Grid.Row="2"
+                                        Orientation="Horizontal"
+                                        HorizontalAlignment="Right">
+                                <Button Style="{StaticResource DialogButtonStyle}"
+                                        Content="&#x53D6;&#x6D88;"
+                                        Click="CancelDeleteAccount_Click" />
+                                <Button Style="{StaticResource DangerDialogButtonStyle}"
+                                        Margin="10,0,0,0"
+                                        Content="&#x5220;&#x9664;"
+                                        Click="ConfirmDeleteAccount_Click" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
         </Grid>
     </Border>
 </Window>
