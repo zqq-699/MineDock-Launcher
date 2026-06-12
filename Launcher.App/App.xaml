@@ -1,0 +1,12 @@
+<Application x:Class="Launcher.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:Launcher.App.Converters">
+    <Application.Resources>
+        <converters:BooleanToWidthConverter x:Key="BooleanToWidthConverter" />
+        <converters:BooleanToMenuTextVisibilityConverter x:Key="BooleanToMenuTextVisibilityConverter" />
+        <converters:PageVisibilityConverter x:Key="PageVisibilityConverter" />
+        <converters:CollectionVisibilityConverter x:Key="CollectionVisibilityConverter" />
+        <converters:PageTitleConverter x:Key="PageTitleConverter" />
+    </Application.Resources>
+</Application>
