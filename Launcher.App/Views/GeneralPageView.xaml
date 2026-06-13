@@ -12,6 +12,12 @@
                     <DataTrigger Binding="{Binding CurrentPage}" Value="Account">
                         <Setter Property="Visibility" Value="Collapsed" />
                     </DataTrigger>
+                    <DataTrigger Binding="{Binding CurrentPage}" Value="Home">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding CurrentPage}" Value="Download">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
                 </Style.Triggers>
             </Style>
         </ScrollViewer.Style>

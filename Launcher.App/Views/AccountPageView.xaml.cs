@@ -148,11 +148,9 @@ public partial class AccountPageView : UserControl
 
         if (CopyUuidIcon is not null)
         {
-            CopyUuidIcon.FontFamily = isCopied
-                ? new FontFamily("Segoe UI Symbol")
-                : new FontFamily("Segoe MDL2 Assets");
-            CopyUuidIcon.FontSize = isCopied ? 18 : 15;
-            CopyUuidIcon.Text = isCopied ? "\u2713" : "\uE8C8";
+            CopyUuidIcon.Width = isCopied ? 18 : 16;
+            CopyUuidIcon.Height = isCopied ? 18 : 16;
+            CopyUuidIcon.IconKey = isCopied ? "general/general_passed" : "general/general_copy";
         }
     }
 }

@@ -67,6 +67,12 @@ public sealed class AccountStore : IAccountStore
             .Select(AccountMapper.ToRecord)
             .ToList();
 
+        if (!string.IsNullOrWhiteSpace(settings.SelectedAccountId)
+            && settings.Accounts.All(account => !string.Equals(account.Id, settings.SelectedAccountId, StringComparison.Ordinal)))
+        {
+            settings.SelectedAccountId = null;
+        }
+
         var firstOfflineAccount = settings.Accounts.FirstOrDefault(account => account.IsOffline);
         if (firstOfflineAccount is not null)
             settings.OfflineUsername = firstOfflineAccount.DisplayName;

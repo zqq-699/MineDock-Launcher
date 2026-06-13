@@ -31,6 +31,7 @@ public partial class App : Application
         services.AddSingleton<IAccountStore, AccountStore>();
         services.AddSingleton<IStatusService, StatusService>();
         services.AddSingleton<AccountPageViewModel>();
+        services.AddSingleton<DownloadPageViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 

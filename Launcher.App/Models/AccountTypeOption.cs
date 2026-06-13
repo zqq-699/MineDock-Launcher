@@ -6,4 +6,5 @@ public sealed class AccountTypeOption
     public required string Title { get; init; }
     public required string Description { get; init; }
     public required string Icon { get; init; }
+    public string? IconKey { get; init; }
 }

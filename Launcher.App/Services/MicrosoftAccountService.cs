@@ -17,7 +17,7 @@ namespace Launcher.App.Services;
 
 public sealed class MicrosoftAccountService : IMicrosoftAccountService
 {
-    private const int AvatarSize = 64;
+    private const int AvatarSize = 576;
     private const string MinecraftProfileEndpoint = "https://api.minecraftservices.com/minecraft/profile";
     private static readonly HttpClient HttpClient = new();
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -250,7 +250,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
         if (string.IsNullOrWhiteSpace(uuid))
             return null;
 
-        var avatarPath = Path.Combine(avatarDirectory, $"{uuid}.png");
+        var avatarPath = Path.Combine(avatarDirectory, $"{uuid}-{AvatarSize}.png");
         if (!forceRefresh && File.Exists(avatarPath))
             return new Uri(avatarPath).AbsoluteUri;
 

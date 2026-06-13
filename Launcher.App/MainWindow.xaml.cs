@@ -95,9 +95,16 @@ public partial class MainWindow : Window
 
     private FrameworkElement? ResolvePageRoot(string page)
     {
-        return string.Equals(page, "Account", StringComparison.OrdinalIgnoreCase)
-            ? AccountPageView.RootElement
-            : GeneralPageView.RootElement;
+        if (string.Equals(page, "Home", StringComparison.OrdinalIgnoreCase))
+            return HomePageView.RootElement;
+
+        if (string.Equals(page, "Account", StringComparison.OrdinalIgnoreCase))
+            return AccountPageView.RootElement;
+
+        if (string.Equals(page, "Download", StringComparison.OrdinalIgnoreCase))
+            return DownloadPageView.RootElement;
+
+        return GeneralPageView.RootElement;
     }
 
     private void HandleRenameAccountRequested()

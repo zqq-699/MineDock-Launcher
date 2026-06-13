@@ -36,7 +36,7 @@ internal static class BlurEffectWarmup
                 Effect = new BlurEffect
                 {
                     Radius = 12,
-                    RenderingBias = RenderingBias.Quality
+                    RenderingBias = RenderingBias.Performance
                 }
             };
 

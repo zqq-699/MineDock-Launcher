@@ -4,6 +4,7 @@
                     xmlns:controls="clr-namespace:Launcher.App.Controls">
     <SolidColorBrush x:Key="MenuButtonSelectedBackgroundBrush" Color="#30808080" />
     <SolidColorBrush x:Key="MenuButtonHoverBackgroundBrush" Color="#30606060" />
+    <GridLength x:Key="SecondaryMenuIconColumnWidth">36</GridLength>
 
     <Style x:Key="NavigationMenuTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="12,0,0,0" />
@@ -236,6 +237,7 @@
     </Style>
 
     <Style x:Key="SecondaryMenuItemTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="4,0,8,0" />
         <Setter Property="Foreground" Value="#F4F4F4" />
         <Setter Property="FontSize" Value="16" />
         <Setter Property="VerticalAlignment" Value="Center" />
@@ -261,6 +263,175 @@
         <Setter Property="TextAlignment" Value="Center" />
     </Style>
 
+    <Style x:Key="HomeAvatarContainerStyle" TargetType="Border">
+        <Setter Property="Width" Value="86" />
+        <Setter Property="Height" Value="86" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="ClipToBounds" Value="False" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding HasSelectedAccount}" Value="True">
+                <Setter Property="IsHitTestVisible" Value="True" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="HomeDefaultAvatarGlyphStyle" TargetType="TextBlock">
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect BlurRadius="20"
+                                  Color="#000000"
+                                  Direction="270"
+                                  Opacity="0.62"
+                                  ShadowDepth="8" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="HomeAccountHintTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,4,0,0" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="#A8FFFFFF" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="HomeAccountNameTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,14,0,0" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="#F4FFFFFF" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextAlignment" Value="Center" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="MaxWidth" Value="260" />
+    </Style>
+
+    <Style x:Key="HomeVersionNameTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,12,0,0" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="#F4FFFFFF" />
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="HomeChangeVersionButtonStyle" TargetType="Button">
+        <Setter Property="Margin" Value="0,2,0,0" />
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="Foreground" Value="#9FFFFFFF" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border Background="Transparent">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="#F0FFFFFF" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter Property="Foreground" Value="#FFFFFF" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="HomeLaunchButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="190" />
+        <Setter Property="Height" Value="50" />
+        <Setter Property="Margin" Value="0,22,0,0" />
+        <Setter Property="Foreground" Value="#FFFFFF" />
+        <Setter Property="Background" Value="#0891FE" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            CornerRadius="9">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="18"
+                                              Color="#0891FE"
+                                              Opacity="0.28"
+                                              ShadowDepth="0" />
+                        </Border.Effect>
+                        <Grid>
+                            <Border x:Name="BaseBackground"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="9" />
+                            <Border x:Name="HoverBackground"
+                                    Background="#047EDC"
+                                    CornerRadius="9"
+                                    Opacity="0" />
+                            <Border x:Name="PressedBackground"
+                                    Background="#036FC2"
+                                    CornerRadius="9"
+                                    Opacity="0" />
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1"
+                                                     Duration="0:0:0.16">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="#BFFFFFFF" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                            <Setter TargetName="Root" Property="Effect" Value="{x:Null}" />
+                            <Setter TargetName="BaseBackground" Property="Background" Value="#5A5A5A" />
+                            <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="SectionFieldSurfaceStyle" TargetType="Border">
         <Setter Property="Padding" Value="14,10" />
         <Setter Property="Background" Value="#18FFFFFF" />
@@ -271,7 +442,7 @@
 
     <Style x:Key="SecondaryMenuPanelStyle" TargetType="Border">
         <Setter Property="Width" Value="224" />
-        <Setter Property="Margin" Value="24,88,0,24" />
+        <Setter Property="Margin" Value="24,24,0,24" />
         <Setter Property="HorizontalAlignment" Value="Left" />
         <Setter Property="Background" Value="#5A4A4A4A" />
         <Setter Property="BorderBrush" Value="#24FFFFFF" />
@@ -290,12 +461,33 @@
     </Style>
 
     <Style x:Key="SecondaryMenuHeaderTextStyle" TargetType="TextBlock">
-        <Setter Property="Margin" Value="34,46,0,0" />
-        <Setter Property="HorizontalAlignment" Value="Left" />
-        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Margin" Value="22,18,22,8" />
         <Setter Property="Foreground" Value="#E8FFFFFF" />
-        <Setter Property="FontSize" Value="24" />
+        <Setter Property="FontSize" Value="20" />
         <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <Style x:Key="SecondaryMenuHeaderOverlayStyle" TargetType="Border">
+        <Setter Property="Height" Value="74" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Panel.ZIndex" Value="2" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="CornerRadius" Value="14,14,0,0" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#D8282828" Offset="0" />
+                    <GradientStop Color="#C2282828" Offset="0.72" />
+                    <GradientStop Color="#00282828" Offset="1" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="SecondaryMenuHeaderSpacerStyle" TargetType="Border">
+        <Setter Property="Height" Value="70" />
+        <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
 
     <Style x:Key="SlimScrollRepeatButtonStyle" TargetType="RepeatButton">
@@ -395,7 +587,7 @@
     <Style x:Key="SecondaryMenuScrollBarStyle"
            TargetType="ScrollBar"
            BasedOn="{StaticResource SlimVerticalScrollBarStyle}">
-        <Setter Property="Margin" Value="0,10,5,14" />
+        <Setter Property="Margin" Value="0,74,5,14" />
         <Setter Property="Opacity" Value="0" />
         <Setter Property="IsHitTestVisible" Value="False" />
         <Style.Triggers>
@@ -447,8 +639,168 @@
         </Style.Resources>
     </Style>
 
+    <Style x:Key="DownloadContentHeaderOverlayStyle" TargetType="Border">
+        <Setter Property="Height" Value="132" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Panel.ZIndex" Value="2" />
+        <Setter Property="IsHitTestVisible" Value="True" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#E0141414" Offset="0" />
+                    <GradientStop Color="#D0141414" Offset="0.74" />
+                    <GradientStop Color="#00141414" Offset="1" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DownloadContentBottomOverlayStyle" TargetType="Border">
+        <Setter Property="Height" Value="72" />
+        <Setter Property="VerticalAlignment" Value="Bottom" />
+        <Setter Property="Panel.ZIndex" Value="2" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#00141414" Offset="0" />
+                    <GradientStop Color="#B8141414" Offset="0.74" />
+                    <GradientStop Color="#E0141414" Offset="1" />
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DownloadContentHeaderTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,6,0,0" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Foreground" Value="#F4FFFFFF" />
+        <Setter Property="FontSize" Value="24" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <Style x:Key="DownloadContentHeaderSpacerStyle" TargetType="Border">
+        <Setter Property="Height" Value="132" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+
+    <Style x:Key="DownloadVersionSearchBoxStyle" TargetType="TextBox">
+        <Setter Property="Height" Value="32" />
+        <Setter Property="Margin" Value="0,58,12,0" />
+        <Setter Property="Padding" Value="14,0,7,0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Foreground" Value="#F2FFFFFF" />
+        <Setter Property="CaretBrush" Value="#F2FFFFFF" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="#18FFFFFF" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="SelectionBrush" Value="#660891FE" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Root"
+                            Background="Transparent"
+                            CornerRadius="10">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="12"
+                                              Color="#000000"
+                                              Opacity="0.16"
+                                              ShadowDepth="0" />
+                        </Border.Effect>
+                        <Grid>
+                            <controls:BackdropBlurBorder x:Name="SearchBlurSurface"
+                                                         SourceElement="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
+                                                         UseSourceElementAsRenderRoot="True"
+                                                         Opacity="1"
+                                                         BlurRadius="20"
+                                                         RenderScale="0.58"
+                                                         IsRealtimeRefreshEnabled="True"
+                                                         TintColor="#66252525"
+                                                         BorderBrush="{TemplateBinding BorderBrush}"
+                                                         BorderThickness="{TemplateBinding BorderThickness}"
+                                                         CornerRadius="10"
+                                                         ClipToBounds="True"
+                                                         controls:RoundedClip.Radius="10" />
+                            <Border x:Name="HoverLayer"
+                                    Background="#10FFFFFF"
+                                    CornerRadius="10"
+                                    Opacity="0" />
+                            <controls:SvgIcon Width="15"
+                                              Height="15"
+                                              Margin="8,0,0,0"
+                                              IconKey="general/general_search"
+                                              Foreground="#70FFFFFF"
+                                              HorizontalAlignment="Left"
+                                              VerticalAlignment="Center"
+                                              IsHitTestVisible="False" />
+                            <TextBlock x:Name="SearchPlaceholderText"
+                                       Margin="25,0,0,0"
+                                           Text="&#x641C;&#x7D22;"
+                                           Foreground="#70FFFFFF"
+                                           FontSize="13"
+                                       HorizontalAlignment="Left"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False"
+                                       Visibility="Collapsed" />
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="Center">
+                                <ScrollViewer.RenderTransform>
+                                    <TranslateTransform Y="-1" />
+                                </ScrollViewer.RenderTransform>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="Text" Value="" />
+                                <Condition Property="IsKeyboardFocusWithin" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="SearchPlaceholderText" Property="Visibility" Value="Visible" />
+                        </MultiTrigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="HoverLayer" Property="Opacity" Value="1" />
+                            <Setter TargetName="SearchBlurSurface" Property="BorderBrush" Value="#20FFFFFF" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="HoverLayer" Property="Opacity" Value="1" />
+                            <Setter TargetName="SearchBlurSurface" Property="BorderBrush" Value="#42FFFFFF" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DownloadContentBottomSpacerStyle" TargetType="Border">
+        <Setter Property="Height" Value="64" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+
+    <Style x:Key="DownloadContentScrollBarStyle"
+           TargetType="ScrollBar"
+           BasedOn="{StaticResource MainContentScrollBarStyle}">
+        <Setter Property="Margin" Value="0,132,2,72" />
+    </Style>
+
+    <Style x:Key="DownloadContentScrollViewerStyle"
+           TargetType="ScrollViewer"
+           BasedOn="{StaticResource MainContentScrollViewerStyle}">
+        <Style.Resources>
+            <Style TargetType="ScrollBar" BasedOn="{StaticResource DownloadContentScrollBarStyle}" />
+        </Style.Resources>
+    </Style>
+
     <Style x:Key="SecondaryMenuItemsPanelStyle" TargetType="StackPanel">
-        <Setter Property="Margin" Value="14,18,14,0" />
+        <Setter Property="Margin" Value="14,4,14,0" />
     </Style>
 
     <Style x:Key="SecondaryMenuBottomSpacerStyle" TargetType="Border">
@@ -474,6 +826,108 @@
                         <ContentPresenter Margin="0,10,0,0"
                                           ContentSource="Content" />
                     </StackPanel>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DownloadVersionListButtonStyle" TargetType="Button">
+        <Setter Property="MinHeight" Value="58" />
+        <Setter Property="Padding" Value="16,10" />
+        <Setter Property="Foreground" Value="#F2F2F2" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            CornerRadius="10">
+                        <Grid>
+                            <Border x:Name="SelectedBackground"
+                                    Background="#3D3D3D"
+                                    CornerRadius="10"
+                                    Opacity="0" />
+                            <Border x:Name="HoverBackground"
+                                    Background="#20FFFFFF"
+                                    CornerRadius="10"
+                                    Opacity="0" />
+                            <Border x:Name="PressedBackground"
+                                    Background="#2EFFFFFF"
+                                    CornerRadius="10"
+                                    Opacity="0" />
+                            <Border x:Name="TopSeparator"
+                                    Height="1"
+                                    Margin="44,0,30,0"
+                                    VerticalAlignment="Top"
+                                    Background="#14FFFFFF" />
+                            <Border x:Name="BottomSeparator"
+                                    Height="1"
+                                    Margin="44,0,30,0"
+                                    VerticalAlignment="Bottom"
+                                    Background="#14FFFFFF" />
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1"
+                                                     Duration="0:0:0.16">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
+                            <Setter TargetName="TopSeparator" Property="Opacity" Value="0" />
+                            <Setter TargetName="BottomSeparator" Property="Opacity" Value="0" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="TopSeparator" Property="Opacity" Value="0" />
+                            <Setter TargetName="BottomSeparator" Property="Opacity" Value="0" />
+                        </Trigger>
+                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                            <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
+                            <Setter TargetName="TopSeparator" Property="Opacity" Value="0" />
+                            <Setter TargetName="BottomSeparator" Property="Opacity" Value="0" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsFirstVisible}" Value="True">
+                            <Setter TargetName="TopSeparator" Property="Opacity" Value="0" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsLastVisible}" Value="True">
+                            <Setter TargetName="BottomSeparator" Property="Opacity" Value="0" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsPreviousItemHighlighted}" Value="True">
+                            <Setter TargetName="TopSeparator" Property="Opacity" Value="0" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsNextItemHighlighted}" Value="True">
+                            <Setter TargetName="BottomSeparator" Property="Opacity" Value="0" />
+                        </DataTrigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

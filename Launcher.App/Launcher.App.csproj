@@ -5,6 +5,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Assets\Icons\**\*.svg" />
+    <Resource Include="Assets\Icons\**\*.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="CmlLib.Core.Auth.Microsoft" Version="3.3.1" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.9" />

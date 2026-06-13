@@ -321,7 +321,7 @@ public sealed class DialogOverlayController
             Effect = new BlurEffect
             {
                 Radius = BlurRadius,
-                RenderingBias = RenderingBias.Quality
+                RenderingBias = RenderingBias.Performance
             }
         };
 

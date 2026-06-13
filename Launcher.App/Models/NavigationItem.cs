@@ -8,6 +8,7 @@ public sealed partial class NavigationItem : ObservableObject
     public required string Page { get; init; }
     public required string Title { get; init; }
     public required string Icon { get; init; }
+    public string? IconKey { get; init; }
     public LoaderKind? Loader { get; init; }
 
     [ObservableProperty]

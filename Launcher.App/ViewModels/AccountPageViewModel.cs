@@ -133,6 +133,14 @@ public sealed partial class AccountPageViewModel : ObservableObject
     public bool CanShowRenameAccountCancelButton => !IsRenameAccountDialogBusy && IsRenameAccountInputStep;
     public bool CanConfirmRenameAccountDialog => !IsRenameAccountDialogBusy
         && (IsRenameAccountResultStep || (IsRenameAccountInputStep && !string.IsNullOrWhiteSpace(RenameAccountName)));
+    public string? MicrosoftLoginIconKey => IsMicrosoftLoginStep
+        ? "general/general_external-web"
+        : IsMicrosoftLoginResultStep
+            ? IsMicrosoftLoginSuccessful ? "general/general_passed" : "general/general_attention"
+            : null;
+    public string? RenameAccountIconKey => IsRenameAccountResultStep
+        ? IsRenameAccountSuccessful ? "general/general_passed" : "general/general_attention"
+        : null;
 
     public string RenameAccountDialogTitle => RenameAccountDialogStep switch
     {
@@ -177,14 +185,16 @@ public sealed partial class AccountPageViewModel : ObservableObject
             Kind = AccountTypeKinds.Offline,
             Title = "\u79bb\u7ebf\u8d26\u6237",
             Description = "\u4f7f\u7528\u672c\u5730\u7528\u6237\u540d\u8fdb\u5165\u6e38\u620f\u3002",
-            Icon = "\uE77B"
+            Icon = "\uE77B",
+            IconKey = "account_page/account_page_add_account_dialog_offline_user"
         },
         new()
         {
             Kind = AccountTypeKinds.Microsoft,
             Title = "\u6b63\u7248\u8d26\u6237",
             Description = "\u901a\u8fc7 Microsoft \u8d26\u6237\u767b\u5f55\u5e76\u83b7\u53d6\u76ae\u80a4\u5934\u50cf\u3002",
-            Icon = "\uE72E"
+            Icon = "\uE72E",
+            IconKey = "account_page/account_page_add_account_dialog_online_user"
         }
     ];
 
@@ -195,10 +205,20 @@ public sealed partial class AccountPageViewModel : ObservableObject
         foreach (var account in await accountStore.LoadAsync(settings))
             Accounts.Add(account);
 
-        SelectedAccount = null;
+        var rememberedAccount = Accounts.FirstOrDefault(account =>
+            string.Equals(account.Id, settings.SelectedAccountId, StringComparison.Ordinal));
+        if (rememberedAccount is not null)
+            SelectAccount(rememberedAccount, persistSelection: false);
+        else
+            ClearSelectedAccount();
     }
 
     public void SelectAccount(LauncherAccount account)
+    {
+        SelectAccount(account, persistSelection: true);
+    }
+
+    private void SelectAccount(LauncherAccount account, bool persistSelection)
     {
         IsAccountProfileBusy = false;
         SelectedAccount = account;
@@ -206,6 +226,9 @@ public sealed partial class AccountPageViewModel : ObservableObject
             item.IsSelected = ReferenceEquals(item, account);
 
         ResetSelectedAccountProfileState(account);
+        settings.SelectedAccountId = account.Id;
+        if (persistSelection)
+            _ = PersistAccountOrderAsync();
     }
 
     public async Task ChangeSelectedAccountSkinAsync(string skinFilePath)
@@ -331,7 +354,7 @@ public sealed partial class AccountPageViewModel : ObservableObject
 
             if (existing is not null)
             {
-                SelectAccount(existing);
+                SelectAccount(existing, persistSelection: false);
                 await PersistAccountOrderAsync();
                 var message = $"\u6b63\u7248\u8d26\u6237 {existing.DisplayName} \u5df2\u7ecf\u6dfb\u52a0\u8fc7\u4e86\uff0c\u5df2\u4e3a\u4f60\u9009\u4e2d";
                 ReportStatus(message);
@@ -340,7 +363,7 @@ public sealed partial class AccountPageViewModel : ObservableObject
             }
 
             Accounts.Add(account);
-            SelectAccount(account);
+            SelectAccount(account, persistSelection: false);
             await PersistAccountOrderAsync();
             var addedMessage = $"\u5df2\u6dfb\u52a0\u6b63\u7248\u8d26\u6237 {account.DisplayName}";
             ReportStatus(addedMessage);
@@ -413,7 +436,7 @@ public sealed partial class AccountPageViewModel : ObservableObject
         };
 
         Accounts.Add(account);
-        SelectAccount(account);
+        SelectAccount(account, persistSelection: false);
         await PersistAccountOrderAsync();
 
         IsAddAccountDialogOpen = false;
@@ -441,7 +464,7 @@ public sealed partial class AccountPageViewModel : ObservableObject
         var deletedName = account.DisplayName;
 
         if (ReferenceEquals(SelectedAccount, account))
-            SelectedAccount = null;
+            ClearSelectedAccount();
 
         Accounts.Remove(account);
         IsDeleteAccountDialogOpen = false;
@@ -563,6 +586,7 @@ public sealed partial class AccountPageViewModel : ObservableObject
     partial void OnIsMicrosoftLoginSuccessfulChanged(bool value)
     {
         OnPropertyChanged(nameof(AddAccountDialogTitle));
+        OnPropertyChanged(nameof(MicrosoftLoginIconKey));
     }
 
     partial void OnIsMicrosoftAccountAlreadyAddedChanged(bool value)
@@ -610,6 +634,7 @@ public sealed partial class AccountPageViewModel : ObservableObject
     partial void OnIsRenameAccountSuccessfulChanged(bool value)
     {
         OnPropertyChanged(nameof(RenameAccountDialogTitle));
+        OnPropertyChanged(nameof(RenameAccountIconKey));
     }
 
     partial void OnRenameAccountNameChanged(string value)
@@ -633,6 +658,7 @@ public sealed partial class AccountPageViewModel : ObservableObject
         OnPropertyChanged(nameof(IsMicrosoftLoginStep));
         OnPropertyChanged(nameof(IsMicrosoftLoginResultStep));
         OnPropertyChanged(nameof(IsMicrosoftStatusStep));
+        OnPropertyChanged(nameof(MicrosoftLoginIconKey));
         NotifyAddAccountDialogActionPropertiesChanged();
         OnPropertyChanged(nameof(IsMicrosoftAccountTypeSelected));
         OnPropertyChanged(nameof(AddAccountDialogTitle));
@@ -653,6 +679,7 @@ public sealed partial class AccountPageViewModel : ObservableObject
         OnPropertyChanged(nameof(IsRenameAccountStatusStep));
         OnPropertyChanged(nameof(IsRenameAccountResultStep));
         OnPropertyChanged(nameof(IsRenameAccountMessageStep));
+        OnPropertyChanged(nameof(RenameAccountIconKey));
         NotifyRenameAccountDialogActionPropertiesChanged();
         OnPropertyChanged(nameof(RenameAccountDialogTitle));
         OnPropertyChanged(nameof(RenameAccountDialogSubtitle));
@@ -678,6 +705,7 @@ public sealed partial class AccountPageViewModel : ObservableObject
 
     private async Task PersistAccountOrderAsync()
     {
+        settings.SelectedAccountId = SelectedAccount?.Id;
         await accountStore.SaveOrderAsync(settings, Accounts);
     }
 
@@ -783,7 +811,16 @@ public sealed partial class AccountPageViewModel : ObservableObject
         foreach (var item in Accounts)
             item.IsSelected = ReferenceEquals(item, newAccount);
 
+        settings.SelectedAccountId = newAccount.Id;
         NotifySelectedAccountCapabilityPropertiesChanged();
+    }
+
+    private void ClearSelectedAccount()
+    {
+        SelectedAccount = null;
+        settings.SelectedAccountId = null;
+        foreach (var item in Accounts)
+            item.IsSelected = false;
     }
 
     private void ResetAddAccountDialogState(bool clearOfflineName)

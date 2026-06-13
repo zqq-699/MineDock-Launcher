@@ -171,8 +171,8 @@ public static class SmoothScrollBehavior
             if (GetAnimationVersion(scrollViewer) != animationVersion)
                 return;
 
-            scrollViewer.BeginAnimation(AnimatedVerticalOffsetProperty, null);
             SetIsInternalScrollUpdate(scrollViewer, true);
+            scrollViewer.BeginAnimation(AnimatedVerticalOffsetProperty, null);
             SetAnimatedVerticalOffset(scrollViewer, nextOffset);
             scrollViewer.ScrollToVerticalOffset(nextOffset);
             SetTargetVerticalOffset(scrollViewer, nextOffset);

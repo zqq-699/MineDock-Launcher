@@ -1,4 +1,5 @@
 using System.Net;
+using Launcher.App.ViewModels;
 using Launcher.Core.Models;
 using Launcher.Core.Services;
 
@@ -194,6 +195,81 @@ public sealed class LauncherCoreTests : IDisposable
         Assert.Contains("categories%3Afabric", handler.LastRequest.Query);
     }
 
+    [Fact]
+    public async Task DownloadPageShowsOnlyReleaseVersionsForReleaseCategory()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.21.4", "Release", false),
+            new MinecraftVersionInfo("24w45a", "Snapshot", false),
+            new MinecraftVersionInfo("1.20.1", "Release", false)
+        ]);
+        var viewModel = new DownloadPageViewModel(service);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+
+        Assert.True(viewModel.HasVisibleVersions);
+        Assert.Equal(["1.21.4", "1.20.1"], viewModel.VisibleVersions.Select(version => version.Name));
+        Assert.True(viewModel.VisibleVersions.First().IsFirstVisible);
+        Assert.True(viewModel.VisibleVersions.Last().IsLastVisible);
+        Assert.False(viewModel.HasVersionEmptyMessage);
+    }
+
+    [Fact]
+    public async Task DownloadPageShowsPlaceholderForUnimplementedCategory()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.21.4", "Release", false)
+        ]);
+        var viewModel = new DownloadPageViewModel(service);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        viewModel.SelectVersionCategoryCommand.Execute(viewModel.VersionCategories.Single(category => category.Id == "snapshot"));
+
+        Assert.Empty(viewModel.VisibleVersions);
+        Assert.True(viewModel.HasVersionEmptyMessage);
+        Assert.Contains("\u7a0d\u540e\u5b9e\u73b0", viewModel.VersionEmptyMessage);
+    }
+
+    [Fact]
+    public async Task DownloadPageSelectsVersionItem()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.21.4", "Release", false),
+            new MinecraftVersionInfo("1.20.1", "Release", false)
+        ]);
+        var viewModel = new DownloadPageViewModel(service);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        var version = viewModel.VisibleVersions.Last();
+        viewModel.SelectMinecraftVersionCommand.Execute(version);
+
+        Assert.Same(version, viewModel.SelectedMinecraftVersion);
+        Assert.True(version.IsSelected);
+        Assert.False(viewModel.VisibleVersions.First().IsSelected);
+    }
+
+    [Fact]
+    public async Task DownloadPageSearchFiltersReleaseVersions()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.21.4", "Release", false),
+            new MinecraftVersionInfo("1.20.6", "Release", false),
+            new MinecraftVersionInfo("1.20.1", "Release", false)
+        ]);
+        var viewModel = new DownloadPageViewModel(service);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        viewModel.VersionSearchQuery = "1.20";
+
+        Assert.Equal(["1.20.6", "1.20.1"], viewModel.VisibleVersions.Select(version => version.Name));
+        Assert.True(viewModel.VisibleVersions.First().IsFirstVisible);
+        Assert.True(viewModel.VisibleVersions.Last().IsLastVisible);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(tempRoot))
@@ -216,6 +292,21 @@ public sealed class LauncherCoreTests : IDisposable
         {
             Directory.CreateDirectory(gameDirectory);
             return Task.FromResult(minecraftVersion);
+        }
+    }
+
+    private sealed class FakeGameVersionService : IGameVersionService
+    {
+        private readonly IReadOnlyList<MinecraftVersionInfo> versions;
+
+        public FakeGameVersionService(IReadOnlyList<MinecraftVersionInfo> versions)
+        {
+            this.versions = versions;
+        }
+
+        public Task<IReadOnlyList<MinecraftVersionInfo>> GetVersionsAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(versions);
         }
     }
 

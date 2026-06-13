@@ -1,6 +1,7 @@
 <UserControl x:Class="Launcher.App.Views.AddAccountDialogView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Launcher.App.Controls"
              xmlns:models="clr-namespace:Launcher.App.Models"
              Focusable="False">
     <Grid Style="{StaticResource DialogContentGridStyle}">
@@ -30,12 +31,44 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="{Binding Icon}"
-                                   FontFamily="Segoe MDL2 Assets"
-                                   FontSize="22"
-                                   Foreground="#F4F4F4"
-                                   TextAlignment="Center"
-                                   VerticalAlignment="Center" />
+                        <Grid Width="30"
+                              Height="30">
+                            <controls:SvgIcon Width="24"
+                                              Height="24"
+                                              IconKey="{Binding IconKey}"
+                                              Foreground="#F4F4F4"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center">
+                                <controls:SvgIcon.Style>
+                                    <Style TargetType="{x:Type controls:SvgIcon}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IconKey}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </controls:SvgIcon.Style>
+                            </controls:SvgIcon>
+
+                            <TextBlock Text="{Binding Icon}"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="22"
+                                       Foreground="#F4F4F4"
+                                       TextAlignment="Center"
+                                       VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IconKey}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
 
                         <StackPanel Grid.Column="1"
                                     Margin="6,0,0,0">
@@ -69,25 +102,52 @@
         <StackPanel Grid.Row="1"
                     Style="{StaticResource DialogFormPanelStyle}"
                     Visibility="{Binding IsMicrosoftStatusStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
-            <TextBlock Text="{Binding MicrosoftLoginIcon}"
-                       FontFamily="Segoe MDL2 Assets"
-                       FontSize="30"
-                       HorizontalAlignment="Center"
-                       TextAlignment="Center">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Foreground" Value="#F4F4F4" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsMicrosoftLoginResultStep}" Value="True">
-                                <Setter Property="Foreground" Value="#FF8A8A" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding IsMicrosoftLoginSuccessful}" Value="True">
-                                <Setter Property="Foreground" Value="#7DFFB2" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
+            <Grid Width="34"
+                  Height="34"
+                  HorizontalAlignment="Center">
+                <controls:SvgIcon Width="30"
+                                  Height="30"
+                                  IconKey="{Binding MicrosoftLoginIconKey}"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center">
+                    <controls:SvgIcon.Style>
+                        <Style TargetType="{x:Type controls:SvgIcon}">
+                            <Setter Property="Foreground" Value="#F4F4F4" />
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding MicrosoftLoginIconKey}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsMicrosoftLoginResultStep}" Value="True">
+                                    <Setter Property="Foreground" Value="#FF8A8A" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsMicrosoftLoginSuccessful}" Value="True">
+                                    <Setter Property="Foreground" Value="#7DFFB2" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </controls:SvgIcon.Style>
+                </controls:SvgIcon>
+
+                <TextBlock Text="{Binding MicrosoftLoginIcon}"
+                           FontFamily="Segoe MDL2 Assets"
+                           FontSize="30"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           TextAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Setter Property="Foreground" Value="#F4F4F4" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding MicrosoftLoginIconKey}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
             <TextBlock Text="{Binding MicrosoftLoginMessage}"
                        Margin="0,16,0,0"
                        Style="{StaticResource DialogBodyTextStyle}"

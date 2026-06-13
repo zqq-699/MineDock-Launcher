@@ -39,9 +39,39 @@ public sealed class BackdropBlurBorder : Border
             typeof(BackdropBlurBorder),
             new PropertyMetadata(1d, OnBackdropPropertyChanged));
 
+    public static readonly DependencyProperty IsRealtimeRefreshEnabledProperty =
+        DependencyProperty.Register(
+            nameof(IsRealtimeRefreshEnabled),
+            typeof(bool),
+            typeof(BackdropBlurBorder),
+            new PropertyMetadata(false, OnRealtimeRefreshEnabledChanged));
+
+    public static readonly DependencyProperty IsSourceScrollRefreshEnabledProperty =
+        DependencyProperty.Register(
+            nameof(IsSourceScrollRefreshEnabled),
+            typeof(bool),
+            typeof(BackdropBlurBorder),
+            new PropertyMetadata(false, OnSourceRefreshPropertyChanged));
+
+    public static readonly DependencyProperty BlurRenderingBiasProperty =
+        DependencyProperty.Register(
+            nameof(BlurRenderingBias),
+            typeof(RenderingBias),
+            typeof(BackdropBlurBorder),
+            new PropertyMetadata(RenderingBias.Performance, OnBackdropPropertyChanged));
+
+    public static readonly DependencyProperty UseSourceElementAsRenderRootProperty =
+        DependencyProperty.Register(
+            nameof(UseSourceElementAsRenderRoot),
+            typeof(bool),
+            typeof(BackdropBlurBorder),
+            new PropertyMetadata(false, OnBackdropPropertyChanged));
+
     private bool isRefreshQueued;
+    private bool isRenderRefreshQueued;
     private int queuedAttempts;
     private EventHandler? realtimeRefreshHandler;
+    private ScrollViewer? observedSourceScrollViewer;
     private DateTime lastRealtimeRefreshUtc;
 
     public UIElement? SourceElement
@@ -68,18 +98,78 @@ public sealed class BackdropBlurBorder : Border
         set => SetValue(RenderScaleProperty, value);
     }
 
+    public bool IsRealtimeRefreshEnabled
+    {
+        get => (bool)GetValue(IsRealtimeRefreshEnabledProperty);
+        set => SetValue(IsRealtimeRefreshEnabledProperty, value);
+    }
+
+    public bool IsSourceScrollRefreshEnabled
+    {
+        get => (bool)GetValue(IsSourceScrollRefreshEnabledProperty);
+        set => SetValue(IsSourceScrollRefreshEnabledProperty, value);
+    }
+
+    public RenderingBias BlurRenderingBias
+    {
+        get => (RenderingBias)GetValue(BlurRenderingBiasProperty);
+        set => SetValue(BlurRenderingBiasProperty, value);
+    }
+
+    public bool UseSourceElementAsRenderRoot
+    {
+        get => (bool)GetValue(UseSourceElementAsRenderRootProperty);
+        set => SetValue(UseSourceElementAsRenderRootProperty, value);
+    }
+
     public BackdropBlurBorder()
     {
-        Loaded += (_, _) => QueueRefresh();
+        Loaded += (_, _) =>
+        {
+            UpdateSourceScrollSubscription();
+            QueueRefresh();
+            if (IsRealtimeRefreshEnabled)
+                StartRealtimeRefresh();
+        };
         SizeChanged += (_, _) => QueueRefresh();
-        IsVisibleChanged += (_, _) => QueueRefresh();
-        Unloaded += (_, _) => StopRealtimeRefresh();
+        IsVisibleChanged += (_, _) =>
+        {
+            UpdateSourceScrollSubscription();
+            QueueRefresh();
+        };
+        Unloaded += (_, _) =>
+        {
+            StopRealtimeRefresh();
+            ClearSourceScrollSubscription();
+        };
     }
 
     private static void OnBackdropPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is BackdropBlurBorder border)
+        {
+            if (e.Property == SourceElementProperty)
+                border.UpdateSourceScrollSubscription();
+
             border.QueueRefresh();
+        }
+    }
+
+    private static void OnRealtimeRefreshEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not BackdropBlurBorder border)
+            return;
+
+        if (e.NewValue is true && border.IsLoaded)
+            border.StartRealtimeRefresh();
+        else
+            border.StopRealtimeRefresh();
+    }
+
+    private static void OnSourceRefreshPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is BackdropBlurBorder border)
+            border.UpdateSourceScrollSubscription();
     }
 
     public void RequestRefresh()
@@ -134,16 +224,67 @@ public sealed class BackdropBlurBorder : Border
             DispatcherPriority.ApplicationIdle);
     }
 
+    private void QueueRenderRefresh()
+    {
+        if (isRenderRefreshQueued)
+            return;
+
+        isRenderRefreshQueued = true;
+        Dispatcher.BeginInvoke(
+            () =>
+            {
+                isRenderRefreshQueued = false;
+                Refresh();
+            },
+            DispatcherPriority.Render);
+    }
+
+    private void UpdateSourceScrollSubscription()
+    {
+        var scrollViewer = IsLoaded && IsVisible && IsSourceScrollRefreshEnabled
+            ? SourceElement as ScrollViewer
+            : null;
+
+        if (ReferenceEquals(observedSourceScrollViewer, scrollViewer))
+            return;
+
+        ClearSourceScrollSubscription();
+        observedSourceScrollViewer = scrollViewer;
+        if (observedSourceScrollViewer is not null)
+            observedSourceScrollViewer.ScrollChanged += SourceScrollViewer_ScrollChanged;
+    }
+
+    private void ClearSourceScrollSubscription()
+    {
+        if (observedSourceScrollViewer is null)
+            return;
+
+        observedSourceScrollViewer.ScrollChanged -= SourceScrollViewer_ScrollChanged;
+        observedSourceScrollViewer = null;
+    }
+
+    private void SourceScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        QueueRenderRefresh();
+    }
+
     private bool Refresh()
     {
         if (!IsVisible || ActualWidth <= 0 || ActualHeight <= 0 || SourceElement is null)
             return false;
 
         var window = Window.GetWindow(SourceElement);
-        if (window?.Content is not FrameworkElement sourceRoot
+        var sourceRoot = UseSourceElementAsRenderRoot
+            ? SourceElement as FrameworkElement
+            : window?.Content as FrameworkElement;
+        sourceRoot ??= window?.Content as FrameworkElement;
+        if (sourceRoot is null
             || sourceRoot.ActualWidth <= 0
             || sourceRoot.ActualHeight <= 0)
+        {
+            ApplyFallbackBackground();
             return false;
+        }
 
         var dpi = VisualTreeHelper.GetDpi(sourceRoot);
         var renderScale = Math.Clamp(RenderScale, 0.35d, 1d);
@@ -169,7 +310,10 @@ public sealed class BackdropBlurBorder : Border
 
         var targetRect = IntersectWithSource(new Int32Rect(cropX, cropY, cropWidth, cropHeight), sourceWidth, sourceHeight);
         if (targetRect.Width <= 0 || targetRect.Height <= 0)
+        {
+            ApplyFallbackBackground();
             return false;
+        }
 
         var blurPaddingX = Math.Max(1, (int)Math.Ceiling(BlurRadius * renderDpiScaleX * 2));
         var blurPaddingY = Math.Max(1, (int)Math.Ceiling(BlurRadius * renderDpiScaleY * 2));
@@ -183,12 +327,15 @@ public sealed class BackdropBlurBorder : Border
             sourceHeight);
 
         if (expandedRect.Width <= 0 || expandedRect.Height <= 0)
+        {
+            ApplyFallbackBackground();
             return false;
+        }
 
         var expandedCrop = new CroppedBitmap(rendered, expandedRect);
         expandedCrop.Freeze();
 
-        var blurredExpanded = CreateBlurredBitmap(expandedCrop, renderDpi, BlurRadius);
+        var blurredExpanded = CreateBlurredBitmap(expandedCrop, renderDpi, BlurRadius, BlurRenderingBias);
         var blurredTarget = new CroppedBitmap(
             blurredExpanded,
             new Int32Rect(
@@ -205,7 +352,12 @@ public sealed class BackdropBlurBorder : Border
         return true;
     }
 
-    private static BitmapSource CreateBlurredBitmap(BitmapSource source, DpiScale dpi, double blurRadius)
+    private void ApplyFallbackBackground()
+    {
+        Background = new SolidColorBrush(TintColor);
+    }
+
+    private static BitmapSource CreateBlurredBitmap(BitmapSource source, DpiScale dpi, double blurRadius, RenderingBias renderingBias)
     {
         var width = source.PixelWidth / dpi.DpiScaleX;
         var height = source.PixelHeight / dpi.DpiScaleY;
@@ -219,7 +371,7 @@ public sealed class BackdropBlurBorder : Border
             Effect = new BlurEffect
             {
                 Radius = blurRadius,
-                RenderingBias = RenderingBias.Quality
+                RenderingBias = renderingBias
             }
         };
 

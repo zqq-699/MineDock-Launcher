@@ -4,7 +4,7 @@ namespace Launcher.App.Models;
 
 public sealed partial class LauncherAccount : ObservableObject
 {
-    private const string DefaultSteveAvatarUrl = "https://minotar.net/avatar/Steve/32.png";
+    public const string DefaultSteveAvatarUrl = "https://minotar.net/avatar/Steve/32.png";
 
     public required string Id { get; init; }
     public required string DisplayName { get; init; }

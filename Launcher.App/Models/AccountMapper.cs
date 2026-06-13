@@ -24,7 +24,7 @@ internal static class AccountMapper
             Id = account.Id,
             DisplayName = string.IsNullOrWhiteSpace(record.DisplayName) ? account.DisplayName : record.DisplayName,
             Uuid = account.Uuid,
-            AvatarSource = string.IsNullOrWhiteSpace(record.AvatarSource) ? account.AvatarSource : record.AvatarSource,
+            AvatarSource = string.IsNullOrWhiteSpace(account.AvatarSource) ? record.AvatarSource : account.AvatarSource,
             IsOffline = account.IsOffline,
             CachedCapeOptions = ToCapeOptions(record.Capes)
         };

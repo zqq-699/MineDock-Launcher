@@ -13,7 +13,6 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly ISettingsService settingsService;
     private readonly IGameVersionService gameVersionService;
     private readonly IGameInstanceService instanceService;
-    private readonly ILaunchService launchService;
     private readonly IModService modService;
     private readonly IModrinthService modrinthService;
     private readonly IReadOnlyDictionary<LoaderKind, ILoaderProvider> loaderProviders;
@@ -63,16 +62,23 @@ public sealed partial class MainViewModel : ObservableObject
         IModrinthService modrinthService,
         IEnumerable<ILoaderProvider> loaderProviders,
         AccountPageViewModel accountPage,
+        DownloadPageViewModel downloadPage,
         IStatusService statusService)
     {
         this.settingsService = settingsService;
         this.gameVersionService = gameVersionService;
         this.instanceService = instanceService;
-        this.launchService = launchService;
         this.modService = modService;
         this.modrinthService = modrinthService;
         this.loaderProviders = loaderProviders.ToDictionary(provider => provider.Kind);
         AccountPage = accountPage;
+        DownloadPage = downloadPage;
+        HomePage = new HomePageViewModel(
+            launchService,
+            AccountPage,
+            statusService,
+            NavigateToPage,
+            percent => ProgressPercent = percent);
 
         statusService.MessageReported += message => StatusMessage = message;
         AccountPage.PropertyChanged += (_, e) =>
@@ -97,14 +103,18 @@ public sealed partial class MainViewModel : ObservableObject
 
     public AccountPageViewModel AccountPage { get; }
 
+    public HomePageViewModel HomePage { get; }
+
+    public DownloadPageViewModel DownloadPage { get; }
+
     public ObservableCollection<NavigationItem> NavigationItems { get; } =
     [
-        new() { Page = "Account", Title = "\u8d26\u6237", Icon = "\uE77B" },
-        new() { Page = "Home", Title = "\u4e3b\u9875", Icon = "\uE80F" },
-        new() { Page = "Download", Title = "\u6e38\u620f\u4e0b\u8f7d", Icon = "\uE896" },
-        new() { Page = "GameSettings", Title = "\u6e38\u620f\u8bbe\u7f6e", Icon = "\uE713" },
-        new() { Page = "Resources", Title = "\u8d44\u6e90\u4e2d\u5fc3", Icon = "\uE8F1" },
-        new() { Page = "Settings", Title = "\u8bbe\u7f6e", Icon = "\uE713" }
+        new() { Page = "Account", Title = "\u8d26\u6237", Icon = "\uE77B", IconKey = "main_menu_account" },
+        new() { Page = "Home", Title = "\u4e3b\u9875", Icon = "\uE80F", IconKey = "main_menu_launch" },
+        new() { Page = "Download", Title = "\u6e38\u620f\u4e0b\u8f7d", Icon = "\uE896", IconKey = "main_menu_instance_download" },
+        new() { Page = "GameSettings", Title = "\u6e38\u620f\u8bbe\u7f6e", Icon = "\uE713", IconKey = "main_menu_instance_setting" },
+        new() { Page = "Resources", Title = "\u8d44\u6e90\u4e2d\u5fc3", Icon = "\uE8F1", IconKey = "main_menu_library" },
+        new() { Page = "Settings", Title = "\u8bbe\u7f6e", Icon = "\uE713", IconKey = "main_menu_setting" }
     ];
 
     public ObservableCollection<NavigationItem> SecondaryItems { get; } = [];
@@ -122,11 +132,12 @@ public sealed partial class MainViewModel : ObservableObject
         Settings = await settingsService.LoadAsync();
         IsMenuExpanded = Settings.IsMenuExpanded;
         await AccountPage.InitializeAsync(Settings);
+        HomePage.SetSettings(Settings);
         await RefreshInstancesAsync();
-        await LoadMinecraftVersionsAsync();
         UpdateSecondaryItems();
         UpdateNavigationSelection();
         UpdateAccountNavigationAvatar();
+        HomePage.Initialize(Settings, SelectedInstance);
     }
 
     [RelayCommand]
@@ -233,18 +244,6 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task LaunchAsync()
-    {
-        if (SelectedInstance is null)
-        {
-            StatusMessage = "\u8fd8\u6ca1\u6709\u53ef\u542f\u52a8\u7684\u5b9e\u4f8b";
-            return;
-        }
-
-        await launchService.LaunchAsync(SelectedInstance, Settings, CreateProgress());
-    }
-
-    [RelayCommand]
     private async Task RefreshModsAsync()
     {
         Mods.Clear();
@@ -345,6 +344,8 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnCurrentPageChanged(string value)
     {
         UpdateNavigationSelection();
+        if (string.Equals(value, "Download", StringComparison.OrdinalIgnoreCase))
+            _ = DownloadPage.EnsureVersionsLoadedAsync();
     }
 
     partial void OnSelectedMinecraftVersionChanged(MinecraftVersionInfo? value)
@@ -354,6 +355,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnSelectedInstanceChanged(GameInstance? value)
     {
+        HomePage.SetSelectedInstance(value);
         _ = RefreshModsAsync();
     }
 
@@ -370,9 +372,8 @@ public sealed partial class MainViewModel : ObservableObject
     {
         SecondaryItems.Clear();
 
-        var items = CurrentPage switch
+        IEnumerable<NavigationItem> items = CurrentPage switch
         {
-            "Download" => LoaderItems,
             "GameSettings" =>
             [
                 new NavigationItem { Page = "GameSettings", Title = "\u5b9e\u4f8b\u5217\u8868", Icon = "\uE8A5" },
@@ -402,6 +403,13 @@ public sealed partial class MainViewModel : ObservableObject
     {
         foreach (var item in NavigationItems)
             item.IsSelected = string.Equals(item.Page, CurrentPage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void NavigateToPage(string page)
+    {
+        CurrentPage = page;
+        UpdateSecondaryItems();
+        UpdateNavigationSelection();
     }
 
     private void UpdateAccountNavigationAvatar()

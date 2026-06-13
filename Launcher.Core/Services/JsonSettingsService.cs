@@ -70,6 +70,12 @@ public sealed class JsonSettingsService : ISettingsService
             }
         }
 
+        if (!string.IsNullOrWhiteSpace(settings.SelectedAccountId)
+            && settings.Accounts.All(account => !string.Equals(account.Id, settings.SelectedAccountId, StringComparison.Ordinal)))
+        {
+            settings.SelectedAccountId = null;
+        }
+
         settings.DefaultMemoryMb = Math.Clamp(settings.DefaultMemoryMb, 1024, 32768);
         return settings;
     }

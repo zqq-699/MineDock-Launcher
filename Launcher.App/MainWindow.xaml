@@ -56,8 +56,43 @@
                                 Style="{StaticResource NavigationMenuButtonStyle}"
                                 Click="ToggleMenu_Click">
                             <StackPanel Orientation="Horizontal" Margin="8,0">
-                                <TextBlock Text="&#xE700;"
-                                           Style="{StaticResource NavigationMenuGlyphStyle}" />
+                                <Grid Width="30">
+                                    <controls:SvgIcon Width="24"
+                                                      Height="24"
+                                                      IconKey="main_menu_expand"
+                                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center">
+                                        <controls:SvgIcon.Style>
+                                            <Style TargetType="{x:Type controls:SvgIcon}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsMenuExpanded, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </controls:SvgIcon.Style>
+                                    </controls:SvgIcon>
+
+                                    <controls:SvgIcon Width="24"
+                                                      Height="24"
+                                                      IconKey="main_menu_fold"
+                                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center">
+                                        <controls:SvgIcon.Style>
+                                            <Style TargetType="{x:Type controls:SvgIcon}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsMenuExpanded, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </controls:SvgIcon.Style>
+                                    </controls:SvgIcon>
+                                </Grid>
                                 <TextBlock Text="&#x83DC;&#x5355;"
                                            Style="{StaticResource NavigationMenuTextStyle}" />
                             </StackPanel>
@@ -70,6 +105,27 @@
                                             Click="Navigation_Click">
                                         <StackPanel Orientation="Horizontal" Margin="8,0">
                                             <Grid Width="30">
+                                                <controls:SvgIcon Width="24"
+                                                                  Height="24"
+                                                                  IconKey="{Binding IconKey}"
+                                                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                                                  HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center">
+                                                    <controls:SvgIcon.Style>
+                                                        <Style TargetType="{x:Type controls:SvgIcon}">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IconKey}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding HasAvatar}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </controls:SvgIcon.Style>
+                                                </controls:SvgIcon>
+
                                                 <TextBlock Text="{Binding Icon}"
                                                            FontFamily="Segoe MDL2 Assets"
                                                            FontSize="22"
@@ -77,8 +133,11 @@
                                                            VerticalAlignment="Center">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
-                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Setter Property="Visibility" Value="Collapsed" />
                                                             <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IconKey}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
                                                                 <DataTrigger Binding="{Binding HasAvatar}" Value="True">
                                                                     <Setter Property="Visibility" Value="Collapsed" />
                                                                 </DataTrigger>
@@ -122,6 +181,12 @@
                       Grid.Column="1"
                       Grid.RowSpan="2"
                       ClipToBounds="True">
+                    <views:HomePageView x:Name="HomePageView"
+                                        DataContext="{Binding HomePage}"
+                                        Visibility="{Binding DataContext.CurrentPage, ElementName=RootWindow, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=Home}" />
+                    <views:DownloadPageView x:Name="DownloadPageView"
+                                            DataContext="{Binding DownloadPage}"
+                                            Visibility="{Binding DataContext.CurrentPage, ElementName=RootWindow, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=Download}" />
                     <views:AccountPageView x:Name="AccountPageView"
                                            DataContext="{Binding AccountPage}"
                                            Visibility="{Binding DataContext.CurrentPage, ElementName=RootWindow, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=Account}" />
