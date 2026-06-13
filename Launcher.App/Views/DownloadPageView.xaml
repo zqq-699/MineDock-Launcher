@@ -2,231 +2,97 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
+             xmlns:views="clr-namespace:Launcher.App.Views"
              xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
              x:Name="Root"
              Focusable="False">
     <Grid x:Name="PageRoot">
-        <Border Style="{StaticResource SecondaryMenuPanelStyle}">
-            <Grid>
-                <ScrollViewer Style="{StaticResource SecondaryMenuScrollViewerStyle}">
-                    <StackPanel>
-                        <Border Style="{StaticResource SecondaryMenuHeaderSpacerStyle}" />
+        <controls:SecondaryMenuFrame Title="&#x7248;&#x672C;&#x5217;&#x8868;">
+            <controls:SecondaryMenuFrame.MenuContent>
+                <ItemsControl ItemsSource="{Binding VersionCategories}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <controls:SecondaryMenuOptionButton Text="{Binding Title}"
+                                                                IconMode="{Binding IconMode}"
+                                                                IconKey="{Binding IconKey}"
+                                                                Glyph="{Binding Icon}"
+                                                                IsSelected="{Binding IsSelected}"
+                                                                Command="{Binding DataContext.SelectVersionCategoryCommand, RelativeSource={RelativeSource AncestorType={x:Type views:DownloadPageView}}}"
+                                                                CommandParameter="{Binding}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </controls:SecondaryMenuFrame.MenuContent>
+        </controls:SecondaryMenuFrame>
 
-                        <StackPanel Style="{StaticResource SecondaryMenuItemsPanelStyle}">
-                            <ItemsControl ItemsSource="{Binding VersionCategories}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid Margin="0,0,0,6">
-                                            <Border x:Name="CategoryItemBackground"
-                                                    Background="Transparent"
-                                                    CornerRadius="10" />
-
-                                            <Button Style="{StaticResource SecondaryMenuButtonStyle}"
-                                                    Margin="0"
-                                                    Command="{Binding DataContext.SelectVersionCategoryCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                    CommandParameter="{Binding}">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="{StaticResource SecondaryMenuIconColumnWidth}" />
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="10" />
-                                                    </Grid.ColumnDefinitions>
-
-                                                    <Grid Width="24"
-                                                          Height="24"
-                                                          HorizontalAlignment="Center"
-                                                          VerticalAlignment="Center">
-                                                        <controls:SvgIcon Width="22"
-                                                                          Height="22"
-                                                                          IconKey="{Binding IconKey}"
-                                                                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}">
-                                                            <controls:SvgIcon.Style>
-                                                                <Style TargetType="{x:Type controls:SvgIcon}">
-                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding IconKey}" Value="{x:Null}">
-                                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </controls:SvgIcon.Style>
-                                                        </controls:SvgIcon>
-
-                                                        <TextBlock Text="{Binding Icon}"
-                                                                   FontFamily="Microsoft YaHei UI"
-                                                                   FontSize="18"
-                                                                   FontWeight="Medium"
-                                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
-                                                                   TextAlignment="Center"
-                                                                   VerticalAlignment="Center">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="TextBlock">
-                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding IconKey}" Value="{x:Null}">
-                                                                            <Setter Property="Visibility" Value="Visible" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
-                                                    </Grid>
-                                                    <TextBlock Grid.Column="1"
-                                                               Text="{Binding Title}"
-                                                               Style="{StaticResource SecondaryMenuItemTextStyle}" />
-                                                </Grid>
-                                            </Button>
-                                        </Grid>
-                                        <DataTemplate.Triggers>
-                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                <Setter TargetName="CategoryItemBackground" Property="Background" Value="#3D3D3D" />
-                                            </DataTrigger>
-                                        </DataTemplate.Triggers>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <Border Style="{StaticResource SecondaryMenuBottomSpacerStyle}" />
-                        </StackPanel>
-                    </StackPanel>
-                </ScrollViewer>
-
-                <Border Style="{StaticResource SecondaryMenuHeaderOverlayStyle}">
-                    <TextBlock Text="&#x7248;&#x672C;&#x5217;&#x8868;"
-                               Style="{StaticResource SecondaryMenuHeaderTextStyle}" />
-                </Border>
-            </Grid>
-        </Border>
-
-        <Grid Margin="284,36,24,0"
-              shell:WindowChrome.IsHitTestVisibleInChrome="True">
-            <TextBlock Margin="0,122,0,0"
-                       Text="&#x6B63;&#x5728;&#x83B7;&#x53D6; Minecraft &#x7248;&#x672C;&#x5217;&#x8868;...">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock" BasedOn="{StaticResource PageEmptyStateTextStyle}">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsLoadingVersions}" Value="True">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-
-            <TextBlock Margin="0,122,0,0"
-                       Text="{Binding VersionLoadError}">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock" BasedOn="{StaticResource PageEmptyStateTextStyle}">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Setter Property="Foreground" Value="#FFFF8D8D" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasVersionLoadError}" Value="True">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-
-            <TextBlock Margin="0,122,0,0"
-                       Text="{Binding VersionEmptyMessage}">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock" BasedOn="{StaticResource PageEmptyStateTextStyle}">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasVersionEmptyMessage}" Value="True">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-
-            <ScrollViewer x:Name="DownloadVersionScrollViewer">
-                <ScrollViewer.Style>
-                    <Style TargetType="ScrollViewer" BasedOn="{StaticResource DownloadContentScrollViewerStyle}">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasVisibleVersions}" Value="True">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </ScrollViewer.Style>
-
-                <StackPanel>
-                    <Border Style="{StaticResource DownloadContentHeaderSpacerStyle}" />
-
-                    <ItemsControl ItemsSource="{Binding VisibleVersions}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Button Margin="0,0,12,0"
-                                        Style="{StaticResource DownloadVersionListButtonStyle}"
-                                        Command="{Binding DataContext.SelectMinecraftVersionCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                        CommandParameter="{Binding}"
-                                        MouseEnter="DownloadVersionItem_OnMouseEnter"
-                                        MouseLeave="DownloadVersionItem_OnMouseLeave">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="50" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <Image Width="32"
-                                               Height="32"
-                                               Margin="10,0,0,0"
-                                               HorizontalAlignment="Left"
-                                               VerticalAlignment="Center"
-                                               RenderOptions.BitmapScalingMode="NearestNeighbor"
-                                               SnapsToDevicePixels="True"
-                                               Source="/Assets/Icons/block/grass_block.png" />
-
-                                        <Grid Grid.Column="1"
-                                              Margin="5,0,0,0"
-                                              VerticalAlignment="Center">
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                            </Grid.RowDefinitions>
-
-                                            <TextBlock Text="{Binding Name}"
-                                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
-                                                       FontSize="16"
-                                                       FontWeight="SemiBold" />
-                                            <TextBlock Grid.Row="1"
-                                                       Margin="0,4,0,0"
-                                                       Text="{Binding TypeLabel}"
-                                                       Foreground="#96FFFFFF"
-                                                       FontSize="12" />
-                                        </Grid>
-                                    </Grid>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-
-                    <Border Style="{StaticResource DownloadContentBottomSpacerStyle}" />
-                </StackPanel>
-            </ScrollViewer>
-
-            <Border Style="{StaticResource DownloadContentHeaderOverlayStyle}">
+        <controls:ListPageFrame x:Name="DownloadVersionListFrame"
+                                Margin="284,36,24,0"
+                                Title="{Binding SelectedVersionCategory.Title}"
+                                SearchText="{Binding VersionSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                IsListVisible="{Binding HasVisibleVersions}">
+            <controls:ListPageFrame.OverlayContent>
                 <Grid>
-                    <TextBlock Text="{Binding SelectedVersionCategory.Title}"
-                               Style="{StaticResource DownloadContentHeaderTextStyle}" />
-                    <TextBox Style="{StaticResource DownloadVersionSearchBoxStyle}"
-                             Tag="{Binding ElementName=DownloadVersionScrollViewer}"
-                             Text="{Binding VersionSearchQuery, UpdateSourceTrigger=PropertyChanged}" />
-                </Grid>
-            </Border>
+                    <TextBlock Margin="0,122,0,0"
+                               Text="&#x6B63;&#x5728;&#x83B7;&#x53D6; Minecraft &#x7248;&#x672C;&#x5217;&#x8868;...">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource PageEmptyStateTextStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLoadingVersions}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
 
-            <Border Style="{StaticResource DownloadContentBottomOverlayStyle}" />
-        </Grid>
+                    <TextBlock Margin="0,122,0,0"
+                               Text="{Binding VersionLoadError}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource PageEmptyStateTextStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Setter Property="Foreground" Value="#FFFF8D8D" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasVersionLoadError}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Margin="0,122,0,0"
+                               Text="{Binding VersionEmptyMessage}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource PageEmptyStateTextStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasVersionEmptyMessage}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+            </controls:ListPageFrame.OverlayContent>
+
+            <controls:ListPageFrame.ListContent>
+                <views:DownloadVersionListView />
+            </controls:ListPageFrame.ListContent>
+
+            <controls:ListPageFrame.FloatingContent>
+                <Grid>
+                    <Button Tag="ScrollToSelectedVersion"
+                            Content="&#x5B9A;&#x4F4D;&#x5DF2;&#x9009;"
+                            Click="ScrollToSelectedVersionButton_OnClick"
+                            Style="{StaticResource ListPageSecondaryFloatingButtonStyle}" />
+
+                    <Button Content="&#x4E0B;&#x4E00;&#x6B65;"
+                            IsEnabled="{Binding HasSelectedMinecraftVersion}"
+                            Style="{StaticResource ListPagePrimaryFloatingButtonStyle}" />
+                </Grid>
+            </controls:ListPageFrame.FloatingContent>
+        </controls:ListPageFrame>
     </Grid>
 </UserControl>

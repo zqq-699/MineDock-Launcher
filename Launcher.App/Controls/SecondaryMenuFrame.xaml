@@ -1,0 +1,25 @@
+<UserControl x:Class="Launcher.App.Controls.SecondaryMenuFrame"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root"
+             Focusable="False">
+    <Border Style="{StaticResource SecondaryMenuPanelStyle}">
+        <Grid>
+            <ScrollViewer Style="{StaticResource SecondaryMenuScrollViewerStyle}">
+                <StackPanel>
+                    <Border Style="{StaticResource SecondaryMenuHeaderSpacerStyle}" />
+
+                    <StackPanel Style="{StaticResource SecondaryMenuItemsPanelStyle}">
+                        <ContentPresenter Content="{Binding MenuContent, ElementName=Root}" />
+                        <Border Style="{StaticResource SecondaryMenuBottomSpacerStyle}" />
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Border Style="{StaticResource SecondaryMenuHeaderOverlayStyle}">
+                <TextBlock Text="{Binding Title, ElementName=Root}"
+                           Style="{StaticResource SecondaryMenuHeaderTextStyle}" />
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

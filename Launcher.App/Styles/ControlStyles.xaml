@@ -1,10 +1,12 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-                    xmlns:controls="clr-namespace:Launcher.App.Controls">
+                    xmlns:controls="clr-namespace:Launcher.App.Controls"
+                    xmlns:converters="clr-namespace:Launcher.App.Converters">
     <SolidColorBrush x:Key="MenuButtonSelectedBackgroundBrush" Color="#30808080" />
     <SolidColorBrush x:Key="MenuButtonHoverBackgroundBrush" Color="#30606060" />
     <GridLength x:Key="SecondaryMenuIconColumnWidth">36</GridLength>
+    <converters:MinimumScrollThumbViewportConverter x:Key="MinimumScrollThumbViewportConverter" />
 
     <Style x:Key="NavigationMenuTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="12,0,0,0" />
@@ -513,7 +515,7 @@
                             Margin="1,2"
                             HorizontalAlignment="Center"
                             Background="{TemplateBinding Background}"
-                            CornerRadius="3" />
+                            CornerRadius="2.5" />
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="#84FFFFFF" />
@@ -575,9 +577,17 @@
                                    HorizontalAlignment="Right"
                                    VerticalAlignment="Stretch"
                                    Maximum="{TemplateBinding ScrollableHeight}"
-                                   ViewportSize="{TemplateBinding ViewportHeight}"
                                    Value="{Binding VerticalOffset, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay}"
-                                   Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" />
+                                   Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}">
+                            <ScrollBar.ViewportSize>
+                                <MultiBinding Converter="{StaticResource MinimumScrollThumbViewportConverter}"
+                                              ConverterParameter="58">
+                                    <Binding Path="ViewportHeight" RelativeSource="{RelativeSource TemplatedParent}" />
+                                    <Binding Path="ScrollableHeight" RelativeSource="{RelativeSource TemplatedParent}" />
+                                    <Binding Path="ActualHeight" RelativeSource="{RelativeSource Self}" />
+                                </MultiBinding>
+                            </ScrollBar.ViewportSize>
+                        </ScrollBar>
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>
@@ -639,7 +649,7 @@
         </Style.Resources>
     </Style>
 
-    <Style x:Key="DownloadContentHeaderOverlayStyle" TargetType="Border">
+    <Style x:Key="ListPageHeaderOverlayStyle" TargetType="Border">
         <Setter Property="Height" Value="132" />
         <Setter Property="VerticalAlignment" Value="Top" />
         <Setter Property="Panel.ZIndex" Value="2" />
@@ -656,8 +666,13 @@
         </Setter>
     </Style>
 
-    <Style x:Key="DownloadContentBottomOverlayStyle" TargetType="Border">
+    <Style x:Key="DownloadContentHeaderOverlayStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource ListPageHeaderOverlayStyle}" />
+
+    <Style x:Key="ListPageBottomOverlayStyle" TargetType="Border">
         <Setter Property="Height" Value="72" />
+        <Setter Property="Margin" Value="0,0,14,0" />
         <Setter Property="VerticalAlignment" Value="Bottom" />
         <Setter Property="Panel.ZIndex" Value="2" />
         <Setter Property="IsHitTestVisible" Value="False" />
@@ -672,7 +687,11 @@
         </Setter>
     </Style>
 
-    <Style x:Key="DownloadContentHeaderTextStyle" TargetType="TextBlock">
+    <Style x:Key="DownloadContentBottomOverlayStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource ListPageBottomOverlayStyle}" />
+
+    <Style x:Key="ListPageHeaderTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,6,0,0" />
         <Setter Property="HorizontalAlignment" Value="Left" />
         <Setter Property="VerticalAlignment" Value="Top" />
@@ -682,12 +701,20 @@
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
 
-    <Style x:Key="DownloadContentHeaderSpacerStyle" TargetType="Border">
+    <Style x:Key="DownloadContentHeaderTextStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource ListPageHeaderTextStyle}" />
+
+    <Style x:Key="ListPageHeaderSpacerStyle" TargetType="Border">
         <Setter Property="Height" Value="132" />
         <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
 
-    <Style x:Key="DownloadVersionSearchBoxStyle" TargetType="TextBox">
+    <Style x:Key="DownloadContentHeaderSpacerStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource ListPageHeaderSpacerStyle}" />
+
+    <Style x:Key="ListPageSearchBoxStyle" TargetType="TextBox">
         <Setter Property="Height" Value="32" />
         <Setter Property="Margin" Value="0,58,12,0" />
         <Setter Property="Padding" Value="14,0,7,0" />
@@ -780,24 +807,40 @@
         </Setter>
     </Style>
 
-    <Style x:Key="DownloadContentBottomSpacerStyle" TargetType="Border">
+    <Style x:Key="DownloadVersionSearchBoxStyle"
+           TargetType="TextBox"
+           BasedOn="{StaticResource ListPageSearchBoxStyle}" />
+
+    <Style x:Key="ListPageBottomSpacerStyle" TargetType="Border">
         <Setter Property="Height" Value="64" />
         <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
 
-    <Style x:Key="DownloadContentScrollBarStyle"
+    <Style x:Key="DownloadContentBottomSpacerStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource ListPageBottomSpacerStyle}" />
+
+    <Style x:Key="ListPageScrollBarStyle"
            TargetType="ScrollBar"
            BasedOn="{StaticResource MainContentScrollBarStyle}">
         <Setter Property="Margin" Value="0,132,2,72" />
     </Style>
 
-    <Style x:Key="DownloadContentScrollViewerStyle"
+    <Style x:Key="DownloadContentScrollBarStyle"
+           TargetType="ScrollBar"
+           BasedOn="{StaticResource ListPageScrollBarStyle}" />
+
+    <Style x:Key="ListPageScrollViewerStyle"
            TargetType="ScrollViewer"
            BasedOn="{StaticResource MainContentScrollViewerStyle}">
         <Style.Resources>
-            <Style TargetType="ScrollBar" BasedOn="{StaticResource DownloadContentScrollBarStyle}" />
+            <Style TargetType="ScrollBar" BasedOn="{StaticResource ListPageScrollBarStyle}" />
         </Style.Resources>
     </Style>
+
+    <Style x:Key="DownloadContentScrollViewerStyle"
+           TargetType="ScrollViewer"
+           BasedOn="{StaticResource ListPageScrollViewerStyle}" />
 
     <Style x:Key="SecondaryMenuItemsPanelStyle" TargetType="StackPanel">
         <Setter Property="Margin" Value="14,4,14,0" />
@@ -831,7 +874,7 @@
         </Setter>
     </Style>
 
-    <Style x:Key="DownloadVersionListButtonStyle" TargetType="Button">
+    <Style x:Key="ListPageItemButtonStyle" TargetType="Button">
         <Setter Property="MinHeight" Value="58" />
         <Setter Property="Padding" Value="16,10" />
         <Setter Property="Foreground" Value="#F2F2F2" />
@@ -867,7 +910,8 @@
                                     Height="1"
                                     Margin="44,0,30,0"
                                     VerticalAlignment="Bottom"
-                                    Background="#14FFFFFF" />
+                                    Background="#14FFFFFF"
+                                    Opacity="0" />
                             <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                               VerticalAlignment="Center" />
                         </Grid>
@@ -904,34 +948,211 @@
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
                             <Setter TargetName="TopSeparator" Property="Opacity" Value="0" />
-                            <Setter TargetName="BottomSeparator" Property="Opacity" Value="0" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="TopSeparator" Property="Opacity" Value="0" />
-                            <Setter TargetName="BottomSeparator" Property="Opacity" Value="0" />
                         </Trigger>
-                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type controls:ListPageItemButton}}}" Value="True">
                             <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
                             <Setter TargetName="TopSeparator" Property="Opacity" Value="0" />
-                            <Setter TargetName="BottomSeparator" Property="Opacity" Value="0" />
                         </DataTrigger>
-                        <DataTrigger Binding="{Binding IsFirstVisible}" Value="True">
+                        <DataTrigger Binding="{Binding IsFirstVisible, RelativeSource={RelativeSource AncestorType={x:Type controls:ListPageItemButton}}}" Value="True">
                             <Setter TargetName="TopSeparator" Property="Opacity" Value="0" />
                         </DataTrigger>
-                        <DataTrigger Binding="{Binding IsLastVisible}" Value="True">
+                        <DataTrigger Binding="{Binding IsLastVisible, RelativeSource={RelativeSource AncestorType={x:Type controls:ListPageItemButton}}}" Value="True">
                             <Setter TargetName="BottomSeparator" Property="Opacity" Value="0" />
                         </DataTrigger>
-                        <DataTrigger Binding="{Binding IsPreviousItemHighlighted}" Value="True">
+                        <DataTrigger Binding="{Binding IsPreviousItemHighlighted, RelativeSource={RelativeSource AncestorType={x:Type controls:ListPageItemButton}}}" Value="True">
                             <Setter TargetName="TopSeparator" Property="Opacity" Value="0" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding IsNextItemHighlighted}" Value="True">
-                            <Setter TargetName="BottomSeparator" Property="Opacity" Value="0" />
                         </DataTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
+
+    <Style x:Key="DownloadVersionListButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource ListPageItemButtonStyle}" />
+
+    <Style x:Key="ListPagePrimaryFloatingButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="116" />
+        <Setter Property="Height" Value="42" />
+        <Setter Property="Margin" Value="0,0,30,28" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+        <Setter Property="VerticalAlignment" Value="Bottom" />
+        <Setter Property="Foreground" Value="#FFFFFF" />
+        <Setter Property="Background" Value="#0891FE" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Panel.ZIndex" Value="4" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            CornerRadius="9">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="18"
+                                              Color="#0891FE"
+                                              Opacity="0.32"
+                                              ShadowDepth="0" />
+                        </Border.Effect>
+                        <Grid>
+                            <Border x:Name="BaseBackground"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="9" />
+                            <Border x:Name="HoverBackground"
+                                    Background="#047EDC"
+                                    CornerRadius="9"
+                                    Opacity="0" />
+                            <Border x:Name="PressedBackground"
+                                    Background="#036FC2"
+                                    CornerRadius="9"
+                                    Opacity="0" />
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1"
+                                                     Duration="0:0:0.16">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="#BFFFFFFF" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                            <Setter TargetName="Root" Property="Effect" Value="{x:Null}" />
+                            <Setter TargetName="BaseBackground" Property="Background" Value="#5A5A5A" />
+                            <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DownloadNextStepButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource ListPagePrimaryFloatingButtonStyle}" />
+
+    <Style x:Key="ListPageSecondaryFloatingButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="96" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Margin" Value="0,0,0,32" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Bottom" />
+        <Setter Property="Foreground" Value="#F4FFFFFF" />
+        <Setter Property="Background" Value="#B03D3D3D" />
+        <Setter Property="BorderBrush" Value="#22FFFFFF" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Visibility" Value="Collapsed" />
+        <Setter Property="Opacity" Value="0" />
+        <Setter Property="Panel.ZIndex" Value="5" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="17">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="18"
+                                              Color="#000000"
+                                              Opacity="0.28"
+                                              ShadowDepth="0" />
+                        </Border.Effect>
+                        <Grid>
+                            <Border x:Name="BaseBackground"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="17" />
+                            <Border x:Name="HoverBackground"
+                                    Background="#D04A4A4A"
+                                    CornerRadius="17"
+                                    Opacity="0" />
+                            <Border x:Name="PressedBackground"
+                                    Background="#E05A5A5A"
+                                    CornerRadius="17"
+                                    Opacity="0" />
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1"
+                                                     Duration="0:0:0.16">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DownloadScrollToSelectedButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource ListPageSecondaryFloatingButtonStyle}" />
 
     <Style x:Key="SecondaryMenuButtonStyle" TargetType="Button">
         <Setter Property="Height" Value="40" />
@@ -1000,6 +1221,9 @@
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
                         </Trigger>
                         <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                            <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Tag.IsSelected, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
                             <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
                         </DataTrigger>
                     </ControlTemplate.Triggers>

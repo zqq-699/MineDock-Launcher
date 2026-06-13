@@ -7,107 +7,54 @@
              x:Name="Root"
              Focusable="False">
     <Grid x:Name="PageRoot">
-        <Border Style="{StaticResource SecondaryMenuPanelStyle}">
-            <Grid>
-                <ScrollViewer Style="{StaticResource SecondaryMenuScrollViewerStyle}">
-                    <StackPanel>
-                        <Border Style="{StaticResource SecondaryMenuHeaderSpacerStyle}" />
-
-                        <StackPanel Style="{StaticResource SecondaryMenuItemsPanelStyle}">
-                            <ItemsControl ItemsSource="{Binding Accounts}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type models:LauncherAccount}">
-                                        <Grid x:Name="AccountItemRoot"
-                                              Margin="0,0,0,6">
-                                            <Border x:Name="AccountItemBackground"
-                                                    Background="Transparent"
-                                                    CornerRadius="10" />
-
-                                            <Button Style="{StaticResource SecondaryMenuButtonStyle}"
-                                                    Margin="0"
-                                                    Click="Account_Click">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="{StaticResource SecondaryMenuIconColumnWidth}" />
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="10" />
-                                                    </Grid.ColumnDefinitions>
-
-                                                    <Border Style="{StaticResource SecondaryMenuAvatarContainerStyle}">
-                                                        <Image Source="{Binding AvatarUrl}"
-                                                               Stretch="Fill"
-                                                               SnapsToDevicePixels="True"
-                                                               RenderOptions.BitmapScalingMode="NearestNeighbor" />
-                                                    </Border>
-
-                                                    <TextBlock Grid.Column="1"
-                                                               Text="{Binding DisplayName}"
-                                                               Style="{StaticResource SecondaryMenuItemTextStyle}" />
-                                                </Grid>
-                                            </Button>
-
-                                            <Button HorizontalAlignment="Right"
-                                                    VerticalAlignment="Center"
-                                                    Margin="0,0,6,0"
-                                                    Click="DeleteAccount_Click">
-                                                <Button.Style>
-                                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryMenuDeleteButtonStyle}">
-                                                        <Setter Property="Opacity" Value="0" />
-                                                        <Setter Property="IsHitTestVisible" Value="False" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsMouseOver, ElementName=AccountItemRoot}" Value="True">
-                                                                <Setter Property="Opacity" Value="1" />
-                                                                <Setter Property="IsHitTestVisible" Value="True" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Button.Style>
-                                                <controls:SvgIcon Width="16"
-                                                                  Height="16"
-                                                                  IconKey="general/general_delete"
-                                                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
-                                            </Button>
-                                        </Grid>
-                                        <DataTemplate.Triggers>
-                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                <Setter TargetName="AccountItemBackground" Property="Background" Value="#3D3D3D" />
-                                            </DataTrigger>
-                                        </DataTemplate.Triggers>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <Button Style="{StaticResource SecondaryMenuButtonStyle}"
-                                    Click="AddAccount_Click">
+        <controls:SecondaryMenuFrame Title="&#x8D26;&#x6237;&#x5217;&#x8868;">
+            <controls:SecondaryMenuFrame.MenuContent>
+                <StackPanel>
+                    <ItemsControl ItemsSource="{Binding Accounts}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type models:LauncherAccount}">
                                 <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="{StaticResource SecondaryMenuIconColumnWidth}" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="10" />
-                                    </Grid.ColumnDefinitions>
+                                    <controls:SecondaryMenuOptionButton Text="{Binding DisplayName}"
+                                                                        IconMode="Avatar"
+                                                                        AvatarSource="{Binding AvatarUrl}"
+                                                                        IsSelected="{Binding IsSelected}"
+                                                                        Click="Account_Click" />
 
-                                    <controls:SvgIcon Width="24"
-                                                      Height="24"
-                                                      IconKey="account_page/account_page_add_account"
-                                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
-                                                      HorizontalAlignment="Center"
-                                                      VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1"
-                                               Text="&#x6DFB;&#x52A0;&#x8D26;&#x6237;"
-                                               Style="{StaticResource SecondaryMenuItemTextStyle}" />
+                                    <Button HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,6,6"
+                                            Click="DeleteAccount_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryMenuDeleteButtonStyle}">
+                                                <Setter Property="Opacity" Value="0" />
+                                                <Setter Property="IsHitTestVisible" Value="False" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type Grid}}}" Value="True">
+                                                        <Setter Property="Opacity" Value="1" />
+                                                        <Setter Property="IsHitTestVisible" Value="True" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                        <controls:SvgIcon Width="16"
+                                                          Height="16"
+                                                          IconKey="general/general_delete"
+                                                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                                    </Button>
                                 </Grid>
-                            </Button>
-                            <Border Style="{StaticResource SecondaryMenuBottomSpacerStyle}" />
-                        </StackPanel>
-                    </StackPanel>
-                </ScrollViewer>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
 
-                <Border Style="{StaticResource SecondaryMenuHeaderOverlayStyle}">
-                    <TextBlock Text="&#x8D26;&#x6237;&#x5217;&#x8868;"
-                               Style="{StaticResource SecondaryMenuHeaderTextStyle}" />
-                </Border>
-            </Grid>
-        </Border>
+                    <controls:SecondaryMenuOptionButton Text="&#x6DFB;&#x52A0;&#x8D26;&#x6237;"
+                                                        IconMode="Svg"
+                                                        IconKey="account_page/account_page_add_account"
+                                                        IconWidth="24"
+                                                        IconHeight="24"
+                                                        Click="AddAccount_Click" />
+                </StackPanel>
+            </controls:SecondaryMenuFrame.MenuContent>
+        </controls:SecondaryMenuFrame>
 
         <Grid Margin="284,72,24,24">
             <TextBlock Text="&#x9009;&#x62E9;&#x8D26;&#x53F7;&#x4EE5;&#x6D4F;&#x89C8;&#x6216;&#x4FEE;&#x6539;&#x8BBE;&#x7F6E;&#x3002;">
@@ -190,11 +137,24 @@
                                             Margin="10,-4,-6,-4"
                                             Style="{StaticResource InlineIconButtonStyle}"
                                             Click="CopyUuid_Click">
-                                        <controls:SvgIcon x:Name="CopyUuidIcon"
-                                                          Width="16"
-                                                          Height="16"
-                                                          IconKey="general/general_copy"
-                                                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                                        <Grid Width="18"
+                                              Height="18">
+                                            <controls:SvgIcon x:Name="CopyUuidCopyIcon"
+                                                              Width="16"
+                                                              Height="16"
+                                                              HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"
+                                                              IconKey="general/general_copy"
+                                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                                            <controls:SvgIcon x:Name="CopyUuidPassedIcon"
+                                                              Width="18"
+                                                              Height="18"
+                                                              HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"
+                                                              IconKey="general/general_passed"
+                                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                                              Visibility="Collapsed" />
+                                        </Grid>
                                     </Button>
                                 </Grid>
                             </Border>

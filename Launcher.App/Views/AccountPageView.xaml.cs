@@ -72,19 +72,19 @@ public partial class AccountPageView : UserControl
         var uuid = account.Uuid;
         if (string.IsNullOrWhiteSpace(uuid))
         {
-            SetUuidCopyButtonCopied(true);
+            SetUuidCopyButtonCopied(true, account.Id);
             return;
         }
 
-        SetUuidCopyButtonCopied(true);
         try
         {
-            Clipboard.SetText(uuid);
+            Clipboard.SetDataObject(uuid, true);
+            SetUuidCopyButtonCopied(true, account.Id);
         }
         catch (Exception ex)
         {
             ViewModel?.NotifyStatusMessage($"\u590d\u5236 UUID \u5931\u8d25\uff1a{ex.Message}");
-            SetUuidCopyButtonCopied(false);
+            SetUuidCopyButtonCopied(false, account.Id);
         }
     }
 
@@ -135,8 +135,14 @@ public partial class AccountPageView : UserControl
             DeleteAccountRequested?.Invoke(account);
     }
 
-    private void SetUuidCopyButtonCopied(bool isCopied)
+    private void SetUuidCopyButtonCopied(bool isCopied, string? accountId = null, bool scheduleRefresh = true)
     {
+        if (accountId is not null
+            && !string.Equals(ViewModel?.SelectedAccount?.Id, accountId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
         if (CopyUuidButton is null)
             return;
 
@@ -146,11 +152,23 @@ public partial class AccountPageView : UserControl
             ? Color.FromRgb(0x7D, 0xFF, 0xB2)
             : Color.FromArgb(0xDF, 0xFF, 0xFF, 0xFF));
 
-        if (CopyUuidIcon is not null)
+        if (CopyUuidCopyIcon is not null)
         {
-            CopyUuidIcon.Width = isCopied ? 18 : 16;
-            CopyUuidIcon.Height = isCopied ? 18 : 16;
-            CopyUuidIcon.IconKey = isCopied ? "general/general_passed" : "general/general_copy";
+            CopyUuidCopyIcon.Visibility = isCopied ? Visibility.Collapsed : Visibility.Visible;
+            CopyUuidCopyIcon.InvalidateVisual();
+        }
+
+        if (CopyUuidPassedIcon is not null)
+        {
+            CopyUuidPassedIcon.Visibility = isCopied ? Visibility.Visible : Visibility.Collapsed;
+            CopyUuidPassedIcon.InvalidateVisual();
+        }
+
+        if (isCopied)
+        {
+            _ = Dispatcher.BeginInvoke(
+                () => SetUuidCopyButtonCopied(true, accountId, scheduleRefresh: false),
+                System.Windows.Threading.DispatcherPriority.ContextIdle);
         }
     }
 }

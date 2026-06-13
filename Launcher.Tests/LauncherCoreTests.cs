@@ -210,8 +210,6 @@ public sealed class LauncherCoreTests : IDisposable
 
         Assert.True(viewModel.HasVisibleVersions);
         Assert.Equal(["1.21.4", "1.20.1"], viewModel.VisibleVersions.Select(version => version.Name));
-        Assert.True(viewModel.VisibleVersions.First().IsFirstVisible);
-        Assert.True(viewModel.VisibleVersions.Last().IsLastVisible);
         Assert.False(viewModel.HasVersionEmptyMessage);
     }
 
@@ -225,11 +223,56 @@ public sealed class LauncherCoreTests : IDisposable
         var viewModel = new DownloadPageViewModel(service);
 
         await viewModel.EnsureVersionsLoadedAsync();
-        viewModel.SelectVersionCategoryCommand.Execute(viewModel.VersionCategories.Single(category => category.Id == "snapshot"));
+        viewModel.SelectVersionCategoryCommand.Execute(viewModel.VersionCategories.Single(category => category.Id == "old_beta"));
 
         Assert.Empty(viewModel.VisibleVersions);
         Assert.True(viewModel.HasVersionEmptyMessage);
         Assert.Contains("\u7a0d\u540e\u5b9e\u73b0", viewModel.VersionEmptyMessage);
+    }
+
+    [Fact]
+    public async Task DownloadPageShowsOnlySnapshotVersionsForSnapshotCategory()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.21.4", "Release", false),
+            new MinecraftVersionInfo("24w45a", "Snapshot", false, new DateTimeOffset(2024, 10, 30, 0, 0, 0, TimeSpan.Zero)),
+            new MinecraftVersionInfo("24w44a", "Snapshot", false, new DateTimeOffset(2024, 11, 06, 0, 0, 0, TimeSpan.Zero))
+        ]);
+        var viewModel = new DownloadPageViewModel(service);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        viewModel.SelectVersionCategoryCommand.Execute(viewModel.VersionCategories.Single(category => category.Id == "snapshot"));
+
+        Assert.True(viewModel.HasVisibleVersions);
+        Assert.Equal(["24w44a", "24w45a"], viewModel.VisibleVersions.Select(version => version.Name));
+        Assert.All(viewModel.VisibleVersions, version =>
+        {
+            Assert.True(version.IsSnapshot);
+            Assert.Equal("\u5feb\u7167\u7248", version.TypeLabel);
+            Assert.Equal("/Assets/Icons/block/dirt_block.png", version.IconSource);
+        });
+    }
+
+    [Fact]
+    public async Task DownloadPageExposesAllFilteredSnapshotVersions()
+    {
+        var snapshots = Enumerable
+            .Range(0, 130)
+            .Select(index => new MinecraftVersionInfo(
+                $"24w{index:00}a",
+                "Snapshot",
+                false,
+                new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero).AddDays(index)))
+            .ToList();
+        var viewModel = new DownloadPageViewModel(new FakeGameVersionService(snapshots));
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        viewModel.SelectVersionCategoryCommand.Execute(viewModel.VersionCategories.Single(category => category.Id == "snapshot"));
+
+        Assert.Equal(130, viewModel.VisibleVersions.Count);
+        Assert.Equal("24w129a", viewModel.VisibleVersions.First().Name);
+        Assert.Equal("24w00a", viewModel.VisibleVersions.Last().Name);
     }
 
     [Fact]
@@ -266,8 +309,6 @@ public sealed class LauncherCoreTests : IDisposable
         viewModel.VersionSearchQuery = "1.20";
 
         Assert.Equal(["1.20.6", "1.20.1"], viewModel.VisibleVersions.Select(version => version.Name));
-        Assert.True(viewModel.VisibleVersions.First().IsFirstVisible);
-        Assert.True(viewModel.VisibleVersions.Last().IsLastVisible);
     }
 
     public void Dispose()

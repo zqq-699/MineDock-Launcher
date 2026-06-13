@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.Core.Models;
@@ -10,7 +12,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 {
     private readonly IGameVersionService gameVersionService;
     private bool hasLoadedVersions;
-    private DownloadMinecraftVersionItem? hoveredMinecraftVersion;
+    private int refreshRequestVersion;
 
     [ObservableProperty]
     private DownloadVersionCategory? selectedVersionCategory;
@@ -30,6 +32,9 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     [ObservableProperty]
     private string versionSearchQuery = string.Empty;
 
+    [ObservableProperty]
+    private IReadOnlyList<DownloadMinecraftVersionItem> visibleVersions = Array.Empty<DownloadMinecraftVersionItem>();
+
     public DownloadPageViewModel(IGameVersionService gameVersionService)
     {
         this.gameVersionService = gameVersionService;
@@ -39,16 +44,16 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         VersionCategories.Add(new DownloadVersionCategory("old_beta", "beta", "\u03b2"));
         VersionCategories.Add(new DownloadVersionCategory("old_alpha", "alpha", "\u03b1"));
 
-        SelectVersionCategory(VersionCategories.First());
+        SelectVersionCategoryCore(VersionCategories.First(), deferRefresh: false);
     }
 
     public ObservableCollection<DownloadVersionCategory> VersionCategories { get; } = [];
 
-    public ObservableCollection<DownloadMinecraftVersionItem> AllVersions { get; } = [];
-
-    public ObservableCollection<DownloadMinecraftVersionItem> VisibleVersions { get; } = [];
+    public List<DownloadMinecraftVersionItem> AllVersions { get; } = [];
 
     public bool HasVisibleVersions => VisibleVersions.Count > 0;
+
+    public bool HasSelectedMinecraftVersion => SelectedMinecraftVersion is not null;
 
     public bool HasVersionLoadError => !string.IsNullOrWhiteSpace(VersionLoadError);
 
@@ -67,8 +72,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         {
             var versions = await gameVersionService.GetVersionsAsync(cancellationToken);
             AllVersions.Clear();
-            foreach (var version in versions)
-                AllVersions.Add(new DownloadMinecraftVersionItem(version));
+            AllVersions.AddRange(versions.Select(version => new DownloadMinecraftVersionItem(version)));
 
             hasLoadedVersions = true;
         }
@@ -86,11 +90,16 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     [RelayCommand]
     private void SelectVersionCategory(DownloadVersionCategory category)
     {
+        SelectVersionCategoryCore(category, deferRefresh: false);
+    }
+
+    private void SelectVersionCategoryCore(DownloadVersionCategory category, bool deferRefresh)
+    {
         SelectedVersionCategory = category;
         foreach (var item in VersionCategories)
             item.IsSelected = ReferenceEquals(item, category);
 
-        RefreshVisibleVersions();
+        RequestVisibleVersionsRefresh(deferRefresh);
     }
 
     [RelayCommand]
@@ -99,19 +108,6 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         SelectedMinecraftVersion = version;
         foreach (var item in AllVersions)
             item.IsSelected = ReferenceEquals(item, version);
-
-        UpdateVisibleVersionState();
-    }
-
-    public void SetHoveredMinecraftVersion(DownloadMinecraftVersionItem? version)
-    {
-        if (ReferenceEquals(hoveredMinecraftVersion, version))
-            return;
-
-        hoveredMinecraftVersion = version is not null && VisibleVersions.Contains(version)
-            ? version
-            : null;
-        UpdateVisibleVersionState();
     }
 
     partial void OnVersionLoadErrorChanged(string value)
@@ -126,45 +122,100 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 
     partial void OnVersionSearchQueryChanged(string value)
     {
+        RequestVisibleVersionsRefresh(defer: false);
+    }
+
+    partial void OnSelectedMinecraftVersionChanged(DownloadMinecraftVersionItem? value)
+    {
+        OnPropertyChanged(nameof(HasSelectedMinecraftVersion));
+    }
+
+    partial void OnVisibleVersionsChanged(IReadOnlyList<DownloadMinecraftVersionItem> value)
+    {
+        OnPropertyChanged(nameof(HasVisibleVersions));
+        OnPropertyChanged(nameof(HasVersionEmptyMessage));
+    }
+
+    private void RequestVisibleVersionsRefresh(bool defer)
+    {
+        var requestVersion = ++refreshRequestVersion;
+        var dispatcher = Application.Current?.Dispatcher;
+        if (defer && dispatcher is not null && dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(
+                () =>
+                {
+                    if (requestVersion == refreshRequestVersion)
+                        RefreshVisibleVersions();
+                },
+                DispatcherPriority.Background);
+            return;
+        }
+
         RefreshVisibleVersions();
     }
 
     private void RefreshVisibleVersions()
     {
-        VisibleVersions.Clear();
         VersionEmptyMessage = string.Empty;
+        IReadOnlyList<DownloadMinecraftVersionItem> nextVersions = Array.Empty<DownloadMinecraftVersionItem>();
 
         if (HasVersionLoadError)
         {
-            UpdateVisibleVersionState();
+            SetFilteredVersions(nextVersions);
             return;
         }
 
-        if (SelectedVersionCategory?.Id is not "release")
+        if (SelectedVersionCategory?.Id is not ("release" or "snapshot"))
         {
             VersionEmptyMessage = "\u8be5\u5206\u7c7b\u7a0d\u540e\u5b9e\u73b0\u3002";
             ClearSelectedVersion();
-            UpdateVisibleVersionState();
+            SetFilteredVersions(nextVersions);
             return;
         }
 
         var query = VersionSearchQuery.Trim();
-        var versions = AllVersions.Where(version => version.IsRelease);
+        var versions = SelectedVersionCategory?.Id switch
+        {
+            "snapshot" => AllVersions.Where(version => version.IsSnapshot),
+            _ => AllVersions.Where(version => version.IsRelease)
+        };
         if (!string.IsNullOrWhiteSpace(query))
             versions = versions.Where(version => version.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
 
-        foreach (var version in versions)
-            VisibleVersions.Add(version);
+        nextVersions = SortVersionsForCategory(versions, SelectedVersionCategory?.Id).ToList();
 
-        if (VisibleVersions.Count == 0 && hasLoadedVersions && !IsLoadingVersions)
+        if (nextVersions.Count == 0 && hasLoadedVersions && !IsLoadingVersions)
+        {
+            var categoryTitle = SelectedVersionCategory?.Title ?? "\u7248\u672c";
             VersionEmptyMessage = string.IsNullOrWhiteSpace(query)
-                ? "\u6ca1\u6709\u627e\u5230\u6b63\u5f0f\u7248\u7248\u672c\u3002"
+                ? $"\u6ca1\u6709\u627e\u5230{categoryTitle}\u7248\u672c\u3002"
                 : "\u6ca1\u6709\u627e\u5230\u5339\u914d\u7684\u7248\u672c\u3002";
+        }
 
-        if (SelectedMinecraftVersion is not null && !VisibleVersions.Contains(SelectedMinecraftVersion))
+        if (SelectedMinecraftVersion is not null && !nextVersions.Contains(SelectedMinecraftVersion))
             ClearSelectedVersion();
 
-        UpdateVisibleVersionState();
+        SetFilteredVersions(nextVersions);
+    }
+
+    private void SetFilteredVersions(IReadOnlyList<DownloadMinecraftVersionItem> versions)
+    {
+        VisibleVersions = versions;
+    }
+
+    private static IEnumerable<DownloadMinecraftVersionItem> SortVersionsForCategory(
+        IEnumerable<DownloadMinecraftVersionItem> versions,
+        string? categoryId)
+    {
+        if (categoryId == "snapshot")
+        {
+            return versions
+                .OrderByDescending(version => version.Version.ReleaseTime ?? DateTimeOffset.MinValue)
+                .ThenByDescending(version => version.Name, StringComparer.OrdinalIgnoreCase);
+        }
+
+        return versions;
     }
 
     private void ClearSelectedVersion()
@@ -174,26 +225,6 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             item.IsSelected = false;
     }
 
-    private void UpdateVisibleVersionState()
-    {
-        for (var i = 0; i < VisibleVersions.Count; i++)
-        {
-            var item = VisibleVersions[i];
-            item.IsFirstVisible = i == 0;
-            item.IsLastVisible = i == VisibleVersions.Count - 1;
-            item.IsHovered = ReferenceEquals(item, hoveredMinecraftVersion);
-            item.IsPreviousItemHighlighted = i > 0 && IsHighlighted(VisibleVersions[i - 1]);
-            item.IsNextItemHighlighted = i < VisibleVersions.Count - 1 && IsHighlighted(VisibleVersions[i + 1]);
-        }
-
-        OnPropertyChanged(nameof(HasVisibleVersions));
-        OnPropertyChanged(nameof(HasVersionEmptyMessage));
-    }
-
-    private bool IsHighlighted(DownloadMinecraftVersionItem item)
-    {
-        return item.IsSelected || ReferenceEquals(item, hoveredMinecraftVersion);
-    }
 }
 
 public sealed partial class DownloadVersionCategory : ObservableObject
@@ -214,6 +245,8 @@ public sealed partial class DownloadVersionCategory : ObservableObject
 
     public string? IconKey { get; }
 
+    public string IconMode => string.IsNullOrWhiteSpace(IconKey) ? "Glyph" : "Svg";
+
     [ObservableProperty]
     private bool isSelected;
 }
@@ -231,25 +264,25 @@ public sealed partial class DownloadMinecraftVersionItem : ObservableObject
 
     public string Type => Version.Type;
 
-    public string TypeLabel => IsRelease ? "\u6b63\u5f0f\u7248" : Version.Type;
+    public string TypeLabel => Version.Type.ToLowerInvariant() switch
+    {
+        "release" => "\u6b63\u5f0f\u7248",
+        "snapshot" => "\u5feb\u7167\u7248",
+        _ => Version.Type
+    };
+
+    public string ReleaseDateText => Version.ReleaseTime is { } releaseTime
+        ? releaseTime.ToLocalTime().ToString("yyyy-MM-dd")
+        : string.Empty;
 
     public bool IsRelease => Version.Type.Equals("Release", StringComparison.OrdinalIgnoreCase);
 
+    public bool IsSnapshot => Version.Type.Equals("Snapshot", StringComparison.OrdinalIgnoreCase);
+
+    public string IconSource => IsSnapshot
+        ? "/Assets/Icons/block/dirt_block.png"
+        : "/Assets/Icons/block/grass_block.png";
+
     [ObservableProperty]
     private bool isSelected;
-
-    [ObservableProperty]
-    private bool isFirstVisible;
-
-    [ObservableProperty]
-    private bool isLastVisible;
-
-    [ObservableProperty]
-    private bool isHovered;
-
-    [ObservableProperty]
-    private bool isPreviousItemHighlighted;
-
-    [ObservableProperty]
-    private bool isNextItemHighlighted;
 }

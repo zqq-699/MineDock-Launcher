@@ -1,0 +1,33 @@
+<UserControl x:Class="Launcher.App.Views.DownloadVersionListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Launcher.App.Controls"
+             xmlns:views="clr-namespace:Launcher.App.Views"
+             Focusable="False">
+    <controls:VirtualizedListPageItemsControl x:Name="DownloadVersionItemsControl"
+                                              ItemsSource="{Binding VisibleVersions}"
+                                              SelectedItem="{Binding SelectedMinecraftVersion}"
+                                              EstimatedItemHeight="58"
+                                              ContentTopOffset="132"
+                                              InitialItemCount="48"
+                                              MinimumRenderedItemCount="72"
+                                              OverscanItemCount="22"
+                                              WindowStep="6">
+        <controls:VirtualizedListPageItemsControl.ItemTemplate>
+            <DataTemplate>
+                <controls:ListPageItemButton Title="{Binding Item.Name}"
+                                             Subtitle="{Binding Item.TypeLabel}"
+                                             TrailingText="{Binding Item.ReleaseDateText}"
+                                             IconSource="{Binding Item.IconSource}"
+                                             IsSelected="{Binding Item.IsSelected}"
+                                             IsFirstVisible="{Binding IsFirstVisible}"
+                                             IsLastVisible="{Binding IsLastVisible}"
+                                             IsPreviousItemHighlighted="{Binding IsPreviousItemHighlighted}"
+                                             ShouldPlayEnterAnimation="{Binding ShouldPlayEnterAnimation, Mode=TwoWay}"
+                                             EnterAnimationIndex="{Binding EnterAnimationIndex}"
+                                             Command="{Binding DataContext.SelectMinecraftVersionCommand, RelativeSource={RelativeSource AncestorType={x:Type views:DownloadVersionListView}}}"
+                                             CommandParameter="{Binding Item}" />
+            </DataTemplate>
+        </controls:VirtualizedListPageItemsControl.ItemTemplate>
+    </controls:VirtualizedListPageItemsControl>
+</UserControl>

@@ -1,0 +1,23 @@
+<UserControl x:Class="Launcher.App.Controls.VirtualizedListPageItemsControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root"
+             Focusable="False">
+    <StackPanel>
+        <Border Height="{Binding TopSpacerHeight, ElementName=Root}"
+                IsHitTestVisible="False" />
+
+        <ItemsControl x:Name="PART_ItemsControl"
+                      ItemsSource="{Binding RenderedItems, ElementName=Root}"
+                      ItemTemplate="{Binding ItemTemplate, ElementName=Root}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+        </ItemsControl>
+
+        <Border Height="{Binding BottomSpacerHeight, ElementName=Root}"
+                IsHitTestVisible="False" />
+    </StackPanel>
+</UserControl>
