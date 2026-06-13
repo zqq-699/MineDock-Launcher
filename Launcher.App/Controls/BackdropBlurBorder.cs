@@ -9,6 +9,8 @@ namespace Launcher.App.Controls;
 
 public sealed class BackdropBlurBorder : Border
 {
+    private static readonly TimeSpan DefaultRealtimeRefreshInterval = TimeSpan.FromMilliseconds(33);
+
     public static readonly DependencyProperty SourceElementProperty =
         DependencyProperty.Register(
             nameof(SourceElement),
@@ -30,6 +32,18 @@ public sealed class BackdropBlurBorder : Border
             typeof(BackdropBlurBorder),
             new PropertyMetadata(Color.FromArgb(0x8A, 0x25, 0x25, 0x25), OnBackdropPropertyChanged));
 
+    public static readonly DependencyProperty RenderScaleProperty =
+        DependencyProperty.Register(
+            nameof(RenderScale),
+            typeof(double),
+            typeof(BackdropBlurBorder),
+            new PropertyMetadata(1d, OnBackdropPropertyChanged));
+
+    private bool isRefreshQueued;
+    private int queuedAttempts;
+    private EventHandler? realtimeRefreshHandler;
+    private DateTime lastRealtimeRefreshUtc;
+
     public UIElement? SourceElement
     {
         get => (UIElement?)GetValue(SourceElementProperty);
@@ -48,11 +62,18 @@ public sealed class BackdropBlurBorder : Border
         set => SetValue(TintColorProperty, value);
     }
 
+    public double RenderScale
+    {
+        get => (double)GetValue(RenderScaleProperty);
+        set => SetValue(RenderScaleProperty, value);
+    }
+
     public BackdropBlurBorder()
     {
         Loaded += (_, _) => QueueRefresh();
         SizeChanged += (_, _) => QueueRefresh();
         IsVisibleChanged += (_, _) => QueueRefresh();
+        Unloaded += (_, _) => StopRealtimeRefresh();
     }
 
     private static void OnBackdropPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -61,13 +82,54 @@ public sealed class BackdropBlurBorder : Border
             border.QueueRefresh();
     }
 
+    public void RequestRefresh()
+    {
+        QueueRefresh();
+    }
+
+    public void StartRealtimeRefresh(TimeSpan? interval = null)
+    {
+        StopRealtimeRefresh();
+        var refreshInterval = interval.GetValueOrDefault(DefaultRealtimeRefreshInterval);
+        lastRealtimeRefreshUtc = DateTime.MinValue;
+        realtimeRefreshHandler = (_, _) =>
+        {
+            var now = DateTime.UtcNow;
+            if (now - lastRealtimeRefreshUtc < refreshInterval)
+                return;
+
+            lastRealtimeRefreshUtc = now;
+            Refresh();
+        };
+
+        CompositionTarget.Rendering += realtimeRefreshHandler;
+    }
+
+    public void StopRealtimeRefresh()
+    {
+        if (realtimeRefreshHandler is null)
+            return;
+
+        CompositionTarget.Rendering -= realtimeRefreshHandler;
+        realtimeRefreshHandler = null;
+    }
+
     private void QueueRefresh(int attempts = 4)
     {
+        queuedAttempts = Math.Max(queuedAttempts, attempts);
+        if (isRefreshQueued)
+            return;
+
+        isRefreshQueued = true;
         Dispatcher.BeginInvoke(
             () =>
             {
-                if (!Refresh() && attempts > 0)
-                    QueueRefresh(attempts - 1);
+                var remainingAttempts = queuedAttempts;
+                queuedAttempts = 0;
+                isRefreshQueued = false;
+
+                if (!Refresh() && remainingAttempts > 0)
+                    QueueRefresh(remainingAttempts - 1);
             },
             DispatcherPriority.ApplicationIdle);
     }
@@ -84,29 +146,33 @@ public sealed class BackdropBlurBorder : Border
             return false;
 
         var dpi = VisualTreeHelper.GetDpi(sourceRoot);
-        var sourceWidth = Math.Max(1, (int)Math.Ceiling(sourceRoot.ActualWidth * dpi.DpiScaleX));
-        var sourceHeight = Math.Max(1, (int)Math.Ceiling(sourceRoot.ActualHeight * dpi.DpiScaleY));
+        var renderScale = Math.Clamp(RenderScale, 0.35d, 1d);
+        var renderDpiScaleX = dpi.DpiScaleX * renderScale;
+        var renderDpiScaleY = dpi.DpiScaleY * renderScale;
+        var renderDpi = new DpiScale(renderDpiScaleX, renderDpiScaleY);
+        var sourceWidth = Math.Max(1, (int)Math.Ceiling(sourceRoot.ActualWidth * renderDpiScaleX));
+        var sourceHeight = Math.Max(1, (int)Math.Ceiling(sourceRoot.ActualHeight * renderDpiScaleY));
 
         var rendered = new RenderTargetBitmap(
             sourceWidth,
             sourceHeight,
-            96 * dpi.DpiScaleX,
-            96 * dpi.DpiScaleY,
+            96 * renderDpiScaleX,
+            96 * renderDpiScaleY,
             PixelFormats.Pbgra32);
         rendered.Render(sourceRoot);
 
         var topLeft = sourceRoot.PointFromScreen(PointToScreen(new Point(0, 0)));
-        var cropX = (int)Math.Round(topLeft.X * dpi.DpiScaleX);
-        var cropY = (int)Math.Round(topLeft.Y * dpi.DpiScaleY);
-        var cropWidth = Math.Max(1, (int)Math.Round(ActualWidth * dpi.DpiScaleX));
-        var cropHeight = Math.Max(1, (int)Math.Round(ActualHeight * dpi.DpiScaleY));
+        var cropX = (int)Math.Round(topLeft.X * renderDpiScaleX);
+        var cropY = (int)Math.Round(topLeft.Y * renderDpiScaleY);
+        var cropWidth = Math.Max(1, (int)Math.Round(ActualWidth * renderDpiScaleX));
+        var cropHeight = Math.Max(1, (int)Math.Round(ActualHeight * renderDpiScaleY));
 
         var targetRect = IntersectWithSource(new Int32Rect(cropX, cropY, cropWidth, cropHeight), sourceWidth, sourceHeight);
         if (targetRect.Width <= 0 || targetRect.Height <= 0)
             return false;
 
-        var blurPaddingX = Math.Max(1, (int)Math.Ceiling(BlurRadius * dpi.DpiScaleX * 2));
-        var blurPaddingY = Math.Max(1, (int)Math.Ceiling(BlurRadius * dpi.DpiScaleY * 2));
+        var blurPaddingX = Math.Max(1, (int)Math.Ceiling(BlurRadius * renderDpiScaleX * 2));
+        var blurPaddingY = Math.Max(1, (int)Math.Ceiling(BlurRadius * renderDpiScaleY * 2));
         var expandedRect = IntersectWithSource(
             new Int32Rect(
                 targetRect.X - blurPaddingX,
@@ -122,7 +188,7 @@ public sealed class BackdropBlurBorder : Border
         var expandedCrop = new CroppedBitmap(rendered, expandedRect);
         expandedCrop.Freeze();
 
-        var blurredExpanded = CreateBlurredBitmap(expandedCrop, dpi, BlurRadius);
+        var blurredExpanded = CreateBlurredBitmap(expandedCrop, renderDpi, BlurRadius);
         var blurredTarget = new CroppedBitmap(
             blurredExpanded,
             new Int32Rect(
@@ -132,7 +198,7 @@ public sealed class BackdropBlurBorder : Border
                 targetRect.Height));
         blurredTarget.Freeze();
 
-        Background = new ImageBrush(CreateBackgroundBitmap(blurredTarget, dpi, TintColor))
+        Background = new ImageBrush(CreateBackgroundBitmap(blurredTarget, renderDpi, TintColor))
         {
             Stretch = Stretch.Fill
         };

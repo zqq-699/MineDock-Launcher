@@ -1,0 +1,20 @@
+<UserControl x:Class="Launcher.App.Controls.DialogHost"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Host"
+             Focusable="False">
+    <Grid x:Name="RootOverlay"
+          Style="{StaticResource DialogOverlayStyle}">
+        <Border Width="{Binding DialogWidth, ElementName=Host}"
+                Style="{StaticResource DialogShadowStyle}" />
+        <Border x:Name="Surface"
+                Width="{Binding DialogWidth, ElementName=Host}"
+                Style="{StaticResource DialogSurfaceStyle}">
+            <Grid ClipToBounds="True">
+                <Border x:Name="BlurLayer"
+                        Style="{StaticResource DialogBlurLayerStyle}" />
+                <ContentPresenter Content="{Binding DialogContent, ElementName=Host}" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

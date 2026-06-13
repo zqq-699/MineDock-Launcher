@@ -1,0 +1,72 @@
+<UserControl x:Class="Launcher.App.Views.RenameAccountDialogView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False">
+    <Grid Style="{StaticResource DialogContentGridStyle}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="{Binding RenameAccountDialogTitle}"
+                       Style="{StaticResource DialogTitleTextStyle}" />
+            <TextBlock Text="{Binding RenameAccountDialogSubtitle}"
+                       Style="{StaticResource DialogSubtitleTextStyle}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1"
+                    Style="{StaticResource DialogFormPanelStyle}"
+                    Visibility="{Binding IsRenameAccountInputStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+            <TextBlock Text="&#x65B0;&#x7528;&#x6237;&#x540D;"
+                       Style="{StaticResource DialogFieldLabelTextStyle}" />
+            <TextBox Style="{StaticResource LauncherDialogTextBoxStyle}"
+                     Text="{Binding RenameAccountName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            <TextBlock Text="&#x7528;&#x6237;&#x540D;&#x4E0D;&#x53EF;&#x4E3A;&#x7A7A;"
+                       Style="{StaticResource DialogValidationTextStyle}"
+                       Visibility="{Binding IsRenameAccountNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1"
+                    Style="{StaticResource DialogFormPanelStyle}"
+                    Visibility="{Binding IsRenameAccountMessageStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+            <TextBlock Text="{Binding RenameAccountIcon}"
+                       FontFamily="Segoe MDL2 Assets"
+                       FontSize="30"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="#F4F4F4" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsRenameAccountResultStep}" Value="True">
+                                <Setter Property="Foreground" Value="#FF8A8A" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsRenameAccountSuccessful}" Value="True">
+                                <Setter Property="Foreground" Value="#7DFFB2" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+            <TextBlock Text="{Binding RenameAccountMessage}"
+                       Margin="0,16,0,0"
+                       Style="{StaticResource DialogBodyTextStyle}"
+                       TextAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2"
+                    Style="{StaticResource DialogFooterStyle}">
+            <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                    Content="&#x53D6;&#x6D88;"
+                    Click="Cancel_Click"
+                    Visibility="{Binding CanShowRenameAccountCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+            <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                    Margin="{StaticResource DialogTrailingButtonMargin}"
+                    Content="&#x786E;&#x5B9A;"
+                    IsEnabled="{Binding CanConfirmRenameAccountDialog}"
+                    Click="Confirm_Click" />
+        </StackPanel>
+    </Grid>
+</UserControl>

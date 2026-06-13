@@ -3,12 +3,13 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:models="clr-namespace:Launcher.App.Models"
         xmlns:controls="clr-namespace:Launcher.App.Controls"
+        xmlns:views="clr-namespace:Launcher.App.Views"
         x:Class="Launcher.App.MainWindow"
         x:Name="RootWindow"
         Title="Launcher"
         Width="980"
         Height="640"
-        MinWidth="1040"
+        MinWidth="960"
         MinHeight="420"
         WindowStyle="None"
         AllowsTransparency="False"
@@ -28,668 +29,6 @@
                             UseAeroCaptionButtons="False" />
     </shell:WindowChrome.WindowChrome>
 
-    <Window.Resources>
-        <SolidColorBrush x:Key="MenuButtonSelectedBackgroundBrush" Color="#30808080" />
-        <SolidColorBrush x:Key="MenuButtonHoverBackgroundBrush" Color="#30606060" />
-
-        <Style x:Key="MenuButtonStyle" TargetType="Button">
-            <Setter Property="Height" Value="46" />
-            <Setter Property="Margin" Value="8,3" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Foreground" Value="#F2F2F2" />
-            <Setter Property="FontFamily" Value="Microsoft YaHei UI" />
-            <Setter Property="FontSize" Value="15" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                Background="Transparent"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="12">
-                            <Grid>
-                                <Border x:Name="SelectedBackground"
-                                        Background="{StaticResource MenuButtonSelectedBackgroundBrush}"
-                                        CornerRadius="12"
-                                        Opacity="0" />
-                                <Border x:Name="HoverBackground"
-                                        Background="{StaticResource MenuButtonHoverBackgroundBrush}"
-                                        CornerRadius="12"
-                                        Opacity="0" />
-                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                                  VerticalAlignment="Center" />
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="1"
-                                                         Duration="0:0:0.16">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="0"
-                                                         Duration="0:0:0.22">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="HoverBackground" Property="Opacity" Value="1" />
-                            </Trigger>
-                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
-                                <Setter TargetName="Root" Property="Effect">
-                                    <Setter.Value>
-                                        <DropShadowEffect BlurRadius="12"
-                                                          Color="#1f1f1f"
-                                                          Opacity="0.2"
-                                                          ShadowDepth="0" />
-                                    </Setter.Value>
-                                </Setter>
-                            </DataTrigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="CaptionButtonStyle" TargetType="Button">
-            <Setter Property="Width" Value="32" />
-            <Setter Property="Height" Value="30" />
-            <Setter Property="Foreground" Value="#E8E8E8" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                CornerRadius="6">
-                            <Grid>
-                                <Border Background="{TemplateBinding Background}"
-                                        CornerRadius="6" />
-                                <Border x:Name="HoverBackground"
-                                        Background="#24FFFFFF"
-                                        CornerRadius="6"
-                                        Opacity="0" />
-                                <Border x:Name="PressedBackground"
-                                        Background="#38FFFFFF"
-                                        CornerRadius="6"
-                                        Opacity="0" />
-                                <ContentPresenter HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center" />
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="1"
-                                                         Duration="0:0:0.16">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="0"
-                                                         Duration="0:0:0.22">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="AccountButtonStyle" TargetType="Button">
-            <Setter Property="Height" Value="40" />
-            <Setter Property="Margin" Value="0,0,0,6" />
-            <Setter Property="Padding" Value="12,4" />
-            <Setter Property="Foreground" Value="#F2F2F2" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                CornerRadius="10">
-                            <Grid>
-                                <Border Background="{TemplateBinding Background}"
-                                        CornerRadius="10" />
-                                <Border x:Name="SelectedBackground"
-                                        Background="#3D3D3D"
-                                        CornerRadius="10"
-                                        Opacity="0" />
-                                <Border x:Name="HoverBackground"
-                                        Background="#22FFFFFF"
-                                        CornerRadius="10"
-                                        Opacity="0" />
-                                <Border x:Name="PressedBackground"
-                                        Background="#34FFFFFF"
-                                        CornerRadius="10"
-                                        Opacity="0" />
-                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                                  VerticalAlignment="Center" />
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="1"
-                                                         Duration="0:0:0.16">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="0"
-                                                         Duration="0:0:0.22">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
-                            </Trigger>
-                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
-                            </DataTrigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="AccountDeleteButtonStyle" TargetType="Button">
-            <Setter Property="Width" Value="30" />
-            <Setter Property="Height" Value="30" />
-            <Setter Property="Foreground" Value="#FF2F2F" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                CornerRadius="7">
-                            <Grid>
-                                <Border Background="{TemplateBinding Background}"
-                                        CornerRadius="7" />
-                                <Border x:Name="HoverBackground"
-                                        Background="#18FF4A4A"
-                                        CornerRadius="7"
-                                        Opacity="0" />
-                                <ContentPresenter HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center" />
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="1"
-                                                         Duration="0:0:0.16">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="0"
-                                                         Duration="0:0:0.22">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Foreground" Value="#FF4A4A" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Foreground" Value="#E00000" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="SlimScrollRepeatButtonStyle" TargetType="RepeatButton">
-            <Setter Property="Focusable" Value="False" />
-            <Setter Property="IsTabStop" Value="False" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="RepeatButton">
-                        <Border Background="Transparent" />
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="SlimScrollThumbStyle" TargetType="Thumb">
-            <Setter Property="MinHeight" Value="34" />
-            <Setter Property="Background" Value="#5CFFFFFF" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Thumb">
-                        <Border x:Name="Root"
-                                Width="5"
-                                Margin="1,2"
-                                HorizontalAlignment="Center"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="3" />
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#84FFFFFF" />
-                            </Trigger>
-                            <Trigger Property="IsDragging" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#A8FFFFFF" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="SlimVerticalScrollBarStyle" TargetType="ScrollBar">
-            <Setter Property="Width" Value="8" />
-            <Setter Property="MinWidth" Value="8" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ScrollBar">
-                        <Grid Background="Transparent">
-                            <Track x:Name="PART_Track"
-                                   IsDirectionReversed="True">
-                                <Track.DecreaseRepeatButton>
-                                    <RepeatButton Command="{x:Static ScrollBar.PageUpCommand}"
-                                                  Style="{StaticResource SlimScrollRepeatButtonStyle}" />
-                                </Track.DecreaseRepeatButton>
-                                <Track.Thumb>
-                                    <Thumb Style="{StaticResource SlimScrollThumbStyle}" />
-                                </Track.Thumb>
-                                <Track.IncreaseRepeatButton>
-                                    <RepeatButton Command="{x:Static ScrollBar.PageDownCommand}"
-                                                  Style="{StaticResource SlimScrollRepeatButtonStyle}" />
-                                </Track.IncreaseRepeatButton>
-                            </Track>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="AccountTypeItemStyle" TargetType="ListBoxItem">
-            <Setter Property="Margin" Value="0,0,0,10" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Foreground" Value="#F4F4F4" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ListBoxItem">
-                        <Border x:Name="Root"
-                                CornerRadius="10">
-                            <Grid>
-                                <Border Background="#12FFFFFF"
-                                        CornerRadius="10" />
-                                <Border x:Name="SelectedBackground"
-                                        Background="#3D3D3D"
-                                        CornerRadius="10"
-                                        Opacity="0" />
-                                <Border x:Name="HoverBackground"
-                                        Background="#20FFFFFF"
-                                        CornerRadius="10"
-                                        Opacity="0" />
-                                <ContentPresenter Margin="14"
-                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="1"
-                                                         Duration="0:0:0.16">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="0"
-                                                         Duration="0:0:0.22">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="DialogButtonStyle" TargetType="Button">
-            <Setter Property="MinWidth" Value="86" />
-            <Setter Property="Height" Value="34" />
-            <Setter Property="Padding" Value="18,0" />
-            <Setter Property="Foreground" Value="#F4F4F4" />
-            <Setter Property="Background" Value="#20FFFFFF" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                CornerRadius="8">
-                            <Grid>
-                                <Border Background="{TemplateBinding Background}"
-                                        CornerRadius="8" />
-                                <Border x:Name="HoverBackground"
-                                        Background="#32FFFFFF"
-                                        CornerRadius="8"
-                                        Opacity="0" />
-                                <Border x:Name="PressedBackground"
-                                        Background="#50808080"
-                                        CornerRadius="8"
-                                        Opacity="0" />
-                                <ContentPresenter Margin="{TemplateBinding Padding}"
-                                                  HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center" />
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="1"
-                                                         Duration="0:0:0.16">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="0"
-                                                         Duration="0:0:0.22">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="PrimaryDialogButtonStyle" TargetType="Button">
-            <Setter Property="MinWidth" Value="86" />
-            <Setter Property="Height" Value="34" />
-            <Setter Property="Padding" Value="18,0" />
-            <Setter Property="Foreground" Value="#FFFFFF" />
-            <Setter Property="Background" Value="#0891FE" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                CornerRadius="8">
-                            <Grid>
-                                <Border Background="{TemplateBinding Background}"
-                                        CornerRadius="8" />
-                                <Border x:Name="HoverBackground"
-                                        Background="#047EDC"
-                                        CornerRadius="8"
-                                        Opacity="0" />
-                                <Border x:Name="PressedBackground"
-                                        Background="#036FC2"
-                                        CornerRadius="8"
-                                        Opacity="0" />
-                                <ContentPresenter Margin="{TemplateBinding Padding}"
-                                                  HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center" />
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="1"
-                                                         Duration="0:0:0.16">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="0"
-                                                         Duration="0:0:0.22">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="DangerDialogButtonStyle" TargetType="Button">
-            <Setter Property="MinWidth" Value="86" />
-            <Setter Property="Height" Value="34" />
-            <Setter Property="Padding" Value="18,0" />
-            <Setter Property="Foreground" Value="#FFFFFF" />
-            <Setter Property="Background" Value="#D94343" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                CornerRadius="8">
-                            <Grid>
-                                <Border Background="{TemplateBinding Background}"
-                                        CornerRadius="8" />
-                                <Border x:Name="HoverBackground"
-                                        Background="#B83232"
-                                        CornerRadius="8"
-                                        Opacity="0" />
-                                <Border x:Name="PressedBackground"
-                                        Background="#982828"
-                                        CornerRadius="8"
-                                        Opacity="0" />
-                                <ContentPresenter Margin="{TemplateBinding Padding}"
-                                                  HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center" />
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="1"
-                                                         Duration="0:0:0.16">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="0"
-                                                         Duration="0:0:0.22">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut" />
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="DialogTextBoxStyle" TargetType="TextBox">
-            <Setter Property="Height" Value="40" />
-            <Setter Property="Padding" Value="8,0" />
-            <Setter Property="FontSize" Value="16" />
-            <Setter Property="Foreground" Value="#F4F4F4" />
-            <Setter Property="Background" Value="#22FFFFFF" />
-            <Setter Property="BorderBrush" Value="#20FFFFFF" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CaretBrush" Value="#F4F4F4" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TextBox">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8">
-                            <ScrollViewer x:Name="PART_ContentHost"
-                                          Margin="{TemplateBinding Padding}" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#667ABEFF" />
-                                <Setter TargetName="Root" Property="Background" Value="#2AFFFFFF" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </Window.Resources>
-
     <Border CornerRadius="8"
             BorderBrush="#344e4e4e"
             BorderThickness="1"
@@ -697,679 +36,147 @@
             SnapsToDevicePixels="True">
         <Grid Background="Transparent">
             <Grid x:Name="WindowContentLayer">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="MenuColumn" Width="62" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="48" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="MenuColumn" Width="62" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="48" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-            <Border Grid.Column="0"
-                    Grid.RowSpan="2"
-                    BorderBrush="#284e4e4e"
-                    BorderThickness="0,0,1,0"
-                    Background="Transparent">
-                <DockPanel LastChildFill="True">
-                    <Button DockPanel.Dock="Bottom"
-                            Style="{StaticResource MenuButtonStyle}"
-                            Click="ToggleMenu_Click">
-                        <StackPanel Orientation="Horizontal" Margin="8,0">
-                            <TextBlock Width="30"
-                                       Text="&#xE700;"
-                                       FontFamily="Segoe MDL2 Assets"
-                                       FontSize="18"
-                                       TextAlignment="Center" />
-                            <TextBlock Margin="12,0,0,0"
-                                       Text="菜单"
-                                       VerticalAlignment="Center"
-                                       Visibility="{Binding IsMenuExpanded, ElementName=RootWindow, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
-                        </StackPanel>
-                    </Button>
+                <Border Grid.Column="0"
+                        Grid.RowSpan="2"
+                        BorderBrush="#284e4e4e"
+                        BorderThickness="0,0,1,0"
+                        Background="Transparent"
+                        ClipToBounds="True">
+                    <DockPanel LastChildFill="True">
+                        <Button DockPanel.Dock="Bottom"
+                                Style="{StaticResource NavigationMenuButtonStyle}"
+                                Click="ToggleMenu_Click">
+                            <StackPanel Orientation="Horizontal" Margin="8,0">
+                                <TextBlock Text="&#xE700;"
+                                           Style="{StaticResource NavigationMenuGlyphStyle}" />
+                                <TextBlock Text="&#x83DC;&#x5355;"
+                                           Style="{StaticResource NavigationMenuTextStyle}" />
+                            </StackPanel>
+                        </Button>
 
-                    <ItemsControl ItemsSource="{Binding NavigationItems}" Margin="0,22,0,0">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="{x:Type models:NavigationItem}">
-                                <Button Style="{StaticResource MenuButtonStyle}"
-                                        Click="Navigation_Click">
-                                    <StackPanel Orientation="Horizontal" Margin="8,0">
-                                        <Grid Width="30">
-                                            <TextBlock Text="{Binding Icon}"
-                                                       FontFamily="Segoe MDL2 Assets"
-                                                       FontSize="22"
-                                                       TextAlignment="Center"
-                                                       VerticalAlignment="Center">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding HasAvatar}" Value="True">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-
-                                            <Border Width="24"
-                                                    Height="24"
-                                                    HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center"
-                                                    ClipToBounds="True">
-                                                <Border.Style>
-                                                    <Style TargetType="Border">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding HasAvatar}" Value="True">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Border.Style>
-                                                <Border.Effect>
-                                                    <DropShadowEffect BlurRadius="8"
-                                                                      Color="#000000"
-                                                                      Opacity="0.42"
-                                                                      ShadowDepth="1" />
-                                                </Border.Effect>
-                                                <Image Source="{Binding AvatarUrl}"
-                                                       Stretch="Fill"
-                                                       SnapsToDevicePixels="True"
-                                                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
-                                            </Border>
-                                        </Grid>
-                                        <TextBlock Margin="12,0,0,0"
-                                                   Text="{Binding Page, Converter={StaticResource PageTitleConverter}}"
-                                                   VerticalAlignment="Center"
-                                                   Visibility="{Binding IsMenuExpanded, ElementName=RootWindow, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
-                                    </StackPanel>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </DockPanel>
-            </Border>
-
-            <Border Grid.Column="1"
-                    Grid.RowSpan="2"
-                    Background="#E0151515" />
-
-            <Grid Grid.Column="1"
-                  Grid.RowSpan="2"
-                  Visibility="{Binding CurrentPage, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=Account}">
-                <TextBlock Text="{Binding CurrentPage, Converter={StaticResource PageTitleConverter}}"
-                           Style="{StaticResource SecondaryMenuHeaderTextStyle}" />
-
-                <Border x:Name="AccountSecondaryMenuPanel"
-                        Style="{StaticResource SecondaryMenuPanelStyle}">
-                    <ScrollViewer Style="{StaticResource SecondaryMenuScrollViewerStyle}">
-                        <StackPanel Style="{StaticResource SecondaryMenuItemsPanelStyle}">
-                            <ItemsControl ItemsSource="{Binding Accounts}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type models:LauncherAccount}">
-                                        <Grid x:Name="AccountItemRoot"
-                                              Margin="0,0,0,6">
-                                            <Border x:Name="AccountItemBackground"
-                                                    Background="Transparent"
-                                                    CornerRadius="10" />
-
-                                            <Button Style="{StaticResource SecondaryMenuButtonStyle}"
-                                                    Margin="0"
-                                                    Click="Account_Click">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="50" />
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="10" />
-                                                    </Grid.ColumnDefinitions>
-
-                                                    <Border Width="24"
-                                                            Height="24"
-                                                            HorizontalAlignment="Center"
-                                                            VerticalAlignment="Center"
-                                                            ClipToBounds="True">
-                                                        <Image Source="{Binding AvatarUrl}"
-                                                               Stretch="Fill"
-                                                               SnapsToDevicePixels="True"
-                                                               RenderOptions.BitmapScalingMode="NearestNeighbor" />
-                                                    </Border>
-
-                                                    <TextBlock Grid.Column="1"
-                                                               Margin="4,0,8,0"
-                                                               Text="{Binding DisplayName}"
-                                                               Foreground="#F4F4F4"
-                                                               FontSize="16"
-                                                               VerticalAlignment="Center" />
-                                                </Grid>
-                                            </Button>
-
-                                            <Button HorizontalAlignment="Right"
-                                                    VerticalAlignment="Center"
-                                                    Margin="0,0,6,0"
-                                                    Click="DeleteAccount_Click">
-                                                <Button.Style>
-                                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryMenuDeleteButtonStyle}">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsMouseOver, ElementName=AccountItemRoot}" Value="True">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Button.Style>
-                                                <TextBlock Text="&#xE74D;"
+                        <ItemsControl ItemsSource="{Binding NavigationItems}" Margin="0,22,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type models:NavigationItem}">
+                                    <Button Style="{StaticResource NavigationMenuButtonStyle}"
+                                            Click="Navigation_Click">
+                                        <StackPanel Orientation="Horizontal" Margin="8,0">
+                                            <Grid Width="30">
+                                                <TextBlock Text="{Binding Icon}"
                                                            FontFamily="Segoe MDL2 Assets"
-                                                           FontSize="14" />
-                                            </Button>
-                                        </Grid>
-                                        <DataTemplate.Triggers>
-                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                <Setter TargetName="AccountItemBackground" Property="Background" Value="#3D3D3D" />
-                                            </DataTrigger>
-                                        </DataTemplate.Triggers>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                                           FontSize="22"
+                                                           TextAlignment="Center"
+                                                           VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasAvatar}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
 
-                            <Button Style="{StaticResource SecondaryMenuButtonStyle}"
-                                    Click="AddAccount_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="50" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="10" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <TextBlock Width="24"
-                                               Text="&#xE710;"
-                                               FontFamily="Segoe MDL2 Assets"
-                                               FontSize="18"
-                                               TextAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1"
-                                               Margin="4,0,0,0"
-                                               Text="&#x6DFB;&#x52A0;&#x8D26;&#x6237;"
-                                               Foreground="#F4F4F4"
-                                               FontSize="16"
-                                               VerticalAlignment="Center" />
-                                </Grid>
-                            </Button>
-                            <Border Style="{StaticResource SecondaryMenuBottomSpacerStyle}" />
-                        </StackPanel>
-                    </ScrollViewer>
-                </Border>
-
-                <Grid Margin="284,72,40,40">
-                    <TextBlock Text="&#x9009;&#x62E9;&#x8D26;&#x53F7;&#x4EE5;&#x6D4F;&#x89C8;&#x6216;&#x4FEE;&#x6539;&#x8BBE;&#x7F6E;&#x3002;"
-                               Foreground="#B8FFFFFF"
-                               FontSize="18"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               TextAlignment="Center">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedAccount}" Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-
-                    <ScrollViewer>
-                        <ScrollViewer.Style>
-                            <Style TargetType="ScrollViewer" BasedOn="{StaticResource MainContentScrollViewerStyle}">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedAccount}" Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ScrollViewer.Style>
-
-                        <StackPanel Margin="0,0,16,0">
-
-                        <Image Width="64"
-                               Height="64"
-                               HorizontalAlignment="Left"
-                               Source="{Binding SelectedAccount.AvatarUrl}"
-                               Stretch="Fill"
-                               SnapsToDevicePixels="True"
-                               RenderOptions.BitmapScalingMode="NearestNeighbor" />
-                        <Grid Margin="0,18,0,0"
-                              HorizontalAlignment="Left">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock Text="{Binding SelectedAccount.DisplayName}"
-                                       Foreground="#F4F4F4"
-                                       FontSize="24"
-                                       FontWeight="SemiBold"
-                                       VerticalAlignment="Center" />
-                            <Button Grid.Column="1"
-                                    Margin="10,0,0,0"
-                                    Style="{StaticResource InlineIconButtonStyle}"
-                                    Click="EditAccountName_Click">
-                                <TextBlock FontFamily="Segoe MDL2 Assets"
-                                           FontSize="15"
-                                           Text="&#xE70F;" />
-                            </Button>
-                        </Grid>
-                        <TextBlock Margin="0,8,0,0"
-                                   Text="{Binding SelectedAccount.AccountKindText}"
-                                   Foreground="#AFFFFFFF"
-                                   FontSize="13" />
-
-                        <StackPanel Margin="0,26,0,0"
-                                    MaxWidth="480"
-                                    HorizontalAlignment="Left">
-                            <TextBlock Text="UUID"
-                                       Foreground="#98FFFFFF"
-                                       FontSize="12"
-                                       FontWeight="SemiBold" />
-                            <Border Margin="0,8,0,0"
-                                    Padding="14,10"
-                                    Background="#18FFFFFF"
-                                    BorderBrush="#16FFFFFF"
-                                    BorderThickness="1"
-                                    CornerRadius="8">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <TextBlock Text="{Binding SelectedAccount.UuidText}"
-                                               Foreground="#E8FFFFFF"
-                                               FontSize="14"
-                                               TextWrapping="Wrap"
-                                               VerticalAlignment="Center" />
-                                    <Button x:Name="CopyUuidButton"
-                                            Grid.Column="1"
-                                            Margin="10,-4,-6,-4"
-                                            Style="{StaticResource InlineIconButtonStyle}"
-                                            Click="CopyUuid_Click">
-                                        <TextBlock x:Name="CopyUuidIcon"
-                                                   FontFamily="Segoe MDL2 Assets"
-                                                   FontSize="15"
-                                                   Text="&#xE8C8;" />
-                                    </Button>
-                                </Grid>
-                            </Border>
-
-                            <TextBlock Margin="0,22,0,0"
-                                       Text="&#x76AE;&#x80A4;"
-                                       Foreground="#98FFFFFF"
-                                       FontSize="12"
-                                       FontWeight="SemiBold" />
-                            <StackPanel Margin="0,8,0,0"
-                                        Orientation="Horizontal">
-                                <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
-                                        Content="&#x66F4;&#x6362;&#x76AE;&#x80A4;"
-                                        IsEnabled="{Binding CanChangeSelectedAccountSkin}"
-                                        Click="ChangeSkin_Click" />
-                            </StackPanel>
-
-                            <TextBlock Margin="0,22,0,0"
-                                       Text="&#x62AB;&#x98CE;"
-                                       Foreground="#98FFFFFF"
-                                       FontSize="12"
-                                       FontWeight="SemiBold" />
-                            <Grid Margin="0,8,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="220" />
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-
-                                <controls:AnimatedComboBox ItemsSource="{Binding SelectedAccountCapeOptions}"
-                                                           SelectedItem="{Binding SelectedAccountCapeOption, Mode=TwoWay}"
-                                                           IsEnabled="{Binding HasSelectedAccountCapes}"
-                                                           Style="{StaticResource LauncherComboBoxStyle}"
-                                                           shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                                    <controls:AnimatedComboBox.ItemTemplate>
-                                        <DataTemplate DataType="{x:Type models:AccountCapeOption}">
-                                            <StackPanel>
-                                                <TextBlock Text="{Binding DisplayName}"
-                                                           Foreground="#F4F4F4"
-                                                           FontSize="13" />
-                                                <TextBlock Text="{Binding StateText}"
-                                                           Margin="0,2,0,0"
-                                                           Foreground="#8FFFFFFF"
-                                                           FontSize="11" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </controls:AnimatedComboBox.ItemTemplate>
-                                </controls:AnimatedComboBox>
-
-                                <Button Grid.Column="1"
-                                        Margin="10,0,0,0"
-                                        Style="{StaticResource LauncherDialogButtonStyle}"
-                                        Content="&#x5237;&#x65B0;"
-                                        IsEnabled="{Binding CanEditSelectedMicrosoftAccount}"
-                                        Click="RefreshCapes_Click" />
-                                <Button Grid.Column="2"
-                                        Margin="10,0,0,0"
-                                        Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
-                                        Content="&#x5E94;&#x7528;"
-                                        IsEnabled="{Binding CanApplySelectedCape}"
-                                        Click="ApplyCape_Click" />
-                            </Grid>
-
-                            <TextBlock Margin="0,14,0,0"
-                                       Text="{Binding AccountProfileMessage}"
-                                       Foreground="#AFFFFFFF"
-                                       FontSize="13"
-                                       TextWrapping="Wrap" />
-                        </StackPanel>
-                        </StackPanel>
-                    </ScrollViewer>
-                </Grid>
-            </Grid>
-
-            <ScrollViewer Grid.Column="1"
-                          Grid.RowSpan="2"
-                          Margin="28,64,28,28">
-                <ScrollViewer.Style>
-                    <Style TargetType="ScrollViewer" BasedOn="{StaticResource MainContentScrollViewerStyle}">
-                        <Setter Property="Visibility" Value="Visible" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding CurrentPage}" Value="Account">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </ScrollViewer.Style>
-                <StackPanel Margin="0,0,16,0">
-                    <TextBlock Text="{Binding CurrentPage, Converter={StaticResource PageTitleConverter}}"
-                               Foreground="#F4F4F4"
-                               FontSize="24"
-                               FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding StatusMessage}"
-                               Margin="0,12,0,0"
-                               Foreground="#B8FFFFFF"
-                               FontSize="13" />
-                </StackPanel>
-            </ScrollViewer>
-
-            <StackPanel Grid.Column="1"
-                        Grid.Row="0"
-                        Orientation="Horizontal"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Top"
-                        Margin="0,8,12,0">
-                <Button Style="{StaticResource CaptionButtonStyle}"
-                        Click="Minimize_Click">
-                    <TextBlock FontFamily="Segoe MDL2 Assets"
-                               FontSize="10"
-                               Text="&#xE921;" />
-                </Button>
-                <Button Style="{StaticResource CaptionButtonStyle}"
-                        Margin="4,0,0,0"
-                        Click="Close_Click">
-                    <TextBlock FontFamily="Segoe MDL2 Assets"
-                               FontSize="12"
-                               Text="&#xE8BB;" />
-                </Button>
-            </StackPanel>
-
-            </Grid>
-
-            <Grid x:Name="AddAccountDialogOverlay"
-                  Style="{StaticResource DialogOverlayStyle}">
-                <Border Width="420"
-                        Style="{StaticResource DialogShadowStyle}" />
-                <Border x:Name="AddAccountDialogSurface"
-                        Width="420"
-                        Style="{StaticResource DialogSurfaceStyle}">
-                    <Grid ClipToBounds="True">
-                        <Border x:Name="AddAccountDialogBlurLayer"
-                                Style="{StaticResource DialogBlurLayerStyle}" />
-
-                        <Grid Style="{StaticResource DialogContentGridStyle}">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <StackPanel>
-                            <TextBlock Text="{Binding AddAccountDialogTitle}"
-                                       Style="{StaticResource DialogTitleTextStyle}" />
-                            <TextBlock Text="{Binding AddAccountDialogSubtitle}"
-                                       Style="{StaticResource DialogSubtitleTextStyle}" />
-                        </StackPanel>
-
-                        <ListBox Grid.Row="1"
-                                 ItemsSource="{Binding AccountTypeOptions}"
-                                 SelectedItem="{Binding SelectedAccountTypeOption, Mode=TwoWay}"
-                                 Style="{StaticResource DialogChoiceListStyle}"
-                                 Visibility="{Binding IsAccountTypeStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate DataType="{x:Type models:AccountTypeOption}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="30" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <TextBlock Text="{Binding Icon}"
-                                                   FontFamily="Segoe MDL2 Assets"
-                                                   FontSize="22"
-                                                   Foreground="#F4F4F4"
-                                                   TextAlignment="Center"
-                                                   VerticalAlignment="Center" />
-
-                                        <StackPanel Grid.Column="1"
-                                                    Margin="6,0,0,0">
-                                            <TextBlock Text="{Binding Title}"
-                                                       Foreground="#F4F4F4"
-                                                       FontSize="16"
-                                                       FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding Description}"
-                                                       Margin="0,5,0,0"
-                                                       Foreground="#AFFFFFFF"
-                                                       FontSize="12"
-                                                       TextWrapping="Wrap" />
+                                                <Border>
+                                                    <Border.Style>
+                                                        <Style TargetType="Border" BasedOn="{StaticResource NavigationMenuAvatarContainerStyle}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasAvatar}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <Image Source="{Binding AvatarUrl}"
+                                                           Stretch="Fill"
+                                                           SnapsToDevicePixels="True"
+                                                           RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                                </Border>
+                                            </Grid>
+                                            <TextBlock Text="{Binding Page, Converter={StaticResource PageTitleConverter}}"
+                                                       Style="{StaticResource NavigationMenuTextStyle}" />
                                         </StackPanel>
-                                    </Grid>
+                                    </Button>
                                 </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-
-                        <StackPanel Grid.Row="1"
-                                    Style="{StaticResource DialogFormPanelStyle}"
-                                    Visibility="{Binding IsOfflineNameStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
-                            <TextBlock Text="&#x7528;&#x6237;&#x540D;"
-                                       Style="{StaticResource DialogFieldLabelTextStyle}" />
-                            <TextBox Style="{StaticResource LauncherDialogTextBoxStyle}"
-                                     Text="{Binding NewOfflineAccountName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <TextBlock Text="&#x7528;&#x6237;&#x540D;&#x4E0D;&#x53EF;&#x4E3A;&#x7A7A;"
-                                       Style="{StaticResource DialogValidationTextStyle}"
-                                       Visibility="{Binding IsNewOfflineAccountNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="1"
-                                    Style="{StaticResource DialogFormPanelStyle}"
-                                    Visibility="{Binding IsMicrosoftStatusStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
-                            <TextBlock Text="{Binding MicrosoftLoginIcon}"
-                                       FontFamily="Segoe MDL2 Assets"
-                                       FontSize="30"
-                                       HorizontalAlignment="Center"
-                                       TextAlignment="Center">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="#F4F4F4" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsMicrosoftLoginResultStep}" Value="True">
-                                                <Setter Property="Foreground" Value="#FF8A8A" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding IsMicrosoftLoginSuccessful}" Value="True">
-                                                <Setter Property="Foreground" Value="#7DFFB2" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                            <TextBlock Text="{Binding MicrosoftLoginMessage}"
-                                       Margin="0,16,0,0"
-                                       Style="{StaticResource DialogBodyTextStyle}"
-                                       TextAlignment="Center" />
-                        </StackPanel>
-
-                        <Grid Grid.Row="2">
-                            <Button Style="{StaticResource LauncherDialogButtonStyle}"
-                                    HorizontalAlignment="Left"
-                                    Content="&#x4E0A;&#x4E00;&#x6B65;"
-                                    Click="BackAddAccount_Click"
-                                    Visibility="{Binding CanShowAddAccountBackButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
-
-                            <StackPanel Style="{StaticResource DialogFooterStyle}"
-                                        IsEnabled="{Binding IsAddAccountFooterEnabled}">
-                                <Button Style="{StaticResource LauncherDialogButtonStyle}"
-                                        Content="&#x53D6;&#x6D88;"
-                                        Click="CancelAddAccount_Click"
-                                        Visibility="{Binding CanShowAddAccountCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
-                                <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
-                                        Margin="{StaticResource DialogTrailingButtonMargin}"
-                                        Content="&#x786E;&#x5B9A;"
-                                        IsEnabled="{Binding CanConfirmAddAccountDialog}"
-                                        Click="ConfirmAddAccount_Click" />
-                            </StackPanel>
-                        </Grid>
-                        </Grid>
-                    </Grid>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </DockPanel>
                 </Border>
+
+                <Border Grid.Column="1"
+                        Grid.RowSpan="2"
+                        Background="#E0151515" />
+
+                <Grid x:Name="PageTransitionHost"
+                      Grid.Column="1"
+                      Grid.RowSpan="2"
+                      ClipToBounds="True">
+                    <views:AccountPageView x:Name="AccountPageView"
+                                           DataContext="{Binding AccountPage}"
+                                           Visibility="{Binding DataContext.CurrentPage, ElementName=RootWindow, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=Account}" />
+                    <views:GeneralPageView x:Name="GeneralPageView" />
+                </Grid>
+
+                <StackPanel Grid.Column="1"
+                            Grid.Row="0"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Margin="0,8,12,0">
+                    <Button Style="{StaticResource WindowCaptionButtonStyle}"
+                            Click="Minimize_Click">
+                        <TextBlock FontFamily="Segoe MDL2 Assets"
+                                   FontSize="10"
+                                   Text="&#xE921;" />
+                    </Button>
+                    <Button Style="{StaticResource WindowCaptionButtonStyle}"
+                            Margin="4,0,0,0"
+                            Click="Close_Click">
+                        <TextBlock FontFamily="Segoe MDL2 Assets"
+                                   FontSize="12"
+                                   Text="&#xE8BB;" />
+                    </Button>
+                </StackPanel>
             </Grid>
 
-            <Grid x:Name="DeleteAccountDialogOverlay"
-                  Style="{StaticResource DialogOverlayStyle}">
-                <Border Width="380"
-                        Style="{StaticResource DialogShadowStyle}" />
-                <Border x:Name="DeleteAccountDialogSurface"
-                        Width="380"
-                        Style="{StaticResource DialogSurfaceStyle}">
-                    <Grid ClipToBounds="True">
-                        <Border x:Name="DeleteAccountDialogBlurLayer"
-                                Style="{StaticResource DialogBlurLayerStyle}" />
+            <controls:DialogHost x:Name="AddAccountDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="420"
+                                 DataContext="{Binding AccountPage}">
+                <views:AddAccountDialogView BackRequested="BackAddAccount_Click"
+                                            CancelRequested="CancelAddAccount_Click"
+                                            ConfirmRequested="ConfirmAddAccount_Click" />
+            </controls:DialogHost>
 
-                        <Grid Style="{StaticResource DialogContentGridStyle}">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
+            <controls:DialogHost x:Name="DeleteAccountDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="380"
+                                 DataContext="{Binding AccountPage}">
+                <views:DeleteAccountDialogView CancelRequested="CancelDeleteAccount_Click"
+                                               ConfirmRequested="ConfirmDeleteAccount_Click" />
+            </controls:DialogHost>
 
-                            <TextBlock Text="&#x5220;&#x9664;&#x8D26;&#x6237;"
-                                       Style="{StaticResource DialogTitleTextStyle}" />
-
-                            <TextBlock Grid.Row="1"
-                                       Margin="0,16,0,24"
-                                       Text="&#x662F;&#x5426;&#x786E;&#x5B9A;&#x5220;&#x9664;&#x8BE5;&#x8D26;&#x6237;&#xFF1F;"
-                                       Style="{StaticResource DialogBodyTextStyle}" />
-
-                            <StackPanel Grid.Row="2"
-                                        Style="{StaticResource DialogFooterStyle}">
-                                <Button Style="{StaticResource LauncherDialogButtonStyle}"
-                                        Content="&#x53D6;&#x6D88;"
-                                        Click="CancelDeleteAccount_Click" />
-                                <Button Style="{StaticResource LauncherDangerDialogButtonStyle}"
-                                        Margin="{StaticResource DialogTrailingButtonMargin}"
-                                        Content="&#x5220;&#x9664;"
-                                        Click="ConfirmDeleteAccount_Click" />
-                            </StackPanel>
-                        </Grid>
-                    </Grid>
-                </Border>
-            </Grid>
-
-            <Grid x:Name="RenameAccountDialogOverlay"
-                  Style="{StaticResource DialogOverlayStyle}">
-                <Border Width="420"
-                        Style="{StaticResource DialogShadowStyle}" />
-                <Border x:Name="RenameAccountDialogSurface"
-                        Width="420"
-                        Style="{StaticResource DialogSurfaceStyle}">
-                    <Grid ClipToBounds="True">
-                        <Border x:Name="RenameAccountDialogBlurLayer"
-                                Style="{StaticResource DialogBlurLayerStyle}" />
-
-                        <Grid Style="{StaticResource DialogContentGridStyle}">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-
-                            <StackPanel>
-                                <TextBlock Text="{Binding RenameAccountDialogTitle}"
-                                           Style="{StaticResource DialogTitleTextStyle}" />
-                                <TextBlock Text="{Binding RenameAccountDialogSubtitle}"
-                                           Style="{StaticResource DialogSubtitleTextStyle}" />
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="1"
-                                        Style="{StaticResource DialogFormPanelStyle}"
-                                        Visibility="{Binding IsRenameAccountInputStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
-                                <TextBlock Text="&#x65B0;&#x7528;&#x6237;&#x540D;"
-                                           Style="{StaticResource DialogFieldLabelTextStyle}" />
-                                <TextBox Style="{StaticResource LauncherDialogTextBoxStyle}"
-                                         Text="{Binding RenameAccountName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Text="&#x7528;&#x6237;&#x540D;&#x4E0D;&#x53EF;&#x4E3A;&#x7A7A;"
-                                           Style="{StaticResource DialogValidationTextStyle}"
-                                           Visibility="{Binding IsRenameAccountNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="1"
-                                        Style="{StaticResource DialogFormPanelStyle}"
-                                        Visibility="{Binding IsRenameAccountMessageStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
-                                <TextBlock Text="{Binding RenameAccountIcon}"
-                                           FontFamily="Segoe MDL2 Assets"
-                                           FontSize="30"
-                                           HorizontalAlignment="Center"
-                                           TextAlignment="Center">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="#F4F4F4" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsRenameAccountResultStep}" Value="True">
-                                                    <Setter Property="Foreground" Value="#FF8A8A" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding IsRenameAccountSuccessful}" Value="True">
-                                                    <Setter Property="Foreground" Value="#7DFFB2" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                                <TextBlock Text="{Binding RenameAccountMessage}"
-                                           Margin="0,16,0,0"
-                                           Style="{StaticResource DialogBodyTextStyle}"
-                                           TextAlignment="Center" />
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="2"
-                                        Style="{StaticResource DialogFooterStyle}">
-                                <Button Style="{StaticResource LauncherDialogButtonStyle}"
-                                        Content="&#x53D6;&#x6D88;"
-                                        Click="CancelRenameAccount_Click"
-                                        Visibility="{Binding CanShowRenameAccountCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
-                                <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
-                                        Margin="{StaticResource DialogTrailingButtonMargin}"
-                                        Content="&#x786E;&#x5B9A;"
-                                        IsEnabled="{Binding CanConfirmRenameAccountDialog}"
-                                        Click="ConfirmRenameAccount_Click" />
-                            </StackPanel>
-                        </Grid>
-                    </Grid>
-                </Border>
-            </Grid>
+            <controls:DialogHost x:Name="RenameAccountDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="420"
+                                 DataContext="{Binding AccountPage}">
+                <views:RenameAccountDialogView CancelRequested="CancelRenameAccount_Click"
+                                               ConfirmRequested="ConfirmRenameAccount_Click" />
+            </controls:DialogHost>
         </Grid>
     </Border>
 </Window>

@@ -1,0 +1,31 @@
+<UserControl x:Class="Launcher.App.Views.DeleteAccountDialogView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False">
+    <Grid Style="{StaticResource DialogContentGridStyle}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="&#x5220;&#x9664;&#x8D26;&#x6237;"
+                   Style="{StaticResource DialogTitleTextStyle}" />
+
+        <TextBlock Grid.Row="1"
+                   Margin="0,16,0,24"
+                   Text="&#x662F;&#x5426;&#x786E;&#x5B9A;&#x5220;&#x9664;&#x8BE5;&#x8D26;&#x6237;&#xFF1F;"
+                   Style="{StaticResource DialogBodyTextStyle}" />
+
+        <StackPanel Grid.Row="2"
+                    Style="{StaticResource DialogFooterStyle}">
+            <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                    Content="&#x53D6;&#x6D88;"
+                    Click="Cancel_Click" />
+            <Button Style="{StaticResource LauncherDangerDialogButtonStyle}"
+                    Margin="{StaticResource DialogTrailingButtonMargin}"
+                    Content="&#x5220;&#x9664;"
+                    Click="Confirm_Click" />
+        </StackPanel>
+    </Grid>
+</UserControl>

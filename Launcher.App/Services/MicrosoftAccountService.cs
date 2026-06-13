@@ -122,6 +122,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
         {
             Id = cape.Id,
             DisplayName = string.IsNullOrWhiteSpace(cape.Alias) ? cape.Id ?? "\u672a\u547d\u540d\u62ab\u98ce" : cape.Alias,
+            ImageUrl = cape.Url,
             IsActive = IsActiveState(cape.State),
             IsNone = false
         }));
@@ -564,6 +565,9 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
 
         [JsonPropertyName("alias")]
         public string? Alias { get; set; }
+
+        [JsonPropertyName("url")]
+        public string? Url { get; set; }
     }
 
     private sealed record ActiveCapeRequest([property: JsonPropertyName("capeId")] string CapeId);

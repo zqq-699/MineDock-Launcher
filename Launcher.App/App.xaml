@@ -8,10 +8,8 @@
                 <ResourceDictionary Source="Styles/ControlStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <converters:BooleanToWidthConverter x:Key="BooleanToWidthConverter" />
             <converters:BooleanToMenuTextVisibilityConverter x:Key="BooleanToMenuTextVisibilityConverter" />
             <converters:PageVisibilityConverter x:Key="PageVisibilityConverter" />
-            <converters:CollectionVisibilityConverter x:Key="CollectionVisibilityConverter" />
             <converters:PageTitleConverter x:Key="PageTitleConverter" />
         </ResourceDictionary>
     </Application.Resources>

@@ -28,6 +28,9 @@ public partial class App : Application
         services.AddSingleton<IModService, ModService>();
         services.AddSingleton<IModrinthService, ModrinthService>();
         services.AddSingleton<IMicrosoftAccountService, MicrosoftAccountService>();
+        services.AddSingleton<IAccountStore, AccountStore>();
+        services.AddSingleton<IStatusService, StatusService>();
+        services.AddSingleton<AccountPageViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 
