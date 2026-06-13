@@ -103,6 +103,42 @@ public sealed class LauncherCoreTests : IDisposable
     }
 
     [Fact]
+    public async Task SettingsServicePersistsCachedAccountCapes()
+    {
+        var service = new JsonSettingsService(tempRoot);
+        var settings = await service.LoadAsync();
+        settings.AccountsInitialized = true;
+        settings.Accounts =
+        [
+            new LauncherAccountRecord
+            {
+                Id = "microsoft-alex",
+                DisplayName = "Alex",
+                Uuid = "alexuuid",
+                IsOffline = false,
+                Capes =
+                [
+                    new LauncherCapeRecord
+                    {
+                        Id = "cape-one",
+                        DisplayName = "Cape One",
+                        IsActive = true
+                    }
+                ]
+            }
+        ];
+
+        await service.SaveAsync(settings);
+        var loaded = await service.LoadAsync();
+
+        var account = Assert.Single(loaded.Accounts);
+        var cape = Assert.Single(account.Capes);
+        Assert.Equal("cape-one", cape.Id);
+        Assert.Equal("Cape One", cape.DisplayName);
+        Assert.True(cape.IsActive);
+    }
+
+    [Fact]
     public async Task InstanceServiceCreatesIsolatedDirectoriesWithProvider()
     {
         var settingsService = new JsonSettingsService(tempRoot);

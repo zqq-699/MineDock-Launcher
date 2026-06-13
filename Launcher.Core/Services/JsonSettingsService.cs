@@ -50,6 +50,11 @@ public sealed class JsonSettingsService : ISettingsService
         settings.Accounts ??= [];
         settings.Accounts.RemoveAll(account => string.IsNullOrWhiteSpace(account.Id)
             || string.IsNullOrWhiteSpace(account.DisplayName));
+        foreach (var account in settings.Accounts)
+        {
+            account.Capes ??= [];
+            account.Capes.RemoveAll(cape => !cape.IsNone && string.IsNullOrWhiteSpace(cape.DisplayName));
+        }
 
         if (!settings.AccountsInitialized)
         {

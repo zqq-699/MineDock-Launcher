@@ -2,12 +2,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:models="clr-namespace:Launcher.App.Models"
+        xmlns:controls="clr-namespace:Launcher.App.Controls"
         x:Class="Launcher.App.MainWindow"
         x:Name="RootWindow"
         Title="Launcher"
         Width="980"
         Height="640"
-        MinWidth="640"
+        MinWidth="1040"
         MinHeight="420"
         WindowStyle="None"
         AllowsTransparency="False"
@@ -918,9 +919,9 @@
                         </TextBlock.Style>
                     </TextBlock>
 
-                    <StackPanel>
-                        <StackPanel.Style>
-                            <Style TargetType="StackPanel">
+                    <ScrollViewer>
+                        <ScrollViewer.Style>
+                            <Style TargetType="ScrollViewer" BasedOn="{StaticResource MainContentScrollViewerStyle}">
                                 <Setter Property="Visibility" Value="Visible" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedAccount}" Value="{x:Null}">
@@ -928,7 +929,9 @@
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </StackPanel.Style>
+                        </ScrollViewer.Style>
+
+                        <StackPanel Margin="0,0,16,0">
 
                         <Image Width="64"
                                Height="64"
@@ -937,11 +940,27 @@
                                Stretch="Fill"
                                SnapsToDevicePixels="True"
                                RenderOptions.BitmapScalingMode="NearestNeighbor" />
-                        <TextBlock Margin="0,18,0,0"
-                                   Text="{Binding SelectedAccount.DisplayName}"
-                                   Foreground="#F4F4F4"
-                                   FontSize="24"
-                                   FontWeight="SemiBold" />
+                        <Grid Margin="0,18,0,0"
+                              HorizontalAlignment="Left">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="{Binding SelectedAccount.DisplayName}"
+                                       Foreground="#F4F4F4"
+                                       FontSize="24"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1"
+                                    Margin="10,0,0,0"
+                                    Style="{StaticResource InlineIconButtonStyle}"
+                                    Click="EditAccountName_Click">
+                                <TextBlock FontFamily="Segoe MDL2 Assets"
+                                           FontSize="15"
+                                           Text="&#xE70F;" />
+                            </Button>
+                        </Grid>
                         <TextBlock Margin="0,8,0,0"
                                    Text="{Binding SelectedAccount.AccountKindText}"
                                    Foreground="#AFFFFFFF"
@@ -960,10 +979,28 @@
                                     BorderBrush="#16FFFFFF"
                                     BorderThickness="1"
                                     CornerRadius="8">
-                                <TextBlock Text="{Binding SelectedAccount.UuidText}"
-                                           Foreground="#E8FFFFFF"
-                                           FontSize="14"
-                                           TextWrapping="Wrap" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Text="{Binding SelectedAccount.UuidText}"
+                                               Foreground="#E8FFFFFF"
+                                               FontSize="14"
+                                               TextWrapping="Wrap"
+                                               VerticalAlignment="Center" />
+                                    <Button x:Name="CopyUuidButton"
+                                            Grid.Column="1"
+                                            Margin="10,-4,-6,-4"
+                                            Style="{StaticResource InlineIconButtonStyle}"
+                                            Click="CopyUuid_Click">
+                                        <TextBlock x:Name="CopyUuidIcon"
+                                                   FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="15"
+                                                   Text="&#xE8C8;" />
+                                    </Button>
+                                </Grid>
                             </Border>
 
                             <TextBlock Margin="0,22,0,0"
@@ -975,14 +1012,8 @@
                                         Orientation="Horizontal">
                                 <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                                         Content="&#x66F4;&#x6362;&#x76AE;&#x80A4;"
-                                        IsEnabled="{Binding CanEditSelectedMicrosoftAccount}"
+                                        IsEnabled="{Binding CanChangeSelectedAccountSkin}"
                                         Click="ChangeSkin_Click" />
-                                <TextBlock Margin="12,0,0,0"
-                                           Text="&#x4EC5;&#x652F;&#x6301;&#x6B63;&#x7248;&#x8D26;&#x6237;&#xFF0C;PNG &#x76AE;&#x80A4;&#x9ED8;&#x8BA4;&#x4F7F;&#x7528; classic &#x6A21;&#x578B;&#x3002;"
-                                           Foreground="#8FFFFFFF"
-                                           FontSize="12"
-                                           VerticalAlignment="Center"
-                                           TextWrapping="Wrap" />
                             </StackPanel>
 
                             <TextBlock Margin="0,22,0,0"
@@ -997,16 +1028,12 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
-                                <ComboBox ItemsSource="{Binding SelectedAccountCapeOptions}"
-                                          SelectedItem="{Binding SelectedAccountCapeOption, Mode=TwoWay}"
-                                          IsEnabled="{Binding HasSelectedAccountCapes}"
-                                          Height="34"
-                                          Padding="8,0"
-                                          Background="#24FFFFFF"
-                                          BorderBrush="#20FFFFFF"
-                                          Foreground="#F4F4F4"
-                                          shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                                    <ComboBox.ItemTemplate>
+                                <controls:AnimatedComboBox ItemsSource="{Binding SelectedAccountCapeOptions}"
+                                                           SelectedItem="{Binding SelectedAccountCapeOption, Mode=TwoWay}"
+                                                           IsEnabled="{Binding HasSelectedAccountCapes}"
+                                                           Style="{StaticResource LauncherComboBoxStyle}"
+                                                           shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                                    <controls:AnimatedComboBox.ItemTemplate>
                                         <DataTemplate DataType="{x:Type models:AccountCapeOption}">
                                             <StackPanel>
                                                 <TextBlock Text="{Binding DisplayName}"
@@ -1018,8 +1045,8 @@
                                                            FontSize="11" />
                                             </StackPanel>
                                         </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
+                                    </controls:AnimatedComboBox.ItemTemplate>
+                                </controls:AnimatedComboBox>
 
                                 <Button Grid.Column="1"
                                         Margin="10,0,0,0"
@@ -1041,16 +1068,16 @@
                                        FontSize="13"
                                        TextWrapping="Wrap" />
                         </StackPanel>
-                    </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
                 </Grid>
             </Grid>
 
-            <StackPanel Grid.Column="1"
-                        Grid.RowSpan="2"
-                        Margin="28,64,28,28"
-                        shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                <StackPanel.Style>
-                    <Style TargetType="StackPanel">
+            <ScrollViewer Grid.Column="1"
+                          Grid.RowSpan="2"
+                          Margin="28,64,28,28">
+                <ScrollViewer.Style>
+                    <Style TargetType="ScrollViewer" BasedOn="{StaticResource MainContentScrollViewerStyle}">
                         <Setter Property="Visibility" Value="Visible" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding CurrentPage}" Value="Account">
@@ -1058,16 +1085,18 @@
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
-                </StackPanel.Style>
-                <TextBlock Text="{Binding CurrentPage, Converter={StaticResource PageTitleConverter}}"
-                           Foreground="#F4F4F4"
-                           FontSize="24"
-                           FontWeight="SemiBold" />
-                <TextBlock Text="{Binding StatusMessage}"
-                           Margin="0,12,0,0"
-                           Foreground="#B8FFFFFF"
-                           FontSize="13" />
-            </StackPanel>
+                </ScrollViewer.Style>
+                <StackPanel Margin="0,0,16,0">
+                    <TextBlock Text="{Binding CurrentPage, Converter={StaticResource PageTitleConverter}}"
+                               Foreground="#F4F4F4"
+                               FontSize="24"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding StatusMessage}"
+                               Margin="0,12,0,0"
+                               Foreground="#B8FFFFFF"
+                               FontSize="13" />
+                </StackPanel>
+            </ScrollViewer>
 
             <StackPanel Grid.Column="1"
                         Grid.Row="0"
@@ -1254,6 +1283,88 @@
                                         Margin="{StaticResource DialogTrailingButtonMargin}"
                                         Content="&#x5220;&#x9664;"
                                         Click="ConfirmDeleteAccount_Click" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Grid x:Name="RenameAccountDialogOverlay"
+                  Style="{StaticResource DialogOverlayStyle}">
+                <Border Width="420"
+                        Style="{StaticResource DialogShadowStyle}" />
+                <Border x:Name="RenameAccountDialogSurface"
+                        Width="420"
+                        Style="{StaticResource DialogSurfaceStyle}">
+                    <Grid ClipToBounds="True">
+                        <Border x:Name="RenameAccountDialogBlurLayer"
+                                Style="{StaticResource DialogBlurLayerStyle}" />
+
+                        <Grid Style="{StaticResource DialogContentGridStyle}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel>
+                                <TextBlock Text="{Binding RenameAccountDialogTitle}"
+                                           Style="{StaticResource DialogTitleTextStyle}" />
+                                <TextBlock Text="{Binding RenameAccountDialogSubtitle}"
+                                           Style="{StaticResource DialogSubtitleTextStyle}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1"
+                                        Style="{StaticResource DialogFormPanelStyle}"
+                                        Visibility="{Binding IsRenameAccountInputStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                                <TextBlock Text="&#x65B0;&#x7528;&#x6237;&#x540D;"
+                                           Style="{StaticResource DialogFieldLabelTextStyle}" />
+                                <TextBox Style="{StaticResource LauncherDialogTextBoxStyle}"
+                                         Text="{Binding RenameAccountName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Text="&#x7528;&#x6237;&#x540D;&#x4E0D;&#x53EF;&#x4E3A;&#x7A7A;"
+                                           Style="{StaticResource DialogValidationTextStyle}"
+                                           Visibility="{Binding IsRenameAccountNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1"
+                                        Style="{StaticResource DialogFormPanelStyle}"
+                                        Visibility="{Binding IsRenameAccountMessageStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                                <TextBlock Text="{Binding RenameAccountIcon}"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           FontSize="30"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="#F4F4F4" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRenameAccountResultStep}" Value="True">
+                                                    <Setter Property="Foreground" Value="#FF8A8A" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsRenameAccountSuccessful}" Value="True">
+                                                    <Setter Property="Foreground" Value="#7DFFB2" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="{Binding RenameAccountMessage}"
+                                           Margin="0,16,0,0"
+                                           Style="{StaticResource DialogBodyTextStyle}"
+                                           TextAlignment="Center" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="2"
+                                        Style="{StaticResource DialogFooterStyle}">
+                                <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                        Content="&#x53D6;&#x6D88;"
+                                        Click="CancelRenameAccount_Click"
+                                        Visibility="{Binding CanShowRenameAccountCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                                <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                        Margin="{StaticResource DialogTrailingButtonMargin}"
+                                        Content="&#x786E;&#x5B9A;"
+                                        IsEnabled="{Binding CanConfirmRenameAccountDialog}"
+                                        Click="ConfirmRenameAccount_Click" />
                             </StackPanel>
                         </Grid>
                     </Grid>

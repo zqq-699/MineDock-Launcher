@@ -7,4 +7,5 @@ public sealed class LauncherAccountRecord
     public string? Uuid { get; set; }
     public string? AvatarSource { get; set; }
     public bool IsOffline { get; set; } = true;
+    public List<LauncherCapeRecord> Capes { get; set; } = [];
 }

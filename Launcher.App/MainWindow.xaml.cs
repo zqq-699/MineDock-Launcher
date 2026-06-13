@@ -6,6 +6,7 @@ using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Launcher.App.Animations;
+using Launcher.App.Controls;
 using Launcher.App.Models;
 using Launcher.App.Services;
 using Launcher.App.ViewModels;
@@ -18,16 +19,23 @@ public partial class MainWindow : Window
     public static readonly DependencyProperty IsMenuExpandedProperty =
         DependencyProperty.Register(nameof(IsMenuExpanded), typeof(bool), typeof(MainWindow), new PropertyMetadata(false));
 
+    public static readonly DependencyProperty IsUuidCopiedProperty =
+        DependencyProperty.Register(nameof(IsUuidCopied), typeof(bool), typeof(MainWindow), new PropertyMetadata(false));
+
     private const double CollapsedMenuWidth = 62;
     private const double ExpandedMenuWidth = 210;
     private const double DialogBlurRadius = 42;
+    private const double DialogAnimationBlurScale = 0.5;
     private const double DialogSizeAnimationThreshold = 1;
+    private static readonly TimeSpan DialogAnimationBlurInterval = TimeSpan.FromMilliseconds(33);
     private static readonly Duration DialogFadeInDuration = TimeSpan.FromMilliseconds(160);
     private static readonly Duration DialogFadeOutDuration = TimeSpan.FromMilliseconds(180);
     private static readonly Duration DialogSizeTransitionDuration = TimeSpan.FromMilliseconds(240);
     private static readonly Color DialogBlurTintColor = Color.FromArgb(0x8A, 0x25, 0x25, 0x25);
 
     private bool isDialogSizeAnimating;
+    private EventHandler? dialogBlurRenderingHandler;
+    private DateTime lastDialogAnimationBlurRefreshUtc;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -37,11 +45,13 @@ public partial class MainWindow : Window
         SizeChanged += (_, _) => QueueOpenDialogBlurRefresh();
         AddAccountDialogSurface.SizeChanged += (_, _) => QueueDialogBlurRefreshWhenIdle();
         DeleteAccountDialogSurface.SizeChanged += (_, _) => QueueDialogBlurRefreshWhenIdle();
+        RenameAccountDialogSurface.SizeChanged += (_, _) => QueueDialogBlurRefreshWhenIdle();
         Loaded += async (_, _) =>
         {
             await viewModel.InitializeCommand.ExecuteAsync(null);
             IsMenuExpanded = viewModel.IsMenuExpanded;
             MenuColumn.Width = new GridLength(IsMenuExpanded ? ExpandedMenuWidth : CollapsedMenuWidth);
+            _ = Dispatcher.BeginInvoke(PrewarmTransientUi, DispatcherPriority.ContextIdle);
         };
     }
 
@@ -49,6 +59,12 @@ public partial class MainWindow : Window
     {
         get => (bool)GetValue(IsMenuExpandedProperty);
         set => SetValue(IsMenuExpandedProperty, value);
+    }
+
+    public bool IsUuidCopied
+    {
+        get => (bool)GetValue(IsUuidCopiedProperty);
+        set => SetValue(IsUuidCopiedProperty, value);
     }
 
     private void Minimize_Click(object sender, RoutedEventArgs e)
@@ -87,6 +103,7 @@ public partial class MainWindow : Window
 
     private void Navigation_Click(object sender, RoutedEventArgs e)
     {
+        ResetUuidCopyButton();
         if (sender is FrameworkElement { DataContext: NavigationItem item }
             && DataContext is MainViewModel viewModel)
             viewModel.SelectNavigationItem(item);
@@ -94,14 +111,53 @@ public partial class MainWindow : Window
 
     private void Account_Click(object sender, RoutedEventArgs e)
     {
+        ResetUuidCopyButton();
         if (sender is FrameworkElement { DataContext: LauncherAccount account }
             && DataContext is MainViewModel viewModel)
             viewModel.SelectAccount(account);
     }
 
+    private void CopyUuid_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel { SelectedAccount: { } account })
+            return;
+
+        var uuid = account.Uuid;
+        if (string.IsNullOrWhiteSpace(uuid))
+        {
+            SetUuidCopyButtonCopied(true);
+            return;
+        }
+
+        SetUuidCopyButtonCopied(true);
+        try
+        {
+            Clipboard.SetText(uuid);
+            IsUuidCopied = true;
+        }
+        catch (Exception ex)
+        {
+            if (DataContext is MainViewModel viewModel)
+                viewModel.StatusMessage = $"\u590d\u5236 UUID \u5931\u8d25\uff1a{ex.Message}";
+        }
+    }
+
+    private void EditAccountName_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel)
+        {
+            viewModel.OpenRenameAccountDialog();
+            if (viewModel.IsRenameAccountDialogOpen)
+                ShowDialogOverlay(RenameAccountDialogOverlay, RenameAccountDialogSurface, RenameAccountDialogBlurLayer);
+        }
+    }
+
     private async void ChangeSkin_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is not MainViewModel viewModel)
+            return;
+
+        if (!viewModel.CanChangeSelectedAccountSkin)
             return;
 
         var dialog = new OpenFileDialog
@@ -214,6 +270,30 @@ public partial class MainWindow : Window
         }
     }
 
+    private void CancelRenameAccount_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel)
+        {
+            viewModel.CancelRenameAccountDialog();
+            if (!viewModel.IsRenameAccountDialogOpen)
+                HideDialogOverlay(RenameAccountDialogOverlay, viewModel.ResetRenameAccountDialog);
+        }
+    }
+
+    private async void ConfirmRenameAccount_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel)
+        {
+            var previousHeight = RenameAccountDialogSurface.ActualHeight;
+            await viewModel.ConfirmRenameAccountDialogAsync();
+
+            if (viewModel.IsRenameAccountDialogOpen)
+                AnimateDialogSizeChange(RenameAccountDialogSurface, RenameAccountDialogBlurLayer, previousHeight);
+            else
+                HideDialogOverlay(RenameAccountDialogOverlay, viewModel.ResetRenameAccountDialog);
+        }
+    }
+
     private void QueueOpenDialogBlurRefresh()
     {
         if (DataContext is not MainViewModel viewModel)
@@ -224,6 +304,9 @@ public partial class MainWindow : Window
 
         if (viewModel.IsDeleteAccountDialogOpen)
             QueueDialogBlurRefresh(DeleteAccountDialogSurface, DeleteAccountDialogBlurLayer, 5);
+
+        if (viewModel.IsRenameAccountDialogOpen)
+            QueueDialogBlurRefresh(RenameAccountDialogSurface, RenameAccountDialogBlurLayer, 5);
     }
 
     private void QueueDialogBlurRefreshWhenIdle()
@@ -252,6 +335,7 @@ public partial class MainWindow : Window
 
     private void AnimateDialogSizeChange(Border dialog, Border blurTarget, double previousHeight)
     {
+        StopRealtimeDialogBlur();
         dialog.BeginAnimation(HeightProperty, null);
         dialog.Height = double.NaN;
         isDialogSizeAnimating = true;
@@ -271,7 +355,8 @@ public partial class MainWindow : Window
 
         dialog.Height = previousHeight;
         UpdateLayout();
-        UpdateDialogBlur(dialog, blurTarget);
+        UpdateDialogBlur(dialog, blurTarget, DialogAnimationBlurScale);
+        StartRealtimeDialogBlur(dialog, blurTarget);
 
         var animation = new DoubleAnimation
         {
@@ -284,12 +369,41 @@ public partial class MainWindow : Window
 
         animation.Completed += (_, _) =>
         {
+            StopRealtimeDialogBlur();
             dialog.Height = double.NaN;
             isDialogSizeAnimating = false;
             RefreshDialogBlurNow(dialog, blurTarget);
         };
 
         dialog.BeginAnimation(HeightProperty, animation);
+    }
+
+    private void StartRealtimeDialogBlur(FrameworkElement dialog, Border blurTarget)
+    {
+        lastDialogAnimationBlurRefreshUtc = DateTime.MinValue;
+        dialogBlurRenderingHandler = (_, _) =>
+        {
+            if (!isDialogSizeAnimating || !dialog.IsVisible)
+                return;
+
+            var now = DateTime.UtcNow;
+            if (now - lastDialogAnimationBlurRefreshUtc < DialogAnimationBlurInterval)
+                return;
+
+            lastDialogAnimationBlurRefreshUtc = now;
+            UpdateDialogBlur(dialog, blurTarget, DialogAnimationBlurScale);
+        };
+
+        CompositionTarget.Rendering += dialogBlurRenderingHandler;
+    }
+
+    private void StopRealtimeDialogBlur()
+    {
+        if (dialogBlurRenderingHandler is null)
+            return;
+
+        CompositionTarget.Rendering -= dialogBlurRenderingHandler;
+        dialogBlurRenderingHandler = null;
     }
 
     private void ShowDialogOverlay(Grid overlay, FrameworkElement dialog, Border blurTarget)
@@ -310,6 +424,35 @@ public partial class MainWindow : Window
         };
 
         overlay.BeginAnimation(OpacityProperty, animation);
+    }
+
+    private void PrewarmTransientUi()
+    {
+        BlurEffectWarmup.EnsureWarmed();
+        PrewarmDialogOverlay(AddAccountDialogOverlay, AddAccountDialogSurface, AddAccountDialogBlurLayer);
+        PrewarmDialogOverlay(DeleteAccountDialogOverlay, DeleteAccountDialogSurface, DeleteAccountDialogBlurLayer);
+        PrewarmDialogOverlay(RenameAccountDialogOverlay, RenameAccountDialogSurface, RenameAccountDialogBlurLayer);
+
+        foreach (var comboBox in FindVisualChildren<AnimatedComboBox>(this))
+            comboBox.ApplyTemplate();
+    }
+
+    private void PrewarmDialogOverlay(Grid overlay, Border dialog, Border blurTarget)
+    {
+        var originalVisibility = overlay.Visibility;
+        var originalOpacity = overlay.Opacity;
+
+        overlay.BeginAnimation(OpacityProperty, null);
+        overlay.Visibility = Visibility.Hidden;
+        overlay.Opacity = 0;
+
+        dialog.ApplyTemplate();
+        blurTarget.ApplyTemplate();
+        UpdateLayout();
+        UpdateDialogBlur(dialog, blurTarget, DialogAnimationBlurScale);
+
+        overlay.Visibility = originalVisibility;
+        overlay.Opacity = originalOpacity;
     }
 
     private static void HideDialogOverlay(Grid overlay, Action? completed = null)
@@ -344,7 +487,7 @@ public partial class MainWindow : Window
         overlay.BeginAnimation(OpacityProperty, animation);
     }
 
-    private bool UpdateDialogBlur(FrameworkElement dialog, Border target)
+    private bool UpdateDialogBlur(FrameworkElement dialog, Border target, double renderScale = 1)
     {
         if (!dialog.IsVisible
             || WindowContentLayer.ActualWidth <= 0
@@ -354,29 +497,33 @@ public partial class MainWindow : Window
             return false;
 
         var dpi = VisualTreeHelper.GetDpi(this);
-        var sourceWidth = Math.Max(1, (int)Math.Ceiling(WindowContentLayer.ActualWidth * dpi.DpiScaleX));
-        var sourceHeight = Math.Max(1, (int)Math.Ceiling(WindowContentLayer.ActualHeight * dpi.DpiScaleY));
+        var scale = Math.Clamp(renderScale, 0.25, 1);
+        var renderDpiScaleX = dpi.DpiScaleX * scale;
+        var renderDpiScaleY = dpi.DpiScaleY * scale;
+        var renderDpi = new DpiScale(renderDpiScaleX, renderDpiScaleY);
+        var sourceWidth = Math.Max(1, (int)Math.Ceiling(WindowContentLayer.ActualWidth * renderDpiScaleX));
+        var sourceHeight = Math.Max(1, (int)Math.Ceiling(WindowContentLayer.ActualHeight * renderDpiScaleY));
 
         var rendered = new RenderTargetBitmap(
             sourceWidth,
             sourceHeight,
-            96 * dpi.DpiScaleX,
-            96 * dpi.DpiScaleY,
+            96 * renderDpiScaleX,
+            96 * renderDpiScaleY,
             PixelFormats.Pbgra32);
         rendered.Render(WindowContentLayer);
 
         var topLeft = dialog.TransformToVisual(WindowContentLayer).Transform(new Point(0, 0));
-        var cropX = (int)Math.Round(topLeft.X * dpi.DpiScaleX);
-        var cropY = (int)Math.Round(topLeft.Y * dpi.DpiScaleY);
-        var cropWidth = Math.Max(1, (int)Math.Round(dialog.ActualWidth * dpi.DpiScaleX));
-        var cropHeight = Math.Max(1, (int)Math.Round(dialog.ActualHeight * dpi.DpiScaleY));
+        var cropX = (int)Math.Round(topLeft.X * renderDpiScaleX);
+        var cropY = (int)Math.Round(topLeft.Y * renderDpiScaleY);
+        var cropWidth = Math.Max(1, (int)Math.Round(dialog.ActualWidth * renderDpiScaleX));
+        var cropHeight = Math.Max(1, (int)Math.Round(dialog.ActualHeight * renderDpiScaleY));
 
         var targetRect = IntersectWithSource(new Int32Rect(cropX, cropY, cropWidth, cropHeight), sourceWidth, sourceHeight);
         if (targetRect.Width <= 0 || targetRect.Height <= 0)
             return false;
 
-        var blurPaddingX = Math.Max(1, (int)Math.Ceiling(DialogBlurRadius * dpi.DpiScaleX * 2));
-        var blurPaddingY = Math.Max(1, (int)Math.Ceiling(DialogBlurRadius * dpi.DpiScaleY * 2));
+        var blurPaddingX = Math.Max(1, (int)Math.Ceiling(DialogBlurRadius * renderDpiScaleX * 2));
+        var blurPaddingY = Math.Max(1, (int)Math.Ceiling(DialogBlurRadius * renderDpiScaleY * 2));
         var expandedRect = IntersectWithSource(
             new Int32Rect(
                 targetRect.X - blurPaddingX,
@@ -392,7 +539,7 @@ public partial class MainWindow : Window
         var expandedCrop = new CroppedBitmap(rendered, expandedRect);
         expandedCrop.Freeze();
 
-        var blurredExpanded = CreateBlurredBitmap(expandedCrop, dpi);
+        var blurredExpanded = CreateBlurredBitmap(expandedCrop, renderDpi);
         var blurredTarget = new CroppedBitmap(
             blurredExpanded,
             new Int32Rect(
@@ -402,7 +549,7 @@ public partial class MainWindow : Window
                 targetRect.Height));
         blurredTarget.Freeze();
 
-        var dialogBackground = CreateDialogBackgroundBitmap(blurredTarget, dpi);
+        var dialogBackground = CreateDialogBackgroundBitmap(blurredTarget, renderDpi);
 
         var brush = EnsureLocalDialogBrush(target);
         brush.ImageSource = dialogBackground;
@@ -489,5 +636,47 @@ public partial class MainWindow : Window
         var bottom = Math.Min(sourceHeight, rect.Y + rect.Height);
 
         return new Int32Rect(x, y, Math.Max(0, right - x), Math.Max(0, bottom - y));
+    }
+
+    private static IEnumerable<T> FindVisualChildren<T>(DependencyObject root) where T : DependencyObject
+    {
+        var childCount = VisualTreeHelper.GetChildrenCount(root);
+        for (var index = 0; index < childCount; index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is T typedChild)
+                yield return typedChild;
+
+            foreach (var descendant in FindVisualChildren<T>(child))
+                yield return descendant;
+        }
+    }
+
+    private void ResetUuidCopyButton()
+    {
+        IsUuidCopied = false;
+        SetUuidCopyButtonCopied(false);
+    }
+
+    private void SetUuidCopyButtonCopied(bool isCopied)
+    {
+        if (CopyUuidButton is null)
+            return;
+
+        IsUuidCopied = isCopied;
+        CopyUuidButton.IsHitTestVisible = !isCopied;
+        CopyUuidButton.Cursor = isCopied ? System.Windows.Input.Cursors.Arrow : System.Windows.Input.Cursors.Hand;
+        CopyUuidButton.Foreground = new SolidColorBrush(isCopied
+            ? Color.FromRgb(0x7D, 0xFF, 0xB2)
+            : Color.FromArgb(0xDF, 0xFF, 0xFF, 0xFF));
+
+        if (CopyUuidIcon is not null)
+        {
+            CopyUuidIcon.FontFamily = isCopied
+                ? new FontFamily("Segoe UI Symbol")
+                : new FontFamily("Segoe MDL2 Assets");
+            CopyUuidIcon.FontSize = isCopied ? 18 : 15;
+            CopyUuidIcon.Text = isCopied ? "\u2713" : "\uE8C8";
+        }
     }
 }

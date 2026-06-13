@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Windows;
 using System.Windows.Media;
@@ -177,6 +178,24 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
         await EnsureSuccessAsync(response, "\u66f4\u6362\u62ab\u98ce\u5931\u8d25", cancellationToken);
     }
 
+    public async Task<LauncherAccount> ChangeNameAsync(
+        LauncherAccount account,
+        string newName,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(newName))
+            throw new InvalidOperationException("\u7528\u6237\u540d\u4e0d\u53ef\u4e3a\u7a7a");
+
+        var accessToken = await GetAccessTokenAsync(account, cancellationToken);
+        var escapedName = Uri.EscapeDataString(newName.Trim());
+        using var request = CreateProfileRequest(HttpMethod.Put, $"{MinecraftProfileEndpoint}/name/{escapedName}", accessToken);
+        using var response = await HttpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, "\u4fee\u6539\u6b63\u7248\u8d26\u6237\u540d\u5931\u8d25", cancellationToken);
+
+        var profile = await ReadProfileOrFetchAsync(response, account, cancellationToken);
+        return await CreateAccountFromProfileAsync(profile, forceRefreshAvatar: true, cancellationToken);
+    }
+
     private async Task<LauncherAccount> CreateAccountFromProfileAsync(
         JEProfile profile,
         bool forceRefreshAvatar,
@@ -287,6 +306,22 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
         return profile;
     }
 
+    private async Task<MinecraftProfileResponse> ReadProfileOrFetchAsync(
+        HttpResponseMessage response,
+        LauncherAccount account,
+        CancellationToken cancellationToken)
+    {
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!string.IsNullOrWhiteSpace(content))
+        {
+            var profile = JsonSerializer.Deserialize<MinecraftProfileResponse>(content, JsonOptions);
+            if (profile is not null && !string.IsNullOrWhiteSpace(profile.Id))
+                return profile;
+        }
+
+        return await GetMinecraftProfileAsync(account, cancellationToken);
+    }
+
     private async Task<string> GetAccessTokenAsync(LauncherAccount account, CancellationToken cancellationToken)
     {
         if (account.IsOffline || string.IsNullOrWhiteSpace(account.Uuid))
@@ -337,9 +372,43 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
             return;
 
         var details = await response.Content.ReadAsStringAsync(cancellationToken);
+        var readableDetails = TryReadMinecraftError(details) ?? details;
         throw new InvalidOperationException(string.IsNullOrWhiteSpace(details)
             ? $"{message}\uff1aHTTP {(int)response.StatusCode}"
-            : $"{message}\uff1a{details}");
+            : $"{message}\uff1a{readableDetails}");
+    }
+
+    private static string? TryReadMinecraftError(string details)
+    {
+        if (string.IsNullOrWhiteSpace(details))
+            return null;
+
+        try
+        {
+            var node = JsonNode.Parse(details);
+            var error = node?["error"]?.GetValue<string>();
+            var errorType = node?["errorType"]?.GetValue<string>();
+            var errorMessage = node?["errorMessage"]?.GetValue<string>()
+                ?? node?["developerMessage"]?.GetValue<string>();
+
+            var code = string.IsNullOrWhiteSpace(errorType) ? error : errorType;
+            var readable = code?.ToUpperInvariant() switch
+            {
+                "DUPLICATE" => "\u8fd9\u4e2a\u7528\u6237\u540d\u5df2\u88ab\u4f7f\u7528",
+                "NOT_ALLOWED" => "\u8fd9\u4e2a\u8d26\u6237\u6682\u65f6\u4e0d\u80fd\u6539\u540d\uff0c\u53ef\u80fd\u8fd8\u672a\u6ee1 30 \u5929\u51b7\u5374\u671f",
+                "CONSTRAINT_VIOLATION" => "\u7528\u6237\u540d\u683c\u5f0f\u4e0d\u7b26\u5408 Minecraft \u89c4\u5219",
+                _ => null
+            };
+
+            return readable
+                ?? errorMessage
+                ?? error
+                ?? errorType;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static bool IsActiveState(string? state)

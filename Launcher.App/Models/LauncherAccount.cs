@@ -11,6 +11,7 @@ public sealed partial class LauncherAccount : ObservableObject
     public string? Uuid { get; init; }
     public string? AvatarSource { get; init; }
     public bool IsOffline { get; init; }
+    public IReadOnlyList<AccountCapeOption> CachedCapeOptions { get; init; } = [];
 
     public string AvatarUrl
     {
