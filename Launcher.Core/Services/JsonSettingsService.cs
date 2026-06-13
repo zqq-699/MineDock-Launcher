@@ -47,6 +47,24 @@ public sealed class JsonSettingsService : ISettingsService
         if (string.IsNullOrWhiteSpace(settings.DataDirectory))
             settings.DataDirectory = LauncherDefaults.DefaultDataDirectory;
 
+        settings.Accounts ??= [];
+        settings.Accounts.RemoveAll(account => string.IsNullOrWhiteSpace(account.Id)
+            || string.IsNullOrWhiteSpace(account.DisplayName));
+
+        if (!settings.AccountsInitialized)
+        {
+            settings.AccountsInitialized = true;
+            if (settings.Accounts.Count == 0)
+            {
+                settings.Accounts.Add(new LauncherAccountRecord
+                {
+                    Id = "offline",
+                    DisplayName = settings.OfflineUsername,
+                    IsOffline = true
+                });
+            }
+        }
+
         settings.DefaultMemoryMb = Math.Clamp(settings.DefaultMemoryMb, 1024, 32768);
         return settings;
     }

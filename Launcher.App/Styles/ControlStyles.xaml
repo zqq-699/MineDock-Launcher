@@ -7,14 +7,31 @@
 
     <Style x:Key="SecondaryMenuPanelStyle" TargetType="Border">
         <Setter Property="Width" Value="224" />
-        <Setter Property="Margin" Value="24,48,0,38" />
+        <Setter Property="Margin" Value="24,88,0,24" />
         <Setter Property="HorizontalAlignment" Value="Left" />
         <Setter Property="Background" Value="#5A4A4A4A" />
-        <Setter Property="BorderBrush" Value="#35FFFFFF" />
+        <Setter Property="BorderBrush" Value="#24FFFFFF" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="14" />
         <Setter Property="ClipToBounds" Value="True" />
         <Setter Property="controls:RoundedClip.Radius" Value="14" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect BlurRadius="18"
+                                  Color="#000000"
+                                  Opacity="0.26"
+                                  ShadowDepth="0" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="SecondaryMenuHeaderTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="34,46,0,0" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Foreground" Value="#E8FFFFFF" />
+        <Setter Property="FontSize" Value="24" />
+        <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
     <Style x:Key="SlimScrollRepeatButtonStyle" TargetType="RepeatButton">
@@ -283,7 +300,7 @@
         <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderBrush" Value="#42FFFFFF" />
+        <Setter Property="BorderBrush" Value="#24FFFFFF" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="16" />
         <Setter Property="ClipToBounds" Value="True" />
@@ -437,7 +454,8 @@
                     <Border x:Name="Root"
                             CornerRadius="8">
                         <Grid>
-                            <Border Background="{TemplateBinding Background}"
+                            <Border x:Name="BaseBackground"
+                                    Background="{TemplateBinding Background}"
                                     CornerRadius="8" />
                             <Border x:Name="HoverBackground"
                                     Background="#32FFFFFF"
@@ -499,7 +517,8 @@
                     <Border x:Name="Root"
                             CornerRadius="8">
                         <Grid>
-                            <Border Background="{TemplateBinding Background}"
+                            <Border x:Name="BaseBackground"
+                                    Background="{TemplateBinding Background}"
                                     CornerRadius="8" />
                             <Border x:Name="HoverBackground"
                                     Background="#047EDC"
@@ -545,6 +564,12 @@
                         </EventTrigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="#BFFFFFFF" />
+                            <Setter TargetName="BaseBackground" Property="Background" Value="#5A5A5A" />
+                            <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -620,7 +645,7 @@
         <Setter Property="FontSize" Value="16" />
         <Setter Property="Foreground" Value="#F4F4F4" />
         <Setter Property="Background" Value="#22FFFFFF" />
-        <Setter Property="BorderBrush" Value="#30FFFFFF" />
+        <Setter Property="BorderBrush" Value="#20FFFFFF" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CaretBrush" Value="#F4F4F4" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -638,7 +663,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Root" Property="BorderBrush" Value="#7ABEFF" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="#667ABEFF" />
                             <Setter TargetName="Root" Property="Background" Value="#2AFFFFFF" />
                         </Trigger>
                     </ControlTemplate.Triggers>

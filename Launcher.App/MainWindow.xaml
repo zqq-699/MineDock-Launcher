@@ -661,7 +661,7 @@
             <Setter Property="FontSize" Value="16" />
             <Setter Property="Foreground" Value="#F4F4F4" />
             <Setter Property="Background" Value="#22FFFFFF" />
-            <Setter Property="BorderBrush" Value="#30FFFFFF" />
+            <Setter Property="BorderBrush" Value="#20FFFFFF" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CaretBrush" Value="#F4F4F4" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -679,7 +679,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#7ABEFF" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#667ABEFF" />
                                 <Setter TargetName="Root" Property="Background" Value="#2AFFFFFF" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -690,7 +690,7 @@
     </Window.Resources>
 
     <Border CornerRadius="8"
-            BorderBrush="#6E4e4e4e"
+            BorderBrush="#344e4e4e"
             BorderThickness="1"
             Background="Transparent"
             SnapsToDevicePixels="True">
@@ -707,7 +707,7 @@
 
             <Border Grid.Column="0"
                     Grid.RowSpan="2"
-                    BorderBrush="#554e4e4e"
+                    BorderBrush="#284e4e4e"
                     BorderThickness="0,0,1,0"
                     Background="Transparent">
                 <DockPanel LastChildFill="True">
@@ -773,6 +773,8 @@
                                                                       ShadowDepth="1" />
                                                 </Border.Effect>
                                                 <Image Source="{Binding AvatarUrl}"
+                                                       Stretch="Fill"
+                                                       SnapsToDevicePixels="True"
                                                        RenderOptions.BitmapScalingMode="NearestNeighbor" />
                                             </Border>
                                         </Grid>
@@ -795,6 +797,9 @@
             <Grid Grid.Column="1"
                   Grid.RowSpan="2"
                   Visibility="{Binding CurrentPage, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=Account}">
+                <TextBlock Text="{Binding CurrentPage, Converter={StaticResource PageTitleConverter}}"
+                           Style="{StaticResource SecondaryMenuHeaderTextStyle}" />
+
                 <Border x:Name="AccountSecondaryMenuPanel"
                         Style="{StaticResource SecondaryMenuPanelStyle}">
                     <ScrollViewer Style="{StaticResource SecondaryMenuScrollViewerStyle}">
@@ -824,6 +829,8 @@
                                                             VerticalAlignment="Center"
                                                             ClipToBounds="True">
                                                         <Image Source="{Binding AvatarUrl}"
+                                                               Stretch="Fill"
+                                                               SnapsToDevicePixels="True"
                                                                RenderOptions.BitmapScalingMode="NearestNeighbor" />
                                                     </Border>
 
@@ -896,7 +903,9 @@
                     <TextBlock Text="&#x9009;&#x62E9;&#x8D26;&#x53F7;&#x4EE5;&#x6D4F;&#x89C8;&#x6216;&#x4FEE;&#x6539;&#x8BBE;&#x7F6E;&#x3002;"
                                Foreground="#B8FFFFFF"
                                FontSize="18"
-                               VerticalAlignment="Top">
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               TextAlignment="Center">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -925,6 +934,8 @@
                                Height="64"
                                HorizontalAlignment="Left"
                                Source="{Binding SelectedAccount.AvatarUrl}"
+                               Stretch="Fill"
+                               SnapsToDevicePixels="True"
                                RenderOptions.BitmapScalingMode="NearestNeighbor" />
                         <TextBlock Margin="0,18,0,0"
                                    Text="{Binding SelectedAccount.DisplayName}"
@@ -935,6 +946,101 @@
                                    Text="{Binding SelectedAccount.AccountKindText}"
                                    Foreground="#AFFFFFFF"
                                    FontSize="13" />
+
+                        <StackPanel Margin="0,26,0,0"
+                                    MaxWidth="480"
+                                    HorizontalAlignment="Left">
+                            <TextBlock Text="UUID"
+                                       Foreground="#98FFFFFF"
+                                       FontSize="12"
+                                       FontWeight="SemiBold" />
+                            <Border Margin="0,8,0,0"
+                                    Padding="14,10"
+                                    Background="#18FFFFFF"
+                                    BorderBrush="#16FFFFFF"
+                                    BorderThickness="1"
+                                    CornerRadius="8">
+                                <TextBlock Text="{Binding SelectedAccount.UuidText}"
+                                           Foreground="#E8FFFFFF"
+                                           FontSize="14"
+                                           TextWrapping="Wrap" />
+                            </Border>
+
+                            <TextBlock Margin="0,22,0,0"
+                                       Text="&#x76AE;&#x80A4;"
+                                       Foreground="#98FFFFFF"
+                                       FontSize="12"
+                                       FontWeight="SemiBold" />
+                            <StackPanel Margin="0,8,0,0"
+                                        Orientation="Horizontal">
+                                <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                        Content="&#x66F4;&#x6362;&#x76AE;&#x80A4;"
+                                        IsEnabled="{Binding CanEditSelectedMicrosoftAccount}"
+                                        Click="ChangeSkin_Click" />
+                                <TextBlock Margin="12,0,0,0"
+                                           Text="&#x4EC5;&#x652F;&#x6301;&#x6B63;&#x7248;&#x8D26;&#x6237;&#xFF0C;PNG &#x76AE;&#x80A4;&#x9ED8;&#x8BA4;&#x4F7F;&#x7528; classic &#x6A21;&#x578B;&#x3002;"
+                                           Foreground="#8FFFFFFF"
+                                           FontSize="12"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <TextBlock Margin="0,22,0,0"
+                                       Text="&#x62AB;&#x98CE;"
+                                       Foreground="#98FFFFFF"
+                                       FontSize="12"
+                                       FontWeight="SemiBold" />
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="220" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <ComboBox ItemsSource="{Binding SelectedAccountCapeOptions}"
+                                          SelectedItem="{Binding SelectedAccountCapeOption, Mode=TwoWay}"
+                                          IsEnabled="{Binding HasSelectedAccountCapes}"
+                                          Height="34"
+                                          Padding="8,0"
+                                          Background="#24FFFFFF"
+                                          BorderBrush="#20FFFFFF"
+                                          Foreground="#F4F4F4"
+                                          shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type models:AccountCapeOption}">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           Foreground="#F4F4F4"
+                                                           FontSize="13" />
+                                                <TextBlock Text="{Binding StateText}"
+                                                           Margin="0,2,0,0"
+                                                           Foreground="#8FFFFFFF"
+                                                           FontSize="11" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+
+                                <Button Grid.Column="1"
+                                        Margin="10,0,0,0"
+                                        Style="{StaticResource LauncherDialogButtonStyle}"
+                                        Content="&#x5237;&#x65B0;"
+                                        IsEnabled="{Binding CanEditSelectedMicrosoftAccount}"
+                                        Click="RefreshCapes_Click" />
+                                <Button Grid.Column="2"
+                                        Margin="10,0,0,0"
+                                        Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                        Content="&#x5E94;&#x7528;"
+                                        IsEnabled="{Binding CanApplySelectedCape}"
+                                        Click="ApplyCape_Click" />
+                            </Grid>
+
+                            <TextBlock Margin="0,14,0,0"
+                                       Text="{Binding AccountProfileMessage}"
+                                       Foreground="#AFFFFFFF"
+                                       FontSize="13"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
             </Grid>
@@ -1060,20 +1166,51 @@
                                        Visibility="{Binding IsNewOfflineAccountNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                         </StackPanel>
 
+                        <StackPanel Grid.Row="1"
+                                    Style="{StaticResource DialogFormPanelStyle}"
+                                    Visibility="{Binding IsMicrosoftStatusStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                            <TextBlock Text="{Binding MicrosoftLoginIcon}"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="30"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#F4F4F4" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMicrosoftLoginResultStep}" Value="True">
+                                                <Setter Property="Foreground" Value="#FF8A8A" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsMicrosoftLoginSuccessful}" Value="True">
+                                                <Setter Property="Foreground" Value="#7DFFB2" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="{Binding MicrosoftLoginMessage}"
+                                       Margin="0,16,0,0"
+                                       Style="{StaticResource DialogBodyTextStyle}"
+                                       TextAlignment="Center" />
+                        </StackPanel>
+
                         <Grid Grid.Row="2">
                             <Button Style="{StaticResource LauncherDialogButtonStyle}"
                                     HorizontalAlignment="Left"
                                     Content="&#x4E0A;&#x4E00;&#x6B65;"
                                     Click="BackAddAccount_Click"
-                                    Visibility="{Binding IsOfflineNameStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                                    Visibility="{Binding CanShowAddAccountBackButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
-                            <StackPanel Style="{StaticResource DialogFooterStyle}">
+                            <StackPanel Style="{StaticResource DialogFooterStyle}"
+                                        IsEnabled="{Binding IsAddAccountFooterEnabled}">
                                 <Button Style="{StaticResource LauncherDialogButtonStyle}"
                                         Content="&#x53D6;&#x6D88;"
-                                        Click="CancelAddAccount_Click" />
+                                        Click="CancelAddAccount_Click"
+                                        Visibility="{Binding CanShowAddAccountCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                                 <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                                         Margin="{StaticResource DialogTrailingButtonMargin}"
                                         Content="&#x786E;&#x5B9A;"
+                                        IsEnabled="{Binding CanConfirmAddAccountDialog}"
                                         Click="ConfirmAddAccount_Click" />
                             </StackPanel>
                         </Grid>

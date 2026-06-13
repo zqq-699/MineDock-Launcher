@@ -1,4 +1,5 @@
 using System.Windows;
+using Launcher.App.Services;
 using Launcher.App.ViewModels;
 using Launcher.Core.Models;
 using Launcher.Core.Services;
@@ -26,6 +27,7 @@ public partial class App : Application
         services.AddSingleton<ILaunchService, LaunchService>();
         services.AddSingleton<IModService, ModService>();
         services.AddSingleton<IModrinthService, ModrinthService>();
+        services.AddSingleton<IMicrosoftAccountService, MicrosoftAccountService>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 

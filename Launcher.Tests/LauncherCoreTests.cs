@@ -26,6 +26,83 @@ public sealed class LauncherCoreTests : IDisposable
     }
 
     [Fact]
+    public async Task SettingsServicePersistsOfflineAccounts()
+    {
+        var service = new JsonSettingsService(tempRoot);
+        var settings = await service.LoadAsync();
+        settings.Accounts =
+        [
+            new LauncherAccountRecord
+            {
+                Id = "offline-alex",
+                DisplayName = "Alex",
+                IsOffline = true
+            }
+        ];
+
+        await service.SaveAsync(settings);
+        var loaded = await service.LoadAsync();
+
+        var account = Assert.Single(loaded.Accounts);
+        Assert.True(loaded.AccountsInitialized);
+        Assert.Equal("offline-alex", account.Id);
+        Assert.Equal("Alex", account.DisplayName);
+        Assert.True(account.IsOffline);
+    }
+
+    [Fact]
+    public async Task SettingsServiceKeepsInitializedEmptyAccountList()
+    {
+        var service = new JsonSettingsService(tempRoot);
+        var settings = await service.LoadAsync();
+        settings.AccountsInitialized = true;
+        settings.Accounts.Clear();
+
+        await service.SaveAsync(settings);
+        var loaded = await service.LoadAsync();
+
+        Assert.True(loaded.AccountsInitialized);
+        Assert.Empty(loaded.Accounts);
+    }
+
+    [Fact]
+    public async Task SettingsServicePreservesMixedAccountOrder()
+    {
+        var service = new JsonSettingsService(tempRoot);
+        var settings = await service.LoadAsync();
+        settings.AccountsInitialized = true;
+        settings.Accounts =
+        [
+            new LauncherAccountRecord
+            {
+                Id = "offline-first",
+                DisplayName = "First",
+                IsOffline = true
+            },
+            new LauncherAccountRecord
+            {
+                Id = "microsoft-alex",
+                DisplayName = "Alex",
+                Uuid = "alexuuid",
+                IsOffline = false
+            },
+            new LauncherAccountRecord
+            {
+                Id = "offline-last",
+                DisplayName = "Last",
+                IsOffline = true
+            }
+        ];
+
+        await service.SaveAsync(settings);
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(
+            ["offline-first", "microsoft-alex", "offline-last"],
+            loaded.Accounts.Select(account => account.Id));
+    }
+
+    [Fact]
     public async Task InstanceServiceCreatesIsolatedDirectoriesWithProvider()
     {
         var settingsService = new JsonSettingsService(tempRoot);

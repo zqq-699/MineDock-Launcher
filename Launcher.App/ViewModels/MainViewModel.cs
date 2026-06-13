@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Models;
+using Launcher.App.Services;
 using Launcher.Core.Models;
 using Launcher.Core.Services;
 
@@ -15,6 +16,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly ILaunchService launchService;
     private readonly IModService modService;
     private readonly IModrinthService modrinthService;
+    private readonly IMicrosoftAccountService microsoftAccountService;
     private readonly IReadOnlyDictionary<LoaderKind, ILoaderProvider> loaderProviders;
 
     [ObservableProperty]
@@ -60,6 +62,9 @@ public sealed partial class MainViewModel : ObservableObject
     private bool isAddAccountDialogOpen;
 
     [ObservableProperty]
+    private bool isAddAccountDialogBusy;
+
+    [ObservableProperty]
     private AccountTypeOption? selectedAccountTypeOption;
 
     [ObservableProperty]
@@ -72,16 +77,61 @@ public sealed partial class MainViewModel : ObservableObject
     private bool isNewOfflineAccountNameInvalid;
 
     [ObservableProperty]
+    private string microsoftLoginMessage = "\u6b63\u5728\u6253\u5f00 Microsoft \u5b98\u65b9\u767b\u5f55\u9875\u9762...";
+
+    [ObservableProperty]
+    private string microsoftLoginIcon = "\uE895";
+
+    [ObservableProperty]
+    private bool isMicrosoftLoginSuccessful;
+
+    [ObservableProperty]
+    private bool isMicrosoftAccountAlreadyAdded;
+
+    [ObservableProperty]
     private bool isDeleteAccountDialogOpen;
 
     [ObservableProperty]
     private LauncherAccount? accountPendingDelete;
 
+    [ObservableProperty]
+    private AccountCapeOption? selectedAccountCapeOption;
+
+    [ObservableProperty]
+    private bool isAccountProfileBusy;
+
+    [ObservableProperty]
+    private string accountProfileMessage = string.Empty;
+
     public bool IsAccountTypeStep => AddAccountDialogStep == "Type";
     public bool IsOfflineNameStep => AddAccountDialogStep == "OfflineName";
-    public string AddAccountDialogTitle => IsOfflineNameStep ? "\u79bb\u7ebf\u8d26\u6237" : "\u6dfb\u52a0\u8d26\u6237";
+    public bool IsMicrosoftLoginStep => AddAccountDialogStep == "MicrosoftLogin";
+    public bool IsMicrosoftLoginResultStep => AddAccountDialogStep == "MicrosoftResult";
+    public bool IsMicrosoftStatusStep => IsMicrosoftLoginStep || IsMicrosoftLoginResultStep;
+    public bool CanShowAddAccountBackButton => !IsAddAccountDialogBusy && (IsOfflineNameStep || IsMicrosoftLoginStep);
+    public bool CanShowAddAccountCancelButton => !IsAddAccountDialogBusy && !IsMicrosoftLoginResultStep;
+    public bool IsAddAccountFooterEnabled => !IsAddAccountDialogBusy;
+    public bool CanConfirmAddAccountDialog => !IsAddAccountDialogBusy
+        && (IsMicrosoftLoginResultStep || IsOfflineNameStep || (IsAccountTypeStep && SelectedAccountTypeOption is not null));
+    public bool IsMicrosoftAccountTypeSelected => IsAccountTypeStep && SelectedAccountTypeOption?.Kind is "Microsoft";
+    public bool CanEditSelectedMicrosoftAccount => SelectedAccount is not null && !SelectedAccount.IsOffline && !IsAccountProfileBusy;
+    public bool CanApplySelectedCape => CanEditSelectedMicrosoftAccount && SelectedAccountCapeOption is not null;
+    public bool HasSelectedAccountCapes => SelectedAccountCapeOptions.Count > 0;
+    public string AddAccountDialogTitle => AddAccountDialogStep switch
+    {
+        "OfflineName" => "\u79bb\u7ebf\u8d26\u6237",
+        "MicrosoftLogin" => "\u6b63\u7248\u767b\u5f55",
+        "MicrosoftResult" => IsMicrosoftAccountAlreadyAdded
+            ? "\u8d26\u53f7\u5df2\u5b58\u5728"
+            : IsMicrosoftLoginSuccessful ? "\u767b\u5f55\u6210\u529f" : "\u767b\u5f55\u672a\u5b8c\u6210",
+        _ => "\u6dfb\u52a0\u8d26\u6237"
+    };
     public string AddAccountDialogSubtitle => IsOfflineNameStep
         ? "\u8f93\u5165\u8981\u6dfb\u52a0\u7684\u79bb\u7ebf\u8d26\u6237\u540d\u3002"
+        : IsMicrosoftLoginStep
+        ? "\u8bf7\u5728\u5f39\u51fa\u7684 Microsoft \u5b98\u65b9\u9875\u9762\u5b8c\u6210\u767b\u5f55\u3002"
+        : IsMicrosoftLoginResultStep
+        ? "\u70b9\u51fb\u786e\u5b9a\u8fd4\u56de\u8d26\u6237\u5217\u8868\u3002"
         : "\u9009\u62e9\u8981\u6dfb\u52a0\u7684\u8d26\u6237\u7c7b\u578b\u3002";
 
     public ObservableCollection<NavigationItem> NavigationItems { get; } =
@@ -96,6 +146,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public ObservableCollection<NavigationItem> SecondaryItems { get; } = [];
     public ObservableCollection<LauncherAccount> Accounts { get; } = [];
+    public ObservableCollection<AccountCapeOption> SelectedAccountCapeOptions { get; } = [];
     public ObservableCollection<AccountTypeOption> AccountTypeOptions { get; } =
     [
         new()
@@ -127,6 +178,7 @@ public sealed partial class MainViewModel : ObservableObject
         ILaunchService launchService,
         IModService modService,
         IModrinthService modrinthService,
+        IMicrosoftAccountService microsoftAccountService,
         IEnumerable<ILoaderProvider> loaderProviders)
     {
         this.settingsService = settingsService;
@@ -135,6 +187,7 @@ public sealed partial class MainViewModel : ObservableObject
         this.launchService = launchService;
         this.modService = modService;
         this.modrinthService = modrinthService;
+        this.microsoftAccountService = microsoftAccountService;
         this.loaderProviders = loaderProviders.ToDictionary(provider => provider.Kind);
 
         foreach (var provider in this.loaderProviders.Values)
@@ -157,7 +210,7 @@ public sealed partial class MainViewModel : ObservableObject
         UpdateNavigationSelection();
         Settings = await settingsService.LoadAsync();
         IsMenuExpanded = Settings.IsMenuExpanded;
-        LoadAccountsFromSettings();
+        await LoadAccountsFromSettingsAsync();
         await RefreshInstancesAsync();
         await LoadMinecraftVersionsAsync();
         UpdateSecondaryItems();
@@ -193,6 +246,76 @@ public sealed partial class MainViewModel : ObservableObject
             item.IsSelected = ReferenceEquals(item, account);
 
         UpdateAccountNavigationAvatar();
+        _ = LoadSelectedAccountProfileAsync(account);
+    }
+
+    public async Task ChangeSelectedAccountSkinAsync(string skinFilePath)
+    {
+        var account = SelectedAccount;
+        if (account is null)
+            return;
+
+        if (account.IsOffline)
+        {
+            AccountProfileMessage = "\u53ea\u6709\u6b63\u7248\u8d26\u6237\u53ef\u4ee5\u66f4\u6362\u76ae\u80a4";
+            return;
+        }
+
+        try
+        {
+            IsAccountProfileBusy = true;
+            AccountProfileMessage = "\u6b63\u5728\u4e0a\u4f20\u76ae\u80a4...";
+            var updatedAccount = await microsoftAccountService.UploadSkinAsync(account, skinFilePath);
+            ReplaceSelectedAccount(account, updatedAccount);
+            await PersistAccountOrderAsync();
+            AccountProfileMessage = "\u76ae\u80a4\u5df2\u66f4\u65b0";
+            await LoadSelectedAccountProfileAsync(updatedAccount);
+        }
+        catch (Exception ex)
+        {
+            AccountProfileMessage = $"\u66f4\u6362\u76ae\u80a4\u5931\u8d25\uff1a{ex.Message}";
+        }
+        finally
+        {
+            IsAccountProfileBusy = false;
+        }
+    }
+
+    public async Task RefreshSelectedAccountProfileAsync()
+    {
+        if (SelectedAccount is not null)
+            await LoadSelectedAccountProfileAsync(SelectedAccount);
+    }
+
+    public async Task ApplySelectedAccountCapeAsync()
+    {
+        var account = SelectedAccount;
+        var cape = SelectedAccountCapeOption;
+        if (account is null || cape is null)
+            return;
+
+        if (account.IsOffline)
+        {
+            AccountProfileMessage = "\u53ea\u6709\u6b63\u7248\u8d26\u6237\u53ef\u4ee5\u66f4\u6362\u62ab\u98ce";
+            return;
+        }
+
+        try
+        {
+            IsAccountProfileBusy = true;
+            AccountProfileMessage = "\u6b63\u5728\u66f4\u6362\u62ab\u98ce...";
+            await microsoftAccountService.SetActiveCapeAsync(account, cape.Id);
+            AccountProfileMessage = cape.IsNone ? "\u5df2\u79fb\u9664\u5f53\u524d\u62ab\u98ce" : $"\u5df2\u66f4\u6362\u62ab\u98ce\uff1a{cape.DisplayName}";
+            await LoadSelectedAccountProfileAsync(account);
+        }
+        catch (Exception ex)
+        {
+            AccountProfileMessage = $"\u66f4\u6362\u62ab\u98ce\u5931\u8d25\uff1a{ex.Message}";
+        }
+        finally
+        {
+            IsAccountProfileBusy = false;
+        }
     }
 
     public void OpenAddAccountDialog()
@@ -200,12 +323,20 @@ public sealed partial class MainViewModel : ObservableObject
         AddAccountDialogStep = "Type";
         NewOfflineAccountName = string.Empty;
         IsNewOfflineAccountNameInvalid = false;
-        SelectedAccountTypeOption = AccountTypeOptions.FirstOrDefault();
+        IsAddAccountDialogBusy = false;
+        IsMicrosoftLoginSuccessful = false;
+        IsMicrosoftAccountAlreadyAdded = false;
+        MicrosoftLoginIcon = "\uE895";
+        MicrosoftLoginMessage = "\u6b63\u5728\u6253\u5f00 Microsoft \u5b98\u65b9\u767b\u5f55\u9875\u9762...";
+        SelectedAccountTypeOption = null;
         IsAddAccountDialogOpen = true;
     }
 
     public void CancelAddAccountDialog()
     {
+        if (IsAddAccountDialogBusy)
+            return;
+
         IsAddAccountDialogOpen = false;
     }
 
@@ -214,17 +345,104 @@ public sealed partial class MainViewModel : ObservableObject
         AddAccountDialogStep = "Type";
         NewOfflineAccountName = string.Empty;
         IsNewOfflineAccountNameInvalid = false;
-        SelectedAccountTypeOption = AccountTypeOptions.FirstOrDefault();
+        IsAddAccountDialogBusy = false;
+        IsMicrosoftLoginSuccessful = false;
+        IsMicrosoftAccountAlreadyAdded = false;
+        MicrosoftLoginIcon = "\uE895";
+        MicrosoftLoginMessage = "\u6b63\u5728\u6253\u5f00 Microsoft \u5b98\u65b9\u767b\u5f55\u9875\u9762...";
+        SelectedAccountTypeOption = null;
     }
 
     public void BackToAddAccountTypeStep()
     {
+        if (IsAddAccountDialogBusy)
+            return;
+
         AddAccountDialogStep = "Type";
         IsNewOfflineAccountNameInvalid = false;
+        IsMicrosoftLoginSuccessful = false;
+        IsMicrosoftAccountAlreadyAdded = false;
+        MicrosoftLoginIcon = "\uE895";
+        MicrosoftLoginMessage = "\u6b63\u5728\u6253\u5f00 Microsoft \u5b98\u65b9\u767b\u5f55\u9875\u9762...";
+        SelectedAccountTypeOption = null;
     }
 
-    public void ConfirmAddAccountDialog()
+    public void BeginMicrosoftAccountLogin()
     {
+        AddAccountDialogStep = "MicrosoftLogin";
+        IsAddAccountDialogBusy = true;
+        IsMicrosoftLoginSuccessful = false;
+        IsMicrosoftAccountAlreadyAdded = false;
+        MicrosoftLoginIcon = "\uE895";
+        MicrosoftLoginMessage = "\u6b63\u5728\u767b\u5f55\uff0c\u8bf7\u5728\u5f39\u51fa\u7684 Microsoft \u5b98\u65b9\u9875\u9762\u5b8c\u6210\u767b\u5f55...";
+        StatusMessage = "\u6b63\u5728\u6253\u5f00 Microsoft \u767b\u5f55\u9875\u9762...";
+    }
+
+    public async Task CompleteMicrosoftAccountLoginAsync()
+    {
+        try
+        {
+            var account = await microsoftAccountService.LoginInteractivelyAsync();
+            if (string.IsNullOrWhiteSpace(account.DisplayName) || string.IsNullOrWhiteSpace(account.Uuid))
+            {
+                StatusMessage = "\u6b63\u7248\u767b\u5f55\u5931\u8d25\uff1a\u672a\u83b7\u53d6\u5230 Minecraft Java \u8d26\u6237\u8d44\u6599";
+                ShowMicrosoftLoginResult(false, StatusMessage);
+                return;
+            }
+
+            var existing = Accounts.FirstOrDefault(item =>
+                !item.IsOffline && string.Equals(item.Uuid, account.Uuid, StringComparison.OrdinalIgnoreCase));
+
+            if (existing is not null)
+            {
+                SelectAccount(existing);
+                await PersistAccountOrderAsync();
+                StatusMessage = $"\u6b63\u7248\u8d26\u6237 {existing.DisplayName} \u5df2\u7ecf\u6dfb\u52a0\u8fc7\u4e86\uff0c\u5df2\u4e3a\u4f60\u9009\u4e2d";
+                ShowMicrosoftLoginResult(true, StatusMessage, alreadyAdded: true);
+                return;
+            }
+
+            Accounts.Add(account);
+            SelectAccount(account);
+            await PersistAccountOrderAsync();
+            StatusMessage = $"\u5df2\u6dfb\u52a0\u6b63\u7248\u8d26\u6237 {account.DisplayName}";
+            ShowMicrosoftLoginResult(true, StatusMessage);
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "\u6b63\u7248\u767b\u5f55\u5df2\u53d6\u6d88";
+            ShowMicrosoftLoginResult(false, StatusMessage);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"\u6b63\u7248\u767b\u5f55\u5931\u8d25\uff1a{ex.Message}";
+            ShowMicrosoftLoginResult(false, StatusMessage);
+        }
+        finally
+        {
+            IsAddAccountDialogBusy = false;
+        }
+    }
+
+    public void CloseAddAccountDialogAfterMicrosoftResult()
+    {
+        if (IsAddAccountDialogBusy)
+            return;
+
+        IsAddAccountDialogOpen = false;
+    }
+
+    public async Task ConfirmAddAccountDialogAsync()
+    {
+        if (IsAddAccountDialogBusy)
+            return;
+
+        if (IsMicrosoftLoginResultStep)
+        {
+            CloseAddAccountDialogAfterMicrosoftResult();
+            return;
+        }
+
         if (SelectedAccountTypeOption is null)
             return;
 
@@ -236,8 +454,6 @@ public sealed partial class MainViewModel : ObservableObject
                 return;
             }
 
-            IsAddAccountDialogOpen = false;
-            StatusMessage = "\u6b63\u7248\u8d26\u6237\u767b\u5f55\u540e\u7eed\u63a5\u5165";
             return;
         }
 
@@ -258,6 +474,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         Accounts.Add(account);
         SelectAccount(account);
+        await PersistAccountOrderAsync();
 
         IsAddAccountDialogOpen = false;
         StatusMessage = $"\u5df2\u6dfb\u52a0\u79bb\u7ebf\u8d26\u6237 {accountName}";
@@ -275,22 +492,35 @@ public sealed partial class MainViewModel : ObservableObject
         AccountPendingDelete = null;
     }
 
-    public void ConfirmDeleteAccountDialog()
+    public async Task ConfirmDeleteAccountDialogAsync()
     {
         if (AccountPendingDelete is null)
             return;
 
-        var deletedName = AccountPendingDelete.DisplayName;
-        if (ReferenceEquals(SelectedAccount, AccountPendingDelete))
+        var account = AccountPendingDelete;
+        var deletedName = account.DisplayName;
+
+        if (ReferenceEquals(SelectedAccount, account))
         {
             SelectedAccount = null;
             UpdateAccountNavigationAvatar();
         }
 
-        Accounts.Remove(AccountPendingDelete);
+        Accounts.Remove(account);
         IsDeleteAccountDialogOpen = false;
         AccountPendingDelete = null;
         StatusMessage = $"\u5df2\u5220\u9664\u8d26\u6237 {deletedName}";
+
+        try
+        {
+            await PersistAccountOrderAsync();
+            if (!account.IsOffline)
+                await microsoftAccountService.DeleteAccountAsync(account);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"\u5df2\u4ece\u5217\u8868\u5220\u9664\u8d26\u6237 {deletedName}\uff0c\u4f46\u6e05\u7406\u767b\u5f55\u7f13\u5b58\u5931\u8d25\uff1a{ex.Message}";
+        }
     }
 
     [RelayCommand]
@@ -503,8 +733,57 @@ public sealed partial class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsAccountTypeStep));
         OnPropertyChanged(nameof(IsOfflineNameStep));
+        OnPropertyChanged(nameof(IsMicrosoftLoginStep));
+        OnPropertyChanged(nameof(IsMicrosoftLoginResultStep));
+        OnPropertyChanged(nameof(IsMicrosoftStatusStep));
+        OnPropertyChanged(nameof(CanShowAddAccountBackButton));
+        OnPropertyChanged(nameof(CanShowAddAccountCancelButton));
+        OnPropertyChanged(nameof(IsAddAccountFooterEnabled));
+        OnPropertyChanged(nameof(CanConfirmAddAccountDialog));
+        OnPropertyChanged(nameof(IsMicrosoftAccountTypeSelected));
         OnPropertyChanged(nameof(AddAccountDialogTitle));
         OnPropertyChanged(nameof(AddAccountDialogSubtitle));
+    }
+
+    partial void OnIsAddAccountDialogBusyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanShowAddAccountBackButton));
+        OnPropertyChanged(nameof(CanShowAddAccountCancelButton));
+        OnPropertyChanged(nameof(IsAddAccountFooterEnabled));
+        OnPropertyChanged(nameof(CanConfirmAddAccountDialog));
+    }
+
+    partial void OnIsMicrosoftLoginSuccessfulChanged(bool value)
+    {
+        OnPropertyChanged(nameof(AddAccountDialogTitle));
+    }
+
+    partial void OnIsMicrosoftAccountAlreadyAddedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(AddAccountDialogTitle));
+    }
+
+    partial void OnSelectedAccountTypeOptionChanged(AccountTypeOption? value)
+    {
+        OnPropertyChanged(nameof(IsMicrosoftAccountTypeSelected));
+        OnPropertyChanged(nameof(CanConfirmAddAccountDialog));
+    }
+
+    partial void OnSelectedAccountCapeOptionChanged(AccountCapeOption? value)
+    {
+        OnPropertyChanged(nameof(CanApplySelectedCape));
+    }
+
+    partial void OnIsAccountProfileBusyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanEditSelectedMicrosoftAccount));
+        OnPropertyChanged(nameof(CanApplySelectedCape));
+    }
+
+    partial void OnSelectedAccountChanged(LauncherAccount? value)
+    {
+        OnPropertyChanged(nameof(CanEditSelectedMicrosoftAccount));
+        OnPropertyChanged(nameof(CanApplySelectedCape));
     }
 
     partial void OnNewOfflineAccountNameChanged(string value)
@@ -520,6 +799,15 @@ public sealed partial class MainViewModel : ObservableObject
             StatusMessage = progress.Message;
             ProgressPercent = progress.Percent ?? 0;
         });
+    }
+
+    private void ShowMicrosoftLoginResult(bool isSuccess, string message, bool alreadyAdded = false)
+    {
+        IsMicrosoftLoginSuccessful = isSuccess;
+        IsMicrosoftAccountAlreadyAdded = alreadyAdded;
+        MicrosoftLoginIcon = isSuccess ? "\uE73E" : "\uE783";
+        MicrosoftLoginMessage = message;
+        AddAccountDialogStep = "MicrosoftResult";
     }
 
     private void UpdateSecondaryItems()
@@ -560,17 +848,135 @@ public sealed partial class MainViewModel : ObservableObject
             item.IsSelected = string.Equals(item.Page, CurrentPage, StringComparison.OrdinalIgnoreCase);
     }
 
-    private void LoadAccountsFromSettings()
+    private async Task LoadAccountsFromSettingsAsync()
     {
         Accounts.Clear();
-        Accounts.Add(new LauncherAccount
+        var microsoftAccounts = new Dictionary<string, LauncherAccount>(StringComparer.OrdinalIgnoreCase);
+        foreach (var account in await microsoftAccountService.GetSavedAccountsAsync())
         {
-            Id = "offline",
-            DisplayName = Settings.OfflineUsername,
-            IsOffline = true
-        });
+            if (!microsoftAccounts.ContainsKey(account.Id))
+                microsoftAccounts.Add(account.Id, account);
+        }
+
+        var shouldImportMicrosoftAccounts = !Settings.MicrosoftAccountsImported;
+        var shouldPersistOrder = false;
+
+        foreach (var account in Settings.Accounts)
+        {
+            if (account.IsOffline)
+            {
+                Accounts.Add(new LauncherAccount
+                {
+                    Id = account.Id,
+                    DisplayName = account.DisplayName,
+                    Uuid = account.Uuid,
+                    AvatarSource = account.AvatarSource,
+                    IsOffline = true
+                });
+                continue;
+            }
+
+            if (microsoftAccounts.Remove(account.Id, out var microsoftAccount))
+                Accounts.Add(microsoftAccount);
+            else
+                shouldPersistOrder = true;
+        }
+
+        foreach (var account in microsoftAccounts.Values)
+        {
+            if (shouldImportMicrosoftAccounts && Accounts.All(item => item.Id != account.Id))
+            {
+                Accounts.Add(account);
+                shouldPersistOrder = true;
+            }
+        }
 
         SelectedAccount = null;
+        UpdateAccountNavigationAvatar();
+
+        if (shouldPersistOrder || shouldImportMicrosoftAccounts)
+            await PersistAccountOrderAsync();
+    }
+
+    private async Task PersistAccountOrderAsync(LauncherAccount? excludedAccount = null)
+    {
+        Settings.AccountsInitialized = true;
+        Settings.MicrosoftAccountsImported = true;
+        Settings.Accounts = Accounts
+            .Where(account => !ReferenceEquals(account, excludedAccount))
+            .Select(account => new LauncherAccountRecord
+            {
+                Id = account.Id,
+                DisplayName = account.DisplayName,
+                Uuid = account.Uuid,
+                AvatarSource = account.AvatarSource,
+                IsOffline = account.IsOffline
+            })
+            .ToList();
+
+        var firstOfflineAccount = Settings.Accounts.FirstOrDefault(account => account.IsOffline);
+        if (firstOfflineAccount is not null)
+            Settings.OfflineUsername = firstOfflineAccount.DisplayName;
+
+        await settingsService.SaveAsync(Settings);
+    }
+
+    private async Task LoadSelectedAccountProfileAsync(LauncherAccount account)
+    {
+        SelectedAccountCapeOptions.Clear();
+        SelectedAccountCapeOption = null;
+        OnPropertyChanged(nameof(HasSelectedAccountCapes));
+        OnPropertyChanged(nameof(CanApplySelectedCape));
+
+        if (!ReferenceEquals(SelectedAccount, account))
+            return;
+
+        if (account.IsOffline)
+        {
+            AccountProfileMessage = "\u79bb\u7ebf\u8d26\u6237\u4e0d\u652f\u6301\u76ae\u80a4\u548c\u62ab\u98ce\u7ba1\u7406";
+            return;
+        }
+
+        try
+        {
+            IsAccountProfileBusy = true;
+            AccountProfileMessage = "\u6b63\u5728\u8bfb\u53d6\u6b63\u7248\u8d26\u6237\u8d44\u6599...";
+            var capes = await microsoftAccountService.GetCapesAsync(account);
+            if (!ReferenceEquals(SelectedAccount, account))
+                return;
+
+            foreach (var cape in capes)
+                SelectedAccountCapeOptions.Add(cape);
+
+            SelectedAccountCapeOption = SelectedAccountCapeOptions.FirstOrDefault(cape => cape.IsActive)
+                ?? SelectedAccountCapeOptions.FirstOrDefault();
+            OnPropertyChanged(nameof(HasSelectedAccountCapes));
+            AccountProfileMessage = SelectedAccountCapeOptions.Count == 0
+                ? "\u8fd9\u4e2a\u8d26\u6237\u6ca1\u6709\u53ef\u7528\u62ab\u98ce"
+                : "\u6b63\u7248\u8d26\u6237\u8d44\u6599\u5df2\u52a0\u8f7d";
+        }
+        catch (Exception ex)
+        {
+            if (ReferenceEquals(SelectedAccount, account))
+                AccountProfileMessage = $"\u8bfb\u53d6\u6b63\u7248\u8d26\u6237\u8d44\u6599\u5931\u8d25\uff1a{ex.Message}";
+        }
+        finally
+        {
+            if (ReferenceEquals(SelectedAccount, account))
+                IsAccountProfileBusy = false;
+        }
+    }
+
+    private void ReplaceSelectedAccount(LauncherAccount oldAccount, LauncherAccount newAccount)
+    {
+        var index = Accounts.IndexOf(oldAccount);
+        if (index >= 0)
+            Accounts[index] = newAccount;
+
+        SelectedAccount = newAccount;
+        foreach (var item in Accounts)
+            item.IsSelected = ReferenceEquals(item, newAccount);
+
         UpdateAccountNavigationAvatar();
     }
 

@@ -9,6 +9,7 @@ using Launcher.App.Animations;
 using Launcher.App.Models;
 using Launcher.App.Services;
 using Launcher.App.ViewModels;
+using Microsoft.Win32;
 
 namespace Launcher.App;
 
@@ -98,6 +99,35 @@ public partial class MainWindow : Window
             viewModel.SelectAccount(account);
     }
 
+    private async void ChangeSkin_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel viewModel)
+            return;
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "\u9009\u62e9 Minecraft \u76ae\u80a4",
+            Filter = "PNG \u76ae\u80a4 (*.png)|*.png",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog(this) == true)
+            await viewModel.ChangeSelectedAccountSkinAsync(dialog.FileName);
+    }
+
+    private async void RefreshCapes_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel)
+            await viewModel.RefreshSelectedAccountProfileAsync();
+    }
+
+    private async void ApplyCape_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel viewModel)
+            await viewModel.ApplySelectedAccountCapeAsync();
+    }
+
     private void AddAccount_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is MainViewModel viewModel)
@@ -112,7 +142,8 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel viewModel)
         {
             viewModel.CancelAddAccountDialog();
-            HideDialogOverlay(AddAccountDialogOverlay, viewModel.ResetAddAccountDialog);
+            if (!viewModel.IsAddAccountDialogOpen)
+                HideDialogOverlay(AddAccountDialogOverlay, viewModel.ResetAddAccountDialog);
         }
     }
 
@@ -126,12 +157,24 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ConfirmAddAccount_Click(object sender, RoutedEventArgs e)
+    private async void ConfirmAddAccount_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is MainViewModel viewModel)
         {
             var previousHeight = AddAccountDialogSurface.ActualHeight;
-            viewModel.ConfirmAddAccountDialog();
+
+            if (viewModel.IsAccountTypeStep && viewModel.SelectedAccountTypeOption?.Kind is "Microsoft")
+            {
+                viewModel.BeginMicrosoftAccountLogin();
+                AnimateDialogSizeChange(AddAccountDialogSurface, AddAccountDialogBlurLayer, previousHeight);
+
+                var loginHeight = AddAccountDialogSurface.ActualHeight;
+                await viewModel.CompleteMicrosoftAccountLoginAsync();
+                AnimateDialogSizeChange(AddAccountDialogSurface, AddAccountDialogBlurLayer, loginHeight);
+                return;
+            }
+
+            await viewModel.ConfirmAddAccountDialogAsync();
             if (viewModel.IsAddAccountDialogOpen)
                 AnimateDialogSizeChange(AddAccountDialogSurface, AddAccountDialogBlurLayer, previousHeight);
             else
@@ -159,12 +202,15 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ConfirmDeleteAccount_Click(object sender, RoutedEventArgs e)
+    private async void ConfirmDeleteAccount_Click(object sender, RoutedEventArgs e)
     {
         if (DataContext is MainViewModel viewModel)
         {
-            viewModel.ConfirmDeleteAccountDialog();
-            HideDialogOverlay(DeleteAccountDialogOverlay);
+            var deleteTask = viewModel.ConfirmDeleteAccountDialogAsync();
+            if (!viewModel.IsDeleteAccountDialogOpen)
+                HideDialogOverlay(DeleteAccountDialogOverlay);
+
+            await deleteTask;
         }
     }
 

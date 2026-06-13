@@ -9,4 +9,7 @@ public sealed class LauncherSettings
     public string? DefaultJavaPath { get; set; }
     public int DefaultMemoryMb { get; set; } = 4096;
     public string? DefaultInstanceId { get; set; }
+    public bool AccountsInitialized { get; set; }
+    public bool MicrosoftAccountsImported { get; set; }
+    public List<LauncherAccountRecord> Accounts { get; set; } = [];
 }
