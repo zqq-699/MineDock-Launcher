@@ -45,6 +45,25 @@ public sealed class LauncherCoreTests : IDisposable
     }
 
     [Fact]
+    public async Task SettingsServiceUsesCurrentExecutableMinecraftDirectory()
+    {
+        Directory.CreateDirectory(tempRoot);
+        var staleMinecraftDirectory = Path.Combine(tempRoot, "old-debug", ".minecraft");
+        await File.WriteAllTextAsync(
+            Path.Combine(tempRoot, "settings.json"),
+            $$"""
+            {
+              "MinecraftDirectory": "{{staleMinecraftDirectory.Replace("\\", "\\\\")}}"
+            }
+            """);
+        var service = new JsonSettingsService(tempRoot);
+
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(Path.GetFullPath(LauncherDefaults.DefaultMinecraftDirectory), loaded.MinecraftDirectory);
+    }
+
+    [Fact]
     public async Task SettingsServicePersistsOfflineAccounts()
     {
         var service = new JsonSettingsService(tempRoot);
@@ -160,11 +179,13 @@ public sealed class LauncherCoreTests : IDisposable
     [Fact]
     public async Task InstanceServiceCreatesIsolatedDirectoriesWithProvider()
     {
-        var settingsService = new JsonSettingsService(tempRoot);
-        var settings = await settingsService.LoadAsync();
-        settings.DefaultMemoryMb = 3072;
-        settings.MinecraftDirectory = Path.Combine(tempRoot, ".minecraft");
-        await settingsService.SaveAsync(settings);
+        var settings = new LauncherSettings
+        {
+            DataDirectory = tempRoot,
+            MinecraftDirectory = Path.Combine(tempRoot, ".minecraft"),
+            DefaultMemoryMb = 3072
+        };
+        var settingsService = new TestSettingsService(settings);
 
         var repository = new JsonGameInstanceRepository(settingsService);
         var provider = new FakeLoaderProvider();
@@ -184,10 +205,11 @@ public sealed class LauncherCoreTests : IDisposable
     [Fact]
     public async Task InstanceServiceQueuesConcurrentCreatesAndPersistsBothInstances()
     {
-        var settingsService = new JsonSettingsService(tempRoot);
-        var settings = await settingsService.LoadAsync();
-        settings.MinecraftDirectory = Path.Combine(tempRoot, ".minecraft");
-        await settingsService.SaveAsync(settings);
+        var settingsService = new TestSettingsService(new LauncherSettings
+        {
+            DataDirectory = tempRoot,
+            MinecraftDirectory = Path.Combine(tempRoot, ".minecraft")
+        });
 
         var repository = new JsonGameInstanceRepository(settingsService);
         var allowInstall = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -247,11 +269,13 @@ public sealed class LauncherCoreTests : IDisposable
     [Fact]
     public async Task InstanceServiceSyncsRecordsWithInstalledVersionFolders()
     {
-        var settingsService = new JsonSettingsService(tempRoot);
-        var settings = await settingsService.LoadAsync();
-        settings.MinecraftDirectory = Path.Combine(tempRoot, ".minecraft");
-        settings.DefaultInstanceId = "missing";
-        await settingsService.SaveAsync(settings);
+        var settings = new LauncherSettings
+        {
+            DataDirectory = tempRoot,
+            MinecraftDirectory = Path.Combine(tempRoot, ".minecraft"),
+            DefaultInstanceId = "missing"
+        };
+        var settingsService = new TestSettingsService(settings);
 
         var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "1.21.5");
         Directory.CreateDirectory(versionDirectory);
@@ -314,11 +338,13 @@ public sealed class LauncherCoreTests : IDisposable
     [Fact]
     public async Task InstanceServiceRemovesRecordWhenClientJarFailsVersionMetadataValidation()
     {
-        var settingsService = new JsonSettingsService(tempRoot);
-        var settings = await settingsService.LoadAsync();
-        settings.MinecraftDirectory = Path.Combine(tempRoot, ".minecraft");
-        settings.DefaultInstanceId = "broken";
-        await settingsService.SaveAsync(settings);
+        var settings = new LauncherSettings
+        {
+            DataDirectory = tempRoot,
+            MinecraftDirectory = Path.Combine(tempRoot, ".minecraft"),
+            DefaultInstanceId = "broken"
+        };
+        var settingsService = new TestSettingsService(settings);
 
         var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "broken");
         Directory.CreateDirectory(versionDirectory);
@@ -988,6 +1014,27 @@ public sealed class LauncherCoreTests : IDisposable
         var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
         while (!condition() && DateTimeOffset.UtcNow < deadline)
             await Task.Delay(10);
+    }
+
+    private sealed class TestSettingsService : ISettingsService
+    {
+        private LauncherSettings settings;
+
+        public TestSettingsService(LauncherSettings settings)
+        {
+            this.settings = settings;
+        }
+
+        public Task<LauncherSettings> LoadAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(settings);
+        }
+
+        public Task SaveAsync(LauncherSettings settings, CancellationToken cancellationToken = default)
+        {
+            this.settings = settings;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeLoaderProvider : ILoaderProvider
