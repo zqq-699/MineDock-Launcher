@@ -2,7 +2,8 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
                     xmlns:controls="clr-namespace:Launcher.App.Controls"
-                    xmlns:converters="clr-namespace:Launcher.App.Converters">
+                    xmlns:converters="clr-namespace:Launcher.App.Converters"
+                    xmlns:res="clr-namespace:Launcher.App.Resources">
     <converters:MinimumScrollThumbViewportConverter x:Key="MinimumScrollThumbViewportConverter" />
 
     <Style x:Key="NavigationMenuTextStyle" TargetType="TextBlock">
@@ -765,7 +766,7 @@
                                               IsHitTestVisible="False" />
                             <TextBlock x:Name="SearchPlaceholderText"
                                        Margin="25,0,0,0"
-                                           Text="&#x641C;&#x7D22;"
+                                           Text="{x:Static res:Strings.Search_Placeholder}"
                                            Foreground="#70FFFFFF"
                                            FontSize="13"
                                        HorizontalAlignment="Left"

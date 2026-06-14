@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Windows.Data;
+using Launcher.App.Resources;
 
 namespace Launcher.App.Converters;
 
@@ -9,13 +10,13 @@ public sealed class PageTitleConverter : IValueConverter
     {
         return value?.ToString() switch
         {
-            "Account" => "\u8d26\u6237",
-            "Home" => "\u4e3b\u9875",
-            "Download" => "\u6e38\u620f\u4e0b\u8f7d",
-            "Install" => "\u4e0b\u8f7d",
-            "GameSettings" => "\u6e38\u620f\u8bbe\u7f6e",
-            "Resources" => "\u8d44\u6e90\u4e2d\u5fc3",
-            "Settings" => "\u8bbe\u7f6e",
+            "Account" => Strings.Page_Account,
+            "Home" => Strings.Page_Home,
+            "Download" => Strings.Page_Download,
+            "Install" => Strings.Page_Install,
+            "GameSettings" => Strings.Page_GameSettings,
+            "Resources" => Strings.Page_Resources,
+            "Settings" => Strings.Page_Settings,
             _ => value?.ToString() ?? string.Empty
         };
     }

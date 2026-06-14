@@ -2,16 +2,17 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
+             xmlns:res="clr-namespace:Launcher.App.Resources"
              x:Name="Root"
              Focusable="False">
     <Grid x:Name="PageRoot">
         <controls:ListPageFrame Margin="28,36,24,8"
-                                Title="&#x4E0B;&#x8F7D;"
+                                Title="{x:Static res:Strings.Page_Install}"
                                 IsSearchVisible="False"
                                 IsListVisible="{Binding HasTasks}">
             <controls:ListPageFrame.OverlayContent>
                 <TextBlock Margin="0,42,0,0"
-                           Text="&#x5F53;&#x524D;&#x6CA1;&#x6709;&#x4E0B;&#x8F7D;&#x5185;&#x5BB9;">
+                           Text="{x:Static res:Strings.Install_Empty}">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock" BasedOn="{StaticResource PageEmptyStateTextStyle}">
                             <Setter Property="Visibility" Value="Collapsed" />

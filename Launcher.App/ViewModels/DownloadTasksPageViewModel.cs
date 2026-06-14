@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Launcher.App.Resources;
 using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels;
@@ -123,7 +124,7 @@ public sealed partial class DownloadTaskItem : ObservableObject
     private DownloadTaskState state = DownloadTaskState.Running;
 
     [ObservableProperty]
-    private string statusMessage = "\u51c6\u5907\u4e0b\u8f7d...";
+    private string statusMessage = Strings.DownloadTask_Preparing;
 
     [ObservableProperty]
     private string downloadSpeedText = string.Empty;
@@ -133,9 +134,9 @@ public sealed partial class DownloadTaskItem : ObservableObject
 
     public string StateText => State switch
     {
-        DownloadTaskState.Completed => "\u5df2\u5b8c\u6210",
-        DownloadTaskState.Failed => "\u5931\u8d25",
-        _ => "\u4e0b\u8f7d\u4e2d"
+        DownloadTaskState.Completed => Strings.DownloadTask_Completed,
+        DownloadTaskState.Failed => Strings.DownloadTask_Failed,
+        _ => Strings.DownloadTask_Running
     };
 
     public string ProgressText => $"{Math.Clamp(ProgressPercent, 0, 100):0}%";

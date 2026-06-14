@@ -1,4 +1,5 @@
 ﻿using Launcher.Application.Accounts;
+using Launcher.App.Resources;
 using Launcher.App.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -61,14 +62,14 @@ public sealed partial class HomePageViewModel : ObservableObject
         }
     }
 
-    public string HomeAccountDisplayName => accountPage.SelectedAccount?.DisplayName ?? "\u672a\u9009\u62e9\u8d26\u6237";
+    public string HomeAccountDisplayName => accountPage.SelectedAccount?.DisplayName ?? Strings.Home_NoAccountSelected;
 
     public string HomeVersionDisplayName
     {
         get
         {
             if (SelectedInstance is null)
-                return "\u672a\u9009\u62e9\u6e38\u620f\u7248\u672c";
+                return Strings.Home_NoVersionSelected;
 
             if (!string.IsNullOrWhiteSpace(SelectedInstance.Name))
                 return SelectedInstance.Name;
@@ -77,7 +78,7 @@ public sealed partial class HomePageViewModel : ObservableObject
                 return SelectedInstance.VersionName;
 
             return string.IsNullOrWhiteSpace(SelectedInstance.MinecraftVersion)
-                ? "\u672a\u9009\u62e9\u6e38\u620f\u7248\u672c"
+                ? Strings.Home_NoVersionSelected
                 : SelectedInstance.MinecraftVersion;
         }
     }
@@ -105,7 +106,7 @@ public sealed partial class HomePageViewModel : ObservableObject
     {
         if (!CanLaunchSelectedGame || SelectedInstance is null)
         {
-            statusService.Report("\u8fd8\u6ca1\u6709\u53ef\u542f\u52a8\u7684\u5b9e\u4f8b");
+            statusService.Report(Strings.Status_NoLaunchableInstance);
             return;
         }
 

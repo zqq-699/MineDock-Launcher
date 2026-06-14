@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Launcher.App.Resources;
 using Launcher.Domain.Models;
 using Launcher.Application.Services;
 
@@ -13,9 +14,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     private readonly IGameVersionService gameVersionService;
     private readonly IGameInstanceService instanceService;
     private readonly DownloadTasksPageViewModel downloadTasksPage;
-    private readonly object instanceNameStateSync = new();
-    private readonly HashSet<string> existingInstanceNames = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> pendingInstanceNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly DownloadInstanceNameTracker instanceNameTracker = new();
     private bool hasLoadedVersions;
     private int refreshRequestVersion;
     private int activeInstallCount;
@@ -81,14 +80,14 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         this.instanceService = instanceService;
         this.downloadTasksPage = downloadTasksPage;
 
-        VersionCategories.Add(new DownloadVersionCategory("release", "\u6b63\u5f0f\u7248", string.Empty, "instance_download_page/release"));
-        VersionCategories.Add(new DownloadVersionCategory("snapshot", "\u5feb\u7167\u7248", string.Empty, "instance_download_page/snapshot"));
-        VersionCategories.Add(new DownloadVersionCategory("old_beta", "beta", "\u03b2"));
-        VersionCategories.Add(new DownloadVersionCategory("old_alpha", "alpha", "\u03b1"));
+        VersionCategories.Add(new DownloadVersionCategory("release", Strings.Download_ReleaseCategory, string.Empty, "instance_download_page/release"));
+        VersionCategories.Add(new DownloadVersionCategory("snapshot", Strings.Download_SnapshotCategory, string.Empty, "instance_download_page/snapshot"));
+        VersionCategories.Add(new DownloadVersionCategory("old_beta", Strings.Download_BetaCategory, "\u03b2"));
+        VersionCategories.Add(new DownloadVersionCategory("old_alpha", Strings.Download_AlphaCategory, "\u03b1"));
 
-        LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Vanilla, "\u539f\u7248", "\u4e0d\u5b89\u88c5 Mod \u52a0\u8f7d\u5668", string.Empty, "/Assets/Icons/block/grass_block.png"));
-        LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Fabric, "Fabric", "\u6682\u672a\u63a5\u5165\u5b89\u88c5", "\uE8B7"));
-        LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Forge, "Forge", "\u6682\u672a\u63a5\u5165\u5b89\u88c5", "\uE8B7"));
+        LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Vanilla, Strings.Download_VanillaLoaderTitle, Strings.Download_VanillaLoaderSubtitle, string.Empty, "/Assets/Icons/block/grass_block.png"));
+        LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Fabric, Strings.Download_FabricLoaderTitle, Strings.Download_LoaderPendingSubtitle, "\uE8B7"));
+        LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Forge, Strings.Download_ForgeLoaderTitle, Strings.Download_LoaderPendingSubtitle, "\uE8B7"));
         SelectLoaderOptionCore(LoaderOptions.First());
 
         SelectVersionCategoryCore(VersionCategories.First(), deferRefresh: false);
@@ -124,7 +123,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 
     public bool CanInstallSelectedVersion => CanInstall();
 
-    public string InstallButtonText => "\u5b89\u88c5";
+    public string InstallButtonText => Strings.Download_InstallButton;
 
     public string PageTitle => CurrentStep is DownloadPageStep.InstanceOptions
         ? SelectedMinecraftVersion?.Name ?? string.Empty
@@ -157,9 +156,9 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 
             hasLoadedVersions = true;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            VersionLoadError = $"\u7248\u672c\u5217\u8868\u52a0\u8f7d\u5931\u8d25\uff1a{ex.Message}";
+            VersionLoadError = Strings.Status_LoadVersionsFailed;
         }
         finally
         {
@@ -252,15 +251,15 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         var versionName = SelectedMinecraftVersion.Name;
         var instanceName = string.IsNullOrWhiteSpace(InstanceName) ? versionName : InstanceName.Trim();
         var installSequence = Interlocked.Increment(ref latestInstallSequence);
-        var installTask = downloadTasksPage.BeginTask($"\u539f\u7248 {versionName}", instanceName);
+        var installTask = downloadTasksPage.BeginTask($"{Strings.Download_VanillaLoaderTitle} {versionName}", instanceName);
 
         var activeInstallCountAfterStart = Interlocked.Increment(ref this.activeInstallCount);
         IsInstalling = activeInstallCountAfterStart > 0;
         InstallError = string.Empty;
         InstallProgressPercent = 0;
-        InstallStatusMessage = $"\u6b63\u5728\u5b89\u88c5\u539f\u7248 {versionName}...";
+        InstallStatusMessage = string.Format(Strings.Status_InstallingVanillaFormat, versionName);
         installTask.Report(new LauncherProgress("Install", InstallStatusMessage, 0));
-        AddPendingInstanceName(instanceName);
+        instanceNameTracker.AddPending(instanceName);
         RefreshInstanceNameDuplicateMessage();
         CurrentStep = DownloadPageStep.VersionList;
         NotifyInstallStateChanged();
@@ -277,18 +276,18 @@ public sealed partial class DownloadPageViewModel : ObservableObject
                 instanceName,
                 installProgress);
 
-            RemovePendingInstanceName(instanceName);
-            SetLatestInstallCompletion(installSequence, $"\u5b9e\u4f8b {instance.Name} \u5df2\u5b89\u88c5");
-            AddExistingInstanceName(instance.Name);
-            AddExistingInstanceName(instance.VersionName);
-            installTask.Complete($"\u5b9e\u4f8b {instance.Name} \u5df2\u5b89\u88c5");
+            instanceNameTracker.RemovePending(instanceName);
+            SetLatestInstallCompletion(installSequence, string.Format(Strings.Status_InstanceInstalledFormat, instance.Name));
+            instanceNameTracker.AddExisting(instance.Name);
+            instanceNameTracker.AddExisting(instance.VersionName);
+            installTask.Complete(string.Format(Strings.Status_InstanceInstalledFormat, instance.Name));
             InstanceInstalled?.Invoke(this, instance);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            RemovePendingInstanceName(instanceName);
-            SetLatestInstallFailure(installSequence, $"\u5b89\u88c5\u5931\u8d25\uff1a{ex.Message}");
-            installTask.Fail($"\u5b89\u88c5\u5931\u8d25\uff1a{ex.Message}");
+            instanceNameTracker.RemovePending(instanceName);
+            SetLatestInstallFailure(installSequence, Strings.Status_InstallFailed);
+            installTask.Fail(Strings.Status_InstallFailed);
             throw;
         }
         finally
@@ -322,7 +321,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         if (value?.Kind is not null and not LoaderKind.Vanilla)
         {
             InstallError = string.Empty;
-            InstallStatusMessage = "\u8be5\u52a0\u8f7d\u5668\u5c06\u5728\u540e\u7eed\u7248\u672c\u63a5\u5165\u5b89\u88c5\u3002";
+            InstallStatusMessage = Strings.Status_LoaderInstallPending;
         }
 
         NotifyInstallStateChanged();
@@ -425,46 +424,20 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 
     private void RefreshVisibleVersions()
     {
-        VersionEmptyMessage = string.Empty;
-        IReadOnlyList<DownloadMinecraftVersionItem> nextVersions = Array.Empty<DownloadMinecraftVersionItem>();
+        var result = DownloadVersionFilter.Apply(
+            AllVersions,
+            SelectedVersionCategory,
+            VersionSearchQuery,
+            SelectedMinecraftVersion,
+            hasLoadedVersions,
+            IsLoadingVersions,
+            HasVersionLoadError);
 
-        if (HasVersionLoadError)
-        {
-            SetFilteredVersions(nextVersions);
-            return;
-        }
-
-        if (SelectedVersionCategory?.Id is not ("release" or "snapshot"))
-        {
-            VersionEmptyMessage = "\u8be5\u5206\u7c7b\u7a0d\u540e\u5b9e\u73b0\u3002";
-            ClearSelectedVersion();
-            SetFilteredVersions(nextVersions);
-            return;
-        }
-
-        var query = VersionSearchQuery.Trim();
-        var versions = SelectedVersionCategory?.Id switch
-        {
-            "snapshot" => AllVersions.Where(version => version.IsSnapshot),
-            _ => AllVersions.Where(version => version.IsRelease)
-        };
-        if (!string.IsNullOrWhiteSpace(query))
-            versions = versions.Where(version => version.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
-
-        nextVersions = SortVersionsForCategory(versions, SelectedVersionCategory?.Id).ToList();
-
-        if (nextVersions.Count == 0 && hasLoadedVersions && !IsLoadingVersions)
-        {
-            var categoryTitle = SelectedVersionCategory?.Title ?? "\u7248\u672c";
-            VersionEmptyMessage = string.IsNullOrWhiteSpace(query)
-                ? $"\u6ca1\u6709\u627e\u5230{categoryTitle}\u7248\u672c\u3002"
-                : "\u6ca1\u6709\u627e\u5230\u5339\u914d\u7684\u7248\u672c\u3002";
-        }
-
-        if (SelectedMinecraftVersion is not null && !nextVersions.Contains(SelectedMinecraftVersion))
+        VersionEmptyMessage = result.EmptyMessage;
+        if (result.ShouldClearSelectedVersion)
             ClearSelectedVersion();
 
-        SetFilteredVersions(nextVersions);
+        SetFilteredVersions(result.Versions);
     }
 
     private void SetFilteredVersions(IReadOnlyList<DownloadMinecraftVersionItem> versions)
@@ -474,83 +447,21 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 
     private async Task RefreshExistingInstanceNamesAsync(CancellationToken cancellationToken)
     {
-        lock (instanceNameStateSync)
-        {
-            existingInstanceNames.Clear();
-        }
-
-        foreach (var instance in await instanceService.GetInstancesAsync(cancellationToken))
-        {
-            AddExistingInstanceName(instance.Name);
-            AddExistingInstanceName(instance.VersionName);
-        }
-
+        instanceNameTracker.ReplaceExisting(await instanceService.GetInstancesAsync(cancellationToken));
         RefreshInstanceNameDuplicateMessage();
-    }
-
-    private void AddExistingInstanceName(string? name)
-    {
-        var normalized = NormalizeInstanceName(name);
-        if (!string.IsNullOrWhiteSpace(normalized))
-        {
-            lock (instanceNameStateSync)
-            {
-                existingInstanceNames.Add(normalized);
-            }
-        }
-    }
-
-    private void AddPendingInstanceName(string? name)
-    {
-        var normalized = NormalizeInstanceName(name);
-        if (!string.IsNullOrWhiteSpace(normalized))
-        {
-            lock (instanceNameStateSync)
-            {
-                pendingInstanceNames.Add(normalized);
-            }
-        }
-    }
-
-    private void RemovePendingInstanceName(string? name)
-    {
-        var normalized = NormalizeInstanceName(name);
-        if (!string.IsNullOrWhiteSpace(normalized))
-        {
-            lock (instanceNameStateSync)
-            {
-                pendingInstanceNames.Remove(normalized);
-            }
-        }
     }
 
     private void RefreshInstanceNameDuplicateMessage()
     {
-        var normalized = NormalizeInstanceName(InstanceName);
-        var hasDuplicateName = false;
-        if (!string.IsNullOrWhiteSpace(normalized))
-        {
-            lock (instanceNameStateSync)
-            {
-                hasDuplicateName = existingInstanceNames.Contains(normalized)
-                    || pendingInstanceNames.Contains(normalized);
-            }
-        }
-
-        InstanceNameDuplicateMessage = !string.IsNullOrWhiteSpace(normalized)
-            && hasDuplicateName
-                ? "\u5df2\u5b58\u5728\u540c\u540d\u7248\u672c"
+        InstanceNameDuplicateMessage = !string.IsNullOrWhiteSpace(InstanceName?.Trim())
+            && instanceNameTracker.IsUnavailable(InstanceName)
+                ? Strings.Status_DuplicateInstanceName
                 : string.Empty;
-    }
-
-    private static string NormalizeInstanceName(string? name)
-    {
-        return name?.Trim() ?? string.Empty;
     }
 
     private DownloadInstallProgress CreateProgress(DownloadTaskItem installTask, long installSequence)
     {
-        return new DownloadInstallProgress(this, installTask, installSequence);
+        return new DownloadInstallProgress(installTask, installSequence, ReportInstallProgress);
     }
 
     private void NotifyInstallStateChanged()
@@ -591,128 +502,6 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         InstallStatusMessage = string.Empty;
     }
 
-    private sealed class DownloadInstallProgress : IProgress<LauncherProgress>, IDisposable
-    {
-        private static readonly TimeSpan UiUpdateInterval = TimeSpan.FromMilliseconds(120);
-
-        private readonly object syncRoot = new();
-        private readonly DownloadPageViewModel viewModel;
-        private readonly DownloadTaskItem installTask;
-        private readonly long installSequence;
-        private LauncherProgress? pendingProgress;
-        private DateTimeOffset lastFlushedAt = DateTimeOffset.MinValue;
-        private bool isFlushQueued;
-        private bool isDisposed;
-
-        public DownloadInstallProgress(
-            DownloadPageViewModel viewModel,
-            DownloadTaskItem installTask,
-            long installSequence)
-        {
-            this.viewModel = viewModel;
-            this.installTask = installTask;
-            this.installSequence = installSequence;
-        }
-
-        public void Report(LauncherProgress value)
-        {
-            TimeSpan delay;
-            lock (syncRoot)
-            {
-                if (isDisposed)
-                    return;
-
-                pendingProgress = value;
-                if (isFlushQueued)
-                    return;
-
-                var elapsed = DateTimeOffset.UtcNow - lastFlushedAt;
-                delay = elapsed >= UiUpdateInterval
-                    ? TimeSpan.Zero
-                    : UiUpdateInterval - elapsed;
-                isFlushQueued = true;
-            }
-
-            QueueFlush(delay);
-        }
-
-        public void Dispose()
-        {
-            lock (syncRoot)
-            {
-                isDisposed = true;
-                pendingProgress = null;
-                isFlushQueued = false;
-            }
-        }
-
-        private void QueueFlush(TimeSpan delay)
-        {
-            if (delay <= TimeSpan.Zero)
-            {
-                PostFlush();
-                return;
-            }
-
-            _ = FlushAfterDelayAsync(delay);
-        }
-
-        private async Task FlushAfterDelayAsync(TimeSpan delay)
-        {
-            try
-            {
-                await Task.Delay(delay);
-                PostFlush();
-            }
-            catch (ObjectDisposedException)
-            {
-            }
-        }
-
-        private void PostFlush()
-        {
-            var dispatcher = System.Windows.Application.Current?.Dispatcher;
-            if (dispatcher is not null && !dispatcher.CheckAccess())
-            {
-                dispatcher.BeginInvoke(Flush, DispatcherPriority.Background);
-                return;
-            }
-
-            Flush();
-        }
-
-        private void Flush()
-        {
-            LauncherProgress? progress;
-            lock (syncRoot)
-            {
-                if (isDisposed)
-                    return;
-
-                progress = pendingProgress;
-                pendingProgress = null;
-                lastFlushedAt = DateTimeOffset.UtcNow;
-                isFlushQueued = false;
-            }
-
-            if (progress is not null)
-                viewModel.ReportInstallProgress(installTask, progress, installSequence);
-        }
-    }
-
-    private static IEnumerable<DownloadMinecraftVersionItem> SortVersionsForCategory(
-        IEnumerable<DownloadMinecraftVersionItem> versions,
-        string? categoryId)
-    {
-        if (categoryId == "snapshot")
-        {
-            return versions
-                .OrderByDescending(version => version.Version.ReleaseTime ?? DateTimeOffset.MinValue)
-                .ThenByDescending(version => version.Name, StringComparer.OrdinalIgnoreCase);
-        }
-
-        return versions;
-    }
 
     private void ClearSelectedVersion()
     {
@@ -721,95 +510,4 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             item.IsSelected = false;
     }
 
-}
-
-public enum DownloadPageStep
-{
-    VersionList,
-    InstanceOptions
-}
-
-public sealed partial class DownloadVersionCategory : ObservableObject
-{
-    public DownloadVersionCategory(string id, string title, string icon, string? iconKey = null)
-    {
-        Id = id;
-        Title = title;
-        Icon = icon;
-        IconKey = iconKey;
-    }
-
-    public string Id { get; }
-
-    public string Title { get; }
-
-    public string Icon { get; }
-
-    public string? IconKey { get; }
-
-    public string IconMode => string.IsNullOrWhiteSpace(IconKey) ? "Glyph" : "Svg";
-
-    [ObservableProperty]
-    private bool isSelected;
-}
-
-public sealed partial class DownloadLoaderOption : ObservableObject
-{
-    public DownloadLoaderOption(LoaderKind kind, string title, string subtitle, string icon, string? iconSource = null)
-    {
-        Kind = kind;
-        Title = title;
-        Subtitle = subtitle;
-        Icon = icon;
-        IconSource = iconSource;
-    }
-
-    public LoaderKind Kind { get; }
-
-    public string Title { get; }
-
-    public string Subtitle { get; }
-
-    public string Icon { get; }
-
-    public string? IconSource { get; }
-
-    [ObservableProperty]
-    private bool isSelected;
-}
-
-public sealed partial class DownloadMinecraftVersionItem : ObservableObject
-{
-    public DownloadMinecraftVersionItem(MinecraftVersionInfo version)
-    {
-        Version = version;
-    }
-
-    public MinecraftVersionInfo Version { get; }
-
-    public string Name => Version.Name;
-
-    public string Type => Version.Type;
-
-    public string TypeLabel => Version.Type.ToLowerInvariant() switch
-    {
-        "release" => "\u6b63\u5f0f\u7248",
-        "snapshot" => "\u5feb\u7167\u7248",
-        _ => Version.Type
-    };
-
-    public string ReleaseDateText => Version.ReleaseTime is { } releaseTime
-        ? releaseTime.ToLocalTime().ToString("yyyy-MM-dd")
-        : string.Empty;
-
-    public bool IsRelease => Version.Type.Equals("Release", StringComparison.OrdinalIgnoreCase);
-
-    public bool IsSnapshot => Version.Type.Equals("Snapshot", StringComparison.OrdinalIgnoreCase);
-
-    public string IconSource => IsSnapshot
-        ? "/Assets/Icons/block/dirt_block.png"
-        : "/Assets/Icons/block/grass_block.png";
-
-    [ObservableProperty]
-    private bool isSelected;
 }

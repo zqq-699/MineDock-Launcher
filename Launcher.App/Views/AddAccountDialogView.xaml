@@ -1,6 +1,7 @@
 <UserControl x:Class="Launcher.App.Views.AddAccountDialogView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="clr-namespace:Launcher.App.Resources"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
              xmlns:models="clr-namespace:Launcher.App.Models"
              Focusable="False">
@@ -90,11 +91,11 @@
         <StackPanel Grid.Row="1"
                     Style="{StaticResource DialogFormPanelStyle}"
                     Visibility="{Binding IsOfflineNameStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
-            <TextBlock Text="&#x7528;&#x6237;&#x540D;"
+            <TextBlock Text="{x:Static res:Strings.Account_UsernameLabel}"
                        Style="{StaticResource DialogFieldLabelTextStyle}" />
             <TextBox Style="{StaticResource LauncherDialogTextBoxStyle}"
                      Text="{Binding NewOfflineAccountName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-            <TextBlock Text="&#x7528;&#x6237;&#x540D;&#x9700;&#x4E3A; 3-16 &#x4F4D;&#x5B57;&#x6BCD;&#x3001;&#x6570;&#x5B57;&#x6216;&#x4E0B;&#x5212;&#x7EBF;"
+            <TextBlock Text="{x:Static res:Strings.Account_UsernameValidation}"
                        Style="{StaticResource DialogValidationTextStyle}"
                        Visibility="{Binding IsNewOfflineAccountNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
         </StackPanel>
@@ -157,19 +158,19 @@
         <Grid Grid.Row="2">
             <Button Style="{StaticResource LauncherDialogButtonStyle}"
                     HorizontalAlignment="Left"
-                    Content="&#x4E0A;&#x4E00;&#x6B65;"
+                    Content="{x:Static res:Strings.Back_Button}"
                     Command="{Binding RequestBackAddAccountDialogCommand}"
                     Visibility="{Binding CanShowAddAccountBackButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
             <StackPanel Style="{StaticResource DialogFooterStyle}"
                         IsEnabled="{Binding IsAddAccountFooterEnabled}">
                 <Button Style="{StaticResource LauncherDialogButtonStyle}"
-                        Content="&#x53D6;&#x6D88;"
+                        Content="{x:Static res:Strings.Cancel_Button}"
                         Command="{Binding RequestCancelAddAccountDialogCommand}"
                         Visibility="{Binding CanShowAddAccountCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                 <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                         Margin="{StaticResource DialogTrailingButtonMargin}"
-                        Content="&#x786E;&#x5B9A;"
+                        Content="{x:Static res:Strings.Confirm_Button}"
                         IsEnabled="{Binding CanConfirmAddAccountDialog}"
                         Command="{Binding RequestConfirmAddAccountDialogCommand}" />
             </StackPanel>

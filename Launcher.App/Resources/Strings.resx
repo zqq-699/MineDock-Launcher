@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="App_Title" xml:space="preserve"><value>Launcher</value></data>
+  <data name="Menu_Button" xml:space="preserve"><value>菜单</value></data>
+  <data name="Search_Placeholder" xml:space="preserve"><value>搜索</value></data>
+  <data name="Back_Button" xml:space="preserve"><value>上一步</value></data>
+  <data name="Cancel_Button" xml:space="preserve"><value>取消</value></data>
+  <data name="Confirm_Button" xml:space="preserve"><value>确定</value></data>
+  <data name="Delete_Button" xml:space="preserve"><value>删除</value></data>
+  <data name="Refresh_Button" xml:space="preserve"><value>刷新</value></data>
+  <data name="Apply_Button" xml:space="preserve"><value>应用</value></data>
+  <data name="Page_Account" xml:space="preserve"><value>账户</value></data>
+  <data name="Page_Home" xml:space="preserve"><value>主页</value></data>
+  <data name="Page_Download" xml:space="preserve"><value>游戏下载</value></data>
+  <data name="Page_Install" xml:space="preserve"><value>下载</value></data>
+  <data name="Page_GameSettings" xml:space="preserve"><value>游戏设置</value></data>
+  <data name="Page_Resources" xml:space="preserve"><value>资源中心</value></data>
+  <data name="Page_Settings" xml:space="preserve"><value>设置</value></data>
+  <data name="Nav_GameInstanceList" xml:space="preserve"><value>实例列表</value></data>
+  <data name="Nav_JavaMemory" xml:space="preserve"><value>Java/内存</value></data>
+  <data name="Nav_DirectoryManagement" xml:space="preserve"><value>目录管理</value></data>
+  <data name="Nav_Mod" xml:space="preserve"><value>Mod</value></data>
+  <data name="Nav_Shaders" xml:space="preserve"><value>光影</value></data>
+  <data name="Nav_Maps" xml:space="preserve"><value>地图</value></data>
+  <data name="Nav_AppearanceTheme" xml:space="preserve"><value>外观主题</value></data>
+  <data name="Nav_DefaultSettings" xml:space="preserve"><value>默认设置</value></data>
+  <data name="Nav_About" xml:space="preserve"><value>关于</value></data>
+  <data name="Home_ChooseOrCreateAccount" xml:space="preserve"><value>选择或创建账户以进行游戏。</value></data>
+  <data name="Home_NoAccountSelected" xml:space="preserve"><value>未选择账户</value></data>
+  <data name="Home_NoVersionSelected" xml:space="preserve"><value>未选择游戏版本</value></data>
+  <data name="Home_MoreVersionsButton" xml:space="preserve"><value>更多版本 &gt;</value></data>
+  <data name="Launch_Button" xml:space="preserve"><value>启动游戏</value></data>
+  <data name="Account_ListTitle" xml:space="preserve"><value>账户列表</value></data>
+  <data name="Account_AddButton" xml:space="preserve"><value>添加账户</value></data>
+  <data name="Account_EmptySelection" xml:space="preserve"><value>选择账号以浏览或修改设置。</value></data>
+  <data name="Account_SkinHeader" xml:space="preserve"><value>皮肤</value></data>
+  <data name="Account_CapeHeader" xml:space="preserve"><value>披风</value></data>
+  <data name="Account_ChangeSkinButton" xml:space="preserve"><value>更换皮肤</value></data>
+  <data name="Account_UuidHeader" xml:space="preserve"><value>UUID</value></data>
+  <data name="Account_NoneValue" xml:space="preserve"><value>无</value></data>
+  <data name="Account_UsernameLabel" xml:space="preserve"><value>用户名</value></data>
+  <data name="Account_NewUsernameLabel" xml:space="preserve"><value>新用户名</value></data>
+  <data name="Account_UsernameValidation" xml:space="preserve"><value>用户名需为 3-16 位字母、数字或下划线</value></data>
+  <data name="Account_TypeOfflineTitle" xml:space="preserve"><value>离线账户</value></data>
+  <data name="Account_TypeOfflineDescription" xml:space="preserve"><value>使用本地用户名进入游戏。</value></data>
+  <data name="Account_TypeMicrosoftTitle" xml:space="preserve"><value>正版账户</value></data>
+  <data name="Account_TypeMicrosoftDescription" xml:space="preserve"><value>通过 Microsoft 账户登录并获取皮肤头像。</value></data>
+  <data name="Account_ProfileOfflineUnsupported" xml:space="preserve"><value>离线账户不支持皮肤和披风管理</value></data>
+  <data name="Account_ProfileNoCapes" xml:space="preserve"><value>这个账户没有可用披风</value></data>
+  <data name="Account_ProfileLoaded" xml:space="preserve"><value>正版账户资料已加载</value></data>
+  <data name="Account_ProfileCacheLoaded" xml:space="preserve"><value>已加载本地披风缓存，点击刷新可获取最新状态</value></data>
+  <data name="Account_ProfileRefreshHint" xml:space="preserve"><value>点击刷新读取这个正版账户的披风列表</value></data>
+  <data name="Cape_NoneState" xml:space="preserve"><value>不使用披风</value></data>
+  <data name="Cape_ActiveState" xml:space="preserve"><value>当前使用</value></data>
+  <data name="Cape_AvailableState" xml:space="preserve"><value>可用</value></data>
+  <data name="Dialog_AddAccountTitle" xml:space="preserve"><value>添加账户</value></data>
+  <data name="Dialog_AddOfflineAccountTitle" xml:space="preserve"><value>离线账户</value></data>
+  <data name="Dialog_AddMicrosoftAccountTitle" xml:space="preserve"><value>正版登录</value></data>
+  <data name="Dialog_AddAccountAlreadyExistsTitle" xml:space="preserve"><value>账号已存在</value></data>
+  <data name="Dialog_LoginSuccessTitle" xml:space="preserve"><value>登录成功</value></data>
+  <data name="Dialog_LoginIncompleteTitle" xml:space="preserve"><value>登录未完成</value></data>
+  <data name="Dialog_AddAccountSubtitle" xml:space="preserve"><value>选择要添加的账户类型。</value></data>
+  <data name="Dialog_AddOfflineAccountSubtitle" xml:space="preserve"><value>输入要添加的离线账户名。</value></data>
+  <data name="Dialog_AddMicrosoftAccountSubtitle" xml:space="preserve"><value>请在弹出的 Microsoft 官方页面完成登录。</value></data>
+  <data name="Dialog_AddAccountResultSubtitle" xml:space="preserve"><value>点击确定返回账户列表。</value></data>
+  <data name="Dialog_DeleteAccountTitle" xml:space="preserve"><value>删除账户</value></data>
+  <data name="Dialog_DeleteAccountMessage" xml:space="preserve"><value>是否确定删除该账户？</value></data>
+  <data name="Dialog_RenameAccountTitle" xml:space="preserve"><value>修改账户名</value></data>
+  <data name="Dialog_RenameAccountBusyTitle" xml:space="preserve"><value>正在修改</value></data>
+  <data name="Dialog_RenameAccountSuccessTitle" xml:space="preserve"><value>修改成功</value></data>
+  <data name="Dialog_RenameAccountFailedTitle" xml:space="preserve"><value>修改失败</value></data>
+  <data name="Dialog_RenameAccountBusySubtitle" xml:space="preserve"><value>请稍等，正在处理账户名修改。</value></data>
+  <data name="Dialog_RenameAccountResultSubtitle" xml:space="preserve"><value>点击确定返回账户详情。</value></data>
+  <data name="Dialog_RenameMicrosoftAccountSubtitle" xml:space="preserve"><value>正版账户每 30 天可改一次名，谨慎操作。</value></data>
+  <data name="Dialog_RenameOfflineAccountSubtitle" xml:space="preserve"><value>输入新的离线账户名。</value></data>
+  <data name="Download_VersionListTitle" xml:space="preserve"><value>版本列表</value></data>
+  <data name="Download_LoadingVersions" xml:space="preserve"><value>正在获取 Minecraft 版本列表...</value></data>
+  <data name="Download_LocateSelectedButton" xml:space="preserve"><value>定位已选</value></data>
+  <data name="Download_NextStepButton" xml:space="preserve"><value>下一步</value></data>
+  <data name="Download_InstanceNameLabel" xml:space="preserve"><value>实例名称</value></data>
+  <data name="Download_LoaderLabel" xml:space="preserve"><value>加载器</value></data>
+  <data name="Download_InstallButton" xml:space="preserve"><value>安装</value></data>
+  <data name="Download_ReleaseCategory" xml:space="preserve"><value>正式版</value></data>
+  <data name="Download_SnapshotCategory" xml:space="preserve"><value>快照版</value></data>
+  <data name="Download_BetaCategory" xml:space="preserve"><value>beta</value></data>
+  <data name="Download_AlphaCategory" xml:space="preserve"><value>alpha</value></data>
+  <data name="Download_VanillaLoaderTitle" xml:space="preserve"><value>原版</value></data>
+  <data name="Download_FabricLoaderTitle" xml:space="preserve"><value>Fabric</value></data>
+  <data name="Download_ForgeLoaderTitle" xml:space="preserve"><value>Forge</value></data>
+  <data name="Download_VanillaLoaderSubtitle" xml:space="preserve"><value>不安装 Mod 加载器</value></data>
+  <data name="Download_LoaderPendingSubtitle" xml:space="preserve"><value>暂未接入安装</value></data>
+  <data name="Install_Empty" xml:space="preserve"><value>当前没有下载内容</value></data>
+  <data name="DownloadTask_Preparing" xml:space="preserve"><value>准备下载...</value></data>
+  <data name="DownloadTask_Completed" xml:space="preserve"><value>已完成</value></data>
+  <data name="DownloadTask_Failed" xml:space="preserve"><value>失败</value></data>
+  <data name="DownloadTask_Running" xml:space="preserve"><value>下载中</value></data>
+  <data name="Status_Ready" xml:space="preserve"><value>准备就绪</value></data>
+  <data name="Status_NoLaunchableInstance" xml:space="preserve"><value>还没有可启动的实例</value></data>
+  <data name="Status_LoadingVersions" xml:space="preserve"><value>正在获取 Minecraft 版本列表...</value></data>
+  <data name="Status_VersionsLoadedFormat" xml:space="preserve"><value>已加载 {0} 个版本</value></data>
+  <data name="Status_LoaderVersionsPendingFormat" xml:space="preserve"><value>{0} 后续版本接入</value></data>
+  <data name="Status_LoadingLoaderVersionsFormat" xml:space="preserve"><value>正在读取 {0} 版本...</value></data>
+  <data name="Status_LoaderVersionsLoadedFormat" xml:space="preserve"><value>{0} 可用版本已加载</value></data>
+  <data name="Status_SelectMinecraftVersionFirst" xml:space="preserve"><value>请先选择 Minecraft 版本</value></data>
+  <data name="Status_InstanceCreatedFormat" xml:space="preserve"><value>实例 {0} 已创建</value></data>
+  <data name="Status_LocalModImported" xml:space="preserve"><value>本地 Mod 已导入</value></data>
+  <data name="Status_SelectInstanceFirst" xml:space="preserve"><value>请先选择一个实例</value></data>
+  <data name="Status_SearchingModrinth" xml:space="preserve"><value>正在搜索 Modrinth...</value></data>
+  <data name="Status_ModrinthResultsFoundFormat" xml:space="preserve"><value>找到 {0} 个资源</value></data>
+  <data name="Status_ModInstalledFormat" xml:space="preserve"><value>{0} 已安装</value></data>
+  <data name="Status_SettingsSaved" xml:space="preserve"><value>启动器设置已保存</value></data>
+  <data name="Status_InstanceSettingsSaved" xml:space="preserve"><value>实例设置已保存</value></data>
+  <data name="Status_DefaultInstanceSetFormat" xml:space="preserve"><value>{0} 已设为默认实例</value></data>
+  <data name="Status_LoadVersionsFailed" xml:space="preserve"><value>版本列表加载失败，请稍后重试。</value></data>
+  <data name="Status_UnimplementedCategory" xml:space="preserve"><value>该分类稍后实现。</value></data>
+  <data name="Status_NoCategoryVersionsFormat" xml:space="preserve"><value>没有找到{0}版本。</value></data>
+  <data name="Status_NoMatchingVersions" xml:space="preserve"><value>没有找到匹配的版本。</value></data>
+  <data name="Status_DuplicateInstanceName" xml:space="preserve"><value>已存在同名版本</value></data>
+  <data name="Status_InstallingVanillaFormat" xml:space="preserve"><value>正在安装原版 {0}...</value></data>
+  <data name="Status_InstanceInstalledFormat" xml:space="preserve"><value>实例 {0} 已安装</value></data>
+  <data name="Status_InstallFailed" xml:space="preserve"><value>安装失败，请稍后重试。</value></data>
+  <data name="Status_LoaderInstallPending" xml:space="preserve"><value>该加载器将在后续版本接入安装。</value></data>
+  <data name="Status_OpeningMicrosoftLogin" xml:space="preserve"><value>正在打开 Microsoft 官方登录页面...</value></data>
+  <data name="Status_LoginMicrosoftActive" xml:space="preserve"><value>正在登录，请在弹出的 Microsoft 官方页面完成登录...</value></data>
+  <data name="Status_LoginMissingProfile" xml:space="preserve"><value>正版登录失败：未获取到 Minecraft Java 账户资料</value></data>
+  <data name="Status_LoginAccountAlreadyAddedFormat" xml:space="preserve"><value>正版账户 {0} 已经添加过了，已为你选中</value></data>
+  <data name="Status_LoginAccountAddedFormat" xml:space="preserve"><value>已添加正版账户 {0}</value></data>
+  <data name="Status_LoginCanceled" xml:space="preserve"><value>正版登录已取消</value></data>
+  <data name="Status_LoginFailed" xml:space="preserve"><value>正版登录失败，请稍后重试。</value></data>
+  <data name="Status_OfflineAccountAddedFormat" xml:space="preserve"><value>已添加离线账户 {0}</value></data>
+  <data name="Status_AccountDeletedFormat" xml:space="preserve"><value>已删除账户 {0}</value></data>
+  <data name="Status_AccountDeletedCacheCleanupFailedFormat" xml:space="preserve"><value>已从列表删除账户 {0}，但清理登录缓存失败。</value></data>
+  <data name="Status_AccountNameUnchanged" xml:space="preserve"><value>账户名没有变化</value></data>
+  <data name="Status_SavingOfflineAccountName" xml:space="preserve"><value>正在保存离线账户名...</value></data>
+  <data name="Status_ChangingMicrosoftAccountName" xml:space="preserve"><value>正在联网修改正版账户名...</value></data>
+  <data name="Status_AccountRenamedFormat" xml:space="preserve"><value>已将账户名修改为 {0}</value></data>
+  <data name="Status_AccountRenameResultFormat" xml:space="preserve"><value>账户名已修改为 {0}</value></data>
+  <data name="Status_AccountRenameFailed" xml:space="preserve"><value>账户名修改失败，请稍后重试。</value></data>
+  <data name="Status_SkinOfflineUnsupported" xml:space="preserve"><value>只有正版账户可以更换皮肤</value></data>
+  <data name="Status_UploadingSkin" xml:space="preserve"><value>正在上传皮肤...</value></data>
+  <data name="Status_SkinUpdated" xml:space="preserve"><value>皮肤已更新</value></data>
+  <data name="Status_SkinUpdateFailed" xml:space="preserve"><value>更换皮肤失败，请稍后重试。</value></data>
+  <data name="Status_CapeOfflineUnsupported" xml:space="preserve"><value>只有正版账户可以更换披风</value></data>
+  <data name="Status_ChangingCape" xml:space="preserve"><value>正在更换披风...</value></data>
+  <data name="Status_CapeRemoved" xml:space="preserve"><value>已移除当前披风</value></data>
+  <data name="Status_CapeChangedFormat" xml:space="preserve"><value>已更换披风：{0}</value></data>
+  <data name="Status_CapeChangeFailed" xml:space="preserve"><value>更换披风失败，请稍后重试。</value></data>
+  <data name="Status_LoadingAccountProfile" xml:space="preserve"><value>正在读取正版账户资料...</value></data>
+  <data name="Status_LoadAccountProfileFailed" xml:space="preserve"><value>读取正版账户资料失败，请稍后重试。</value></data>
+  <data name="FilePicker_MinecraftSkinTitle" xml:space="preserve"><value>选择 Minecraft 皮肤</value></data>
+  <data name="FilePicker_MinecraftSkinFilter" xml:space="preserve"><value>PNG 皮肤 (*.png)|*.png</value></data>
+</root>

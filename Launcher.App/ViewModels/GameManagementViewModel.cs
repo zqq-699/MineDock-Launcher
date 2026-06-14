@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Models;
+using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
@@ -67,13 +68,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
 
         foreach (var provider in this.loaderProviders.Values)
         {
-            LoaderItems.Add(new NavigationItem
-            {
-                Page = provider.Kind.ToString(),
-                Title = provider.DisplayName,
-                Icon = provider.Kind is LoaderKind.Vanilla ? "\uE7C3" : "\uE8B7",
-                Loader = provider.Kind
-            });
+            LoaderItems.Add(NavigationCatalog.CreateLoaderItem(provider));
         }
     }
 
@@ -106,17 +101,12 @@ public sealed partial class GameManagementViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadMinecraftVersionsAsync()
     {
-        ReportStatus("正在获取 Minecraft 版本列表...");
-        MinecraftVersions.Clear();
-
-        foreach (var version in await gameVersionService.GetVersionsAsync())
-        {
-            if (version.Type.Equals("Release", StringComparison.OrdinalIgnoreCase) || version.Name.StartsWith("1."))
-                MinecraftVersions.Add(version);
-        }
+        ReportStatus(Strings.Status_LoadingVersions);
+        var versions = await gameVersionService.GetVersionsAsync();
+        MinecraftVersions.ReplaceWith(versions.Where(IsSelectableMinecraftVersion));
 
         SelectedMinecraftVersion ??= MinecraftVersions.FirstOrDefault();
-        ReportStatus($"已加载 {MinecraftVersions.Count} 个版本");
+        ReportStatus(string.Format(Strings.Status_VersionsLoadedFormat, MinecraftVersions.Count));
     }
 
     [RelayCommand]
@@ -147,9 +137,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
         var loadedInstances = await instanceService.GetInstancesAsync();
         var previousSelectedId = SelectedInstance?.Id;
 
-        Instances.Clear();
-        foreach (var instance in loadedInstances)
-            Instances.Add(instance);
+        Instances.ReplaceWith(loadedInstances);
 
         var selected = !string.IsNullOrWhiteSpace(settings.DefaultInstanceId)
             ? Instances.FirstOrDefault(instance => instance.Id == settings.DefaultInstanceId)
@@ -184,16 +172,15 @@ public sealed partial class GameManagementViewModel : ObservableObject
 
         if (!provider.IsImplemented)
         {
-            ReportStatus($"{provider.DisplayName} 后续版本接入");
+            ReportStatus(string.Format(Strings.Status_LoaderVersionsPendingFormat, provider.DisplayName));
             return;
         }
 
-        ReportStatus($"正在读取 {provider.DisplayName} 版本...");
-        foreach (var version in await provider.GetLoaderVersionsAsync(SelectedMinecraftVersion.Name))
-            LoaderVersions.Add(version);
+        ReportStatus(string.Format(Strings.Status_LoadingLoaderVersionsFormat, provider.DisplayName));
+        LoaderVersions.ReplaceWith(await provider.GetLoaderVersionsAsync(SelectedMinecraftVersion.Name));
 
         SelectedLoaderVersion = LoaderVersions.FirstOrDefault(v => v.IsStable) ?? LoaderVersions.FirstOrDefault();
-        ReportStatus($"{provider.DisplayName} 可用版本已加载");
+        ReportStatus(string.Format(Strings.Status_LoaderVersionsLoadedFormat, provider.DisplayName));
     }
 
     [RelayCommand]
@@ -201,7 +188,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
     {
         if (SelectedMinecraftVersion is null)
         {
-            ReportStatus("请先选择 Minecraft 版本");
+            ReportStatus(Strings.Status_SelectMinecraftVersionFirst);
             return;
         }
 
@@ -216,7 +203,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
 
         Instances.Add(instance);
         SelectedInstance = instance;
-        ReportStatus($"实例 {instance.Name} 已创建");
+        ReportStatus(string.Format(Strings.Status_InstanceCreatedFormat, instance.Name));
     }
 
     [RelayCommand]
@@ -238,9 +225,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
             return;
         }
 
-        Mods.Clear();
-        foreach (var mod in loadedMods)
-            Mods.Add(mod);
+        Mods.ReplaceWith(loadedMods);
     }
 
     [RelayCommand]
@@ -265,7 +250,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
 
         await modService.ImportAsync(SelectedInstance, path);
         await RefreshModsAsync();
-        ReportStatus("本地 Mod 已导入");
+        ReportStatus(Strings.Status_LocalModImported);
     }
 
     [RelayCommand]
@@ -273,16 +258,18 @@ public sealed partial class GameManagementViewModel : ObservableObject
     {
         if (SelectedInstance is null)
         {
-            ReportStatus("请先选择一个实例");
+            ReportStatus(Strings.Status_SelectInstanceFirst);
             return;
         }
 
-        ReportStatus("正在搜索 Modrinth...");
-        ModrinthProjects.Clear();
-        foreach (var project in await modrinthService.SearchModsAsync(ModSearchQuery, SelectedInstance.MinecraftVersion, SelectedInstance.Loader))
-            ModrinthProjects.Add(project);
+        ReportStatus(Strings.Status_SearchingModrinth);
+        var projects = await modrinthService.SearchModsAsync(
+            ModSearchQuery,
+            SelectedInstance.MinecraftVersion,
+            SelectedInstance.Loader);
+        ModrinthProjects.ReplaceWith(projects);
 
-        ReportStatus($"找到 {ModrinthProjects.Count} 个资源");
+        ReportStatus(string.Format(Strings.Status_ModrinthResultsFoundFormat, ModrinthProjects.Count));
     }
 
     [RelayCommand]
@@ -293,14 +280,14 @@ public sealed partial class GameManagementViewModel : ObservableObject
 
         await modrinthService.InstallLatestCompatibleAsync(SelectedModrinthProject, SelectedInstance, CreateProgress());
         await RefreshModsAsync();
-        ReportStatus($"{SelectedModrinthProject.Title} 已安装");
+        ReportStatus(string.Format(Strings.Status_ModInstalledFormat, SelectedModrinthProject.Title));
     }
 
     [RelayCommand]
     private async Task SaveSettingsAsync()
     {
         await settingsService.SaveAsync(settings);
-        ReportStatus("启动器设置已保存");
+        ReportStatus(Strings.Status_SettingsSaved);
     }
 
     [RelayCommand]
@@ -310,7 +297,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
             return;
 
         await instanceService.SaveInstanceAsync(SelectedInstance);
-        ReportStatus("实例设置已保存");
+        ReportStatus(Strings.Status_InstanceSettingsSaved);
     }
 
     [RelayCommand]
@@ -321,7 +308,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
 
         settings.DefaultInstanceId = SelectedInstance.Id;
         await settingsService.SaveAsync(settings);
-        ReportStatus($"{SelectedInstance.Name} 已设为默认实例");
+        ReportStatus(string.Format(Strings.Status_DefaultInstanceSetFormat, SelectedInstance.Name));
     }
 
     partial void OnSelectedLoaderChanged(LoaderKind value)
@@ -352,5 +339,10 @@ public sealed partial class GameManagementViewModel : ObservableObject
     private void ReportStatus(string message)
     {
         statusService.Report(message);
+    }
+
+    private static bool IsSelectableMinecraftVersion(MinecraftVersionInfo version)
+    {
+        return version.Type.Equals("Release", StringComparison.OrdinalIgnoreCase) || version.Name.StartsWith("1.");
     }
 }

@@ -1,4 +1,5 @@
 using System.Windows;
+using Launcher.App.Resources;
 using Microsoft.Win32;
 
 namespace Launcher.App.Services;
@@ -9,8 +10,8 @@ public sealed class FilePickerService : IFilePickerService
     {
         var dialog = new OpenFileDialog
         {
-            Title = "选择 Minecraft 皮肤",
-            Filter = "PNG 皮肤 (*.png)|*.png",
+            Title = Strings.FilePicker_MinecraftSkinTitle,
+            Filter = Strings.FilePicker_MinecraftSkinFilter,
             CheckFileExists = true,
             Multiselect = false
         };

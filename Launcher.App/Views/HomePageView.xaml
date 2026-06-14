@@ -1,6 +1,7 @@
 ﻿<UserControl x:Class="Launcher.App.Views.HomePageView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="clr-namespace:Launcher.App.Resources"
              x:Name="Root"
              Focusable="False">
     <Grid x:Name="PageRoot"
@@ -179,7 +180,7 @@
             <TextBlock Text="{Binding HomeAccountDisplayName}"
                        Style="{StaticResource HomeAccountNameTextStyle}" />
 
-            <TextBlock Text="选择或创建账户以进行游戏。">
+            <TextBlock Text="{x:Static res:Strings.Home_ChooseOrCreateAccount}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock" BasedOn="{StaticResource HomeAccountHintTextStyle}">
                         <Setter Property="Visibility" Value="Collapsed" />
@@ -192,14 +193,14 @@
                 </TextBlock.Style>
             </TextBlock>
 
-            <Button Content="启动游戏"
+            <Button Content="{x:Static res:Strings.Launch_Button}"
                     Command="{Binding LaunchCommand}"
                     Style="{StaticResource HomeLaunchButtonStyle}" />
 
             <TextBlock Text="{Binding HomeVersionDisplayName}"
                        Style="{StaticResource HomeVersionNameTextStyle}" />
 
-            <Button Content="更多版本 &gt;"
+            <Button Content="{x:Static res:Strings.Home_MoreVersionsButton}"
                     Command="{Binding ChangeHomeVersionCommand}"
                     Style="{StaticResource HomeChangeVersionButtonStyle}" />
         </StackPanel>

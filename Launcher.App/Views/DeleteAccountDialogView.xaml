@@ -1,6 +1,7 @@
 <UserControl x:Class="Launcher.App.Views.DeleteAccountDialogView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="clr-namespace:Launcher.App.Resources"
              Focusable="False">
     <Grid Style="{StaticResource DialogContentGridStyle}">
         <Grid.RowDefinitions>
@@ -9,22 +10,22 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Text="&#x5220;&#x9664;&#x8D26;&#x6237;"
+        <TextBlock Text="{x:Static res:Strings.Dialog_DeleteAccountTitle}"
                    Style="{StaticResource DialogTitleTextStyle}" />
 
         <TextBlock Grid.Row="1"
                    Margin="0,16,0,24"
-                   Text="&#x662F;&#x5426;&#x786E;&#x5B9A;&#x5220;&#x9664;&#x8BE5;&#x8D26;&#x6237;&#xFF1F;"
+                   Text="{x:Static res:Strings.Dialog_DeleteAccountMessage}"
                    Style="{StaticResource DialogBodyTextStyle}" />
 
         <StackPanel Grid.Row="2"
                     Style="{StaticResource DialogFooterStyle}">
             <Button Style="{StaticResource LauncherDialogButtonStyle}"
-                    Content="&#x53D6;&#x6D88;"
+                    Content="{x:Static res:Strings.Cancel_Button}"
                     Command="{Binding RequestCancelDeleteAccountDialogCommand}" />
             <Button Style="{StaticResource LauncherDangerDialogButtonStyle}"
                     Margin="{StaticResource DialogTrailingButtonMargin}"
-                    Content="&#x5220;&#x9664;"
+                    Content="{x:Static res:Strings.Delete_Button}"
                     Command="{Binding RequestConfirmDeleteAccountDialogCommand}" />
         </StackPanel>
     </Grid>

@@ -12,6 +12,9 @@
             <converters:BooleanToMenuTextVisibilityConverter x:Key="BooleanToMenuTextVisibilityConverter" />
             <converters:PageVisibilityConverter x:Key="PageVisibilityConverter" />
             <converters:PageTitleConverter x:Key="PageTitleConverter" />
+            <converters:AccountKindTextConverter x:Key="AccountKindTextConverter" />
+            <converters:UuidTextConverter x:Key="UuidTextConverter" />
+            <converters:CapeStateTextConverter x:Key="CapeStateTextConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

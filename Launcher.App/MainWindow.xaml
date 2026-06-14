@@ -4,9 +4,10 @@
         xmlns:models="clr-namespace:Launcher.App.Models"
         xmlns:controls="clr-namespace:Launcher.App.Controls"
         xmlns:views="clr-namespace:Launcher.App.Views"
+        xmlns:res="clr-namespace:Launcher.App.Resources"
         x:Class="Launcher.App.MainWindow"
         x:Name="RootWindow"
-        Title="Launcher"
+        Title="{x:Static res:Strings.App_Title}"
         Width="980"
         Height="640"
         MinWidth="960"
@@ -93,7 +94,7 @@
                                         </controls:SvgIcon.Style>
                                     </controls:SvgIcon>
                                 </Grid>
-                                <TextBlock Text="&#x83DC;&#x5355;"
+                                <TextBlock Text="{x:Static res:Strings.Menu_Button}"
                                            Style="{StaticResource NavigationMenuTextStyle}" />
                             </StackPanel>
                         </Button>

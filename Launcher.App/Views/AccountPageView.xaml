@@ -5,10 +5,11 @@
              xmlns:accountModels="clr-namespace:Launcher.Application.Accounts;assembly=Launcher.Application"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
              xmlns:views="clr-namespace:Launcher.App.Views"
+             xmlns:res="clr-namespace:Launcher.App.Resources"
              x:Name="Root"
              Focusable="False">
     <Grid x:Name="PageRoot">
-        <controls:SecondaryMenuFrame Title="&#x8D26;&#x6237;&#x5217;&#x8868;"
+        <controls:SecondaryMenuFrame Title="{x:Static res:Strings.Account_ListTitle}"
                                      controls:SecondaryMenuOptionButton.RefreshRequested="SecondaryMenuOptionButton_OnRefreshRequested">
             <controls:SecondaryMenuFrame.MenuContent>
                 <StackPanel>
@@ -51,7 +52,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <controls:SecondaryMenuOptionButton Text="&#x6DFB;&#x52A0;&#x8D26;&#x6237;"
+                    <controls:SecondaryMenuOptionButton Text="{x:Static res:Strings.Account_AddButton}"
                                                         IconMode="Svg"
                                                         IconKey="account_page/account_page_add_account"
                                                         IconWidth="24"
@@ -62,7 +63,7 @@
         </controls:SecondaryMenuFrame>
 
         <Grid Margin="284,72,24,24">
-            <TextBlock Text="&#x9009;&#x62E9;&#x8D26;&#x53F7;&#x4EE5;&#x6D4F;&#x89C8;&#x6216;&#x4FEE;&#x6539;&#x8BBE;&#x7F6E;&#x3002;">
+            <TextBlock Text="{x:Static res:Strings.Account_EmptySelection}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock" BasedOn="{StaticResource PageEmptyStateTextStyle}">
                         <Setter Property="Visibility" Value="Collapsed" />
@@ -116,14 +117,14 @@
                         </Button>
                     </Grid>
                     <TextBlock Margin="0,8,0,0"
-                               Text="{Binding SelectedAccount.AccountKindText}"
+                               Text="{Binding SelectedAccount.IsOffline, Converter={StaticResource AccountKindTextConverter}}"
                                Foreground="#AFFFFFFF"
                                FontSize="13" />
 
                     <StackPanel Margin="0,26,0,0"
                                 MaxWidth="480"
                                 HorizontalAlignment="Left">
-                        <GroupBox Header="UUID"
+                        <GroupBox Header="{x:Static res:Strings.Account_UuidHeader}"
                                   Style="{StaticResource LauncherContentSectionStyle}">
                             <Border Style="{StaticResource SectionFieldSurfaceStyle}">
                                 <Grid>
@@ -132,7 +133,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <TextBlock Text="{Binding SelectedAccount.UuidText}"
+                                    <TextBlock Text="{Binding SelectedAccount.Uuid, Converter={StaticResource UuidTextConverter}}"
                                                Foreground="#E8FFFFFF"
                                                FontSize="14"
                                                TextWrapping="Wrap"
@@ -151,18 +152,18 @@
                         </GroupBox>
 
                         <GroupBox Margin="0,22,0,0"
-                                  Header="&#x76AE;&#x80A4;"
+                                  Header="{x:Static res:Strings.Account_SkinHeader}"
                                   Style="{StaticResource LauncherContentSectionStyle}">
                             <StackPanel Orientation="Horizontal">
                                 <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
-                                        Content="&#x66F4;&#x6362;&#x76AE;&#x80A4;"
+                                        Content="{x:Static res:Strings.Account_ChangeSkinButton}"
                                         IsEnabled="{Binding CanChangeSelectedAccountSkin}"
                                         Command="{Binding PickAndChangeSelectedAccountSkinCommand}" />
                             </StackPanel>
                         </GroupBox>
 
                         <GroupBox Margin="0,22,0,0"
-                                  Header="&#x62AB;&#x98CE;"
+                                  Header="{x:Static res:Strings.Account_CapeHeader}"
                                   Style="{StaticResource LauncherContentSectionStyle}">
                             <StackPanel>
                                 <Grid>
@@ -243,7 +244,7 @@
                                                         <TextBlock Text="{Binding DisplayName}"
                                                                    Foreground="#F4F4F4"
                                                                    FontSize="13" />
-                                                        <TextBlock Text="{Binding StateText}"
+                                                        <TextBlock Text="{Binding Converter={StaticResource CapeStateTextConverter}}"
                                                                    Margin="0,2,0,0"
                                                                    Foreground="#8FFFFFFF"
                                                                    FontSize="11" />
@@ -256,13 +257,13 @@
                                     <Button Grid.Column="1"
                                             Margin="10,0,0,0"
                                             Style="{StaticResource LauncherDialogButtonStyle}"
-                                            Content="&#x5237;&#x65B0;"
+                                            Content="{x:Static res:Strings.Refresh_Button}"
                                             IsEnabled="{Binding CanEditSelectedMicrosoftAccount}"
                                             Command="{Binding RefreshSelectedAccountProfileCommand}" />
                                     <Button Grid.Column="2"
                                             Margin="10,0,0,0"
                                             Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
-                                            Content="&#x5E94;&#x7528;"
+                                            Content="{x:Static res:Strings.Apply_Button}"
                                             IsEnabled="{Binding CanApplySelectedCape}"
                                             Command="{Binding ApplySelectedAccountCapeCommand}" />
                                 </Grid>

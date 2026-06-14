@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Launcher.App.Resources;
 using Launcher.App.ViewModels;
 using Launcher.Domain.Models;
 using Launcher.Application.Services;
@@ -926,7 +927,7 @@ public sealed class LauncherCoreTests : IDisposable
         Assert.Same(expected, actual);
         Assert.False(viewModel.IsInstalling);
         Assert.True(viewModel.HasInstallError);
-        Assert.Contains("network down", viewModel.InstallError);
+        Assert.Equal(Strings.Status_InstallFailed, viewModel.InstallError);
     }
 
     [Fact]

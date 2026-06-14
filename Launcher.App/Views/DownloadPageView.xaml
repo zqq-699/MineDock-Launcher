@@ -4,10 +4,11 @@
              xmlns:controls="clr-namespace:Launcher.App.Controls"
              xmlns:views="clr-namespace:Launcher.App.Views"
              xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+             xmlns:res="clr-namespace:Launcher.App.Resources"
              x:Name="Root"
              Focusable="False">
     <Grid x:Name="PageRoot">
-        <controls:SecondaryMenuFrame Title="&#x7248;&#x672C;&#x5217;&#x8868;"
+        <controls:SecondaryMenuFrame Title="{x:Static res:Strings.Download_VersionListTitle}"
                                      controls:SecondaryMenuOptionButton.RefreshRequested="SecondaryMenuOptionButton_OnRefreshRequested">
             <controls:SecondaryMenuFrame.MenuContent>
                 <ItemsControl ItemsSource="{Binding VersionCategories}">
@@ -48,7 +49,7 @@
                     </Grid.Style>
 
                     <TextBlock Margin="0,122,0,0"
-                               Text="&#x6B63;&#x5728;&#x83B7;&#x53D6; Minecraft &#x7248;&#x672C;&#x5217;&#x8868;...">
+                               Text="{x:Static res:Strings.Download_LoadingVersions}">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource PageEmptyStateTextStyle}">
                                 <Setter Property="Visibility" Value="Collapsed" />
@@ -110,121 +111,7 @@
                             <TranslateTransform />
                         </Grid.RenderTransform>
 
-                        <ScrollViewer Style="{StaticResource ListPageScrollViewerStyle}">
-                            <StackPanel Margin="0,132,12,72"
-                                        MaxWidth="560"
-                                        HorizontalAlignment="Stretch">
-                                <TextBlock Margin="0,0,0,8"
-                                           Text="&#x5B9E;&#x4F8B;&#x540D;&#x79F0;"
-                                           Foreground="#AFFFFFFF"
-                                           FontSize="13" />
-
-                                <TextBox Height="42"
-                                         Text="{Binding InstanceName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource LauncherDialogTextBoxStyle}" />
-
-                                <TextBlock Margin="0,8,0,0"
-                                           Text="{Binding InstanceNameDuplicateMessage}"
-                                           Foreground="#FFFFC56D"
-                                           FontSize="12">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding HasInstanceNameDuplicateMessage}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-
-                                <TextBlock Margin="0,28,0,10"
-                                           Text="&#x52A0;&#x8F7D;&#x5668;"
-                                           Foreground="#AFFFFFFF"
-                                           FontSize="13" />
-
-                                <ListBox ItemsSource="{Binding LoaderOptions}"
-                                         SelectedItem="{Binding SelectedLoaderOption, Mode=TwoWay}"
-                                         SelectionMode="Single">
-                                    <ListBox.Style>
-                                        <Style TargetType="ListBox" BasedOn="{StaticResource DialogChoiceListStyle}">
-                                            <Setter Property="Margin" Value="0" />
-                                        </Style>
-                                    </ListBox.Style>
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="36" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <Grid Width="36"
-                                                      Height="36">
-                                                    <Image Width="30"
-                                                           Height="30"
-                                                           Source="{Binding IconSource}"
-                                                           RenderOptions.BitmapScalingMode="NearestNeighbor"
-                                                           SnapsToDevicePixels="True"
-                                                           HorizontalAlignment="Center"
-                                                           VerticalAlignment="Center">
-                                                        <Image.Style>
-                                                            <Style TargetType="Image">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IconSource}" Value="{x:Null}">
-                                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding IconSource}" Value="">
-                                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Image.Style>
-                                                    </Image>
-
-                                                    <TextBlock Text="{Binding Icon}"
-                                                               FontFamily="Segoe MDL2 Assets"
-                                                               FontSize="26"
-                                                               Foreground="#F4F4F4"
-                                                               TextAlignment="Center"
-                                                               VerticalAlignment="Center">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IconSource}" Value="{x:Null}">
-                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding IconSource}" Value="">
-                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                </Grid>
-
-                                                <StackPanel Grid.Column="1"
-                                                            Margin="14,0,0,0">
-                                                    <TextBlock Text="{Binding Title}"
-                                                               Foreground="#F4F4F4"
-                                                               FontSize="16"
-                                                               FontWeight="SemiBold" />
-                                                    <TextBlock Text="{Binding Subtitle}"
-                                                               Margin="0,5,0,0"
-                                                               Foreground="#AFFFFFFF"
-                                                               FontSize="12"
-                                                               TextWrapping="Wrap" />
-                                                </StackPanel>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-
-                            </StackPanel>
-                        </ScrollViewer>
+                        <views:DownloadInstanceOptionsView />
                     </Grid>
                 </Grid>
             </controls:ListPageFrame.ListContent>
@@ -232,7 +119,7 @@
             <controls:ListPageFrame.FloatingContent>
                 <Grid>
                     <Button Tag="ScrollToSelectedVersion"
-                            Content="&#x5B9A;&#x4F4D;&#x5DF2;&#x9009;"
+                            Content="{x:Static res:Strings.Download_LocateSelectedButton}"
                             Click="ScrollToSelectedVersionButton_OnClick">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource ListPageSecondaryFloatingButtonStyle}">
@@ -245,7 +132,7 @@
                     </Button>
 
                     <Button Tag="NextStep"
-                            Content="&#x4E0B;&#x4E00;&#x6B65;"
+                            Content="{x:Static res:Strings.Download_NextStepButton}"
                             IsEnabled="{Binding HasSelectedMinecraftVersion}"
                             Command="{Binding GoToInstanceOptionsCommand}">
                         <Button.Style>
@@ -256,7 +143,7 @@
                     </Button>
 
                     <Button Tag="PreviousStep"
-                            Content="&#x4E0A;&#x4E00;&#x6B65;"
+                            Content="{x:Static res:Strings.Back_Button}"
                             Command="{Binding BackToVersionListCommand}">
                         <Button.Style>
                             <Style TargetType="Button" BasedOn="{StaticResource DownloadPreviousStepButtonStyle}">
