@@ -65,13 +65,42 @@ public sealed class AccountPageViewModelTests
         Assert.Equal(AccountNameValidationMessage, statusService.LastMessage);
     }
 
+    [Fact]
+    public async Task ConfirmDeleteAccountClosesDialogBeforeSaveCompletes()
+    {
+        var saveCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var accountStore = new FakeAccountStore(saveCompletion);
+        var statusService = new FakeStatusService();
+        var viewModel = CreateViewModel(accountStore, statusService);
+        var account = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "DeleteMe",
+            IsOffline = true
+        };
+        viewModel.Accounts.Add(account);
+        viewModel.OpenDeleteAccountDialog(account);
+
+        var deleteTask = viewModel.ConfirmDeleteAccountDialogAsync();
+
+        Assert.False(viewModel.IsDeleteAccountDialogOpen);
+        Assert.Null(viewModel.AccountPendingDelete);
+        Assert.Empty(viewModel.Accounts);
+
+        saveCompletion.SetResult();
+        await deleteTask;
+    }
+
     private static AccountPageViewModel CreateViewModel(
         FakeAccountStore accountStore,
         FakeStatusService statusService)
     {
+        var accountList = new AccountListViewModel(accountStore);
+        var microsoftAccountService = new FakeMicrosoftAccountService();
         return new AccountPageViewModel(
-            accountStore,
-            new FakeMicrosoftAccountService(),
+            accountList,
+            new AccountDialogViewModel(accountList, microsoftAccountService, statusService),
+            new AccountAppearanceViewModel(accountList, microsoftAccountService),
             statusService,
             new FakeAccountDialogService(),
             new FakeClipboardService(),
@@ -80,6 +109,13 @@ public sealed class AccountPageViewModelTests
 
     private sealed class FakeAccountStore : IAccountStore
     {
+        private readonly TaskCompletionSource? saveCompletion;
+
+        public FakeAccountStore(TaskCompletionSource? saveCompletion = null)
+        {
+            this.saveCompletion = saveCompletion;
+        }
+
         public int SaveCount { get; private set; }
 
         public Task<IReadOnlyList<LauncherAccount>> LoadAsync(LauncherSettings settings)
@@ -90,7 +126,7 @@ public sealed class AccountPageViewModelTests
         public Task SaveOrderAsync(LauncherSettings settings, IEnumerable<LauncherAccount> accounts)
         {
             SaveCount++;
-            return Task.CompletedTask;
+            return saveCompletion?.Task ?? Task.CompletedTask;
         }
     }
 

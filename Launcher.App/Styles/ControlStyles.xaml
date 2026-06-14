@@ -2,6 +2,7 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
                     xmlns:controls="clr-namespace:Launcher.App.Controls"
+                    xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
                     xmlns:converters="clr-namespace:Launcher.App.Converters"
                     xmlns:res="clr-namespace:Launcher.App.Resources">
     <converters:MinimumScrollThumbViewportConverter x:Key="MinimumScrollThumbViewportConverter" />
@@ -449,7 +450,7 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="14" />
         <Setter Property="ClipToBounds" Value="True" />
-        <Setter Property="controls:RoundedClip.Radius" Value="14" />
+        <Setter Property="behaviors:RoundedClip.Radius" Value="14" />
         <Setter Property="Effect">
             <Setter.Value>
                 <DropShadowEffect BlurRadius="18"
@@ -609,8 +610,8 @@
     <Style x:Key="SecondaryMenuScrollViewerStyle"
            TargetType="ScrollViewer"
            BasedOn="{StaticResource OverlayScrollViewerStyle}">
-        <Setter Property="controls:SmoothScrollBehavior.IsEnabled" Value="True" />
-        <Setter Property="controls:SmoothScrollBehavior.ScrollAmount" Value="72" />
+        <Setter Property="behaviors:SmoothScrollBehavior.IsEnabled" Value="True" />
+        <Setter Property="behaviors:SmoothScrollBehavior.ScrollAmount" Value="72" />
         <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
         <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
         <Setter Property="ClipToBounds" Value="True" />
@@ -636,8 +637,8 @@
     <Style x:Key="MainContentScrollViewerStyle"
            TargetType="ScrollViewer"
            BasedOn="{StaticResource OverlayScrollViewerStyle}">
-        <Setter Property="controls:SmoothScrollBehavior.IsEnabled" Value="True" />
-        <Setter Property="controls:SmoothScrollBehavior.ScrollAmount" Value="92" />
+        <Setter Property="behaviors:SmoothScrollBehavior.IsEnabled" Value="True" />
+        <Setter Property="behaviors:SmoothScrollBehavior.ScrollAmount" Value="92" />
         <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
         <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
         <Setter Property="ClipToBounds" Value="True" />
@@ -751,7 +752,7 @@
                                                          BorderThickness="{TemplateBinding BorderThickness}"
                                                          CornerRadius="10"
                                                          ClipToBounds="True"
-                                                         controls:RoundedClip.Radius="10" />
+                                                         behaviors:RoundedClip.Radius="10" />
                             <Border x:Name="HoverLayer"
                                     Background="#10FFFFFF"
                                     CornerRadius="10"
@@ -843,10 +844,10 @@
            TargetType="ScrollViewer"
            BasedOn="{StaticResource ListPageScrollViewerStyle}">
         <Setter Property="CanContentScroll" Value="True" />
-        <Setter Property="controls:SmoothScrollBehavior.IsEnabled" Value="True" />
-        <Setter Property="controls:SmoothScrollBehavior.AllowContentScroll" Value="True" />
-        <Setter Property="controls:SmoothScrollBehavior.ScrollAmount" Value="174" />
-        <Setter Property="controls:SmoothScrollBehavior.WheelAnimationDurationMilliseconds" Value="130" />
+        <Setter Property="behaviors:SmoothScrollBehavior.IsEnabled" Value="True" />
+        <Setter Property="behaviors:SmoothScrollBehavior.AllowContentScroll" Value="True" />
+        <Setter Property="behaviors:SmoothScrollBehavior.ScrollAmount" Value="174" />
+        <Setter Property="behaviors:SmoothScrollBehavior.WheelAnimationDurationMilliseconds" Value="130" />
     </Style>
 
     <Style x:Key="DownloadVersionListBoxStyle" TargetType="ListBox">
@@ -1308,8 +1309,8 @@
         <Setter Property="Background" Value="#24FFFFFF" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
-        <Setter Property="controls:ProgressBarAnimation.IsEnabled" Value="True" />
-        <Setter Property="controls:ProgressBarAnimation.DurationMilliseconds" Value="360" />
+        <Setter Property="behaviors:ProgressBarAnimation.IsEnabled" Value="True" />
+        <Setter Property="behaviors:ProgressBarAnimation.DurationMilliseconds" Value="360" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ProgressBar">
@@ -1319,9 +1320,9 @@
                         <Border Background="{TemplateBinding Background}"
                                 CornerRadius="3" />
                         <Grid ClipToBounds="True"
-                              controls:RoundedClip.Radius="3">
+                              behaviors:RoundedClip.Radius="3">
                             <Border x:Name="Indicator"
-                                    Width="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=(controls:ProgressBarAnimation.AnimatedWidth)}"
+                                    Width="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=(behaviors:ProgressBarAnimation.AnimatedWidth)}"
                                     HorizontalAlignment="Left"
                                     Background="{TemplateBinding Foreground}"
                                     CornerRadius="3">
@@ -1592,7 +1593,7 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="16" />
         <Setter Property="ClipToBounds" Value="True" />
-        <Setter Property="controls:RoundedClip.Radius" Value="16" />
+        <Setter Property="behaviors:RoundedClip.Radius" Value="16" />
     </Style>
 
     <Style x:Key="DialogBlurLayerStyle" TargetType="Border">
@@ -2091,7 +2092,7 @@
                                                              BorderThickness="1"
                                                              CornerRadius="9"
                                                              ClipToBounds="True"
-                                                             controls:RoundedClip.Radius="9">
+                                                             behaviors:RoundedClip.Radius="9">
                                     <ScrollViewer Style="{StaticResource SecondaryMenuScrollViewerStyle}">
                                         <ItemsPresenter />
                                     </ScrollViewer>

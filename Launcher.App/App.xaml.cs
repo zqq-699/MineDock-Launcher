@@ -23,9 +23,16 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IClipboardService, ClipboardService>();
         services.AddSingleton<IFilePickerService, FilePickerService>();
         services.AddSingleton<IAccountDialogService, AccountDialogService>();
+        services.AddSingleton<AccountListViewModel>();
+        services.AddSingleton<AccountDialogViewModel>();
+        services.AddSingleton<AccountAppearanceViewModel>();
         services.AddSingleton<AccountPageViewModel>();
         services.AddSingleton<DownloadTasksPageViewModel>();
         services.AddSingleton<DownloadPageViewModel>();
+        services.AddSingleton<InstanceManagementViewModel>();
+        services.AddSingleton<LoaderSelectionViewModel>();
+        services.AddSingleton<LocalModsViewModel>();
+        services.AddSingleton<ModrinthSearchViewModel>();
         services.AddSingleton<GameManagementViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();

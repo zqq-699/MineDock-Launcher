@@ -3,7 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
 
-namespace Launcher.App.Controls;
+namespace Launcher.App.Behaviors;
 
 public static class SmoothScrollBehavior
 {
@@ -150,7 +150,9 @@ public static class SmoothScrollBehavior
         if (sender is not ScrollViewer scrollViewer
             || GetIsInternalScrollUpdate(scrollViewer)
             || GetIsAnimating(scrollViewer))
+        {
             return;
+        }
 
         SetAnimatedVerticalOffset(scrollViewer, scrollViewer.VerticalOffset);
         SetTargetVerticalOffset(scrollViewer, scrollViewer.VerticalOffset);
@@ -161,7 +163,9 @@ public static class SmoothScrollBehavior
         if (sender is not ScrollViewer scrollViewer
             || scrollViewer.ScrollableHeight <= 0
             || (scrollViewer.CanContentScroll && !GetAllowContentScroll(scrollViewer)))
+        {
             return;
+        }
 
         var currentOffset = GetAnimatedVerticalOffset(scrollViewer);
         if (double.IsNaN(currentOffset) || double.IsInfinity(currentOffset))

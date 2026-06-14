@@ -1,330 +1,211 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Models;
-using Launcher.App.Resources;
 using Launcher.App.Services;
-using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels;
 
 public sealed partial class GameManagementViewModel : ObservableObject
 {
-    private readonly ISettingsService settingsService;
-    private readonly IGameVersionService gameVersionService;
-    private readonly IGameInstanceService instanceService;
-    private readonly IModService modService;
-    private readonly IModrinthService modrinthService;
     private readonly IStatusService statusService;
-    private readonly IReadOnlyDictionary<LoaderKind, ILoaderProvider> loaderProviders;
-    private LauncherSettings settings = new();
-    private readonly object refreshInstancesSync = new();
-    private Task? refreshInstancesTask;
-    private bool hasLoadedInstances;
     private bool suppressSelectedInstanceModRefresh;
-    private int modRefreshVersion;
-
-    [ObservableProperty]
-    private GameInstance? selectedInstance;
-
-    [ObservableProperty]
-    private MinecraftVersionInfo? selectedMinecraftVersion;
-
-    [ObservableProperty]
-    private LoaderKind selectedLoader = LoaderKind.Vanilla;
-
-    [ObservableProperty]
-    private LoaderVersionInfo? selectedLoaderVersion;
-
-    [ObservableProperty]
-    private string newInstanceName = string.Empty;
-
-    [ObservableProperty]
-    private string modSearchQuery = string.Empty;
-
-    [ObservableProperty]
-    private ModrinthProject? selectedModrinthProject;
 
     [ObservableProperty]
     private double progressPercent;
 
     public GameManagementViewModel(
-        ISettingsService settingsService,
-        IGameVersionService gameVersionService,
-        IGameInstanceService instanceService,
-        IModService modService,
-        IModrinthService modrinthService,
-        IEnumerable<ILoaderProvider> loaderProviders,
+        InstanceManagementViewModel instances,
+        LoaderSelectionViewModel loaderSelection,
+        LocalModsViewModel localMods,
+        ModrinthSearchViewModel modrinthSearch,
         IStatusService statusService)
     {
-        this.settingsService = settingsService;
-        this.gameVersionService = gameVersionService;
-        this.instanceService = instanceService;
-        this.modService = modService;
-        this.modrinthService = modrinthService;
+        InstancesViewModel = instances;
+        LoaderSelection = loaderSelection;
+        LocalMods = localMods;
+        ModrinthSearch = modrinthSearch;
         this.statusService = statusService;
-        this.loaderProviders = loaderProviders.ToDictionary(provider => provider.Kind);
 
-        foreach (var provider in this.loaderProviders.Values)
-        {
-            LoaderItems.Add(NavigationCatalog.CreateLoaderItem(provider));
-        }
+        InstancesViewModel.PropertyChanged += InstancesViewModel_PropertyChanged;
+        LoaderSelection.PropertyChanged += ForwardChildPropertyChanged;
+        ModrinthSearch.PropertyChanged += ForwardChildPropertyChanged;
     }
 
-    public ObservableCollection<GameInstance> Instances { get; } = [];
-    public ObservableCollection<MinecraftVersionInfo> MinecraftVersions { get; } = [];
-    public ObservableCollection<NavigationItem> LoaderItems { get; } = [];
-    public ObservableCollection<LoaderVersionInfo> LoaderVersions { get; } = [];
-    public ObservableCollection<LocalMod> Mods { get; } = [];
-    public ObservableCollection<ModrinthProject> ModrinthProjects { get; } = [];
+    public InstanceManagementViewModel InstancesViewModel { get; }
+
+    public LoaderSelectionViewModel LoaderSelection { get; }
+
+    public LocalModsViewModel LocalMods { get; }
+
+    public ModrinthSearchViewModel ModrinthSearch { get; }
+
+    public ObservableCollection<GameInstance> Instances => InstancesViewModel.Instances;
+    public ObservableCollection<MinecraftVersionInfo> MinecraftVersions => LoaderSelection.MinecraftVersions;
+    public ObservableCollection<NavigationItem> LoaderItems => LoaderSelection.LoaderItems;
+    public ObservableCollection<LoaderVersionInfo> LoaderVersions => LoaderSelection.LoaderVersions;
+    public ObservableCollection<LocalMod> Mods => LocalMods.Mods;
+    public ObservableCollection<ModrinthProject> ModrinthProjects => ModrinthSearch.ModrinthProjects;
+
+    public GameInstance? SelectedInstance
+    {
+        get => InstancesViewModel.SelectedInstance;
+        set => InstancesViewModel.SelectedInstance = value;
+    }
+
+    public MinecraftVersionInfo? SelectedMinecraftVersion
+    {
+        get => LoaderSelection.SelectedMinecraftVersion;
+        set => LoaderSelection.SelectedMinecraftVersion = value;
+    }
+
+    public LoaderKind SelectedLoader
+    {
+        get => LoaderSelection.SelectedLoader;
+        set => LoaderSelection.SelectedLoader = value;
+    }
+
+    public LoaderVersionInfo? SelectedLoaderVersion
+    {
+        get => LoaderSelection.SelectedLoaderVersion;
+        set => LoaderSelection.SelectedLoaderVersion = value;
+    }
+
+    public string NewInstanceName
+    {
+        get => InstancesViewModel.NewInstanceName;
+        set => InstancesViewModel.NewInstanceName = value;
+    }
+
+    public string ModSearchQuery
+    {
+        get => ModrinthSearch.ModSearchQuery;
+        set => ModrinthSearch.ModSearchQuery = value;
+    }
+
+    public ModrinthProject? SelectedModrinthProject
+    {
+        get => ModrinthSearch.SelectedModrinthProject;
+        set => ModrinthSearch.SelectedModrinthProject = value;
+    }
 
     public async Task InitializeAsync(LauncherSettings launcherSettings)
     {
-        settings = launcherSettings;
-        await EnsureInstancesLoadedAsync();
+        await RunInstanceRefreshWithModSyncAsync(() => InstancesViewModel.InitializeAsync(launcherSettings));
     }
 
     public async Task EnsureInstancesLoadedAsync()
     {
-        if (hasLoadedInstances)
+        if (InstancesViewModel.HasLoadedInstances)
             return;
 
-        await RefreshInstancesAsync();
+        await RunInstanceRefreshWithModSyncAsync(InstancesViewModel.EnsureInstancesLoadedAsync);
     }
 
     public void SelectLoader(LoaderKind loader)
     {
-        SelectedLoader = loader;
+        LoaderSelection.SelectLoader(loader);
     }
 
     [RelayCommand]
-    private async Task LoadMinecraftVersionsAsync()
+    private Task LoadMinecraftVersionsAsync()
     {
-        ReportStatus(Strings.Status_LoadingVersions);
-        var versions = await gameVersionService.GetVersionsAsync();
-        MinecraftVersions.ReplaceWith(versions.Where(IsSelectableMinecraftVersion));
-
-        SelectedMinecraftVersion ??= MinecraftVersions.FirstOrDefault();
-        ReportStatus(string.Format(Strings.Status_VersionsLoadedFormat, MinecraftVersions.Count));
+        return LoaderSelection.LoadMinecraftVersionsAsync();
     }
 
     [RelayCommand]
-    public async Task RefreshInstancesAsync()
+    public Task RefreshInstancesAsync()
     {
-        Task refreshTask;
-        lock (refreshInstancesSync)
-        {
-            refreshTask = refreshInstancesTask ??= RefreshInstancesCoreAsync();
-        }
-
-        try
-        {
-            await refreshTask;
-        }
-        finally
-        {
-            lock (refreshInstancesSync)
-            {
-                if (ReferenceEquals(refreshInstancesTask, refreshTask))
-                    refreshInstancesTask = null;
-            }
-        }
+        return RunInstanceRefreshWithModSyncAsync(InstancesViewModel.RefreshInstancesAsync);
     }
 
-    private async Task RefreshInstancesCoreAsync()
+    [RelayCommand]
+    private Task LoadLoaderVersionsAsync()
     {
-        var loadedInstances = await instanceService.GetInstancesAsync();
-        var previousSelectedId = SelectedInstance?.Id;
+        return LoaderSelection.LoadLoaderVersionsAsync();
+    }
 
-        Instances.ReplaceWith(loadedInstances);
+    [RelayCommand]
+    private Task CreateInstanceAsync()
+    {
+        return InstancesViewModel.CreateInstanceAsync(
+            SelectedMinecraftVersion,
+            SelectedLoader,
+            SelectedLoaderVersion,
+            CreateProgress());
+    }
 
-        var selected = !string.IsNullOrWhiteSpace(settings.DefaultInstanceId)
-            ? Instances.FirstOrDefault(instance => instance.Id == settings.DefaultInstanceId)
-            : null;
-        selected ??= !string.IsNullOrWhiteSpace(previousSelectedId)
-            ? Instances.FirstOrDefault(instance => instance.Id == previousSelectedId)
-            : null;
-        selected ??= Instances.FirstOrDefault();
+    [RelayCommand]
+    private Task RefreshModsAsync()
+    {
+        return LocalMods.RefreshModsAsync();
+    }
 
+    [RelayCommand]
+    private Task ToggleModAsync(LocalMod mod)
+    {
+        return LocalMods.ToggleModAsync(mod);
+    }
+
+    [RelayCommand]
+    private Task DeleteModAsync(LocalMod mod)
+    {
+        return LocalMods.DeleteModAsync(mod);
+    }
+
+    [RelayCommand]
+    private Task ImportModFromPathAsync(string path)
+    {
+        return LocalMods.ImportModFromPathAsync(path);
+    }
+
+    [RelayCommand]
+    private Task SearchModsAsync()
+    {
+        return ModrinthSearch.SearchModsAsync(SelectedInstance);
+    }
+
+    [RelayCommand]
+    private async Task InstallSelectedModAsync()
+    {
+        var installed = await ModrinthSearch.InstallSelectedModAsync(SelectedInstance, CreateProgress());
+        if (installed)
+            await LocalMods.RefreshModsAsync();
+    }
+
+    [RelayCommand]
+    private Task SaveSettingsAsync()
+    {
+        return InstancesViewModel.SaveSettingsAsync();
+    }
+
+    [RelayCommand]
+    private Task SaveInstanceAsync()
+    {
+        return InstancesViewModel.SaveInstanceAsync();
+    }
+
+    [RelayCommand]
+    private Task SetDefaultInstanceAsync()
+    {
+        return InstancesViewModel.SetDefaultInstanceAsync();
+    }
+
+    private async Task RunInstanceRefreshWithModSyncAsync(Func<Task> refresh)
+    {
         suppressSelectedInstanceModRefresh = true;
         try
         {
-            SelectedInstance = selected;
+            await refresh();
         }
         finally
         {
             suppressSelectedInstanceModRefresh = false;
         }
 
-        await RefreshModsAsync();
-        hasLoadedInstances = true;
-    }
-
-    [RelayCommand]
-    private async Task LoadLoaderVersionsAsync()
-    {
-        LoaderVersions.Clear();
-        SelectedLoaderVersion = null;
-
-        if (SelectedMinecraftVersion is null || !loaderProviders.TryGetValue(SelectedLoader, out var provider))
-            return;
-
-        if (!provider.IsImplemented)
-        {
-            ReportStatus(string.Format(Strings.Status_LoaderVersionsPendingFormat, provider.DisplayName));
-            return;
-        }
-
-        ReportStatus(string.Format(Strings.Status_LoadingLoaderVersionsFormat, provider.DisplayName));
-        LoaderVersions.ReplaceWith(await provider.GetLoaderVersionsAsync(SelectedMinecraftVersion.Name));
-
-        SelectedLoaderVersion = LoaderVersions.FirstOrDefault(v => v.IsStable) ?? LoaderVersions.FirstOrDefault();
-        ReportStatus(string.Format(Strings.Status_LoaderVersionsLoadedFormat, provider.DisplayName));
-    }
-
-    [RelayCommand]
-    private async Task CreateInstanceAsync()
-    {
-        if (SelectedMinecraftVersion is null)
-        {
-            ReportStatus(Strings.Status_SelectMinecraftVersionFirst);
-            return;
-        }
-
-        var progress = CreateProgress();
-        var loaderVersion = SelectedLoader is LoaderKind.Vanilla ? null : SelectedLoaderVersion?.Version;
-        var instance = await instanceService.CreateInstanceAsync(
-            SelectedMinecraftVersion.Name,
-            SelectedLoader,
-            loaderVersion,
-            NewInstanceName,
-            progress);
-
-        Instances.Add(instance);
-        SelectedInstance = instance;
-        ReportStatus(string.Format(Strings.Status_InstanceCreatedFormat, instance.Name));
-    }
-
-    [RelayCommand]
-    private async Task RefreshModsAsync()
-    {
-        var refreshVersion = Interlocked.Increment(ref modRefreshVersion);
-        var selectedInstance = SelectedInstance;
-
-        if (selectedInstance is null)
-        {
-            Mods.Clear();
-            return;
-        }
-
-        var loadedMods = await modService.GetModsAsync(selectedInstance);
-        if (refreshVersion != modRefreshVersion
-            || !string.Equals(selectedInstance.Id, SelectedInstance?.Id, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        Mods.ReplaceWith(loadedMods);
-    }
-
-    [RelayCommand]
-    private async Task ToggleModAsync(LocalMod mod)
-    {
-        await modService.SetEnabledAsync(mod, !mod.IsEnabled);
-        await RefreshModsAsync();
-    }
-
-    [RelayCommand]
-    private async Task DeleteModAsync(LocalMod mod)
-    {
-        await modService.DeleteAsync(mod);
-        await RefreshModsAsync();
-    }
-
-    [RelayCommand]
-    private async Task ImportModFromPathAsync(string path)
-    {
-        if (SelectedInstance is null || string.IsNullOrWhiteSpace(path))
-            return;
-
-        await modService.ImportAsync(SelectedInstance, path);
-        await RefreshModsAsync();
-        ReportStatus(Strings.Status_LocalModImported);
-    }
-
-    [RelayCommand]
-    private async Task SearchModsAsync()
-    {
-        if (SelectedInstance is null)
-        {
-            ReportStatus(Strings.Status_SelectInstanceFirst);
-            return;
-        }
-
-        ReportStatus(Strings.Status_SearchingModrinth);
-        var projects = await modrinthService.SearchModsAsync(
-            ModSearchQuery,
-            SelectedInstance.MinecraftVersion,
-            SelectedInstance.Loader);
-        ModrinthProjects.ReplaceWith(projects);
-
-        ReportStatus(string.Format(Strings.Status_ModrinthResultsFoundFormat, ModrinthProjects.Count));
-    }
-
-    [RelayCommand]
-    private async Task InstallSelectedModAsync()
-    {
-        if (SelectedInstance is null || SelectedModrinthProject is null)
-            return;
-
-        await modrinthService.InstallLatestCompatibleAsync(SelectedModrinthProject, SelectedInstance, CreateProgress());
-        await RefreshModsAsync();
-        ReportStatus(string.Format(Strings.Status_ModInstalledFormat, SelectedModrinthProject.Title));
-    }
-
-    [RelayCommand]
-    private async Task SaveSettingsAsync()
-    {
-        await settingsService.SaveAsync(settings);
-        ReportStatus(Strings.Status_SettingsSaved);
-    }
-
-    [RelayCommand]
-    private async Task SaveInstanceAsync()
-    {
-        if (SelectedInstance is null)
-            return;
-
-        await instanceService.SaveInstanceAsync(SelectedInstance);
-        ReportStatus(Strings.Status_InstanceSettingsSaved);
-    }
-
-    [RelayCommand]
-    private async Task SetDefaultInstanceAsync()
-    {
-        if (SelectedInstance is null)
-            return;
-
-        settings.DefaultInstanceId = SelectedInstance.Id;
-        await settingsService.SaveAsync(settings);
-        ReportStatus(string.Format(Strings.Status_DefaultInstanceSetFormat, SelectedInstance.Name));
-    }
-
-    partial void OnSelectedLoaderChanged(LoaderKind value)
-    {
-        _ = LoadLoaderVersionsAsync();
-    }
-
-    partial void OnSelectedMinecraftVersionChanged(MinecraftVersionInfo? value)
-    {
-        _ = LoadLoaderVersionsAsync();
-    }
-
-    partial void OnSelectedInstanceChanged(GameInstance? value)
-    {
-        if (!suppressSelectedInstanceModRefresh)
-            _ = RefreshModsAsync();
+        await LocalMods.SetSelectedInstanceAsync(SelectedInstance);
     }
 
     private IProgress<LauncherProgress> CreateProgress()
@@ -336,13 +217,25 @@ public sealed partial class GameManagementViewModel : ObservableObject
         });
     }
 
+    private void InstancesViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        ForwardChildPropertyChanged(sender, e);
+
+        if (e.PropertyName == nameof(InstanceManagementViewModel.SelectedInstance)
+            && !suppressSelectedInstanceModRefresh)
+        {
+            _ = LocalMods.SetSelectedInstanceAsync(SelectedInstance);
+        }
+    }
+
+    private void ForwardChildPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (!string.IsNullOrWhiteSpace(e.PropertyName))
+            OnPropertyChanged(e.PropertyName);
+    }
+
     private void ReportStatus(string message)
     {
         statusService.Report(message);
-    }
-
-    private static bool IsSelectableMinecraftVersion(MinecraftVersionInfo version)
-    {
-        return version.Type.Equals("Release", StringComparison.OrdinalIgnoreCase) || version.Name.StartsWith("1.");
     }
 }

@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 
-namespace Launcher.App.Controls;
+namespace Launcher.App.Utilities;
 
 public static class VisualTreeSearch
 {

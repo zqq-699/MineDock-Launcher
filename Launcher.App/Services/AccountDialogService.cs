@@ -123,9 +123,15 @@ public sealed class AccountDialogService : IAccountDialogService
 
         var deleteTask = accountPage.ConfirmDeleteAccountDialogAsync();
         if (!accountPage.IsDeleteAccountDialogOpen)
+        {
             overlayService.Hide(deleteAccountHost);
+            await deleteTask;
+            return;
+        }
 
         await deleteTask;
+        if (!accountPage.IsDeleteAccountDialogOpen)
+            overlayService.Hide(deleteAccountHost);
     }
 
     public void CancelRenameAccountDialog()

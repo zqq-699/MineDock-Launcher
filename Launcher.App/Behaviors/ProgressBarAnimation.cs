@@ -2,7 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Animation;
 
-namespace Launcher.App.Controls;
+namespace Launcher.App.Behaviors;
 
 public static class ProgressBarAnimation
 {

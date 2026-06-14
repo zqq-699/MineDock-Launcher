@@ -6,6 +6,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Launcher.App.Controls;
+using Launcher.App.Utilities;
 using Launcher.App.ViewModels;
 
 namespace Launcher.App.Views;

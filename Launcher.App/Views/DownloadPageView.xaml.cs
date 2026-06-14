@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using Launcher.App.Controls;
 using Launcher.App.Services;
+using Launcher.App.Utilities;
 using Launcher.App.ViewModels;
 
 namespace Launcher.App.Views;
