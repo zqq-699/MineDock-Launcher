@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Modrinth.Dto;
 
 namespace Launcher.Infrastructure.Modrinth;
 

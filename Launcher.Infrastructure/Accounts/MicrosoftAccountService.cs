@@ -16,8 +16,9 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
 
     public MicrosoftAccountService()
     {
-        authProvider = new MicrosoftAuthProvider();
-        avatarService = new AccountAvatarService(HttpClient);
+        var pathProvider = new LauncherPathProvider();
+        authProvider = new MicrosoftAuthProvider(pathProvider);
+        avatarService = new AccountAvatarService(HttpClient, pathProvider);
         profileClient = new MinecraftProfileClient(HttpClient);
         accountFactory = new MicrosoftAccountFactory(avatarService);
         skinService = new MinecraftSkinService(authProvider, profileClient, accountFactory);

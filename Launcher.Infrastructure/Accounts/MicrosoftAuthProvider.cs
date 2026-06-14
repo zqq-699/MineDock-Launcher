@@ -1,7 +1,7 @@
 using CmlLib.Core.Auth.Microsoft;
 using CmlLib.Core.Auth.Microsoft.Sessions;
 using Launcher.Application.Accounts;
-using Launcher.Domain.Models;
+using Launcher.Infrastructure;
 using System.IO;
 
 namespace Launcher.Infrastructure.Accounts;
@@ -10,9 +10,9 @@ internal sealed class MicrosoftAuthProvider
 {
     private readonly JELoginHandler loginHandler;
 
-    public MicrosoftAuthProvider()
+    public MicrosoftAuthProvider(LauncherPathProvider pathProvider)
     {
-        var accountDirectory = Path.Combine(LauncherDefaults.DefaultDataDirectory, "accounts", "microsoft");
+        var accountDirectory = Path.Combine(pathProvider.DefaultDataDirectory, "accounts", "microsoft");
         var accountFile = Path.Combine(accountDirectory, "accounts.json");
         Directory.CreateDirectory(accountDirectory);
 

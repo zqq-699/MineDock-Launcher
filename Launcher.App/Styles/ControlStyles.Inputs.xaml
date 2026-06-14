@@ -1,0 +1,208 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+                    xmlns:controls="clr-namespace:Launcher.App.Controls"
+                    xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
+                    xmlns:converters="clr-namespace:Launcher.App.Converters"
+                    xmlns:res="clr-namespace:Launcher.App.Resources">
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="ControlStyles.Scroll.xaml" />
+        <ResourceDictionary Source="ControlStyles.Dialogs.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <Style x:Key="DialogTextBoxStyle" TargetType="TextBox">
+        <Setter Property="Height" Value="40" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="Background" Value="#22FFFFFF" />
+        <Setter Property="BorderBrush" Value="#20FFFFFF" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CaretBrush" Value="#F4F4F4" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="8">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="#667ABEFF" />
+                            <Setter TargetName="Root" Property="Background" Value="#2AFFFFFF" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="LauncherComboBoxItemStyle" TargetType="ComboBoxItem">
+        <Setter Property="MinHeight" Value="38" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="Root"
+                            Padding="{TemplateBinding Padding}"
+                            Background="Transparent"
+                            CornerRadius="7">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#26FFFFFF" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#993D3D3D" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="LauncherComboBoxToggleButtonStyle" TargetType="ToggleButton">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Root"
+                            Background="{Binding Background, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                            BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                            BorderThickness="{Binding BorderThickness, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                            CornerRadius="8">
+                        <Grid>
+                            <Border x:Name="HoverBackground"
+                                    Background="#22FFFFFF"
+                                    CornerRadius="8"
+                                    Opacity="0" />
+                            <ContentPresenter Margin="{Binding Padding, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                              HorizontalAlignment="Stretch"
+                                              VerticalAlignment="Center" />
+                            <TextBlock Margin="0,0,12,0"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="11"
+                                       Foreground="#CFFFFFFF"
+                                       Text="&#xE70D;" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="HoverBackground" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="#3AFFFFFF" />
+                            <Setter TargetName="HoverBackground" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Background" Value="#165A5A5A" />
+                            <Setter Property="Opacity" Value="0.58" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="LauncherComboBoxStyle" TargetType="controls:AnimatedComboBox">
+        <Setter Property="Height" Value="36" />
+        <Setter Property="MinWidth" Value="160" />
+        <Setter Property="Padding" Value="12,0,34,0" />
+        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="Background" Value="#24FFFFFF" />
+        <Setter Property="BorderBrush" Value="#20FFFFFF" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="MaxDropDownHeight" Value="260" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource LauncherComboBoxItemStyle}" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="controls:AnimatedComboBox">
+                    <Grid>
+                        <ToggleButton x:Name="ToggleButton"
+                                      ClickMode="Press"
+                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                      Style="{StaticResource LauncherComboBoxToggleButtonStyle}">
+                            <TextBlock Text="{Binding SelectionBoxItem, RelativeSource={RelativeSource TemplatedParent}}"
+                                       Foreground="{TemplateBinding Foreground}"
+                                       FontSize="13"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"
+                                       IsHitTestVisible="False" />
+                        </ToggleButton>
+                        <Popup x:Name="PART_Popup"
+                               AllowsTransparency="True"
+                               Focusable="False"
+                               IsOpen="{TemplateBinding IsPopupOpen}"
+                               PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+                               Placement="Bottom"
+                               VerticalOffset="10"
+                               PopupAnimation="None">
+                            <Grid MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                  MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                <Border Background="#01000000"
+                                        CornerRadius="9"
+                                        IsHitTestVisible="False">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="24"
+                                                          Color="#000000"
+                                                          Opacity="0.42"
+                                                          ShadowDepth="0" />
+                                    </Border.Effect>
+                                </Border>
+
+                                <controls:BackdropBlurBorder x:Name="PopupSurface"
+                                                             Opacity="0"
+                                                             Padding="5"
+                                                             SourceElement="{Binding PlacementTarget, ElementName=PART_Popup}"
+                                                             BlurRadius="42"
+                                                             RenderScale="0.58"
+                                                             TintColor="#A0252525"
+                                                             BorderBrush="#14FFFFFF"
+                                                             BorderThickness="1"
+                                                             CornerRadius="9"
+                                                             ClipToBounds="True"
+                                                             behaviors:RoundedClip.Radius="9">
+                                    <ScrollViewer Style="{StaticResource SecondaryMenuScrollViewerStyle}">
+                                        <ItemsPresenter />
+                                    </ScrollViewer>
+                                </controls:BackdropBlurBorder>
+                            </Grid>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="HasItems" Value="False">
+                            <Setter TargetName="PART_Popup" Property="MinHeight" Value="0" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="#A8FFFFFF" />
+                        </Trigger>
+                        <Trigger Property="IsDropDownClosing" Value="True">
+                            <Setter TargetName="PopupSurface" Property="IsHitTestVisible" Value="False" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="LauncherDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogButtonStyle}" />
+    <Style x:Key="LauncherPrimaryDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryDialogButtonStyle}" />
+    <Style x:Key="LauncherDangerDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource DangerDialogButtonStyle}" />
+    <Style x:Key="LauncherDialogTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource DialogTextBoxStyle}" />
+</ResourceDictionary>

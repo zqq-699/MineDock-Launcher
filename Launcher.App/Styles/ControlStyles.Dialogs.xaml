@@ -1,0 +1,373 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+                    xmlns:controls="clr-namespace:Launcher.App.Controls"
+                    xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
+                    xmlns:converters="clr-namespace:Launcher.App.Converters"
+                    xmlns:res="clr-namespace:Launcher.App.Resources">
+    <Style x:Key="DialogOverlayStyle" TargetType="Grid">
+        <Setter Property="Grid.ColumnSpan" Value="2" />
+        <Setter Property="Grid.RowSpan" Value="2" />
+        <Setter Property="Background" Value="#99000000" />
+        <Setter Property="Opacity" Value="0" />
+        <Setter Property="Visibility" Value="Collapsed" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+    </Style>
+
+    <Style x:Key="DialogShadowStyle" TargetType="Border">
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="#01000000" />
+        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect BlurRadius="28"
+                                  Color="#000000"
+                                  Opacity="0.34"
+                                  ShadowDepth="0" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DialogSurfaceStyle" TargetType="Border">
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="#24FFFFFF" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="ClipToBounds" Value="True" />
+        <Setter Property="behaviors:RoundedClip.Radius" Value="16" />
+    </Style>
+
+    <Style x:Key="DialogBlurLayerStyle" TargetType="Border">
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="Background">
+            <Setter.Value>
+                <ImageBrush Stretch="Fill" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DialogContentGridStyle" TargetType="Grid">
+        <Setter Property="Margin" Value="24" />
+    </Style>
+
+    <Style x:Key="DialogTitleTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="FontSize" Value="22" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="DialogSubtitleTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,8,0,0" />
+        <Setter Property="Foreground" Value="#AFFFFFFF" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <Style x:Key="DialogBodyTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#CFFFFFFF" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="DialogFieldLabelTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+
+    <Style x:Key="DialogValidationTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="2,8,0,0" />
+        <Setter Property="Foreground" Value="#FFFF8A8A" />
+        <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <Style x:Key="DialogChoiceItemStyle" TargetType="ListBoxItem">
+        <Setter Property="Margin" Value="0,0,0,10" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="Root"
+                            CornerRadius="10">
+                        <Grid>
+                            <Border Background="#12FFFFFF"
+                                    CornerRadius="10" />
+                            <Border x:Name="SelectedBackground"
+                                    Background="#8A727272"
+                                    CornerRadius="10"
+                                    Opacity="0" />
+                            <Border x:Name="HoverBackground"
+                                    Background="#20FFFFFF"
+                                    CornerRadius="10"
+                                    Opacity="0" />
+                            <ContentPresenter Margin="14"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1"
+                                                     Duration="0:0:0.16">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DialogChoiceListStyle" TargetType="ListBox">
+        <Setter Property="ItemContainerStyle" Value="{StaticResource DialogChoiceItemStyle}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Margin" Value="0,22,0,18" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+    </Style>
+
+    <Style x:Key="DialogFormPanelStyle" TargetType="StackPanel">
+        <Setter Property="Margin" Value="0,24,0,26" />
+    </Style>
+
+    <Style x:Key="DialogFooterStyle" TargetType="StackPanel">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+    </Style>
+<Style x:Key="DialogTrailingButtonStyle" TargetType="Button">
+        <Setter Property="Margin" Value="10,0,0,0" />
+    </Style>
+
+    <Style x:Key="DialogButtonStyle" TargetType="Button">
+        <Setter Property="MinWidth" Value="86" />
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Padding" Value="18,0" />
+        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="Background" Value="#20FFFFFF" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            CornerRadius="8">
+                        <Grid>
+                            <Border x:Name="BaseBackground"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="8" />
+                            <Border x:Name="HoverBackground"
+                                    Background="#32FFFFFF"
+                                    CornerRadius="8"
+                                    Opacity="0" />
+                            <Border x:Name="PressedBackground"
+                                    Background="#50808080"
+                                    CornerRadius="8"
+                                    Opacity="0" />
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1"
+                                                     Duration="0:0:0.16">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PrimaryDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogButtonStyle}">
+        <Setter Property="Foreground" Value="#FFFFFF" />
+        <Setter Property="Background" Value="#0891FE" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            CornerRadius="8">
+                        <Grid>
+                            <Border x:Name="BaseBackground"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="8" />
+                            <Border x:Name="HoverBackground"
+                                    Background="#047EDC"
+                                    CornerRadius="8"
+                                    Opacity="0" />
+                            <Border x:Name="PressedBackground"
+                                    Background="#036FC2"
+                                    CornerRadius="8"
+                                    Opacity="0" />
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1"
+                                                     Duration="0:0:0.16">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="#BFFFFFFF" />
+                            <Setter TargetName="BaseBackground" Property="Background" Value="#5A5A5A" />
+                            <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DangerDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogButtonStyle}">
+        <Setter Property="Foreground" Value="#FFFFFF" />
+        <Setter Property="Background" Value="#D94343" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            CornerRadius="8">
+                        <Grid>
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="8" />
+                            <Border x:Name="HoverBackground"
+                                    Background="#B83232"
+                                    CornerRadius="8"
+                                    Opacity="0" />
+                            <Border x:Name="PressedBackground"
+                                    Background="#982828"
+                                    CornerRadius="8"
+                                    Opacity="0" />
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1"
+                                                     Duration="0:0:0.16">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

@@ -1,4 +1,4 @@
-using Launcher.Domain.Models;
+using Launcher.Infrastructure;
 using System.IO;
 using System.Net.Http;
 using System.Windows;
@@ -14,10 +14,10 @@ internal sealed class AccountAvatarService
     private readonly HttpClient httpClient;
     private readonly string avatarDirectory;
 
-    public AccountAvatarService(HttpClient httpClient)
+    public AccountAvatarService(HttpClient httpClient, LauncherPathProvider pathProvider)
     {
         this.httpClient = httpClient;
-        var accountDirectory = Path.Combine(LauncherDefaults.DefaultDataDirectory, "accounts", "microsoft");
+        var accountDirectory = Path.Combine(pathProvider.DefaultDataDirectory, "accounts", "microsoft");
         avatarDirectory = Path.Combine(accountDirectory, "avatars");
         Directory.CreateDirectory(accountDirectory);
         Directory.CreateDirectory(avatarDirectory);

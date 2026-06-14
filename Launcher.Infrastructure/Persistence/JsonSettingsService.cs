@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure;
 
 namespace Launcher.Infrastructure.Persistence;
 
@@ -9,11 +10,13 @@ public sealed class JsonSettingsService : ISettingsService
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private readonly string settingsPath;
+    private readonly LauncherPathProvider pathProvider;
     private readonly SemaphoreSlim ioLock = new(1, 1);
 
     public JsonSettingsService(string? dataDirectory = null)
     {
-        var root = dataDirectory ?? LauncherDefaults.DefaultDataDirectory;
+        pathProvider = new LauncherPathProvider();
+        var root = dataDirectory ?? pathProvider.DefaultDataDirectory;
         settingsPath = Path.Combine(root, "settings.json");
     }
 
@@ -26,7 +29,7 @@ public sealed class JsonSettingsService : ISettingsService
             {
                 var settings = Normalize(new LauncherSettings
                 {
-                    DataDirectory = Path.GetDirectoryName(settingsPath) ?? LauncherDefaults.DefaultDataDirectory
+                    DataDirectory = Path.GetDirectoryName(settingsPath) ?? pathProvider.DefaultDataDirectory
                 });
                 await SaveCoreAsync(settings, cancellationToken);
                 return settings;
@@ -63,15 +66,15 @@ public sealed class JsonSettingsService : ISettingsService
         await JsonSerializer.SerializeAsync(stream, settings, JsonOptions, cancellationToken);
     }
 
-    private static LauncherSettings Normalize(LauncherSettings settings)
+    private LauncherSettings Normalize(LauncherSettings settings)
     {
         if (string.IsNullOrWhiteSpace(settings.OfflineUsername))
-            settings.OfflineUsername = "Player";
+            settings.OfflineUsername = LauncherDefaults.DefaultOfflineUsername;
 
         if (string.IsNullOrWhiteSpace(settings.DataDirectory))
-            settings.DataDirectory = LauncherDefaults.DefaultDataDirectory;
+            settings.DataDirectory = pathProvider.DefaultDataDirectory;
 
-        settings.MinecraftDirectory = Path.GetFullPath(LauncherDefaults.DefaultMinecraftDirectory);
+        settings.MinecraftDirectory = Path.GetFullPath(pathProvider.DefaultMinecraftDirectory);
 
         settings.Accounts ??= [];
         settings.Accounts.RemoveAll(account => string.IsNullOrWhiteSpace(account.Id)

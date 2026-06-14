@@ -2,9 +2,7 @@ namespace Launcher.Domain.Models;
 
 public static class LauncherDefaults
 {
-    public static string DefaultDataDirectory =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Launcher");
-
-    public static string DefaultMinecraftDirectory =>
-        Path.Combine(AppContext.BaseDirectory, ".minecraft");
+    public const string DefaultOfflineUsername = "Player";
+    public const string DefaultTheme = "Dark";
+    public const int DefaultMemoryMb = 4096;
 }
