@@ -21,6 +21,20 @@ public static class SmoothScrollBehavior
             typeof(SmoothScrollBehavior),
             new PropertyMetadata(84d));
 
+    public static readonly DependencyProperty AllowContentScrollProperty =
+        DependencyProperty.RegisterAttached(
+            "AllowContentScroll",
+            typeof(bool),
+            typeof(SmoothScrollBehavior),
+            new PropertyMetadata(false));
+
+    public static readonly DependencyProperty WheelAnimationDurationMillisecondsProperty =
+        DependencyProperty.RegisterAttached(
+            "WheelAnimationDurationMilliseconds",
+            typeof(double),
+            typeof(SmoothScrollBehavior),
+            new PropertyMetadata(280d));
+
     private static readonly DependencyProperty AnimatedVerticalOffsetProperty =
         DependencyProperty.RegisterAttached(
             "AnimatedVerticalOffset",
@@ -56,8 +70,6 @@ public static class SmoothScrollBehavior
             typeof(SmoothScrollBehavior),
             new PropertyMetadata(0));
 
-    private static readonly Duration WheelAnimationDuration = TimeSpan.FromMilliseconds(280);
-
     public static bool GetIsEnabled(DependencyObject element) => (bool)element.GetValue(IsEnabledProperty);
 
     public static void SetIsEnabled(DependencyObject element, bool value) => element.SetValue(IsEnabledProperty, value);
@@ -65,6 +77,22 @@ public static class SmoothScrollBehavior
     public static double GetScrollAmount(DependencyObject element) => (double)element.GetValue(ScrollAmountProperty);
 
     public static void SetScrollAmount(DependencyObject element, double value) => element.SetValue(ScrollAmountProperty, value);
+
+    public static bool GetAllowContentScroll(DependencyObject element) => (bool)element.GetValue(AllowContentScrollProperty);
+
+    public static void SetAllowContentScroll(DependencyObject element, bool value) => element.SetValue(AllowContentScrollProperty, value);
+
+    public static double GetWheelAnimationDurationMilliseconds(DependencyObject element) => (double)element.GetValue(WheelAnimationDurationMillisecondsProperty);
+
+    public static void SetWheelAnimationDurationMilliseconds(DependencyObject element, double value) => element.SetValue(WheelAnimationDurationMillisecondsProperty, value);
+
+    public static void CancelAnimation(ScrollViewer scrollViewer)
+    {
+        scrollViewer.BeginAnimation(AnimatedVerticalOffsetProperty, null);
+        SetAnimatedVerticalOffset(scrollViewer, scrollViewer.VerticalOffset);
+        SetTargetVerticalOffset(scrollViewer, scrollViewer.VerticalOffset);
+        SetIsAnimating(scrollViewer, false);
+    }
 
     private static double GetAnimatedVerticalOffset(DependencyObject element) => (double)element.GetValue(AnimatedVerticalOffsetProperty);
 
@@ -130,7 +158,9 @@ public static class SmoothScrollBehavior
 
     private static void ScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if (sender is not ScrollViewer scrollViewer || scrollViewer.ScrollableHeight <= 0)
+        if (sender is not ScrollViewer scrollViewer
+            || scrollViewer.ScrollableHeight <= 0
+            || (scrollViewer.CanContentScroll && !GetAllowContentScroll(scrollViewer)))
             return;
 
         var currentOffset = GetAnimatedVerticalOffset(scrollViewer);
@@ -157,11 +187,15 @@ public static class SmoothScrollBehavior
         var animationVersion = GetAnimationVersion(scrollViewer) + 1;
         SetAnimationVersion(scrollViewer, animationVersion);
 
+        var durationMilliseconds = GetWheelAnimationDurationMilliseconds(scrollViewer);
+        if (GetAllowContentScroll(scrollViewer))
+            durationMilliseconds = Math.Clamp(durationMilliseconds, 100d, 160d);
+
         var animation = new DoubleAnimation
         {
             From = currentOffset,
             To = nextOffset,
-            Duration = WheelAnimationDuration,
+            Duration = TimeSpan.FromMilliseconds(durationMilliseconds),
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
             FillBehavior = FillBehavior.Stop
         };

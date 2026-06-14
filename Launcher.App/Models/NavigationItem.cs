@@ -1,5 +1,5 @@
-using CommunityToolkit.Mvvm.ComponentModel;
-using Launcher.Core.Models;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Launcher.Domain.Models;
 
 namespace Launcher.App.Models;
 

@@ -94,7 +94,7 @@
                        Style="{StaticResource DialogFieldLabelTextStyle}" />
             <TextBox Style="{StaticResource LauncherDialogTextBoxStyle}"
                      Text="{Binding NewOfflineAccountName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-            <TextBlock Text="&#x7528;&#x6237;&#x540D;&#x4E0D;&#x53EF;&#x4E3A;&#x7A7A;"
+            <TextBlock Text="&#x7528;&#x6237;&#x540D;&#x9700;&#x4E3A; 3-16 &#x4F4D;&#x5B57;&#x6BCD;&#x3001;&#x6570;&#x5B57;&#x6216;&#x4E0B;&#x5212;&#x7EBF;"
                        Style="{StaticResource DialogValidationTextStyle}"
                        Visibility="{Binding IsNewOfflineAccountNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
         </StackPanel>
@@ -158,20 +158,20 @@
             <Button Style="{StaticResource LauncherDialogButtonStyle}"
                     HorizontalAlignment="Left"
                     Content="&#x4E0A;&#x4E00;&#x6B65;"
-                    Click="Back_Click"
+                    Command="{Binding RequestBackAddAccountDialogCommand}"
                     Visibility="{Binding CanShowAddAccountBackButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
             <StackPanel Style="{StaticResource DialogFooterStyle}"
                         IsEnabled="{Binding IsAddAccountFooterEnabled}">
                 <Button Style="{StaticResource LauncherDialogButtonStyle}"
                         Content="&#x53D6;&#x6D88;"
-                        Click="Cancel_Click"
+                        Command="{Binding RequestCancelAddAccountDialogCommand}"
                         Visibility="{Binding CanShowAddAccountCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                 <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                         Margin="{StaticResource DialogTrailingButtonMargin}"
                         Content="&#x786E;&#x5B9A;"
                         IsEnabled="{Binding CanConfirmAddAccountDialog}"
-                        Click="Confirm_Click" />
+                        Command="{Binding RequestConfirmAddAccountDialogCommand}" />
             </StackPanel>
         </Grid>
     </Grid>

@@ -1,0 +1,41 @@
+using System.Windows;
+using Launcher.App.Controls;
+using Launcher.App.ViewModels;
+using Launcher.Application.Accounts;
+
+namespace Launcher.App.Services;
+
+public interface IAccountDialogService
+{
+    void Attach(
+        AccountPageViewModel accountPage,
+        Window owner,
+        FrameworkElement contentLayer,
+        DialogHost addAccountHost,
+        DialogHost deleteAccountHost,
+        DialogHost renameAccountHost);
+
+    void ShowAddAccountDialog();
+
+    void ShowDeleteAccountDialog(LauncherAccount account);
+
+    void ShowRenameAccountDialog();
+
+    void CancelAddAccountDialog();
+
+    void BackAddAccountDialog();
+
+    Task ConfirmAddAccountDialogAsync();
+
+    void CancelDeleteAccountDialog();
+
+    Task ConfirmDeleteAccountDialogAsync();
+
+    void CancelRenameAccountDialog();
+
+    Task ConfirmRenameAccountDialogAsync();
+
+    void QueueOpenDialogBlurRefresh();
+
+    void Prewarm();
+}

@@ -54,7 +54,7 @@
                     <DockPanel LastChildFill="True">
                         <Button DockPanel.Dock="Bottom"
                                 Style="{StaticResource NavigationMenuButtonStyle}"
-                                Click="ToggleMenu_Click">
+                                Command="{Binding ToggleMenuCommand}">
                             <StackPanel Orientation="Horizontal" Margin="8,0">
                                 <Grid Width="30">
                                     <controls:SvgIcon Width="24"
@@ -98,11 +98,60 @@
                             </StackPanel>
                         </Button>
 
+                        <Button DockPanel.Dock="Bottom"
+                                DataContext="{Binding DownloadTasksNavigationItem}"
+                                Style="{StaticResource NavigationMenuButtonStyle}"
+                                Command="{Binding DataContext.NavigateCommand, ElementName=RootWindow}"
+                                CommandParameter="{Binding}">
+                            <Grid Margin="3,0,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="40" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Grid Grid.Column="0"
+                                      Width="40"
+                                      Height="40"
+                                      HorizontalAlignment="Left"
+                                      VerticalAlignment="Center">
+                                    <Ellipse x:Name="DownloadTaskPulseCircle"
+                                             Width="40"
+                                             Height="40"
+                                             Fill="#66808080"
+                                             Opacity="0"
+                                             CacheMode="BitmapCache"
+                                             IsHitTestVisible="False"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center"
+                                             RenderTransformOrigin="0.5,0.5">
+                                        <Ellipse.RenderTransform>
+                                            <ScaleTransform x:Name="DownloadTaskPulseScale"
+                                                            ScaleX="0.9"
+                                                            ScaleY="0.9" />
+                                        </Ellipse.RenderTransform>
+                                    </Ellipse>
+
+                                    <controls:SvgIcon Width="24"
+                                                      Height="24"
+                                                      IconKey="{Binding IconKey}"
+                                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center" />
+                                </Grid>
+
+                                <TextBlock Grid.Column="1"
+                                           Margin="7,0,0,0"
+                                           Text="{Binding Page, Converter={StaticResource PageTitleConverter}}"
+                                           Style="{StaticResource NavigationMenuTextStyle}" />
+                            </Grid>
+                        </Button>
+
                         <ItemsControl ItemsSource="{Binding NavigationItems}" Margin="0,22,0,0">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type models:NavigationItem}">
                                     <Button Style="{StaticResource NavigationMenuButtonStyle}"
-                                            Click="Navigation_Click">
+                                            Command="{Binding DataContext.NavigateCommand, ElementName=RootWindow}"
+                                            CommandParameter="{Binding}">
                                         <StackPanel Orientation="Horizontal" Margin="8,0">
                                             <Grid Width="30">
                                                 <controls:SvgIcon Width="24"
@@ -187,6 +236,9 @@
                     <views:DownloadPageView x:Name="DownloadPageView"
                                             DataContext="{Binding DownloadPage}"
                                             Visibility="{Binding DataContext.CurrentPage, ElementName=RootWindow, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=Download}" />
+                    <views:InstallPageView x:Name="InstallPageView"
+                                           DataContext="{Binding DownloadTasksPage}"
+                                           Visibility="{Binding DataContext.CurrentPage, ElementName=RootWindow, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=Install}" />
                     <views:AccountPageView x:Name="AccountPageView"
                                            DataContext="{Binding AccountPage}"
                                            Visibility="{Binding DataContext.CurrentPage, ElementName=RootWindow, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=Account}" />
@@ -200,14 +252,14 @@
                             VerticalAlignment="Top"
                             Margin="0,8,12,0">
                     <Button Style="{StaticResource WindowCaptionButtonStyle}"
-                            Click="Minimize_Click">
+                            Command="{Binding MinimizeWindowCommand}">
                         <TextBlock FontFamily="Segoe MDL2 Assets"
                                    FontSize="10"
                                    Text="&#xE921;" />
                     </Button>
                     <Button Style="{StaticResource WindowCaptionButtonStyle}"
                             Margin="4,0,0,0"
-                            Click="Close_Click">
+                            Command="{Binding CloseWindowCommand}">
                         <TextBlock FontFamily="Segoe MDL2 Assets"
                                    FontSize="12"
                                    Text="&#xE8BB;" />
@@ -220,9 +272,7 @@
                                  Grid.RowSpan="2"
                                  DialogWidth="420"
                                  DataContext="{Binding AccountPage}">
-                <views:AddAccountDialogView BackRequested="BackAddAccount_Click"
-                                            CancelRequested="CancelAddAccount_Click"
-                                            ConfirmRequested="ConfirmAddAccount_Click" />
+                <views:AddAccountDialogView />
             </controls:DialogHost>
 
             <controls:DialogHost x:Name="DeleteAccountDialogHost"
@@ -230,8 +280,7 @@
                                  Grid.RowSpan="2"
                                  DialogWidth="380"
                                  DataContext="{Binding AccountPage}">
-                <views:DeleteAccountDialogView CancelRequested="CancelDeleteAccount_Click"
-                                               ConfirmRequested="ConfirmDeleteAccount_Click" />
+                <views:DeleteAccountDialogView />
             </controls:DialogHost>
 
             <controls:DialogHost x:Name="RenameAccountDialogHost"
@@ -239,8 +288,7 @@
                                  Grid.RowSpan="2"
                                  DialogWidth="420"
                                  DataContext="{Binding AccountPage}">
-                <views:RenameAccountDialogView CancelRequested="CancelRenameAccount_Click"
-                                               ConfirmRequested="ConfirmRenameAccount_Click" />
+                <views:RenameAccountDialogView />
             </controls:DialogHost>
         </Grid>
     </Border>

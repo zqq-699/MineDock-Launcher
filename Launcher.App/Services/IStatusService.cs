@@ -1,4 +1,4 @@
-namespace Launcher.App.Services;
+﻿namespace Launcher.App.Services;
 
 public interface IStatusService
 {

@@ -21,8 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Launcher.Application\Launcher.Application.csproj" />
     <ProjectReference Include="..\Launcher.App\Launcher.App.csproj" />
-    <ProjectReference Include="..\Launcher.Core\Launcher.Core.csproj" />
+    <ProjectReference Include="..\Launcher.Domain\Launcher.Domain.csproj" />
+    <ProjectReference Include="..\Launcher.Infrastructure\Launcher.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

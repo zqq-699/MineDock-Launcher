@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -96,7 +96,7 @@ public sealed class SvgIcon : Control
         {
             var safeIconKey = iconKey.Replace("\\", "/", StringComparison.Ordinal).TrimStart('/');
             var uri = new Uri($"/Assets/Icons/{safeIconKey}.svg", UriKind.Relative);
-            var resource = Application.GetResourceStream(uri);
+            var resource = System.Windows.Application.GetResourceStream(uri);
             if (resource is null)
                 return null;
 

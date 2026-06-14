@@ -1,7 +1,6 @@
-using Launcher.App.Models;
-using Launcher.App.Services;
-using Launcher.Core.Models;
-using Launcher.Core.Services;
+﻿using Launcher.Application.Accounts;
+using Launcher.Domain.Models;
+using Launcher.Application.Services;
 
 namespace Launcher.Tests;
 

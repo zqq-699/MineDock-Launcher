@@ -1,12 +1,10 @@
-<UserControl x:Class="Launcher.App.Views.HomePageView"
+﻿<UserControl x:Class="Launcher.App.Views.HomePageView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Name="Root"
              Focusable="False">
     <Grid x:Name="PageRoot"
-          Margin="0,48,0,0"
-          shell:WindowChrome.IsHitTestVisibleInChrome="True"
-          xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework">
+          Margin="0,48,0,0">
         <StackPanel HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     Margin="0,-18,0,0">
@@ -201,7 +199,7 @@
             <TextBlock Text="{Binding HomeVersionDisplayName}"
                        Style="{StaticResource HomeVersionNameTextStyle}" />
 
-            <Button Content="更换版本 &gt;"
+            <Button Content="更多版本 &gt;"
                     Command="{Binding ChangeHomeVersionCommand}"
                     Style="{StaticResource HomeChangeVersionButtonStyle}" />
         </StackPanel>

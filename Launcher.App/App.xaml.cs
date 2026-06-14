@@ -1,13 +1,13 @@
 using System.Windows;
+using Launcher.Application.DependencyInjection;
 using Launcher.App.Services;
 using Launcher.App.ViewModels;
-using Launcher.Core.Models;
-using Launcher.Core.Services;
+using Launcher.Infrastructure.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Launcher.App;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     private ServiceProvider? serviceProvider;
 
@@ -16,22 +16,17 @@ public partial class App : Application
         base.OnStartup(e);
 
         var services = new ServiceCollection();
-        services.AddSingleton<ISettingsService, JsonSettingsService>();
-        services.AddSingleton<IGameVersionService, GameVersionService>();
-        services.AddSingleton<ILoaderProvider, VanillaLoaderProvider>();
-        services.AddSingleton<ILoaderProvider, FabricLoaderProvider>();
-        services.AddSingleton<ILoaderProvider>(_ => new PlaceholderLoaderProvider(LoaderKind.Forge, "Forge"));
-        services.AddSingleton<ILoaderProvider>(_ => new PlaceholderLoaderProvider(LoaderKind.NeoForge, "NeoForge"));
-        services.AddSingleton<ILoaderProvider>(_ => new PlaceholderLoaderProvider(LoaderKind.Quilt, "Quilt"));
-        services.AddSingleton<IGameInstanceService, GameInstanceService>();
-        services.AddSingleton<ILaunchService, LaunchService>();
-        services.AddSingleton<IModService, ModService>();
-        services.AddSingleton<IModrinthService, ModrinthService>();
-        services.AddSingleton<IMicrosoftAccountService, MicrosoftAccountService>();
-        services.AddSingleton<IAccountStore, AccountStore>();
+        services.AddLauncherApplication();
+        services.AddLauncherInfrastructure();
         services.AddSingleton<IStatusService, StatusService>();
+        services.AddSingleton<IWindowService, WindowService>();
+        services.AddSingleton<IClipboardService, ClipboardService>();
+        services.AddSingleton<IFilePickerService, FilePickerService>();
+        services.AddSingleton<IAccountDialogService, AccountDialogService>();
         services.AddSingleton<AccountPageViewModel>();
+        services.AddSingleton<DownloadTasksPageViewModel>();
         services.AddSingleton<DownloadPageViewModel>();
+        services.AddSingleton<GameManagementViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 

@@ -11,7 +11,7 @@
             Style="{StaticResource SecondaryMenuButtonStyle}"
             Command="{Binding Command, ElementName=Root}"
             CommandParameter="{Binding CommandParameter, ElementName=Root}"
-            Click="InnerButton_OnClick">
+            Click="Button_OnClick">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="{StaticResource SecondaryMenuIconColumnWidth}" />
@@ -78,6 +78,9 @@
 
             <TextBlock Grid.Column="1"
                        Text="{Binding Text, ElementName=Root}"
+                       Margin="{Binding TextMargin, ElementName=Root}"
+                       TextTrimming="CharacterEllipsis"
+                       TextWrapping="NoWrap"
                        Style="{StaticResource SecondaryMenuItemTextStyle}" />
         </Grid>
     </Button>

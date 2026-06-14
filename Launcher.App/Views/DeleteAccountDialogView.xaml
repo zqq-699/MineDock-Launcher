@@ -21,11 +21,11 @@
                     Style="{StaticResource DialogFooterStyle}">
             <Button Style="{StaticResource LauncherDialogButtonStyle}"
                     Content="&#x53D6;&#x6D88;"
-                    Click="Cancel_Click" />
+                    Command="{Binding RequestCancelDeleteAccountDialogCommand}" />
             <Button Style="{StaticResource LauncherDangerDialogButtonStyle}"
                     Margin="{StaticResource DialogTrailingButtonMargin}"
                     Content="&#x5220;&#x9664;"
-                    Click="Confirm_Click" />
+                    Command="{Binding RequestConfirmDeleteAccountDialogCommand}" />
         </StackPanel>
     </Grid>
 </UserControl>

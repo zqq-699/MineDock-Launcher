@@ -1,8 +1,11 @@
-using System.Collections.ObjectModel;
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using Launcher.Application.Accounts;
 using Launcher.App.Models;
 using Launcher.App.Services;
-using Launcher.Core.Models;
+using System.Collections.ObjectModel;
+using System.Text.RegularExpressions;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels;
 
@@ -14,10 +17,16 @@ public sealed partial class AccountPageViewModel : ObservableObject
     private const string RenameInputIcon = "\uE70F";
     private const string MicrosoftLoginInitialMessage = "\u6b63\u5728\u6253\u5f00 Microsoft \u5b98\u65b9\u767b\u5f55\u9875\u9762...";
     private const string MicrosoftLoginActiveMessage = "\u6b63\u5728\u767b\u5f55\uff0c\u8bf7\u5728\u5f39\u51fa\u7684 Microsoft \u5b98\u65b9\u9875\u9762\u5b8c\u6210\u767b\u5f55...";
+    private const string AccountNameValidationMessage = "\u7528\u6237\u540d\u9700\u4e3a 3-16 \u4f4d\u5b57\u6bcd\u3001\u6570\u5b57\u6216\u4e0b\u5212\u7ebf";
+
+    private static readonly Regex AccountNameRegex = new("^[A-Za-z0-9_]{3,16}$", RegexOptions.CultureInvariant);
 
     private readonly IAccountStore accountStore;
     private readonly IMicrosoftAccountService microsoftAccountService;
     private readonly IStatusService statusService;
+    private readonly IAccountDialogService dialogService;
+    private readonly IClipboardService clipboardService;
+    private readonly IFilePickerService filePickerService;
     private LauncherSettings settings = new();
 
     [ObservableProperty]
@@ -98,11 +107,17 @@ public sealed partial class AccountPageViewModel : ObservableObject
     public AccountPageViewModel(
         IAccountStore accountStore,
         IMicrosoftAccountService microsoftAccountService,
-        IStatusService statusService)
+        IStatusService statusService,
+        IAccountDialogService dialogService,
+        IClipboardService clipboardService,
+        IFilePickerService filePickerService)
     {
         this.accountStore = accountStore;
         this.microsoftAccountService = microsoftAccountService;
         this.statusService = statusService;
+        this.dialogService = dialogService;
+        this.clipboardService = clipboardService;
+        this.filePickerService = filePickerService;
     }
 
     public void NotifyStatusMessage(string message)
@@ -218,6 +233,91 @@ public sealed partial class AccountPageViewModel : ObservableObject
         SelectAccount(account, persistSelection: true);
     }
 
+    [RelayCommand]
+    private void SelectAccountItem(LauncherAccount account)
+    {
+        SelectAccount(account);
+    }
+
+    [RelayCommand]
+    private void RequestAddAccount()
+    {
+        dialogService.ShowAddAccountDialog();
+    }
+
+    [RelayCommand]
+    private void RequestDeleteAccount(LauncherAccount account)
+    {
+        dialogService.ShowDeleteAccountDialog(account);
+    }
+
+    [RelayCommand]
+    private void RequestRenameAccount()
+    {
+        dialogService.ShowRenameAccountDialog();
+    }
+
+    [RelayCommand]
+    private void CopySelectedUuid()
+    {
+        var uuid = SelectedAccount?.Uuid;
+        if (!string.IsNullOrWhiteSpace(uuid))
+            clipboardService.CopyText(uuid);
+    }
+
+    [RelayCommand]
+    private async Task PickAndChangeSelectedAccountSkinAsync()
+    {
+        if (!CanChangeSelectedAccountSkin)
+            return;
+
+        var skinFilePath = filePickerService.PickMinecraftSkin();
+        if (!string.IsNullOrWhiteSpace(skinFilePath))
+            await ChangeSelectedAccountSkinAsync(skinFilePath);
+    }
+
+    [RelayCommand]
+    private void RequestCancelAddAccountDialog()
+    {
+        dialogService.CancelAddAccountDialog();
+    }
+
+    [RelayCommand]
+    private void RequestBackAddAccountDialog()
+    {
+        dialogService.BackAddAccountDialog();
+    }
+
+    [RelayCommand]
+    private Task RequestConfirmAddAccountDialogAsync()
+    {
+        return dialogService.ConfirmAddAccountDialogAsync();
+    }
+
+    [RelayCommand]
+    private void RequestCancelDeleteAccountDialog()
+    {
+        dialogService.CancelDeleteAccountDialog();
+    }
+
+    [RelayCommand]
+    private Task RequestConfirmDeleteAccountDialogAsync()
+    {
+        return dialogService.ConfirmDeleteAccountDialogAsync();
+    }
+
+    [RelayCommand]
+    private void RequestCancelRenameAccountDialog()
+    {
+        dialogService.CancelRenameAccountDialog();
+    }
+
+    [RelayCommand]
+    private Task RequestConfirmRenameAccountDialogAsync()
+    {
+        return dialogService.ConfirmRenameAccountDialogAsync();
+    }
+
     private void SelectAccount(LauncherAccount account, bool persistSelection)
     {
         IsAccountProfileBusy = false;
@@ -263,12 +363,22 @@ public sealed partial class AccountPageViewModel : ObservableObject
         }
     }
 
+    [RelayCommand]
     public async Task RefreshSelectedAccountProfileAsync()
     {
         if (SelectedAccount is not null)
             await LoadSelectedAccountProfileAsync(SelectedAccount);
     }
 
+    public async Task RefreshCurrentSecondaryContentAsync()
+    {
+        if (SelectedAccount is null || IsAccountProfileBusy)
+            return;
+
+        await RefreshSelectedAccountProfileAsync();
+    }
+
+    [RelayCommand]
     public async Task ApplySelectedAccountCapeAsync()
     {
         var account = SelectedAccount;
@@ -421,10 +531,10 @@ public sealed partial class AccountPageViewModel : ObservableObject
         }
 
         var accountName = NewOfflineAccountName.Trim();
-        if (string.IsNullOrWhiteSpace(accountName))
+        if (!IsValidAccountName(accountName))
         {
             IsNewOfflineAccountNameInvalid = true;
-            ReportStatus("\u8bf7\u8f93\u5165\u79bb\u7ebf\u8d26\u6237\u540d");
+            ReportStatus(AccountNameValidationMessage);
             return;
         }
 
@@ -523,9 +633,10 @@ public sealed partial class AccountPageViewModel : ObservableObject
             return;
 
         var newName = RenameAccountName.Trim();
-        if (string.IsNullOrWhiteSpace(newName))
+        if (!IsValidAccountName(newName))
         {
             IsRenameAccountNameInvalid = true;
+            ReportStatus(AccountNameValidationMessage);
             return;
         }
 
@@ -639,16 +750,14 @@ public sealed partial class AccountPageViewModel : ObservableObject
 
     partial void OnRenameAccountNameChanged(string value)
     {
-        if (!string.IsNullOrWhiteSpace(value))
-            IsRenameAccountNameInvalid = false;
+        IsRenameAccountNameInvalid = false;
 
         OnPropertyChanged(nameof(CanConfirmRenameAccountDialog));
     }
 
     partial void OnNewOfflineAccountNameChanged(string value)
     {
-        if (!string.IsNullOrWhiteSpace(value))
-            IsNewOfflineAccountNameInvalid = false;
+        IsNewOfflineAccountNameInvalid = false;
     }
 
     private void NotifyAddAccountDialogStepPropertiesChanged()
@@ -869,6 +978,11 @@ public sealed partial class AccountPageViewModel : ObservableObject
         RenameAccountIcon = isSuccess ? DialogSuccessIcon : DialogFailureIcon;
         RenameAccountMessage = message;
         RenameAccountDialogStep = AccountDialogSteps.RenameResult;
+    }
+
+    private static bool IsValidAccountName(string accountName)
+    {
+        return AccountNameRegex.IsMatch(accountName);
     }
 
     private void ReportStatus(string message)

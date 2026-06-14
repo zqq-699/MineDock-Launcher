@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace Launcher.App.Controls;
 
@@ -7,6 +8,9 @@ public partial class ListPageFrame : UserControl
 {
     public static readonly DependencyProperty TitleProperty =
         DependencyProperty.Register(nameof(Title), typeof(string), typeof(ListPageFrame), new PropertyMetadata(string.Empty));
+
+    public static readonly DependencyProperty TitleIconSourceProperty =
+        DependencyProperty.Register(nameof(TitleIconSource), typeof(ImageSource), typeof(ListPageFrame), new PropertyMetadata(null));
 
     public static readonly DependencyProperty SearchTextProperty =
         DependencyProperty.Register(
@@ -20,6 +24,9 @@ public partial class ListPageFrame : UserControl
 
     public static readonly DependencyProperty IsListVisibleProperty =
         DependencyProperty.Register(nameof(IsListVisible), typeof(bool), typeof(ListPageFrame), new PropertyMetadata(true));
+
+    public static readonly DependencyProperty UseFrameScrollViewerProperty =
+        DependencyProperty.Register(nameof(UseFrameScrollViewer), typeof(bool), typeof(ListPageFrame), new PropertyMetadata(true));
 
     public static readonly DependencyProperty OverlayContentProperty =
         DependencyProperty.Register(nameof(OverlayContent), typeof(object), typeof(ListPageFrame), new PropertyMetadata(null));
@@ -41,6 +48,12 @@ public partial class ListPageFrame : UserControl
         set => SetValue(TitleProperty, value);
     }
 
+    public ImageSource? TitleIconSource
+    {
+        get => (ImageSource?)GetValue(TitleIconSourceProperty);
+        set => SetValue(TitleIconSourceProperty, value);
+    }
+
     public string SearchText
     {
         get => (string)GetValue(SearchTextProperty);
@@ -57,6 +70,12 @@ public partial class ListPageFrame : UserControl
     {
         get => (bool)GetValue(IsListVisibleProperty);
         set => SetValue(IsListVisibleProperty, value);
+    }
+
+    public bool UseFrameScrollViewer
+    {
+        get => (bool)GetValue(UseFrameScrollViewerProperty);
+        set => SetValue(UseFrameScrollViewerProperty, value);
     }
 
     public object? OverlayContent

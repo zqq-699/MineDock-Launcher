@@ -5,33 +5,111 @@
              xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
              x:Name="Root"
              Focusable="False">
-    <Grid shell:WindowChrome.IsHitTestVisibleInChrome="True">
+    <Grid>
         <ContentPresenter Content="{Binding OverlayContent, ElementName=Root}" />
 
-        <ScrollViewer x:Name="PART_ScrollViewer">
-            <ScrollViewer.Style>
-                <Style TargetType="ScrollViewer" BasedOn="{StaticResource ListPageScrollViewerStyle}">
-                    <Setter Property="Visibility" Value="Collapsed" />
+        <Grid x:Name="PART_ListLayer">
+            <ScrollViewer x:Name="PART_ScrollViewer">
+                <ScrollViewer.Style>
+                    <Style TargetType="ScrollViewer" BasedOn="{StaticResource ListPageScrollViewerStyle}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsListVisible, ElementName=Root}" Value="True" />
+                                    <Condition Binding="{Binding UseFrameScrollViewer, ElementName=Root}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible" />
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ScrollViewer.Style>
+
+                <StackPanel>
+                    <Border Style="{StaticResource ListPageHeaderSpacerStyle}" />
+                    <ContentPresenter>
+                        <ContentPresenter.Style>
+                            <Style TargetType="ContentPresenter">
+                                <Setter Property="Content" Value="{Binding ListContent, ElementName=Root}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding UseFrameScrollViewer, ElementName=Root}" Value="False">
+                                        <Setter Property="Content" Value="{x:Null}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContentPresenter.Style>
+                    </ContentPresenter>
+                    <Border Style="{StaticResource ListPageBottomSpacerStyle}" />
+                </StackPanel>
+            </ScrollViewer>
+
+            <ContentPresenter>
+                <ContentPresenter.Style>
+                    <Style TargetType="ContentPresenter">
+                        <Setter Property="Content" Value="{x:Null}" />
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsListVisible, ElementName=Root}" Value="True" />
+                                    <Condition Binding="{Binding UseFrameScrollViewer, ElementName=Root}" Value="False" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Content" Value="{Binding ListContent, ElementName=Root}" />
+                                <Setter Property="Visibility" Value="Visible" />
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ContentPresenter.Style>
+            </ContentPresenter>
+        </Grid>
+
+        <Border>
+            <Border.Style>
+                <Style TargetType="Border" BasedOn="{StaticResource ListPageHeaderOverlayStyle}">
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsListVisible, ElementName=Root}" Value="True">
-                            <Setter Property="Visibility" Value="Visible" />
+                        <DataTrigger Binding="{Binding IsListVisible, ElementName=Root}" Value="False">
+                            <Setter Property="Background" Value="Transparent" />
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
-            </ScrollViewer.Style>
-
-            <StackPanel>
-                <Border Style="{StaticResource ListPageHeaderSpacerStyle}" />
-                <ContentPresenter Content="{Binding ListContent, ElementName=Root}" />
-                <Border Style="{StaticResource ListPageBottomSpacerStyle}" />
-            </StackPanel>
-        </ScrollViewer>
-
-        <Border Style="{StaticResource ListPageHeaderOverlayStyle}">
+            </Border.Style>
             <Grid>
-                <TextBlock Text="{Binding Title, ElementName=Root}"
-                           Style="{StaticResource ListPageHeaderTextStyle}" />
-                <TextBox Tag="{Binding ElementName=PART_ScrollViewer}"
+                <Grid Margin="0,6,12,0"
+                      HorizontalAlignment="Stretch"
+                      VerticalAlignment="Top">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Image Width="28"
+                           Height="28"
+                           Margin="0,0,10,0"
+                           RenderOptions.BitmapScalingMode="NearestNeighbor"
+                           SnapsToDevicePixels="True"
+                           Source="{Binding TitleIconSource, ElementName=Root}">
+                        <Image.Style>
+                            <Style TargetType="Image">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding TitleIconSource, ElementName=Root}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Image.Style>
+                    </Image>
+
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding Title, ElementName=Root}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource ListPageHeaderTextStyle}">
+                                <Setter Property="Margin" Value="0" />
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+                <TextBox Tag="{Binding ElementName=PART_ListLayer}"
                          Text="{Binding SearchText, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                     <TextBox.Style>
                         <Style TargetType="TextBox" BasedOn="{StaticResource ListPageSearchBoxStyle}">
@@ -47,7 +125,17 @@
             </Grid>
         </Border>
 
-        <Border Style="{StaticResource ListPageBottomOverlayStyle}" />
+        <Border>
+            <Border.Style>
+                <Style TargetType="Border" BasedOn="{StaticResource ListPageBottomOverlayStyle}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsListVisible, ElementName=Root}" Value="False">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+        </Border>
 
         <ContentPresenter Panel.ZIndex="6"
                           HorizontalAlignment="Stretch"

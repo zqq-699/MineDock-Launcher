@@ -1,4 +1,4 @@
-namespace Launcher.App.Models;
+﻿namespace Launcher.App.Models;
 
 public sealed class AccountTypeOption
 {

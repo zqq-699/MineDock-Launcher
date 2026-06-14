@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace Launcher.App.Controls;
 
@@ -9,6 +10,9 @@ public partial class SecondaryMenuOptionButton : UserControl
 {
     public static readonly DependencyProperty TextProperty =
         DependencyProperty.Register(nameof(Text), typeof(string), typeof(SecondaryMenuOptionButton), new PropertyMetadata(string.Empty));
+
+    public static readonly DependencyProperty TextMarginProperty =
+        DependencyProperty.Register(nameof(TextMargin), typeof(Thickness), typeof(SecondaryMenuOptionButton), new PropertyMetadata(new Thickness(4, 0, 8, 0)));
 
     public static readonly DependencyProperty IconModeProperty =
         DependencyProperty.Register(nameof(IconMode), typeof(string), typeof(SecondaryMenuOptionButton), new PropertyMetadata("Svg"));
@@ -46,17 +50,34 @@ public partial class SecondaryMenuOptionButton : UserControl
     public static readonly DependencyProperty GlyphFontWeightProperty =
         DependencyProperty.Register(nameof(GlyphFontWeight), typeof(FontWeight), typeof(SecondaryMenuOptionButton), new PropertyMetadata(FontWeights.Medium));
 
+    public static readonly RoutedEvent RefreshRequestedEvent =
+        EventManager.RegisterRoutedEvent(
+            nameof(RefreshRequested),
+            RoutingStrategy.Bubble,
+            typeof(RoutedEventHandler),
+            typeof(SecondaryMenuOptionButton));
+
     public SecondaryMenuOptionButton()
     {
         InitializeComponent();
     }
 
-    public event RoutedEventHandler? Click;
+    public event RoutedEventHandler RefreshRequested
+    {
+        add => AddHandler(RefreshRequestedEvent, value);
+        remove => RemoveHandler(RefreshRequestedEvent, value);
+    }
 
     public string Text
     {
         get => (string)GetValue(TextProperty);
         set => SetValue(TextProperty, value);
+    }
+
+    public Thickness TextMargin
+    {
+        get => (Thickness)GetValue(TextMarginProperty);
+        set => SetValue(TextMarginProperty, value);
     }
 
     public string IconMode
@@ -131,8 +152,13 @@ public partial class SecondaryMenuOptionButton : UserControl
         set => SetValue(GlyphFontWeightProperty, value);
     }
 
-    private void InnerButton_OnClick(object sender, RoutedEventArgs e)
+    private void Button_OnClick(object sender, RoutedEventArgs e)
     {
-        Click?.Invoke(this, e);
+        if (!IsSelected)
+            return;
+
+        Dispatcher.BeginInvoke(
+            () => RaiseEvent(new RoutedEventArgs(RefreshRequestedEvent, this)),
+            DispatcherPriority.Background);
     }
 }

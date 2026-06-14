@@ -1,0 +1,21 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <FontFamily x:Key="LauncherFontFamily">Microsoft YaHei UI</FontFamily>
+    <FontFamily x:Key="LauncherIconFontFamily">Segoe MDL2 Assets</FontFamily>
+
+    <SolidColorBrush x:Key="LauncherTextPrimaryBrush" Color="#F4FFFFFF" />
+    <SolidColorBrush x:Key="LauncherTextSecondaryBrush" Color="#AFFFFFFF" />
+    <SolidColorBrush x:Key="LauncherTextMutedBrush" Color="#8FFFFFFF" />
+    <SolidColorBrush x:Key="LauncherAccentBrush" Color="#0891FE" />
+    <SolidColorBrush x:Key="LauncherDangerBrush" Color="#FFFF8D8D" />
+    <SolidColorBrush x:Key="MenuButtonSelectedBackgroundBrush" Color="#30808080" />
+    <SolidColorBrush x:Key="MenuButtonHoverBackgroundBrush" Color="#30606060" />
+
+    <Thickness x:Key="DialogTrailingButtonMargin">10,0,0,0</Thickness>
+    <GridLength x:Key="SecondaryMenuIconColumnWidth">36</GridLength>
+
+    <CornerRadius x:Key="LauncherCornerRadiusSmall">6</CornerRadius>
+    <CornerRadius x:Key="LauncherCornerRadiusMedium">8</CornerRadius>
+    <CornerRadius x:Key="LauncherCornerRadiusLarge">12</CornerRadius>
+    <CornerRadius x:Key="LauncherDialogCornerRadius">14</CornerRadius>
+</ResourceDictionary>

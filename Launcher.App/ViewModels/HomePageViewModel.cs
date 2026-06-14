@@ -1,9 +1,9 @@
+﻿using Launcher.Application.Accounts;
+using Launcher.App.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Launcher.App.Models;
-using Launcher.App.Services;
-using Launcher.Core.Models;
-using Launcher.Core.Services;
+using Launcher.Domain.Models;
+using Launcher.Application.Services;
 
 namespace Launcher.App.ViewModels;
 
