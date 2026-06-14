@@ -78,7 +78,6 @@ public partial class MainWindow : Window
 
     private void Navigation_Click(object sender, RoutedEventArgs e)
     {
-        AccountPageView.ResetTransientUi();
         if (sender is FrameworkElement { DataContext: NavigationItem item }
             && DataContext is MainViewModel viewModel)
             viewModel.SelectNavigationItem(item);

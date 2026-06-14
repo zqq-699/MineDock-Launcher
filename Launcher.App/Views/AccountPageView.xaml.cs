@@ -1,7 +1,6 @@
-using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
+using System.Threading;
 using Launcher.App.Models;
 using Launcher.App.ViewModels;
 using Microsoft.Win32;
@@ -10,13 +9,12 @@ namespace Launcher.App.Views;
 
 public partial class AccountPageView : UserControl
 {
-    private AccountPageViewModel? observedViewModel;
+    private const int ClipboardRetryCount = 8;
+    private const int ClipboardRetryDelayMilliseconds = 35;
 
     public AccountPageView()
     {
         InitializeComponent();
-        DataContextChanged += OnDataContextChanged;
-        Unloaded += (_, _) => DetachObservedViewModel();
     }
 
     public event Action? AddAccountRequested;
@@ -25,72 +23,54 @@ public partial class AccountPageView : UserControl
 
     public FrameworkElement RootElement => PageRoot;
 
-    public void ResetTransientUi()
-    {
-        SetUuidCopyButtonCopied(false);
-    }
-
     private AccountPageViewModel? ViewModel => DataContext as AccountPageViewModel;
-
-    private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
-    {
-        DetachObservedViewModel();
-        observedViewModel = e.NewValue as AccountPageViewModel;
-        if (observedViewModel is not null)
-            observedViewModel.PropertyChanged += ViewModel_PropertyChanged;
-
-        ResetTransientUi();
-    }
-
-    private void DetachObservedViewModel()
-    {
-        if (observedViewModel is null)
-            return;
-
-        observedViewModel.PropertyChanged -= ViewModel_PropertyChanged;
-        observedViewModel = null;
-    }
-
-    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(AccountPageViewModel.SelectedAccount))
-            ResetTransientUi();
-    }
 
     private void Account_Click(object sender, RoutedEventArgs e)
     {
-        ResetTransientUi();
         if (sender is FrameworkElement { DataContext: LauncherAccount account })
             ViewModel?.SelectAccount(account);
-    }
-
-    private void CopyUuid_Click(object sender, RoutedEventArgs e)
-    {
-        if (ViewModel?.SelectedAccount is not { } account)
-            return;
-
-        var uuid = account.Uuid;
-        if (string.IsNullOrWhiteSpace(uuid))
-        {
-            SetUuidCopyButtonCopied(true, account.Id);
-            return;
-        }
-
-        try
-        {
-            Clipboard.SetDataObject(uuid, true);
-            SetUuidCopyButtonCopied(true, account.Id);
-        }
-        catch (Exception ex)
-        {
-            ViewModel?.NotifyStatusMessage($"\u590d\u5236 UUID \u5931\u8d25\uff1a{ex.Message}");
-            SetUuidCopyButtonCopied(false, account.Id);
-        }
     }
 
     private void EditAccountName_Click(object sender, RoutedEventArgs e)
     {
         RenameAccountRequested?.Invoke();
+    }
+
+    private void CopyUuid_Click(object sender, RoutedEventArgs e)
+    {
+        var uuid = ViewModel?.SelectedAccount?.Uuid;
+        if (string.IsNullOrWhiteSpace(uuid))
+            return;
+
+        CopyTextToClipboardInBackground(uuid);
+    }
+
+    private void CopyTextToClipboardInBackground(string text)
+    {
+        var thread = new Thread(() =>
+        {
+            TrySetClipboardText(text);
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true;
+        thread.Start();
+    }
+
+    private static void TrySetClipboardText(string text)
+    {
+        for (var attempt = 0; attempt < ClipboardRetryCount; attempt++)
+        {
+            try
+            {
+                Clipboard.SetText(text);
+                return;
+            }
+            catch
+            {
+                Thread.Sleep(ClipboardRetryDelayMilliseconds * (attempt + 1));
+            }
+        }
     }
 
     private async void ChangeSkin_Click(object sender, RoutedEventArgs e)
@@ -133,42 +113,5 @@ public partial class AccountPageView : UserControl
         e.Handled = true;
         if (sender is FrameworkElement { DataContext: LauncherAccount account })
             DeleteAccountRequested?.Invoke(account);
-    }
-
-    private void SetUuidCopyButtonCopied(bool isCopied, string? accountId = null, bool scheduleRefresh = true)
-    {
-        if (accountId is not null
-            && !string.Equals(ViewModel?.SelectedAccount?.Id, accountId, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        if (CopyUuidButton is null)
-            return;
-
-        CopyUuidButton.IsHitTestVisible = !isCopied;
-        CopyUuidButton.Cursor = isCopied ? System.Windows.Input.Cursors.Arrow : System.Windows.Input.Cursors.Hand;
-        CopyUuidButton.Foreground = new SolidColorBrush(isCopied
-            ? Color.FromRgb(0x7D, 0xFF, 0xB2)
-            : Color.FromArgb(0xDF, 0xFF, 0xFF, 0xFF));
-
-        if (CopyUuidCopyIcon is not null)
-        {
-            CopyUuidCopyIcon.Visibility = isCopied ? Visibility.Collapsed : Visibility.Visible;
-            CopyUuidCopyIcon.InvalidateVisual();
-        }
-
-        if (CopyUuidPassedIcon is not null)
-        {
-            CopyUuidPassedIcon.Visibility = isCopied ? Visibility.Visible : Visibility.Collapsed;
-            CopyUuidPassedIcon.InvalidateVisual();
-        }
-
-        if (isCopied)
-        {
-            _ = Dispatcher.BeginInvoke(
-                () => SetUuidCopyButtonCopied(true, accountId, scheduleRefresh: false),
-                System.Windows.Threading.DispatcherPriority.ContextIdle);
-        }
     }
 }

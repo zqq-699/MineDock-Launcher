@@ -132,29 +132,14 @@
                                                FontSize="14"
                                                TextWrapping="Wrap"
                                                VerticalAlignment="Center" />
-                                    <Button x:Name="CopyUuidButton"
-                                            Grid.Column="1"
+                                    <Button Grid.Column="1"
                                             Margin="10,-4,-6,-4"
                                             Style="{StaticResource InlineIconButtonStyle}"
                                             Click="CopyUuid_Click">
-                                        <Grid Width="18"
-                                              Height="18">
-                                            <controls:SvgIcon x:Name="CopyUuidCopyIcon"
-                                                              Width="16"
-                                                              Height="16"
-                                                              HorizontalAlignment="Center"
-                                                              VerticalAlignment="Center"
-                                                              IconKey="general/general_copy"
-                                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
-                                            <controls:SvgIcon x:Name="CopyUuidPassedIcon"
-                                                              Width="18"
-                                                              Height="18"
-                                                              HorizontalAlignment="Center"
-                                                              VerticalAlignment="Center"
-                                                              IconKey="general/general_passed"
-                                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
-                                                              Visibility="Collapsed" />
-                                        </Grid>
+                                        <controls:SvgIcon Width="16"
+                                                          Height="16"
+                                                          IconKey="general/general_copy"
+                                                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
                                     </Button>
                                 </Grid>
                             </Border>
