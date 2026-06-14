@@ -1,282 +1,897 @@
-# 项目备忘录
+# AGENTS.md
 
-本文档记录当前 `launcher` 工作区的项目结构、架构约定、关键文件和维护注意事项，供后续开发者或自动化代理快速接手。
+本文档记录当前 `launcher` 工作区的项目结构、架构规则、开发约定和自动化代理注意事项。
+所有后续开发者、Codex 或自动化代理在修改代码前都必须先阅读并遵守本文件。
 
-## 项目概览
+---
 
-这是一个基于 WPF + C# / .NET 8 的 Minecraft Launcher 项目，目标是遵循 MVVM，并将 UI、业务逻辑、数据访问和外部依赖分离。
+## 1. 项目目标
+
+这是一个基于 **WPF + C# / .NET 8** 的 Minecraft Launcher。
+
+项目目标：
+
+* 遵循 MVVM 架构。
+* 分离 UI、业务逻辑、领域模型、数据访问和外部依赖。
+* 保持项目结构清晰、可维护、可测试。
+* 避免把新功能堆进 `MainViewModel` 或单个巨大 ViewModel。
+* 避免用户可见文本散落在 XAML 或 C# 代码中。
+* 避免重复 XAML 样式和重复业务逻辑。
+
+---
+
+## 2. 当前解决方案结构
 
 当前解决方案包含以下项目：
 
-- `Launcher.App`：WPF 表现层，包含 View、ViewModel、控件、样式、转换器、UI 服务和资源。
-- `Launcher.Domain`：领域模型层，包含启动器设置、实例、版本、Loader、Mod、进度等模型。
-- `Launcher.Application`：应用业务层，包含业务接口、用例/服务、账户编排、仓储接口。
-- `Launcher.Infrastructure`：基础设施层，包含 JSON 持久化、文件系统、CmlLib、Modrinth API、Microsoft Auth 等具体实现。
-- `Launcher.Tests`：xUnit 测试项目。
+```text
+Launcher.App
+Launcher.Application
+Launcher.Domain
+Launcher.Infrastructure
+Launcher.Tests
+```
 
-`Launcher.Core` 已从解决方案中移除，当前结构以 `Domain / Application / Infrastructure` 替代旧的 Core 职责。若文件夹仍存在，多数是迁移残留或构建产物，不应继续向其中添加源码。
+### Launcher.App
 
-## 依赖方向
+WPF 表现层。
 
-理想依赖方向如下：
+负责：
+
+* View
+* ViewModel
+* Controls
+* Behaviors
+* Converters
+* UI Services
+* Resources
+* Styles
+* Assets
+* 页面动画和纯 UI 行为
+
+不负责：
+
+* 文件读写
+* 网络请求
+* CmlLib 调用
+* Modrinth API 调用
+* Microsoft Auth 调用
+* 复杂业务流程
+
+### Launcher.Application
+
+应用业务层。
+
+负责：
+
+* 业务接口
+* UseCase / Application Service
+* 账户编排
+* 实例业务
+* 下载 / Mod / 启动器业务抽象
+* Repository 接口
+
+不负责：
+
+* WPF UI
+* XAML
+* 文件系统具体实现
+* HttpClient 具体请求
+* CmlLib 具体调用
+* Modrinth / Microsoft API 具体实现
+
+### Launcher.Domain
+
+领域层。
+
+负责：
+
+* 纯模型
+* 枚举
+* 设置状态
+* 游戏实例模型
+* Loader / Mod / 进度模型
+* 与外部 API 无关的业务概念模型
+
+不负责：
+
+* WPF
+* 文件路径计算
+* Environment / AppData
+* JSON 读写
+* API DTO
+* CmlLib
+* HttpClient
+* Microsoft Auth
+* Modrinth API
+
+### Launcher.Infrastructure
+
+基础设施层。
+
+负责：
+
+* JSON 持久化
+* 文件系统
+* 路径提供器
+* CmlLib
+* Minecraft 启动
+* Minecraft 版本获取
+* Modrinth API
+* Microsoft Auth
+* Minecraft Profile API
+* 本地 Mod 文件操作
+
+### Launcher.Tests
+
+测试项目。
+
+负责：
+
+* Application Service 测试
+* ViewModel 测试
+* Repository / Infrastructure 测试
+* ResourceDictionary 加载测试
+* Fake / Test helper
+
+---
+
+## 3. 依赖方向
+
+正确依赖方向：
 
 ```text
 Launcher.App            -> Launcher.Application
 Launcher.App            -> Launcher.Domain
-Launcher.App            -> Launcher.Infrastructure 仅用于组合根/DI 注册
+Launcher.App            -> Launcher.Infrastructure 仅限 App.xaml.cs 组合根 / DI 注册
+
 Launcher.Application    -> Launcher.Domain
+
 Launcher.Infrastructure -> Launcher.Application
 Launcher.Infrastructure -> Launcher.Domain
+
 Launcher.Tests          -> 需要测试的各层
 ```
 
-重要约定：
-
-- ViewModel 不应直接依赖 CmlLib、HttpClient、文件系统、Modrinth API、Microsoft Auth 等具体实现。
-- 外部依赖实现应放在 `Launcher.Infrastructure`。
-- 业务接口应放在 `Launcher.Application`。
-- 纯数据结构和领域状态应放在 `Launcher.Domain`。
-- `Launcher.App` 中除 `App.xaml.cs` 组合根外，应尽量避免直接引用 Infrastructure 类型。
-
-## 启动入口与 DI
-
-WPF 启动入口：
-
-- `Launcher.App/App.xaml`
-- `Launcher.App/App.xaml.cs`
-
-`App.xaml.cs` 负责创建 `ServiceCollection`，调用：
-
-- `AddLauncherApplication()`
-- `AddLauncherInfrastructure()`
-
-并注册 App 层 UI 服务和 ViewModel：
-
-- `IStatusService`
-- `IWindowService`
-- `IClipboardService`
-- `IFilePickerService`
-- `IAccountDialogService`
-- `AccountPageViewModel`
-- `DownloadPageViewModel`
-- `GameManagementViewModel`
-- `MainViewModel`
-- `MainWindow`
-
-## App 层结构
-
-### Views
-
-主要视图位于 `Launcher.App/Views`：
-
-- `HomePageView`
-- `AccountPageView`
-- `DownloadPageView`
-- `DownloadVersionListView`
-- `GeneralPageView`
-- `AddAccountDialogView`
-- `DeleteAccountDialogView`
-- `RenameAccountDialogView`
-
-当前 View 基本通过 Binding 和 Command 驱动。弹窗和账户页 code-behind 已尽量精简，只保留初始化和纯 UI 入口。
-
-`DownloadPageView.xaml.cs` 中仍有较多滚动定位和动画逻辑，这些属于视图行为，不是业务逻辑。后续可考虑提取为 Behavior。
-
-### ViewModels
-
-主要 ViewModel：
-
-- `MainViewModel`：Shell 状态、当前页面、导航命令、全局状态栏、窗口命令、子页面协调。
-- `HomePageViewModel`：主页显示状态和启动命令。
-- `AccountPageViewModel`：账户列表、添加/删除/重命名账户、皮肤/披风操作、账户相关弹窗状态。
-- `DownloadPageViewModel`：Minecraft 版本列表、分类、搜索和选择状态。
-- `GameManagementViewModel`：实例、Loader、Mod、Modrinth、创建实例、保存实例等游戏管理功能。
-
-维护建议：
-
-- `MainViewModel` 应保持轻量，不要再把页面业务塞回去。
-- `AccountPageViewModel` 仍然偏重，是后续拆分的重点。
-- `GameManagementViewModel` 也承载了较多业务，可继续拆成实例、版本、Mod 三个子 ViewModel 或 UseCase。
-
-### Controls
-
-可复用控件位于 `Launcher.App/Controls`：
-
-- `DialogHost`
-- `SecondaryMenuFrame`
-- `SecondaryMenuOptionButton`
-- `ListPageFrame`
-- `ListPageItemButton`
-- `VirtualizedListPageItemsControl`
-- `AnimatedComboBox`
-- `SvgIcon`
-- `BackdropBlurBorder`
-- `SmoothScrollBehavior`
-
-这些控件主要负责 UI 表现和可复用交互，不应放业务逻辑。
-
-### UI Services
-
-位于 `Launcher.App/Services`：
-
-- `StatusService`：全局状态消息。
-- `WindowService`：最小化/关闭窗口。
-- `ClipboardService`：剪贴板复制。
-- `FilePickerService`：文件选择对话框。
-- `AccountDialogService`：账户相关弹窗打开、关闭、尺寸动画和遮罩协调。
-- `DialogOverlayService`：弹窗遮罩、模糊和动画。
-- `NavigationMenuAnimationService`：侧边栏展开/收起动画。
-- `PageTransitionService`：页面切换动画。
-- `AcrylicWindow`、`BlurEffectWarmup`：窗口和模糊效果辅助。
-
-这些属于 UI 基础设施，可以依赖 WPF，但不应依赖业务实现。
-
-### Resources / Styles
-
-资源和样式：
-
-- `Launcher.App/Resources/ThemeResources.xaml`：主题 token，例如字体、颜色、间距、圆角。
-- `Launcher.App/Styles/ControlStyles.xaml`：控件样式和模板。
-
-后续建议继续拆分 `ControlStyles.xaml`，按按钮、弹窗、导航、列表、输入控件等拆成多个 ResourceDictionary。
-
-## Application 层结构
-
-### Services
-
-接口：
-
-- `ISettingsService`
-- `IGameVersionService`
-- `IGameInstanceService`
-- `ILaunchService`
-- `ILoaderProvider`
-- `IModService`
-- `IModrinthService`
-
-实现：
-
-- `GameInstanceService`
-
-`GameInstanceService` 负责实例创建、默认实例、实例保存等业务流程。它通过 `IGameInstanceRepository` 隔离 JSON 和目录创建。
-
-### Accounts
-
-账户相关：
-
-- `IAccountStore`
-- `IMicrosoftAccountService`
-- `AccountStore`
-- `AccountMapper`
-- `LauncherAccount`
-- `AccountCapeOption`
-
-注意：`LauncherAccount`、`AccountCapeOption` 当前在 Application 层，并带有 UI 绑定友好的属性。严格分层下可继续优化为：Application 返回纯 DTO，App 层再包装为可观察的 UI 模型。
-
-### Repositories
-
-- `IGameInstanceRepository`
-
-仓储接口放在 Application，具体 JSON 实现在 Infrastructure。
-
-## Domain 层结构
-
-模型位于 `Launcher.Domain/Models`：
-
-- `LauncherSettings`
-- `LauncherAccountRecord`
-- `LauncherCapeRecord`
-- `LauncherDefaults`
-- `GameInstance`
-- `LoaderKind`
-- `LoaderVersionInfo`
-- `MinecraftVersionInfo`
-- `LocalMod`
-- `LauncherProgress`
-- `ModrinthModels`
-
-注意事项：
-
-- `LauncherDefaults` 当前包含默认数据目录计算，使用了环境路径。严格领域模型中不应包含文件系统/环境逻辑，后续可迁到 Infrastructure 或配置服务。
-- `ModrinthModels` 当前包含 JSON 序列化属性和 API 响应 DTO。更纯净的做法是把 Modrinth API DTO 移到 Infrastructure，Domain 只保留业务概念模型。
-
-## Infrastructure 层结构
-
-### Persistence
-
-- `JsonSettingsService`：读写 `settings.json`。
-- `JsonGameInstanceRepository`：读写 `instances.json`，创建实例目录结构。
-
-默认数据位置：
+禁止：
 
 ```text
-%AppData%/Launcher
+Launcher.Domain         -> Launcher.Application
+Launcher.Domain         -> Launcher.Infrastructure
+Launcher.Domain         -> Launcher.App
+
+Launcher.Application    -> Launcher.App
+Launcher.Application    -> Launcher.Infrastructure
+
+Launcher.Infrastructure -> Launcher.App
 ```
 
-典型文件/目录：
+`Launcher.App` 可以引用 `Launcher.Infrastructure`，但仅限组合根注册，例如 `App.xaml.cs` 中调用 `AddLauncherInfrastructure()`。
+除 DI 注册外，App 层其它类不应直接使用 Infrastructure 的具体实现。
+
+---
+
+## 4. Launcher.Core 规则
+
+`Launcher.Core` 是旧结构。
+
+当前有效架构已经改为：
 
 ```text
-settings.json
-instances.json
-accounts/microsoft/accounts.json
-accounts/microsoft/avatars
-instances/<instance>/mods
-instances/<instance>/.launcher/disabled-mods
+Domain + Application + Infrastructure
 ```
 
-### Minecraft
+因此：
 
-- `GameVersionService`：通过 CmlLib 获取 Minecraft 版本列表。
-- `LaunchService`：安装检查并启动 Minecraft 进程。
-- `VanillaLoaderProvider`
-- `FabricLoaderProvider`
-- `PlaceholderLoaderProvider`
+* 不要恢复 `Launcher.Core`。
+* 不要向 `Launcher.Core` 添加源码。
+* 不要添加新的 `using Launcher.Core`。
+* 如果目录还存在，应视为迁移残留。
+* 如果确认没有引用，可以删除。
 
-当前可用 Loader：
+---
 
-- Vanilla
-- Fabric
+## 5. 当前主要目录职责
 
-占位 Loader：
+### Launcher.Domain
 
-- Forge
-- NeoForge
-- Quilt
+```text
+Launcher.Domain/Models
+```
 
-### Modrinth
+当前主要模型：
 
-- `ModrinthService`：搜索 Modrinth，安装兼容 Mod 文件。
+* `GameInstance`
+* `LauncherSettings`
+* `LauncherDefaults`
+* `LauncherAccountRecord`
+* `LauncherCapeRecord`
+* `LauncherProgress`
+* `LoaderKind`
+* `LoaderVersionInfo`
+* `MinecraftVersionInfo`
+* `LocalMod`
+* `ModrinthModels`
 
-### Accounts
+注意：
 
-- `MicrosoftAccountService`：Microsoft 登录、账户缓存、Minecraft Profile API、皮肤上传、披风应用、改名、头像生成。
+* `LauncherDefaults` 只应保留纯默认常量。
+* 路径计算不应放在 Domain。
+* Modrinth API DTO 不应放在 Domain。
+* Domain 只保留业务概念模型。
 
-这是当前最重的 Infrastructure 类之一，后续可拆分为认证客户端、Minecraft Profile API 客户端、头像渲染服务、账户缓存服务等。
+### Launcher.Application
 
-## 测试
+```text
+Launcher.Application/Services
+Launcher.Application/Repositories
+Launcher.Application/Accounts
+```
 
-测试项目：
+负责业务接口和业务编排。
 
-- `Launcher.Tests`
+典型内容：
 
-当前覆盖内容包括：
+* `ISettingsService`
+* `IGameVersionService`
+* `IGameInstanceService`
+* `GameInstanceService`
+* `ILaunchService`
+* `ILoaderProvider`
+* `IModService`
+* `IModrinthService`
+* `IGameInstanceRepository`
+* `IAccountStore`
+* `AccountStore`
+* `IMicrosoftAccountService`
 
-- 设置 JSON 读写。
-- 离线/正版账户顺序和披风缓存保存。
-- 实例创建。
-- Mod 导入、启停。
-- Modrinth 搜索 facets。
-- 下载页版本筛选、分类、搜索、选择。
-- AccountStore 的账户导入和保存。
+Application 层应该通过接口描述业务能力，不关心具体 JSON、HTTP、CmlLib 或文件系统怎么实现。
 
-后续建议补充：
+### Launcher.Infrastructure
 
-- `MainViewModel` 导航和 Shell 状态测试。
-- `GameManagementViewModel` 创建实例、搜索 Mod、安装 Mod、状态上报测试。
-- `AccountPageViewModel` 添加账户、删除账户、重命名、刷新披风、上传皮肤等命令测试。
-- Infrastructure 测试和 Application 测试可以拆成独立测试项目，避免全部混在 `Launcher.Tests`。
+```text
+Launcher.Infrastructure/Persistence
+Launcher.Infrastructure/FileSystem
+Launcher.Infrastructure/Minecraft
+Launcher.Infrastructure/Modrinth
+Launcher.Infrastructure/Accounts
+```
 
-## 构建与测试命令
+负责具体外部实现。
+
+典型内容：
+
+* `LauncherPathProvider`
+* `JsonSettingsService`
+* `JsonGameInstanceRepository`
+* `ModService`
+* `GameVersionService`
+* `LaunchService`
+* `LoaderProviders`
+* `VanillaVersionIsolator`
+* `DownloadSpeedTrackingGameInstaller`
+* `ModrinthService`
+* `Modrinth/Dto/ModrinthApiModels`
+* `MicrosoftAccountService`
+* `MicrosoftAuthProvider`
+* `MinecraftProfileClient`
+* `MinecraftSkinService`
+* `MinecraftCapeService`
+* `AccountAvatarService`
+
+### Launcher.App
+
+```text
+Launcher.App/Views
+Launcher.App/ViewModels
+Launcher.App/Controls
+Launcher.App/Behaviors
+Launcher.App/Services
+Launcher.App/Converters
+Launcher.App/Animations
+Launcher.App/Utilities
+Launcher.App/Resources
+Launcher.App/Styles
+Launcher.App/Assets
+```
+
+负责 UI、Binding、动画、控件、样式、文本资源和 UI 服务。
+
+### Launcher.Tests
+
+测试已按功能拆分。
+
+典型测试文件：
+
+* `SettingsServiceTests`
+* `GameInstanceServiceTests`
+* `ModServiceTests`
+* `ModrinthServiceTests`
+* `DownloadPageViewModelTests`
+* `DownloadTasksPageViewModelTests`
+* `AccountStoreTests`
+* `AccountPageViewModelTests`
+* `ResourceDictionaryTests`
+
+不要重新创建大杂烩式测试文件，例如旧的 `LauncherCoreTests.cs`。
+
+---
+
+## 6. Codex / 自动化代理强制规则
+
+后续所有 Codex 修改必须遵守：
+
+1. 不要为了快速实现，把代码塞进最近的 ViewModel。
+2. 不要把新业务塞进 `MainViewModel`。
+3. 不要把多个功能区塞进一个巨大 ViewModel。
+4. 不要在 ViewModel 中直接访问文件系统、网络 API、CmlLib、Microsoft Auth 或 Modrinth API。
+5. 不要在 code-behind 中写业务流程。
+6. 不要在 XAML 或 C# 中硬编码用户可见文本。
+7. 不要复制大量重复 XAML 样式。
+8. 不要让 Domain 依赖外部 API DTO、JSON、WPF 或文件路径。
+9. 不要让 Application 依赖 WPF 或 Infrastructure 具体实现。
+10. 不要恢复 `Launcher.Core`。
+
+---
+
+## 7. 新功能开发流程
+
+新增功能时必须按以下顺序设计：
+
+1. 判断是否需要新增 Domain 模型或枚举。
+2. 在 Application 层定义业务接口、UseCase 或 Application Service。
+3. 在 Infrastructure 层实现文件读写、API 请求、CmlLib 调用或外部依赖。
+4. 在 App 层新增 ViewModel、View、Control、Behavior、Style 或 Resource。
+5. 在 DI 中注册新服务。
+6. 添加或更新测试。
+7. 运行：
+
+```powershell
+dotnet build Launcher.sln
+```
+
+8. 如果涉及业务逻辑，运行：
+
+```powershell
+dotnet test Launcher.sln
+```
+
+不要从 ViewModel 直接开始写具体实现。
+
+---
+
+## 8. ViewModel 规则
+
+ViewModel 只负责：
+
+* 页面状态
+* Binding 属性
+* ICommand
+* 调用 Application 接口
+* 协调 UI Services
+* 页面内多个子 ViewModel 的组合
+
+ViewModel 不负责：
+
+* 文件读写
+* 网络请求
+* CmlLib 调用
+* Microsoft 登录具体实现
+* Modrinth API 具体请求
+* JSON 保存
+* 路径计算
+* 复杂业务流程
+* 大量 UI 动画细节
+
+### 大 ViewModel 拆分规则
+
+如果一个 ViewModel 同时负责三类以上业务，应优先拆分。
+
+例如账户页：
+
+```text
+AccountPageViewModel
+```
+
+只应作为组合门面，协调：
+
+```text
+AccountListViewModel
+AccountDialogViewModel
+AccountAppearanceViewModel
+```
+
+例如游戏管理页：
+
+```text
+GameManagementViewModel
+```
+
+只应作为组合门面，协调：
+
+```text
+InstanceManagementViewModel
+LoaderSelectionViewModel
+LocalModsViewModel
+ModrinthSearchViewModel
+```
+
+如果新增账户、皮肤、披风、实例、Mod、Loader 等功能，应优先放入对应子 ViewModel 或 Application Service，不要塞回大 ViewModel。
+
+---
+
+## 9. MainViewModel 限制
+
+`MainViewModel` 只能负责 Shell 级别状态：
+
+* 当前页面
+* 导航命令
+* 全局状态栏
+* 全局弹窗宿主
+* 窗口命令
+* 子页面 ViewModel 的组合与切换
+* 导航菜单选中状态
+
+`MainViewModel` 禁止负责：
+
+* Minecraft 版本下载
+* 游戏启动细节
+* 实例创建细节
+* 实例保存细节
+* Mod 搜索
+* Mod 安装
+* Mod 启停
+* Microsoft 登录
+* 皮肤上传
+* 披风应用
+* 改名 API
+* JSON 文件读写
+* CmlLib 调用
+* Modrinth API 调用
+* 文件系统操作
+
+新增功能时，如果想把代码写进 `MainViewModel`，必须先判断是否应该新建子 ViewModel、UseCase 或 Service。
+
+---
+
+## 10. View / code-behind 规则
+
+View 和 `*.xaml.cs` 只允许包含：
+
+* `InitializeComponent`
+* 纯 UI 初始化
+* 视觉树查找
+* 动画触发
+* 滚动定位
+* 控件焦点处理
+* 无法通过 Binding 表达的纯视图行为
+
+View 和 `*.xaml.cs` 禁止包含：
+
+* 账户登录流程
+* 下载逻辑
+* 实例创建
+* Mod 管理
+* 设置保存
+* 文件读写
+* API 请求
+* CmlLib 调用
+* 业务判断
+* 业务状态修改
+
+按钮点击、选择状态、页面切换、确认操作，优先使用：
+
+```text
+Binding + ICommand
+```
+
+---
+
+## 11. UI 文本规则
+
+所有用户可见文本必须放入：
+
+```text
+Launcher.App/Resources/Strings.resx
+```
+
+并通过：
+
+```text
+Launcher.App/Resources/Strings.cs
+```
+
+访问。
+
+用户可见文本包括：
+
+* 页面标题
+* 菜单文字
+* 按钮文字
+* 弹窗标题
+* 弹窗内容
+* 状态栏提示
+* 错误提示
+* 空状态提示
+* 确认 / 取消 / 删除 / 重命名等操作文字
+
+禁止在 XAML 或 C# 中直接硬编码用户可见文本，例如：
+
+```csharp
+_statusService.Report("启动失败");
+```
+
+应使用：
+
+```csharp
+_statusService.Report(Strings.Status_LaunchFailed);
+```
+
+XAML 中应使用资源引用，例如：
+
+```xml
+Text="{x:Static res:Strings.Page_Home}"
+```
+
+允许保留在代码中的字符串：
+
+* 内部日志 key
+* API 参数
+* 文件名
+* 协议字段
+* 不直接展示给用户的技术异常信息
+* 测试数据
+* 调试信息
+
+底层 exception message 不应直接展示给用户。
+用户看到的错误应转换为 `Strings.resx` 中的友好文案。
+
+---
+
+## 12. 新代码放置规则
+
+新增文件时按职责放置：
+
+```text
+页面 XAML
+-> Launcher.App/Views
+
+页面状态、命令、Binding 属性
+-> Launcher.App/ViewModels
+
+可复用控件
+-> Launcher.App/Controls
+
+Attached Behavior、滚动行为、UI 动画行为
+-> Launcher.App/Behaviors
+
+自定义 Animation
+-> Launcher.App/Animations
+
+视觉树查找、纯 UI 工具方法
+-> Launcher.App/Utilities
+
+颜色、字体、间距、圆角、阴影
+-> Launcher.App/Resources
+
+控件样式
+-> Launcher.App/Styles
+
+用户可见文本
+-> Launcher.App/Resources/Strings.resx
+
+业务接口
+-> Launcher.Application/Services
+
+UseCase / 业务流程
+-> Launcher.Application
+
+仓储接口
+-> Launcher.Application/Repositories
+
+账户业务编排
+-> Launcher.Application/Accounts
+
+纯模型、枚举、领域状态
+-> Launcher.Domain/Models
+
+JSON 读写
+-> Launcher.Infrastructure/Persistence
+
+路径计算
+-> Launcher.Infrastructure/LauncherPathProvider 或 Infrastructure 相关目录
+
+CmlLib 实现
+-> Launcher.Infrastructure/Minecraft
+
+Microsoft 登录 / Profile API
+-> Launcher.Infrastructure/Accounts
+
+Modrinth API DTO / Client / 实现
+-> Launcher.Infrastructure/Modrinth
+
+本地文件系统操作
+-> Launcher.Infrastructure/FileSystem
+
+测试
+-> Launcher.Tests
+```
+
+不确定文件应该放哪里时，先判断职责，不要直接创建。
+
+---
+
+## 13. 可拆分优先原则
+
+出现以下情况时，优先拆分：
+
+* 一个类超过 300 行并继续增长。
+* 一个 ViewModel 管理多个功能区。
+* 一个 Service 同时处理多种外部 API。
+* 一个方法超过 80 行。
+* 一个类依赖太多服务。
+* 一个类既处理 UI 状态又处理业务流程。
+* 类名变成模糊的 `Manager`、`Helper`、`Controller`，但职责不清。
+* 为了新增功能需要频繁修改同一个大类。
+
+推荐拆分方式：
+
+```text
+页面组合 VM
+-> 只负责组合和协调
+
+子 ViewModel
+-> 负责具体页面区域状态
+
+Application Service / UseCase
+-> 负责业务流程
+
+Infrastructure Service
+-> 负责具体外部实现
+```
+
+不要为了“少文件”把所有逻辑堆进一个大类。
+
+---
+
+## 14. 样式和控件复用规则
+
+不要在页面 XAML 中复制大量重复样式。
+
+以下内容应优先抽到 ResourceDictionary、Style、ControlTemplate、UserControl 或 CustomControl：
+
+* 按钮样式
+* 列表项样式
+* 卡片样式
+* 弹窗样式
+* 输入框样式
+* 滚动条样式
+* 页面标题样式
+* 圆角
+* 阴影
+* 间距
+* 字体
+* 颜色
+* 重复出现的布局结构
+
+当前样式目录：
+
+```text
+Launcher.App/Resources/ThemeResources.xaml
+Launcher.App/Styles/ControlStyles.xaml
+Launcher.App/Styles/ControlStyles.Navigation.xaml
+Launcher.App/Styles/ControlStyles.Page.xaml
+Launcher.App/Styles/ControlStyles.Scroll.xaml
+Launcher.App/Styles/ControlStyles.Lists.xaml
+Launcher.App/Styles/ControlStyles.Buttons.xaml
+Launcher.App/Styles/ControlStyles.Dialogs.xaml
+Launcher.App/Styles/ControlStyles.Inputs.xaml
+```
+
+新增样式前，先检查是否已有可复用样式。
+
+---
+
+## 15. WPF 长列表性能规则
+
+涉及长列表时，例如：
+
+* 版本列表
+* Mod 列表
+* 实例列表
+* 账户列表
+* 搜索结果列表
+
+必须优先使用 WPF 原生虚拟化。
+
+要求：
+
+* 使用 `ListBox` / `ListView` + `VirtualizingStackPanel`。
+* 开启 `VirtualizingPanel.IsVirtualizing="True"`。
+* 开启 `VirtualizingPanel.VirtualizationMode="Recycling"`。
+* 不要在虚拟化列表外层套普通 `ScrollViewer`。
+* 不要手写虚拟列表，除非有明确必要。
+* 不要在滚动时频繁 Clear / Add / Remove 整个集合。
+* 平滑滚动只能控制 ScrollViewer offset，不应触发集合重建。
+* 列表项模板避免过多阴影、模糊、大图片和复杂视觉树。
+* 图片应尽量加载缩略图并缓存。
+
+下载版本列表必须保持：
+
+```text
+WPF 原生 ListBox + VirtualizingStackPanel + Recycling
+```
+
+不要恢复旧的手写虚拟列表。
+
+---
+
+## 16. 下载页规则
+
+下载页已经有明确结构：
+
+```text
+DownloadPageViewModel
+DownloadVersionFilter
+DownloadInstanceNameTracker
+DownloadInstallProgress
+DownloadTasksPageViewModel
+DownloadVersionListView
+DownloadInstanceOptionsView
+```
+
+要求：
+
+* 版本筛选逻辑放在 `DownloadVersionFilter` 或相关 Application 逻辑中。
+* 实例名重复判断放在 `DownloadInstanceNameTracker`。
+* 安装进度适配放在 `DownloadInstallProgress`。
+* 下载任务状态放在 `DownloadTasksPageViewModel`。
+* 下载列表 UI 行为可以留在 `DownloadVersionListView.xaml.cs`，但不能手写虚拟窗口。
+* 页面切换动画和滚动定位应保持为纯 UI 行为。
+
+---
+
+## 17. 账户页规则
+
+账户页已经拆成：
+
+```text
+AccountPageViewModel
+AccountListViewModel
+AccountDialogViewModel
+AccountAppearanceViewModel
+```
+
+要求：
+
+* `AccountPageViewModel` 只作为组合门面。
+* 账户列表、选择、默认账户放在 `AccountListViewModel`。
+* 添加、删除、重命名、Microsoft 登录弹窗流程放在 `AccountDialogViewModel`。
+* 皮肤、披风、资料刷新放在 `AccountAppearanceViewModel`。
+* 账户持久化和账户顺序保存通过 `IAccountStore`。
+* Microsoft 登录、皮肤、披风、改名通过 `IMicrosoftAccountService`。
+* 不要把账户新功能重新塞回 `AccountPageViewModel`。
+
+---
+
+## 18. 游戏管理页规则
+
+游戏管理页已经拆成：
+
+```text
+GameManagementViewModel
+InstanceManagementViewModel
+LoaderSelectionViewModel
+LocalModsViewModel
+ModrinthSearchViewModel
+```
+
+要求：
+
+* `GameManagementViewModel` 只作为组合门面。
+* 实例列表、创建、保存、默认实例放在 `InstanceManagementViewModel`。
+* Minecraft 版本和 Loader 选择放在 `LoaderSelectionViewModel`。
+* 本地 Mod 导入、启停、删除、刷新放在 `LocalModsViewModel`。
+* Modrinth 搜索和安装放在 `ModrinthSearchViewModel`。
+* 实例业务下沉到 `IGameInstanceService` 或 Application UseCase。
+* Mod 文件操作通过 `IModService`。
+* Modrinth 安装通过 `IModrinthService`。
+* 不要把新游戏管理功能重新塞回 `GameManagementViewModel`。
+
+---
+
+## 19. Infrastructure 规则
+
+Infrastructure 可以依赖外部库和系统 API。
+
+允许：
+
+* `HttpClient`
+* CmlLib
+* Microsoft Auth
+* Minecraft Profile API
+* Modrinth API
+* JSON
+* 文件系统
+* 路径计算
+* 图片下载和缓存
+
+要求：
+
+* 对外暴露 Application 层接口。
+* 外部 API DTO 放在 Infrastructure 内部目录，例如 `Modrinth/Dto`。
+* 不要让 App 直接依赖 Infrastructure 小服务。
+* 如果一个 Infrastructure Service 太大，应拆成多个内部服务，再用 facade 对外提供接口。
+
+例如 Microsoft 账户：
+
+```text
+MicrosoftAccountService
+-> facade
+
+MicrosoftAuthProvider
+-> 登录和 token
+
+MinecraftProfileClient
+-> Profile API
+
+MinecraftSkinService
+-> 皮肤上传
+
+MinecraftCapeService
+-> 披风读取和应用
+
+AccountAvatarService
+-> 头像下载、缓存、生成
+```
+
+---
+
+## 20. 测试规则
+
+新增业务逻辑时，应补充测试。
+
+优先测试：
+
+* Application Service / UseCase
+* ViewModel 命令和状态
+* Repository / Infrastructure 行为
+* ResourceDictionary 加载
+* 长列表筛选和任务状态
+* 边界条件
+
+测试禁止依赖：
+
+* 真实 Microsoft 登录
+* 真实大型用户目录
+* 不稳定网络
+* 用户本地真实数据
+
+应使用：
+
+* fake service
+* mock
+* 临时目录
+* 测试专用数据
+* 捕获用 handler
+
+测试文件应按功能拆分，不要重新写一个大杂烩测试文件。
+
+---
+
+## 21. 编码和文本规则
+
+* 所有 `.cs`、`.xaml`、`.resx`、`.json`、`.md` 文件应使用 UTF-8。
+* 修改中文文案后必须检查是否乱码。
+* 新增用户可见文本必须写入 `Strings.resx`。
+* 不要混用多套中文 / 英文硬编码提示。
+* 不要把底层技术异常直接展示给用户。
+* `Strings.cs` 是手写资源包装类。
+* 不要把手写资源包装类命名为 `Strings.Designer.cs`，避免和自动生成文件混淆。
+
+---
+
+## 22. 构建与测试命令
 
 常用命令：
 
@@ -285,86 +900,97 @@ dotnet build Launcher.sln
 dotnet test Launcher.sln
 ```
 
-在受限沙箱或桌面工具中，WPF 项目构建可能需要读取本机 Microsoft SDK 缓存。如果出现类似 `Access to the path ... Microsoft SDKs is denied`，需要允许 `dotnet build` 或 `dotnet test` 访问 SDK 路径。
+修改 XAML、资源字典、样式后，至少运行：
 
-## 已知问题与维护提醒
+```powershell
+dotnet build Launcher.sln
+```
 
-1. 仍存在部分中文乱码字符串。
-   - 已修复主页按钮文案，但 `MainViewModel`、`GameManagementViewModel`、`GameInstanceService` 等文件中仍可能有乱码状态文案或异常信息。
-   - 修改中文时请确保文件以 UTF-8 保存。
+修改业务逻辑、ViewModel、Service、Repository 后，运行：
 
-2. `AccountPageViewModel` 职责偏重。
-   - 它同时管理账户列表、弹窗流程、Microsoft 登录、皮肤、披风、重命名和持久化协调。
-   - 后续建议拆成账户列表 VM、账户详情 VM、弹窗状态 VM，业务流程下沉到 Application UseCase。
+```powershell
+dotnet test Launcher.sln
+```
 
-3. `GameManagementViewModel` 仍偏大。
-   - 它同时管理实例、版本、Loader、Mod、Modrinth 和设置保存。
-   - 可拆成实例管理、版本选择、Mod 管理等子模块。
+如果 WPF 构建在受限环境出现 SDK 路径权限问题，需要在本机正常 PowerShell 环境中重新运行。
 
-4. Domain 层还不够纯。
-   - `LauncherDefaults` 和 `ModrinthModels` 有基础设施/外部 API 痕迹。
+---
 
-5. Infrastructure 当前依赖 WPF。
-   - `MicrosoftAccountService` 使用 WPF 图像类型生成头像，因此 `Launcher.Infrastructure` 是 `net8.0-windows` 且 `UseWPF=true`。
-   - 若要更干净，可将头像处理换成非 WPF 图像库，或单独拆成 Windows-specific adapter。
+## 23. 修改前检查清单
 
-6. App 项目直接引用 Infrastructure。
-   - 当前为了 DI 组合方便，这是可接受的启动器项目模式。
-   - 约定：除 `App.xaml.cs` 组合根外，不要在 App 层其它类直接使用 Infrastructure 具体类型。
+开始写代码前，先判断：
 
-## 开发约定
+* 这个功能属于 UI、业务、领域模型，还是外部实现？
+* 是否需要新增接口？
+* 是否需要新增 UseCase 或 Service？
+* 是否会让 `MainViewModel` 变重？
+* 是否会让某个页面 ViewModel 继续膨胀？
+* 是否有重复 UI 可以抽成控件或样式？
+* 是否有用户可见文本需要放进 `Strings.resx`？
+* 是否需要新增测试？
+* 是否会破坏现有绑定、动画或 UI？
+* 是否会破坏依赖方向？
 
-- 优先保持 MVVM：View 只做 UI 和 Binding，ViewModel 只做状态、命令和交互协调。
-- 不要在 ViewModel 中直接访问文件系统、HttpClient、CmlLib、Microsoft Auth 或 Modrinth API。
-- 外部实现放 Infrastructure，接口放 Application。
-- 业务模型优先放 Domain；外部 API DTO 不应长期放 Domain。
-- UI 动画、窗口、剪贴板、文件选择可以留在 App Services。
-- 新增样式时优先复用 `ThemeResources.xaml` 和 `ControlStyles.xaml`，避免在页面中堆大量重复 Setter。
-- 修改 XAML 后建议至少运行 `dotnet build Launcher.sln`。
-- 修改业务或服务后建议运行 `dotnet test Launcher.sln`。
+---
 
-## 新功能开发流程
+## 24. 修改后检查清单
 
-新增功能时请按以下顺序进行：
+完成修改后，必须检查：
 
-1. 判断是否需要新增 Domain 模型或枚举。
-2. 在 Application 层定义业务接口或 UseCase。
-3. 在 Infrastructure 层实现外部依赖、文件读写或 API 调用。
-4. 在 App 层新增 ViewModel、View、控件或样式。
-5. 在 `App.xaml.cs` 或对应扩展方法中完成 DI 注册。
-6. 添加或更新测试。
-7. 运行 `dotnet build Launcher.sln`。
-8. 若修改业务逻辑，运行 `dotnet test Launcher.sln`。
+* 是否仍然符合 MVVM？
+* ViewModel 是否没有直接依赖 Infrastructure 具体实现？
+* code-behind 是否没有业务逻辑？
+* 新增 UI 文本是否进入 `Strings.resx`？
+* 是否没有恢复 `Launcher.Core`？
+* 是否没有把 API DTO 放进 Domain？
+* 是否没有复制大量重复 XAML？
+* 是否保持现有 UI 和动画？
+* 是否需要更新 AGENTS.md？
+* 是否运行 `dotnet build Launcher.sln`？
+* 涉及业务时是否运行 `dotnet test Launcher.sln`？
 
-不要先从 ViewModel 直接写具体实现。
+---
 
-## MainViewModel 限制
+## 25. 禁止事项
 
-`MainViewModel` 只能负责：
+禁止：
 
-- 当前页面状态。
-- 导航命令。
-- 全局状态栏。
-- 全局弹窗宿主。
-- 窗口命令。
-- 子页面 ViewModel 的组合。
+* 向 `Launcher.Core` 添加任何源码。
+* 把新功能直接塞进 `MainViewModel`。
+* 把多个页面的业务塞进一个 ViewModel。
+* 让 `AccountPageViewModel` 重新变成账户功能垃圾桶。
+* 让 `GameManagementViewModel` 重新变成游戏管理垃圾桶。
+* 在 ViewModel 中 new Infrastructure 服务。
+* 在 ViewModel 中直接读写文件。
+* 在 ViewModel 中直接请求网络 API。
+* 在 ViewModel 中直接调用 CmlLib。
+* 在 ViewModel 中直接调用 Microsoft Auth。
+* 在 ViewModel 中直接调用 Modrinth API。
+* 在 code-behind 中写业务流程。
+* 在 XAML 或 C# 中硬编码用户可见文本。
+* 把外部 API Response DTO 长期放在 Domain。
+* 把 WPF 类型引入 Domain 或 Application。
+* 为了快速实现而破坏依赖方向。
+* 无必要大规模重命名公共类、绑定属性或资源 key。
+* 删除现有功能或破坏现有 UI 动画。
+* 恢复旧的手写虚拟列表。
+* 把重复样式继续复制到页面 XAML。
 
-`MainViewModel` 不应负责：
+---
 
-- Minecraft 版本下载。
-- 游戏启动细节。
-- Mod 搜索、安装、启停。
-- Microsoft 登录流程。
-- 皮肤、披风、改名 API 调用。
-- JSON 文件读写。
-- 实例目录创建。
+## 26. 总原则
 
-## 禁止事项
+写代码时始终遵守：
 
-- 不要恢复或继续使用 `Launcher.Core`。
-- 不要为了快速实现功能而在 ViewModel 中直接 new Infrastructure 服务。
-- 不要在 code-behind 中写业务流程。
-- 不要把 API Response DTO 长期放在 Domain。
-- 不要把 WPF 类型引入 Application 或 Domain。
-- 不要在页面 XAML 中复制大量重复样式，应优先提取到 ResourceDictionary。
-- 不要在没有必要的情况下大规模重命名公共类和文件，避免破坏现有测试和绑定。
+```text
+UI 归 UI
+业务归 Application
+模型归 Domain
+外部实现归 Infrastructure
+测试归 Tests
+文本归 Strings.resx
+样式归 ResourceDictionary
+长逻辑要拆
+大 ViewModel 要拆
+MainViewModel 不准变垃圾桶
+```
