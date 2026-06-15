@@ -1,0 +1,14 @@
+global using Launcher.App.ViewModels.Account;
+global using Launcher.App.ViewModels.Download;
+global using Launcher.App.ViewModels.GameSettings;
+global using Launcher.App.ViewModels.Home;
+global using Launcher.App.ViewModels.Shared;
+global using Launcher.App.ViewModels.Shell;
+global using Launcher.App.Views.Account;
+global using Launcher.App.Views.Account.Dialogs;
+global using Launcher.App.Views.Download;
+global using Launcher.App.Views.GameSettings;
+global using Launcher.App.Views.General;
+global using Launcher.App.Views.Home;
+global using Launcher.App.Views.Install;
+global using Launcher.App.Views.Shell;

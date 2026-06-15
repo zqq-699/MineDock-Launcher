@@ -1,7 +1,6 @@
-using System.Windows;
+﻿using System.Windows;
 using Launcher.Application.DependencyInjection;
 using Launcher.App.Services;
-using Launcher.App.ViewModels;
 using Launcher.Infrastructure.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -54,3 +53,4 @@ public partial class App : System.Windows.Application
         base.OnExit(e);
     }
 }
+

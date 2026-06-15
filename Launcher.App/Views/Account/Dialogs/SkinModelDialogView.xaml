@@ -1,0 +1,57 @@
+﻿<UserControl x:Class="Launcher.App.Views.Account.Dialogs.SkinModelDialogView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:Launcher.App.Models"
+             xmlns:res="clr-namespace:Launcher.App.Resources"
+             Focusable="False">
+    <Grid Style="{StaticResource DialogContentGridStyle}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="{Binding Appearance.SkinModelDialog.SkinModelDialogTitle}"
+                       Style="{StaticResource DialogTitleTextStyle}" />
+            <TextBlock Text="{Binding Appearance.SkinModelDialog.SkinModelDialogSubtitle}"
+                       Style="{StaticResource DialogSubtitleTextStyle}" />
+        </StackPanel>
+
+        <ListBox Grid.Row="1"
+                 ItemsSource="{Binding Appearance.SkinModelDialog.SkinModelOptions}"
+                 SelectedItem="{Binding Appearance.SkinModelDialog.SelectedSkinModelOption, Mode=TwoWay}"
+                 Style="{StaticResource DialogChoiceListStyle}"
+                 Visibility="{Binding Appearance.SkinModelDialog.IsSkinModelSelectionStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type models:AccountSkinModelOption}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Title}"
+                                   Foreground="#F4F4F4"
+                                   FontSize="16"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Description}"
+                                   Margin="0,5,0,0"
+                                   Foreground="#AFFFFFFF"
+                                   FontSize="12"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <StackPanel Grid.Row="2"
+                    Style="{StaticResource DialogFooterStyle}">
+            <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                    Content="{x:Static res:Strings.Cancel_Button}"
+                    Command="{Binding Appearance.RequestCancelSkinModelDialogCommand}"
+                    Visibility="{Binding Appearance.SkinModelDialog.CanShowSkinModelDialogCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+            <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                    Margin="{StaticResource DialogTrailingButtonMargin}"
+                    Content="{x:Static res:Strings.Confirm_Button}"
+                    IsEnabled="{Binding Appearance.SkinModelDialog.CanConfirmSkinModelDialog}"
+                    Command="{Binding Appearance.RequestConfirmSkinModelDialogCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>
+
