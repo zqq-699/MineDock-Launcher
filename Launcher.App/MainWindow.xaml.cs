@@ -53,7 +53,8 @@ public partial class MainWindow : Window
             WindowContentLayer,
             AddAccountDialogHost,
             DeleteAccountDialogHost,
-            RenameAccountDialogHost);
+            RenameAccountDialogHost,
+            SkinModelDialogHost);
 
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
         viewModel.DownloadTasksPage.TaskStarted += DownloadTasksPage_TaskStarted;

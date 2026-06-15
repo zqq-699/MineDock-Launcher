@@ -20,6 +20,9 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     [ObservableProperty]
     private string accountProfileMessage = string.Empty;
 
+    [ObservableProperty]
+    private string accountProfileErrorCodeMessage = string.Empty;
+
     public AccountAppearanceViewModel(
         AccountListViewModel accountList,
         IMicrosoftAccountService microsoftAccountService)
@@ -44,7 +47,9 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
     public bool HasSelectedAccountCapes => SelectedAccountCapeOptions.Count > 0;
 
-    public async Task ChangeSelectedAccountSkinAsync(string skinFilePath)
+    public bool HasAccountProfileErrorCode => !string.IsNullOrWhiteSpace(AccountProfileErrorCodeMessage);
+
+    public async Task ChangeSelectedAccountSkinAsync(string skinFilePath, MinecraftSkinModel skinModel)
     {
         var account = accountList.SelectedAccount;
         if (account is null)
@@ -59,16 +64,18 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         try
         {
             IsAccountProfileBusy = true;
+            AccountProfileErrorCodeMessage = string.Empty;
             AccountProfileMessage = Strings.Status_UploadingSkin;
-            var updatedAccount = await microsoftAccountService.UploadSkinAsync(account, skinFilePath);
+            var updatedAccount = await microsoftAccountService.UploadSkinAsync(account, skinFilePath, skinModel);
             accountList.ReplaceSelectedAccount(account, updatedAccount);
             await accountList.PersistAccountOrderAsync();
             AccountProfileMessage = Strings.Status_SkinUpdated;
             await LoadSelectedAccountProfileAsync(updatedAccount);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             AccountProfileMessage = Strings.Status_SkinUpdateFailed;
+            AccountProfileErrorCodeMessage = GetErrorCodeMessage(ex);
         }
         finally
         {
@@ -80,6 +87,89 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     {
         if (accountList.SelectedAccount is not null)
             await LoadSelectedAccountProfileAsync(accountList.SelectedAccount);
+    }
+
+    public async Task RefreshSelectedAccountInfoAsync()
+    {
+        var account = accountList.SelectedAccount;
+        if (account is null)
+            return;
+
+        if (account.IsOffline)
+        {
+            AccountProfileMessage = Strings.Status_AccountProfileRefreshOfflineUnsupported;
+            return;
+        }
+
+        try
+        {
+            IsAccountProfileBusy = true;
+            AccountProfileErrorCodeMessage = string.Empty;
+            AccountProfileMessage = Strings.Status_RefreshingAccountProfile;
+            var refreshedAccount = await microsoftAccountService.RefreshAccountProfileAsync(account);
+            accountList.ReplaceSelectedAccount(
+                account,
+                AccountMapper.WithCapeCache(refreshedAccount, account.CachedCapeOptions));
+            await accountList.PersistAccountOrderAsync();
+            AccountProfileMessage = Strings.Status_AccountProfileRefreshed;
+        }
+        catch (Exception ex)
+        {
+            AccountProfileMessage = Strings.Status_AccountProfileRefreshFailed;
+            AccountProfileErrorCodeMessage = GetErrorCodeMessage(ex);
+        }
+        finally
+        {
+            IsAccountProfileBusy = false;
+        }
+    }
+
+    public async Task RefreshMicrosoftAccountsSilentlyAsync()
+    {
+        var accounts = accountList.Accounts
+            .Where(account => !account.IsOffline)
+            .ToList();
+        var hasChanges = false;
+
+        foreach (var account in accounts)
+        {
+            LauncherAccount refreshedAccount;
+            try
+            {
+                refreshedAccount = await microsoftAccountService.RefreshAccountProfileAsync(account);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch
+            {
+                continue;
+            }
+
+            var currentAccount = accountList.FindAccount(account.Id);
+            if (currentAccount is null)
+                continue;
+
+            if (IsAccountProfileBusy && IsSelectedAccount(currentAccount))
+                continue;
+
+            var updatedAccount = AccountMapper.WithCapeCache(
+                refreshedAccount,
+                currentAccount.CachedCapeOptions);
+            hasChanges |= accountList.TryReplaceAccount(currentAccount.Id, updatedAccount);
+        }
+
+        if (!hasChanges)
+            return;
+
+        try
+        {
+            await accountList.PersistAccountOrderAsync();
+        }
+        catch
+        {
+        }
     }
 
     public async Task RefreshCurrentSecondaryContentAsync()
@@ -106,6 +196,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         try
         {
             IsAccountProfileBusy = true;
+            AccountProfileErrorCodeMessage = string.Empty;
             AccountProfileMessage = Strings.Status_ChangingCape;
             await microsoftAccountService.SetActiveCapeAsync(account, cape.Id);
             AccountProfileMessage = cape.IsNone
@@ -117,6 +208,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         catch (Exception)
         {
             AccountProfileMessage = Strings.Status_CapeChangeFailed;
+            AccountProfileErrorCodeMessage = string.Empty;
         }
         finally
         {
@@ -134,6 +226,11 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         NotifySelectedAccountProfileActionPropertiesChanged();
     }
 
+    partial void OnAccountProfileErrorCodeMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasAccountProfileErrorCode));
+    }
+
     private async Task LoadSelectedAccountProfileAsync(LauncherAccount account)
     {
         SelectedAccountCapeOptions.Clear();
@@ -141,7 +238,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         OnPropertyChanged(nameof(HasSelectedAccountCapes));
         OnPropertyChanged(nameof(CanApplySelectedCape));
 
-        if (!ReferenceEquals(accountList.SelectedAccount, account))
+        if (!IsSelectedAccount(account))
             return;
 
         if (account.IsOffline)
@@ -153,9 +250,10 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         try
         {
             IsAccountProfileBusy = true;
+            AccountProfileErrorCodeMessage = string.Empty;
             AccountProfileMessage = Strings.Status_LoadingAccountProfile;
             var capes = await microsoftAccountService.GetCapesAsync(account);
-            if (!ReferenceEquals(accountList.SelectedAccount, account))
+            if (!IsSelectedAccount(account))
                 return;
 
             PopulateSelectedAccountCapeOptions(capes);
@@ -165,16 +263,27 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
                 ? Strings.Account_ProfileNoCapes
                 : Strings.Account_ProfileLoaded;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            if (ReferenceEquals(accountList.SelectedAccount, account))
+            if (IsSelectedAccount(account))
+            {
                 AccountProfileMessage = Strings.Status_LoadAccountProfileFailed;
+                AccountProfileErrorCodeMessage = GetErrorCodeMessage(ex);
+            }
         }
         finally
         {
-            if (ReferenceEquals(accountList.SelectedAccount, account))
+            if (IsSelectedAccount(account))
                 IsAccountProfileBusy = false;
         }
+    }
+
+    private bool IsSelectedAccount(LauncherAccount account)
+    {
+        var selectedAccount = accountList.SelectedAccount;
+        return ReferenceEquals(selectedAccount, account)
+            || (selectedAccount is not null
+                && string.Equals(selectedAccount.Id, account.Id, StringComparison.Ordinal));
     }
 
     private void ResetSelectedAccountProfileState(LauncherAccount? account)
@@ -185,11 +294,13 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         if (account is null)
         {
             AccountProfileMessage = string.Empty;
+            AccountProfileErrorCodeMessage = string.Empty;
             NotifyAccountSelectionPropertiesChanged();
             return;
         }
 
         PopulateSelectedAccountCapeOptions(account.CachedCapeOptions);
+        AccountProfileErrorCodeMessage = string.Empty;
         AccountProfileMessage = account.IsOffline
             ? Strings.Account_ProfileOfflineUnsupported
             : SelectedAccountCapeOptions.Count > 0
@@ -255,5 +366,19 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanEditSelectedMicrosoftAccount));
         OnPropertyChanged(nameof(CanApplySelectedCape));
+    }
+
+    private static string GetErrorCodeMessage(Exception exception)
+    {
+        var errorCode = exception switch
+        {
+            MicrosoftAccountSkinUpdateException { ErrorCode: { Length: > 0 } code } => code,
+            MicrosoftAccountProfileRefreshException { ErrorCode: { Length: > 0 } code } => code,
+            _ => null
+        };
+
+        return string.IsNullOrWhiteSpace(errorCode)
+            ? string.Empty
+            : string.Format(Strings.Status_ErrorCodeFormat, errorCode);
     }
 }

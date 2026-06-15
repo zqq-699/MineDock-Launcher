@@ -5,4 +5,5 @@ namespace Launcher.Infrastructure.Accounts;
 internal sealed record MicrosoftLoginResult(
     JEProfile? Profile,
     string? Username,
-    string? Uuid);
+    string? Uuid,
+    string? AccessToken);

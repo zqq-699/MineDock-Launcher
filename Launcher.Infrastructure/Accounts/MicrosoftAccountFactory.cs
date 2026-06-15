@@ -52,7 +52,8 @@ internal sealed class MicrosoftAccountFactory
             DisplayName = profile.Name ?? string.Empty,
             Uuid = uuid,
             AvatarSource = avatarSource,
-            IsOffline = false
+            IsOffline = false,
+            HasFreshProfile = true
         };
     }
 }

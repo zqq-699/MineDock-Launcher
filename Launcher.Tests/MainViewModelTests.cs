@@ -11,6 +11,33 @@ namespace Launcher.Tests;
 public sealed class MainViewModelTests
 {
     [Fact]
+    public async Task PrimeAsyncUsesCachedSelectedAccountForHomePage()
+    {
+        var settings = new LauncherSettings
+        {
+            SelectedAccountId = "microsoft-00000000000000000000000000000001",
+            Accounts =
+            [
+                new LauncherAccountRecord
+                {
+                    Id = "microsoft-00000000000000000000000000000001",
+                    DisplayName = "CachedName",
+                    Uuid = "00000000000000000000000000000001",
+                    AvatarSource = "cached-avatar.png",
+                    IsOffline = false
+                }
+            ]
+        };
+        var viewModel = CreateViewModel(new FakeGameInstanceService(), settings);
+
+        await viewModel.PrimeAsync();
+
+        Assert.Equal("CachedName", viewModel.AccountPage.SelectedAccount?.DisplayName);
+        Assert.Equal("CachedName", viewModel.HomePage.HomeAccountDisplayName);
+        Assert.Equal("cached-avatar.png", viewModel.HomePage.HomeAvatarUrl);
+    }
+
+    [Fact]
     public async Task HomePageRefreshesLaunchGamesWhenHomeNavigationIsRepeated()
     {
         var instanceService = new FakeGameInstanceService();
@@ -30,9 +57,11 @@ public sealed class MainViewModelTests
         Assert.Null(viewModel.HomePage.SelectedInstance);
     }
 
-    private static MainViewModel CreateViewModel(FakeGameInstanceService instanceService)
+    private static MainViewModel CreateViewModel(
+        FakeGameInstanceService instanceService,
+        LauncherSettings? settings = null)
     {
-        var settingsService = new TestSettingsService(new LauncherSettings());
+        var settingsService = new TestSettingsService(settings ?? new LauncherSettings());
         var statusService = new FakeStatusService();
         var gameVersionService = new FakeGameVersionService([]);
         var downloadTasksPage = new DownloadTasksPageViewModel();
@@ -67,10 +96,12 @@ public sealed class MainViewModelTests
             new AccountDialogViewModel(accountList, microsoftAccountService, offlineUuidService, statusService),
             new AccountAppearanceViewModel(accountList, microsoftAccountService),
             new AccountOfflineUuidViewModel(accountList, offlineUuidService, statusService),
+            new AccountSkinModelDialogViewModel(),
             statusService,
             new FakeAccountDialogService(),
             new FakeClipboardService(),
-            new FakeFilePickerService());
+            new FakeFilePickerService(),
+            new FakeSkinFileValidator());
     }
 
     private static GameInstance CreateInstance(string name, string minecraftVersion)
@@ -203,7 +234,18 @@ public sealed class MainViewModelTests
             throw new NotSupportedException();
         }
 
-        public Task<LauncherAccount> UploadSkinAsync(LauncherAccount account, string skinFilePath, CancellationToken cancellationToken = default)
+        public Task<LauncherAccount> RefreshAccountProfileAsync(
+            LauncherAccount account,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<LauncherAccount> UploadSkinAsync(
+            LauncherAccount account,
+            string skinFilePath,
+            MinecraftSkinModel skinModel,
+            CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
@@ -227,7 +269,8 @@ public sealed class MainViewModelTests
             FrameworkElement contentLayer,
             DialogHost addAccountHost,
             DialogHost deleteAccountHost,
-            DialogHost renameAccountHost)
+            DialogHost renameAccountHost,
+            DialogHost skinModelDialogHost)
         {
         }
 
@@ -240,6 +283,14 @@ public sealed class MainViewModelTests
         }
 
         public void ShowRenameAccountDialog()
+        {
+        }
+
+        public void ShowSkinModelDialog(string skinFilePath)
+        {
+        }
+
+        public void ShowSkinFormatErrorDialog()
         {
         }
 
@@ -274,6 +325,15 @@ public sealed class MainViewModelTests
             throw new NotSupportedException();
         }
 
+        public void CancelSkinModelDialog()
+        {
+        }
+
+        public Task ConfirmSkinModelDialogAsync()
+        {
+            throw new NotSupportedException();
+        }
+
         public void QueueOpenDialogBlurRefresh()
         {
         }
@@ -295,6 +355,16 @@ public sealed class MainViewModelTests
         public string? PickMinecraftSkin()
         {
             return null;
+        }
+    }
+
+    private sealed class FakeSkinFileValidator : IMinecraftSkinFileValidator
+    {
+        public Task<MinecraftSkinFileValidationResult> ValidateAsync(
+            string skinFilePath,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new MinecraftSkinFileValidationResult(true, 64, 64));
         }
     }
 }

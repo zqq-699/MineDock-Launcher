@@ -15,12 +15,17 @@ internal sealed class AccountAvatarService
     private readonly string avatarDirectory;
 
     public AccountAvatarService(HttpClient httpClient, LauncherPathProvider pathProvider)
+        : this(
+            httpClient,
+            Path.Combine(pathProvider.DefaultDataDirectory, "accounts", "microsoft", "avatars"))
+    {
+    }
+
+    internal AccountAvatarService(HttpClient httpClient, string avatarDirectory)
     {
         this.httpClient = httpClient;
-        var accountDirectory = Path.Combine(pathProvider.DefaultDataDirectory, "accounts", "microsoft");
-        avatarDirectory = Path.Combine(accountDirectory, "avatars");
-        Directory.CreateDirectory(accountDirectory);
-        Directory.CreateDirectory(avatarDirectory);
+        this.avatarDirectory = avatarDirectory;
+        Directory.CreateDirectory(this.avatarDirectory);
     }
 
     public async Task<string?> GetOrCreateAvatarSourceAsync(
@@ -32,32 +37,43 @@ internal sealed class AccountAvatarService
         if (string.IsNullOrWhiteSpace(uuid))
             return null;
 
-        var avatarPath = Path.Combine(avatarDirectory, $"{uuid}-{AvatarSize}.png");
-        if (!forceRefresh && File.Exists(avatarPath))
-            return new Uri(avatarPath).AbsoluteUri;
+        var cachedAvatarPath = GetLatestCachedAvatarPath(uuid);
+        if (!forceRefresh && cachedAvatarPath is not null)
+            return new Uri(cachedAvatarPath).AbsoluteUri;
+
+        if (!forceRefresh)
+            return GetFallbackAvatarSource(uuid, cacheBust: false);
 
         if (string.IsNullOrWhiteSpace(skinUrl))
-            return null;
+            return GetFallbackAvatarSource(uuid, forceRefresh);
 
         try
         {
+            var avatarPath = CreateAvatarPath(uuid);
             var skinBytes = await httpClient.GetByteArrayAsync(skinUrl, cancellationToken);
             var skin = LoadBitmap(skinBytes);
             var avatar = CreateAvatarBitmap(skin);
             SavePng(avatar, avatarPath);
+            DeleteStaleAvatars(uuid, avatarPath);
             return new Uri(avatarPath).AbsoluteUri;
         }
         catch
         {
-            return null;
+            return forceRefresh && cachedAvatarPath is null
+                ? GetFallbackAvatarSource(uuid, forceRefresh)
+                : cachedAvatarPath is not null && !forceRefresh
+                    ? new Uri(cachedAvatarPath).AbsoluteUri
+                    : GetFallbackAvatarSource(uuid, forceRefresh);
         }
     }
 
     public void DeleteAvatar(string uuid)
     {
-        var avatarPath = Path.Combine(avatarDirectory, $"{uuid}.png");
-        if (File.Exists(avatarPath))
-            File.Delete(avatarPath);
+        if (string.IsNullOrWhiteSpace(uuid) || !Directory.Exists(avatarDirectory))
+            return;
+
+        foreach (var avatarPath in EnumerateAvatarFiles(uuid))
+            TryDeleteFile(avatarPath);
     }
 
     private static BitmapSource LoadBitmap(byte[] bytes)
@@ -160,5 +176,57 @@ internal sealed class AccountAvatarService
 
         using var stream = File.Create(path);
         encoder.Save(stream);
+    }
+
+    private string CreateAvatarPath(string uuid)
+    {
+        return Path.Combine(avatarDirectory, $"{uuid}-{AvatarSize}-{Guid.NewGuid():N}.png");
+    }
+
+    private string? GetLatestCachedAvatarPath(string uuid)
+    {
+        return EnumerateAvatarFiles(uuid)
+            .Select(path => new FileInfo(path))
+            .OrderByDescending(file => file.LastWriteTimeUtc)
+            .FirstOrDefault()
+            ?.FullName;
+    }
+
+    private IEnumerable<string> EnumerateAvatarFiles(string uuid)
+    {
+        if (!Directory.Exists(avatarDirectory))
+            return [];
+
+        return Directory.EnumerateFiles(avatarDirectory, $"{uuid}*.png");
+    }
+
+    private void DeleteStaleAvatars(string uuid, string currentAvatarPath)
+    {
+        foreach (var avatarPath in EnumerateAvatarFiles(uuid))
+        {
+            if (string.Equals(avatarPath, currentAvatarPath, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            TryDeleteFile(avatarPath);
+        }
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch
+        {
+        }
+    }
+
+    private static string GetFallbackAvatarSource(string uuid, bool cacheBust)
+    {
+        var uri = $"https://crafatar.com/avatars/{uuid}?size={AvatarSize}&overlay";
+        return cacheBust
+            ? $"{uri}&t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}"
+            : uri;
     }
 }

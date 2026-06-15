@@ -37,6 +37,7 @@ public sealed class AccountStoreTests
                 Id = "ms-1",
                 DisplayName = "LiveName",
                 Uuid = "live-uuid",
+                HasFreshProfile = true,
                 IsOffline = false
             },
             new LauncherAccount
@@ -63,7 +64,7 @@ public sealed class AccountStoreTests
             account =>
             {
                 Assert.Equal("ms-1", account.Id);
-                Assert.Equal("StoredName", account.DisplayName);
+                Assert.Equal("LiveName", account.DisplayName);
                 Assert.Equal("live-uuid", account.Uuid);
                 Assert.False(account.IsOffline);
             },
@@ -150,6 +151,84 @@ public sealed class AccountStoreTests
         Assert.Equal(OfflineUuidGenerationMode.Random, account.OfflineUuidGenerationMode);
     }
 
+    [Fact]
+    public async Task LoadAsync_PersistsMicrosoftAvatarMergedFromCache()
+    {
+        var settings = new LauncherSettings
+        {
+            MicrosoftAccountsImported = true,
+            Accounts =
+            [
+                new()
+                {
+                    Id = "ms-1",
+                    DisplayName = "StoredName",
+                    Uuid = "uuid",
+                    IsOffline = false
+                }
+            ]
+        };
+        var settingsService = new FakeSettingsService();
+        var store = new AccountStore(
+            settingsService,
+            new FakeMicrosoftAccountService(
+                new LauncherAccount
+                {
+                    Id = "ms-1",
+                    DisplayName = "LiveName",
+                    Uuid = "uuid",
+                    AvatarSource = "cached-avatar.png",
+                    HasFreshProfile = true,
+                    IsOffline = false
+                }),
+            new FakeOfflineAccountUuidService());
+
+        var accounts = await store.LoadAsync(settings);
+
+        var account = Assert.Single(accounts);
+        Assert.Equal("LiveName", account.DisplayName);
+        Assert.Equal("cached-avatar.png", account.AvatarSource);
+        Assert.Equal(1, settingsService.SaveCount);
+        var savedAccount = Assert.Single(settings.Accounts);
+        Assert.Equal("LiveName", savedAccount.DisplayName);
+        Assert.Equal("cached-avatar.png", savedAccount.AvatarSource);
+    }
+
+    [Fact]
+    public async Task LoadAsync_KeepsStoredMicrosoftNameWhenRefreshFallsBackToCache()
+    {
+        var settings = new LauncherSettings
+        {
+            MicrosoftAccountsImported = true,
+            Accounts =
+            [
+                new()
+                {
+                    Id = "ms-1",
+                    DisplayName = "StoredName",
+                    Uuid = "uuid",
+                    IsOffline = false
+                }
+            ]
+        };
+        var store = new AccountStore(
+            new FakeSettingsService(),
+            new FakeMicrosoftAccountService(
+                new LauncherAccount
+                {
+                    Id = "ms-1",
+                    DisplayName = "CachedName",
+                    Uuid = "uuid",
+                    IsOffline = false
+                }),
+            new FakeOfflineAccountUuidService());
+
+        var accounts = await store.LoadAsync(settings);
+
+        var account = Assert.Single(accounts);
+        Assert.Equal("StoredName", account.DisplayName);
+    }
+
     private sealed class FakeSettingsService : ISettingsService
     {
         public int SaveCount { get; private set; }
@@ -198,7 +277,18 @@ public sealed class AccountStoreTests
             throw new NotSupportedException();
         }
 
-        public Task<LauncherAccount> UploadSkinAsync(LauncherAccount account, string skinFilePath, CancellationToken cancellationToken = default)
+        public Task<LauncherAccount> RefreshAccountProfileAsync(
+            LauncherAccount account,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<LauncherAccount> UploadSkinAsync(
+            LauncherAccount account,
+            string skinFilePath,
+            MinecraftSkinModel skinModel,
+            CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }

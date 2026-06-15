@@ -23,16 +23,17 @@ public sealed partial class AccountListViewModel : ObservableObject
     public async Task InitializeAsync(LauncherSettings launcherSettings)
     {
         settings = launcherSettings;
-        Accounts.Clear();
-        foreach (var account in await accountStore.LoadAsync(settings))
-            Accounts.Add(account);
+        var loadedAccounts = await accountStore.LoadAsync(settings);
+        ApplyAccounts(loadedAccounts);
+    }
 
-        var rememberedAccount = Accounts.FirstOrDefault(account =>
-            string.Equals(account.Id, settings.SelectedAccountId, StringComparison.Ordinal));
-        if (rememberedAccount is not null)
-            SelectAccount(rememberedAccount, persistSelection: false);
-        else
-            ClearSelectedAccount();
+    public void PrimeFromSettings(LauncherSettings launcherSettings)
+    {
+        settings = launcherSettings;
+        var cachedAccounts = settings.Accounts
+            .Select(AccountMapper.FromRecord)
+            .ToList();
+        ApplyAccounts(cachedAccounts);
     }
 
     public void SelectAccount(LauncherAccount account)
@@ -43,8 +44,7 @@ public sealed partial class AccountListViewModel : ObservableObject
     public void SelectAccount(LauncherAccount account, bool persistSelection)
     {
         SelectedAccount = account;
-        foreach (var item in Accounts)
-            item.IsSelected = ReferenceEquals(item, account);
+        UpdateSelectionFlags();
 
         settings.SelectedAccountId = account.Id;
         if (persistSelection)
@@ -69,15 +69,12 @@ public sealed partial class AccountListViewModel : ObservableObject
 
     public void ReplaceSelectedAccount(LauncherAccount oldAccount, LauncherAccount newAccount)
     {
-        var index = Accounts.IndexOf(oldAccount);
-        if (index >= 0)
-            Accounts[index] = newAccount;
+        if (TryReplaceAccount(oldAccount.Id, newAccount))
+            return;
 
         SelectedAccount = newAccount;
-        foreach (var item in Accounts)
-            item.IsSelected = ReferenceEquals(item, newAccount);
-
         settings.SelectedAccountId = newAccount.Id;
+        UpdateSelectionFlags();
     }
 
     public async Task ReplaceSelectedAccountAndPersistAsync(LauncherAccount oldAccount, LauncherAccount newAccount)
@@ -86,17 +83,70 @@ public sealed partial class AccountListViewModel : ObservableObject
         await PersistAccountOrderAsync();
     }
 
+    public bool TryReplaceAccount(string accountId, LauncherAccount newAccount)
+    {
+        var index = -1;
+        for (var i = 0; i < Accounts.Count; i++)
+        {
+            if (string.Equals(Accounts[i].Id, accountId, StringComparison.Ordinal))
+            {
+                index = i;
+                break;
+            }
+        }
+
+        if (index < 0)
+            return false;
+
+        var isSelectedAccount = SelectedAccount is not null
+            && string.Equals(SelectedAccount.Id, accountId, StringComparison.Ordinal);
+        Accounts[index] = newAccount;
+        if (isSelectedAccount)
+        {
+            SelectedAccount = newAccount;
+            settings.SelectedAccountId = newAccount.Id;
+        }
+
+        UpdateSelectionFlags();
+        return true;
+    }
+
+    public LauncherAccount? FindAccount(string accountId)
+    {
+        return Accounts.FirstOrDefault(account =>
+            string.Equals(account.Id, accountId, StringComparison.Ordinal));
+    }
+
     public void ClearSelectedAccount()
     {
         SelectedAccount = null;
         settings.SelectedAccountId = null;
-        foreach (var item in Accounts)
-            item.IsSelected = false;
+        UpdateSelectionFlags();
     }
 
     public Task PersistAccountOrderAsync()
     {
         settings.SelectedAccountId = SelectedAccount?.Id;
         return accountStore.SaveOrderAsync(settings, Accounts);
+    }
+
+    private void UpdateSelectionFlags()
+    {
+        foreach (var item in Accounts)
+            item.IsSelected = ReferenceEquals(item, SelectedAccount);
+    }
+
+    private void ApplyAccounts(IEnumerable<LauncherAccount> accounts)
+    {
+        Accounts.Clear();
+        foreach (var account in accounts)
+            Accounts.Add(account);
+
+        var rememberedAccount = Accounts.FirstOrDefault(account =>
+            string.Equals(account.Id, settings.SelectedAccountId, StringComparison.Ordinal));
+        if (rememberedAccount is not null)
+            SelectAccount(rememberedAccount, persistSelection: false);
+        else
+            ClearSelectedAccount();
     }
 }

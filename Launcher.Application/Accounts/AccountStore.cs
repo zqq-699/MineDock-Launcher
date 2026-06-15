@@ -43,9 +43,15 @@ public sealed class AccountStore : IAccountStore
             }
 
             if (microsoftAccounts.Remove(account.Id, out var microsoftAccount))
-                accounts.Add(AccountMapper.MergeStoredRecord(microsoftAccount, account));
+            {
+                var mergedAccount = AccountMapper.MergeStoredRecord(microsoftAccount, account);
+                accounts.Add(mergedAccount);
+                shouldPersistOrder |= ShouldPersistMergedMicrosoftAccount(account, mergedAccount);
+            }
             else
+            {
                 shouldPersistOrder = true;
+            }
         }
 
         foreach (var account in microsoftAccounts.Values)
@@ -100,5 +106,32 @@ public sealed class AccountStore : IAccountStore
 
         account.Uuid = uuid;
         return true;
+    }
+
+    private static bool ShouldPersistMergedMicrosoftAccount(
+        LauncherAccountRecord storedAccount,
+        LauncherAccount mergedAccount)
+    {
+        var mergedRecord = AccountMapper.ToRecord(mergedAccount);
+        return !string.Equals(storedAccount.DisplayName, mergedRecord.DisplayName, StringComparison.Ordinal)
+            || !string.Equals(storedAccount.Uuid, mergedRecord.Uuid, StringComparison.Ordinal)
+            || !string.Equals(storedAccount.AvatarSource, mergedRecord.AvatarSource, StringComparison.Ordinal)
+            || !CapeRecordsEqual(storedAccount.Capes, mergedRecord.Capes);
+    }
+
+    private static bool CapeRecordsEqual(
+        IReadOnlyList<LauncherCapeRecord> left,
+        IReadOnlyList<LauncherCapeRecord> right)
+    {
+        if (left.Count != right.Count)
+            return false;
+
+        return left
+            .Zip(right)
+            .All(pair => string.Equals(pair.First.Id, pair.Second.Id, StringComparison.Ordinal)
+                && string.Equals(pair.First.DisplayName, pair.Second.DisplayName, StringComparison.Ordinal)
+                && string.Equals(pair.First.ImageUrl, pair.Second.ImageUrl, StringComparison.Ordinal)
+                && pair.First.IsActive == pair.Second.IsActive
+                && pair.First.IsNone == pair.Second.IsNone);
     }
 }

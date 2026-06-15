@@ -11,7 +11,7 @@ public partial class App : System.Windows.Application
 {
     private ServiceProvider? serviceProvider;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
@@ -27,6 +27,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<AccountDialogViewModel>();
         services.AddSingleton<AccountAppearanceViewModel>();
         services.AddSingleton<AccountOfflineUuidViewModel>();
+        services.AddSingleton<AccountSkinModelDialogViewModel>();
         services.AddSingleton<AccountPageViewModel>();
         services.AddSingleton<DownloadTasksPageViewModel>();
         services.AddSingleton<DownloadPageViewModel>();
@@ -40,7 +41,9 @@ public partial class App : System.Windows.Application
         services.AddSingleton<MainWindow>();
 
         serviceProvider = services.BuildServiceProvider();
-        serviceProvider.GetRequiredService<MainWindow>().Show();
+        var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
+        await serviceProvider.GetRequiredService<MainViewModel>().PrimeAsync();
+        mainWindow.Show();
     }
 
     protected override void OnExit(ExitEventArgs e)

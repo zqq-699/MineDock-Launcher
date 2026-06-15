@@ -45,8 +45,7 @@
                                      UseInternalScrollViewer="False">
             <controls:SecondaryMenuFrame.MenuContent>
                 <Grid>
-                    <TextBlock Margin="22,82,22,0"
-                               Text="{x:Static res:Strings.Home_NoLaunchInstances}"
+                    <TextBlock Text="{x:Static res:Strings.Home_NoLaunchInstances}"
                                TextWrapping="Wrap">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource HomeLaunchInstanceEmptyTextStyle}">

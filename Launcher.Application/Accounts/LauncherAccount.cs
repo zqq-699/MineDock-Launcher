@@ -13,6 +13,7 @@ public sealed partial class LauncherAccount : ObservableObject
     public OfflineUuidGenerationMode OfflineUuidGenerationMode { get; init; } = OfflineUuidGenerationMode.Standard;
     public string? AvatarSource { get; init; }
     public bool IsOffline { get; init; }
+    public bool HasFreshProfile { get; init; }
     public IReadOnlyList<AccountCapeOption> CachedCapeOptions { get; init; } = [];
 
     public string AvatarUrl

@@ -55,6 +55,10 @@ public static class Strings
     public static string Account_SkinHeader => Get(nameof(Account_SkinHeader));
     public static string Account_CapeHeader => Get(nameof(Account_CapeHeader));
     public static string Account_ChangeSkinButton => Get(nameof(Account_ChangeSkinButton));
+    public static string Account_SkinModelClassicTitle => Get(nameof(Account_SkinModelClassicTitle));
+    public static string Account_SkinModelClassicDescription => Get(nameof(Account_SkinModelClassicDescription));
+    public static string Account_SkinModelSlimTitle => Get(nameof(Account_SkinModelSlimTitle));
+    public static string Account_SkinModelSlimDescription => Get(nameof(Account_SkinModelSlimDescription));
     public static string Account_UuidHeader => Get(nameof(Account_UuidHeader));
     public static string Account_OfflineUuidModeLabel => Get(nameof(Account_OfflineUuidModeLabel));
     public static string Account_OfflineUuidStandardTitle => Get(nameof(Account_OfflineUuidStandardTitle));
@@ -100,6 +104,10 @@ public static class Strings
     public static string Dialog_RenameAccountResultSubtitle => Get(nameof(Dialog_RenameAccountResultSubtitle));
     public static string Dialog_RenameMicrosoftAccountSubtitle => Get(nameof(Dialog_RenameMicrosoftAccountSubtitle));
     public static string Dialog_RenameOfflineAccountSubtitle => Get(nameof(Dialog_RenameOfflineAccountSubtitle));
+    public static string Dialog_SkinModelTitle => Get(nameof(Dialog_SkinModelTitle));
+    public static string Dialog_SkinModelSubtitle => Get(nameof(Dialog_SkinModelSubtitle));
+    public static string Dialog_SkinFormatErrorTitle => Get(nameof(Dialog_SkinFormatErrorTitle));
+    public static string Dialog_SkinFormatErrorSubtitle => Get(nameof(Dialog_SkinFormatErrorSubtitle));
     public static string Download_VersionListTitle => Get(nameof(Download_VersionListTitle));
     public static string Download_LoadingVersions => Get(nameof(Download_LoadingVersions));
     public static string Download_InstanceNameLabel => Get(nameof(Download_InstanceNameLabel));
@@ -170,6 +178,14 @@ public static class Strings
     public static string Status_AccountRenamedFormat => Get(nameof(Status_AccountRenamedFormat));
     public static string Status_AccountRenameResultFormat => Get(nameof(Status_AccountRenameResultFormat));
     public static string Status_AccountRenameFailed => Get(nameof(Status_AccountRenameFailed));
+    public static string Status_AccountRenameFailedDuplicateName => Get(nameof(Status_AccountRenameFailedDuplicateName));
+    public static string Status_AccountRenameFailedNotAllowed => Get(nameof(Status_AccountRenameFailedNotAllowed));
+    public static string Status_AccountRenameFailedInvalidName => Get(nameof(Status_AccountRenameFailedInvalidName));
+    public static string Status_RefreshingAccountProfile => Get(nameof(Status_RefreshingAccountProfile));
+    public static string Status_AccountProfileRefreshed => Get(nameof(Status_AccountProfileRefreshed));
+    public static string Status_AccountProfileRefreshFailed => Get(nameof(Status_AccountProfileRefreshFailed));
+    public static string Status_AccountProfileRefreshOfflineUnsupported => Get(nameof(Status_AccountProfileRefreshOfflineUnsupported));
+    public static string Status_ErrorCodeFormat => Get(nameof(Status_ErrorCodeFormat));
     public static string Status_SkinOfflineUnsupported => Get(nameof(Status_SkinOfflineUnsupported));
     public static string Status_UploadingSkin => Get(nameof(Status_UploadingSkin));
     public static string Status_SkinUpdated => Get(nameof(Status_SkinUpdated));

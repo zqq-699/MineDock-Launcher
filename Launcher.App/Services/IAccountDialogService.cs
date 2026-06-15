@@ -13,13 +13,18 @@ public interface IAccountDialogService
         FrameworkElement contentLayer,
         DialogHost addAccountHost,
         DialogHost deleteAccountHost,
-        DialogHost renameAccountHost);
+        DialogHost renameAccountHost,
+        DialogHost skinModelDialogHost);
 
     void ShowAddAccountDialog();
 
     void ShowDeleteAccountDialog(LauncherAccount account);
 
     void ShowRenameAccountDialog();
+
+    void ShowSkinModelDialog(string skinFilePath);
+
+    void ShowSkinFormatErrorDialog();
 
     void CancelAddAccountDialog();
 
@@ -34,6 +39,10 @@ public interface IAccountDialogService
     void CancelRenameAccountDialog();
 
     Task ConfirmRenameAccountDialogAsync();
+
+    void CancelSkinModelDialog();
+
+    Task ConfirmSkinModelDialogAsync();
 
     void QueueOpenDialogBlurRefresh();
 

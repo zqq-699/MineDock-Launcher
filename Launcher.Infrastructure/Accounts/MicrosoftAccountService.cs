@@ -28,9 +28,9 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
     public async Task<IReadOnlyList<LauncherAccount>> GetSavedAccountsAsync(CancellationToken cancellationToken = default)
     {
         var accounts = new List<LauncherAccount>();
-        foreach (var account in authProvider.GetSavedAccounts())
+        foreach (var savedAccount in authProvider.GetSavedAccounts())
         {
-            var profile = account.Profile;
+            var profile = savedAccount.Profile;
             if (profile is null
                 || string.IsNullOrWhiteSpace(profile.Username)
                 || string.IsNullOrWhiteSpace(profile.UUID))
@@ -38,10 +38,11 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
                 continue;
             }
 
-            accounts.Add(await accountFactory.CreateAccountFromProfileAsync(
+            var cachedAccount = await accountFactory.CreateAccountFromProfileAsync(
                 profile,
                 forceRefreshAvatar: false,
-                cancellationToken));
+                cancellationToken);
+            accounts.Add(cachedAccount);
         }
 
         return accounts;
@@ -50,6 +51,20 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
     public async Task<LauncherAccount> LoginInteractivelyAsync(CancellationToken cancellationToken = default)
     {
         var login = await authProvider.LoginInteractivelyAsync(cancellationToken);
+        var currentProfile = await TryGetCurrentProfileAsync(login, cancellationToken);
+        if (currentProfile is not null)
+        {
+            var account = await accountFactory.CreateAccountFromProfileAsync(
+                currentProfile,
+                forceRefreshAvatar: true,
+                cancellationToken);
+            authProvider.UpdateSavedProfile(
+                account,
+                account.DisplayName,
+                account.Uuid ?? string.Empty);
+            return account;
+        }
+
         if (login.Profile is not null
             && !string.IsNullOrWhiteSpace(login.Profile.Username)
             && !string.IsNullOrWhiteSpace(login.Profile.UUID))
@@ -77,19 +92,48 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
             avatarService.DeleteAvatar(account.Uuid);
     }
 
-    public Task<IReadOnlyList<AccountCapeOption>> GetCapesAsync(
+    public async Task<IReadOnlyList<AccountCapeOption>> GetCapesAsync(
         LauncherAccount account,
         CancellationToken cancellationToken = default)
     {
-        return capeService.GetCapesAsync(account, cancellationToken);
+        try
+        {
+            return await capeService.GetCapesAsync(account, cancellationToken);
+        }
+        catch (MinecraftProfileRequestException ex)
+        {
+            throw new MicrosoftAccountProfileRefreshException(ex.ErrorCode, ex);
+        }
     }
 
-    public Task<LauncherAccount> UploadSkinAsync(
+    public async Task<LauncherAccount> RefreshAccountProfileAsync(
         LauncherAccount account,
-        string skinFilePath,
         CancellationToken cancellationToken = default)
     {
-        return skinService.UploadSkinAsync(account, skinFilePath, cancellationToken);
+        try
+        {
+            return await RefreshSavedAccountAsync(account, cancellationToken);
+        }
+        catch (MinecraftProfileRequestException ex)
+        {
+            throw new MicrosoftAccountProfileRefreshException(ex.ErrorCode, ex);
+        }
+    }
+
+    public async Task<LauncherAccount> UploadSkinAsync(
+        LauncherAccount account,
+        string skinFilePath,
+        MinecraftSkinModel skinModel,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await skinService.UploadSkinAsync(account, skinFilePath, skinModel, cancellationToken);
+        }
+        catch (MinecraftProfileRequestException ex)
+        {
+            throw new MicrosoftAccountSkinUpdateException(ex.ErrorCode, ex);
+        }
     }
 
     public Task SetActiveCapeAsync(
@@ -105,11 +149,73 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
         string newName,
         CancellationToken cancellationToken = default)
     {
+        try
+        {
+            var accessToken = await authProvider.GetAccessTokenAsync(account, cancellationToken);
+            var profile = await profileClient.ChangeNameAsync(accessToken, newName, cancellationToken);
+            profile.Name = string.IsNullOrWhiteSpace(profile.Name) ? newName.Trim() : profile.Name;
+            var uuid = MinecraftAccountHelpers.NormalizeUuid(profile.Id);
+            authProvider.UpdateSavedProfile(
+                account,
+                profile.Name,
+                uuid);
+
+            return await accountFactory.CreateAccountFromProfileAsync(
+                profile,
+                forceRefreshAvatar: true,
+                cancellationToken);
+        }
+        catch (MinecraftProfileRequestException ex)
+        {
+            throw new MicrosoftAccountNameChangeException(
+                MapNameChangeFailure(ex.ErrorKind),
+                ex.ErrorCode,
+                ex);
+        }
+    }
+
+    private static MicrosoftAccountNameChangeFailureReason MapNameChangeFailure(MinecraftProfileErrorKind errorKind)
+    {
+        return errorKind switch
+        {
+            MinecraftProfileErrorKind.Duplicate => MicrosoftAccountNameChangeFailureReason.DuplicateName,
+            MinecraftProfileErrorKind.NotAllowed => MicrosoftAccountNameChangeFailureReason.NotAllowed,
+            MinecraftProfileErrorKind.ConstraintViolation => MicrosoftAccountNameChangeFailureReason.InvalidName,
+            _ => MicrosoftAccountNameChangeFailureReason.Unknown
+        };
+    }
+
+    private async Task<MinecraftProfileResponse?> TryGetCurrentProfileAsync(
+        MicrosoftLoginResult login,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(login.AccessToken))
+            return null;
+
+        try
+        {
+            return await profileClient.GetProfileAsync(login.AccessToken, cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task<LauncherAccount> RefreshSavedAccountAsync(
+        LauncherAccount account,
+        CancellationToken cancellationToken)
+    {
         var accessToken = await authProvider.GetAccessTokenAsync(account, cancellationToken);
-        var profile = await profileClient.ChangeNameAsync(accessToken, newName, cancellationToken);
-        return await accountFactory.CreateAccountFromProfileAsync(
+        var profile = await profileClient.GetProfileAsync(accessToken, cancellationToken);
+        var refreshedAccount = await accountFactory.CreateAccountFromProfileAsync(
             profile,
             forceRefreshAvatar: true,
             cancellationToken);
+        authProvider.UpdateSavedProfile(
+            refreshedAccount,
+            refreshedAccount.DisplayName,
+            refreshedAccount.Uuid ?? string.Empty);
+        return refreshedAccount;
     }
 }

@@ -12,7 +12,15 @@ public interface IMicrosoftAccountService
 
     Task<IReadOnlyList<AccountCapeOption>> GetCapesAsync(LauncherAccount account, CancellationToken cancellationToken = default);
 
-    Task<LauncherAccount> UploadSkinAsync(LauncherAccount account, string skinFilePath, CancellationToken cancellationToken = default);
+    Task<LauncherAccount> RefreshAccountProfileAsync(
+        LauncherAccount account,
+        CancellationToken cancellationToken = default);
+
+    Task<LauncherAccount> UploadSkinAsync(
+        LauncherAccount account,
+        string skinFilePath,
+        MinecraftSkinModel skinModel,
+        CancellationToken cancellationToken = default);
 
     Task SetActiveCapeAsync(LauncherAccount account, string? capeId, CancellationToken cancellationToken = default);
 

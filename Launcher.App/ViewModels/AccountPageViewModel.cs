@@ -15,30 +15,36 @@ public sealed partial class AccountPageViewModel : ObservableObject
     private readonly IAccountDialogService dialogService;
     private readonly IClipboardService clipboardService;
     private readonly IFilePickerService filePickerService;
+    private readonly IMinecraftSkinFileValidator skinFileValidator;
 
     public AccountPageViewModel(
         AccountListViewModel accountList,
         AccountDialogViewModel dialog,
         AccountAppearanceViewModel appearance,
         AccountOfflineUuidViewModel offlineUuid,
+        AccountSkinModelDialogViewModel skinModelDialog,
         IStatusService statusService,
         IAccountDialogService dialogService,
         IClipboardService clipboardService,
-        IFilePickerService filePickerService)
+        IFilePickerService filePickerService,
+        IMinecraftSkinFileValidator skinFileValidator)
     {
         AccountList = accountList;
         Dialog = dialog;
         Appearance = appearance;
         OfflineUuid = offlineUuid;
+        SkinModelDialog = skinModelDialog;
         this.statusService = statusService;
         this.dialogService = dialogService;
         this.clipboardService = clipboardService;
         this.filePickerService = filePickerService;
+        this.skinFileValidator = skinFileValidator;
 
         AccountList.PropertyChanged += ForwardChildPropertyChanged;
         Dialog.PropertyChanged += ForwardChildPropertyChanged;
         Appearance.PropertyChanged += ForwardChildPropertyChanged;
         OfflineUuid.PropertyChanged += ForwardChildPropertyChanged;
+        SkinModelDialog.PropertyChanged += ForwardChildPropertyChanged;
     }
 
     public AccountListViewModel AccountList { get; }
@@ -49,9 +55,12 @@ public sealed partial class AccountPageViewModel : ObservableObject
 
     public AccountOfflineUuidViewModel OfflineUuid { get; }
 
+    public AccountSkinModelDialogViewModel SkinModelDialog { get; }
+
     public ObservableCollection<LauncherAccount> Accounts => AccountList.Accounts;
     public ObservableCollection<AccountCapeOption> SelectedAccountCapeOptions => Appearance.SelectedAccountCapeOptions;
     public ObservableCollection<AccountTypeOption> AccountTypeOptions => Dialog.AccountTypeOptions;
+    public ObservableCollection<AccountSkinModelOption> SkinModelOptions => SkinModelDialog.SkinModelOptions;
 
     public LauncherAccount? SelectedAccount
     {
@@ -155,10 +164,28 @@ public sealed partial class AccountPageViewModel : ObservableObject
         set => Appearance.AccountProfileMessage = value;
     }
 
+    public string AccountProfileErrorCodeMessage
+    {
+        get => Appearance.AccountProfileErrorCodeMessage;
+        set => Appearance.AccountProfileErrorCodeMessage = value;
+    }
+
     public bool IsRenameAccountDialogOpen
     {
         get => Dialog.IsRenameAccountDialogOpen;
         set => Dialog.IsRenameAccountDialogOpen = value;
+    }
+
+    public bool IsSkinModelDialogOpen
+    {
+        get => SkinModelDialog.IsSkinModelDialogOpen;
+        set => SkinModelDialog.IsSkinModelDialogOpen = value;
+    }
+
+    public AccountSkinModelOption? SelectedSkinModelOption
+    {
+        get => SkinModelDialog.SelectedSkinModelOption;
+        set => SkinModelDialog.SelectedSkinModelOption = value;
     }
 
     public bool IsRenameAccountDialogBusy
@@ -203,6 +230,12 @@ public sealed partial class AccountPageViewModel : ObservableObject
         set => Dialog.RenameAccountMessage = value;
     }
 
+    public string RenameAccountErrorCodeMessage
+    {
+        get => Dialog.RenameAccountErrorCodeMessage;
+        set => Dialog.RenameAccountErrorCodeMessage = value;
+    }
+
     public string RenameAccountIcon
     {
         get => Dialog.RenameAccountIcon;
@@ -223,6 +256,7 @@ public sealed partial class AccountPageViewModel : ObservableObject
     public bool CanEditSelectedMicrosoftAccount => Appearance.CanEditSelectedMicrosoftAccount;
     public bool CanApplySelectedCape => Appearance.CanApplySelectedCape;
     public bool HasSelectedAccountCapes => Appearance.HasSelectedAccountCapes;
+    public bool HasAccountProfileErrorCode => Appearance.HasAccountProfileErrorCode;
     public bool IsRenameAccountInputStep => Dialog.IsRenameAccountInputStep;
     public bool IsRenameAccountStatusStep => Dialog.IsRenameAccountStatusStep;
     public bool IsRenameAccountResultStep => Dialog.IsRenameAccountResultStep;
@@ -230,6 +264,12 @@ public sealed partial class AccountPageViewModel : ObservableObject
     public bool IsRenameMicrosoftAccount => Dialog.IsRenameMicrosoftAccount;
     public bool CanShowRenameAccountCancelButton => Dialog.CanShowRenameAccountCancelButton;
     public bool CanConfirmRenameAccountDialog => Dialog.CanConfirmRenameAccountDialog;
+    public bool HasRenameAccountErrorCode => Dialog.HasRenameAccountErrorCode;
+    public bool CanConfirmSkinModelDialog => SkinModelDialog.CanConfirmSkinModelDialog;
+    public bool IsSkinModelSelectionStep => SkinModelDialog.IsSkinModelSelectionStep;
+    public bool CanShowSkinModelDialogCancelButton => SkinModelDialog.CanShowSkinModelDialogCancelButton;
+    public string SkinModelDialogTitle => SkinModelDialog.SkinModelDialogTitle;
+    public string SkinModelDialogSubtitle => SkinModelDialog.SkinModelDialogSubtitle;
     public string? MicrosoftLoginIconKey => Dialog.MicrosoftLoginIconKey;
     public string? RenameAccountIconKey => Dialog.RenameAccountIconKey;
     public string RenameAccountDialogTitle => Dialog.RenameAccountDialogTitle;
@@ -237,9 +277,15 @@ public sealed partial class AccountPageViewModel : ObservableObject
     public string AddAccountDialogTitle => Dialog.AddAccountDialogTitle;
     public string AddAccountDialogSubtitle => Dialog.AddAccountDialogSubtitle;
 
-    public Task InitializeAsync(LauncherSettings launcherSettings)
+    public async Task InitializeAsync(LauncherSettings launcherSettings)
     {
-        return AccountList.InitializeAsync(launcherSettings);
+        await AccountList.InitializeAsync(launcherSettings);
+        _ = Appearance.RefreshMicrosoftAccountsSilentlyAsync();
+    }
+
+    public void PrimeFromSettings(LauncherSettings launcherSettings)
+    {
+        AccountList.PrimeFromSettings(launcherSettings);
     }
 
     public void NotifyStatusMessage(string message)
@@ -252,14 +298,20 @@ public sealed partial class AccountPageViewModel : ObservableObject
         AccountList.SelectAccount(account);
     }
 
-    public Task ChangeSelectedAccountSkinAsync(string skinFilePath)
+    public Task ChangeSelectedAccountSkinAsync(string skinFilePath, MinecraftSkinModel skinModel)
     {
-        return Appearance.ChangeSelectedAccountSkinAsync(skinFilePath);
+        return Appearance.ChangeSelectedAccountSkinAsync(skinFilePath, skinModel);
     }
 
     public Task RefreshCurrentSecondaryContentAsync()
     {
         return Appearance.RefreshCurrentSecondaryContentAsync();
+    }
+
+    [RelayCommand]
+    public Task RefreshSelectedAccountInfoAsync()
+    {
+        return Appearance.RefreshSelectedAccountInfoAsync();
     }
 
     public void OpenAddAccountDialog()
@@ -337,6 +389,40 @@ public sealed partial class AccountPageViewModel : ObservableObject
         return Dialog.ConfirmRenameAccountDialogAsync();
     }
 
+    public void OpenSkinModelDialog(string skinFilePath)
+    {
+        SkinModelDialog.Open(skinFilePath);
+    }
+
+    public void OpenSkinFormatErrorDialog()
+    {
+        SkinModelDialog.OpenFormatError();
+    }
+
+    public void CancelSkinModelDialog()
+    {
+        SkinModelDialog.Cancel();
+    }
+
+    public void ResetSkinModelDialog()
+    {
+        SkinModelDialog.Reset();
+    }
+
+    public async Task ConfirmSkinModelDialogAsync()
+    {
+        if (SkinModelDialog.IsSkinFormatError)
+        {
+            SkinModelDialog.Cancel();
+            return;
+        }
+
+        if (!SkinModelDialog.TryConsumeSelection(out var skinFilePath, out var skinModel))
+            return;
+
+        await ChangeSelectedAccountSkinAsync(skinFilePath, skinModel);
+    }
+
     [RelayCommand]
     private void SelectAccountItem(LauncherAccount account)
     {
@@ -377,7 +463,13 @@ public sealed partial class AccountPageViewModel : ObservableObject
 
         var skinFilePath = filePickerService.PickMinecraftSkin();
         if (!string.IsNullOrWhiteSpace(skinFilePath))
-            await ChangeSelectedAccountSkinAsync(skinFilePath);
+        {
+            var validation = await skinFileValidator.ValidateAsync(skinFilePath);
+            if (validation.IsValid)
+                dialogService.ShowSkinModelDialog(skinFilePath);
+            else
+                dialogService.ShowSkinFormatErrorDialog();
+        }
     }
 
     [RelayCommand]
@@ -432,6 +524,18 @@ public sealed partial class AccountPageViewModel : ObservableObject
     private Task RequestConfirmRenameAccountDialogAsync()
     {
         return dialogService.ConfirmRenameAccountDialogAsync();
+    }
+
+    [RelayCommand]
+    private void RequestCancelSkinModelDialog()
+    {
+        dialogService.CancelSkinModelDialog();
+    }
+
+    [RelayCommand]
+    private Task RequestConfirmSkinModelDialogAsync()
+    {
+        return dialogService.ConfirmSkinModelDialogAsync();
     }
 
     private void ForwardChildPropertyChanged(object? sender, PropertyChangedEventArgs e)

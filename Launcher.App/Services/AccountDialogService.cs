@@ -14,6 +14,7 @@ public sealed class AccountDialogService : IAccountDialogService
     private DialogHost? addAccountHost;
     private DialogHost? deleteAccountHost;
     private DialogHost? renameAccountHost;
+    private DialogHost? skinModelDialogHost;
 
     public void Attach(
         AccountPageViewModel accountPage,
@@ -21,17 +22,20 @@ public sealed class AccountDialogService : IAccountDialogService
         FrameworkElement contentLayer,
         DialogHost addAccountHost,
         DialogHost deleteAccountHost,
-        DialogHost renameAccountHost)
+        DialogHost renameAccountHost,
+        DialogHost skinModelDialogHost)
     {
         this.accountPage = accountPage;
         overlayService = new DialogOverlayService(owner, contentLayer);
         this.addAccountHost = addAccountHost;
         this.deleteAccountHost = deleteAccountHost;
         this.renameAccountHost = renameAccountHost;
+        this.skinModelDialogHost = skinModelDialogHost;
 
         addAccountHost.SurfaceBorder.SizeChanged += (_, _) => QueueDialogBlurRefreshWhenIdle();
         deleteAccountHost.SurfaceBorder.SizeChanged += (_, _) => QueueDialogBlurRefreshWhenIdle();
         renameAccountHost.SurfaceBorder.SizeChanged += (_, _) => QueueDialogBlurRefreshWhenIdle();
+        skinModelDialogHost.SurfaceBorder.SizeChanged += (_, _) => QueueDialogBlurRefreshWhenIdle();
     }
 
     public void ShowAddAccountDialog()
@@ -60,6 +64,24 @@ public sealed class AccountDialogService : IAccountDialogService
         accountPage.OpenRenameAccountDialog();
         if (accountPage.IsRenameAccountDialogOpen)
             overlayService.Show(renameAccountHost);
+    }
+
+    public void ShowSkinModelDialog(string skinFilePath)
+    {
+        if (accountPage is null || overlayService is null || skinModelDialogHost is null)
+            return;
+
+        accountPage.OpenSkinModelDialog(skinFilePath);
+        overlayService.Show(skinModelDialogHost);
+    }
+
+    public void ShowSkinFormatErrorDialog()
+    {
+        if (accountPage is null || overlayService is null || skinModelDialogHost is null)
+            return;
+
+        accountPage.OpenSkinFormatErrorDialog();
+        overlayService.Show(skinModelDialogHost);
     }
 
     public void CancelAddAccountDialog()
@@ -158,6 +180,33 @@ public sealed class AccountDialogService : IAccountDialogService
             overlayService.Hide(renameAccountHost, accountPage.ResetRenameAccountDialog);
     }
 
+    public void CancelSkinModelDialog()
+    {
+        if (accountPage is null || overlayService is null || skinModelDialogHost is null)
+            return;
+
+        accountPage.CancelSkinModelDialog();
+        overlayService.Hide(skinModelDialogHost, accountPage.ResetSkinModelDialog);
+    }
+
+    public async Task ConfirmSkinModelDialogAsync()
+    {
+        if (accountPage is null || overlayService is null || skinModelDialogHost is null)
+            return;
+
+        var confirmTask = accountPage.ConfirmSkinModelDialogAsync();
+        if (!accountPage.IsSkinModelDialogOpen)
+        {
+            overlayService.Hide(skinModelDialogHost, accountPage.ResetSkinModelDialog);
+            await confirmTask;
+            return;
+        }
+
+        await confirmTask;
+        if (!accountPage.IsSkinModelDialogOpen)
+            overlayService.Hide(skinModelDialogHost, accountPage.ResetSkinModelDialog);
+    }
+
     public void QueueOpenDialogBlurRefresh()
     {
         if (accountPage is null || overlayService is null)
@@ -171,6 +220,9 @@ public sealed class AccountDialogService : IAccountDialogService
 
         if (accountPage.IsRenameAccountDialogOpen && renameAccountHost is not null)
             overlayService.QueueRefresh(renameAccountHost, BlurRefreshAttempts);
+
+        if (accountPage.IsSkinModelDialogOpen && skinModelDialogHost is not null)
+            overlayService.QueueRefresh(skinModelDialogHost, BlurRefreshAttempts);
     }
 
     public void Prewarm()
@@ -184,6 +236,8 @@ public sealed class AccountDialogService : IAccountDialogService
             overlayService.Prewarm(deleteAccountHost);
         if (renameAccountHost is not null)
             overlayService.Prewarm(renameAccountHost);
+        if (skinModelDialogHost is not null)
+            overlayService.Prewarm(skinModelDialogHost);
     }
 
     private void QueueDialogBlurRefreshWhenIdle()

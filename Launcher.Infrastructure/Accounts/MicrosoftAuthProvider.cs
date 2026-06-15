@@ -32,8 +32,10 @@ internal sealed class MicrosoftAuthProvider
         var session = await loginHandler.AuthenticateInteractively(account, cancellationToken);
         loginHandler.AccountManager.SaveAccounts();
 
-        var profile = JEGameAccount.FromSessionStorage(account.SessionStorage).Profile;
-        return new MicrosoftLoginResult(profile, session.Username, session.UUID);
+        var refreshedAccount = JEGameAccount.FromSessionStorage(account.SessionStorage);
+        var profile = refreshedAccount.Profile;
+        var accessToken = refreshedAccount.Token?.AccessToken;
+        return new MicrosoftLoginResult(profile, session.Username, session.UUID, accessToken);
     }
 
     public async Task<bool> DeleteAccountAsync(LauncherAccount account, CancellationToken cancellationToken)
@@ -72,6 +74,20 @@ internal sealed class MicrosoftAuthProvider
             throw new InvalidOperationException("\u672a\u80fd\u83b7\u53d6\u6b63\u7248\u8bbf\u95ee\u4ee4\u724c\uff0c\u8bf7\u91cd\u65b0\u767b\u5f55");
 
         return accessToken;
+    }
+
+    public void UpdateSavedProfile(LauncherAccount account, string displayName, string uuid)
+    {
+        if (string.IsNullOrWhiteSpace(uuid) || string.IsNullOrWhiteSpace(displayName))
+            return;
+
+        var savedAccount = FindSavedAccount(account);
+        if (savedAccount?.Profile is null)
+            return;
+
+        savedAccount.Profile.Username = displayName;
+        savedAccount.Profile.UUID = uuid;
+        loginHandler.AccountManager.SaveAccounts();
     }
 
     private JEGameAccount? FindSavedAccount(LauncherAccount account)

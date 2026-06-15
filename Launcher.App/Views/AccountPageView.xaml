@@ -217,7 +217,12 @@
                                   Header="{x:Static res:Strings.Account_SkinHeader}"
                                   Style="{StaticResource LauncherContentSectionStyle}">
                             <StackPanel Orientation="Horizontal">
+                                <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                        Content="{x:Static res:Strings.Refresh_Button}"
+                                        IsEnabled="{Binding CanEditSelectedMicrosoftAccount}"
+                                        Command="{Binding RefreshSelectedAccountInfoCommand}" />
                                 <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                        Margin="10,0,0,0"
                                         Content="{x:Static res:Strings.Account_ChangeSkinButton}"
                                         IsEnabled="{Binding CanChangeSelectedAccountSkin}"
                                         Command="{Binding PickAndChangeSelectedAccountSkinCommand}" />
@@ -335,6 +340,12 @@
                                            Foreground="#AFFFFFFF"
                                            FontSize="13"
                                            TextWrapping="Wrap" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Text="{Binding AccountProfileErrorCodeMessage}"
+                                           Foreground="#8FFFFFFF"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding HasAccountProfileErrorCode, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                             </StackPanel>
                         </GroupBox>
                     </StackPanel>

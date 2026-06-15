@@ -14,6 +14,7 @@ public sealed partial class MainViewModel : ObservableObject
 {
     private readonly ISettingsService settingsService;
     private readonly IWindowService windowService;
+    private bool hasPrimedSettings;
     private bool hasInitialized;
     private bool isSyncingCurrentState;
 
@@ -86,12 +87,24 @@ public sealed partial class MainViewModel : ObservableObject
 
     public ObservableCollection<NavigationItem> SecondaryItems { get; } = [];
 
+    public async Task PrimeAsync()
+    {
+        if (hasPrimedSettings)
+            return;
+
+        Settings = await settingsService.LoadAsync();
+        IsMenuExpanded = Settings.IsMenuExpanded;
+        AccountPage.PrimeFromSettings(Settings);
+        HomePage.SetSettings(Settings);
+        UpdateNavigationSelection();
+        UpdateAccountNavigationAvatar();
+        hasPrimedSettings = true;
+    }
+
     [RelayCommand]
     public async Task InitializeAsync()
     {
-        UpdateNavigationSelection();
-        Settings = await settingsService.LoadAsync();
-        IsMenuExpanded = Settings.IsMenuExpanded;
+        await PrimeAsync();
         await AccountPage.InitializeAsync(Settings);
         HomePage.SetSettings(Settings);
         await GameManagement.InitializeAsync(Settings);

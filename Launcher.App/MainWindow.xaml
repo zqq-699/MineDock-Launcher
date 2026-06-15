@@ -294,6 +294,14 @@
                                  DataContext="{Binding AccountPage}">
                 <views:RenameAccountDialogView />
             </controls:DialogHost>
+
+            <controls:DialogHost x:Name="SkinModelDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="420"
+                                 DataContext="{Binding AccountPage}">
+                <views:SkinModelDialogView />
+            </controls:DialogHost>
         </Grid>
     </Border>
 </Window>

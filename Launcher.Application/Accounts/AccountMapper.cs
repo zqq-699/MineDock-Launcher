@@ -4,7 +4,7 @@ namespace Launcher.Application.Accounts;
 
 public static class AccountMapper
 {
-    public static LauncherAccount FromOfflineRecord(LauncherAccountRecord record)
+    public static LauncherAccount FromRecord(LauncherAccountRecord record)
     {
         return new LauncherAccount
         {
@@ -13,22 +13,33 @@ public static class AccountMapper
             Uuid = record.Uuid,
             OfflineUuidGenerationMode = record.OfflineUuidGenerationMode,
             AvatarSource = record.AvatarSource,
-            IsOffline = true,
+            IsOffline = record.IsOffline,
             CachedCapeOptions = ToCapeOptions(record.Capes)
         };
     }
 
+    public static LauncherAccount FromOfflineRecord(LauncherAccountRecord record)
+    {
+        return FromRecord(record);
+    }
+
     public static LauncherAccount MergeStoredRecord(LauncherAccount account, LauncherAccountRecord record)
     {
+        var storedCapeOptions = ToCapeOptions(record.Capes);
         return new LauncherAccount
         {
             Id = account.Id,
-            DisplayName = string.IsNullOrWhiteSpace(record.DisplayName) ? account.DisplayName : record.DisplayName,
+            DisplayName = account.HasFreshProfile && !string.IsNullOrWhiteSpace(account.DisplayName)
+                ? account.DisplayName
+                : string.IsNullOrWhiteSpace(record.DisplayName) ? account.DisplayName : record.DisplayName,
             Uuid = account.Uuid,
             OfflineUuidGenerationMode = record.OfflineUuidGenerationMode,
             AvatarSource = string.IsNullOrWhiteSpace(account.AvatarSource) ? record.AvatarSource : account.AvatarSource,
             IsOffline = account.IsOffline,
-            CachedCapeOptions = ToCapeOptions(record.Capes)
+            HasFreshProfile = account.HasFreshProfile,
+            CachedCapeOptions = account.HasFreshProfile && account.CachedCapeOptions.Count > 0
+                ? account.CachedCapeOptions
+                : storedCapeOptions
         };
     }
 
@@ -44,7 +55,23 @@ public static class AccountMapper
             OfflineUuidGenerationMode = account.OfflineUuidGenerationMode,
             AvatarSource = account.AvatarSource,
             IsOffline = account.IsOffline,
+            HasFreshProfile = account.HasFreshProfile,
             CachedCapeOptions = capeOptions
+        };
+    }
+
+    public static LauncherAccount WithAvatarFallback(LauncherAccount account, string? avatarSource)
+    {
+        return new LauncherAccount
+        {
+            Id = account.Id,
+            DisplayName = account.DisplayName,
+            Uuid = account.Uuid,
+            OfflineUuidGenerationMode = account.OfflineUuidGenerationMode,
+            AvatarSource = string.IsNullOrWhiteSpace(account.AvatarSource) ? avatarSource : account.AvatarSource,
+            IsOffline = account.IsOffline,
+            HasFreshProfile = account.HasFreshProfile,
+            CachedCapeOptions = account.CachedCapeOptions
         };
     }
 
@@ -58,6 +85,7 @@ public static class AccountMapper
             OfflineUuidGenerationMode = account.OfflineUuidGenerationMode,
             AvatarSource = account.AvatarSource,
             IsOffline = account.IsOffline,
+            HasFreshProfile = account.HasFreshProfile,
             CachedCapeOptions = account.CachedCapeOptions
         };
     }
@@ -75,6 +103,7 @@ public static class AccountMapper
             OfflineUuidGenerationMode = mode,
             AvatarSource = account.AvatarSource,
             IsOffline = account.IsOffline,
+            HasFreshProfile = account.HasFreshProfile,
             CachedCapeOptions = account.CachedCapeOptions
         };
     }
@@ -93,6 +122,7 @@ public static class AccountMapper
             OfflineUuidGenerationMode = mode,
             AvatarSource = account.AvatarSource,
             IsOffline = account.IsOffline,
+            HasFreshProfile = account.HasFreshProfile,
             CachedCapeOptions = account.CachedCapeOptions
         };
     }

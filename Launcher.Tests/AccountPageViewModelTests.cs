@@ -1,5 +1,6 @@
 using System.Windows;
 using Launcher.App.Controls;
+using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.ViewModels;
 using Launcher.Application.Accounts;
@@ -110,6 +111,34 @@ public sealed class AccountPageViewModelTests
     }
 
     [Fact]
+    public async Task CompleteMicrosoftAccountLoginPersistsAvatarSource()
+    {
+        var accountStore = new FakeAccountStore();
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            LoginHandler = () => new LauncherAccount
+            {
+                Id = "microsoft-00000000000000000000000000000001",
+                DisplayName = "PlayerOne",
+                Uuid = "00000000000000000000000000000001",
+                AvatarSource = "cached-avatar.png",
+                IsOffline = false
+            }
+        };
+        var viewModel = CreateViewModel(
+            accountStore,
+            new FakeStatusService(),
+            microsoftAccountService);
+
+        await viewModel.CompleteMicrosoftAccountLoginAsync();
+
+        var account = Assert.Single(viewModel.Accounts);
+        Assert.Equal("cached-avatar.png", account.AvatarSource);
+        var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
+        Assert.Equal("cached-avatar.png", savedAccount.AvatarSource);
+    }
+
+    [Fact]
     public void SelectingOfflineUuidModeUpdatesSelectedAccount()
     {
         var accountStore = new FakeAccountStore();
@@ -157,6 +186,79 @@ public sealed class AccountPageViewModelTests
         Assert.Equal("RenamedUser", viewModel.SelectedAccount?.DisplayName);
         Assert.Equal("fixed-random", viewModel.SelectedAccount?.Uuid);
         Assert.Equal(OfflineUuidGenerationMode.Random, viewModel.SelectedAccount?.OfflineUuidGenerationMode);
+    }
+
+    [Fact]
+    public async Task RenameMicrosoftAccountKeepsAvatarWhenResponseHasNoAvatar()
+    {
+        var accountStore = new FakeAccountStore();
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            ChangeNameHandler = (account, newName) => new LauncherAccount
+            {
+                Id = account.Id,
+                DisplayName = newName,
+                Uuid = account.Uuid,
+                IsOffline = false
+            }
+        };
+        var viewModel = CreateViewModel(
+            accountStore,
+            new FakeStatusService(),
+            microsoftAccountService);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "OldName",
+            Uuid = "00000000000000000000000000000001",
+            AvatarSource = "cached-avatar.png",
+            IsOffline = false
+        };
+        viewModel.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+        viewModel.OpenRenameAccountDialog();
+        viewModel.RenameAccountName = "NewName";
+
+        await viewModel.ConfirmRenameAccountDialogAsync();
+
+        Assert.Equal("NewName", viewModel.SelectedAccount?.DisplayName);
+        Assert.Equal("cached-avatar.png", viewModel.SelectedAccount?.AvatarSource);
+        var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
+        Assert.Equal("NewName", savedAccount.DisplayName);
+    }
+
+    [Fact]
+    public async Task RenameMicrosoftAccountShowsFailureReason()
+    {
+        var statusService = new FakeStatusService();
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            ChangeNameHandler = (_, _) => throw new MicrosoftAccountNameChangeException(
+                MicrosoftAccountNameChangeFailureReason.NotAllowed,
+                "HTTP 403 / NOT_ALLOWED")
+        };
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(),
+            statusService,
+            microsoftAccountService);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "OldName",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false
+        };
+        viewModel.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+        viewModel.OpenRenameAccountDialog();
+        viewModel.RenameAccountName = "NewName";
+
+        await viewModel.ConfirmRenameAccountDialogAsync();
+
+        Assert.Equal("OldName", viewModel.SelectedAccount?.DisplayName);
+        Assert.Equal(Strings.Status_AccountRenameFailedNotAllowed, viewModel.RenameAccountMessage);
+        Assert.Equal("返回代码：HTTP 403 / NOT_ALLOWED", viewModel.RenameAccountErrorCodeMessage);
+        Assert.Equal(Strings.Status_AccountRenameFailedNotAllowed, statusService.LastMessage);
     }
 
     [Fact]
@@ -275,49 +377,491 @@ public sealed class AccountPageViewModelTests
         Assert.Equal(saveCountBeforeApply + 1, accountStore.SaveCount);
     }
 
+    [Fact]
+    public async Task PickSkinFileOpensSkinModelDialogWithoutUploading()
+    {
+        var dialogService = new FakeAccountDialogService();
+        var filePickerService = new FakeFilePickerService("skin.png");
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            UploadSkinHandler = (account, _, _) => account
+        };
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(),
+            new FakeStatusService(),
+            microsoftAccountService,
+            dialogService,
+            filePickerService);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false
+        };
+        viewModel.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        await viewModel.PickAndChangeSelectedAccountSkinCommand.ExecuteAsync(null);
+
+        Assert.Equal("skin.png", dialogService.LastSkinModelFilePath);
+        Assert.False(dialogService.WasSkinFormatErrorShown);
+        Assert.False(viewModel.IsSkinModelDialogOpen);
+        Assert.Equal(0, microsoftAccountService.UploadSkinCount);
+    }
+
+    [Fact]
+    public async Task PickInvalidSkinFileOpensFormatErrorDialog()
+    {
+        var dialogService = new FakeAccountDialogService();
+        var filePickerService = new FakeFilePickerService("bad-skin.png");
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(),
+            new FakeStatusService(),
+            dialogService: dialogService,
+            filePickerService: filePickerService,
+            skinFileValidator: new FakeSkinFileValidator(false));
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false
+        };
+        viewModel.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        await viewModel.PickAndChangeSelectedAccountSkinCommand.ExecuteAsync(null);
+
+        Assert.True(dialogService.WasSkinFormatErrorShown);
+        Assert.Null(dialogService.LastSkinModelFilePath);
+    }
+
+    [Fact]
+    public async Task ConfirmSkinModelDialogUploadsSelectedSlimModel()
+    {
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            UploadSkinHandler = (account, _, _) => account
+        };
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(),
+            new FakeStatusService(),
+            microsoftAccountService);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false
+        };
+        viewModel.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+        viewModel.OpenSkinModelDialog("skin.png");
+        Assert.True(viewModel.IsSkinModelDialogOpen);
+        Assert.Null(viewModel.SelectedSkinModelOption);
+        Assert.False(viewModel.CanConfirmSkinModelDialog);
+        viewModel.SelectedSkinModelOption = viewModel.SkinModelOptions
+            .First(option => option.Model == MinecraftSkinModel.Slim);
+        Assert.True(viewModel.CanConfirmSkinModelDialog);
+
+        await viewModel.ConfirmSkinModelDialogAsync();
+
+        Assert.False(viewModel.IsSkinModelDialogOpen);
+        Assert.Equal(1, microsoftAccountService.UploadSkinCount);
+        Assert.Equal("skin.png", microsoftAccountService.LastSkinFilePath);
+        Assert.Equal(MinecraftSkinModel.Slim, microsoftAccountService.LastSkinModel);
+    }
+
+    [Fact]
+    public async Task CancelSkinModelDialogClearsPendingSkinUpload()
+    {
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            UploadSkinHandler = (account, _, _) => account
+        };
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(),
+            new FakeStatusService(),
+            microsoftAccountService);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false
+        };
+        viewModel.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+        viewModel.OpenSkinModelDialog("skin.png");
+
+        viewModel.CancelSkinModelDialog();
+        await viewModel.ConfirmSkinModelDialogAsync();
+
+        Assert.False(viewModel.IsSkinModelDialogOpen);
+        Assert.Equal(0, microsoftAccountService.UploadSkinCount);
+    }
+
+    [Fact]
+    public async Task ChangeSkinFailureShowsReturnedCode()
+    {
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            UploadSkinHandler = (_, _, _) => throw new MicrosoftAccountSkinUpdateException("HTTP 400 / INVALID_SKIN")
+        };
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(),
+            new FakeStatusService(),
+            microsoftAccountService);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false
+        };
+        viewModel.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        await viewModel.ChangeSelectedAccountSkinAsync("skin.png", MinecraftSkinModel.Classic);
+
+        Assert.Equal(Strings.Status_SkinUpdateFailed, viewModel.AccountProfileMessage);
+        Assert.Equal("返回代码：HTTP 400 / INVALID_SKIN", viewModel.AccountProfileErrorCodeMessage);
+        Assert.True(viewModel.HasAccountProfileErrorCode);
+    }
+
+    [Fact]
+    public async Task RefreshSelectedAccountInfoUpdatesProfileAndPersists()
+    {
+        var accountStore = new FakeAccountStore();
+        var cachedCape = new AccountCapeOption
+        {
+            Id = "cape-1",
+            DisplayName = "Cape",
+            IsActive = true
+        };
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            RefreshProfileHandler = account => new LauncherAccount
+            {
+                Id = account.Id,
+                DisplayName = "NewName",
+                Uuid = account.Uuid,
+                AvatarSource = "new-avatar.png",
+                IsOffline = false,
+                HasFreshProfile = true
+            }
+        };
+        var viewModel = CreateViewModel(
+            accountStore,
+            new FakeStatusService(),
+            microsoftAccountService);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "OldName",
+            Uuid = "00000000000000000000000000000001",
+            AvatarSource = "old-avatar.png",
+            IsOffline = false,
+            CachedCapeOptions = [cachedCape]
+        };
+        viewModel.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        await viewModel.RefreshSelectedAccountInfoCommand.ExecuteAsync(null);
+
+        Assert.Equal("NewName", viewModel.SelectedAccount?.DisplayName);
+        Assert.Equal("new-avatar.png", viewModel.SelectedAccount?.AvatarSource);
+        Assert.Same(cachedCape, Assert.Single(viewModel.SelectedAccount!.CachedCapeOptions));
+        Assert.Equal(Strings.Status_AccountProfileRefreshed, viewModel.AccountProfileMessage);
+        Assert.Equal(1, microsoftAccountService.RefreshProfileCount);
+        var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
+        Assert.Equal("NewName", savedAccount.DisplayName);
+        Assert.Equal("new-avatar.png", savedAccount.AvatarSource);
+        Assert.True(viewModel.CanEditSelectedMicrosoftAccount);
+        Assert.True(viewModel.RefreshSelectedAccountInfoCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task RefreshSelectedAccountInfoFailureShowsReturnedCode()
+    {
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            RefreshProfileHandler = _ => throw new MicrosoftAccountProfileRefreshException("HTTP 401 / UNAUTHORIZED")
+        };
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(),
+            new FakeStatusService(),
+            microsoftAccountService);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false
+        };
+        viewModel.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        await viewModel.RefreshSelectedAccountInfoCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_AccountProfileRefreshFailed, viewModel.AccountProfileMessage);
+        Assert.Equal("返回代码：HTTP 401 / UNAUTHORIZED", viewModel.AccountProfileErrorCodeMessage);
+        Assert.True(viewModel.HasAccountProfileErrorCode);
+    }
+
+    [Fact]
+    public async Task InitializeShowsCachedAccountBeforeSilentRefreshCompletes()
+    {
+        var cachedAccount = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "CachedName",
+            Uuid = "00000000000000000000000000000001",
+            AvatarSource = "cached-avatar.png",
+            IsOffline = false
+        };
+        var refreshCompletion = new TaskCompletionSource<LauncherAccount>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var accountStore = new FakeAccountStore(accountsToLoad: [cachedAccount]);
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            RefreshProfileAsyncHandler = _ => refreshCompletion.Task
+        };
+        var viewModel = CreateViewModel(
+            accountStore,
+            new FakeStatusService(),
+            microsoftAccountService);
+        var settings = new LauncherSettings
+        {
+            SelectedAccountId = cachedAccount.Id
+        };
+
+        await viewModel.InitializeAsync(settings);
+
+        Assert.Same(cachedAccount, viewModel.SelectedAccount);
+        Assert.Equal("CachedName", viewModel.SelectedAccount?.DisplayName);
+        Assert.Equal("cached-avatar.png", viewModel.SelectedAccount?.AvatarSource);
+        Assert.Equal(1, microsoftAccountService.RefreshProfileCount);
+        Assert.Equal(0, accountStore.SaveCount);
+
+        refreshCompletion.SetResult(new LauncherAccount
+        {
+            Id = cachedAccount.Id,
+            DisplayName = "LiveName",
+            Uuid = cachedAccount.Uuid,
+            AvatarSource = "live-avatar.png",
+            IsOffline = false,
+            HasFreshProfile = true
+        });
+
+        await TestAsync.WaitForAsync(() =>
+            viewModel.SelectedAccount?.DisplayName == "LiveName"
+            && accountStore.SaveCount == 1);
+
+        Assert.Equal("live-avatar.png", viewModel.SelectedAccount?.AvatarSource);
+        Assert.Equal(1, accountStore.SaveCount);
+        var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
+        Assert.Equal("LiveName", savedAccount.DisplayName);
+        Assert.Equal("live-avatar.png", savedAccount.AvatarSource);
+    }
+
+    [Fact]
+    public async Task InitializeKeepsPrimedSelectedAccountWhileLoadIsPending()
+    {
+        var cachedAccount = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "CachedName",
+            Uuid = "00000000000000000000000000000001",
+            AvatarSource = "cached-avatar.png",
+            IsOffline = false
+        };
+        var settings = new LauncherSettings
+        {
+            SelectedAccountId = cachedAccount.Id,
+            Accounts =
+            [
+                new LauncherAccountRecord
+                {
+                    Id = cachedAccount.Id,
+                    DisplayName = cachedAccount.DisplayName,
+                    Uuid = cachedAccount.Uuid,
+                    AvatarSource = cachedAccount.AvatarSource,
+                    IsOffline = false
+                }
+            ]
+        };
+        var loadCompletion = new TaskCompletionSource<IReadOnlyList<LauncherAccount>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(loadAccountsAsync: () => loadCompletion.Task),
+            new FakeStatusService(),
+            new FakeMicrosoftAccountService());
+        viewModel.PrimeFromSettings(settings);
+
+        var initializeTask = viewModel.InitializeAsync(settings);
+
+        Assert.Equal("CachedName", viewModel.SelectedAccount?.DisplayName);
+        Assert.Equal("cached-avatar.png", viewModel.SelectedAccount?.AvatarSource);
+
+        loadCompletion.SetResult([cachedAccount]);
+        await initializeTask;
+
+        Assert.Equal("CachedName", viewModel.SelectedAccount?.DisplayName);
+        Assert.Equal("cached-avatar.png", viewModel.SelectedAccount?.AvatarSource);
+    }
+
+    [Fact]
+    public async Task RefreshSelectedAccountProfileCanRunAgainAfterCachingCapes()
+    {
+        var firstCape = new AccountCapeOption
+        {
+            Id = "cape-1",
+            DisplayName = "Cape",
+            IsActive = true
+        };
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            GetCapesHandler = _ => [firstCape]
+        };
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(),
+            new FakeStatusService(),
+            microsoftAccountService);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false
+        };
+        viewModel.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        await viewModel.RefreshSelectedAccountProfileCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsAccountProfileBusy);
+        Assert.True(viewModel.CanEditSelectedMicrosoftAccount);
+        Assert.True(viewModel.RefreshSelectedAccountProfileCommand.CanExecute(null));
+
+        await viewModel.RefreshSelectedAccountProfileCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, microsoftAccountService.GetCapesCount);
+        Assert.False(viewModel.IsAccountProfileBusy);
+        Assert.True(viewModel.CanEditSelectedMicrosoftAccount);
+    }
+
+    [Fact]
+    public async Task RefreshSelectedAccountProfileFailureShowsReturnedCode()
+    {
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            GetCapesHandler = _ => throw new MicrosoftAccountProfileRefreshException("HTTP 503")
+        };
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(),
+            new FakeStatusService(),
+            microsoftAccountService);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false
+        };
+        viewModel.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        await viewModel.RefreshSelectedAccountProfileCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_LoadAccountProfileFailed, viewModel.AccountProfileMessage);
+        Assert.Equal("返回代码：HTTP 503", viewModel.AccountProfileErrorCodeMessage);
+        Assert.True(viewModel.HasAccountProfileErrorCode);
+    }
+
     private static AccountPageViewModel CreateViewModel(
         FakeAccountStore accountStore,
-        FakeStatusService statusService)
+        FakeStatusService statusService,
+        FakeMicrosoftAccountService? microsoftAccountService = null,
+        FakeAccountDialogService? dialogService = null,
+        FakeFilePickerService? filePickerService = null,
+        FakeSkinFileValidator? skinFileValidator = null)
     {
         var accountList = new AccountListViewModel(accountStore);
-        var microsoftAccountService = new FakeMicrosoftAccountService();
+        var microsoftService = microsoftAccountService ?? new FakeMicrosoftAccountService();
         var offlineUuidService = new FakeOfflineAccountUuidService();
         return new AccountPageViewModel(
             accountList,
-            new AccountDialogViewModel(accountList, microsoftAccountService, offlineUuidService, statusService),
-            new AccountAppearanceViewModel(accountList, microsoftAccountService),
+            new AccountDialogViewModel(accountList, microsoftService, offlineUuidService, statusService),
+            new AccountAppearanceViewModel(accountList, microsoftService),
             new AccountOfflineUuidViewModel(accountList, offlineUuidService, statusService),
+            new AccountSkinModelDialogViewModel(),
             statusService,
-            new FakeAccountDialogService(),
+            dialogService ?? new FakeAccountDialogService(),
             new FakeClipboardService(),
-            new FakeFilePickerService());
+            filePickerService ?? new FakeFilePickerService(),
+            skinFileValidator ?? new FakeSkinFileValidator(true));
     }
 
     private sealed class FakeAccountStore : IAccountStore
     {
         private readonly TaskCompletionSource? saveCompletion;
+        private readonly IReadOnlyList<LauncherAccount> accountsToLoad;
+        private readonly Func<Task<IReadOnlyList<LauncherAccount>>>? loadAccountsAsync;
 
-        public FakeAccountStore(TaskCompletionSource? saveCompletion = null)
+        public FakeAccountStore(
+            TaskCompletionSource? saveCompletion = null,
+            IReadOnlyList<LauncherAccount>? accountsToLoad = null,
+            Func<Task<IReadOnlyList<LauncherAccount>>>? loadAccountsAsync = null)
         {
             this.saveCompletion = saveCompletion;
+            this.accountsToLoad = accountsToLoad ?? [];
+            this.loadAccountsAsync = loadAccountsAsync;
         }
 
         public int SaveCount { get; private set; }
 
+        public IReadOnlyList<LauncherAccount> LastSavedAccounts { get; private set; } = [];
+
         public Task<IReadOnlyList<LauncherAccount>> LoadAsync(LauncherSettings settings)
         {
-            return Task.FromResult<IReadOnlyList<LauncherAccount>>([]);
+            if (loadAccountsAsync is not null)
+                return loadAccountsAsync();
+
+            return Task.FromResult(accountsToLoad);
         }
 
         public Task SaveOrderAsync(LauncherSettings settings, IEnumerable<LauncherAccount> accounts)
         {
             SaveCount++;
+            LastSavedAccounts = accounts.ToList();
             return saveCompletion?.Task ?? Task.CompletedTask;
         }
     }
 
     private sealed class FakeMicrosoftAccountService : IMicrosoftAccountService
     {
+        public Func<LauncherAccount>? LoginHandler { get; init; }
+
+        public Func<LauncherAccount, string, LauncherAccount>? ChangeNameHandler { get; init; }
+
+        public Func<LauncherAccount, string, MinecraftSkinModel, LauncherAccount>? UploadSkinHandler { get; init; }
+
+        public Func<LauncherAccount, LauncherAccount>? RefreshProfileHandler { get; init; }
+
+        public Func<LauncherAccount, Task<LauncherAccount>>? RefreshProfileAsyncHandler { get; init; }
+
+        public Func<LauncherAccount, IReadOnlyList<AccountCapeOption>>? GetCapesHandler { get; init; }
+
+        public int UploadSkinCount { get; private set; }
+
+        public int RefreshProfileCount { get; private set; }
+
+        public int GetCapesCount { get; private set; }
+
+        public string? LastSkinFilePath { get; private set; }
+
+        public MinecraftSkinModel? LastSkinModel { get; private set; }
+
         public Task<IReadOnlyList<LauncherAccount>> GetSavedAccountsAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<LauncherAccount>>([]);
@@ -325,7 +869,9 @@ public sealed class AccountPageViewModelTests
 
         public Task<LauncherAccount> LoginInteractivelyAsync(CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            return LoginHandler is null
+                ? throw new NotSupportedException()
+                : Task.FromResult(LoginHandler());
         }
 
         public Task DeleteAccountAsync(LauncherAccount account, CancellationToken cancellationToken = default)
@@ -335,12 +881,37 @@ public sealed class AccountPageViewModelTests
 
         public Task<IReadOnlyList<AccountCapeOption>> GetCapesAsync(LauncherAccount account, CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            GetCapesCount++;
+            return GetCapesHandler is null
+                ? throw new NotSupportedException()
+                : Task.FromResult(GetCapesHandler(account));
         }
 
-        public Task<LauncherAccount> UploadSkinAsync(LauncherAccount account, string skinFilePath, CancellationToken cancellationToken = default)
+        public Task<LauncherAccount> RefreshAccountProfileAsync(
+            LauncherAccount account,
+            CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            RefreshProfileCount++;
+            if (RefreshProfileAsyncHandler is not null)
+                return RefreshProfileAsyncHandler(account);
+
+            return RefreshProfileHandler is null
+                ? throw new NotSupportedException()
+                : Task.FromResult(RefreshProfileHandler(account));
+        }
+
+        public Task<LauncherAccount> UploadSkinAsync(
+            LauncherAccount account,
+            string skinFilePath,
+            MinecraftSkinModel skinModel,
+            CancellationToken cancellationToken = default)
+        {
+            UploadSkinCount++;
+            LastSkinFilePath = skinFilePath;
+            LastSkinModel = skinModel;
+            return UploadSkinHandler is null
+                ? throw new NotSupportedException()
+                : Task.FromResult(UploadSkinHandler(account, skinFilePath, skinModel));
         }
 
         public Task SetActiveCapeAsync(LauncherAccount account, string? capeId, CancellationToken cancellationToken = default)
@@ -350,7 +921,9 @@ public sealed class AccountPageViewModelTests
 
         public Task<LauncherAccount> ChangeNameAsync(LauncherAccount account, string newName, CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            return ChangeNameHandler is null
+                ? throw new NotSupportedException()
+                : Task.FromResult(ChangeNameHandler(account, newName));
         }
     }
 
@@ -375,9 +948,14 @@ public sealed class AccountPageViewModelTests
             FrameworkElement contentLayer,
             DialogHost addAccountHost,
             DialogHost deleteAccountHost,
-            DialogHost renameAccountHost)
+            DialogHost renameAccountHost,
+            DialogHost skinModelDialogHost)
         {
         }
+
+        public string? LastSkinModelFilePath { get; private set; }
+
+        public bool WasSkinFormatErrorShown { get; private set; }
 
         public void ShowAddAccountDialog()
         {
@@ -389,6 +967,16 @@ public sealed class AccountPageViewModelTests
 
         public void ShowRenameAccountDialog()
         {
+        }
+
+        public void ShowSkinModelDialog(string skinFilePath)
+        {
+            LastSkinModelFilePath = skinFilePath;
+        }
+
+        public void ShowSkinFormatErrorDialog()
+        {
+            WasSkinFormatErrorShown = true;
         }
 
         public void CancelAddAccountDialog()
@@ -422,6 +1010,15 @@ public sealed class AccountPageViewModelTests
             throw new NotSupportedException();
         }
 
+        public void CancelSkinModelDialog()
+        {
+        }
+
+        public Task ConfirmSkinModelDialogAsync()
+        {
+            throw new NotSupportedException();
+        }
+
         public void QueueOpenDialogBlurRefresh()
         {
         }
@@ -440,9 +1037,26 @@ public sealed class AccountPageViewModelTests
 
     private sealed class FakeFilePickerService : IFilePickerService
     {
+        private readonly string? skinFilePath;
+
+        public FakeFilePickerService(string? skinFilePath = null)
+        {
+            this.skinFilePath = skinFilePath;
+        }
+
         public string? PickMinecraftSkin()
         {
-            return null;
+            return skinFilePath;
+        }
+    }
+
+    private sealed class FakeSkinFileValidator(bool isValid) : IMinecraftSkinFileValidator
+    {
+        public Task<MinecraftSkinFileValidationResult> ValidateAsync(
+            string skinFilePath,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new MinecraftSkinFileValidationResult(isValid, 64, isValid ? 64 : 128));
         }
     }
 }

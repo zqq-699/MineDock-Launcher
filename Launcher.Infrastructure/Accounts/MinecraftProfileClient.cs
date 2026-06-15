@@ -1,9 +1,11 @@
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Launcher.Application.Accounts;
 
 namespace Launcher.Infrastructure.Accounts;
 
@@ -38,6 +40,7 @@ internal sealed class MinecraftProfileClient
     public async Task UploadSkinAsync(
         string accessToken,
         string skinFilePath,
+        MinecraftSkinModel skinModel,
         CancellationToken cancellationToken)
     {
         if (!File.Exists(skinFilePath))
@@ -45,16 +48,21 @@ internal sealed class MinecraftProfileClient
 
         await using var fileStream = File.OpenRead(skinFilePath);
         using var content = new MultipartFormDataContent();
-        content.Add(new StringContent("classic", Encoding.UTF8), "variant");
+        content.Add(new StringContent(ToSkinVariant(skinModel), Encoding.UTF8), "variant");
 
         var fileContent = new StreamContent(fileStream);
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
         content.Add(fileContent, "file", Path.GetFileName(skinFilePath));
 
-        using var request = CreateProfileRequest(HttpMethod.Put, $"{MinecraftProfileEndpoint}/skins", accessToken);
+        using var request = CreateProfileRequest(HttpMethod.Post, $"{MinecraftProfileEndpoint}/skins", accessToken);
         request.Content = content;
         using var response = await httpClient.SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, "\u4e0a\u4f20\u76ae\u80a4\u5931\u8d25", cancellationToken);
+    }
+
+    private static string ToSkinVariant(MinecraftSkinModel skinModel)
+    {
+        return skinModel is MinecraftSkinModel.Slim ? "slim" : "classic";
     }
 
     public async Task SetActiveCapeAsync(
@@ -127,16 +135,27 @@ internal sealed class MinecraftProfileClient
             return;
 
         var details = await response.Content.ReadAsStringAsync(cancellationToken);
-        var readableDetails = TryReadMinecraftError(details) ?? details;
-        throw new InvalidOperationException(string.IsNullOrWhiteSpace(details)
+        var profileError = TryReadMinecraftError(details);
+        var readableDetails = profileError.Details ?? details;
+        throw new MinecraftProfileRequestException(
+            profileError.Kind,
+            response.StatusCode,
+            FormatErrorCode(response.StatusCode, profileError.Code),
+            string.IsNullOrWhiteSpace(details)
             ? $"{message}\uff1aHTTP {(int)response.StatusCode}"
             : $"{message}\uff1a{readableDetails}");
     }
 
-    private static string? TryReadMinecraftError(string details)
+    private static string FormatErrorCode(HttpStatusCode statusCode, string? code)
+    {
+        var httpCode = $"HTTP {(int)statusCode}";
+        return string.IsNullOrWhiteSpace(code) ? httpCode : $"{httpCode} / {code}";
+    }
+
+    private static (MinecraftProfileErrorKind Kind, string? Code, string? Details) TryReadMinecraftError(string details)
     {
         if (string.IsNullOrWhiteSpace(details))
-            return null;
+            return (MinecraftProfileErrorKind.Unknown, null, null);
 
         try
         {
@@ -147,22 +166,29 @@ internal sealed class MinecraftProfileClient
                 ?? node?["developerMessage"]?.GetValue<string>();
 
             var code = string.IsNullOrWhiteSpace(errorType) ? error : errorType;
-            var readable = code?.ToUpperInvariant() switch
+            var kind = code?.ToUpperInvariant() switch
             {
-                "DUPLICATE" => "\u8fd9\u4e2a\u7528\u6237\u540d\u5df2\u88ab\u4f7f\u7528",
-                "NOT_ALLOWED" => "\u8fd9\u4e2a\u8d26\u6237\u6682\u65f6\u4e0d\u80fd\u6539\u540d\uff0c\u53ef\u80fd\u8fd8\u672a\u6ee1 30 \u5929\u51b7\u5374\u671f",
-                "CONSTRAINT_VIOLATION" => "\u7528\u6237\u540d\u683c\u5f0f\u4e0d\u7b26\u5408 Minecraft \u89c4\u5219",
+                "DUPLICATE" => MinecraftProfileErrorKind.Duplicate,
+                "NOT_ALLOWED" => MinecraftProfileErrorKind.NotAllowed,
+                "CONSTRAINT_VIOLATION" => MinecraftProfileErrorKind.ConstraintViolation,
+                _ => MinecraftProfileErrorKind.Unknown
+            };
+            var readable = kind switch
+            {
+                MinecraftProfileErrorKind.Duplicate => "\u8fd9\u4e2a\u7528\u6237\u540d\u5df2\u88ab\u4f7f\u7528",
+                MinecraftProfileErrorKind.NotAllowed => "\u8fd9\u4e2a\u8d26\u6237\u6682\u65f6\u4e0d\u80fd\u6539\u540d\uff0c\u53ef\u80fd\u8fd8\u672a\u6ee1 30 \u5929\u51b7\u5374\u671f",
+                MinecraftProfileErrorKind.ConstraintViolation => "\u7528\u6237\u540d\u683c\u5f0f\u4e0d\u7b26\u5408 Minecraft \u89c4\u5219",
                 _ => null
             };
 
-            return readable
+            return (kind, code, readable
                 ?? errorMessage
                 ?? error
-                ?? errorType;
+                ?? errorType);
         }
         catch
         {
-            return null;
+            return (MinecraftProfileErrorKind.Unknown, null, null);
         }
     }
 }

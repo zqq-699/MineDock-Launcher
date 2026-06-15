@@ -83,6 +83,13 @@
                        Margin="0,16,0,0"
                        Style="{StaticResource DialogBodyTextStyle}"
                        TextAlignment="Center" />
+            <TextBlock Text="{Binding RenameAccountErrorCodeMessage}"
+                       Margin="0,8,0,0"
+                       Foreground="#8FFFFFFF"
+                       FontSize="12"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       Visibility="{Binding HasRenameAccountErrorCode, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
         </StackPanel>
 
         <StackPanel Grid.Row="2"

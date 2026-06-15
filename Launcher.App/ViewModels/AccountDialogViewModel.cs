@@ -84,6 +84,9 @@ public sealed partial class AccountDialogViewModel : ObservableObject
     private string renameAccountMessage = string.Empty;
 
     [ObservableProperty]
+    private string renameAccountErrorCodeMessage = string.Empty;
+
+    [ObservableProperty]
     private string renameAccountIcon = RenameInputIcon;
 
     public AccountDialogViewModel(
@@ -120,6 +123,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
     public bool CanShowRenameAccountCancelButton => !IsRenameAccountDialogBusy && IsRenameAccountInputStep;
     public bool CanConfirmRenameAccountDialog => !IsRenameAccountDialogBusy
         && (IsRenameAccountResultStep || (IsRenameAccountInputStep && !string.IsNullOrWhiteSpace(RenameAccountName)));
+    public bool HasRenameAccountErrorCode => !string.IsNullOrWhiteSpace(RenameAccountErrorCodeMessage);
 
     public string? MicrosoftLoginIconKey => IsMicrosoftLoginStep
         ? "general/general_external-web"
@@ -398,7 +402,9 @@ public sealed partial class AccountDialogViewModel : ObservableObject
             else
             {
                 var renamedAccount = await microsoftAccountService.ChangeNameAsync(account, newName);
-                updatedAccount = AccountMapper.WithCapeCache(renamedAccount, account.CachedCapeOptions);
+                updatedAccount = AccountMapper.WithCapeCache(
+                    AccountMapper.WithAvatarFallback(renamedAccount, account.AvatarSource),
+                    account.CachedCapeOptions);
             }
 
             accountList.ReplaceSelectedAccount(account, updatedAccount);
@@ -408,10 +414,12 @@ public sealed partial class AccountDialogViewModel : ObservableObject
             ReportStatus(message);
             ShowRenameAccountResult(true, string.Format(Strings.Status_AccountRenameResultFormat, updatedAccount.DisplayName));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            ReportStatus(Strings.Status_AccountRenameFailed);
-            ShowRenameAccountResult(false, Strings.Status_AccountRenameFailed);
+            var message = GetRenameFailureMessage(ex);
+            var errorCodeMessage = GetErrorCodeMessage(ex);
+            ReportStatus(message);
+            ShowRenameAccountResult(false, message, errorCodeMessage);
         }
         finally
         {
@@ -472,6 +480,11 @@ public sealed partial class AccountDialogViewModel : ObservableObject
     {
         IsRenameAccountNameInvalid = false;
         OnPropertyChanged(nameof(CanConfirmRenameAccountDialog));
+    }
+
+    partial void OnRenameAccountErrorCodeMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasRenameAccountErrorCode));
     }
 
     partial void OnNewOfflineAccountNameChanged(string value)
@@ -548,6 +561,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         IsRenameAccountSuccessful = false;
         RenameAccountIcon = RenameInputIcon;
         RenameAccountMessage = string.Empty;
+        RenameAccountErrorCodeMessage = string.Empty;
     }
 
     private void ShowMicrosoftLoginResult(bool isSuccess, string message, bool alreadyAdded = false)
@@ -559,12 +573,40 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         AddAccountDialogStep = AccountDialogSteps.AddAccountMicrosoftResult;
     }
 
-    private void ShowRenameAccountResult(bool isSuccess, string message)
+    private void ShowRenameAccountResult(bool isSuccess, string message, string errorCodeMessage = "")
     {
         IsRenameAccountSuccessful = isSuccess;
         RenameAccountIcon = isSuccess ? DialogSuccessIcon : DialogFailureIcon;
         RenameAccountMessage = message;
+        RenameAccountErrorCodeMessage = isSuccess ? string.Empty : errorCodeMessage;
         RenameAccountDialogStep = AccountDialogSteps.RenameResult;
+    }
+
+    private static string GetRenameFailureMessage(Exception exception)
+    {
+        return exception is MicrosoftAccountNameChangeException nameChangeException
+            ? nameChangeException.Reason switch
+            {
+                MicrosoftAccountNameChangeFailureReason.DuplicateName => Strings.Status_AccountRenameFailedDuplicateName,
+                MicrosoftAccountNameChangeFailureReason.NotAllowed => Strings.Status_AccountRenameFailedNotAllowed,
+                MicrosoftAccountNameChangeFailureReason.InvalidName => Strings.Status_AccountRenameFailedInvalidName,
+                _ => Strings.Status_AccountRenameFailed
+            }
+            : Strings.Status_AccountRenameFailed;
+    }
+
+    private static string GetErrorCodeMessage(Exception exception)
+    {
+        var errorCode = exception switch
+        {
+            MicrosoftAccountNameChangeException { ErrorCode: { Length: > 0 } code } => code,
+            MicrosoftAccountSkinUpdateException { ErrorCode: { Length: > 0 } code } => code,
+            _ => null
+        };
+
+        return string.IsNullOrWhiteSpace(errorCode)
+            ? string.Empty
+            : string.Format(Strings.Status_ErrorCodeFormat, errorCode);
     }
 
     private void ReportStatus(string message)
