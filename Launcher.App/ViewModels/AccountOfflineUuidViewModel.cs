@@ -15,6 +15,7 @@ public sealed partial class AccountOfflineUuidViewModel : ObservableObject
     private readonly AccountListViewModel accountList;
     private readonly IOfflineAccountUuidService offlineUuidService;
     private readonly IStatusService statusService;
+    private readonly IClipboardService clipboardService;
     private bool isRefreshingSelection;
 
     [ObservableProperty]
@@ -29,11 +30,13 @@ public sealed partial class AccountOfflineUuidViewModel : ObservableObject
     public AccountOfflineUuidViewModel(
         AccountListViewModel accountList,
         IOfflineAccountUuidService offlineUuidService,
-        IStatusService statusService)
+        IStatusService statusService,
+        IClipboardService clipboardService)
     {
         this.accountList = accountList;
         this.offlineUuidService = offlineUuidService;
         this.statusService = statusService;
+        this.clipboardService = clipboardService;
 
         OfflineUuidOptions = new ObservableCollection<OfflineUuidModeOption>(
         [
@@ -178,6 +181,14 @@ public sealed partial class AccountOfflineUuidViewModel : ObservableObject
             RefreshSelection();
             statusService.Report(Strings.Status_OfflineUuidModeChangeFailed);
         }
+    }
+
+    [RelayCommand]
+    private void CopySelectedUuid()
+    {
+        var uuid = accountList.SelectedAccount?.Uuid;
+        if (!string.IsNullOrWhiteSpace(uuid))
+            clipboardService.CopyText(uuid);
     }
 
     private void RefreshSelection()

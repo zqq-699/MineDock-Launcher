@@ -1,4 +1,4 @@
-using System.Windows.Threading;
+using Launcher.App.Services;
 using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels;
@@ -11,6 +11,7 @@ internal sealed class DownloadInstallProgress : IProgress<LauncherProgress>, IDi
     private readonly DownloadTaskItem installTask;
     private readonly long installSequence;
     private readonly Action<DownloadTaskItem, LauncherProgress, long> reportProgress;
+    private readonly IUiDispatcher uiDispatcher;
     private LauncherProgress? pendingProgress;
     private DateTimeOffset lastFlushedAt = DateTimeOffset.MinValue;
     private bool isFlushQueued;
@@ -19,11 +20,13 @@ internal sealed class DownloadInstallProgress : IProgress<LauncherProgress>, IDi
     public DownloadInstallProgress(
         DownloadTaskItem installTask,
         long installSequence,
-        Action<DownloadTaskItem, LauncherProgress, long> reportProgress)
+        Action<DownloadTaskItem, LauncherProgress, long> reportProgress,
+        IUiDispatcher uiDispatcher)
     {
         this.installTask = installTask;
         this.installSequence = installSequence;
         this.reportProgress = reportProgress;
+        this.uiDispatcher = uiDispatcher;
     }
 
     public void Report(LauncherProgress value)
@@ -83,10 +86,9 @@ internal sealed class DownloadInstallProgress : IProgress<LauncherProgress>, IDi
 
     private void PostFlush()
     {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
+        if (!uiDispatcher.HasAccess)
         {
-            dispatcher.BeginInvoke(Flush, DispatcherPriority.Background);
+            uiDispatcher.Post(Flush);
             return;
         }
 

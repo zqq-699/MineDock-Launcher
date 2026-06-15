@@ -1,9 +1,8 @@
 using System.Collections.ObjectModel;
-using System.Windows;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
+using Launcher.App.Services;
 using Launcher.Domain.Models;
 using Launcher.Application.Services;
 
@@ -14,6 +13,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     private readonly IGameVersionService gameVersionService;
     private readonly IGameInstanceService instanceService;
     private readonly DownloadTasksPageViewModel downloadTasksPage;
+    private readonly IUiDispatcher uiDispatcher;
     private readonly DownloadInstanceNameTracker instanceNameTracker = new();
     private bool hasLoadedVersions;
     private int refreshRequestVersion;
@@ -75,10 +75,20 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         IGameVersionService gameVersionService,
         IGameInstanceService instanceService,
         DownloadTasksPageViewModel downloadTasksPage)
+        : this(gameVersionService, instanceService, downloadTasksPage, ImmediateUiDispatcher.Instance)
+    {
+    }
+
+    public DownloadPageViewModel(
+        IGameVersionService gameVersionService,
+        IGameInstanceService instanceService,
+        DownloadTasksPageViewModel downloadTasksPage,
+        IUiDispatcher uiDispatcher)
     {
         this.gameVersionService = gameVersionService;
         this.instanceService = instanceService;
         this.downloadTasksPage = downloadTasksPage;
+        this.uiDispatcher = uiDispatcher;
 
         VersionCategories.Add(new DownloadVersionCategory("release", Strings.Download_ReleaseCategory, string.Empty, "instance_download_page/release"));
         VersionCategories.Add(new DownloadVersionCategory("snapshot", Strings.Download_SnapshotCategory, string.Empty, "instance_download_page/snapshot"));
@@ -426,16 +436,14 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     private void RequestVisibleVersionsRefresh(bool defer)
     {
         var requestVersion = ++refreshRequestVersion;
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (defer && dispatcher is not null && dispatcher.CheckAccess())
+        if (defer && uiDispatcher.HasAccess)
         {
-            dispatcher.BeginInvoke(
+            uiDispatcher.Post(
                 () =>
                 {
                     if (requestVersion == refreshRequestVersion)
                         RefreshVisibleVersions();
-                },
-                DispatcherPriority.Background);
+                });
             return;
         }
 
@@ -481,7 +489,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 
     private DownloadInstallProgress CreateProgress(DownloadTaskItem installTask, long installSequence)
     {
-        return new DownloadInstallProgress(installTask, installSequence, ReportInstallProgress);
+        return new DownloadInstallProgress(installTask, installSequence, ReportInstallProgress, uiDispatcher);
     }
 
     private void NotifyInstallStateChanged()

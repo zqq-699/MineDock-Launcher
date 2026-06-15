@@ -12,17 +12,17 @@
         </Grid.RowDefinitions>
 
         <StackPanel>
-            <TextBlock Text="{Binding SkinModelDialogTitle}"
+            <TextBlock Text="{Binding Appearance.SkinModelDialog.SkinModelDialogTitle}"
                        Style="{StaticResource DialogTitleTextStyle}" />
-            <TextBlock Text="{Binding SkinModelDialogSubtitle}"
+            <TextBlock Text="{Binding Appearance.SkinModelDialog.SkinModelDialogSubtitle}"
                        Style="{StaticResource DialogSubtitleTextStyle}" />
         </StackPanel>
 
         <ListBox Grid.Row="1"
-                 ItemsSource="{Binding SkinModelOptions}"
-                 SelectedItem="{Binding SelectedSkinModelOption, Mode=TwoWay}"
+                 ItemsSource="{Binding Appearance.SkinModelDialog.SkinModelOptions}"
+                 SelectedItem="{Binding Appearance.SkinModelDialog.SelectedSkinModelOption, Mode=TwoWay}"
                  Style="{StaticResource DialogChoiceListStyle}"
-                 Visibility="{Binding IsSkinModelSelectionStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                 Visibility="{Binding Appearance.SkinModelDialog.IsSkinModelSelectionStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
             <ListBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type models:AccountSkinModelOption}">
                     <StackPanel>
@@ -44,13 +44,13 @@
                     Style="{StaticResource DialogFooterStyle}">
             <Button Style="{StaticResource LauncherDialogButtonStyle}"
                     Content="{x:Static res:Strings.Cancel_Button}"
-                    Command="{Binding RequestCancelSkinModelDialogCommand}"
-                    Visibility="{Binding CanShowSkinModelDialogCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                    Command="{Binding Appearance.RequestCancelSkinModelDialogCommand}"
+                    Visibility="{Binding Appearance.SkinModelDialog.CanShowSkinModelDialogCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
             <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                     Margin="{StaticResource DialogTrailingButtonMargin}"
                     Content="{x:Static res:Strings.Confirm_Button}"
-                    IsEnabled="{Binding CanConfirmSkinModelDialog}"
-                    Command="{Binding RequestConfirmSkinModelDialogCommand}" />
+                    IsEnabled="{Binding Appearance.SkinModelDialog.CanConfirmSkinModelDialog}"
+                    Command="{Binding Appearance.RequestConfirmSkinModelDialogCommand}" />
         </StackPanel>
     </Grid>
 </UserControl>

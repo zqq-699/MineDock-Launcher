@@ -48,6 +48,12 @@ public static class VirtualizedListItemStateBehavior
 
     public static void SetContentTopOffset(DependencyObject element, double value) => element.SetValue(ContentTopOffsetProperty, value);
 
+    public static void Refresh(DependencyObject element)
+    {
+        if (element is ListBox listBox && GetOptionalState(listBox) is { } state)
+            state.QueueRenderedItemStateRefresh();
+    }
+
     private static void OnIsEnabledChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
     {
         if (dependencyObject is not ListBox listBox)
@@ -219,7 +225,7 @@ public static class VirtualizedListItemStateBehavior
             QueueRenderedItemStateRefresh();
         }
 
-        private void QueueRenderedItemStateRefresh()
+        public void QueueRenderedItemStateRefresh()
         {
             if (isStateRefreshQueued || listBox is null)
                 return;
@@ -278,6 +284,8 @@ public static class VirtualizedListItemStateBehavior
 
             if (listBox.Items.Count == 0)
             {
+                isEntranceAnimationPending = false;
+                entranceAnimationTimer.Stop();
                 return;
             }
 

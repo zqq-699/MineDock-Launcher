@@ -53,8 +53,7 @@
                     <TextBlock Margin="0,122,0,0"
                                Text="{x:Static res:Strings.Download_LoadingVersions}">
                         <TextBlock.Style>
-                            <Style TargetType="TextBlock" BasedOn="{StaticResource PageEmptyStateTextStyle}">
-                                <Setter Property="Visibility" Value="Collapsed" />
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource DownloadOverlayEmptyStateTextStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsLoadingVersions}" Value="True">
                                         <Setter Property="Visibility" Value="Visible" />
@@ -67,9 +66,7 @@
                     <TextBlock Margin="0,122,0,0"
                                Text="{Binding VersionLoadError}">
                         <TextBlock.Style>
-                            <Style TargetType="TextBlock" BasedOn="{StaticResource PageEmptyStateTextStyle}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Setter Property="Foreground" Value="#FFFF8D8D" />
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource DownloadOverlayErrorTextStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasVersionLoadError}" Value="True">
                                         <Setter Property="Visibility" Value="Visible" />
@@ -82,8 +79,7 @@
                     <TextBlock Margin="0,122,0,0"
                                Text="{Binding VersionEmptyMessage}">
                         <TextBlock.Style>
-                            <Style TargetType="TextBlock" BasedOn="{StaticResource PageEmptyStateTextStyle}">
-                                <Setter Property="Visibility" Value="Collapsed" />
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource DownloadOverlayEmptyStateTextStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasVersionEmptyMessage}" Value="True">
                                         <Setter Property="Visibility" Value="Visible" />

@@ -1,10 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
-using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
+using Launcher.App.Services;
 using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels;
@@ -14,9 +14,26 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
     private static readonly TimeSpan DefaultCompletedTaskRetention = TimeSpan.FromSeconds(3);
     private readonly TimeSpan completedTaskRetention;
     private readonly Dictionary<string, CancellationTokenSource> removalTokens = [];
+    private readonly IUiDispatcher uiDispatcher;
 
-    public DownloadTasksPageViewModel(TimeSpan? completedTaskRetention = null)
+    public DownloadTasksPageViewModel()
+        : this(ImmediateUiDispatcher.Instance, null)
     {
+    }
+
+    public DownloadTasksPageViewModel(TimeSpan? completedTaskRetention)
+        : this(ImmediateUiDispatcher.Instance, completedTaskRetention)
+    {
+    }
+
+    public DownloadTasksPageViewModel(IUiDispatcher uiDispatcher)
+        : this(uiDispatcher, null)
+    {
+    }
+
+    private DownloadTasksPageViewModel(IUiDispatcher uiDispatcher, TimeSpan? completedTaskRetention)
+    {
+        this.uiDispatcher = uiDispatcher;
         this.completedTaskRetention = completedTaskRetention ?? DefaultCompletedTaskRetention;
         Tasks.CollectionChanged += Tasks_CollectionChanged;
     }
@@ -105,10 +122,9 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
 
     private void RemoveTask(DownloadTaskItem task, bool force)
     {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
+        if (!uiDispatcher.HasAccess)
         {
-            dispatcher.Invoke(() => RemoveTask(task, force));
+            uiDispatcher.Invoke(() => RemoveTask(task, force));
             return;
         }
 

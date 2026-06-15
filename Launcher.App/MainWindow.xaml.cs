@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -8,6 +7,7 @@ using System.Windows.Threading;
 using Launcher.App.Controls;
 using Launcher.App.Services;
 using Launcher.App.ViewModels;
+using Launcher.Application.Services;
 
 namespace Launcher.App;
 
@@ -18,6 +18,7 @@ public partial class MainWindow : Window
 
     private readonly NavigationMenuAnimationService navigationMenuService;
     private readonly IAccountDialogService accountDialogService;
+    private readonly ILauncherStateMonitor launcherStateMonitor;
     private readonly PageTransitionService pageTransitionService;
     private readonly DispatcherTimer stateSyncDebounceTimer;
     private readonly MainViewModel viewModel;
@@ -25,18 +26,17 @@ public partial class MainWindow : Window
     private int downloadTaskPulseDispatchQueued;
     private bool isDownloadTaskPulseRunning;
     private DateTimeOffset lastDownloadTaskPulseAt = DateTimeOffset.MinValue;
-    private FileSystemWatcher? minecraftParentWatcher;
-    private FileSystemWatcher? minecraftVersionsWatcher;
-    private FileSystemWatcher? dataDirectoryWatcher;
 
     public MainWindow(
         MainViewModel viewModel,
         IWindowService windowService,
-        IAccountDialogService accountDialogService)
+        IAccountDialogService accountDialogService,
+        ILauncherStateMonitor launcherStateMonitor)
     {
         InitializeComponent();
         this.viewModel = viewModel;
         this.accountDialogService = accountDialogService;
+        this.launcherStateMonitor = launcherStateMonitor;
         navigationMenuService = new NavigationMenuAnimationService(MenuColumn);
         pageTransitionService = new PageTransitionService(Dispatcher, ResolvePageRoot, viewModel.CurrentPage);
         stateSyncDebounceTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
@@ -58,6 +58,7 @@ public partial class MainWindow : Window
 
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
         viewModel.DownloadTasksPage.TaskStarted += DownloadTasksPage_TaskStarted;
+        launcherStateMonitor.StateChanged += LauncherStateMonitor_StateChanged;
         AcrylicWindow.Enable(this);
         SizeChanged += (_, _) => accountDialogService.QueueOpenDialogBlurRefresh();
         Loaded += async (_, _) =>
@@ -65,14 +66,15 @@ public partial class MainWindow : Window
             await viewModel.InitializeCommand.ExecuteAsync(null);
             IsMenuExpanded = viewModel.IsMenuExpanded;
             navigationMenuService.SetExpanded(IsMenuExpanded);
-            ConfigureStateWatchers();
+            launcherStateMonitor.Watch(viewModel.Settings);
             _ = Dispatcher.BeginInvoke(PrewarmTransientUi, DispatcherPriority.ContextIdle);
         };
         Activated += (_, _) => QueueStateSync();
         Closed += (_, _) =>
         {
             viewModel.DownloadTasksPage.TaskStarted -= DownloadTasksPage_TaskStarted;
-            DisposeStateWatchers();
+            launcherStateMonitor.StateChanged -= LauncherStateMonitor_StateChanged;
+            launcherStateMonitor.Stop();
         };
     }
 
@@ -134,7 +136,7 @@ public partial class MainWindow : Window
         stateSyncDebounceTimer.Stop();
         Interlocked.Exchange(ref stateSyncDispatchQueued, 0);
         await viewModel.SyncCurrentStateAsync();
-        ConfigureStateWatchers();
+        launcherStateMonitor.Watch(viewModel.Settings);
     }
 
     private void QueueStateSync()
@@ -146,12 +148,7 @@ public partial class MainWindow : Window
         stateSyncDebounceTimer.Start();
     }
 
-    private void WatcherStateChanged(object sender, FileSystemEventArgs e)
-    {
-        QueueStateSyncFromWatcher();
-    }
-
-    private void WatcherStateRenamed(object sender, RenamedEventArgs e)
+    private void LauncherStateMonitor_StateChanged(object? sender, EventArgs e)
     {
         QueueStateSyncFromWatcher();
     }
@@ -230,54 +227,6 @@ public partial class MainWindow : Window
         };
         DownloadTaskPulseScale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnimation, HandoffBehavior.SnapshotAndReplace);
         DownloadTaskPulseScale.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnimation.Clone(), HandoffBehavior.SnapshotAndReplace);
-    }
-
-    private void ConfigureStateWatchers()
-    {
-        DisposeStateWatchers();
-
-        var minecraftDirectory = viewModel.Settings.MinecraftDirectory;
-        var minecraftParent = Path.GetDirectoryName(minecraftDirectory);
-        var minecraftFolderName = Path.GetFileName(minecraftDirectory);
-        if (!string.IsNullOrWhiteSpace(minecraftParent) && Directory.Exists(minecraftParent))
-            minecraftParentWatcher = CreateWatcher(minecraftParent, minecraftFolderName, includeSubdirectories: false);
-
-        var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
-        if (Directory.Exists(versionsDirectory))
-            minecraftVersionsWatcher = CreateWatcher(versionsDirectory, "*", includeSubdirectories: true);
-
-        var dataDirectory = viewModel.Settings.DataDirectory;
-        if (Directory.Exists(dataDirectory))
-            dataDirectoryWatcher = CreateWatcher(dataDirectory, "instances.json", includeSubdirectories: false);
-    }
-
-    private FileSystemWatcher CreateWatcher(string path, string filter, bool includeSubdirectories)
-    {
-        var watcher = new FileSystemWatcher(path, filter)
-        {
-            IncludeSubdirectories = includeSubdirectories,
-            NotifyFilter = NotifyFilters.DirectoryName
-                | NotifyFilters.FileName
-                | NotifyFilters.LastWrite
-                | NotifyFilters.Size
-        };
-
-        watcher.Changed += WatcherStateChanged;
-        watcher.Created += WatcherStateChanged;
-        watcher.Deleted += WatcherStateChanged;
-        watcher.Renamed += WatcherStateRenamed;
-        watcher.EnableRaisingEvents = true;
-        return watcher;
-    }
-
-    private void DisposeStateWatchers()
-    {
-        minecraftParentWatcher?.Dispose();
-        minecraftVersionsWatcher?.Dispose();
-        dataDirectoryWatcher?.Dispose();
-        minecraftParentWatcher = null;
-        minecraftVersionsWatcher = null;
-        dataDirectoryWatcher = null;
     }
 
     private static IEnumerable<T> FindVisualChildren<T>(DependencyObject root) where T : DependencyObject

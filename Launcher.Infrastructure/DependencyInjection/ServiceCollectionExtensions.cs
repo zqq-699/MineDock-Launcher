@@ -26,6 +26,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILaunchService, LaunchService>();
         services.AddSingleton<IModService, ModService>();
         services.AddSingleton<IModrinthService, ModrinthService>();
+        services.AddSingleton<ILauncherStateMonitor, LauncherStateMonitor>();
         services.AddSingleton<IMicrosoftAccountService, MicrosoftAccountService>();
         services.AddSingleton<IMinecraftSkinFileValidator, MinecraftSkinFileValidator>();
         services.AddSingleton<IOfflineAccountUuidService, OfflineAccountUuidService>();

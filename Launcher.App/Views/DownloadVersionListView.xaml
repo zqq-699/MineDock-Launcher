@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
              xmlns:views="clr-namespace:Launcher.App.Views"
+             xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
              Focusable="False">
     <ListBox x:Name="DownloadVersionListBox"
              ItemsSource="{Binding VisibleVersions}"
@@ -12,7 +13,10 @@
              VirtualizingPanel.IsVirtualizing="True"
              VirtualizingPanel.VirtualizationMode="Recycling"
              VirtualizingPanel.ScrollUnit="Pixel"
-             ScrollViewer.CanContentScroll="True">
+             ScrollViewer.CanContentScroll="True"
+             behaviors:VirtualizedListItemStateBehavior.IsEnabled="True"
+             behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding ListEntranceAnimationToken}"
+             behaviors:VirtualizedListItemStateBehavior.ContentTopOffset="132">
         <ListBox.ItemsPanel>
             <ItemsPanelTemplate>
                 <VirtualizingStackPanel Margin="0,132,0,64"
@@ -35,21 +39,8 @@
                                              ShouldPlayEnterAnimation="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}, Mode=TwoWay}"
                                              EnterAnimationIndex="{Binding Tag.EnterAnimationIndex, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
                                              Command="{Binding DataContext.SelectMinecraftVersionCommand, RelativeSource={RelativeSource AncestorType={x:Type views:DownloadVersionListView}}}"
-                                             CommandParameter="{Binding}">
-                    <controls:ListPageItemButton.Style>
-                        <Style TargetType="{x:Type controls:ListPageItemButton}">
-                            <Setter Property="Opacity" Value="0" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="True">
-                                    <Setter Property="Opacity" Value="1" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="False">
-                                    <Setter Property="Opacity" Value="1" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </controls:ListPageItemButton.Style>
-                </controls:ListPageItemButton>
+                                             CommandParameter="{Binding}"
+                                             Style="{StaticResource DownloadVersionListItemButtonEntranceStyle}" />
             </DataTemplate>
         </ListBox.ItemTemplate>
     </ListBox>

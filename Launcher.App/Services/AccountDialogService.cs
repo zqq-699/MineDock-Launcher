@@ -43,7 +43,7 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || overlayService is null || addAccountHost is null)
             return;
 
-        accountPage.OpenAddAccountDialog();
+        accountPage.Dialog.OpenAddAccountDialog();
         overlayService.Show(addAccountHost);
     }
 
@@ -52,7 +52,7 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || overlayService is null || deleteAccountHost is null)
             return;
 
-        accountPage.OpenDeleteAccountDialog(account);
+        accountPage.Dialog.OpenDeleteAccountDialog(account);
         overlayService.Show(deleteAccountHost);
     }
 
@@ -61,8 +61,8 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || overlayService is null || renameAccountHost is null)
             return;
 
-        accountPage.OpenRenameAccountDialog();
-        if (accountPage.IsRenameAccountDialogOpen)
+        accountPage.Dialog.OpenRenameAccountDialog();
+        if (accountPage.Dialog.IsRenameAccountDialogOpen)
             overlayService.Show(renameAccountHost);
     }
 
@@ -71,7 +71,7 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || overlayService is null || skinModelDialogHost is null)
             return;
 
-        accountPage.OpenSkinModelDialog(skinFilePath);
+        accountPage.Appearance.SkinModelDialog.Open(skinFilePath);
         overlayService.Show(skinModelDialogHost);
     }
 
@@ -80,7 +80,7 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || overlayService is null || skinModelDialogHost is null)
             return;
 
-        accountPage.OpenSkinFormatErrorDialog();
+        accountPage.Appearance.SkinModelDialog.OpenFormatError();
         overlayService.Show(skinModelDialogHost);
     }
 
@@ -89,9 +89,9 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || overlayService is null || addAccountHost is null)
             return;
 
-        accountPage.CancelAddAccountDialog();
-        if (!accountPage.IsAddAccountDialogOpen)
-            overlayService.Hide(addAccountHost, accountPage.ResetAddAccountDialog);
+        accountPage.Dialog.CancelAddAccountDialog();
+        if (!accountPage.Dialog.IsAddAccountDialogOpen)
+            overlayService.Hide(addAccountHost, accountPage.Dialog.ResetAddAccountDialog);
     }
 
     public void BackAddAccountDialog()
@@ -100,7 +100,7 @@ public sealed class AccountDialogService : IAccountDialogService
             return;
 
         var previousHeight = addAccountHost.SurfaceBorder.ActualHeight;
-        accountPage.BackToAddAccountTypeStep();
+        accountPage.Dialog.BackToAddAccountTypeStep();
         overlayService.AnimateSizeChange(addAccountHost, previousHeight);
     }
 
@@ -111,22 +111,23 @@ public sealed class AccountDialogService : IAccountDialogService
 
         var previousHeight = addAccountHost.SurfaceBorder.ActualHeight;
 
-        if (accountPage.IsAccountTypeStep && accountPage.SelectedAccountTypeOption?.Kind is AccountTypeKinds.Microsoft)
+        if (accountPage.Dialog.IsAccountTypeStep
+            && accountPage.Dialog.SelectedAccountTypeOption?.Kind is AccountTypeKinds.Microsoft)
         {
-            accountPage.BeginMicrosoftAccountLogin();
+            accountPage.Dialog.BeginMicrosoftAccountLogin();
             overlayService.AnimateSizeChange(addAccountHost, previousHeight);
 
             var loginHeight = addAccountHost.SurfaceBorder.ActualHeight;
-            await accountPage.CompleteMicrosoftAccountLoginAsync();
+            await accountPage.Dialog.CompleteMicrosoftAccountLoginAsync();
             overlayService.AnimateSizeChange(addAccountHost, loginHeight);
             return;
         }
 
-        await accountPage.ConfirmAddAccountDialogAsync();
-        if (accountPage.IsAddAccountDialogOpen)
+        await accountPage.Dialog.ConfirmAddAccountDialogAsync();
+        if (accountPage.Dialog.IsAddAccountDialogOpen)
             overlayService.AnimateSizeChange(addAccountHost, previousHeight);
         else
-            overlayService.Hide(addAccountHost, accountPage.ResetAddAccountDialog);
+            overlayService.Hide(addAccountHost, accountPage.Dialog.ResetAddAccountDialog);
     }
 
     public void CancelDeleteAccountDialog()
@@ -134,7 +135,7 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || overlayService is null || deleteAccountHost is null)
             return;
 
-        accountPage.CancelDeleteAccountDialog();
+        accountPage.Dialog.CancelDeleteAccountDialog();
         overlayService.Hide(deleteAccountHost);
     }
 
@@ -143,8 +144,8 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || overlayService is null || deleteAccountHost is null)
             return;
 
-        var deleteTask = accountPage.ConfirmDeleteAccountDialogAsync();
-        if (!accountPage.IsDeleteAccountDialogOpen)
+        var deleteTask = accountPage.Dialog.ConfirmDeleteAccountDialogAsync();
+        if (!accountPage.Dialog.IsDeleteAccountDialogOpen)
         {
             overlayService.Hide(deleteAccountHost);
             await deleteTask;
@@ -152,7 +153,7 @@ public sealed class AccountDialogService : IAccountDialogService
         }
 
         await deleteTask;
-        if (!accountPage.IsDeleteAccountDialogOpen)
+        if (!accountPage.Dialog.IsDeleteAccountDialogOpen)
             overlayService.Hide(deleteAccountHost);
     }
 
@@ -161,9 +162,9 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || overlayService is null || renameAccountHost is null)
             return;
 
-        accountPage.CancelRenameAccountDialog();
-        if (!accountPage.IsRenameAccountDialogOpen)
-            overlayService.Hide(renameAccountHost, accountPage.ResetRenameAccountDialog);
+        accountPage.Dialog.CancelRenameAccountDialog();
+        if (!accountPage.Dialog.IsRenameAccountDialogOpen)
+            overlayService.Hide(renameAccountHost, accountPage.Dialog.ResetRenameAccountDialog);
     }
 
     public async Task ConfirmRenameAccountDialogAsync()
@@ -172,12 +173,12 @@ public sealed class AccountDialogService : IAccountDialogService
             return;
 
         var previousHeight = renameAccountHost.SurfaceBorder.ActualHeight;
-        await accountPage.ConfirmRenameAccountDialogAsync();
+        await accountPage.Dialog.ConfirmRenameAccountDialogAsync();
 
-        if (accountPage.IsRenameAccountDialogOpen)
+        if (accountPage.Dialog.IsRenameAccountDialogOpen)
             overlayService.AnimateSizeChange(renameAccountHost, previousHeight);
         else
-            overlayService.Hide(renameAccountHost, accountPage.ResetRenameAccountDialog);
+            overlayService.Hide(renameAccountHost, accountPage.Dialog.ResetRenameAccountDialog);
     }
 
     public void CancelSkinModelDialog()
@@ -185,8 +186,8 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || overlayService is null || skinModelDialogHost is null)
             return;
 
-        accountPage.CancelSkinModelDialog();
-        overlayService.Hide(skinModelDialogHost, accountPage.ResetSkinModelDialog);
+        accountPage.Appearance.SkinModelDialog.Cancel();
+        overlayService.Hide(skinModelDialogHost, accountPage.Appearance.SkinModelDialog.Reset);
     }
 
     public async Task ConfirmSkinModelDialogAsync()
@@ -194,17 +195,17 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || overlayService is null || skinModelDialogHost is null)
             return;
 
-        var confirmTask = accountPage.ConfirmSkinModelDialogAsync();
-        if (!accountPage.IsSkinModelDialogOpen)
+        var confirmTask = accountPage.Appearance.ConfirmSkinModelDialogAsync();
+        if (!accountPage.Appearance.SkinModelDialog.IsSkinModelDialogOpen)
         {
-            overlayService.Hide(skinModelDialogHost, accountPage.ResetSkinModelDialog);
+            overlayService.Hide(skinModelDialogHost, accountPage.Appearance.SkinModelDialog.Reset);
             await confirmTask;
             return;
         }
 
         await confirmTask;
-        if (!accountPage.IsSkinModelDialogOpen)
-            overlayService.Hide(skinModelDialogHost, accountPage.ResetSkinModelDialog);
+        if (!accountPage.Appearance.SkinModelDialog.IsSkinModelDialogOpen)
+            overlayService.Hide(skinModelDialogHost, accountPage.Appearance.SkinModelDialog.Reset);
     }
 
     public void QueueOpenDialogBlurRefresh()
@@ -212,16 +213,16 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || overlayService is null)
             return;
 
-        if (accountPage.IsAddAccountDialogOpen && addAccountHost is not null)
+        if (accountPage.Dialog.IsAddAccountDialogOpen && addAccountHost is not null)
             overlayService.QueueRefresh(addAccountHost, BlurRefreshAttempts);
 
-        if (accountPage.IsDeleteAccountDialogOpen && deleteAccountHost is not null)
+        if (accountPage.Dialog.IsDeleteAccountDialogOpen && deleteAccountHost is not null)
             overlayService.QueueRefresh(deleteAccountHost, BlurRefreshAttempts);
 
-        if (accountPage.IsRenameAccountDialogOpen && renameAccountHost is not null)
+        if (accountPage.Dialog.IsRenameAccountDialogOpen && renameAccountHost is not null)
             overlayService.QueueRefresh(renameAccountHost, BlurRefreshAttempts);
 
-        if (accountPage.IsSkinModelDialogOpen && skinModelDialogHost is not null)
+        if (accountPage.Appearance.SkinModelDialog.IsSkinModelDialogOpen && skinModelDialogHost is not null)
             overlayService.QueueRefresh(skinModelDialogHost, BlurRefreshAttempts);
     }
 

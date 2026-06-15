@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Launcher.Application.Accounts;
 using Launcher.App.Resources;
+using Launcher.App.Services;
 
 namespace Launcher.App.ViewModels;
 
@@ -10,6 +12,9 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 {
     private readonly AccountListViewModel accountList;
     private readonly IMicrosoftAccountService microsoftAccountService;
+    private readonly IAccountDialogService dialogService;
+    private readonly IFilePickerService filePickerService;
+    private readonly IMinecraftSkinFileValidator skinFileValidator;
 
     [ObservableProperty]
     private AccountCapeOption? selectedAccountCapeOption;
@@ -25,14 +30,24 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
     public AccountAppearanceViewModel(
         AccountListViewModel accountList,
-        IMicrosoftAccountService microsoftAccountService)
+        IMicrosoftAccountService microsoftAccountService,
+        AccountSkinModelDialogViewModel skinModelDialog,
+        IAccountDialogService dialogService,
+        IFilePickerService filePickerService,
+        IMinecraftSkinFileValidator skinFileValidator)
     {
         this.accountList = accountList;
         this.microsoftAccountService = microsoftAccountService;
+        SkinModelDialog = skinModelDialog;
+        this.dialogService = dialogService;
+        this.filePickerService = filePickerService;
+        this.skinFileValidator = skinFileValidator;
         this.accountList.PropertyChanged += AccountList_PropertyChanged;
     }
 
     public ObservableCollection<AccountCapeOption> SelectedAccountCapeOptions { get; } = [];
+
+    public AccountSkinModelDialogViewModel SkinModelDialog { get; }
 
     public bool CanChangeSelectedAccountSkin => accountList.SelectedAccount is not null
         && !accountList.SelectedAccount.IsOffline;
@@ -48,6 +63,20 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     public bool HasSelectedAccountCapes => SelectedAccountCapeOptions.Count > 0;
 
     public bool HasAccountProfileErrorCode => !string.IsNullOrWhiteSpace(AccountProfileErrorCodeMessage);
+
+    public async Task ConfirmSkinModelDialogAsync()
+    {
+        if (SkinModelDialog.IsSkinFormatError)
+        {
+            SkinModelDialog.Cancel();
+            return;
+        }
+
+        if (!SkinModelDialog.TryConsumeSelection(out var skinFilePath, out var skinModel))
+            return;
+
+        await ChangeSelectedAccountSkinAsync(skinFilePath, skinModel);
+    }
 
     public async Task ChangeSelectedAccountSkinAsync(string skinFilePath, MinecraftSkinModel skinModel)
     {
@@ -83,12 +112,43 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         }
     }
 
+    [RelayCommand]
+    public async Task PickAndChangeSelectedAccountSkinAsync()
+    {
+        if (!CanChangeSelectedAccountSkin)
+            return;
+
+        var skinFilePath = filePickerService.PickMinecraftSkin();
+        if (string.IsNullOrWhiteSpace(skinFilePath))
+            return;
+
+        var validation = await skinFileValidator.ValidateAsync(skinFilePath);
+        if (validation.IsValid)
+            dialogService.ShowSkinModelDialog(skinFilePath);
+        else
+            dialogService.ShowSkinFormatErrorDialog();
+    }
+
+    [RelayCommand]
+    public void RequestCancelSkinModelDialog()
+    {
+        dialogService.CancelSkinModelDialog();
+    }
+
+    [RelayCommand]
+    public Task RequestConfirmSkinModelDialogAsync()
+    {
+        return dialogService.ConfirmSkinModelDialogAsync();
+    }
+
+    [RelayCommand]
     public async Task RefreshSelectedAccountProfileAsync()
     {
         if (accountList.SelectedAccount is not null)
             await LoadSelectedAccountProfileAsync(accountList.SelectedAccount);
     }
 
+    [RelayCommand]
     public async Task RefreshSelectedAccountInfoAsync()
     {
         var account = accountList.SelectedAccount;
@@ -180,6 +240,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         await RefreshSelectedAccountProfileAsync();
     }
 
+    [RelayCommand]
     public async Task ApplySelectedAccountCapeAsync()
     {
         var account = accountList.SelectedAccount;

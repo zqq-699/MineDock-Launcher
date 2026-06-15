@@ -80,10 +80,9 @@ public sealed class MainViewModelTests
             downloadTasksPage,
             new GameSettingsPageViewModel(instanceService, gameVersionService),
             gameManagement,
-            new FakeLaunchService(),
-            gameVersionService,
             new FakeWindowService(),
-            statusService);
+            statusService,
+            new HomePageViewModelFactory(new FakeLaunchService(), gameVersionService, statusService));
     }
 
     private static AccountPageViewModel CreateAccountPage(FakeStatusService statusService)
@@ -91,17 +90,24 @@ public sealed class MainViewModelTests
         var accountList = new AccountListViewModel(new FakeAccountStore());
         var microsoftAccountService = new FakeMicrosoftAccountService();
         var offlineUuidService = new FakeOfflineAccountUuidService();
+        var accountDialogService = new FakeAccountDialogService();
+        var accountSkinModelDialog = new AccountSkinModelDialogViewModel();
         return new AccountPageViewModel(
             accountList,
             new AccountDialogViewModel(accountList, microsoftAccountService, offlineUuidService, statusService),
-            new AccountAppearanceViewModel(accountList, microsoftAccountService),
-            new AccountOfflineUuidViewModel(accountList, offlineUuidService, statusService),
-            new AccountSkinModelDialogViewModel(),
-            statusService,
-            new FakeAccountDialogService(),
-            new FakeClipboardService(),
-            new FakeFilePickerService(),
-            new FakeSkinFileValidator());
+            new AccountAppearanceViewModel(
+                accountList,
+                microsoftAccountService,
+                accountSkinModelDialog,
+                accountDialogService,
+                new FakeFilePickerService(),
+                new FakeSkinFileValidator()),
+            new AccountOfflineUuidViewModel(
+                accountList,
+                offlineUuidService,
+                statusService,
+                new FakeClipboardService()),
+            accountDialogService);
     }
 
     private static GameInstance CreateInstance(string name, string minecraftVersion)

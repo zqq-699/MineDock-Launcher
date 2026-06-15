@@ -13,17 +13,17 @@
         </Grid.RowDefinitions>
 
         <StackPanel>
-            <TextBlock Text="{Binding AddAccountDialogTitle}"
+            <TextBlock Text="{Binding Dialog.AddAccountDialogTitle}"
                        Style="{StaticResource DialogTitleTextStyle}" />
-            <TextBlock Text="{Binding AddAccountDialogSubtitle}"
+            <TextBlock Text="{Binding Dialog.AddAccountDialogSubtitle}"
                        Style="{StaticResource DialogSubtitleTextStyle}" />
         </StackPanel>
 
         <ListBox Grid.Row="1"
-                 ItemsSource="{Binding AccountTypeOptions}"
-                 SelectedItem="{Binding SelectedAccountTypeOption, Mode=TwoWay}"
+                 ItemsSource="{Binding Dialog.AccountTypeOptions}"
+                 SelectedItem="{Binding Dialog.SelectedAccountTypeOption, Mode=TwoWay}"
                  Style="{StaticResource DialogChoiceListStyle}"
-                 Visibility="{Binding IsAccountTypeStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                 Visibility="{Binding Dialog.IsAccountTypeStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
             <ListBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type models:AccountTypeOption}">
                     <Grid>
@@ -90,25 +90,25 @@
 
         <StackPanel Grid.Row="1"
                     Style="{StaticResource DialogFormPanelStyle}"
-                    Visibility="{Binding IsOfflineNameStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                    Visibility="{Binding Dialog.IsOfflineNameStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
             <TextBlock Text="{x:Static res:Strings.Account_UsernameLabel}"
                        Style="{StaticResource DialogFieldLabelTextStyle}" />
             <TextBox Style="{StaticResource LauncherDialogTextBoxStyle}"
-                     Text="{Binding NewOfflineAccountName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                     Text="{Binding Dialog.NewOfflineAccountName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             <TextBlock Text="{x:Static res:Strings.Account_UsernameValidation}"
                        Style="{StaticResource DialogValidationTextStyle}"
-                       Visibility="{Binding IsNewOfflineAccountNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                       Visibility="{Binding Dialog.IsNewOfflineAccountNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
         </StackPanel>
 
         <StackPanel Grid.Row="1"
                     Style="{StaticResource DialogFormPanelStyle}"
-                    Visibility="{Binding IsMicrosoftStatusStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                    Visibility="{Binding Dialog.IsMicrosoftStatusStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
             <Grid Width="34"
                   Height="34"
                   HorizontalAlignment="Center">
                 <controls:SvgIcon Width="30"
                                   Height="30"
-                                  IconKey="{Binding MicrosoftLoginIconKey}"
+                                  IconKey="{Binding Dialog.MicrosoftLoginIconKey}"
                                   HorizontalAlignment="Center"
                                   VerticalAlignment="Center">
                     <controls:SvgIcon.Style>
@@ -116,13 +116,13 @@
                             <Setter Property="Foreground" Value="#F4F4F4" />
                             <Setter Property="Visibility" Value="Visible" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding MicrosoftLoginIconKey}" Value="{x:Null}">
+                                <DataTrigger Binding="{Binding Dialog.MicrosoftLoginIconKey}" Value="{x:Null}">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding IsMicrosoftLoginResultStep}" Value="True">
+                                <DataTrigger Binding="{Binding Dialog.IsMicrosoftLoginResultStep}" Value="True">
                                     <Setter Property="Foreground" Value="#FF8A8A" />
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding IsMicrosoftLoginSuccessful}" Value="True">
+                                <DataTrigger Binding="{Binding Dialog.IsMicrosoftLoginSuccessful}" Value="True">
                                     <Setter Property="Foreground" Value="#7DFFB2" />
                                 </DataTrigger>
                             </Style.Triggers>
@@ -130,7 +130,7 @@
                     </controls:SvgIcon.Style>
                 </controls:SvgIcon>
 
-                <TextBlock Text="{Binding MicrosoftLoginIcon}"
+                <TextBlock Text="{Binding Dialog.MicrosoftLoginIcon}"
                            FontFamily="Segoe MDL2 Assets"
                            FontSize="30"
                            HorizontalAlignment="Center"
@@ -141,7 +141,7 @@
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Setter Property="Foreground" Value="#F4F4F4" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding MicrosoftLoginIconKey}" Value="{x:Null}">
+                                <DataTrigger Binding="{Binding Dialog.MicrosoftLoginIconKey}" Value="{x:Null}">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
                             </Style.Triggers>
@@ -149,7 +149,7 @@
                     </TextBlock.Style>
                 </TextBlock>
             </Grid>
-            <TextBlock Text="{Binding MicrosoftLoginMessage}"
+            <TextBlock Text="{Binding Dialog.MicrosoftLoginMessage}"
                        Margin="0,16,0,0"
                        Style="{StaticResource DialogBodyTextStyle}"
                        TextAlignment="Center" />
@@ -160,18 +160,18 @@
                     HorizontalAlignment="Left"
                     Content="{x:Static res:Strings.Back_Button}"
                     Command="{Binding RequestBackAddAccountDialogCommand}"
-                    Visibility="{Binding CanShowAddAccountBackButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                    Visibility="{Binding Dialog.CanShowAddAccountBackButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
             <StackPanel Style="{StaticResource DialogFooterStyle}"
-                        IsEnabled="{Binding IsAddAccountFooterEnabled}">
+                        IsEnabled="{Binding Dialog.IsAddAccountFooterEnabled}">
                 <Button Style="{StaticResource LauncherDialogButtonStyle}"
                         Content="{x:Static res:Strings.Cancel_Button}"
                         Command="{Binding RequestCancelAddAccountDialogCommand}"
-                        Visibility="{Binding CanShowAddAccountCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                        Visibility="{Binding Dialog.CanShowAddAccountCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                 <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                         Margin="{StaticResource DialogTrailingButtonMargin}"
                         Content="{x:Static res:Strings.Confirm_Button}"
-                        IsEnabled="{Binding CanConfirmAddAccountDialog}"
+                        IsEnabled="{Binding Dialog.CanConfirmAddAccountDialog}"
                         Command="{Binding RequestConfirmAddAccountDialogCommand}" />
             </StackPanel>
         </Grid>

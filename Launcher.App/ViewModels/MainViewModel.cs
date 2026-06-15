@@ -40,10 +40,9 @@ public sealed partial class MainViewModel : ObservableObject
         DownloadTasksPageViewModel downloadTasksPage,
         GameSettingsPageViewModel gameSettingsPage,
         GameManagementViewModel gameManagement,
-        ILaunchService launchService,
-        IGameVersionService gameVersionService,
         IWindowService windowService,
-        IStatusService statusService)
+        IStatusService statusService,
+        IHomePageViewModelFactory homePageFactory)
     {
         this.settingsService = settingsService;
         this.windowService = windowService;
@@ -52,11 +51,8 @@ public sealed partial class MainViewModel : ObservableObject
         DownloadTasksPage = downloadTasksPage;
         GameSettingsPage = gameSettingsPage;
         GameManagement = gameManagement;
-        HomePage = new HomePageViewModel(
-            launchService,
-            gameVersionService,
+        HomePage = homePageFactory.Create(
             AccountPage,
-            statusService,
             NavigateToPage,
             percent => ProgressPercent = percent,
             instance => GameManagement.SelectLaunchInstanceAsync(instance));

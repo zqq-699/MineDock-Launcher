@@ -9,8 +9,7 @@
                     HorizontalAlignment="Stretch">
             <TextBlock Margin="0,0,0,8"
                        Text="{x:Static res:Strings.Download_InstanceNameLabel}"
-                       Foreground="#AFFFFFFF"
-                       FontSize="13" />
+                       Style="{StaticResource DownloadInstanceOptionLabelTextStyle}" />
 
             <TextBox Height="42"
                      Text="{Binding InstanceName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -18,24 +17,11 @@
 
             <TextBlock Margin="0,8,0,0"
                        Text="{Binding InstanceNameDuplicateMessage}"
-                       Foreground="#FFFFC56D"
-                       FontSize="12">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasInstanceNameDuplicateMessage}" Value="True">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
+                       Style="{StaticResource DownloadInstanceOptionWarningTextStyle}" />
 
             <TextBlock Margin="0,28,0,10"
                        Text="{x:Static res:Strings.Download_LoaderLabel}"
-                       Foreground="#AFFFFFFF"
-                       FontSize="13" />
+                       Style="{StaticResource DownloadInstanceOptionLabelTextStyle}" />
 
             <ListBox ItemsSource="{Binding LoaderOptions}"
                      SelectedItem="{Binding SelectedLoaderOption, Mode=TwoWay}"
@@ -102,14 +88,9 @@
                             <StackPanel Grid.Column="1"
                                         Margin="14,0,0,0">
                                 <TextBlock Text="{Binding Title}"
-                                           Foreground="#F4F4F4"
-                                           FontSize="16"
-                                           FontWeight="SemiBold" />
+                                           Style="{StaticResource DownloadLoaderOptionTitleTextStyle}" />
                                 <TextBlock Text="{Binding Subtitle}"
-                                           Margin="0,5,0,0"
-                                           Foreground="#AFFFFFFF"
-                                           FontSize="12"
-                                           TextWrapping="Wrap" />
+                                           Style="{StaticResource DownloadLoaderOptionSubtitleTextStyle}" />
                             </StackPanel>
                         </Grid>
                     </DataTemplate>

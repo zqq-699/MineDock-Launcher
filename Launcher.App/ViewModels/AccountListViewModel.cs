@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Launcher.Application.Accounts;
 using Launcher.Domain.Models;
 
@@ -36,6 +37,7 @@ public sealed partial class AccountListViewModel : ObservableObject
         ApplyAccounts(cachedAccounts);
     }
 
+    [RelayCommand]
     public void SelectAccount(LauncherAccount account)
     {
         SelectAccount(account, persistSelection: true);

@@ -12,33 +12,33 @@
         </Grid.RowDefinitions>
 
         <StackPanel>
-            <TextBlock Text="{Binding RenameAccountDialogTitle}"
+            <TextBlock Text="{Binding Dialog.RenameAccountDialogTitle}"
                        Style="{StaticResource DialogTitleTextStyle}" />
-            <TextBlock Text="{Binding RenameAccountDialogSubtitle}"
+            <TextBlock Text="{Binding Dialog.RenameAccountDialogSubtitle}"
                        Style="{StaticResource DialogSubtitleTextStyle}" />
         </StackPanel>
 
         <StackPanel Grid.Row="1"
                     Style="{StaticResource DialogFormPanelStyle}"
-                    Visibility="{Binding IsRenameAccountInputStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                    Visibility="{Binding Dialog.IsRenameAccountInputStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
             <TextBlock Text="{x:Static res:Strings.Account_NewUsernameLabel}"
                        Style="{StaticResource DialogFieldLabelTextStyle}" />
             <TextBox Style="{StaticResource LauncherDialogTextBoxStyle}"
-                     Text="{Binding RenameAccountName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                     Text="{Binding Dialog.RenameAccountName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             <TextBlock Text="{x:Static res:Strings.Account_UsernameValidation}"
                        Style="{StaticResource DialogValidationTextStyle}"
-                       Visibility="{Binding IsRenameAccountNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                       Visibility="{Binding Dialog.IsRenameAccountNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
         </StackPanel>
 
         <StackPanel Grid.Row="1"
                     Style="{StaticResource DialogFormPanelStyle}"
-                    Visibility="{Binding IsRenameAccountMessageStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                    Visibility="{Binding Dialog.IsRenameAccountMessageStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
             <Grid Width="34"
                   Height="34"
                   HorizontalAlignment="Center">
                 <controls:SvgIcon Width="30"
                                   Height="30"
-                                  IconKey="{Binding RenameAccountIconKey}"
+                                  IconKey="{Binding Dialog.RenameAccountIconKey}"
                                   HorizontalAlignment="Center"
                                   VerticalAlignment="Center">
                     <controls:SvgIcon.Style>
@@ -46,13 +46,13 @@
                             <Setter Property="Foreground" Value="#F4F4F4" />
                             <Setter Property="Visibility" Value="Visible" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding RenameAccountIconKey}" Value="{x:Null}">
+                                <DataTrigger Binding="{Binding Dialog.RenameAccountIconKey}" Value="{x:Null}">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding IsRenameAccountResultStep}" Value="True">
+                                <DataTrigger Binding="{Binding Dialog.IsRenameAccountResultStep}" Value="True">
                                     <Setter Property="Foreground" Value="#FF8A8A" />
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding IsRenameAccountSuccessful}" Value="True">
+                                <DataTrigger Binding="{Binding Dialog.IsRenameAccountSuccessful}" Value="True">
                                     <Setter Property="Foreground" Value="#7DFFB2" />
                                 </DataTrigger>
                             </Style.Triggers>
@@ -60,7 +60,7 @@
                     </controls:SvgIcon.Style>
                 </controls:SvgIcon>
 
-                <TextBlock Text="{Binding RenameAccountIcon}"
+                <TextBlock Text="{Binding Dialog.RenameAccountIcon}"
                            FontFamily="Segoe MDL2 Assets"
                            FontSize="30"
                            HorizontalAlignment="Center"
@@ -71,7 +71,7 @@
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Setter Property="Foreground" Value="#F4F4F4" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding RenameAccountIconKey}" Value="{x:Null}">
+                                <DataTrigger Binding="{Binding Dialog.RenameAccountIconKey}" Value="{x:Null}">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
                             </Style.Triggers>
@@ -79,17 +79,17 @@
                     </TextBlock.Style>
                 </TextBlock>
             </Grid>
-            <TextBlock Text="{Binding RenameAccountMessage}"
+            <TextBlock Text="{Binding Dialog.RenameAccountMessage}"
                        Margin="0,16,0,0"
                        Style="{StaticResource DialogBodyTextStyle}"
                        TextAlignment="Center" />
-            <TextBlock Text="{Binding RenameAccountErrorCodeMessage}"
+            <TextBlock Text="{Binding Dialog.RenameAccountErrorCodeMessage}"
                        Margin="0,8,0,0"
                        Foreground="#8FFFFFFF"
                        FontSize="12"
                        TextAlignment="Center"
                        TextWrapping="Wrap"
-                       Visibility="{Binding HasRenameAccountErrorCode, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                       Visibility="{Binding Dialog.HasRenameAccountErrorCode, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
         </StackPanel>
 
         <StackPanel Grid.Row="2"
@@ -97,11 +97,11 @@
             <Button Style="{StaticResource LauncherDialogButtonStyle}"
                     Content="{x:Static res:Strings.Cancel_Button}"
                     Command="{Binding RequestCancelRenameAccountDialogCommand}"
-                    Visibility="{Binding CanShowRenameAccountCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                    Visibility="{Binding Dialog.CanShowRenameAccountCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
             <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                     Margin="{StaticResource DialogTrailingButtonMargin}"
                     Content="{x:Static res:Strings.Confirm_Button}"
-                    IsEnabled="{Binding CanConfirmRenameAccountDialog}"
+                    IsEnabled="{Binding Dialog.CanConfirmRenameAccountDialog}"
                     Command="{Binding RequestConfirmRenameAccountDialogCommand}" />
         </StackPanel>
     </Grid>

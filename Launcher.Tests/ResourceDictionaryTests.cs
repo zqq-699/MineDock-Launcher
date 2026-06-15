@@ -14,6 +14,7 @@ public sealed class ResourceDictionaryTests
         {
             try
             {
+                _ = global::System.Windows.Application.Current;
                 var dictionary = new ResourceDictionary
                 {
                     Source = new Uri(
@@ -49,6 +50,7 @@ public sealed class ResourceDictionaryTests
         {
             try
             {
+                _ = global::System.Windows.Application.Current;
                 var dictionary = new ResourceDictionary
                 {
                     Source = new Uri(

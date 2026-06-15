@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using Launcher.App.Controls;
 using Launcher.App.Resources;
 using Launcher.App.Services;
@@ -23,15 +23,15 @@ public sealed class AccountPageViewModelTests
         var statusService = new FakeStatusService();
         var viewModel = CreateViewModel(accountStore, statusService);
 
-        viewModel.OpenAddAccountDialog();
-        viewModel.SelectedAccountTypeOption = viewModel.AccountTypeOptions[0];
-        await viewModel.ConfirmAddAccountDialogAsync();
-        viewModel.NewOfflineAccountName = invalidName;
+        viewModel.Dialog.OpenAddAccountDialog();
+        viewModel.Dialog.SelectedAccountTypeOption = viewModel.Dialog.AccountTypeOptions[0];
+        await viewModel.Dialog.ConfirmAddAccountDialogAsync();
+        viewModel.Dialog.NewOfflineAccountName = invalidName;
 
-        await viewModel.ConfirmAddAccountDialogAsync();
+        await viewModel.Dialog.ConfirmAddAccountDialogAsync();
 
-        Assert.True(viewModel.IsNewOfflineAccountNameInvalid);
-        Assert.Empty(viewModel.Accounts);
+        Assert.True(viewModel.Dialog.IsNewOfflineAccountNameInvalid);
+        Assert.Empty(viewModel.AccountList.Accounts);
         Assert.Equal(0, accountStore.SaveCount);
         Assert.Equal(AccountNameValidationMessage, statusService.LastMessage);
     }
@@ -52,15 +52,15 @@ public sealed class AccountPageViewModelTests
             DisplayName = "Valid_Name",
             IsOffline = true
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
-        viewModel.OpenRenameAccountDialog();
-        viewModel.RenameAccountName = invalidName;
+        viewModel.Dialog.OpenRenameAccountDialog();
+        viewModel.Dialog.RenameAccountName = invalidName;
         var saveCountBeforeRename = accountStore.SaveCount;
 
-        await viewModel.ConfirmRenameAccountDialogAsync();
+        await viewModel.Dialog.ConfirmRenameAccountDialogAsync();
 
-        Assert.True(viewModel.IsRenameAccountNameInvalid);
+        Assert.True(viewModel.Dialog.IsRenameAccountNameInvalid);
         Assert.Equal("Valid_Name", viewModel.SelectedAccount?.DisplayName);
         Assert.Equal(saveCountBeforeRename, accountStore.SaveCount);
         Assert.Equal(AccountNameValidationMessage, statusService.LastMessage);
@@ -79,14 +79,14 @@ public sealed class AccountPageViewModelTests
             DisplayName = "DeleteMe",
             IsOffline = true
         };
-        viewModel.Accounts.Add(account);
-        viewModel.OpenDeleteAccountDialog(account);
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.Dialog.OpenDeleteAccountDialog(account);
 
-        var deleteTask = viewModel.ConfirmDeleteAccountDialogAsync();
+        var deleteTask = viewModel.Dialog.ConfirmDeleteAccountDialogAsync();
 
-        Assert.False(viewModel.IsDeleteAccountDialogOpen);
-        Assert.Null(viewModel.AccountPendingDelete);
-        Assert.Empty(viewModel.Accounts);
+        Assert.False(viewModel.Dialog.IsDeleteAccountDialogOpen);
+        Assert.Null(viewModel.Dialog.AccountPendingDelete);
+        Assert.Empty(viewModel.AccountList.Accounts);
 
         saveCompletion.SetResult();
         await deleteTask;
@@ -97,14 +97,14 @@ public sealed class AccountPageViewModelTests
     {
         var viewModel = CreateViewModel(new FakeAccountStore(), new FakeStatusService());
 
-        viewModel.OpenAddAccountDialog();
-        viewModel.SelectedAccountTypeOption = viewModel.AccountTypeOptions[0];
-        await viewModel.ConfirmAddAccountDialogAsync();
-        viewModel.NewOfflineAccountName = "LocalUser";
+        viewModel.Dialog.OpenAddAccountDialog();
+        viewModel.Dialog.SelectedAccountTypeOption = viewModel.Dialog.AccountTypeOptions[0];
+        await viewModel.Dialog.ConfirmAddAccountDialogAsync();
+        viewModel.Dialog.NewOfflineAccountName = "LocalUser";
 
-        await viewModel.ConfirmAddAccountDialogAsync();
+        await viewModel.Dialog.ConfirmAddAccountDialogAsync();
 
-        var account = Assert.Single(viewModel.Accounts);
+        var account = Assert.Single(viewModel.AccountList.Accounts);
         Assert.Equal("Standard-LocalUser", account.Uuid);
         Assert.Equal(OfflineUuidGenerationMode.Standard, account.OfflineUuidGenerationMode);
         Assert.Equal("Standard-LocalUser", viewModel.OfflineUuid.SelectedAccountUuidText);
@@ -130,9 +130,9 @@ public sealed class AccountPageViewModelTests
             new FakeStatusService(),
             microsoftAccountService);
 
-        await viewModel.CompleteMicrosoftAccountLoginAsync();
+        await viewModel.Dialog.CompleteMicrosoftAccountLoginAsync();
 
-        var account = Assert.Single(viewModel.Accounts);
+        var account = Assert.Single(viewModel.AccountList.Accounts);
         Assert.Equal("cached-avatar.png", account.AvatarSource);
         var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
         Assert.Equal("cached-avatar.png", savedAccount.AvatarSource);
@@ -151,7 +151,7 @@ public sealed class AccountPageViewModelTests
             OfflineUuidGenerationMode = OfflineUuidGenerationMode.Standard,
             IsOffline = true
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
         var saveCountBeforeModeChange = accountStore.SaveCount;
 
@@ -176,12 +176,12 @@ public sealed class AccountPageViewModelTests
             OfflineUuidGenerationMode = OfflineUuidGenerationMode.Random,
             IsOffline = true
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
-        viewModel.OpenRenameAccountDialog();
-        viewModel.RenameAccountName = "RenamedUser";
+        viewModel.Dialog.OpenRenameAccountDialog();
+        viewModel.Dialog.RenameAccountName = "RenamedUser";
 
-        await viewModel.ConfirmRenameAccountDialogAsync();
+        await viewModel.Dialog.ConfirmRenameAccountDialogAsync();
 
         Assert.Equal("RenamedUser", viewModel.SelectedAccount?.DisplayName);
         Assert.Equal("fixed-random", viewModel.SelectedAccount?.Uuid);
@@ -214,12 +214,12 @@ public sealed class AccountPageViewModelTests
             AvatarSource = "cached-avatar.png",
             IsOffline = false
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
-        viewModel.OpenRenameAccountDialog();
-        viewModel.RenameAccountName = "NewName";
+        viewModel.Dialog.OpenRenameAccountDialog();
+        viewModel.Dialog.RenameAccountName = "NewName";
 
-        await viewModel.ConfirmRenameAccountDialogAsync();
+        await viewModel.Dialog.ConfirmRenameAccountDialogAsync();
 
         Assert.Equal("NewName", viewModel.SelectedAccount?.DisplayName);
         Assert.Equal("cached-avatar.png", viewModel.SelectedAccount?.AvatarSource);
@@ -248,16 +248,16 @@ public sealed class AccountPageViewModelTests
             Uuid = "00000000000000000000000000000001",
             IsOffline = false
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
-        viewModel.OpenRenameAccountDialog();
-        viewModel.RenameAccountName = "NewName";
+        viewModel.Dialog.OpenRenameAccountDialog();
+        viewModel.Dialog.RenameAccountName = "NewName";
 
-        await viewModel.ConfirmRenameAccountDialogAsync();
+        await viewModel.Dialog.ConfirmRenameAccountDialogAsync();
 
         Assert.Equal("OldName", viewModel.SelectedAccount?.DisplayName);
-        Assert.Equal(Strings.Status_AccountRenameFailedNotAllowed, viewModel.RenameAccountMessage);
-        Assert.Equal("返回代码：HTTP 403 / NOT_ALLOWED", viewModel.RenameAccountErrorCodeMessage);
+        Assert.Equal(Strings.Status_AccountRenameFailedNotAllowed, viewModel.Dialog.RenameAccountMessage);
+        Assert.Equal("返回代码：HTTP 403 / NOT_ALLOWED", viewModel.Dialog.RenameAccountErrorCodeMessage);
         Assert.Equal(Strings.Status_AccountRenameFailedNotAllowed, statusService.LastMessage);
     }
 
@@ -273,7 +273,7 @@ public sealed class AccountPageViewModelTests
             OfflineUuidGenerationMode = OfflineUuidGenerationMode.Standard,
             IsOffline = true
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
 
         viewModel.OfflineUuid.SelectedOfflineUuidOption = viewModel.OfflineUuid.OfflineUuidOptions
@@ -299,7 +299,7 @@ public sealed class AccountPageViewModelTests
         };
         var changedProperties = new List<string?>();
         viewModel.OfflineUuid.PropertyChanged += (_, e) => changedProperties.Add(e.PropertyName);
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
 
         viewModel.OfflineUuid.SelectedOfflineUuidOption = viewModel.OfflineUuid.OfflineUuidOptions
@@ -334,7 +334,7 @@ public sealed class AccountPageViewModelTests
             OfflineUuidGenerationMode = OfflineUuidGenerationMode.Standard,
             IsOffline = true
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
         viewModel.OfflineUuid.SelectedOfflineUuidOption = viewModel.OfflineUuid.OfflineUuidOptions
             .First(option => option.Mode == OfflineUuidGenerationMode.Manual);
@@ -361,7 +361,7 @@ public sealed class AccountPageViewModelTests
             OfflineUuidGenerationMode = OfflineUuidGenerationMode.Standard,
             IsOffline = true
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
         var saveCountBeforeApply = accountStore.SaveCount;
         viewModel.OfflineUuid.SelectedOfflineUuidOption = viewModel.OfflineUuid.OfflineUuidOptions
@@ -399,14 +399,14 @@ public sealed class AccountPageViewModelTests
             Uuid = "00000000000000000000000000000001",
             IsOffline = false
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
 
-        await viewModel.PickAndChangeSelectedAccountSkinCommand.ExecuteAsync(null);
+        await viewModel.Appearance.PickAndChangeSelectedAccountSkinCommand.ExecuteAsync(null);
 
         Assert.Equal("skin.png", dialogService.LastSkinModelFilePath);
         Assert.False(dialogService.WasSkinFormatErrorShown);
-        Assert.False(viewModel.IsSkinModelDialogOpen);
+        Assert.False(viewModel.Appearance.SkinModelDialog.IsSkinModelDialogOpen);
         Assert.Equal(0, microsoftAccountService.UploadSkinCount);
     }
 
@@ -428,10 +428,10 @@ public sealed class AccountPageViewModelTests
             Uuid = "00000000000000000000000000000001",
             IsOffline = false
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
 
-        await viewModel.PickAndChangeSelectedAccountSkinCommand.ExecuteAsync(null);
+        await viewModel.Appearance.PickAndChangeSelectedAccountSkinCommand.ExecuteAsync(null);
 
         Assert.True(dialogService.WasSkinFormatErrorShown);
         Assert.Null(dialogService.LastSkinModelFilePath);
@@ -455,19 +455,19 @@ public sealed class AccountPageViewModelTests
             Uuid = "00000000000000000000000000000001",
             IsOffline = false
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
-        viewModel.OpenSkinModelDialog("skin.png");
-        Assert.True(viewModel.IsSkinModelDialogOpen);
-        Assert.Null(viewModel.SelectedSkinModelOption);
-        Assert.False(viewModel.CanConfirmSkinModelDialog);
-        viewModel.SelectedSkinModelOption = viewModel.SkinModelOptions
+        viewModel.Appearance.SkinModelDialog.Open("skin.png");
+        Assert.True(viewModel.Appearance.SkinModelDialog.IsSkinModelDialogOpen);
+        Assert.Null(viewModel.Appearance.SkinModelDialog.SelectedSkinModelOption);
+        Assert.False(viewModel.Appearance.SkinModelDialog.CanConfirmSkinModelDialog);
+        viewModel.Appearance.SkinModelDialog.SelectedSkinModelOption = viewModel.Appearance.SkinModelDialog.SkinModelOptions
             .First(option => option.Model == MinecraftSkinModel.Slim);
-        Assert.True(viewModel.CanConfirmSkinModelDialog);
+        Assert.True(viewModel.Appearance.SkinModelDialog.CanConfirmSkinModelDialog);
 
-        await viewModel.ConfirmSkinModelDialogAsync();
+        await viewModel.Appearance.ConfirmSkinModelDialogAsync();
 
-        Assert.False(viewModel.IsSkinModelDialogOpen);
+        Assert.False(viewModel.Appearance.SkinModelDialog.IsSkinModelDialogOpen);
         Assert.Equal(1, microsoftAccountService.UploadSkinCount);
         Assert.Equal("skin.png", microsoftAccountService.LastSkinFilePath);
         Assert.Equal(MinecraftSkinModel.Slim, microsoftAccountService.LastSkinModel);
@@ -491,14 +491,14 @@ public sealed class AccountPageViewModelTests
             Uuid = "00000000000000000000000000000001",
             IsOffline = false
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
-        viewModel.OpenSkinModelDialog("skin.png");
+        viewModel.Appearance.SkinModelDialog.Open("skin.png");
 
-        viewModel.CancelSkinModelDialog();
-        await viewModel.ConfirmSkinModelDialogAsync();
+        viewModel.Appearance.SkinModelDialog.Cancel();
+        await viewModel.Appearance.ConfirmSkinModelDialogAsync();
 
-        Assert.False(viewModel.IsSkinModelDialogOpen);
+        Assert.False(viewModel.Appearance.SkinModelDialog.IsSkinModelDialogOpen);
         Assert.Equal(0, microsoftAccountService.UploadSkinCount);
     }
 
@@ -520,14 +520,14 @@ public sealed class AccountPageViewModelTests
             Uuid = "00000000000000000000000000000001",
             IsOffline = false
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
 
-        await viewModel.ChangeSelectedAccountSkinAsync("skin.png", MinecraftSkinModel.Classic);
+        await viewModel.Appearance.ChangeSelectedAccountSkinAsync("skin.png", MinecraftSkinModel.Classic);
 
-        Assert.Equal(Strings.Status_SkinUpdateFailed, viewModel.AccountProfileMessage);
-        Assert.Equal("返回代码：HTTP 400 / INVALID_SKIN", viewModel.AccountProfileErrorCodeMessage);
-        Assert.True(viewModel.HasAccountProfileErrorCode);
+        Assert.Equal(Strings.Status_SkinUpdateFailed, viewModel.Appearance.AccountProfileMessage);
+        Assert.Equal("返回代码：HTTP 400 / INVALID_SKIN", viewModel.Appearance.AccountProfileErrorCodeMessage);
+        Assert.True(viewModel.Appearance.HasAccountProfileErrorCode);
     }
 
     [Fact]
@@ -565,21 +565,21 @@ public sealed class AccountPageViewModelTests
             IsOffline = false,
             CachedCapeOptions = [cachedCape]
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
 
-        await viewModel.RefreshSelectedAccountInfoCommand.ExecuteAsync(null);
+        await viewModel.Appearance.RefreshSelectedAccountInfoCommand.ExecuteAsync(null);
 
         Assert.Equal("NewName", viewModel.SelectedAccount?.DisplayName);
         Assert.Equal("new-avatar.png", viewModel.SelectedAccount?.AvatarSource);
         Assert.Same(cachedCape, Assert.Single(viewModel.SelectedAccount!.CachedCapeOptions));
-        Assert.Equal(Strings.Status_AccountProfileRefreshed, viewModel.AccountProfileMessage);
+        Assert.Equal(Strings.Status_AccountProfileRefreshed, viewModel.Appearance.AccountProfileMessage);
         Assert.Equal(1, microsoftAccountService.RefreshProfileCount);
         var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
         Assert.Equal("NewName", savedAccount.DisplayName);
         Assert.Equal("new-avatar.png", savedAccount.AvatarSource);
-        Assert.True(viewModel.CanEditSelectedMicrosoftAccount);
-        Assert.True(viewModel.RefreshSelectedAccountInfoCommand.CanExecute(null));
+        Assert.True(viewModel.Appearance.CanEditSelectedMicrosoftAccount);
+        Assert.True(viewModel.Appearance.RefreshSelectedAccountInfoCommand.CanExecute(null));
     }
 
     [Fact]
@@ -600,14 +600,14 @@ public sealed class AccountPageViewModelTests
             Uuid = "00000000000000000000000000000001",
             IsOffline = false
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
 
-        await viewModel.RefreshSelectedAccountInfoCommand.ExecuteAsync(null);
+        await viewModel.Appearance.RefreshSelectedAccountInfoCommand.ExecuteAsync(null);
 
-        Assert.Equal(Strings.Status_AccountProfileRefreshFailed, viewModel.AccountProfileMessage);
-        Assert.Equal("返回代码：HTTP 401 / UNAUTHORIZED", viewModel.AccountProfileErrorCodeMessage);
-        Assert.True(viewModel.HasAccountProfileErrorCode);
+        Assert.Equal(Strings.Status_AccountProfileRefreshFailed, viewModel.Appearance.AccountProfileMessage);
+        Assert.Equal("返回代码：HTTP 401 / UNAUTHORIZED", viewModel.Appearance.AccountProfileErrorCodeMessage);
+        Assert.True(viewModel.Appearance.HasAccountProfileErrorCode);
     }
 
     [Fact]
@@ -734,20 +734,20 @@ public sealed class AccountPageViewModelTests
             Uuid = "00000000000000000000000000000001",
             IsOffline = false
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
 
-        await viewModel.RefreshSelectedAccountProfileCommand.ExecuteAsync(null);
+        await viewModel.Appearance.RefreshSelectedAccountProfileCommand.ExecuteAsync(null);
 
-        Assert.False(viewModel.IsAccountProfileBusy);
-        Assert.True(viewModel.CanEditSelectedMicrosoftAccount);
-        Assert.True(viewModel.RefreshSelectedAccountProfileCommand.CanExecute(null));
+        Assert.False(viewModel.Appearance.IsAccountProfileBusy);
+        Assert.True(viewModel.Appearance.CanEditSelectedMicrosoftAccount);
+        Assert.True(viewModel.Appearance.RefreshSelectedAccountProfileCommand.CanExecute(null));
 
-        await viewModel.RefreshSelectedAccountProfileCommand.ExecuteAsync(null);
+        await viewModel.Appearance.RefreshSelectedAccountProfileCommand.ExecuteAsync(null);
 
         Assert.Equal(2, microsoftAccountService.GetCapesCount);
-        Assert.False(viewModel.IsAccountProfileBusy);
-        Assert.True(viewModel.CanEditSelectedMicrosoftAccount);
+        Assert.False(viewModel.Appearance.IsAccountProfileBusy);
+        Assert.True(viewModel.Appearance.CanEditSelectedMicrosoftAccount);
     }
 
     [Fact]
@@ -768,14 +768,14 @@ public sealed class AccountPageViewModelTests
             Uuid = "00000000000000000000000000000001",
             IsOffline = false
         };
-        viewModel.Accounts.Add(account);
+        viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
 
-        await viewModel.RefreshSelectedAccountProfileCommand.ExecuteAsync(null);
+        await viewModel.Appearance.RefreshSelectedAccountProfileCommand.ExecuteAsync(null);
 
-        Assert.Equal(Strings.Status_LoadAccountProfileFailed, viewModel.AccountProfileMessage);
-        Assert.Equal("返回代码：HTTP 503", viewModel.AccountProfileErrorCodeMessage);
-        Assert.True(viewModel.HasAccountProfileErrorCode);
+        Assert.Equal(Strings.Status_LoadAccountProfileFailed, viewModel.Appearance.AccountProfileMessage);
+        Assert.Equal("返回代码：HTTP 503", viewModel.Appearance.AccountProfileErrorCodeMessage);
+        Assert.True(viewModel.Appearance.HasAccountProfileErrorCode);
     }
 
     private static AccountPageViewModel CreateViewModel(
@@ -789,17 +789,24 @@ public sealed class AccountPageViewModelTests
         var accountList = new AccountListViewModel(accountStore);
         var microsoftService = microsoftAccountService ?? new FakeMicrosoftAccountService();
         var offlineUuidService = new FakeOfflineAccountUuidService();
+        var accountDialogService = dialogService ?? new FakeAccountDialogService();
+        var accountSkinModelDialog = new AccountSkinModelDialogViewModel();
         return new AccountPageViewModel(
             accountList,
             new AccountDialogViewModel(accountList, microsoftService, offlineUuidService, statusService),
-            new AccountAppearanceViewModel(accountList, microsoftService),
-            new AccountOfflineUuidViewModel(accountList, offlineUuidService, statusService),
-            new AccountSkinModelDialogViewModel(),
-            statusService,
-            dialogService ?? new FakeAccountDialogService(),
-            new FakeClipboardService(),
-            filePickerService ?? new FakeFilePickerService(),
-            skinFileValidator ?? new FakeSkinFileValidator(true));
+            new AccountAppearanceViewModel(
+                accountList,
+                microsoftService,
+                accountSkinModelDialog,
+                accountDialogService,
+                filePickerService ?? new FakeFilePickerService(),
+                skinFileValidator ?? new FakeSkinFileValidator(true)),
+            new AccountOfflineUuidViewModel(
+                accountList,
+                offlineUuidService,
+                statusService,
+                new FakeClipboardService()),
+            accountDialogService);
     }
 
     private sealed class FakeAccountStore : IAccountStore
@@ -1060,3 +1067,4 @@ public sealed class AccountPageViewModelTests
         }
     }
 }
+

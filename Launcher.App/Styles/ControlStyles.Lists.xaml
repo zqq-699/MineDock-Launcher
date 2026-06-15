@@ -356,6 +356,75 @@
            TargetType="ListBoxItem"
            BasedOn="{StaticResource DownloadVersionListBoxItemStyle}" />
 
+    <Style x:Key="DownloadVersionListItemButtonEntranceStyle"
+           TargetType="{x:Type controls:ListPageItemButton}">
+        <Setter Property="Opacity" Value="0" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="True">
+                <Setter Property="Opacity" Value="1" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="False">
+                <Setter Property="Opacity" Value="1" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="InstallTaskCardStyle" TargetType="Border">
+        <Setter Property="Margin" Value="0,0,12,12" />
+        <Setter Property="Padding" Value="18" />
+        <Setter Property="Background" Value="#1CFFFFFF" />
+        <Setter Property="BorderBrush" Value="#18FFFFFF" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+    </Style>
+
+    <Style x:Key="InstallTaskTitleTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <Style x:Key="InstallTaskSubtitleTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,5,0,0" />
+        <Setter Property="Foreground" Value="#AFFFFFFF" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <Style x:Key="InstallTaskStateTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#DFFFFFFF" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextAlignment" Value="Right" />
+    </Style>
+
+    <Style x:Key="InstallTaskSpeedTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,5,0,0" />
+        <Setter Property="Foreground" Value="#9FFFFFFF" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextAlignment" Value="Right" />
+        <Setter Property="Visibility" Value="Collapsed" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding HasDownloadSpeedText}" Value="True">
+                <Setter Property="Visibility" Value="Visible" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="InstallTaskStatusTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,14,0,0" />
+        <Setter Property="Foreground" Value="#CFFFFFFF" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="InstallTaskProgressTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#AFFFFFFF" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="TextAlignment" Value="Right" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
     <Style x:Key="SecondaryMenuVirtualizedListBoxStyle" TargetType="ListBox">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />

@@ -217,17 +217,24 @@ public sealed class HomePageViewModelTests
             accountList.SelectAccount(selectedAccount);
         }
 
+        var accountDialogService = new FakeAccountDialogService();
+        var accountSkinModelDialog = new AccountSkinModelDialogViewModel();
         return new AccountPageViewModel(
             accountList,
             new AccountDialogViewModel(accountList, microsoftAccountService, offlineUuidService, statusService),
-            new AccountAppearanceViewModel(accountList, microsoftAccountService),
-            new AccountOfflineUuidViewModel(accountList, offlineUuidService, statusService),
-            new AccountSkinModelDialogViewModel(),
-            statusService,
-            new FakeAccountDialogService(),
-            new FakeClipboardService(),
-            new FakeFilePickerService(),
-            new FakeSkinFileValidator());
+            new AccountAppearanceViewModel(
+                accountList,
+                microsoftAccountService,
+                accountSkinModelDialog,
+                accountDialogService,
+                new FakeFilePickerService(),
+                new FakeSkinFileValidator()),
+            new AccountOfflineUuidViewModel(
+                accountList,
+                offlineUuidService,
+                statusService,
+                new FakeClipboardService()),
+            accountDialogService);
     }
 
     private static GameInstance CreateInstance(string id, string name, string minecraftVersion, LoaderKind loader)
