@@ -8,6 +8,19 @@ namespace Launcher.Tests;
 public sealed class GameSettingsPageViewModelTests
 {
     [Fact]
+    public void GameSettingsPageUsesDedicatedCategoryIcons()
+    {
+        var viewModel = CreateViewModel([]);
+
+        Assert.Equal(
+            "general/general_all_application",
+            viewModel.InstanceCategories.Single(category => category.Id == "all").IconKey);
+        Assert.Equal(
+            "general/general_extention",
+            viewModel.InstanceCategories.Single(category => category.Id == "mod_loader").IconKey);
+    }
+
+    [Fact]
     public async Task GameSettingsPageShowsAllDownloadedInstancesByDefault()
     {
         var viewModel = CreateViewModel(

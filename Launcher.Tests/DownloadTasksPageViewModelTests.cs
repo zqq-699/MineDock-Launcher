@@ -28,6 +28,19 @@ public sealed class DownloadTasksPageViewModelTests
     }
 
     [Fact]
+    public void DownloadTasksPageCancelTaskCancelsAndRemovesTask()
+    {
+        var viewModel = new DownloadTasksPageViewModel();
+        var task = viewModel.BeginTask("Vanilla 1.21.5", "1.21.5");
+
+        viewModel.CancelTaskCommand.Execute(task);
+
+        Assert.True(task.IsCancellationRequested);
+        Assert.Empty(viewModel.Tasks);
+        Assert.False(viewModel.HasTasks);
+    }
+
+    [Fact]
     public async Task DownloadTasksPageRemovesCompletedTasksAfterRetention()
     {
         var viewModel = new DownloadTasksPageViewModel(TimeSpan.FromMilliseconds(10));

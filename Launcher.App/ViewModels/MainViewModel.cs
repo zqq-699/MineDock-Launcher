@@ -117,6 +117,8 @@ public sealed partial class MainViewModel : ObservableObject
             : item.Page;
         var isRepeatingGameSettingsClick = NavigationCatalog.IsPage(CurrentPage, NavigationCatalog.GameSettingsPage)
             && NavigationCatalog.IsPage(targetPage, NavigationCatalog.GameSettingsPage);
+        var isRepeatingHomeClick = NavigationCatalog.IsPage(CurrentPage, NavigationCatalog.HomePage)
+            && NavigationCatalog.IsPage(targetPage, NavigationCatalog.HomePage);
 
         if (item.Loader is LoaderKind loader)
         {
@@ -133,6 +135,9 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (isRepeatingGameSettingsClick && hasInitialized)
             _ = GameSettingsPage.RefreshInstancesAsync();
+
+        if (isRepeatingHomeClick && hasInitialized)
+            _ = RefreshHomeInstancesAsync();
     }
 
     [RelayCommand]
@@ -169,10 +174,16 @@ public sealed partial class MainViewModel : ObservableObject
         isSyncingCurrentState = true;
         try
         {
-            await GameManagement.EnsureInstancesLoadedAsync();
-            await HomePage.EnsureVersionTypesLoadedAsync();
-            HomePage.SetLaunchInstances(GameManagement.Instances);
-            HomePage.SetSelectedInstance(GameManagement.SelectedInstance);
+            if (NavigationCatalog.IsPage(CurrentPage, NavigationCatalog.HomePage))
+            {
+                await RefreshHomeInstancesAsync();
+            }
+            else
+            {
+                await GameManagement.EnsureInstancesLoadedAsync();
+                await HomePage.EnsureVersionTypesLoadedAsync();
+                SyncHomeLaunchInstances();
+            }
 
             if (NavigationCatalog.IsPage(CurrentPage, NavigationCatalog.DownloadPage))
                 await DownloadPage.EnsureVersionsLoadedAsync();
@@ -184,6 +195,19 @@ public sealed partial class MainViewModel : ObservableObject
         {
             isSyncingCurrentState = false;
         }
+    }
+
+    private async Task RefreshHomeInstancesAsync()
+    {
+        await GameManagement.RefreshInstancesAsync();
+        await HomePage.EnsureVersionTypesLoadedAsync();
+        SyncHomeLaunchInstances();
+    }
+
+    private void SyncHomeLaunchInstances()
+    {
+        HomePage.SetLaunchInstances(GameManagement.Instances);
+        HomePage.SetSelectedInstance(GameManagement.SelectedInstance);
     }
 
     private void AccountPage_PropertyChanged(object? sender, PropertyChangedEventArgs e)

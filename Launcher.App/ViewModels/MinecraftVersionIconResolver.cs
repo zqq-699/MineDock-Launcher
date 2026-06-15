@@ -6,17 +6,39 @@ internal static class MinecraftVersionIconResolver
 {
     public const string DefaultReleaseIconSource = "/Assets/Icons/block/grass_block.png";
     public const string DefaultSnapshotIconSource = "/Assets/Icons/block/dirt_block.png";
+    public const string DefaultBetaIconSource = "/Assets/Icons/block/craftingtable_block.png";
+    public const string DefaultAlphaIconSource = "/Assets/Icons/block/stone_block.png";
 
     public static string Resolve(GameInstance instance, string? versionType = null, string? minecraftVersion = null)
     {
         if (!string.IsNullOrWhiteSpace(instance.IconSource))
             return instance.IconSource;
 
+        return Resolve(versionType, minecraftVersion, instance.MinecraftVersion, instance.VersionName);
+    }
+
+    public static string Resolve(string? versionType = null, string? minecraftVersion = null)
+    {
+        return Resolve(versionType, minecraftVersion, null, null);
+    }
+
+    private static string Resolve(
+        string? versionType,
+        string? minecraftVersion,
+        string? instanceMinecraftVersion,
+        string? instanceVersionName)
+    {
         var normalizedType = NormalizeVersionType(versionType);
+        if (normalizedType.Equals("old_beta", StringComparison.OrdinalIgnoreCase))
+            return DefaultBetaIconSource;
+
+        if (normalizedType.Equals("old_alpha", StringComparison.OrdinalIgnoreCase))
+            return DefaultAlphaIconSource;
+
         if (normalizedType.Equals("snapshot", StringComparison.OrdinalIgnoreCase)
             || IsSnapshotVersionName(minecraftVersion)
-            || IsSnapshotVersionName(instance.MinecraftVersion)
-            || IsSnapshotVersionName(instance.VersionName))
+            || IsSnapshotVersionName(instanceMinecraftVersion)
+            || IsSnapshotVersionName(instanceVersionName))
             return DefaultSnapshotIconSource;
 
         return DefaultReleaseIconSource;

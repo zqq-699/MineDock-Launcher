@@ -63,20 +63,74 @@ public sealed class DownloadPageViewModelTests
     }
 
     [Fact]
-    public async Task DownloadPageShowsPlaceholderForUnimplementedCategory()
+    public async Task DownloadPageShowsOnlyOldBetaVersionsForBetaCategory()
     {
         var service = new FakeGameVersionService(
         [
-            new MinecraftVersionInfo("1.21.4", "Release", false)
+            new MinecraftVersionInfo("1.21.4", "Release", false),
+            new MinecraftVersionInfo("b1.7.3", "old_beta", false, new DateTimeOffset(2011, 7, 8, 0, 0, 0, TimeSpan.Zero)),
+            new MinecraftVersionInfo("b1.6.6", "old_beta", false, new DateTimeOffset(2011, 5, 31, 0, 0, 0, TimeSpan.Zero)),
+            new MinecraftVersionInfo("a1.2.6", "old_alpha", false)
         ]);
         var viewModel = CreateDownloadPageViewModel(service);
 
         await viewModel.EnsureVersionsLoadedAsync();
         viewModel.SelectVersionCategoryCommand.Execute(viewModel.VersionCategories.Single(category => category.Id == "old_beta"));
 
-        Assert.Empty(viewModel.VisibleVersions);
-        Assert.True(viewModel.HasVersionEmptyMessage);
-        Assert.Contains("\u7a0d\u540e\u5b9e\u73b0", viewModel.VersionEmptyMessage);
+        Assert.True(viewModel.HasVisibleVersions);
+        Assert.Equal(["b1.7.3", "b1.6.6"], viewModel.VisibleVersions.Select(version => version.Name));
+        Assert.All(viewModel.VisibleVersions, version =>
+        {
+            Assert.True(version.IsBeta);
+            Assert.Equal(Strings.Download_BetaCategory, version.TypeLabel);
+            Assert.Equal("/Assets/Icons/block/craftingtable_block.png", version.IconSource);
+        });
+        Assert.False(viewModel.HasVersionEmptyMessage);
+    }
+
+    [Fact]
+    public async Task DownloadPageShowsOnlyOldAlphaVersionsForAlphaCategory()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("b1.7.3", "old_beta", false),
+            new MinecraftVersionInfo("a1.2.6", "old_alpha", false, new DateTimeOffset(2010, 12, 3, 0, 0, 0, TimeSpan.Zero)),
+            new MinecraftVersionInfo("a1.1.2", "old_alpha", false, new DateTimeOffset(2010, 9, 18, 0, 0, 0, TimeSpan.Zero)),
+            new MinecraftVersionInfo("24w45a", "Snapshot", false)
+        ]);
+        var viewModel = CreateDownloadPageViewModel(service);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        viewModel.SelectVersionCategoryCommand.Execute(viewModel.VersionCategories.Single(category => category.Id == "old_alpha"));
+
+        Assert.True(viewModel.HasVisibleVersions);
+        Assert.Equal(["a1.2.6", "a1.1.2"], viewModel.VisibleVersions.Select(version => version.Name));
+        Assert.All(viewModel.VisibleVersions, version =>
+        {
+            Assert.True(version.IsAlpha);
+            Assert.Equal(Strings.Download_AlphaCategory, version.TypeLabel);
+            Assert.Equal("/Assets/Icons/block/stone_block.png", version.IconSource);
+        });
+        Assert.False(viewModel.HasVersionEmptyMessage);
+    }
+
+    [Fact]
+    public async Task DownloadPageSearchFiltersOldBetaVersions()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("b1.7.3", "old_beta", false),
+            new MinecraftVersionInfo("b1.6.6", "old_beta", false),
+            new MinecraftVersionInfo("a1.2.6", "old_alpha", false)
+        ]);
+        var viewModel = CreateDownloadPageViewModel(service);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        viewModel.SelectVersionCategoryCommand.Execute(viewModel.VersionCategories.Single(category => category.Id == "old_beta"));
+        viewModel.VersionSearchQuery = "1.7";
+
+        Assert.Equal(["b1.7.3"], viewModel.VisibleVersions.Select(version => version.Name));
+        Assert.False(viewModel.HasVersionEmptyMessage);
     }
 
     [Fact]
@@ -435,6 +489,36 @@ public sealed class DownloadPageViewModelTests
 
         allowCreate.SetResult(true);
         await installTask;
+    }
+
+    [Fact]
+    public async Task DownloadPageCancelInstallTaskStopsInstallAndRemovesTask()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.1", "Release", false)
+        ]);
+        var allowCreate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var instanceService = new FakeGameInstanceService { WaitBeforeCreate = allowCreate.Task };
+        var tasksPage = new DownloadTasksPageViewModel();
+        var viewModel = CreateDownloadPageViewModel(service, instanceService, tasksPage);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+
+        var installTask = viewModel.InstallCommand.ExecuteAsync(null);
+        await instanceService.CreateStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        var taskItem = Assert.Single(tasksPage.Tasks);
+
+        tasksPage.CancelTaskCommand.Execute(taskItem);
+        await installTask;
+
+        Assert.True(taskItem.IsCancellationRequested);
+        Assert.Empty(tasksPage.Tasks);
+        Assert.Empty(instanceService.CreatedInstances);
+        Assert.False(viewModel.IsInstalling);
+        Assert.False(viewModel.HasInstallError);
+        Assert.Empty(viewModel.InstallStatusMessage);
     }
 
     [Fact]

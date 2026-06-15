@@ -112,16 +112,22 @@ public sealed class HomePageViewModelTests
             versions:
             [
                 new MinecraftVersionInfo("1.21.4", "Release", false),
-                new MinecraftVersionInfo("snapshot-profile", "Snapshot", false)
+                new MinecraftVersionInfo("snapshot-profile", "Snapshot", false),
+                new MinecraftVersionInfo("b1.7.3", "old_beta", false),
+                new MinecraftVersionInfo("a1.2.6", "old_alpha", false)
             ]);
         await viewModel.EnsureVersionTypesLoadedAsync();
         var release = CreateInstance("release", "Release World", "1.21.4", LoaderKind.Vanilla);
         var snapshot = CreateInstance("snapshot", "Snapshot World", "snapshot-profile", LoaderKind.Vanilla);
+        var beta = CreateInstance("beta", "Beta World", "b1.7.3", LoaderKind.Vanilla);
+        var alpha = CreateInstance("alpha", "Alpha World", "a1.2.6", LoaderKind.Vanilla);
 
-        viewModel.SetLaunchInstances([release, snapshot]);
+        viewModel.SetLaunchInstances([release, snapshot, beta, alpha]);
 
         Assert.Equal("/Assets/Icons/block/grass_block.png", viewModel.LaunchInstances[0].IconSource);
         Assert.Equal("/Assets/Icons/block/dirt_block.png", viewModel.LaunchInstances[1].IconSource);
+        Assert.Equal("/Assets/Icons/block/craftingtable_block.png", viewModel.LaunchInstances[2].IconSource);
+        Assert.Equal("/Assets/Icons/block/stone_block.png", viewModel.LaunchInstances[3].IconSource);
     }
 
     [Fact]

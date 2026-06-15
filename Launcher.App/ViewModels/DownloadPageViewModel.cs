@@ -281,7 +281,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject
                 LoaderKind.Vanilla,
                 null,
                 instanceName,
-                installProgress);
+                installProgress,
+                installTask.CancellationToken);
 
             instanceNameTracker.RemovePending(instanceName);
             SetLatestInstallCompletion(installSequence, string.Format(Strings.Status_InstanceInstalledFormat, instance.Name));
@@ -289,6 +290,18 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             instanceNameTracker.AddExisting(instance.VersionName);
             installTask.Complete(string.Format(Strings.Status_InstanceInstalledFormat, instance.Name));
             InstanceInstalled?.Invoke(this, instance);
+        }
+        catch (OperationCanceledException) when (installTask.IsCancellationRequested)
+        {
+            instanceNameTracker.RemovePending(instanceName);
+            if (installSequence == latestInstallSequence)
+            {
+                InstallError = string.Empty;
+                InstallStatusMessage = string.Empty;
+                InstallProgressPercent = 0;
+            }
+
+            downloadTasksPage.CancelTask(installTask);
         }
         catch (Exception)
         {

@@ -35,7 +35,7 @@
   <data name="GameSettings_NoMatchingInstances" xml:space="preserve"><value>没有找到匹配的游戏。</value></data>
   <data name="GameSettings_NoCategoryInstancesFormat" xml:space="preserve"><value>没有找到{0}游戏。</value></data>
   <data name="GameSettings_InstanceSubtitleFormat" xml:space="preserve"><value>Minecraft {0} · {1}</value></data>
-  <data name="Nav_GameInstanceList" xml:space="preserve"><value>版本类别</value></data>
+  <data name="Nav_GameInstanceList" xml:space="preserve"><value>游戏设置</value></data>
   <data name="Nav_JavaMemory" xml:space="preserve"><value>Java/内存</value></data>
   <data name="Nav_DirectoryManagement" xml:space="preserve"><value>目录管理</value></data>
   <data name="Nav_Mod" xml:space="preserve"><value>Mod</value></data>
@@ -48,11 +48,11 @@
   <data name="Home_NoAccountSelected" xml:space="preserve"><value>未选择账户</value></data>
   <data name="Home_NoVersionSelected" xml:space="preserve"><value>未选择游戏版本</value></data>
   <data name="Home_MoreVersionsButton" xml:space="preserve"><value>更多版本 &gt;</value></data>
-  <data name="Home_LaunchInstanceMenuTitle" xml:space="preserve"><value>游戏列表</value></data>
+  <data name="Home_LaunchInstanceMenuTitle" xml:space="preserve"><value>主页</value></data>
   <data name="Home_LaunchInstanceSubtitleFormat" xml:space="preserve"><value>Minecraft {0} · {1}</value></data>
   <data name="Home_NoLaunchInstances" xml:space="preserve"><value>还没有本地游戏。</value></data>
   <data name="Launch_Button" xml:space="preserve"><value>启动游戏</value></data>
-  <data name="Account_ListTitle" xml:space="preserve"><value>账户列表</value></data>
+  <data name="Account_ListTitle" xml:space="preserve"><value>账户</value></data>
   <data name="Account_AddButton" xml:space="preserve"><value>添加账户</value></data>
   <data name="Account_EmptySelection" xml:space="preserve"><value>选择账号以浏览或修改设置。</value></data>
   <data name="Account_SkinHeader" xml:space="preserve"><value>皮肤</value></data>
@@ -95,7 +95,7 @@
   <data name="Dialog_RenameAccountResultSubtitle" xml:space="preserve"><value>点击确定返回账户详情。</value></data>
   <data name="Dialog_RenameMicrosoftAccountSubtitle" xml:space="preserve"><value>正版账户每 30 天可改一次名，谨慎操作。</value></data>
   <data name="Dialog_RenameOfflineAccountSubtitle" xml:space="preserve"><value>输入新的离线账户名。</value></data>
-  <data name="Download_VersionListTitle" xml:space="preserve"><value>版本列表</value></data>
+  <data name="Download_VersionListTitle" xml:space="preserve"><value>游戏下载</value></data>
   <data name="Download_LoadingVersions" xml:space="preserve"><value>正在获取 Minecraft 版本列表...</value></data>
   <data name="Download_InstanceNameLabel" xml:space="preserve"><value>游戏名称</value></data>
   <data name="Download_LoaderLabel" xml:space="preserve"><value>加载器</value></data>

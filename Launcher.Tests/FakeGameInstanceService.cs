@@ -55,7 +55,9 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
         }
 
         if (WaitBeforeCreate is not null)
-            await WaitBeforeCreate;
+            await WaitBeforeCreate.WaitAsync(cancellationToken);
+
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (CreateException is not null)
             throw CreateException;

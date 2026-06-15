@@ -21,7 +21,16 @@ internal static class DownloadVersionFilter
         if (hasVersionLoadError)
             return Empty(shouldClearSelectedVersion: false);
 
-        if (category?.Id is not ("release" or "snapshot"))
+        if (category is null)
+        {
+            return new DownloadVersionFilterResult(
+                Array.Empty<DownloadMinecraftVersionItem>(),
+                Strings.Status_UnimplementedCategory,
+                ShouldClearSelectedVersion: true);
+        }
+
+        var categoryId = MinecraftVersionIconResolver.NormalizeVersionType(category.Id);
+        if (categoryId is not ("release" or "snapshot" or "old_beta" or "old_alpha"))
         {
             return new DownloadVersionFilterResult(
                 Array.Empty<DownloadMinecraftVersionItem>(),
@@ -30,16 +39,18 @@ internal static class DownloadVersionFilter
         }
 
         var query = searchQuery.Trim();
-        var filteredVersions = category.Id switch
+        var filteredVersions = categoryId switch
         {
             "snapshot" => allVersions.Where(version => version.IsSnapshot),
+            "old_beta" => allVersions.Where(version => version.IsBeta),
+            "old_alpha" => allVersions.Where(version => version.IsAlpha),
             _ => allVersions.Where(version => version.IsRelease)
         };
 
         if (!string.IsNullOrWhiteSpace(query))
             filteredVersions = filteredVersions.Where(version => version.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
 
-        var versions = Sort(filteredVersions, category.Id).ToList();
+        var versions = Sort(filteredVersions, categoryId).ToList();
         var emptyMessage = versions.Count == 0 && hasLoadedVersions && !isLoadingVersions
             ? CreateEmptyMessage(category.Title, query)
             : string.Empty;
@@ -67,7 +78,7 @@ internal static class DownloadVersionFilter
         IEnumerable<DownloadMinecraftVersionItem> versions,
         string? categoryId)
     {
-        if (categoryId == "snapshot")
+        if (categoryId is "snapshot" or "old_beta" or "old_alpha")
         {
             return versions
                 .OrderByDescending(version => version.Version.ReleaseTime ?? DateTimeOffset.MinValue)

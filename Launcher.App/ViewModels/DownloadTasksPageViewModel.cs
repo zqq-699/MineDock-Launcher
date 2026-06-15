@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.Domain.Models;
 
@@ -33,6 +34,16 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
         Tasks.Insert(0, task);
         TaskStarted?.Invoke(this, task);
         return task;
+    }
+
+    [RelayCommand]
+    public void CancelTask(DownloadTaskItem? task)
+    {
+        if (task is null)
+            return;
+
+        task.Cancel();
+        RemoveTask(task, force: true);
     }
 
     private void Tasks_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -85,29 +96,31 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
             if (cancellationToken.IsCancellationRequested)
                 return;
 
-            RemoveTask(task);
+            RemoveTask(task, force: false);
         }
         catch (OperationCanceledException)
         {
         }
     }
 
-    private void RemoveTask(DownloadTaskItem task)
+    private void RemoveTask(DownloadTaskItem task, bool force)
     {
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher is not null && !dispatcher.CheckAccess())
         {
-            dispatcher.Invoke(() => RemoveTask(task));
+            dispatcher.Invoke(() => RemoveTask(task, force));
             return;
         }
 
-        if (task.State is DownloadTaskState.Completed)
+        if (force || task.State is DownloadTaskState.Completed)
             Tasks.Remove(task);
     }
 }
 
 public sealed partial class DownloadTaskItem : ObservableObject
 {
+    private readonly CancellationTokenSource cancellation = new();
+
     public DownloadTaskItem(string title, string subtitle)
     {
         Title = title;
@@ -119,6 +132,10 @@ public sealed partial class DownloadTaskItem : ObservableObject
     public string Title { get; }
 
     public string Subtitle { get; }
+
+    public CancellationToken CancellationToken => cancellation.Token;
+
+    public bool IsCancellationRequested => cancellation.IsCancellationRequested;
 
     [ObservableProperty]
     private DownloadTaskState state = DownloadTaskState.Running;
@@ -170,6 +187,14 @@ public sealed partial class DownloadTaskItem : ObservableObject
     {
         State = DownloadTaskState.Failed;
         StatusMessage = message;
+        DownloadSpeedText = string.Empty;
+    }
+
+    public void Cancel()
+    {
+        if (!cancellation.IsCancellationRequested)
+            cancellation.Cancel();
+
         DownloadSpeedText = string.Empty;
     }
 
