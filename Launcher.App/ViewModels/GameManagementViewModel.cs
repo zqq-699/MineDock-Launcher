@@ -109,6 +109,11 @@ public sealed partial class GameManagementViewModel : ObservableObject
         LoaderSelection.SelectLoader(loader);
     }
 
+    public Task<bool> SelectLaunchInstanceAsync(GameInstance instance)
+    {
+        return InstancesViewModel.SelectLaunchInstanceAsync(instance);
+    }
+
     [RelayCommand]
     private Task LoadMinecraftVersionsAsync()
     {

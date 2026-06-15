@@ -15,15 +15,7 @@
         <Setter Property="Panel.ZIndex" Value="2" />
         <Setter Property="IsHitTestVisible" Value="True" />
         <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
-        <Setter Property="Background">
-            <Setter.Value>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                    <GradientStop Color="#E0141414" Offset="0" />
-                    <GradientStop Color="#D0141414" Offset="0.74" />
-                    <GradientStop Color="#00141414" Offset="1" />
-                </LinearGradientBrush>
-            </Setter.Value>
-        </Setter>
+        <Setter Property="Background" Value="Transparent" />
     </Style>
 
     <Style x:Key="DownloadContentHeaderOverlayStyle"
@@ -36,15 +28,7 @@
         <Setter Property="VerticalAlignment" Value="Bottom" />
         <Setter Property="Panel.ZIndex" Value="2" />
         <Setter Property="IsHitTestVisible" Value="False" />
-        <Setter Property="Background">
-            <Setter.Value>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                    <GradientStop Color="#00141414" Offset="0" />
-                    <GradientStop Color="#B8141414" Offset="0.74" />
-                    <GradientStop Color="#E0141414" Offset="1" />
-                </LinearGradientBrush>
-            </Setter.Value>
-        </Setter>
+        <Setter Property="Background" Value="Transparent" />
     </Style>
 
     <Style x:Key="DownloadContentBottomOverlayStyle"
@@ -64,6 +48,108 @@
     <Style x:Key="DownloadContentHeaderTextStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource ListPageHeaderTextStyle}" />
+
+    <Style x:Key="ListPageHeaderBackButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="36" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Foreground" Value="#EFFFFFFF" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="ToolTip" Value="{x:Static res:Strings.Back_Tooltip}" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid Background="{TemplateBinding Background}">
+                        <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualStateGroup.Transitions>
+                                        <VisualTransition GeneratedDuration="0:0:0.16" />
+                                    </VisualStateGroup.Transitions>
+                                    <VisualState x:Name="Normal">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="NormalIcon" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.16" />
+                                            <DoubleAnimation Storyboard.TargetName="HoverIcon" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16" />
+                                            <DoubleAnimation Storyboard.TargetName="PressedIcon" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16" />
+                                            <DoubleAnimation Storyboard.TargetName="DisabledIcon" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16" />
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="MouseOver">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="NormalIcon" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16" />
+                                            <DoubleAnimation Storyboard.TargetName="HoverIcon" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.16" />
+                                            <DoubleAnimation Storyboard.TargetName="PressedIcon" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16" />
+                                            <DoubleAnimation Storyboard.TargetName="DisabledIcon" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16" />
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="NormalIcon" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.10" />
+                                            <DoubleAnimation Storyboard.TargetName="HoverIcon" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.10" />
+                                            <DoubleAnimation Storyboard.TargetName="PressedIcon" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.10" />
+                                            <DoubleAnimation Storyboard.TargetName="DisabledIcon" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.10" />
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="NormalIcon" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16" />
+                                            <DoubleAnimation Storyboard.TargetName="HoverIcon" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16" />
+                                            <DoubleAnimation Storyboard.TargetName="PressedIcon" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.16" />
+                                            <DoubleAnimation Storyboard.TargetName="DisabledIcon" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.16" />
+                                        </Storyboard>
+                                    </VisualState>
+                                </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+
+                        <controls:SvgIcon x:Name="NormalIcon"
+                                          Width="28"
+                                          Height="28"
+                                          IconKey="general/general_arrow_left"
+                                          Foreground="{TemplateBinding Foreground}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          IsHitTestVisible="False" />
+                        <controls:SvgIcon x:Name="HoverIcon"
+                                          Width="28"
+                                          Height="28"
+                                          IconKey="general/general_arrow_left"
+                                          Foreground="#B8FFFFFF"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Opacity="0"
+                                          IsHitTestVisible="False" />
+                        <controls:SvgIcon x:Name="PressedIcon"
+                                          Width="28"
+                                          Height="28"
+                                          IconKey="general/general_arrow_left"
+                                          Foreground="#90FFFFFF"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Opacity="0"
+                                          IsHitTestVisible="False" />
+                        <controls:SvgIcon x:Name="DisabledIcon"
+                                          Width="28"
+                                          Height="28"
+                                          IconKey="general/general_arrow_left"
+                                          Foreground="#70FFFFFF"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Opacity="0"
+                                          IsHitTestVisible="False" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 
     <Style x:Key="ListPageHeaderSpacerStyle" TargetType="Border">
         <Setter Property="Height" Value="132" />
@@ -260,6 +346,69 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <Style x:Key="ListPageVirtualizedListBoxStyle"
+           TargetType="ListBox"
+           BasedOn="{StaticResource DownloadVersionListBoxStyle}" />
+
+    <Style x:Key="ListPageVirtualizedListBoxItemStyle"
+           TargetType="ListBoxItem"
+           BasedOn="{StaticResource DownloadVersionListBoxItemStyle}" />
+
+    <Style x:Key="SecondaryMenuVirtualizedListBoxStyle" TargetType="ListBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+        <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+        <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel" />
+        <Setter Property="VirtualizingPanel.CacheLength" Value="1" />
+        <Setter Property="VirtualizingPanel.CacheLengthUnit" Value="Page" />
+        <Setter Property="ItemsPanel">
+            <Setter.Value>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel Margin="14,74,14,18"
+                                            VirtualizingPanel.IsVirtualizing="True"
+                                            VirtualizingPanel.VirtualizationMode="Recycling"
+                                            VirtualizingPanel.ScrollUnit="Pixel" />
+                </ItemsPanelTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBox">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            ClipToBounds="True"
+                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <ScrollViewer x:Name="PART_ScrollViewer"
+                                      Focusable="False"
+                                      Style="{StaticResource SecondaryMenuVirtualizedScrollViewerStyle}">
+                            <ItemsPresenter />
+                        </ScrollViewer>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="HomeLaunchInstanceListBoxStyle"
+           TargetType="ListBox"
+           BasedOn="{StaticResource SecondaryMenuVirtualizedListBoxStyle}">
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Visibility" Value="Visible" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding HasLaunchInstances}" Value="False">
+                <Setter Property="Visibility" Value="Collapsed" />
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="SecondaryMenuItemsPanelStyle" TargetType="StackPanel">

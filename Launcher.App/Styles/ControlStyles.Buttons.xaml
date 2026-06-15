@@ -224,93 +224,6 @@
         <Setter Property="FontSize" Value="14" />
     </Style>
 
-    <Style x:Key="DownloadPreviousStepButtonStyle" TargetType="Button">
-        <Setter Property="Width" Value="100" />
-        <Setter Property="Height" Value="36" />
-        <Setter Property="Margin" Value="0,0,30,28" />
-        <Setter Property="HorizontalAlignment" Value="Right" />
-        <Setter Property="VerticalAlignment" Value="Bottom" />
-        <Setter Property="Foreground" Value="#FFFFFF" />
-        <Setter Property="Background" Value="#CC3D3D3D" />
-        <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="FontSize" Value="14" />
-        <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Panel.ZIndex" Value="4" />
-        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="Button">
-                    <Border x:Name="Root"
-                            CornerRadius="9">
-                        <Border.Effect>
-                            <DropShadowEffect BlurRadius="18"
-                                              Color="#000000"
-                                              Opacity="0.24"
-                                              ShadowDepth="0" />
-                        </Border.Effect>
-                        <Grid>
-                            <Border x:Name="BaseBackground"
-                                    Background="{TemplateBinding Background}"
-                                    CornerRadius="9" />
-                            <Border x:Name="HoverBackground"
-                                    Background="#D04A4A4A"
-                                    CornerRadius="9"
-                                    Opacity="0" />
-                            <Border x:Name="PressedBackground"
-                                    Background="#E05A5A5A"
-                                    CornerRadius="9"
-                                    Opacity="0" />
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Grid>
-                    </Border>
-                    <ControlTemplate.Triggers>
-                        <EventTrigger RoutedEvent="Mouse.MouseEnter">
-                            <BeginStoryboard>
-                                <Storyboard>
-                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                     Storyboard.TargetProperty="Opacity"
-                                                     To="1"
-                                                     Duration="0:0:0.16">
-                                        <DoubleAnimation.EasingFunction>
-                                            <CubicEase EasingMode="EaseOut" />
-                                        </DoubleAnimation.EasingFunction>
-                                    </DoubleAnimation>
-                                </Storyboard>
-                            </BeginStoryboard>
-                        </EventTrigger>
-                        <EventTrigger RoutedEvent="Mouse.MouseLeave">
-                            <BeginStoryboard>
-                                <Storyboard>
-                                    <DoubleAnimation Storyboard.TargetName="HoverBackground"
-                                                     Storyboard.TargetProperty="Opacity"
-                                                     To="0"
-                                                     Duration="0:0:0.22">
-                                        <DoubleAnimation.EasingFunction>
-                                            <CubicEase EasingMode="EaseOut" />
-                                        </DoubleAnimation.EasingFunction>
-                                    </DoubleAnimation>
-                                </Storyboard>
-                            </BeginStoryboard>
-                        </EventTrigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
-                        </Trigger>
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Foreground" Value="#BFFFFFFF" />
-                            <Setter Property="Cursor" Value="Arrow" />
-                            <Setter TargetName="Root" Property="Effect" Value="{x:Null}" />
-                            <Setter TargetName="BaseBackground" Property="Background" Value="#5A5A5A" />
-                            <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
-                            <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
     <Style x:Key="ListPageSecondaryFloatingButtonStyle" TargetType="Button">
         <Setter Property="Width" Value="96" />
         <Setter Property="Height" Value="34" />
@@ -394,10 +307,6 @@
             </Setter.Value>
         </Setter>
     </Style>
-
-    <Style x:Key="DownloadScrollToSelectedButtonStyle"
-           TargetType="Button"
-           BasedOn="{StaticResource ListPageSecondaryFloatingButtonStyle}" />
 
     <Style x:Key="LauncherProgressBarStyle" TargetType="ProgressBar">
         <Setter Property="Height" Value="5" />

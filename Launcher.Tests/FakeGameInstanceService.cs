@@ -14,6 +14,7 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public LoaderKind LastLoader { get; private set; }
     public string? LastLoaderVersion { get; private set; }
     public string? LastName { get; private set; }
+    public string? LastDefaultInstanceId { get; private set; }
     public int CreateCallCount { get; private set; }
     public int GetInstancesCallCount { get; private set; }
 
@@ -78,5 +79,14 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public Task SaveInstanceAsync(GameInstance instance, CancellationToken cancellationToken = default)
     {
         return Task.CompletedTask;
+    }
+
+    public Task<bool> SetDefaultInstanceAsync(string instanceId, CancellationToken cancellationToken = default)
+    {
+        lock (syncRoot)
+        {
+            LastDefaultInstanceId = instanceId;
+            return Task.FromResult(CreatedInstances.Any(instance => instance.Id == instanceId));
+        }
     }
 }

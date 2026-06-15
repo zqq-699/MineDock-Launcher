@@ -1,6 +1,7 @@
 <UserControl x:Class="Launcher.App.Controls.ListPageFrame"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
              xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
              x:Name="Root"
@@ -8,7 +9,11 @@
     <Grid>
         <ContentPresenter Content="{Binding OverlayContent, ElementName=Root}" />
 
-        <Grid x:Name="PART_ListLayer">
+        <Grid x:Name="PART_ListLayer"
+              behaviors:VerticalEdgeOpacityMask.IsEnabled="{Binding IsListVisible, ElementName=Root}"
+              behaviors:VerticalEdgeOpacityMask.TopFadeLength="132"
+              behaviors:VerticalEdgeOpacityMask.BottomFadeLength="72"
+              behaviors:VerticalEdgeOpacityMask.MinimumOpacity="0">
             <ScrollViewer x:Name="PART_ScrollViewer">
                 <ScrollViewer.Style>
                     <Style TargetType="ScrollViewer" BasedOn="{StaticResource ListPageScrollViewerStyle}">
@@ -79,10 +84,25 @@
                       VerticalAlignment="Top">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <Image Width="28"
+                    <Button Command="{Binding HeaderBackCommand, ElementName=Root}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource ListPageHeaderBackButtonStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsHeaderBackButtonVisible, ElementName=Root}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <Image Grid.Column="1"
+                           Width="28"
                            Height="28"
                            Margin="0,0,10,0"
                            RenderOptions.BitmapScalingMode="NearestNeighbor"
@@ -100,7 +120,7 @@
                         </Image.Style>
                     </Image>
 
-                    <TextBlock Grid.Column="1"
+                    <TextBlock Grid.Column="2"
                                Text="{Binding Title, ElementName=Root}">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource ListPageHeaderTextStyle}">

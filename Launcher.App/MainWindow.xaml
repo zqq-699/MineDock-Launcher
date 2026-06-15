@@ -243,6 +243,9 @@
                     <views:AccountPageView x:Name="AccountPageView"
                                            DataContext="{Binding AccountPage}"
                                            Visibility="{Binding DataContext.CurrentPage, ElementName=RootWindow, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=Account}" />
+                    <views:GameSettingsPageView x:Name="GameSettingsPageView"
+                                                DataContext="{Binding GameSettingsPage}"
+                                                Visibility="{Binding DataContext.CurrentPage, ElementName=RootWindow, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=GameSettings}" />
                     <views:GeneralPageView x:Name="GeneralPageView" />
                 </Grid>
 

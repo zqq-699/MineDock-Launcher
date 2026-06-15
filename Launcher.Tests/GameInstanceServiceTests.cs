@@ -217,4 +217,105 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         Assert.Empty((await settingsService.LoadAsync()).DefaultInstanceId ?? string.Empty);
     }
 
+    [Fact]
+    public async Task InstanceServiceSavesExistingDefaultInstanceSelection()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultInstanceId = "first"
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "first");
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "second");
+        await repository.SaveAllAsync(
+        [
+            CreateStoredInstance("first"),
+            CreateStoredInstance("second")
+        ]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var saved = await service.SetDefaultInstanceAsync("second");
+
+        Assert.True(saved);
+        Assert.Equal("second", (await settingsService.LoadAsync()).DefaultInstanceId);
+    }
+
+    [Fact]
+    public async Task InstanceServiceDoesNotSaveMissingDefaultInstanceSelection()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultInstanceId = "first"
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "first");
+        await repository.SaveAllAsync([CreateStoredInstance("first")]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var saved = await service.SetDefaultInstanceAsync("missing");
+
+        Assert.False(saved);
+        Assert.Equal("first", (await settingsService.LoadAsync()).DefaultInstanceId);
+    }
+
+    [Fact]
+    public async Task InstanceServiceReturnsNewlySelectedDefaultInstance()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultInstanceId = "first"
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "first");
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "second");
+        await repository.SaveAllAsync(
+        [
+            CreateStoredInstance("first"),
+            CreateStoredInstance("second")
+        ]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        await service.SetDefaultInstanceAsync("second");
+
+        var selected = await service.GetDefaultInstanceAsync();
+        Assert.NotNull(selected);
+        Assert.Equal("second", selected.Id);
+    }
+
+    private static async Task CreateInstalledVersionAsync(string minecraftDirectory, string versionName)
+    {
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+        Directory.CreateDirectory(versionDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(versionDirectory, $"{versionName}.json"),
+            $$"""
+            {
+              "id": "{{versionName}}",
+              "jar": "{{versionName}}"
+            }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(versionDirectory, $"{versionName}.jar"), "fake jar");
+    }
+
+    private static GameInstance CreateStoredInstance(string versionName)
+    {
+        return new GameInstance
+        {
+            Id = versionName,
+            Name = versionName,
+            MinecraftVersion = versionName,
+            VersionName = versionName,
+            InstanceDirectory = string.Empty
+        };
+    }
+
 }

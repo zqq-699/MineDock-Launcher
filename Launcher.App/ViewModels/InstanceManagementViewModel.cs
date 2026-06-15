@@ -119,9 +119,27 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
         if (SelectedInstance is null)
             return;
 
-        settings.DefaultInstanceId = SelectedInstance.Id;
-        await settingsService.SaveAsync(settings);
-        ReportStatus(string.Format(Strings.Status_DefaultInstanceSetFormat, SelectedInstance.Name));
+        var saved = await SelectLaunchInstanceAsync(SelectedInstance);
+        ReportStatus(saved
+            ? string.Format(Strings.Status_DefaultInstanceSetFormat, SelectedInstance.Name)
+            : Strings.Status_LaunchInstanceSelectionFailed);
+    }
+
+    public async Task<bool> SelectLaunchInstanceAsync(GameInstance instance)
+    {
+        var selected = Instances.FirstOrDefault(existing =>
+            string.Equals(existing.Id, instance.Id, StringComparison.OrdinalIgnoreCase));
+
+        if (selected is null)
+            return false;
+
+        var saved = await instanceService.SetDefaultInstanceAsync(selected.Id);
+        if (!saved)
+            return false;
+
+        settings.DefaultInstanceId = selected.Id;
+        SelectedInstance = selected;
+        return true;
     }
 
     private async Task RefreshInstancesCoreAsync()

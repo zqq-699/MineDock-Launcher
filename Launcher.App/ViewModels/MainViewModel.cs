@@ -37,8 +37,10 @@ public sealed partial class MainViewModel : ObservableObject
         AccountPageViewModel accountPage,
         DownloadPageViewModel downloadPage,
         DownloadTasksPageViewModel downloadTasksPage,
+        GameSettingsPageViewModel gameSettingsPage,
         GameManagementViewModel gameManagement,
         ILaunchService launchService,
+        IGameVersionService gameVersionService,
         IWindowService windowService,
         IStatusService statusService)
     {
@@ -47,13 +49,16 @@ public sealed partial class MainViewModel : ObservableObject
         AccountPage = accountPage;
         DownloadPage = downloadPage;
         DownloadTasksPage = downloadTasksPage;
+        GameSettingsPage = gameSettingsPage;
         GameManagement = gameManagement;
         HomePage = new HomePageViewModel(
             launchService,
+            gameVersionService,
             AccountPage,
             statusService,
             NavigateToPage,
-            percent => ProgressPercent = percent);
+            percent => ProgressPercent = percent,
+            instance => GameManagement.SelectLaunchInstanceAsync(instance));
 
         statusService.MessageReported += message => StatusMessage = message;
         DownloadPage.InstanceInstalled += DownloadPage_InstanceInstalled;
@@ -70,6 +75,8 @@ public sealed partial class MainViewModel : ObservableObject
     public DownloadPageViewModel DownloadPage { get; }
 
     public DownloadTasksPageViewModel DownloadTasksPage { get; }
+
+    public GameSettingsPageViewModel GameSettingsPage { get; }
 
     public GameManagementViewModel GameManagement { get; }
 
@@ -88,9 +95,11 @@ public sealed partial class MainViewModel : ObservableObject
         await AccountPage.InitializeAsync(Settings);
         HomePage.SetSettings(Settings);
         await GameManagement.InitializeAsync(Settings);
+        await HomePage.EnsureVersionTypesLoadedAsync();
         UpdateSecondaryItems();
         UpdateNavigationSelection();
         UpdateAccountNavigationAvatar();
+        HomePage.SetLaunchInstances(GameManagement.Instances);
         HomePage.Initialize(Settings, GameManagement.SelectedInstance);
         hasInitialized = true;
     }
@@ -103,18 +112,27 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void SelectNavigationItem(NavigationItem item)
     {
+        var targetPage = item.Loader is LoaderKind
+            ? NavigationCatalog.DownloadPage
+            : item.Page;
+        var isRepeatingGameSettingsClick = NavigationCatalog.IsPage(CurrentPage, NavigationCatalog.GameSettingsPage)
+            && NavigationCatalog.IsPage(targetPage, NavigationCatalog.GameSettingsPage);
+
         if (item.Loader is LoaderKind loader)
         {
             GameManagement.SelectLoader(loader);
-            CurrentPage = NavigationCatalog.DownloadPage;
+            CurrentPage = targetPage;
         }
         else
         {
-            CurrentPage = item.Page;
+            CurrentPage = targetPage;
         }
 
         UpdateSecondaryItems();
         UpdateNavigationSelection();
+
+        if (isRepeatingGameSettingsClick && hasInitialized)
+            _ = GameSettingsPage.RefreshInstancesAsync();
     }
 
     [RelayCommand]
@@ -152,10 +170,15 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             await GameManagement.EnsureInstancesLoadedAsync();
+            await HomePage.EnsureVersionTypesLoadedAsync();
+            HomePage.SetLaunchInstances(GameManagement.Instances);
             HomePage.SetSelectedInstance(GameManagement.SelectedInstance);
 
             if (NavigationCatalog.IsPage(CurrentPage, NavigationCatalog.DownloadPage))
                 await DownloadPage.EnsureVersionsLoadedAsync();
+
+            if (NavigationCatalog.IsPage(CurrentPage, NavigationCatalog.GameSettingsPage))
+                await GameSettingsPage.RefreshInstancesAsync();
         }
         finally
         {
@@ -178,12 +201,24 @@ public sealed partial class MainViewModel : ObservableObject
             ProgressPercent = GameManagement.ProgressPercent;
     }
 
-    private void DownloadPage_InstanceInstalled(object? sender, GameInstance instance)
+    private async void DownloadPage_InstanceInstalled(object? sender, GameInstance instance)
     {
         if (GameManagement.Instances.All(existing => existing.Id != instance.Id))
             GameManagement.Instances.Add(instance);
 
-        GameManagement.SelectedInstance = instance;
+        try
+        {
+            var saved = await GameManagement.SelectLaunchInstanceAsync(instance);
+            if (!saved)
+                GameManagement.SelectedInstance = instance;
+        }
+        catch (Exception)
+        {
+            GameManagement.SelectedInstance = instance;
+        }
+
+        GameSettingsPage.AddOrUpdateInstance(instance);
+        HomePage.SetLaunchInstances(GameManagement.Instances);
         HomePage.SetSelectedInstance(instance);
     }
 

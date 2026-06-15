@@ -31,6 +31,8 @@
                                 Margin="284,36,24,8"
                                 Title="{Binding PageTitle}"
                                 TitleIconSource="{Binding PageTitleIconSource}"
+                                IsHeaderBackButtonVisible="{Binding IsInstanceOptionsStep}"
+                                HeaderBackCommand="{Binding BackToVersionListCommand}"
                                 SearchText="{Binding VersionSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 IsSearchVisible="{Binding IsVersionListStep}"
                                 IsListVisible="{Binding IsDownloadContentVisible}"
@@ -118,43 +120,6 @@
 
             <controls:ListPageFrame.FloatingContent>
                 <Grid>
-                    <Button Tag="ScrollToSelectedVersion"
-                            Content="{x:Static res:Strings.Download_LocateSelectedButton}"
-                            Click="ScrollToSelectedVersionButton_OnClick">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource ListPageSecondaryFloatingButtonStyle}">
-                                <Setter Property="Width" Value="88" />
-                                <Setter Property="Height" Value="32" />
-                                <Setter Property="FontSize" Value="11" />
-                                <Setter Property="Margin" Value="0,0,0,28" />
-                            </Style>
-                        </Button.Style>
-                    </Button>
-
-                    <Button Tag="NextStep"
-                            Content="{x:Static res:Strings.Download_NextStepButton}"
-                            IsEnabled="{Binding HasSelectedMinecraftVersion}"
-                            Command="{Binding GoToInstanceOptionsCommand}">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource DownloadNextStepButtonStyle}">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </Style>
-                        </Button.Style>
-                    </Button>
-
-                    <Button Tag="PreviousStep"
-                            Content="{x:Static res:Strings.Back_Button}"
-                            Command="{Binding BackToVersionListCommand}">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource DownloadPreviousStepButtonStyle}">
-                                <Setter Property="Margin" Value="30,0,0,28" />
-                                <Setter Property="HorizontalAlignment" Value="Left" />
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Setter Property="Opacity" Value="0" />
-                            </Style>
-                        </Button.Style>
-                    </Button>
-
                     <Button Tag="InstallStep"
                             Content="{Binding InstallButtonText}"
                             IsEnabled="{Binding CanInstallSelectedVersion}"

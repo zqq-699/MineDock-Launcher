@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace Launcher.App.Controls;
@@ -11,6 +12,12 @@ public partial class ListPageFrame : UserControl
 
     public static readonly DependencyProperty TitleIconSourceProperty =
         DependencyProperty.Register(nameof(TitleIconSource), typeof(ImageSource), typeof(ListPageFrame), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty IsHeaderBackButtonVisibleProperty =
+        DependencyProperty.Register(nameof(IsHeaderBackButtonVisible), typeof(bool), typeof(ListPageFrame), new PropertyMetadata(false));
+
+    public static readonly DependencyProperty HeaderBackCommandProperty =
+        DependencyProperty.Register(nameof(HeaderBackCommand), typeof(ICommand), typeof(ListPageFrame), new PropertyMetadata(null));
 
     public static readonly DependencyProperty SearchTextProperty =
         DependencyProperty.Register(
@@ -52,6 +59,18 @@ public partial class ListPageFrame : UserControl
     {
         get => (ImageSource?)GetValue(TitleIconSourceProperty);
         set => SetValue(TitleIconSourceProperty, value);
+    }
+
+    public bool IsHeaderBackButtonVisible
+    {
+        get => (bool)GetValue(IsHeaderBackButtonVisibleProperty);
+        set => SetValue(IsHeaderBackButtonVisibleProperty, value);
+    }
+
+    public ICommand? HeaderBackCommand
+    {
+        get => (ICommand?)GetValue(HeaderBackCommandProperty);
+        set => SetValue(HeaderBackCommandProperty, value);
     }
 
     public string SearchText

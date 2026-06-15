@@ -191,7 +191,13 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void SelectMinecraftVersion(DownloadMinecraftVersionItem version)
+    private async Task SelectMinecraftVersionAsync(DownloadMinecraftVersionItem version)
+    {
+        SelectMinecraftVersionCore(version);
+        await GoToInstanceOptions();
+    }
+
+    private void SelectMinecraftVersionCore(DownloadMinecraftVersionItem version)
     {
         SelectedMinecraftVersion = version;
         foreach (var item in AllVersions)
@@ -220,6 +226,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     private void BackToVersionList()
     {
         CurrentStep = DownloadPageStep.VersionList;
+        ClearSelectedVersion();
     }
 
     [RelayCommand]

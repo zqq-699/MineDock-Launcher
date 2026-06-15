@@ -54,8 +54,7 @@ public sealed class DownloadPageViewModelTests
 
         await viewModel.EnsureVersionsLoadedAsync();
         instanceService.CreatedInstances.Clear();
-        viewModel.SelectMinecraftVersionCommand.Execute(viewModel.VisibleVersions.Single());
-        await viewModel.GoToInstanceOptionsCommand.ExecuteAsync(null);
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
 
         Assert.Equal(2, instanceService.GetInstancesCallCount);
         Assert.False(viewModel.HasInstanceNameDuplicateMessage);
@@ -137,11 +136,12 @@ public sealed class DownloadPageViewModelTests
 
         await viewModel.EnsureVersionsLoadedAsync();
         var version = viewModel.VisibleVersions.Last();
-        viewModel.SelectMinecraftVersionCommand.Execute(version);
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(version);
 
         Assert.Same(version, viewModel.SelectedMinecraftVersion);
         Assert.True(version.IsSelected);
         Assert.False(viewModel.VisibleVersions.First().IsSelected);
+        Assert.Equal(DownloadPageStep.InstanceOptions, viewModel.CurrentStep);
     }
 
     [Fact]
@@ -172,8 +172,7 @@ public sealed class DownloadPageViewModelTests
         var viewModel = CreateDownloadPageViewModel(service);
 
         await viewModel.EnsureVersionsLoadedAsync();
-        viewModel.SelectMinecraftVersionCommand.Execute(viewModel.VisibleVersions.Last());
-        await viewModel.GoToInstanceOptionsCommand.ExecuteAsync(null);
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Last());
         var previousRefreshToken = viewModel.ContentRefreshToken;
         var previousEntranceAnimationToken = viewModel.ListEntranceAnimationToken;
 
@@ -209,8 +208,7 @@ public sealed class DownloadPageViewModelTests
 
         Assert.Equal(2, viewModel.ListEntranceAnimationToken);
 
-        viewModel.SelectMinecraftVersionCommand.Execute(viewModel.VisibleVersions.Single());
-        await viewModel.GoToInstanceOptionsCommand.ExecuteAsync(null);
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
         var installTask = viewModel.InstallCommand.ExecuteAsync(null);
         await instanceService.CreateStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
@@ -250,8 +248,7 @@ public sealed class DownloadPageViewModelTests
 
         await viewModel.EnsureVersionsLoadedAsync();
         var version = viewModel.VisibleVersions.Single();
-        viewModel.SelectMinecraftVersionCommand.Execute(version);
-        viewModel.GoToInstanceOptionsCommand.Execute(null);
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(version);
 
         Assert.Equal(DownloadPageStep.InstanceOptions, viewModel.CurrentStep);
         Assert.True(viewModel.IsInstanceOptionsStep);
@@ -276,11 +273,10 @@ public sealed class DownloadPageViewModelTests
         var viewModel = CreateDownloadPageViewModel(service, instanceService);
 
         await viewModel.EnsureVersionsLoadedAsync();
-        viewModel.SelectMinecraftVersionCommand.Execute(viewModel.VisibleVersions.Single());
-        viewModel.GoToInstanceOptionsCommand.Execute(null);
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
 
         Assert.True(viewModel.HasInstanceNameDuplicateMessage);
-        Assert.Equal("\u5df2\u5b58\u5728\u540c\u540d\u7248\u672c", viewModel.InstanceNameDuplicateMessage);
+        Assert.Equal("\u5df2\u5b58\u5728\u540c\u540d\u6e38\u620f", viewModel.InstanceNameDuplicateMessage);
         Assert.False(viewModel.InstallCommand.CanExecute(null));
 
         viewModel.InstanceName = "1.20.1 Copy";
@@ -303,8 +299,7 @@ public sealed class DownloadPageViewModelTests
         await viewModel.EnsureVersionsLoadedAsync();
         viewModel.SelectVersionCategoryCommand.Execute(viewModel.VersionCategories.Single(category => category.Id == "snapshot"));
         var version = viewModel.VisibleVersions.Single();
-        viewModel.SelectMinecraftVersionCommand.Execute(version);
-        viewModel.GoToInstanceOptionsCommand.Execute(null);
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(version);
 
         Assert.Equal("24w44a", viewModel.PageTitle);
         Assert.Equal("/Assets/Icons/block/dirt_block.png", viewModel.PageTitleIconSource);
@@ -320,8 +315,7 @@ public sealed class DownloadPageViewModelTests
         var viewModel = CreateDownloadPageViewModel(service);
 
         await viewModel.EnsureVersionsLoadedAsync();
-        viewModel.SelectMinecraftVersionCommand.Execute(viewModel.VisibleVersions.Single());
-        viewModel.GoToInstanceOptionsCommand.Execute(null);
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
         var fabric = viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Fabric);
         viewModel.SelectLoaderOptionCommand.Execute(fabric);
 
@@ -331,7 +325,7 @@ public sealed class DownloadPageViewModelTests
     }
 
     [Fact]
-    public async Task DownloadPageBackToVersionListKeepsSelectedVersion()
+    public async Task DownloadPageBackToVersionListClearsSelectedVersion()
     {
         var service = new FakeGameVersionService(
         [
@@ -341,13 +335,14 @@ public sealed class DownloadPageViewModelTests
 
         await viewModel.EnsureVersionsLoadedAsync();
         var version = viewModel.VisibleVersions.Single();
-        viewModel.SelectMinecraftVersionCommand.Execute(version);
-        viewModel.GoToInstanceOptionsCommand.Execute(null);
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(version);
         viewModel.BackToVersionListCommand.Execute(null);
 
         Assert.Equal(DownloadPageStep.VersionList, viewModel.CurrentStep);
-        Assert.Same(version, viewModel.SelectedMinecraftVersion);
-        Assert.True(version.IsSelected);
+        Assert.Null(viewModel.SelectedMinecraftVersion);
+        Assert.False(version.IsSelected);
+        Assert.All(viewModel.VisibleVersions, item => Assert.False(item.IsSelected));
+        Assert.False(viewModel.GoToInstanceOptionsCommand.CanExecute(null));
         Assert.Equal("\u6b63\u5f0f\u7248", viewModel.PageTitle);
         Assert.Null(viewModel.PageTitleIconSource);
     }
@@ -365,8 +360,7 @@ public sealed class DownloadPageViewModelTests
 
         Assert.False(viewModel.InstallCommand.CanExecute(null));
 
-        viewModel.SelectMinecraftVersionCommand.Execute(viewModel.VisibleVersions.Single());
-        viewModel.GoToInstanceOptionsCommand.Execute(null);
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
 
         Assert.True(viewModel.InstallCommand.CanExecute(null));
 
@@ -395,8 +389,7 @@ public sealed class DownloadPageViewModelTests
         viewModel.InstanceInstalled += (_, instance) => installedInstance = instance;
 
         await viewModel.EnsureVersionsLoadedAsync();
-        viewModel.SelectMinecraftVersionCommand.Execute(viewModel.VisibleVersions.Single());
-        viewModel.GoToInstanceOptionsCommand.Execute(null);
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
         viewModel.InstanceName = "My Vanilla";
         await viewModel.InstallCommand.ExecuteAsync(null);
 
@@ -430,8 +423,7 @@ public sealed class DownloadPageViewModelTests
         var viewModel = CreateDownloadPageViewModel(service, instanceService);
 
         await viewModel.EnsureVersionsLoadedAsync();
-        viewModel.SelectMinecraftVersionCommand.Execute(viewModel.VisibleVersions.Single());
-        viewModel.GoToInstanceOptionsCommand.Execute(null);
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
 
         var installTask = viewModel.InstallCommand.ExecuteAsync(null);
         await instanceService.CreateStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
@@ -460,14 +452,12 @@ public sealed class DownloadPageViewModelTests
 
         await viewModel.EnsureVersionsLoadedAsync();
 
-        viewModel.SelectMinecraftVersionCommand.Execute(viewModel.VisibleVersions[0]);
-        viewModel.GoToInstanceOptionsCommand.Execute(null);
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions[0]);
         viewModel.InstanceName = "First Install";
         var firstInstall = viewModel.InstallCommand.ExecuteAsync(null);
         await TestAsync.WaitForAsync(() => instanceService.CreateCallCount == 1);
 
-        viewModel.SelectMinecraftVersionCommand.Execute(viewModel.VisibleVersions[1]);
-        viewModel.GoToInstanceOptionsCommand.Execute(null);
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions[1]);
         viewModel.InstanceName = "Second Install";
 
         Assert.True(viewModel.InstallCommand.CanExecute(null));
@@ -501,8 +491,7 @@ public sealed class DownloadPageViewModelTests
         var viewModel = CreateDownloadPageViewModel(service, instanceService);
 
         await viewModel.EnsureVersionsLoadedAsync();
-        viewModel.SelectMinecraftVersionCommand.Execute(viewModel.VisibleVersions.Single());
-        viewModel.GoToInstanceOptionsCommand.Execute(null);
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
 
         var actual = await Assert.ThrowsAsync<InvalidOperationException>(
             () => viewModel.InstallCommand.ExecuteAsync(null));

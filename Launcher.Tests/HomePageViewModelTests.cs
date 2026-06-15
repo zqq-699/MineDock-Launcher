@@ -1,0 +1,335 @@
+using System.Windows;
+using Launcher.App.Controls;
+using Launcher.App.Resources;
+using Launcher.App.Services;
+using Launcher.App.ViewModels;
+using Launcher.Application.Accounts;
+using Launcher.Application.Services;
+using Launcher.Domain.Models;
+
+namespace Launcher.Tests;
+
+public sealed class HomePageViewModelTests
+{
+    [Fact]
+    public void HomePageBuildsLaunchInstanceMenuItems()
+    {
+        var viewModel = CreateViewModel();
+        var first = CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla);
+        var second = CreateInstance("second", "Fabric Pack", "1.21.1", LoaderKind.Fabric);
+
+        viewModel.SetLaunchInstances([first, second]);
+        viewModel.SetSelectedInstance(second);
+
+        Assert.True(viewModel.HasLaunchInstances);
+        Assert.False(viewModel.HasNoLaunchInstances);
+        Assert.Equal(["First World", "Fabric Pack"], viewModel.LaunchInstances.Select(instance => instance.Name));
+        Assert.False(viewModel.LaunchInstances[0].IsSelected);
+        Assert.True(viewModel.LaunchInstances[1].IsSelected);
+        Assert.True(viewModel.HasSelectedLaunchInstance);
+        Assert.Same(viewModel.LaunchInstances[1], viewModel.SelectedLaunchInstanceItem);
+    }
+
+    [Fact]
+    public async Task HomePageSelectLaunchInstanceCommandPersistsAndSelectsInstance()
+    {
+        GameInstance? requestedInstance = null;
+        var statusService = new FakeStatusService();
+        var viewModel = CreateViewModel(
+            statusService,
+            instance =>
+            {
+                requestedInstance = instance;
+                return Task.FromResult(true);
+            });
+        var first = CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla);
+        var second = CreateInstance("second", "Fabric Pack", "1.21.1", LoaderKind.Fabric);
+        viewModel.SetLaunchInstances([first, second]);
+
+        await viewModel.SelectLaunchInstanceCommand.ExecuteAsync(viewModel.LaunchInstances[1]);
+
+        Assert.Same(second, requestedInstance);
+        Assert.Same(second, viewModel.SelectedInstance);
+        Assert.False(viewModel.LaunchInstances[0].IsSelected);
+        Assert.True(viewModel.LaunchInstances[1].IsSelected);
+        Assert.True(viewModel.HasSelectedLaunchInstance);
+        Assert.Same(viewModel.LaunchInstances[1], viewModel.SelectedLaunchInstanceItem);
+        Assert.Equal(
+            string.Format(Strings.Status_LaunchInstanceSelectedFormat, "Fabric Pack"),
+            statusService.LastMessage);
+    }
+
+    [Fact]
+    public void HomePageCollapsedLaunchInstanceSelectionFollowsSelectedInstance()
+    {
+        var viewModel = CreateViewModel();
+        var first = CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla);
+        var second = CreateInstance("second", "Fabric Pack", "1.21.1", LoaderKind.Fabric);
+        viewModel.SetLaunchInstances([first, second]);
+
+        viewModel.SetSelectedInstance(first);
+        Assert.Same(viewModel.LaunchInstances[0], viewModel.SelectedLaunchInstanceItem);
+
+        viewModel.SetSelectedInstance(second);
+        Assert.Same(viewModel.LaunchInstances[1], viewModel.SelectedLaunchInstanceItem);
+    }
+
+    [Fact]
+    public async Task HomePageSelectLaunchInstanceCommandShowsFriendlyFailure()
+    {
+        var statusService = new FakeStatusService();
+        var viewModel = CreateViewModel(statusService, _ => Task.FromResult(false));
+        var instance = CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla);
+        viewModel.SetLaunchInstances([instance]);
+
+        await viewModel.SelectLaunchInstanceCommand.ExecuteAsync(viewModel.LaunchInstances[0]);
+
+        Assert.Null(viewModel.SelectedInstance);
+        Assert.False(viewModel.LaunchInstances[0].IsSelected);
+        Assert.False(viewModel.HasSelectedLaunchInstance);
+        Assert.Null(viewModel.SelectedLaunchInstanceItem);
+        Assert.Equal(Strings.Status_LaunchInstanceSelectionFailed, statusService.LastMessage);
+    }
+
+    [Fact]
+    public void HomePageShowsEmptyLaunchInstanceState()
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.SetLaunchInstances([]);
+
+        Assert.Empty(viewModel.LaunchInstances);
+        Assert.False(viewModel.HasLaunchInstances);
+        Assert.True(viewModel.HasNoLaunchInstances);
+        Assert.False(viewModel.HasSelectedLaunchInstance);
+        Assert.Null(viewModel.SelectedLaunchInstanceItem);
+    }
+
+    [Fact]
+    public async Task HomePageUsesMinecraftVersionTypeForLaunchGameIcons()
+    {
+        var viewModel = CreateViewModel(
+            versions:
+            [
+                new MinecraftVersionInfo("1.21.4", "Release", false),
+                new MinecraftVersionInfo("snapshot-profile", "Snapshot", false)
+            ]);
+        await viewModel.EnsureVersionTypesLoadedAsync();
+        var release = CreateInstance("release", "Release World", "1.21.4", LoaderKind.Vanilla);
+        var snapshot = CreateInstance("snapshot", "Snapshot World", "snapshot-profile", LoaderKind.Vanilla);
+
+        viewModel.SetLaunchInstances([release, snapshot]);
+
+        Assert.Equal("/Assets/Icons/block/grass_block.png", viewModel.LaunchInstances[0].IconSource);
+        Assert.Equal("/Assets/Icons/block/dirt_block.png", viewModel.LaunchInstances[1].IconSource);
+    }
+
+    [Fact]
+    public void HomePageUsesCustomLaunchGameIconWhenSet()
+    {
+        var viewModel = CreateViewModel();
+        var game = CreateInstance("custom", "Custom World", "1.21.4", LoaderKind.Vanilla);
+        game.IconSource = "/custom/game-icon.png";
+
+        viewModel.SetLaunchInstances([game]);
+
+        Assert.Equal("/custom/game-icon.png", viewModel.LaunchInstances[0].IconSource);
+    }
+
+    private static HomePageViewModel CreateViewModel(
+        FakeStatusService? statusService = null,
+        Func<GameInstance, Task<bool>>? selectLaunchInstance = null,
+        IReadOnlyList<MinecraftVersionInfo>? versions = null)
+    {
+        statusService ??= new FakeStatusService();
+        return new HomePageViewModel(
+            new FakeLaunchService(),
+            new FakeGameVersionService(versions ?? []),
+            CreateAccountPage(statusService),
+            statusService,
+            _ => { },
+            _ => { },
+            selectLaunchInstance ?? (_ => Task.FromResult(true)));
+    }
+
+    private static AccountPageViewModel CreateAccountPage(FakeStatusService statusService)
+    {
+        var accountList = new AccountListViewModel(new FakeAccountStore());
+        var microsoftAccountService = new FakeMicrosoftAccountService();
+        return new AccountPageViewModel(
+            accountList,
+            new AccountDialogViewModel(accountList, microsoftAccountService, statusService),
+            new AccountAppearanceViewModel(accountList, microsoftAccountService),
+            statusService,
+            new FakeAccountDialogService(),
+            new FakeClipboardService(),
+            new FakeFilePickerService());
+    }
+
+    private static GameInstance CreateInstance(string id, string name, string minecraftVersion, LoaderKind loader)
+    {
+        return new GameInstance
+        {
+            Id = id,
+            Name = name,
+            MinecraftVersion = minecraftVersion,
+            VersionName = minecraftVersion,
+            Loader = loader
+        };
+    }
+
+    private sealed class FakeLaunchService : ILaunchService
+    {
+        public Task LaunchAsync(
+            GameInstance instance,
+            LauncherSettings settings,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeStatusService : IStatusService
+    {
+        public event Action<string>? MessageReported;
+
+        public string? LastMessage { get; private set; }
+
+        public void Report(string message)
+        {
+            LastMessage = message;
+            MessageReported?.Invoke(message);
+        }
+    }
+
+    private sealed class FakeAccountStore : IAccountStore
+    {
+        public Task<IReadOnlyList<LauncherAccount>> LoadAsync(LauncherSettings settings)
+        {
+            return Task.FromResult<IReadOnlyList<LauncherAccount>>([]);
+        }
+
+        public Task SaveOrderAsync(LauncherSettings settings, IEnumerable<LauncherAccount> accounts)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeMicrosoftAccountService : IMicrosoftAccountService
+    {
+        public Task<IReadOnlyList<LauncherAccount>> GetSavedAccountsAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<LauncherAccount>>([]);
+        }
+
+        public Task<LauncherAccount> LoginInteractivelyAsync(CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task DeleteAccountAsync(LauncherAccount account, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<IReadOnlyList<AccountCapeOption>> GetCapesAsync(LauncherAccount account, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<LauncherAccount> UploadSkinAsync(LauncherAccount account, string skinFilePath, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task SetActiveCapeAsync(LauncherAccount account, string? capeId, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<LauncherAccount> ChangeNameAsync(LauncherAccount account, string newName, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class FakeAccountDialogService : IAccountDialogService
+    {
+        public void Attach(
+            AccountPageViewModel accountPage,
+            Window owner,
+            FrameworkElement contentLayer,
+            DialogHost addAccountHost,
+            DialogHost deleteAccountHost,
+            DialogHost renameAccountHost)
+        {
+        }
+
+        public void ShowAddAccountDialog()
+        {
+        }
+
+        public void ShowDeleteAccountDialog(LauncherAccount account)
+        {
+        }
+
+        public void ShowRenameAccountDialog()
+        {
+        }
+
+        public void CancelAddAccountDialog()
+        {
+        }
+
+        public void BackAddAccountDialog()
+        {
+        }
+
+        public Task ConfirmAddAccountDialogAsync()
+        {
+            throw new NotSupportedException();
+        }
+
+        public void CancelDeleteAccountDialog()
+        {
+        }
+
+        public Task ConfirmDeleteAccountDialogAsync()
+        {
+            throw new NotSupportedException();
+        }
+
+        public void CancelRenameAccountDialog()
+        {
+        }
+
+        public Task ConfirmRenameAccountDialogAsync()
+        {
+            throw new NotSupportedException();
+        }
+
+        public void QueueOpenDialogBlurRefresh()
+        {
+        }
+
+        public void Prewarm()
+        {
+        }
+    }
+
+    private sealed class FakeClipboardService : IClipboardService
+    {
+        public void CopyText(string text)
+        {
+        }
+    }
+
+    private sealed class FakeFilePickerService : IFilePickerService
+    {
+        public string? PickMinecraftSkin()
+        {
+            return null;
+        }
+    }
+}

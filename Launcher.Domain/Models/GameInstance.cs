@@ -8,6 +8,7 @@ public sealed class GameInstance
     public LoaderKind Loader { get; set; } = LoaderKind.Vanilla;
     public string? LoaderVersion { get; set; }
     public string VersionName { get; set; } = string.Empty;
+    public string? IconSource { get; set; }
     public string InstanceDirectory { get; set; } = string.Empty;
     public string? JavaPath { get; set; }
     public int MemoryMb { get; set; } = 4096;

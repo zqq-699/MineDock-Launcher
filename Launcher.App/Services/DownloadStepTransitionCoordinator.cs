@@ -15,8 +15,6 @@ public sealed class DownloadStepTransitionCoordinator
     private readonly FrameworkElement stepHost;
     private readonly FrameworkElement versionListLayer;
     private readonly FrameworkElement instanceOptionsLayer;
-    private readonly Button nextStepButton;
-    private readonly Button previousStepButton;
     private readonly Button installStepButton;
     private DownloadPageStep displayedStep = DownloadPageStep.VersionList;
     private int transitionToken;
@@ -26,16 +24,12 @@ public sealed class DownloadStepTransitionCoordinator
         FrameworkElement stepHost,
         FrameworkElement versionListLayer,
         FrameworkElement instanceOptionsLayer,
-        Button nextStepButton,
-        Button previousStepButton,
         Button installStepButton)
     {
         this.loadedElement = loadedElement;
         this.stepHost = stepHost;
         this.versionListLayer = versionListLayer;
         this.instanceOptionsLayer = instanceOptionsLayer;
-        this.nextStepButton = nextStepButton;
-        this.previousStepButton = previousStepButton;
         this.installStepButton = installStepButton;
     }
 
@@ -114,8 +108,6 @@ public sealed class DownloadStepTransitionCoordinator
     private void SyncStepButtons(DownloadPageStep step)
     {
         var isInstanceOptionsStep = step is DownloadPageStep.InstanceOptions;
-        ResetStepButton(nextStepButton, !isInstanceOptionsStep);
-        ResetStepButton(previousStepButton, isInstanceOptionsStep);
         ResetStepButton(installStepButton, isInstanceOptionsStep);
     }
 
@@ -141,14 +133,10 @@ public sealed class DownloadStepTransitionCoordinator
     {
         if (nextStep is DownloadPageStep.InstanceOptions)
         {
-            FadeStepButtonOut(nextStepButton, token);
-            FadeStepButtonIn(previousStepButton, token);
             FadeStepButtonIn(installStepButton, token);
             return;
         }
 
-        FadeStepButtonIn(nextStepButton, token);
-        FadeStepButtonOut(previousStepButton, token);
         FadeStepButtonOut(installStepButton, token);
     }
 

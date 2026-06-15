@@ -85,7 +85,7 @@ public sealed class GameInstanceService : IGameInstanceService
                     : name);
             var instances = (await GetInstancesCoreAsync(settings, cancellationToken).ConfigureAwait(false)).ToList();
             if (instances.Any(instance => IsSameVersionIdentity(instance, versionIdentity)))
-                throw new InvalidOperationException("已存在同名版本。");
+                throw new InvalidOperationException("已存在同名游戏。");
 
             var versionName = await provider.InstallAsync(
                 minecraftVersion,
@@ -142,6 +142,27 @@ public sealed class GameInstanceService : IGameInstanceService
             instances.Add(instance);
 
         await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<bool> SetDefaultInstanceAsync(string instanceId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+            return false;
+
+        var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var instances = await GetInstancesCoreAsync(settings, cancellationToken).ConfigureAwait(false);
+        var instance = instances.FirstOrDefault(existing =>
+            string.Equals(existing.Id, instanceId, StringComparison.OrdinalIgnoreCase));
+
+        if (instance is null)
+            return false;
+
+        if (string.Equals(settings.DefaultInstanceId, instance.Id, StringComparison.Ordinal))
+            return true;
+
+        settings.DefaultInstanceId = instance.Id;
+        await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+        return true;
     }
 
     private static bool IsSameVersionIdentity(GameInstance instance, string versionName)

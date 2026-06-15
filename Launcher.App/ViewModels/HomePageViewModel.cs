@@ -1,10 +1,13 @@
-﻿using Launcher.Application.Accounts;
-using Launcher.App.Resources;
-using Launcher.App.Services;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Launcher.Domain.Models;
+using Launcher.App.Models;
+using Launcher.App.Resources;
+using Launcher.App.Services;
+using Launcher.Application.Accounts;
 using Launcher.Application.Services;
+using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels;
 
@@ -17,21 +20,23 @@ public sealed partial class HomePageViewModel : ObservableObject
     private readonly Action<double> reportProgressPercent;
     private LauncherSettings settings = new();
 
-    [ObservableProperty]
-    private GameInstance? selectedInstance;
-
     public HomePageViewModel(
         ILaunchService launchService,
+        IGameVersionService gameVersionService,
         AccountPageViewModel accountPage,
         IStatusService statusService,
         Action<string> navigateToPage,
-        Action<double> reportProgressPercent)
+        Action<double> reportProgressPercent,
+        Func<GameInstance, Task<bool>> selectLaunchInstance)
     {
         this.launchService = launchService;
         this.accountPage = accountPage;
         this.statusService = statusService;
         this.navigateToPage = navigateToPage;
         this.reportProgressPercent = reportProgressPercent;
+
+        LaunchGames = new HomeLaunchGameListViewModel(gameVersionService, statusService, selectLaunchInstance);
+        LaunchGames.PropertyChanged += LaunchGames_PropertyChanged;
 
         accountPage.PropertyChanged += (_, e) =>
         {
@@ -40,9 +45,25 @@ public sealed partial class HomePageViewModel : ObservableObject
         };
     }
 
+    public HomeLaunchGameListViewModel LaunchGames { get; }
+
     public bool HasSelectedAccount => accountPage.SelectedAccount is not null;
 
+    public GameInstance? SelectedInstance => LaunchGames.SelectedInstance;
+
     public bool CanLaunchSelectedGame => HasSelectedAccount && SelectedInstance is not null;
+
+    public ObservableCollection<HomeLaunchInstanceItem> LaunchInstances => LaunchGames.LaunchInstances;
+
+    public bool HasLaunchInstances => LaunchGames.HasLaunchInstances;
+
+    public bool HasNoLaunchInstances => LaunchGames.HasNoLaunchInstances;
+
+    public HomeLaunchInstanceItem? SelectedLaunchInstanceItem => LaunchGames.SelectedLaunchInstanceItem;
+
+    public bool HasSelectedLaunchInstance => LaunchGames.HasSelectedLaunchInstance;
+
+    public IAsyncRelayCommand SelectLaunchInstanceCommand => LaunchGames.SelectLaunchInstanceCommand;
 
     public string? HomeAvatarUrl
     {
@@ -86,7 +107,7 @@ public sealed partial class HomePageViewModel : ObservableObject
     public void Initialize(LauncherSettings launcherSettings, GameInstance? instance)
     {
         settings = launcherSettings;
-        SelectedInstance = instance;
+        SetSelectedInstance(instance);
         NotifyAccountStateChanged();
         NotifyInstanceStateChanged();
     }
@@ -98,7 +119,17 @@ public sealed partial class HomePageViewModel : ObservableObject
 
     public void SetSelectedInstance(GameInstance? instance)
     {
-        SelectedInstance = instance;
+        LaunchGames.SetSelectedInstance(instance);
+    }
+
+    public void SetLaunchInstances(IEnumerable<GameInstance> instances)
+    {
+        LaunchGames.SetLaunchInstances(instances);
+    }
+
+    public Task EnsureVersionTypesLoadedAsync(CancellationToken cancellationToken = default)
+    {
+        return LaunchGames.EnsureVersionTypesLoadedAsync(cancellationToken);
     }
 
     [RelayCommand(CanExecute = nameof(CanLaunchSelectedGame))]
@@ -116,12 +147,7 @@ public sealed partial class HomePageViewModel : ObservableObject
     [RelayCommand]
     private void ChangeHomeVersion()
     {
-        navigateToPage("GameSettings");
-    }
-
-    partial void OnSelectedInstanceChanged(GameInstance? value)
-    {
-        NotifyInstanceStateChanged();
+        navigateToPage(NavigationCatalog.GameSettingsPage);
     }
 
     private IProgress<LauncherProgress> CreateProgress()
@@ -131,6 +157,29 @@ public sealed partial class HomePageViewModel : ObservableObject
             statusService.Report(progress.Message);
             reportProgressPercent(progress.Percent ?? 0);
         });
+    }
+
+    private void LaunchGames_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(HomeLaunchGameListViewModel.SelectedInstance):
+                OnPropertyChanged(nameof(SelectedInstance));
+                NotifyInstanceStateChanged();
+                break;
+            case nameof(HomeLaunchGameListViewModel.HasLaunchInstances):
+                OnPropertyChanged(nameof(HasLaunchInstances));
+                break;
+            case nameof(HomeLaunchGameListViewModel.HasNoLaunchInstances):
+                OnPropertyChanged(nameof(HasNoLaunchInstances));
+                break;
+            case nameof(HomeLaunchGameListViewModel.SelectedLaunchInstanceItem):
+                OnPropertyChanged(nameof(SelectedLaunchInstanceItem));
+                break;
+            case nameof(HomeLaunchGameListViewModel.HasSelectedLaunchInstance):
+                OnPropertyChanged(nameof(HasSelectedLaunchInstance));
+                break;
+        }
     }
 
     private void NotifyAccountStateChanged()

@@ -80,6 +80,27 @@
         <Setter Property="TextAlignment" Value="Center" />
     </Style>
 
+    <Style x:Key="HomeLaunchInstanceNameTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#F4FFFFFF" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="LineHeight" Value="18" />
+    </Style>
+
+    <Style x:Key="HomeLaunchInstanceSubtitleTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="0,2,0,0" />
+        <Setter Property="Foreground" Value="#9FFFFFFF" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="LineHeight" Value="14" />
+    </Style>
+
+    <Style x:Key="HomeLaunchInstanceEmptyTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#A8FFFFFF" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="TextAlignment" Value="Left" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
     <Style x:Key="HomeChangeVersionButtonStyle" TargetType="Button">
         <Setter Property="Margin" Value="0,2,0,0" />
         <Setter Property="Height" Value="28" />

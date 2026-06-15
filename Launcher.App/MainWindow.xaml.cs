@@ -113,6 +113,9 @@ public partial class MainWindow : Window
         if (string.Equals(page, "Install", StringComparison.OrdinalIgnoreCase))
             return InstallPageView.RootElement;
 
+        if (string.Equals(page, "GameSettings", StringComparison.OrdinalIgnoreCase))
+            return GameSettingsPageView.RootElement;
+
         return GeneralPageView.RootElement;
     }
 

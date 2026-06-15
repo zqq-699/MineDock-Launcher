@@ -12,6 +12,8 @@ internal sealed class TestSettingsService : ISettingsService
         this.settings = settings;
     }
 
+    public int SaveCount { get; private set; }
+
     public Task<LauncherSettings> LoadAsync(CancellationToken cancellationToken = default)
     {
         return Task.FromResult(settings);
@@ -19,6 +21,7 @@ internal sealed class TestSettingsService : ISettingsService
 
     public Task SaveAsync(LauncherSettings settings, CancellationToken cancellationToken = default)
     {
+        SaveCount++;
         this.settings = settings;
         return Task.CompletedTask;
     }

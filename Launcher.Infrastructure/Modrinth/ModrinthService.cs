@@ -53,7 +53,7 @@ public sealed class ModrinthService : IModrinthService
         var versions = await httpClient.GetFromJsonAsync<List<ModrinthVersion>>(versionsUrl, cancellationToken) ?? [];
         var selected = versions.FirstOrDefault(version => version.Files.Count > 0);
         if (selected is null)
-            throw new InvalidOperationException("没有找到与当前实例兼容的 Mod 文件。");
+            throw new InvalidOperationException("没有找到与当前游戏兼容的 Mod 文件。");
 
         var file = selected.Files.FirstOrDefault(f => f.IsPrimary) ?? selected.Files[0];
         var modsDirectory = Path.Combine(instance.InstanceDirectory, "mods");

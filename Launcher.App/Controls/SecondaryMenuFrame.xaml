@@ -5,16 +5,39 @@
              Focusable="False">
     <Border Style="{StaticResource SecondaryMenuPanelStyle}">
         <Grid>
-            <ScrollViewer Style="{StaticResource SecondaryMenuScrollViewerStyle}">
+            <ScrollViewer>
+                <ScrollViewer.Style>
+                    <Style TargetType="ScrollViewer" BasedOn="{StaticResource SecondaryMenuScrollViewerStyle}">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding UseInternalScrollViewer, ElementName=Root}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ScrollViewer.Style>
                 <StackPanel>
                     <Border Style="{StaticResource SecondaryMenuHeaderSpacerStyle}" />
 
                     <StackPanel Style="{StaticResource SecondaryMenuItemsPanelStyle}">
-                        <ContentPresenter Content="{Binding MenuContent, ElementName=Root}" />
+                        <ContentControl x:Name="ScrollableContentHost" />
                         <Border Style="{StaticResource SecondaryMenuBottomSpacerStyle}" />
                     </StackPanel>
                 </StackPanel>
             </ScrollViewer>
+
+            <ContentControl x:Name="DirectContentHost">
+                <ContentControl.Style>
+                    <Style TargetType="ContentControl">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding UseInternalScrollViewer, ElementName=Root}" Value="False">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ContentControl.Style>
+            </ContentControl>
 
             <Border Style="{StaticResource SecondaryMenuHeaderOverlayStyle}">
                 <TextBlock Text="{Binding Title, ElementName=Root}"

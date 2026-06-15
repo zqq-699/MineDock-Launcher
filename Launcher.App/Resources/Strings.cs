@@ -13,6 +13,7 @@ public static class Strings
     public static string Menu_Button => Get(nameof(Menu_Button));
     public static string Search_Placeholder => Get(nameof(Search_Placeholder));
     public static string Back_Button => Get(nameof(Back_Button));
+    public static string Back_Tooltip => Get(nameof(Back_Tooltip));
     public static string Cancel_Button => Get(nameof(Cancel_Button));
     public static string Confirm_Button => Get(nameof(Confirm_Button));
     public static string Delete_Button => Get(nameof(Delete_Button));
@@ -25,6 +26,12 @@ public static class Strings
     public static string Page_GameSettings => Get(nameof(Page_GameSettings));
     public static string Page_Resources => Get(nameof(Page_Resources));
     public static string Page_Settings => Get(nameof(Page_Settings));
+    public static string GameSettings_AllCategory => Get(nameof(GameSettings_AllCategory));
+    public static string GameSettings_ModLoaderCategory => Get(nameof(GameSettings_ModLoaderCategory));
+    public static string GameSettings_NoInstances => Get(nameof(GameSettings_NoInstances));
+    public static string GameSettings_NoMatchingInstances => Get(nameof(GameSettings_NoMatchingInstances));
+    public static string GameSettings_NoCategoryInstancesFormat => Get(nameof(GameSettings_NoCategoryInstancesFormat));
+    public static string GameSettings_InstanceSubtitleFormat => Get(nameof(GameSettings_InstanceSubtitleFormat));
     public static string Nav_GameInstanceList => Get(nameof(Nav_GameInstanceList));
     public static string Nav_JavaMemory => Get(nameof(Nav_JavaMemory));
     public static string Nav_DirectoryManagement => Get(nameof(Nav_DirectoryManagement));
@@ -38,6 +45,9 @@ public static class Strings
     public static string Home_NoAccountSelected => Get(nameof(Home_NoAccountSelected));
     public static string Home_NoVersionSelected => Get(nameof(Home_NoVersionSelected));
     public static string Home_MoreVersionsButton => Get(nameof(Home_MoreVersionsButton));
+    public static string Home_LaunchInstanceMenuTitle => Get(nameof(Home_LaunchInstanceMenuTitle));
+    public static string Home_LaunchInstanceSubtitleFormat => Get(nameof(Home_LaunchInstanceSubtitleFormat));
+    public static string Home_NoLaunchInstances => Get(nameof(Home_NoLaunchInstances));
     public static string Launch_Button => Get(nameof(Launch_Button));
     public static string Account_ListTitle => Get(nameof(Account_ListTitle));
     public static string Account_AddButton => Get(nameof(Account_AddButton));
@@ -84,8 +94,6 @@ public static class Strings
     public static string Dialog_RenameOfflineAccountSubtitle => Get(nameof(Dialog_RenameOfflineAccountSubtitle));
     public static string Download_VersionListTitle => Get(nameof(Download_VersionListTitle));
     public static string Download_LoadingVersions => Get(nameof(Download_LoadingVersions));
-    public static string Download_LocateSelectedButton => Get(nameof(Download_LocateSelectedButton));
-    public static string Download_NextStepButton => Get(nameof(Download_NextStepButton));
     public static string Download_InstanceNameLabel => Get(nameof(Download_InstanceNameLabel));
     public static string Download_LoaderLabel => Get(nameof(Download_LoaderLabel));
     public static string Download_InstallButton => Get(nameof(Download_InstallButton));
@@ -105,6 +113,8 @@ public static class Strings
     public static string DownloadTask_Running => Get(nameof(DownloadTask_Running));
     public static string Status_Ready => Get(nameof(Status_Ready));
     public static string Status_NoLaunchableInstance => Get(nameof(Status_NoLaunchableInstance));
+    public static string Status_LaunchInstanceSelectedFormat => Get(nameof(Status_LaunchInstanceSelectedFormat));
+    public static string Status_LaunchInstanceSelectionFailed => Get(nameof(Status_LaunchInstanceSelectionFailed));
     public static string Status_LoadingVersions => Get(nameof(Status_LoadingVersions));
     public static string Status_VersionsLoadedFormat => Get(nameof(Status_VersionsLoadedFormat));
     public static string Status_LoaderVersionsPendingFormat => Get(nameof(Status_LoaderVersionsPendingFormat));
@@ -120,6 +130,7 @@ public static class Strings
     public static string Status_SettingsSaved => Get(nameof(Status_SettingsSaved));
     public static string Status_InstanceSettingsSaved => Get(nameof(Status_InstanceSettingsSaved));
     public static string Status_DefaultInstanceSetFormat => Get(nameof(Status_DefaultInstanceSetFormat));
+    public static string Status_LoadInstancesFailed => Get(nameof(Status_LoadInstancesFailed));
     public static string Status_LoadVersionsFailed => Get(nameof(Status_LoadVersionsFailed));
     public static string Status_UnimplementedCategory => Get(nameof(Status_UnimplementedCategory));
     public static string Status_NoCategoryVersionsFormat => Get(nameof(Status_NoCategoryVersionsFormat));

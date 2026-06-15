@@ -185,6 +185,14 @@
         </Style.Resources>
     </Style>
 
+    <Style x:Key="SecondaryMenuVirtualizedScrollViewerStyle"
+           TargetType="ScrollViewer"
+           BasedOn="{StaticResource SecondaryMenuScrollViewerStyle}">
+        <Setter Property="CanContentScroll" Value="True" />
+        <Setter Property="behaviors:SmoothScrollBehavior.AllowContentScroll" Value="True" />
+        <Setter Property="behaviors:SmoothScrollBehavior.WheelAnimationDurationMilliseconds" Value="130" />
+    </Style>
+
     <Style x:Key="MainContentScrollBarStyle"
            TargetType="ScrollBar"
            BasedOn="{StaticResource SlimVerticalScrollBarStyle}">
