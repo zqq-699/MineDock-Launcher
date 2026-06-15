@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Launcher.Domain.Models;
 
 namespace Launcher.Application.Accounts;
 
@@ -9,6 +10,7 @@ public sealed partial class LauncherAccount : ObservableObject
     public required string Id { get; init; }
     public required string DisplayName { get; init; }
     public string? Uuid { get; init; }
+    public OfflineUuidGenerationMode OfflineUuidGenerationMode { get; init; } = OfflineUuidGenerationMode.Standard;
     public string? AvatarSource { get; init; }
     public bool IsOffline { get; init; }
     public IReadOnlyList<AccountCapeOption> CachedCapeOptions { get; init; } = [];

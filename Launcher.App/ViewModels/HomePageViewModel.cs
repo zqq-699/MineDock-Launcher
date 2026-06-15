@@ -135,13 +135,25 @@ public sealed partial class HomePageViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanLaunchSelectedGame))]
     private async Task LaunchAsync()
     {
-        if (!CanLaunchSelectedGame || SelectedInstance is null)
+        var account = accountPage.SelectedAccount;
+        if (!CanLaunchSelectedGame || SelectedInstance is null || account is null)
         {
             statusService.Report(Strings.Status_NoLaunchableInstance);
             return;
         }
 
-        await launchService.LaunchAsync(SelectedInstance, settings, CreateProgress());
+        try
+        {
+            await launchService.LaunchAsync(SelectedInstance, account, settings, CreateProgress());
+        }
+        catch (LaunchAccountSessionException)
+        {
+            statusService.Report(Strings.Status_LaunchAccountUnavailable);
+        }
+        catch (Exception)
+        {
+            statusService.Report(Strings.Status_LaunchFailed);
+        }
     }
 
     [RelayCommand]

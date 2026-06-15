@@ -2,6 +2,7 @@ using System.IO;
 using CmlLib.Core;
 using CmlLib.Core.Auth;
 using CmlLib.Core.ProcessBuilder;
+using Launcher.Application.Accounts;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
@@ -9,7 +10,19 @@ namespace Launcher.Infrastructure.Minecraft;
 
 public sealed class LaunchService : ILaunchService
 {
-    public async Task LaunchAsync(GameInstance instance, LauncherSettings settings, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
+    private readonly ILaunchAccountSessionService accountSessionService;
+
+    public LaunchService(ILaunchAccountSessionService accountSessionService)
+    {
+        this.accountSessionService = accountSessionService;
+    }
+
+    public async Task LaunchAsync(
+        GameInstance instance,
+        LauncherAccount account,
+        LauncherSettings settings,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken = default)
     {
         progress?.Report(new LauncherProgress("Launch", $"正在检查 {instance.Name}"));
         var launcher = VanillaLoaderProvider.CreateLauncher(settings.MinecraftDirectory, progress);
@@ -19,11 +32,15 @@ public sealed class LaunchService : ILaunchService
         await launcher.InstallAsync(versionName, cancellationToken);
         var isolatedPath = CreateIsolatedLaunchPath(settings.MinecraftDirectory, versionName);
 
+        var accountSession = await accountSessionService.CreateSessionAsync(account, cancellationToken);
         var javaPath = string.IsNullOrWhiteSpace(instance.JavaPath) ? settings.DefaultJavaPath : instance.JavaPath;
         var launchOption = new MLaunchOption
         {
             Path = isolatedPath,
-            Session = MSession.CreateOfflineSession(settings.OfflineUsername),
+            Session = new MSession(
+                accountSession.Username,
+                accountSession.AccessToken,
+                accountSession.Uuid),
             MaximumRamMb = instance.MemoryMb > 0 ? instance.MemoryMb : settings.DefaultMemoryMb,
             ScreenWidth = instance.WindowWidth,
             ScreenHeight = instance.WindowHeight,

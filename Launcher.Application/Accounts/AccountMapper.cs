@@ -11,6 +11,7 @@ public static class AccountMapper
             Id = record.Id,
             DisplayName = record.DisplayName,
             Uuid = record.Uuid,
+            OfflineUuidGenerationMode = record.OfflineUuidGenerationMode,
             AvatarSource = record.AvatarSource,
             IsOffline = true,
             CachedCapeOptions = ToCapeOptions(record.Capes)
@@ -24,6 +25,7 @@ public static class AccountMapper
             Id = account.Id,
             DisplayName = string.IsNullOrWhiteSpace(record.DisplayName) ? account.DisplayName : record.DisplayName,
             Uuid = account.Uuid,
+            OfflineUuidGenerationMode = record.OfflineUuidGenerationMode,
             AvatarSource = string.IsNullOrWhiteSpace(account.AvatarSource) ? record.AvatarSource : account.AvatarSource,
             IsOffline = account.IsOffline,
             CachedCapeOptions = ToCapeOptions(record.Capes)
@@ -39,6 +41,7 @@ public static class AccountMapper
             Id = account.Id,
             DisplayName = account.DisplayName,
             Uuid = account.Uuid,
+            OfflineUuidGenerationMode = account.OfflineUuidGenerationMode,
             AvatarSource = account.AvatarSource,
             IsOffline = account.IsOffline,
             CachedCapeOptions = capeOptions
@@ -52,6 +55,42 @@ public static class AccountMapper
             Id = account.Id,
             DisplayName = displayName,
             Uuid = account.Uuid,
+            OfflineUuidGenerationMode = account.OfflineUuidGenerationMode,
+            AvatarSource = account.AvatarSource,
+            IsOffline = account.IsOffline,
+            CachedCapeOptions = account.CachedCapeOptions
+        };
+    }
+
+    public static LauncherAccount WithOfflineUuid(
+        LauncherAccount account,
+        OfflineUuidGenerationMode mode,
+        string uuid)
+    {
+        return new LauncherAccount
+        {
+            Id = account.Id,
+            DisplayName = account.DisplayName,
+            Uuid = uuid,
+            OfflineUuidGenerationMode = mode,
+            AvatarSource = account.AvatarSource,
+            IsOffline = account.IsOffline,
+            CachedCapeOptions = account.CachedCapeOptions
+        };
+    }
+
+    public static LauncherAccount WithDisplayNameAndOfflineUuid(
+        LauncherAccount account,
+        string displayName,
+        OfflineUuidGenerationMode mode,
+        string uuid)
+    {
+        return new LauncherAccount
+        {
+            Id = account.Id,
+            DisplayName = displayName,
+            Uuid = uuid,
+            OfflineUuidGenerationMode = mode,
             AvatarSource = account.AvatarSource,
             IsOffline = account.IsOffline,
             CachedCapeOptions = account.CachedCapeOptions
@@ -65,6 +104,7 @@ public static class AccountMapper
             Id = account.Id,
             DisplayName = account.DisplayName,
             Uuid = account.Uuid,
+            OfflineUuidGenerationMode = account.OfflineUuidGenerationMode,
             AvatarSource = account.AvatarSource,
             IsOffline = account.IsOffline,
             Capes = account.CachedCapeOptions.Select(ToCapeRecord).ToList()

@@ -26,6 +26,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<AccountListViewModel>();
         services.AddSingleton<AccountDialogViewModel>();
         services.AddSingleton<AccountAppearanceViewModel>();
+        services.AddSingleton<AccountOfflineUuidViewModel>();
         services.AddSingleton<AccountPageViewModel>();
         services.AddSingleton<DownloadTasksPageViewModel>();
         services.AddSingleton<DownloadPageViewModel>();

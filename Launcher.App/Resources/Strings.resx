@@ -59,6 +59,14 @@
   <data name="Account_CapeHeader" xml:space="preserve"><value>披风</value></data>
   <data name="Account_ChangeSkinButton" xml:space="preserve"><value>更换皮肤</value></data>
   <data name="Account_UuidHeader" xml:space="preserve"><value>UUID</value></data>
+  <data name="Account_OfflineUuidModeLabel" xml:space="preserve"><value>UUID 生成方式</value></data>
+  <data name="Account_OfflineUuidStandardTitle" xml:space="preserve"><value>标准离线 UUID</value></data>
+  <data name="Account_OfflineUuidStandardDescription" xml:space="preserve"><value>按 OfflinePlayer:用户名 稳定生成，兼容多数离线服务器。</value></data>
+  <data name="Account_OfflineUuidRandomTitle" xml:space="preserve"><value>随机固定 UUID</value></data>
+  <data name="Account_OfflineUuidRandomDescription" xml:space="preserve"><value>生成一次后随账户保存，改名后仍保持不变。</value></data>
+  <data name="Account_OfflineUuidManualTitle" xml:space="preserve"><value>手动输入 UUID</value></data>
+  <data name="Account_OfflineUuidManualDescription" xml:space="preserve"><value>自己输入 UUID，应用后随账户保存。</value></data>
+  <data name="Account_OfflineUuidInvalid" xml:space="preserve"><value>UUID 格式不正确</value></data>
   <data name="Account_NoneValue" xml:space="preserve"><value>无</value></data>
   <data name="Account_UsernameLabel" xml:space="preserve"><value>用户名</value></data>
   <data name="Account_NewUsernameLabel" xml:space="preserve"><value>新用户名</value></data>
@@ -116,6 +124,8 @@
   <data name="DownloadTask_Running" xml:space="preserve"><value>下载中</value></data>
   <data name="Status_Ready" xml:space="preserve"><value>准备就绪</value></data>
   <data name="Status_NoLaunchableInstance" xml:space="preserve"><value>还没有可启动的游戏</value></data>
+  <data name="Status_LaunchAccountUnavailable" xml:space="preserve"><value>当前账户无法启动游戏，请重新登录或切换账户。</value></data>
+  <data name="Status_LaunchFailed" xml:space="preserve"><value>启动失败，请稍后重试。</value></data>
   <data name="Status_LaunchInstanceSelectedFormat" xml:space="preserve"><value>当前游戏已切换为 {0}</value></data>
   <data name="Status_LaunchInstanceSelectionFailed" xml:space="preserve"><value>当前游戏切换失败，请刷新后重试。</value></data>
   <data name="Status_LoadingVersions" xml:space="preserve"><value>正在获取 Minecraft 版本列表...</value></data>
@@ -151,6 +161,10 @@
   <data name="Status_LoginCanceled" xml:space="preserve"><value>正版登录已取消</value></data>
   <data name="Status_LoginFailed" xml:space="preserve"><value>正版登录失败，请稍后重试。</value></data>
   <data name="Status_OfflineAccountAddedFormat" xml:space="preserve"><value>已添加离线账户 {0}</value></data>
+  <data name="Status_OfflineUuidModeChangedFormat" xml:space="preserve"><value>离线 UUID 方式已切换为 {0}</value></data>
+  <data name="Status_OfflineUuidModeChangeFailed" xml:space="preserve"><value>离线 UUID 方式切换失败，请稍后重试。</value></data>
+  <data name="Status_OfflineUuidInvalid" xml:space="preserve"><value>UUID 格式不正确，请检查后重试。</value></data>
+  <data name="Status_OfflineUuidApplied" xml:space="preserve"><value>离线 UUID 已应用</value></data>
   <data name="Status_AccountDeletedFormat" xml:space="preserve"><value>已删除账户 {0}</value></data>
   <data name="Status_AccountDeletedCacheCleanupFailedFormat" xml:space="preserve"><value>已从列表删除账户 {0}，但清理登录缓存失败。</value></data>
   <data name="Status_AccountNameUnchanged" xml:space="preserve"><value>账户名没有变化</value></data>

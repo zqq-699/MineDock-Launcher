@@ -20,6 +20,7 @@ public sealed partial class AccountPageViewModel : ObservableObject
         AccountListViewModel accountList,
         AccountDialogViewModel dialog,
         AccountAppearanceViewModel appearance,
+        AccountOfflineUuidViewModel offlineUuid,
         IStatusService statusService,
         IAccountDialogService dialogService,
         IClipboardService clipboardService,
@@ -28,6 +29,7 @@ public sealed partial class AccountPageViewModel : ObservableObject
         AccountList = accountList;
         Dialog = dialog;
         Appearance = appearance;
+        OfflineUuid = offlineUuid;
         this.statusService = statusService;
         this.dialogService = dialogService;
         this.clipboardService = clipboardService;
@@ -36,6 +38,7 @@ public sealed partial class AccountPageViewModel : ObservableObject
         AccountList.PropertyChanged += ForwardChildPropertyChanged;
         Dialog.PropertyChanged += ForwardChildPropertyChanged;
         Appearance.PropertyChanged += ForwardChildPropertyChanged;
+        OfflineUuid.PropertyChanged += ForwardChildPropertyChanged;
     }
 
     public AccountListViewModel AccountList { get; }
@@ -43,6 +46,8 @@ public sealed partial class AccountPageViewModel : ObservableObject
     public AccountDialogViewModel Dialog { get; }
 
     public AccountAppearanceViewModel Appearance { get; }
+
+    public AccountOfflineUuidViewModel OfflineUuid { get; }
 
     public ObservableCollection<LauncherAccount> Accounts => AccountList.Accounts;
     public ObservableCollection<AccountCapeOption> SelectedAccountCapeOptions => Appearance.SelectedAccountCapeOptions;

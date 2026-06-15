@@ -4,6 +4,7 @@ using Launcher.Application.Accounts;
 using Launcher.App.Models;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels;
 
@@ -19,6 +20,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
 
     private readonly AccountListViewModel accountList;
     private readonly IMicrosoftAccountService microsoftAccountService;
+    private readonly IOfflineAccountUuidService offlineUuidService;
     private readonly IStatusService statusService;
 
     [ObservableProperty]
@@ -87,10 +89,12 @@ public sealed partial class AccountDialogViewModel : ObservableObject
     public AccountDialogViewModel(
         AccountListViewModel accountList,
         IMicrosoftAccountService microsoftAccountService,
+        IOfflineAccountUuidService offlineUuidService,
         IStatusService statusService)
     {
         this.accountList = accountList;
         this.microsoftAccountService = microsoftAccountService;
+        this.offlineUuidService = offlineUuidService;
         this.statusService = statusService;
     }
 
@@ -269,6 +273,8 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         {
             Id = $"offline-{Guid.NewGuid():N}",
             DisplayName = accountName,
+            Uuid = offlineUuidService.CreateUuid(accountName, OfflineUuidGenerationMode.Standard),
+            OfflineUuidGenerationMode = OfflineUuidGenerationMode.Standard,
             IsOffline = true
         };
 
@@ -379,7 +385,15 @@ public sealed partial class AccountDialogViewModel : ObservableObject
             LauncherAccount updatedAccount;
             if (account.IsOffline)
             {
-                updatedAccount = AccountMapper.WithDisplayName(account, newName);
+                var uuid = offlineUuidService.CreateUuid(
+                    newName,
+                    account.OfflineUuidGenerationMode,
+                    account.Uuid);
+                updatedAccount = AccountMapper.WithDisplayNameAndOfflineUuid(
+                    account,
+                    newName,
+                    account.OfflineUuidGenerationMode,
+                    uuid);
             }
             else
             {

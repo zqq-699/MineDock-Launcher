@@ -46,7 +46,7 @@ public sealed class AccountStoreTests
                 Uuid = "imported-uuid",
                 IsOffline = false
             });
-        var store = new AccountStore(settingsService, microsoftService);
+        var store = new AccountStore(settingsService, microsoftService, new FakeOfflineAccountUuidService());
 
         var accounts = await store.LoadAsync(settings);
 
@@ -56,6 +56,8 @@ public sealed class AccountStoreTests
             {
                 Assert.Equal("offline-1", account.Id);
                 Assert.Equal("Local", account.DisplayName);
+                Assert.Equal("Standard-Local", account.Uuid);
+                Assert.Equal(OfflineUuidGenerationMode.Standard, account.OfflineUuidGenerationMode);
                 Assert.True(account.IsOffline);
             },
             account =>
@@ -80,7 +82,10 @@ public sealed class AccountStoreTests
     {
         var settings = new LauncherSettings();
         var settingsService = new FakeSettingsService();
-        var store = new AccountStore(settingsService, new FakeMicrosoftAccountService());
+        var store = new AccountStore(
+            settingsService,
+            new FakeMicrosoftAccountService(),
+            new FakeOfflineAccountUuidService());
         var accounts = new[]
         {
             new LauncherAccount
@@ -106,8 +111,43 @@ public sealed class AccountStoreTests
         Assert.Collection(
             settings.Accounts,
             account => Assert.Equal("ms-1", account.Id),
-            account => Assert.Equal("offline-1", account.Id));
+            account =>
+            {
+                Assert.Equal("offline-1", account.Id);
+                Assert.Equal("Standard-Offline", account.Uuid);
+                Assert.Equal(OfflineUuidGenerationMode.Standard, account.OfflineUuidGenerationMode);
+            });
         Assert.Same(settings, settingsService.LastSavedSettings);
+    }
+
+    [Fact]
+    public async Task LoadAsync_PreservesRandomOfflineUuid()
+    {
+        var settings = new LauncherSettings
+        {
+            MicrosoftAccountsImported = true,
+            Accounts =
+            [
+                new()
+                {
+                    Id = "offline-1",
+                    DisplayName = "Local",
+                    Uuid = "existing-random",
+                    OfflineUuidGenerationMode = OfflineUuidGenerationMode.Random,
+                    IsOffline = true
+                }
+            ]
+        };
+        var store = new AccountStore(
+            new FakeSettingsService(),
+            new FakeMicrosoftAccountService(),
+            new FakeOfflineAccountUuidService());
+
+        var accounts = await store.LoadAsync(settings);
+
+        var account = Assert.Single(accounts);
+        Assert.Equal("existing-random", account.Uuid);
+        Assert.Equal(OfflineUuidGenerationMode.Random, account.OfflineUuidGenerationMode);
     }
 
     private sealed class FakeSettingsService : ISettingsService

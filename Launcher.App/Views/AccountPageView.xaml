@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
              xmlns:accountModels="clr-namespace:Launcher.Application.Accounts;assembly=Launcher.Application"
+             xmlns:models="clr-namespace:Launcher.App.Models"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
              xmlns:views="clr-namespace:Launcher.App.Views"
              xmlns:res="clr-namespace:Launcher.App.Resources"
@@ -126,29 +127,90 @@
                                 HorizontalAlignment="Left">
                         <GroupBox Header="{x:Static res:Strings.Account_UuidHeader}"
                                   Style="{StaticResource LauncherContentSectionStyle}">
-                            <Border Style="{StaticResource SectionFieldSurfaceStyle}">
-                                <Grid>
+                            <StackPanel>
+                                <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{Binding OfflineUuid.SelectedAccountUuidText}"
+                                                   Foreground="#E8FFFFFF"
+                                                   FontSize="14"
+                                                   TextWrapping="Wrap"
+                                                   VerticalAlignment="Center" />
+                                        <Button Grid.Column="1"
+                                                Margin="10,-4,-6,-4"
+                                                Style="{StaticResource InlineIconButtonStyle}"
+                                                Command="{Binding CopySelectedUuidCommand}">
+                                            <controls:SvgIcon Width="16"
+                                                              Height="16"
+                                                              IconKey="general/general_copy"
+                                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <Grid Margin="0,12,0,0"
+                                      Visibility="{Binding OfflineUuid.HasSelectedOfflineAccount, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="220" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Text="{x:Static res:Strings.Account_OfflineUuidModeLabel}"
+                                               Foreground="#CFFFFFFF"
+                                               FontSize="13"
+                                               VerticalAlignment="Center" />
+                                    <controls:AnimatedComboBox Grid.Column="1"
+                                                               ItemsSource="{Binding OfflineUuid.OfflineUuidOptions}"
+                                                               SelectedItem="{Binding OfflineUuid.SelectedOfflineUuidOption, Mode=TwoWay}"
+                                                               Style="{StaticResource LauncherComboBoxStyle}"
+                                                               shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                                        <controls:AnimatedComboBox.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type models:OfflineUuidModeOption}">
+                                                <TextBlock Text="{Binding Title}"
+                                                           Foreground="#F4F4F4"
+                                                           FontSize="13"
+                                                           VerticalAlignment="Center" />
+                                            </DataTemplate>
+                                        </controls:AnimatedComboBox.ItemTemplate>
+                                    </controls:AnimatedComboBox>
+                                </Grid>
+
+                                <Grid Margin="0,12,0,0"
+                                      Visibility="{Binding OfflineUuid.HasManualUuidEditor, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <TextBlock Text="{Binding SelectedAccount.Uuid, Converter={StaticResource UuidTextConverter}}"
-                                               Foreground="#E8FFFFFF"
-                                               FontSize="14"
-                                               TextWrapping="Wrap"
-                                               VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="0"
+                                             Height="36"
+                                             FontSize="12"
+                                             Text="{Binding OfflineUuid.ManualUuidText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource LauncherDialogTextBoxStyle}" />
                                     <Button Grid.Column="1"
-                                            Margin="10,-4,-6,-4"
-                                            Style="{StaticResource InlineIconButtonStyle}"
-                                            Command="{Binding CopySelectedUuidCommand}">
-                                        <controls:SvgIcon Width="16"
-                                                          Height="16"
-                                                          IconKey="general/general_copy"
-                                                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
-                                    </Button>
+                                            Margin="10,0,0,0"
+                                            Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                            Content="{x:Static res:Strings.Apply_Button}"
+                                            IsEnabled="{Binding OfflineUuid.CanApplyManualUuid}"
+                                            Command="{Binding OfflineUuid.ApplyManualUuidCommand}" />
+
+                                    <TextBlock Grid.Row="1"
+                                               Grid.ColumnSpan="2"
+                                               Margin="2,8,0,0"
+                                               Text="{x:Static res:Strings.Account_OfflineUuidInvalid}"
+                                               Foreground="#FFFF8A8A"
+                                               FontSize="12"
+                                               Visibility="{Binding OfflineUuid.IsManualUuidInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                                 </Grid>
-                            </Border>
+                            </StackPanel>
                         </GroupBox>
 
                         <GroupBox Margin="0,22,0,0"

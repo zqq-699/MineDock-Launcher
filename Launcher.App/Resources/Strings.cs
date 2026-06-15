@@ -56,6 +56,14 @@ public static class Strings
     public static string Account_CapeHeader => Get(nameof(Account_CapeHeader));
     public static string Account_ChangeSkinButton => Get(nameof(Account_ChangeSkinButton));
     public static string Account_UuidHeader => Get(nameof(Account_UuidHeader));
+    public static string Account_OfflineUuidModeLabel => Get(nameof(Account_OfflineUuidModeLabel));
+    public static string Account_OfflineUuidStandardTitle => Get(nameof(Account_OfflineUuidStandardTitle));
+    public static string Account_OfflineUuidStandardDescription => Get(nameof(Account_OfflineUuidStandardDescription));
+    public static string Account_OfflineUuidRandomTitle => Get(nameof(Account_OfflineUuidRandomTitle));
+    public static string Account_OfflineUuidRandomDescription => Get(nameof(Account_OfflineUuidRandomDescription));
+    public static string Account_OfflineUuidManualTitle => Get(nameof(Account_OfflineUuidManualTitle));
+    public static string Account_OfflineUuidManualDescription => Get(nameof(Account_OfflineUuidManualDescription));
+    public static string Account_OfflineUuidInvalid => Get(nameof(Account_OfflineUuidInvalid));
     public static string Account_NoneValue => Get(nameof(Account_NoneValue));
     public static string Account_UsernameLabel => Get(nameof(Account_UsernameLabel));
     public static string Account_NewUsernameLabel => Get(nameof(Account_NewUsernameLabel));
@@ -113,6 +121,8 @@ public static class Strings
     public static string DownloadTask_Running => Get(nameof(DownloadTask_Running));
     public static string Status_Ready => Get(nameof(Status_Ready));
     public static string Status_NoLaunchableInstance => Get(nameof(Status_NoLaunchableInstance));
+    public static string Status_LaunchAccountUnavailable => Get(nameof(Status_LaunchAccountUnavailable));
+    public static string Status_LaunchFailed => Get(nameof(Status_LaunchFailed));
     public static string Status_LaunchInstanceSelectedFormat => Get(nameof(Status_LaunchInstanceSelectedFormat));
     public static string Status_LaunchInstanceSelectionFailed => Get(nameof(Status_LaunchInstanceSelectionFailed));
     public static string Status_LoadingVersions => Get(nameof(Status_LoadingVersions));
@@ -148,6 +158,10 @@ public static class Strings
     public static string Status_LoginCanceled => Get(nameof(Status_LoginCanceled));
     public static string Status_LoginFailed => Get(nameof(Status_LoginFailed));
     public static string Status_OfflineAccountAddedFormat => Get(nameof(Status_OfflineAccountAddedFormat));
+    public static string Status_OfflineUuidModeChangedFormat => Get(nameof(Status_OfflineUuidModeChangedFormat));
+    public static string Status_OfflineUuidModeChangeFailed => Get(nameof(Status_OfflineUuidModeChangeFailed));
+    public static string Status_OfflineUuidInvalid => Get(nameof(Status_OfflineUuidInvalid));
+    public static string Status_OfflineUuidApplied => Get(nameof(Status_OfflineUuidApplied));
     public static string Status_AccountDeletedFormat => Get(nameof(Status_AccountDeletedFormat));
     public static string Status_AccountDeletedCacheCleanupFailedFormat => Get(nameof(Status_AccountDeletedCacheCleanupFailedFormat));
     public static string Status_AccountNameUnchanged => Get(nameof(Status_AccountNameUnchanged));

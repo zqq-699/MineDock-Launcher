@@ -18,9 +18,9 @@
                         <ContentPresenter ContentSource="Header"
                                           RecognizesAccessKey="True"
                                           TextElement.Foreground="{TemplateBinding Foreground}"
-                                          TextElement.FontSize="{TemplateBinding FontSize}"
+                                          TextElement.FontSize="16"
                                           TextElement.FontWeight="{TemplateBinding FontWeight}" />
-                        <ContentPresenter Margin="0,10,0,0"
+                        <ContentPresenter Margin="0,12,0,0"
                                           ContentSource="Content" />
                     </StackPanel>
                 </ControlTemplate>

@@ -142,30 +142,86 @@ public sealed class HomePageViewModelTests
         Assert.Equal("/custom/game-icon.png", viewModel.LaunchInstances[0].IconSource);
     }
 
+    [Fact]
+    public async Task HomePageLaunchPassesSelectedAccountToLaunchService()
+    {
+        var launchService = new FakeLaunchService();
+        var account = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "LocalUser",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+        var viewModel = CreateViewModel(launchService: launchService, selectedAccount: account);
+        var instance = CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla);
+        viewModel.SetSelectedInstance(instance);
+
+        await viewModel.LaunchCommand.ExecuteAsync(null);
+
+        Assert.Same(instance, launchService.LastInstance);
+        Assert.Same(account, launchService.LastAccount);
+    }
+
+    [Fact]
+    public async Task HomePageLaunchShowsFriendlyAccountFailure()
+    {
+        var statusService = new FakeStatusService();
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new LaunchAccountSessionException()
+        };
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-1",
+            DisplayName = "LiveUser",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false
+        };
+        var viewModel = CreateViewModel(statusService, launchService: launchService, selectedAccount: account);
+        viewModel.SetSelectedInstance(CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla));
+
+        await viewModel.LaunchCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_LaunchAccountUnavailable, statusService.LastMessage);
+    }
+
     private static HomePageViewModel CreateViewModel(
         FakeStatusService? statusService = null,
         Func<GameInstance, Task<bool>>? selectLaunchInstance = null,
-        IReadOnlyList<MinecraftVersionInfo>? versions = null)
+        IReadOnlyList<MinecraftVersionInfo>? versions = null,
+        FakeLaunchService? launchService = null,
+        LauncherAccount? selectedAccount = null)
     {
         statusService ??= new FakeStatusService();
         return new HomePageViewModel(
-            new FakeLaunchService(),
+            launchService ?? new FakeLaunchService(),
             new FakeGameVersionService(versions ?? []),
-            CreateAccountPage(statusService),
+            CreateAccountPage(statusService, selectedAccount),
             statusService,
             _ => { },
             _ => { },
             selectLaunchInstance ?? (_ => Task.FromResult(true)));
     }
 
-    private static AccountPageViewModel CreateAccountPage(FakeStatusService statusService)
+    private static AccountPageViewModel CreateAccountPage(
+        FakeStatusService statusService,
+        LauncherAccount? selectedAccount = null)
     {
         var accountList = new AccountListViewModel(new FakeAccountStore());
         var microsoftAccountService = new FakeMicrosoftAccountService();
+        var offlineUuidService = new FakeOfflineAccountUuidService();
+        if (selectedAccount is not null)
+        {
+            accountList.Accounts.Add(selectedAccount);
+            accountList.SelectAccount(selectedAccount);
+        }
+
         return new AccountPageViewModel(
             accountList,
-            new AccountDialogViewModel(accountList, microsoftAccountService, statusService),
+            new AccountDialogViewModel(accountList, microsoftAccountService, offlineUuidService, statusService),
             new AccountAppearanceViewModel(accountList, microsoftAccountService),
+            new AccountOfflineUuidViewModel(accountList, offlineUuidService, statusService),
             statusService,
             new FakeAccountDialogService(),
             new FakeClipboardService(),
@@ -186,12 +242,22 @@ public sealed class HomePageViewModelTests
 
     private sealed class FakeLaunchService : ILaunchService
     {
+        public GameInstance? LastInstance { get; private set; }
+        public LauncherAccount? LastAccount { get; private set; }
+        public Exception? ExceptionToThrow { get; init; }
+
         public Task LaunchAsync(
             GameInstance instance,
+            LauncherAccount account,
             LauncherSettings settings,
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default)
         {
+            LastInstance = instance;
+            LastAccount = account;
+            if (ExceptionToThrow is not null)
+                throw ExceptionToThrow;
+
             return Task.CompletedTask;
         }
     }

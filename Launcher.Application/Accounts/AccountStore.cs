@@ -8,13 +8,16 @@ public sealed class AccountStore : IAccountStore
 {
     private readonly ISettingsService settingsService;
     private readonly IMicrosoftAccountService microsoftAccountService;
+    private readonly IOfflineAccountUuidService offlineUuidService;
 
     public AccountStore(
         ISettingsService settingsService,
-        IMicrosoftAccountService microsoftAccountService)
+        IMicrosoftAccountService microsoftAccountService,
+        IOfflineAccountUuidService offlineUuidService)
     {
         this.settingsService = settingsService;
         this.microsoftAccountService = microsoftAccountService;
+        this.offlineUuidService = offlineUuidService;
     }
 
     public async Task<IReadOnlyList<LauncherAccount>> LoadAsync(LauncherSettings settings)
@@ -34,6 +37,7 @@ public sealed class AccountStore : IAccountStore
         {
             if (account.IsOffline)
             {
+                shouldPersistOrder |= EnsureOfflineUuid(account);
                 accounts.Add(AccountMapper.FromOfflineRecord(account));
                 continue;
             }
@@ -63,9 +67,13 @@ public sealed class AccountStore : IAccountStore
     {
         settings.AccountsInitialized = true;
         settings.MicrosoftAccountsImported = true;
-        settings.Accounts = accounts
+        var records = accounts
             .Select(AccountMapper.ToRecord)
             .ToList();
+        foreach (var account in records.Where(account => account.IsOffline))
+            EnsureOfflineUuid(account);
+
+        settings.Accounts = records;
 
         if (!string.IsNullOrWhiteSpace(settings.SelectedAccountId)
             && settings.Accounts.All(account => !string.Equals(account.Id, settings.SelectedAccountId, StringComparison.Ordinal)))
@@ -78,5 +86,19 @@ public sealed class AccountStore : IAccountStore
             settings.OfflineUsername = firstOfflineAccount.DisplayName;
 
         await settingsService.SaveAsync(settings);
+    }
+
+    private bool EnsureOfflineUuid(LauncherAccountRecord account)
+    {
+        var uuid = offlineUuidService.CreateUuid(
+            account.DisplayName,
+            account.OfflineUuidGenerationMode,
+            account.Uuid);
+
+        if (string.Equals(account.Uuid, uuid, StringComparison.Ordinal))
+            return false;
+
+        account.Uuid = uuid;
+        return true;
     }
 }

@@ -61,10 +61,12 @@ public sealed class MainViewModelTests
     {
         var accountList = new AccountListViewModel(new FakeAccountStore());
         var microsoftAccountService = new FakeMicrosoftAccountService();
+        var offlineUuidService = new FakeOfflineAccountUuidService();
         return new AccountPageViewModel(
             accountList,
-            new AccountDialogViewModel(accountList, microsoftAccountService, statusService),
+            new AccountDialogViewModel(accountList, microsoftAccountService, offlineUuidService, statusService),
             new AccountAppearanceViewModel(accountList, microsoftAccountService),
+            new AccountOfflineUuidViewModel(accountList, offlineUuidService, statusService),
             statusService,
             new FakeAccountDialogService(),
             new FakeClipboardService(),
@@ -113,6 +115,7 @@ public sealed class MainViewModelTests
     {
         public Task LaunchAsync(
             GameInstance instance,
+            LauncherAccount account,
             LauncherSettings settings,
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default)
