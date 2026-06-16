@@ -12,7 +12,10 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
     public bool IsImplemented => true;
     public string? LastGameDirectory { get; private set; }
     public string? LastIsolatedVersionName { get; private set; }
+    public TaskCompletionSource<bool> InstallStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Task? WaitBeforeInstall { get; init; }
+    public bool WriteJsonBeforeWaiting { get; init; }
+    public string? PartialVersionName { get; init; }
     public int InstallCallCount => installCallCount;
 
     public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(string minecraftVersion, CancellationToken cancellationToken = default)
@@ -26,9 +29,28 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
         LastGameDirectory = gameDirectory;
         LastIsolatedVersionName = isolatedVersionName;
         Interlocked.Increment(ref installCallCount);
+        InstallStarted.TrySetResult(true);
+
+        if (WriteJsonBeforeWaiting)
+        {
+            var partialVersionName = string.IsNullOrWhiteSpace(PartialVersionName)
+                ? isolatedVersionName
+                : PartialVersionName;
+            var partialVersionDirectory = Path.Combine(gameDirectory, "versions", partialVersionName);
+            Directory.CreateDirectory(partialVersionDirectory);
+            await File.WriteAllTextAsync(
+                Path.Combine(partialVersionDirectory, $"{partialVersionName}.json"),
+                $$"""
+                {
+                  "id": "{{partialVersionName}}",
+                  "jar": "{{partialVersionName}}"
+                }
+                """,
+                cancellationToken);
+        }
 
         if (WaitBeforeInstall is not null)
-            await WaitBeforeInstall;
+            await WaitBeforeInstall.WaitAsync(cancellationToken);
 
         var versionDirectory = Path.Combine(gameDirectory, "versions", isolatedVersionName);
         Directory.CreateDirectory(versionDirectory);

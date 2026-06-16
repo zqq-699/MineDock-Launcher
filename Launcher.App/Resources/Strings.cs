@@ -32,6 +32,9 @@ public static class Strings
     public static string GameSettings_NoMatchingInstances => Get(nameof(GameSettings_NoMatchingInstances));
     public static string GameSettings_NoCategoryInstancesFormat => Get(nameof(GameSettings_NoCategoryInstancesFormat));
     public static string GameSettings_InstanceSubtitleFormat => Get(nameof(GameSettings_InstanceSubtitleFormat));
+    public static string GameSettings_DeleteInstanceTooltip => Get(nameof(GameSettings_DeleteInstanceTooltip));
+    public static string GameSettings_OpenInstanceFolderTooltip => Get(nameof(GameSettings_OpenInstanceFolderTooltip));
+    public static string GameSettings_SelectInstanceAndGoHomeTooltip => Get(nameof(GameSettings_SelectInstanceAndGoHomeTooltip));
     public static string Nav_GameInstanceList => Get(nameof(Nav_GameInstanceList));
     public static string Nav_JavaMemory => Get(nameof(Nav_JavaMemory));
     public static string Nav_DirectoryManagement => Get(nameof(Nav_DirectoryManagement));
@@ -94,6 +97,8 @@ public static class Strings
     public static string Dialog_AddOfflineAccountSubtitle => Get(nameof(Dialog_AddOfflineAccountSubtitle));
     public static string Dialog_AddMicrosoftAccountSubtitle => Get(nameof(Dialog_AddMicrosoftAccountSubtitle));
     public static string Dialog_AddAccountResultSubtitle => Get(nameof(Dialog_AddAccountResultSubtitle));
+    public static string Dialog_DeleteInstanceTitle => Get(nameof(Dialog_DeleteInstanceTitle));
+    public static string Dialog_DeleteInstanceMessageFormat => Get(nameof(Dialog_DeleteInstanceMessageFormat));
     public static string Dialog_DeleteAccountTitle => Get(nameof(Dialog_DeleteAccountTitle));
     public static string Dialog_DeleteAccountMessage => Get(nameof(Dialog_DeleteAccountMessage));
     public static string Dialog_RenameAccountTitle => Get(nameof(Dialog_RenameAccountTitle));
@@ -148,6 +153,10 @@ public static class Strings
     public static string Status_SettingsSaved => Get(nameof(Status_SettingsSaved));
     public static string Status_InstanceSettingsSaved => Get(nameof(Status_InstanceSettingsSaved));
     public static string Status_DefaultInstanceSetFormat => Get(nameof(Status_DefaultInstanceSetFormat));
+    public static string Status_InstanceDeletedFormat => Get(nameof(Status_InstanceDeletedFormat));
+    public static string Status_DeleteInstanceFailed => Get(nameof(Status_DeleteInstanceFailed));
+    public static string Status_InstanceFolderNotFound => Get(nameof(Status_InstanceFolderNotFound));
+    public static string Status_OpenInstanceFolderFailed => Get(nameof(Status_OpenInstanceFolderFailed));
     public static string Status_LoadInstancesFailed => Get(nameof(Status_LoadInstancesFailed));
     public static string Status_LoadVersionsFailed => Get(nameof(Status_LoadVersionsFailed));
     public static string Status_UnimplementedCategory => Get(nameof(Status_UnimplementedCategory));

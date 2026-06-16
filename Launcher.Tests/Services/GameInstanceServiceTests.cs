@@ -67,6 +67,70 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task InstanceServiceRemovesNewlyCreatedVersionDirectoryWhenCreateIsCanceled()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var waitBeforeInstall = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new FakeLoaderProvider
+        {
+            WriteJsonBeforeWaiting = true,
+            PartialVersionName = "1.20.1",
+            WaitBeforeInstall = waitBeforeInstall.Task
+        };
+        var service = new GameInstanceService(settingsService, repository, [provider]);
+        using var cancellation = new CancellationTokenSource();
+
+        var createTask = service.CreateInstanceAsync("1.20.1", LoaderKind.Vanilla, null, "Custom Name", null, cancellation.Token);
+        await provider.InstallStarted.Task;
+        var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "1.20.1");
+        await TestAsync.WaitForAsync(() => File.Exists(Path.Combine(versionDirectory, "1.20.1.json")));
+
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => createTask);
+        Assert.False(Directory.Exists(versionDirectory));
+        Assert.Empty(await repository.GetAllAsync());
+    }
+
+    [Fact]
+    public async Task InstanceServiceKeepsExistingVersionDirectoryWhenCanceled()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "1.20.1");
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "1.20.1");
+
+        var waitBeforeInstall = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new FakeLoaderProvider
+        {
+            WriteJsonBeforeWaiting = true,
+            PartialVersionName = "1.20.1",
+            WaitBeforeInstall = waitBeforeInstall.Task
+        };
+        var service = new GameInstanceService(settingsService, repository, [provider]);
+        using var cancellation = new CancellationTokenSource();
+
+        var createTask = service.CreateInstanceAsync("1.20.1", LoaderKind.Vanilla, null, "Custom Name", null, cancellation.Token);
+        await provider.InstallStarted.Task;
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => createTask);
+        Assert.True(Directory.Exists(versionDirectory));
+        Assert.True(File.Exists(Path.Combine(versionDirectory, "1.20.1.jar")));
+    }
+
+    [Fact]
     public async Task VanillaVersionIsolatorCopiesJsonAndJarToCustomVersion()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -289,6 +353,98 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         var selected = await service.GetDefaultInstanceAsync();
         Assert.NotNull(selected);
         Assert.Equal("second", selected.Id);
+    }
+
+    [Fact]
+    public async Task DeleteInstanceRemovesRecordAndVersionDirectory()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultInstanceId = "first"
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "first");
+        await repository.SaveAllAsync([CreateStoredInstance("first")]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var deleted = await service.DeleteInstanceAsync("first");
+
+        Assert.True(deleted);
+        Assert.Empty(await repository.GetAllAsync());
+        Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "first")));
+    }
+
+    [Fact]
+    public async Task DeleteInstanceFallsBackToRemainingDefaultInstance()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultInstanceId = "first"
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "first");
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "second");
+        await repository.SaveAllAsync(
+        [
+            CreateStoredInstance("first"),
+            CreateStoredInstance("second")
+        ]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var deleted = await service.DeleteInstanceAsync("first");
+
+        Assert.True(deleted);
+        Assert.Equal("second", (await settingsService.LoadAsync()).DefaultInstanceId);
+        Assert.Single(await repository.GetAllAsync());
+    }
+
+    [Fact]
+    public async Task DeleteInstanceClearsDefaultWhenNoInstancesRemain()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultInstanceId = "first"
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "first");
+        await repository.SaveAllAsync([CreateStoredInstance("first")]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var deleted = await service.DeleteInstanceAsync("first");
+
+        Assert.True(deleted);
+        Assert.Equal(string.Empty, (await settingsService.LoadAsync()).DefaultInstanceId);
+    }
+
+    [Fact]
+    public async Task DeleteInstanceReturnsFalseWhenInstanceIsMissing()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultInstanceId = "first"
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "first");
+        await repository.SaveAllAsync([CreateStoredInstance("first")]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var deleted = await service.DeleteInstanceAsync("missing");
+
+        Assert.False(deleted);
+        Assert.Single(await repository.GetAllAsync());
+        Assert.True(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "first")));
     }
 
     private static async Task CreateInstalledVersionAsync(string minecraftDirectory, string versionName)

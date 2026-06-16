@@ -14,6 +14,7 @@ public sealed partial class MainViewModel : ObservableObject
 {
     private readonly ISettingsService settingsService;
     private readonly IWindowService windowService;
+    private readonly IStatusService statusService;
     private bool hasPrimedSettings;
     private bool hasInitialized;
     private bool isSyncingCurrentState;
@@ -46,6 +47,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         this.settingsService = settingsService;
         this.windowService = windowService;
+        this.statusService = statusService;
         AccountPage = accountPage;
         DownloadPage = downloadPage;
         DownloadTasksPage = downloadTasksPage;
@@ -61,6 +63,8 @@ public sealed partial class MainViewModel : ObservableObject
         DownloadPage.InstanceInstalled += DownloadPage_InstanceInstalled;
         AccountPage.PropertyChanged += AccountPage_PropertyChanged;
         GameManagement.PropertyChanged += GameManagement_PropertyChanged;
+        GameSettingsPage.LaunchInstanceRequested += GameSettingsPage_LaunchInstanceRequested;
+        GameSettingsPage.InstancesChanged += GameSettingsPage_InstancesChanged;
 
         UpdateNavigationSelection();
     }
@@ -143,7 +147,7 @@ public sealed partial class MainViewModel : ObservableObject
         UpdateNavigationSelection();
 
         if (isRepeatingGameSettingsClick && hasInitialized)
-            _ = GameSettingsPage.RefreshInstancesAsync();
+            _ = GameSettingsPage.RefreshInstancesSilentlyAsync();
 
         if (isRepeatingHomeClick && hasInitialized)
             _ = RefreshHomeInstancesAsync();
@@ -198,7 +202,7 @@ public sealed partial class MainViewModel : ObservableObject
                 await DownloadPage.EnsureVersionsLoadedAsync();
 
             if (NavigationCatalog.IsPage(CurrentPage, NavigationCatalog.GameSettingsPage))
-                await GameSettingsPage.RefreshInstancesAsync();
+                await GameSettingsPage.RefreshInstancesForPageActivationAsync();
         }
         finally
         {
@@ -277,6 +281,52 @@ public sealed partial class MainViewModel : ObservableObject
         CurrentPage = page;
         UpdateSecondaryItems();
         UpdateNavigationSelection();
+    }
+
+    private void GameSettingsPage_LaunchInstanceRequested(GameInstance instance)
+    {
+        _ = HandleGameSettingsLaunchRequestAsync(instance);
+    }
+
+    private void GameSettingsPage_InstancesChanged()
+    {
+        _ = SyncInstancesFromGameSettingsAsync();
+    }
+
+    private async Task HandleGameSettingsLaunchRequestAsync(GameInstance instance)
+    {
+        try
+        {
+            var saved = await GameManagement.SelectLaunchInstanceAsync(instance);
+            if (!saved)
+            {
+                statusService.Report(Strings.Status_LaunchInstanceSelectionFailed);
+                return;
+            }
+
+            HomePage.SetLaunchInstances(GameManagement.Instances);
+            HomePage.SetSelectedInstance(GameManagement.SelectedInstance);
+            NavigateToPage(NavigationCatalog.HomePage);
+            statusService.Report(string.Format(Strings.Status_LaunchInstanceSelectedFormat, instance.Name));
+        }
+        catch (Exception)
+        {
+            statusService.Report(Strings.Status_LaunchInstanceSelectionFailed);
+        }
+    }
+
+    private async Task SyncInstancesFromGameSettingsAsync()
+    {
+        try
+        {
+            await GameManagement.RefreshInstancesAsync();
+            HomePage.SetLaunchInstances(GameManagement.Instances);
+            HomePage.SetSelectedInstance(GameManagement.SelectedInstance);
+        }
+        catch (Exception)
+        {
+            statusService.Report(Strings.Status_LoadInstancesFailed);
+        }
     }
 
     private void UpdateAccountNavigationAvatar()

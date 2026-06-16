@@ -202,4 +202,13 @@
   <data name="Status_LoadAccountProfileFailed" xml:space="preserve"><value>读取正版账户资料失败，请稍后重试。</value></data>
   <data name="FilePicker_MinecraftSkinTitle" xml:space="preserve"><value>选择 Minecraft 皮肤</value></data>
   <data name="FilePicker_MinecraftSkinFilter" xml:space="preserve"><value>PNG 皮肤 (*.png)|*.png</value></data>
+  <data name="GameSettings_DeleteInstanceTooltip" xml:space="preserve"><value>删除版本</value></data>
+  <data name="GameSettings_OpenInstanceFolderTooltip" xml:space="preserve"><value>打开文件夹位置</value></data>
+  <data name="GameSettings_SelectInstanceAndGoHomeTooltip" xml:space="preserve"><value>返回主页并选择此版本</value></data>
+  <data name="Dialog_DeleteInstanceTitle" xml:space="preserve"><value>删除版本</value></data>
+  <data name="Dialog_DeleteInstanceMessageFormat" xml:space="preserve"><value>是否确定删除版本“{0}”？</value></data>
+  <data name="Status_InstanceDeletedFormat" xml:space="preserve"><value>已删除版本 {0}</value></data>
+  <data name="Status_DeleteInstanceFailed" xml:space="preserve"><value>删除版本失败，请稍后重试。</value></data>
+  <data name="Status_InstanceFolderNotFound" xml:space="preserve"><value>没有找到该版本对应的文件夹。</value></data>
+  <data name="Status_OpenInstanceFolderFailed" xml:space="preserve"><value>打开版本文件夹失败，请稍后重试。</value></data>
 </root>

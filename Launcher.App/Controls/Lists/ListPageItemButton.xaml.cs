@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using Launcher.App.Behaviors;
 
 namespace Launcher.App.Controls;
 
@@ -17,6 +18,9 @@ public partial class ListPageItemButton : UserControl
 
     public static readonly DependencyProperty TrailingTextProperty =
         DependencyProperty.Register(nameof(TrailingText), typeof(string), typeof(ListPageItemButton), new PropertyMetadata(string.Empty));
+
+    public static readonly DependencyProperty TrailingContentProperty =
+        DependencyProperty.Register(nameof(TrailingContent), typeof(object), typeof(ListPageItemButton), new PropertyMetadata(null));
 
     public static readonly DependencyProperty IconSourceProperty =
         DependencyProperty.Register(nameof(IconSource), typeof(ImageSource), typeof(ListPageItemButton), new PropertyMetadata(null));
@@ -38,6 +42,9 @@ public partial class ListPageItemButton : UserControl
 
     public static readonly DependencyProperty IsPreviousItemHighlightedProperty =
         DependencyProperty.Register(nameof(IsPreviousItemHighlighted), typeof(bool), typeof(ListPageItemButton), new PropertyMetadata(false));
+
+    public static readonly DependencyProperty IsPointerOverOptionProperty =
+        DependencyProperty.Register(nameof(IsPointerOverOption), typeof(bool), typeof(ListPageItemButton), new PropertyMetadata(false));
 
     public static readonly DependencyProperty ShouldPlayEnterAnimationProperty =
         DependencyProperty.Register(
@@ -117,6 +124,12 @@ public partial class ListPageItemButton : UserControl
         set => SetValue(TrailingTextProperty, value);
     }
 
+    public object? TrailingContent
+    {
+        get => GetValue(TrailingContentProperty);
+        set => SetValue(TrailingContentProperty, value);
+    }
+
     public ImageSource? IconSource
     {
         get => (ImageSource?)GetValue(IconSourceProperty);
@@ -157,6 +170,12 @@ public partial class ListPageItemButton : UserControl
     {
         get => (bool)GetValue(IsPreviousItemHighlightedProperty);
         set => SetValue(IsPreviousItemHighlightedProperty, value);
+    }
+
+    public bool IsPointerOverOption
+    {
+        get => (bool)GetValue(IsPointerOverOptionProperty);
+        set => SetValue(IsPointerOverOptionProperty, value);
     }
 
     public bool ShouldPlayEnterAnimation
@@ -255,6 +274,28 @@ public partial class ListPageItemButton : UserControl
         set => SetValue(TrailingForegroundProperty, value);
     }
 
+    private void Root_MouseEnter(object sender, MouseEventArgs e)
+    {
+        IsPointerOverOption = true;
+        OptionHoverBehavior.SetIsExternalActive(PART_Button, true);
+
+        if (TrailingContent is null)
+            return;
+
+        AnimateTrailingVisibility(0, 1, TimeSpan.FromMilliseconds(140));
+    }
+
+    private void Root_MouseLeave(object sender, MouseEventArgs e)
+    {
+        IsPointerOverOption = false;
+        OptionHoverBehavior.SetIsExternalActive(PART_Button, false);
+
+        if (TrailingContent is null)
+            return;
+
+        AnimateTrailingVisibility(1, 0, TimeSpan.FromMilliseconds(180));
+    }
+
     private void PlayEnterAnimationIfNeeded()
     {
         if (!ShouldPlayEnterAnimation)
@@ -271,7 +312,7 @@ public partial class ListPageItemButton : UserControl
 
         var scaleTransform = new ScaleTransform(0.96, 0.96);
         var translateTransform = new TranslateTransform(0, 14);
-        InnerButton.RenderTransform = new TransformGroup
+        AnimatedRoot.RenderTransform = new TransformGroup
         {
             Children =
             {
@@ -280,11 +321,16 @@ public partial class ListPageItemButton : UserControl
             }
         };
 
-        InnerButton.Opacity = 0;
+        AnimatedRoot.Opacity = 0;
 
         Dispatcher.BeginInvoke(
             DispatcherPriority.Background,
-            () => BeginEnterAnimation(scaleTransform, translateTransform, delay, duration, easing));
+            () => BeginEnterAnimation(
+                scaleTransform,
+                translateTransform,
+                delay,
+                duration,
+                easing));
     }
 
     private static void OnShouldPlayEnterAnimationChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -295,9 +341,10 @@ public partial class ListPageItemButton : UserControl
 
     private void ResetVisual()
     {
-        InnerButton.BeginAnimation(OpacityProperty, null);
-        InnerButton.Opacity = 1;
-        InnerButton.RenderTransform = null;
+        AnimatedRoot.BeginAnimation(OpacityProperty, null);
+        AnimatedRoot.Opacity = 1;
+        AnimatedRoot.RenderTransform = null;
+        TrailingContentPresenter.BeginAnimation(OpacityProperty, null);
     }
 
     private void BeginEnterAnimation(
@@ -307,10 +354,10 @@ public partial class ListPageItemButton : UserControl
         TimeSpan duration,
         IEasingFunction easing)
     {
-        if (!InnerButton.IsLoaded)
+        if (!AnimatedRoot.IsLoaded)
             return;
 
-        InnerButton.BeginAnimation(
+        AnimatedRoot.BeginAnimation(
             OpacityProperty,
             new DoubleAnimation(0, 1, duration)
             {
@@ -341,5 +388,15 @@ public partial class ListPageItemButton : UserControl
                 BeginTime = delay,
                 EasingFunction = easing
             });
+    }
+
+    private void AnimateTrailingVisibility(double trailingTextOpacity, double trailingContentOpacity, TimeSpan duration)
+    {
+        TrailingTextBlock.BeginAnimation(
+            OpacityProperty,
+            new DoubleAnimation(trailingTextOpacity, duration));
+        TrailingContentPresenter.BeginAnimation(
+            OpacityProperty,
+            new DoubleAnimation(trailingContentOpacity, duration));
     }
 }

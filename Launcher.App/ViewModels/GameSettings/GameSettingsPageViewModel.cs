@@ -1,7 +1,9 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
+using Launcher.App.Services;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
@@ -11,6 +13,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 {
     private readonly IGameInstanceService instanceService;
     private readonly IGameVersionService gameVersionService;
+    private readonly IStatusService statusService;
+    private readonly IInstanceFolderService instanceFolderService;
     private IReadOnlyDictionary<string, string> versionTypesByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private bool hasLoadedInstances;
 
@@ -33,17 +37,24 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     private string instanceSearchQuery = string.Empty;
 
     [ObservableProperty]
-    private IReadOnlyList<GameSettingsInstanceItem> visibleInstances = Array.Empty<GameSettingsInstanceItem>();
+    private int listEntranceAnimationToken;
 
     [ObservableProperty]
-    private int listEntranceAnimationToken;
+    private bool isDeleteInstanceDialogOpen;
+
+    [ObservableProperty]
+    private GameSettingsInstanceItem? instancePendingDelete;
 
     public GameSettingsPageViewModel(
         IGameInstanceService instanceService,
-        IGameVersionService gameVersionService)
+        IGameVersionService gameVersionService,
+        IStatusService statusService,
+        IInstanceFolderService instanceFolderService)
     {
         this.instanceService = instanceService;
         this.gameVersionService = gameVersionService;
+        this.statusService = statusService;
+        this.instanceFolderService = instanceFolderService;
 
         InstanceCategories.Add(new GameSettingsInstanceCategory("all", Strings.GameSettings_AllCategory, string.Empty, "general/general_all_application"));
         InstanceCategories.Add(new GameSettingsInstanceCategory("mod_loader", Strings.GameSettings_ModLoaderCategory, string.Empty, "general/general_extention"));
@@ -55,9 +66,15 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         SelectInstanceCategoryCore(InstanceCategories.First());
     }
 
+    public event Action<GameInstance>? LaunchInstanceRequested;
+
+    public event Action? InstancesChanged;
+
     public ObservableCollection<GameSettingsInstanceCategory> InstanceCategories { get; } = [];
 
     public List<GameSettingsInstanceItem> AllInstances { get; } = [];
+
+    public ObservableCollection<GameSettingsInstanceItem> VisibleInstances { get; } = [];
 
     public bool HasVisibleInstances => VisibleInstances.Count > 0;
 
@@ -67,16 +84,41 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     public string PageTitle => SelectedInstanceCategory?.Title ?? Strings.GameSettings_AllCategory;
 
+    public string DeleteInstanceDialogMessage => InstancePendingDelete is null
+        ? string.Empty
+        : string.Format(Strings.Dialog_DeleteInstanceMessageFormat, InstancePendingDelete.Name);
+
     public async Task EnsureInstancesLoadedAsync(CancellationToken cancellationToken = default)
     {
         if (hasLoadedInstances || IsLoadingInstances)
             return;
 
-        await RefreshInstancesAsync(cancellationToken);
+        await RefreshInstancesCoreAsync(playEntranceAnimation: true, clearVisibleInstancesBeforeRefresh: true, cancellationToken);
     }
 
     [RelayCommand]
     public async Task RefreshInstancesAsync(CancellationToken cancellationToken = default)
+    {
+        await RefreshInstancesCoreAsync(playEntranceAnimation: true, clearVisibleInstancesBeforeRefresh: true, cancellationToken);
+    }
+
+    public async Task RefreshInstancesForPageActivationAsync(CancellationToken cancellationToken = default)
+    {
+        await RefreshInstancesCoreAsync(
+            playEntranceAnimation: !hasLoadedInstances,
+            clearVisibleInstancesBeforeRefresh: !hasLoadedInstances,
+            cancellationToken);
+    }
+
+    public async Task RefreshInstancesSilentlyAsync(CancellationToken cancellationToken = default)
+    {
+        await RefreshInstancesCoreAsync(playEntranceAnimation: false, clearVisibleInstancesBeforeRefresh: false, cancellationToken);
+    }
+
+    private async Task RefreshInstancesCoreAsync(
+        bool playEntranceAnimation,
+        bool clearVisibleInstancesBeforeRefresh,
+        CancellationToken cancellationToken = default)
     {
         if (IsLoadingInstances)
             return;
@@ -84,7 +126,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         IsLoadingInstances = true;
         InstanceLoadError = string.Empty;
         InstanceEmptyMessage = string.Empty;
-        VisibleInstances = Array.Empty<GameSettingsInstanceItem>();
+        if (clearVisibleInstancesBeforeRefresh)
+            ClearVisibleInstances();
         var selectedInstanceId = SelectedInstance?.Instance.Id;
 
         try
@@ -93,8 +136,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             var versionTypes = await LoadVersionTypesAsync(cancellationToken);
             versionTypesByName = versionTypes;
 
-            AllInstances.Clear();
-            AllInstances.AddRange(instances.Select(instance => CreateInstanceItem(instance)));
+            ReconcileAllInstances(instances);
             RestoreSelectedInstance(selectedInstanceId);
             hasLoadedInstances = true;
         }
@@ -107,7 +149,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         {
             IsLoadingInstances = false;
 
-            if (hasLoadedInstances)
+            if (hasLoadedInstances && playEntranceAnimation)
                 ListEntranceAnimationToken++;
 
             RefreshVisibleInstances();
@@ -117,8 +159,13 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     [RelayCommand]
     private async Task SelectInstanceCategoryAsync(GameSettingsInstanceCategory category)
     {
+        var isCategorySwitch = !ReferenceEquals(SelectedInstanceCategory, category)
+            && !string.Equals(SelectedInstanceCategory?.Id, category.Id, StringComparison.OrdinalIgnoreCase);
+
         SelectInstanceCategoryCore(category, refreshVisibleInstances: false);
-        await RefreshInstancesAsync();
+        await RefreshInstancesCoreAsync(
+            playEntranceAnimation: isCategorySwitch,
+            clearVisibleInstancesBeforeRefresh: isCategorySwitch);
     }
 
     [RelayCommand]
@@ -127,24 +174,90 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         SelectInstanceCore(instance);
     }
 
+    [RelayCommand]
+    private void OpenDeleteInstanceDialog(GameSettingsInstanceItem instance)
+    {
+        InstancePendingDelete = instance;
+        IsDeleteInstanceDialogOpen = true;
+    }
+
+    [RelayCommand]
+    private void CancelDeleteInstanceDialog()
+    {
+        IsDeleteInstanceDialogOpen = false;
+        InstancePendingDelete = null;
+    }
+
+    [RelayCommand]
+    private async Task ConfirmDeleteInstanceDialogAsync()
+    {
+        if (InstancePendingDelete is null)
+            return;
+
+        var pendingDelete = InstancePendingDelete;
+        var deletedName = pendingDelete.Name;
+
+        IsDeleteInstanceDialogOpen = false;
+        InstancePendingDelete = null;
+
+        try
+        {
+            var deleted = await instanceService.DeleteInstanceAsync(pendingDelete.Instance.Id);
+            if (!deleted)
+            {
+                statusService.Report(Strings.Status_DeleteInstanceFailed);
+                return;
+            }
+
+            statusService.Report(string.Format(Strings.Status_InstanceDeletedFormat, deletedName));
+            RemoveInstanceLocally(pendingDelete.Instance.Id);
+            InstancesChanged?.Invoke();
+        }
+        catch (Exception)
+        {
+            statusService.Report(Strings.Status_DeleteInstanceFailed);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenInstanceFolder(GameSettingsInstanceItem instance)
+    {
+        var folderPath = instance.Instance.InstanceDirectory;
+        if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+        {
+            statusService.Report(Strings.Status_InstanceFolderNotFound);
+            return;
+        }
+
+        if (!instanceFolderService.TryOpen(folderPath))
+            statusService.Report(Strings.Status_OpenInstanceFolderFailed);
+    }
+
+    [RelayCommand]
+    private void SelectInstanceAndGoHome(GameSettingsInstanceItem instance)
+    {
+        LaunchInstanceRequested?.Invoke(instance.Instance);
+    }
+
     public void AddOrUpdateInstance(GameInstance instance)
     {
         if (!hasLoadedInstances)
             return;
 
         var existingIndex = AllInstances.FindIndex(item => string.Equals(item.Instance.Id, instance.Id, StringComparison.OrdinalIgnoreCase));
-        var item = CreateInstanceItem(instance);
 
         if (existingIndex >= 0)
         {
-            var wasSelected = ReferenceEquals(SelectedInstance, AllInstances[existingIndex])
+            var item = AllInstances[existingIndex];
+            var wasSelected = ReferenceEquals(SelectedInstance, item)
                 || string.Equals(SelectedInstance?.Instance.Id, instance.Id, StringComparison.OrdinalIgnoreCase);
-            AllInstances[existingIndex] = item;
+            item.Update(instance, ResolveVersionType(instance));
             if (wasSelected)
                 SelectInstance(item);
         }
         else
         {
+            var item = CreateInstanceItem(instance);
             AllInstances.Add(item);
         }
 
@@ -166,6 +279,11 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(PageTitle));
     }
 
+    partial void OnInstancePendingDeleteChanged(GameSettingsInstanceItem? value)
+    {
+        OnPropertyChanged(nameof(DeleteInstanceDialogMessage));
+    }
+
     partial void OnInstanceSearchQueryChanged(string value)
     {
         RefreshVisibleInstances();
@@ -178,12 +296,6 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     partial void OnInstanceEmptyMessageChanged(string value)
     {
-        OnPropertyChanged(nameof(HasInstanceEmptyMessage));
-    }
-
-    partial void OnVisibleInstancesChanged(IReadOnlyList<GameSettingsInstanceItem> value)
-    {
-        OnPropertyChanged(nameof(HasVisibleInstances));
         OnPropertyChanged(nameof(HasInstanceEmptyMessage));
     }
 
@@ -202,7 +314,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         if (result.ShouldClearSelectedInstance)
             ClearSelectedInstance();
 
-        VisibleInstances = result.Instances;
+        ApplyVisibleInstances(result.Instances);
     }
 
     private void ClearSelectedInstance()
@@ -210,16 +322,100 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         SelectInstanceCore(null);
     }
 
+    private void RemoveInstanceLocally(string instanceId)
+    {
+        var removedCount = AllInstances.RemoveAll(item =>
+            string.Equals(item.Instance.Id, instanceId, StringComparison.OrdinalIgnoreCase));
+
+        if (removedCount == 0)
+            return;
+
+        if (string.Equals(SelectedInstance?.Instance.Id, instanceId, StringComparison.OrdinalIgnoreCase))
+            ClearSelectedInstance();
+
+        RefreshVisibleInstances();
+    }
+
+    private void ReconcileAllInstances(IReadOnlyList<GameInstance> instances)
+    {
+        var existingById = AllInstances
+            .Where(item => !string.IsNullOrWhiteSpace(item.Instance.Id))
+            .GroupBy(item => item.Instance.Id, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        var nextItems = new List<GameSettingsInstanceItem>(instances.Count);
+
+        foreach (var instance in instances)
+        {
+            if (!string.IsNullOrWhiteSpace(instance.Id)
+                && existingById.TryGetValue(instance.Id, out var existingItem))
+            {
+                existingItem.Update(instance, ResolveVersionType(instance));
+                nextItems.Add(existingItem);
+            }
+            else
+            {
+                nextItems.Add(CreateInstanceItem(instance));
+            }
+        }
+
+        AllInstances.Clear();
+        AllInstances.AddRange(nextItems);
+    }
+
+    private void ClearVisibleInstances()
+    {
+        if (VisibleInstances.Count == 0)
+            return;
+
+        VisibleInstances.Clear();
+        NotifyVisibleInstancesChanged();
+    }
+
+    private void ApplyVisibleInstances(IReadOnlyList<GameSettingsInstanceItem> instances)
+    {
+        var changed = false;
+
+        for (var index = VisibleInstances.Count - 1; index >= 0; index--)
+        {
+            if (ContainsReference(instances, VisibleInstances[index]))
+                continue;
+
+            VisibleInstances.RemoveAt(index);
+            changed = true;
+        }
+
+        for (var index = 0; index < instances.Count; index++)
+        {
+            var instance = instances[index];
+            if (index < VisibleInstances.Count && ReferenceEquals(VisibleInstances[index], instance))
+                continue;
+
+            var existingIndex = IndexOfVisibleInstance(instance, index + 1);
+            if (existingIndex >= 0)
+                VisibleInstances.Move(existingIndex, index);
+            else
+                VisibleInstances.Insert(index, instance);
+
+            changed = true;
+        }
+
+        if (changed)
+            NotifyVisibleInstancesChanged();
+    }
+
     private GameSettingsInstanceItem CreateInstanceItem(GameInstance instance)
+    {
+        return new GameSettingsInstanceItem(instance, ResolveVersionType(instance));
+    }
+
+    private string ResolveVersionType(GameInstance instance)
     {
         var versionName = string.IsNullOrWhiteSpace(instance.MinecraftVersion)
             ? instance.VersionName
             : instance.MinecraftVersion;
-        var versionType = !string.IsNullOrWhiteSpace(versionName) && versionTypesByName.TryGetValue(versionName, out var type)
+        return !string.IsNullOrWhiteSpace(versionName) && versionTypesByName.TryGetValue(versionName, out var type)
             ? type
             : string.Empty;
-
-        return new GameSettingsInstanceItem(instance, versionType);
     }
 
     private void RestoreSelectedInstance(string? selectedInstanceId)
@@ -258,5 +454,27 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
     }
-}
 
+    private int IndexOfVisibleInstance(GameSettingsInstanceItem instance, int startIndex)
+    {
+        for (var index = startIndex; index < VisibleInstances.Count; index++)
+        {
+            if (ReferenceEquals(VisibleInstances[index], instance))
+                return index;
+        }
+
+        return -1;
+    }
+
+    private static bool ContainsReference(IEnumerable<GameSettingsInstanceItem> instances, GameSettingsInstanceItem candidate)
+    {
+        return instances.Any(instance => ReferenceEquals(instance, candidate));
+    }
+
+    private void NotifyVisibleInstancesChanged()
+    {
+        OnPropertyChanged(nameof(VisibleInstances));
+        OnPropertyChanged(nameof(HasVisibleInstances));
+        OnPropertyChanged(nameof(HasInstanceEmptyMessage));
+    }
+}

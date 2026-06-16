@@ -56,6 +56,71 @@ public sealed class MainViewModelTests
         Assert.Null(viewModel.HomePage.SelectedInstance);
     }
 
+    [Fact]
+    public async Task GameSettingsLaunchRequestNavigatesHomeAndSelectsInstance()
+    {
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4"));
+        instanceService.CreatedInstances.Add(CreateInstance("Fabric Pack", "1.20.1"));
+        var viewModel = CreateViewModel(instanceService);
+
+        await viewModel.InitializeAsync();
+        await viewModel.GameSettingsPage.EnsureInstancesLoadedAsync();
+        var requestedItem = viewModel.GameSettingsPage.VisibleInstances.Single(instance => instance.Name == "Fabric Pack");
+
+        viewModel.GameSettingsPage.SelectInstanceAndGoHomeCommand.Execute(requestedItem);
+
+        await TestAsync.WaitForAsync(() =>
+            string.Equals(viewModel.CurrentPage, "Home", StringComparison.OrdinalIgnoreCase)
+            && viewModel.HomePage.SelectedInstance?.Id == requestedItem.Instance.Id);
+
+        Assert.Equal(requestedItem.Instance.Id, instanceService.LastDefaultInstanceId);
+    }
+
+    [Fact]
+    public async Task GameSettingsDeleteRequestRefreshesHomeInstances()
+    {
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4"));
+        instanceService.CreatedInstances.Add(CreateInstance("Fabric Pack", "1.20.1"));
+        var viewModel = CreateViewModel(instanceService);
+
+        await viewModel.InitializeAsync();
+        await viewModel.GameSettingsPage.EnsureInstancesLoadedAsync();
+        Assert.Equal(2, viewModel.HomePage.LaunchInstances.Count);
+
+        var deletedItem = viewModel.GameSettingsPage.VisibleInstances.Single(instance => instance.Name == "Fabric Pack");
+        viewModel.GameSettingsPage.OpenDeleteInstanceDialogCommand.Execute(deletedItem);
+        await viewModel.GameSettingsPage.ConfirmDeleteInstanceDialogCommand.ExecuteAsync(null);
+
+        await TestAsync.WaitForAsync(() =>
+            viewModel.HomePage.LaunchInstances.Count == 1
+            && viewModel.HomePage.LaunchInstances.Single().Name == "Vanilla World");
+
+        Assert.Equal(deletedItem.Instance.Id, instanceService.LastDeletedInstanceId);
+    }
+
+    [Fact]
+    public async Task GameSettingsStateSyncRefreshesInstancesWithoutReplayingEntranceAnimation()
+    {
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4"));
+        var viewModel = CreateViewModel(instanceService);
+
+        await viewModel.InitializeAsync();
+        viewModel.SelectNavigationItem(viewModel.NavigationItems.Single(item => item.Page == "GameSettings"));
+
+        await TestAsync.WaitForAsync(() =>
+            viewModel.GameSettingsPage.ListEntranceAnimationToken == 1
+            && viewModel.GameSettingsPage.VisibleInstances.Count == 1);
+
+        instanceService.CreatedInstances.Add(CreateInstance("Fabric Pack", "1.20.1"));
+        await viewModel.SyncCurrentStateAsync();
+
+        Assert.Equal(1, viewModel.GameSettingsPage.ListEntranceAnimationToken);
+        Assert.Equal(["Vanilla World", "Fabric Pack"], viewModel.GameSettingsPage.VisibleInstances.Select(instance => instance.Name));
+    }
+
     private static MainViewModel CreateViewModel(
         FakeGameInstanceService instanceService,
         LauncherSettings? settings = null)
@@ -77,7 +142,7 @@ public sealed class MainViewModelTests
             accountPage,
             new DownloadPageViewModel(gameVersionService, instanceService, downloadTasksPage),
             downloadTasksPage,
-            new GameSettingsPageViewModel(instanceService, gameVersionService),
+            new GameSettingsPageViewModel(instanceService, gameVersionService, statusService, new FakeInstanceFolderService()),
             gameManagement,
             new FakeWindowService(),
             statusService,
@@ -126,9 +191,20 @@ public sealed class MainViewModelTests
     {
         public event Action<string>? MessageReported;
 
+        public string? LastMessage { get; private set; }
+
         public void Report(string message)
         {
+            LastMessage = message;
             MessageReported?.Invoke(message);
+        }
+    }
+
+    private sealed class FakeInstanceFolderService : IInstanceFolderService
+    {
+        public bool TryOpen(string folderPath)
+        {
+            return true;
         }
     }
 
@@ -270,8 +346,6 @@ public sealed class MainViewModelTests
     {
         public void Attach(
             AccountPageViewModel accountPage,
-            Window owner,
-            FrameworkElement contentLayer,
             DialogHost addAccountHost,
             DialogHost deleteAccountHost,
             DialogHost renameAccountHost,

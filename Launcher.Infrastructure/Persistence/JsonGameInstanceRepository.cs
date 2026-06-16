@@ -131,6 +131,13 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         Directory.CreateDirectory(Path.Combine(directory, ".launcher", "disabled-mods"));
     }
 
+    public void DeleteVersionDirectory(string minecraftDirectory, string versionName)
+    {
+        var versionDirectory = GetVersionDirectory(minecraftDirectory, versionName);
+        if (Directory.Exists(versionDirectory))
+            Directory.Delete(versionDirectory, recursive: true);
+    }
+
     private async Task<string> GetInstancesPathAsync(CancellationToken cancellationToken)
     {
         var settings = await settingsService.LoadAsync(cancellationToken);

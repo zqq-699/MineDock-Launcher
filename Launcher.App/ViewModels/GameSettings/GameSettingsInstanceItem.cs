@@ -12,9 +12,9 @@ public sealed partial class GameSettingsInstanceItem : ObservableObject
         VersionType = NormalizeVersionType(versionType);
     }
 
-    public GameInstance Instance { get; }
+    public GameInstance Instance { get; private set; }
 
-    public string VersionType { get; }
+    public string VersionType { get; private set; }
 
     public string Name => string.IsNullOrWhiteSpace(Instance.Name)
         ? VersionName
@@ -66,6 +66,20 @@ public sealed partial class GameSettingsInstanceItem : ObservableObject
     [ObservableProperty]
     private bool isSelected;
 
+    public void Update(GameInstance instance, string versionType)
+    {
+        var normalizedVersionType = NormalizeVersionType(versionType);
+        if (ReferenceEquals(Instance, instance)
+            && string.Equals(VersionType, normalizedVersionType, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        Instance = instance;
+        VersionType = normalizedVersionType;
+        NotifyDisplayPropertiesChanged();
+    }
+
     public bool MatchesSearch(string query)
     {
         return Contains(Name, query)
@@ -84,6 +98,24 @@ public sealed partial class GameSettingsInstanceItem : ObservableObject
     {
         return !string.IsNullOrWhiteSpace(value)
             && value.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void NotifyDisplayPropertiesChanged()
+    {
+        OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(MinecraftVersion));
+        OnPropertyChanged(nameof(VersionName));
+        OnPropertyChanged(nameof(Loader));
+        OnPropertyChanged(nameof(HasModLoader));
+        OnPropertyChanged(nameof(IsRelease));
+        OnPropertyChanged(nameof(IsSnapshot));
+        OnPropertyChanged(nameof(IsBeta));
+        OnPropertyChanged(nameof(IsAlpha));
+        OnPropertyChanged(nameof(TypeLabel));
+        OnPropertyChanged(nameof(LoaderLabel));
+        OnPropertyChanged(nameof(Subtitle));
+        OnPropertyChanged(nameof(UpdatedDateText));
+        OnPropertyChanged(nameof(IconSource));
     }
 }
 

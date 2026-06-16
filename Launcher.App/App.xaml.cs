@@ -21,6 +21,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IWindowService, WindowService>();
         services.AddSingleton<IClipboardService, ClipboardService>();
         services.AddSingleton<IFilePickerService, FilePickerService>();
+        services.AddSingleton<IInstanceFolderService, InstanceFolderService>();
         services.AddSingleton<IAccountDialogService, AccountDialogService>();
         services.AddSingleton<IUiDispatcher, WpfUiDispatcher>();
         services.AddSingleton<IHomePageViewModelFactory, HomePageViewModelFactory>();

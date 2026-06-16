@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Launcher.App.Behaviors;
 
 namespace Launcher.App.Controls;
 
@@ -35,6 +36,16 @@ public partial class SecondaryMenuOptionButton : UserControl
     public static readonly DependencyProperty IsSelectedProperty =
         DependencyProperty.Register(nameof(IsSelected), typeof(bool), typeof(SecondaryMenuOptionButton), new PropertyMetadata(false));
 
+    public static readonly DependencyProperty IsExternalMouseOverProperty =
+        DependencyProperty.Register(
+            nameof(IsExternalMouseOver),
+            typeof(bool),
+            typeof(SecondaryMenuOptionButton),
+            new PropertyMetadata(false, OnPointerStateChanged));
+
+    public static readonly DependencyProperty IsPointerOverOptionProperty =
+        DependencyProperty.Register(nameof(IsPointerOverOption), typeof(bool), typeof(SecondaryMenuOptionButton), new PropertyMetadata(false));
+
     public static readonly DependencyProperty IconWidthProperty =
         DependencyProperty.Register(nameof(IconWidth), typeof(double), typeof(SecondaryMenuOptionButton), new PropertyMetadata(22d));
 
@@ -60,6 +71,8 @@ public partial class SecondaryMenuOptionButton : UserControl
     public SecondaryMenuOptionButton()
     {
         InitializeComponent();
+        MouseEnter += (_, _) => UpdatePointerOverOption();
+        MouseLeave += (_, _) => UpdatePointerOverOption();
     }
 
     public event RoutedEventHandler RefreshRequested
@@ -122,6 +135,18 @@ public partial class SecondaryMenuOptionButton : UserControl
         set => SetValue(IsSelectedProperty, value);
     }
 
+    public bool IsExternalMouseOver
+    {
+        get => (bool)GetValue(IsExternalMouseOverProperty);
+        set => SetValue(IsExternalMouseOverProperty, value);
+    }
+
+    public bool IsPointerOverOption
+    {
+        get => (bool)GetValue(IsPointerOverOptionProperty);
+        set => SetValue(IsPointerOverOptionProperty, value);
+    }
+
     public double IconWidth
     {
         get => (double)GetValue(IconWidthProperty);
@@ -160,5 +185,18 @@ public partial class SecondaryMenuOptionButton : UserControl
         Dispatcher.BeginInvoke(
             () => RaiseEvent(new RoutedEventArgs(RefreshRequestedEvent, this)),
             DispatcherPriority.Background);
+    }
+
+    private static void OnPointerStateChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
+    {
+        if (dependencyObject is SecondaryMenuOptionButton button)
+            button.UpdatePointerOverOption();
+    }
+
+    private void UpdatePointerOverOption()
+    {
+        var isActive = IsMouseOver || IsExternalMouseOver;
+        IsPointerOverOption = isActive;
+        OptionHoverBehavior.SetIsExternalActive(PART_Button, isActive);
     }
 }

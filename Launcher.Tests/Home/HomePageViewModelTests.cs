@@ -349,8 +349,6 @@ public sealed class HomePageViewModelTests
     {
         public void Attach(
             AccountPageViewModel accountPage,
-            Window owner,
-            FrameworkElement contentLayer,
             DialogHost addAccountHost,
             DialogHost deleteAccountHost,
             DialogHost renameAccountHost,

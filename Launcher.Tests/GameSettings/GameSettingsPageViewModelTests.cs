@@ -1,4 +1,5 @@
-﻿using Launcher.App.Resources;
+using Launcher.App.Resources;
+using Launcher.App.Services;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
@@ -130,6 +131,14 @@ public sealed class GameSettingsPageViewModelTests
 
         Assert.Equal(2, viewModel.ListEntranceAnimationToken);
 
+        await viewModel.SelectInstanceCategoryCommand.ExecuteAsync(viewModel.SelectedInstanceCategory);
+
+        Assert.Equal(2, viewModel.ListEntranceAnimationToken);
+
+        await viewModel.RefreshInstancesForPageActivationAsync();
+
+        Assert.Equal(2, viewModel.ListEntranceAnimationToken);
+
         viewModel.InstanceSearchQuery = "fabric";
 
         Assert.Equal(2, viewModel.ListEntranceAnimationToken);
@@ -141,19 +150,19 @@ public sealed class GameSettingsPageViewModelTests
         var instanceService = new FakeGameInstanceService();
         instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla));
         instanceService.CreatedInstances.Add(CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric));
-        var viewModel = new GameSettingsPageViewModel(
-            instanceService,
-            new FakeGameVersionService([]));
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
 
         await viewModel.EnsureInstancesLoadedAsync();
         Assert.Equal(["Vanilla World", "Fabric Pack"], viewModel.VisibleInstances.Select(instance => instance.Name));
         Assert.Equal(1, instanceService.GetInstancesCallCount);
+        Assert.Equal(1, viewModel.ListEntranceAnimationToken);
 
         instanceService.CreatedInstances.RemoveAll(instance => instance.Name == "Fabric Pack");
         await viewModel.SelectInstanceCategoryCommand.ExecuteAsync(viewModel.SelectedInstanceCategory);
 
         Assert.Equal(["Vanilla World"], viewModel.VisibleInstances.Select(instance => instance.Name));
         Assert.Equal(2, instanceService.GetInstancesCallCount);
+        Assert.Equal(1, viewModel.ListEntranceAnimationToken);
     }
 
     [Fact]
@@ -162,9 +171,39 @@ public sealed class GameSettingsPageViewModelTests
         var instanceService = new FakeGameInstanceService();
         instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla));
         instanceService.CreatedInstances.Add(CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric));
-        var viewModel = new GameSettingsPageViewModel(
-            instanceService,
-            new FakeGameVersionService([]));
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+
+        var changedProperties = new List<string>();
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(GameSettingsPageViewModel.VisibleInstances)
+                or nameof(GameSettingsPageViewModel.ListEntranceAnimationToken))
+            {
+                changedProperties.Add(e.PropertyName);
+            }
+        };
+
+        await viewModel.SelectInstanceCategoryCommand.ExecuteAsync(viewModel.InstanceCategories.Single(category => category.Id == "mod_loader"));
+
+        Assert.Equal(
+            [
+                nameof(GameSettingsPageViewModel.VisibleInstances),
+                nameof(GameSettingsPageViewModel.ListEntranceAnimationToken),
+                nameof(GameSettingsPageViewModel.VisibleInstances)
+            ],
+            changedProperties);
+        Assert.Equal(["Fabric Pack"], viewModel.VisibleInstances.Select(instance => instance.Name));
+    }
+
+    [Fact]
+    public async Task GameSettingsPageSilentRefreshDoesNotClearVisibleInstancesOrReplayEntranceAnimation()
+    {
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla));
+        instanceService.CreatedInstances.Add(CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric));
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
 
         await viewModel.EnsureInstancesLoadedAsync();
 
@@ -179,24 +218,42 @@ public sealed class GameSettingsPageViewModelTests
         };
 
         instanceService.CreatedInstances.RemoveAll(instance => instance.Name == "Fabric Pack");
-        await viewModel.SelectInstanceCategoryCommand.ExecuteAsync(viewModel.SelectedInstanceCategory);
+        await viewModel.RefreshInstancesSilentlyAsync();
 
-        Assert.Equal(
-            [
-                nameof(GameSettingsPageViewModel.VisibleInstances),
-                nameof(GameSettingsPageViewModel.ListEntranceAnimationToken),
-                nameof(GameSettingsPageViewModel.VisibleInstances)
-            ],
-            changedProperties);
+        Assert.Equal([nameof(GameSettingsPageViewModel.VisibleInstances)], changedProperties);
+        Assert.Equal(1, viewModel.ListEntranceAnimationToken);
         Assert.Equal(["Vanilla World"], viewModel.VisibleInstances.Select(instance => instance.Name));
+    }
+
+    [Fact]
+    public async Task GameSettingsPageSilentRefreshReusesVisibleItems()
+    {
+        var instanceService = new FakeGameInstanceService();
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instanceService.CreatedInstances.Add(instance);
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        var visibleItem = viewModel.VisibleInstances.Single();
+        var updatedInstance = CreateInstance("Renamed World", "1.21.4", LoaderKind.Vanilla);
+        updatedInstance.Id = instance.Id;
+        instanceService.CreatedInstances[0] = updatedInstance;
+
+        await viewModel.RefreshInstancesSilentlyAsync();
+
+        Assert.Same(visibleItem, viewModel.VisibleInstances.Single());
+        Assert.Equal("Renamed World", viewModel.VisibleInstances.Single().Name);
+        Assert.Equal(1, viewModel.ListEntranceAnimationToken);
     }
 
     [Fact]
     public async Task GameSettingsPageShowsFriendlyErrorWhenInstancesFailToLoad()
     {
-        var viewModel = new GameSettingsPageViewModel(
+        var viewModel = CreateViewModel(
             new ThrowingGameInstanceService(new InvalidOperationException("disk exploded")),
-            new FakeGameVersionService([]));
+            new FakeGameVersionService([]),
+            new FakeStatusService(),
+            new FakeInstanceFolderService());
 
         await viewModel.EnsureInstancesLoadedAsync();
 
@@ -211,9 +268,11 @@ public sealed class GameSettingsPageViewModelTests
     {
         var instanceService = new FakeGameInstanceService();
         instanceService.CreatedInstances.Add(CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric));
-        var viewModel = new GameSettingsPageViewModel(
+        var viewModel = CreateViewModel(
             instanceService,
-            new ThrowingGameVersionService());
+            new ThrowingGameVersionService(),
+            new FakeStatusService(),
+            new FakeInstanceFolderService());
 
         await viewModel.EnsureInstancesLoadedAsync();
 
@@ -227,15 +286,164 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Equal(["Fabric Pack"], viewModel.VisibleInstances.Select(instance => instance.Name));
     }
 
+    [Fact]
+    public async Task OpenDeleteInstanceDialogTracksPendingInstance()
+    {
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.AddRange(
+        [
+            CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla),
+            CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric)
+        ]);
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        var item = viewModel.VisibleInstances.First();
+
+        viewModel.OpenDeleteInstanceDialogCommand.Execute(item);
+
+        Assert.True(viewModel.IsDeleteInstanceDialogOpen);
+        Assert.Equal(item.Name, viewModel.InstancePendingDelete?.Name);
+        Assert.Contains(item.Name, viewModel.DeleteInstanceDialogMessage);
+    }
+
+    [Fact]
+    public async Task CancelDeleteInstanceDialogClosesWithoutDeleting()
+    {
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla));
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.OpenDeleteInstanceDialogCommand.Execute(viewModel.VisibleInstances.Single());
+
+        viewModel.CancelDeleteInstanceDialogCommand.Execute(null);
+
+        Assert.False(viewModel.IsDeleteInstanceDialogOpen);
+        Assert.Null(viewModel.InstancePendingDelete);
+        Assert.Equal(0, instanceService.DeleteCallCount);
+    }
+
+    [Fact]
+    public async Task ConfirmDeleteInstanceDialogRefreshesVisibleInstancesAndRaisesSyncEvent()
+    {
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.AddRange(
+        [
+            CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla),
+            CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric)
+        ]);
+        var statusService = new FakeStatusService();
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), statusService, new FakeInstanceFolderService());
+        var syncRequested = 0;
+        viewModel.InstancesChanged += () => syncRequested++;
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        var item = viewModel.VisibleInstances.Single(instance => instance.Name == "Fabric Pack");
+        viewModel.OpenDeleteInstanceDialogCommand.Execute(item);
+
+        await viewModel.ConfirmDeleteInstanceDialogCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsDeleteInstanceDialogOpen);
+        Assert.Single(viewModel.VisibleInstances);
+        Assert.Equal("Vanilla World", viewModel.VisibleInstances.Single().Name);
+        Assert.Equal(1, instanceService.DeleteCallCount);
+        Assert.Equal(1, syncRequested);
+        Assert.Equal(string.Format(Strings.Status_InstanceDeletedFormat, "Fabric Pack"), statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task ConfirmDeleteInstanceDialogDoesNotReplayListEntranceAnimation()
+    {
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.AddRange(
+        [
+            CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla),
+            CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric)
+        ]);
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        Assert.Equal(1, viewModel.ListEntranceAnimationToken);
+        Assert.Equal(1, instanceService.GetInstancesCallCount);
+
+        var item = viewModel.VisibleInstances.Single(instance => instance.Name == "Fabric Pack");
+        viewModel.OpenDeleteInstanceDialogCommand.Execute(item);
+
+        await viewModel.ConfirmDeleteInstanceDialogCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, viewModel.ListEntranceAnimationToken);
+        Assert.Single(viewModel.VisibleInstances);
+        Assert.Equal(1, instanceService.GetInstancesCallCount);
+    }
+
+    [Fact]
+    public async Task OpenInstanceFolderCommandUsesFolderService()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        Directory.CreateDirectory(instance.InstanceDirectory);
+        var folderService = new FakeInstanceFolderService();
+        var viewModel = CreateViewModel([instance], [], new FakeStatusService(), folderService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+
+        viewModel.OpenInstanceFolderCommand.Execute(viewModel.VisibleInstances.Single());
+
+        Assert.Equal(instance.InstanceDirectory, folderService.LastOpenedPath);
+    }
+
+    [Fact]
+    public async Task OpenInstanceFolderCommandReportsFriendlyErrorWhenFolderIsMissing()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.InstanceDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var statusService = new FakeStatusService();
+        var folderService = new FakeInstanceFolderService();
+        var viewModel = CreateViewModel([instance], [], statusService, folderService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+
+        viewModel.OpenInstanceFolderCommand.Execute(viewModel.VisibleInstances.Single());
+
+        Assert.Null(folderService.LastOpenedPath);
+        Assert.Equal(Strings.Status_InstanceFolderNotFound, statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task SelectInstanceAndGoHomeCommandRaisesLaunchNavigationRequest()
+    {
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla));
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+        GameInstance? requestedInstance = null;
+        viewModel.LaunchInstanceRequested += instance => requestedInstance = instance;
+
+        await viewModel.EnsureInstancesLoadedAsync();
+
+        viewModel.SelectInstanceAndGoHomeCommand.Execute(viewModel.VisibleInstances.Single());
+
+        Assert.NotNull(requestedInstance);
+        Assert.Equal("Vanilla World", requestedInstance!.Name);
+    }
+
     private static GameSettingsPageViewModel CreateViewModel(
         IReadOnlyList<GameInstance> instances,
-        IReadOnlyList<MinecraftVersionInfo>? versions = null)
+        IReadOnlyList<MinecraftVersionInfo>? versions = null,
+        FakeStatusService? statusService = null,
+        FakeInstanceFolderService? folderService = null)
     {
         var instanceService = new FakeGameInstanceService();
         instanceService.CreatedInstances.AddRange(instances);
-        return new GameSettingsPageViewModel(
-            instanceService,
-            new FakeGameVersionService(versions ?? []));
+        return CreateViewModel(instanceService, new FakeGameVersionService(versions ?? []), statusService ?? new FakeStatusService(), folderService ?? new FakeInstanceFolderService());
+    }
+
+    private static GameSettingsPageViewModel CreateViewModel(
+        IGameInstanceService instanceService,
+        IGameVersionService gameVersionService,
+        FakeStatusService statusService,
+        FakeInstanceFolderService folderService)
+    {
+        return new GameSettingsPageViewModel(instanceService, gameVersionService, statusService, folderService);
     }
 
     private static GameInstance CreateInstance(string name, string minecraftVersion, LoaderKind loader)
@@ -248,8 +456,33 @@ public sealed class GameSettingsPageViewModelTests
             Loader = loader,
             LoaderVersion = loader is LoaderKind.Vanilla ? null : "latest",
             VersionName = name,
-            UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            InstanceDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"))
         };
+    }
+
+    private sealed class FakeStatusService : IStatusService
+    {
+        public event Action<string>? MessageReported;
+
+        public string? LastMessage { get; private set; }
+
+        public void Report(string message)
+        {
+            LastMessage = message;
+            MessageReported?.Invoke(message);
+        }
+    }
+
+    private sealed class FakeInstanceFolderService : IInstanceFolderService
+    {
+        public string? LastOpenedPath { get; private set; }
+
+        public bool TryOpen(string folderPath)
+        {
+            LastOpenedPath = folderPath;
+            return true;
+        }
     }
 
     private sealed class ThrowingGameVersionService : IGameVersionService
@@ -299,7 +532,10 @@ public sealed class GameSettingsPageViewModelTests
         {
             throw exception;
         }
+
+        public Task<bool> DeleteInstanceAsync(string instanceId, CancellationToken cancellationToken = default)
+        {
+            throw exception;
+        }
     }
 }
-
-

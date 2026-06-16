@@ -48,8 +48,6 @@ public partial class MainWindow : Window
         windowService.Attach(this);
         accountDialogService.Attach(
             viewModel.AccountPage,
-            this,
-            WindowContentLayer,
             AddAccountDialogHost,
             DeleteAccountDialogHost,
             RenameAccountDialogHost,

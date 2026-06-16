@@ -83,46 +83,55 @@ public sealed class GameInstanceService : IGameInstanceService
                 string.IsNullOrWhiteSpace(name)
                     ? $"{minecraftVersion} {provider.DisplayName}"
                     : name);
+            var cleanupCandidates = CreateCleanupCandidates(settings.MinecraftDirectory, minecraftVersion, versionIdentity, loader);
             var instances = (await GetInstancesCoreAsync(settings, cancellationToken).ConfigureAwait(false)).ToList();
             if (instances.Any(instance => IsSameVersionIdentity(instance, versionIdentity)))
                 throw new InvalidOperationException("已存在同名游戏。");
 
-            var versionName = await provider.InstallAsync(
-                minecraftVersion,
-                settings.MinecraftDirectory,
-                versionIdentity,
-                loaderVersion,
-                progress,
-                cancellationToken).ConfigureAwait(false);
-
-            var instanceDirectory = repository.GetVersionDirectory(settings.MinecraftDirectory, versionName);
-            repository.CreateInstanceDirectories(instanceDirectory);
-
-            var now = DateTimeOffset.UtcNow;
-            var instance = new GameInstance
+            try
             {
-                Name = versionIdentity,
-                MinecraftVersion = minecraftVersion,
-                Loader = loader,
-                LoaderVersion = loader == LoaderKind.Vanilla ? null : loaderVersion,
-                VersionName = versionName,
-                InstanceDirectory = instanceDirectory,
-                JavaPath = settings.DefaultJavaPath,
-                MemoryMb = settings.DefaultMemoryMb,
-                CreatedAt = now,
-                UpdatedAt = now
-            };
+                var versionName = await provider.InstallAsync(
+                    minecraftVersion,
+                    settings.MinecraftDirectory,
+                    versionIdentity,
+                    loaderVersion,
+                    progress,
+                    cancellationToken).ConfigureAwait(false);
 
-            instances.Add(instance);
-            await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
+                var instanceDirectory = repository.GetVersionDirectory(settings.MinecraftDirectory, versionName);
+                repository.CreateInstanceDirectories(instanceDirectory);
 
-            if (string.IsNullOrWhiteSpace(settings.DefaultInstanceId))
-            {
-                settings.DefaultInstanceId = instance.Id;
-                await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+                var now = DateTimeOffset.UtcNow;
+                var instance = new GameInstance
+                {
+                    Name = versionIdentity,
+                    MinecraftVersion = minecraftVersion,
+                    Loader = loader,
+                    LoaderVersion = loader == LoaderKind.Vanilla ? null : loaderVersion,
+                    VersionName = versionName,
+                    InstanceDirectory = instanceDirectory,
+                    JavaPath = settings.DefaultJavaPath,
+                    MemoryMb = settings.DefaultMemoryMb,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+
+                instances.Add(instance);
+                await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
+
+                if (string.IsNullOrWhiteSpace(settings.DefaultInstanceId))
+                {
+                    settings.DefaultInstanceId = instance.Id;
+                    await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+                }
+
+                return instance;
             }
-
-            return instance;
+            catch
+            {
+                TryCleanupCreatedVersionDirectories(settings.MinecraftDirectory, cleanupCandidates);
+                throw;
+            }
         }
         finally
         {
@@ -162,6 +171,36 @@ public sealed class GameInstanceService : IGameInstanceService
 
         settings.DefaultInstanceId = instance.Id;
         await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    public async Task<bool> DeleteInstanceAsync(string instanceId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+            return false;
+
+        var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var instances = (await GetInstancesCoreAsync(settings, cancellationToken).ConfigureAwait(false)).ToList();
+        var instance = instances.FirstOrDefault(existing =>
+            string.Equals(existing.Id, instanceId, StringComparison.OrdinalIgnoreCase));
+
+        if (instance is null)
+            return false;
+
+        instances.Remove(instance);
+
+        var versionName = GetVersionName(instance);
+        if (!string.IsNullOrWhiteSpace(versionName))
+            repository.DeleteVersionDirectory(settings.MinecraftDirectory, versionName);
+
+        await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
+
+        if (string.Equals(settings.DefaultInstanceId, instance.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            settings.DefaultInstanceId = instances.FirstOrDefault()?.Id ?? string.Empty;
+            await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+        }
+
         return true;
     }
 
@@ -230,4 +269,52 @@ public sealed class GameInstanceService : IGameInstanceService
         var sanitized = new string(value.Select(ch => invalid.Contains(ch) ? '-' : ch).ToArray()).Trim();
         return string.IsNullOrWhiteSpace(sanitized) ? "Minecraft" : sanitized;
     }
+
+    private IReadOnlyList<VersionCleanupCandidate> CreateCleanupCandidates(
+        string minecraftDirectory,
+        string minecraftVersion,
+        string versionIdentity,
+        LoaderKind loader)
+    {
+        var candidates = new List<VersionCleanupCandidate>();
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            versionIdentity
+        };
+
+        if (loader is LoaderKind.Vanilla)
+            names.Add(minecraftVersion);
+
+        foreach (var versionName in names)
+        {
+            var directory = repository.GetVersionDirectory(minecraftDirectory, versionName);
+            candidates.Add(new VersionCleanupCandidate(versionName, Directory.Exists(directory)));
+        }
+
+        return candidates;
+    }
+
+    private void TryCleanupCreatedVersionDirectories(
+        string minecraftDirectory,
+        IReadOnlyList<VersionCleanupCandidate> cleanupCandidates)
+    {
+        foreach (var candidate in cleanupCandidates)
+        {
+            if (candidate.ExistedBeforeInstall)
+                continue;
+
+            try
+            {
+                repository.DeleteVersionDirectory(minecraftDirectory, candidate.VersionName);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    private sealed record VersionCleanupCandidate(string VersionName, bool ExistedBeforeInstall);
 }

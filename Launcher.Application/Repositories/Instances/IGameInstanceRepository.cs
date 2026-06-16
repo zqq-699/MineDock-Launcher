@@ -15,4 +15,6 @@ public interface IGameInstanceRepository
     bool IsInstanceInstalled(GameInstance instance, string minecraftDirectory);
 
     void CreateInstanceDirectories(string directory);
+
+    void DeleteVersionDirectory(string minecraftDirectory, string versionName);
 }

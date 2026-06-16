@@ -15,8 +15,10 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public string? LastLoaderVersion { get; private set; }
     public string? LastName { get; private set; }
     public string? LastDefaultInstanceId { get; private set; }
+    public string? LastDeletedInstanceId { get; private set; }
     public int CreateCallCount { get; private set; }
     public int GetInstancesCallCount { get; private set; }
+    public int DeleteCallCount { get; private set; }
 
     public Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default)
     {
@@ -89,6 +91,17 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
         {
             LastDefaultInstanceId = instanceId;
             return Task.FromResult(CreatedInstances.Any(instance => instance.Id == instanceId));
+        }
+    }
+
+    public Task<bool> DeleteInstanceAsync(string instanceId, CancellationToken cancellationToken = default)
+    {
+        lock (syncRoot)
+        {
+            LastDeletedInstanceId = instanceId;
+            DeleteCallCount++;
+            var removed = CreatedInstances.RemoveAll(instance => instance.Id == instanceId) > 0;
+            return Task.FromResult(removed);
         }
     }
 }
