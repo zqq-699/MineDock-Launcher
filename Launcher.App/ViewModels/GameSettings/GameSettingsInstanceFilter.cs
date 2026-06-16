@@ -35,7 +35,10 @@ internal static class GameSettingsInstanceFilter
         if (!string.IsNullOrWhiteSpace(query))
             filteredInstances = filteredInstances.Where(instance => instance.MatchesSearch(query));
 
-        var instances = filteredInstances.ToList();
+        var instances = filteredInstances
+            .OrderByDescending(instance => instance.Instance.CreatedAt)
+            .ThenByDescending(instance => instance.Instance.UpdatedAt)
+            .ToList();
         var emptyMessage = instances.Count == 0 && hasLoadedInstances && !isLoadingInstances
             ? CreateEmptyMessage(category, query)
             : string.Empty;

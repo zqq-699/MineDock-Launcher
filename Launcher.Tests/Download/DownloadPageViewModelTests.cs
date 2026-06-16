@@ -312,6 +312,8 @@ public sealed class DownloadPageViewModelTests
         Assert.Equal(LoaderKind.Vanilla, viewModel.SelectedLoaderOption?.Kind);
         Assert.True(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Vanilla).IsSelected);
         Assert.Equal("/Assets/Icons/block/grass_block.png", viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Vanilla).IconSource);
+        Assert.Equal("/Assets/Icons/block/fabric.png", viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Fabric).IconSource);
+        Assert.Equal("/Assets/Icons/block/Anvil.png", viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Forge).IconSource);
     }
 
     [Fact]

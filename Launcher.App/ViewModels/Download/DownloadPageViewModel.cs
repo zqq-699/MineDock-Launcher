@@ -96,8 +96,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         VersionCategories.Add(new DownloadVersionCategory("old_alpha", Strings.Download_AlphaCategory, "\u03b1"));
 
         LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Vanilla, Strings.Download_VanillaLoaderTitle, Strings.Download_VanillaLoaderSubtitle, string.Empty, "/Assets/Icons/block/grass_block.png"));
-        LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Fabric, Strings.Download_FabricLoaderTitle, Strings.Download_LoaderPendingSubtitle, "\uE8B7"));
-        LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Forge, Strings.Download_ForgeLoaderTitle, Strings.Download_LoaderPendingSubtitle, "\uE8B7"));
+        LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Fabric, Strings.Download_FabricLoaderTitle, Strings.Download_LoaderPendingSubtitle, "\uE8B7", MinecraftVersionIconResolver.DefaultFabricIconSource));
+        LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Forge, Strings.Download_ForgeLoaderTitle, Strings.Download_LoaderPendingSubtitle, "\uE8B7", MinecraftVersionIconResolver.DefaultForgeIconSource));
         SelectLoaderOptionCore(LoaderOptions.First());
 
         SelectVersionCategoryCore(VersionCategories.First(), deferRefresh: false);

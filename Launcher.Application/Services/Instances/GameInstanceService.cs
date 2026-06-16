@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Launcher.Application.Repositories;
 using Launcher.Domain.Models;
 
@@ -31,7 +33,14 @@ public sealed class GameInstanceService : IGameInstanceService
         CancellationToken cancellationToken)
     {
         var storedInstances = (await repository.GetAllAsync(cancellationToken).ConfigureAwait(false)).ToList();
-        var syncedInstances = SynchronizeInstalledInstances(storedInstances, settings.MinecraftDirectory, out var instancesChanged);
+        var installedVersions = await repository
+            .DiscoverInstalledVersionsAsync(settings.MinecraftDirectory, cancellationToken)
+            .ConfigureAwait(false);
+        var syncedInstances = SynchronizeInstalledInstances(
+            storedInstances,
+            installedVersions,
+            settings,
+            out var instancesChanged);
 
         var defaultChanged = false;
         if (!string.IsNullOrWhiteSpace(settings.DefaultInstanceId)
@@ -109,6 +118,7 @@ public sealed class GameInstanceService : IGameInstanceService
                     Loader = loader,
                     LoaderVersion = loader == LoaderKind.Vanilla ? null : loaderVersion,
                     VersionName = versionName,
+                    VersionType = string.Empty,
                     InstanceDirectory = instanceDirectory,
                     JavaPath = settings.DefaultJavaPath,
                     MemoryMb = settings.DefaultMemoryMb,
@@ -212,48 +222,110 @@ public sealed class GameInstanceService : IGameInstanceService
 
     private List<GameInstance> SynchronizeInstalledInstances(
         List<GameInstance> instances,
-        string minecraftDirectory,
+        IReadOnlyList<InstalledGameVersion> installedVersions,
+        LauncherSettings settings,
         out bool changed)
     {
         changed = false;
         var syncedInstances = new List<GameInstance>();
         var seenVersions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var installedByVersion = installedVersions
+            .Where(version => !string.IsNullOrWhiteSpace(version.VersionName))
+            .GroupBy(version => version.VersionName, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
         foreach (var instance in instances)
         {
             var versionName = GetVersionName(instance);
             if (string.IsNullOrWhiteSpace(versionName)
-                || !repository.IsInstanceInstalled(instance, minecraftDirectory)
-                || !seenVersions.Add(versionName))
+                || !installedByVersion.TryGetValue(versionName, out var installedVersion)
+                || !seenVersions.Add(installedVersion.VersionName))
             {
                 changed = true;
                 continue;
             }
 
-            var expectedDirectory = repository.GetVersionDirectory(minecraftDirectory, versionName);
-            if (!string.Equals(instance.Name, versionName, StringComparison.Ordinal))
-            {
-                instance.Name = versionName;
-                changed = true;
-            }
-
-            if (!string.Equals(instance.VersionName, versionName, StringComparison.Ordinal))
-            {
-                instance.VersionName = versionName;
-                changed = true;
-            }
-
-            if (!string.Equals(instance.InstanceDirectory, expectedDirectory, StringComparison.OrdinalIgnoreCase))
-            {
-                instance.InstanceDirectory = expectedDirectory;
-                changed = true;
-            }
-
-            repository.CreateInstanceDirectories(expectedDirectory);
+            changed |= ApplyInstalledVersion(instance, installedVersion);
+            repository.CreateInstanceDirectories(installedVersion.Directory);
             syncedInstances.Add(instance);
         }
 
+        foreach (var installedVersion in installedVersions)
+        {
+            if (string.IsNullOrWhiteSpace(installedVersion.VersionName)
+                || !seenVersions.Add(installedVersion.VersionName))
+            {
+                continue;
+            }
+
+            repository.CreateInstanceDirectories(installedVersion.Directory);
+            syncedInstances.Add(CreateDiscoveredInstance(installedVersion, settings));
+            changed = true;
+        }
+
         return syncedInstances;
+    }
+
+    private GameInstance CreateDiscoveredInstance(
+        InstalledGameVersion installedVersion,
+        LauncherSettings settings)
+    {
+        return new GameInstance
+        {
+            Id = CreateDiscoveredInstanceId(settings.MinecraftDirectory, installedVersion.VersionName),
+            Name = installedVersion.VersionName,
+            MinecraftVersion = installedVersion.MinecraftVersion,
+            Loader = installedVersion.Loader,
+            LoaderVersion = installedVersion.LoaderVersion,
+            VersionName = installedVersion.VersionName,
+            VersionType = installedVersion.VersionType,
+            InstanceDirectory = installedVersion.Directory,
+            JavaPath = settings.DefaultJavaPath,
+            MemoryMb = settings.DefaultMemoryMb,
+            CreatedAt = installedVersion.DiscoveredAt,
+            UpdatedAt = installedVersion.DiscoveredAt
+        };
+    }
+
+    private static bool ApplyInstalledVersion(GameInstance instance, InstalledGameVersion installedVersion)
+    {
+        var changed = false;
+        changed |= SetIfChanged(instance.Name, installedVersion.VersionName, value => instance.Name = value ?? string.Empty);
+        changed |= SetIfChanged(instance.MinecraftVersion, installedVersion.MinecraftVersion, value => instance.MinecraftVersion = value ?? string.Empty);
+        changed |= SetIfChanged(instance.VersionName, installedVersion.VersionName, value => instance.VersionName = value ?? string.Empty);
+        changed |= SetIfChanged(instance.VersionType, installedVersion.VersionType, value => instance.VersionType = value ?? string.Empty);
+        changed |= SetIfChanged(instance.LoaderVersion, installedVersion.LoaderVersion, value => instance.LoaderVersion = value);
+        changed |= SetIfChanged(instance.InstanceDirectory, installedVersion.Directory, value => instance.InstanceDirectory = value ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+
+        if (instance.Loader != installedVersion.Loader)
+        {
+            instance.Loader = installedVersion.Loader;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool SetIfChanged(
+        string? currentValue,
+        string? nextValue,
+        Action<string?> setValue,
+        StringComparison comparison = StringComparison.Ordinal)
+    {
+        if (string.Equals(currentValue, nextValue, comparison))
+            return false;
+
+        setValue(nextValue);
+        return true;
+    }
+
+    private static string CreateDiscoveredInstanceId(string minecraftDirectory, string versionName)
+    {
+        var versionPath = Path.GetFullPath(Path.Combine(minecraftDirectory, "versions", versionName))
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .ToUpperInvariant();
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(versionPath));
+        return $"local-{Convert.ToHexString(hash)[..32].ToLowerInvariant()}";
     }
 
     private static string GetVersionName(GameInstance instance)

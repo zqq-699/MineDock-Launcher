@@ -42,6 +42,20 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task GameSettingsPageOrdersNewlyCreatedInstancesFirst()
+    {
+        var older = CreateInstance("Older World", "1.20.1", LoaderKind.Vanilla);
+        older.CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var newer = CreateInstance("Newer World", "1.21.4", LoaderKind.Fabric);
+        newer.CreatedAt = new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero);
+        var viewModel = CreateViewModel([older, newer]);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+
+        Assert.Equal(["Newer World", "Older World"], viewModel.VisibleInstances.Select(instance => instance.Name));
+    }
+
+    [Fact]
     public async Task GameSettingsPageShowsOnlyModLoaderInstancesForModCategory()
     {
         var viewModel = CreateViewModel(
@@ -88,6 +102,42 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.SelectInstanceCategoryCommand.ExecuteAsync(viewModel.InstanceCategories.Single(category => category.Id == "old_alpha"));
         Assert.Equal(["Alpha World"], viewModel.VisibleInstances.Select(instance => instance.Name));
+    }
+
+    [Fact]
+    public async Task GameSettingsPageUsesDiscoveredLoaderAndVersionTypeForCategories()
+    {
+        var vanillaRelease = CreateInstance("Imported Vanilla", "1.21.4", LoaderKind.Vanilla);
+        vanillaRelease.VersionType = "release";
+        var fabricSnapshot = CreateInstance("Imported Fabric", "1.21.4", LoaderKind.Fabric);
+        fabricSnapshot.VersionType = "snapshot";
+        var viewModel = CreateViewModel([vanillaRelease, fabricSnapshot], []);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+
+        await viewModel.SelectInstanceCategoryCommand.ExecuteAsync(viewModel.InstanceCategories.Single(category => category.Id == "mod_loader"));
+        Assert.Equal(["Imported Fabric"], viewModel.VisibleInstances.Select(instance => instance.Name));
+
+        await viewModel.SelectInstanceCategoryCommand.ExecuteAsync(viewModel.InstanceCategories.Single(category => category.Id == "snapshot"));
+        Assert.Equal(["Imported Fabric"], viewModel.VisibleInstances.Select(instance => instance.Name));
+
+        await viewModel.SelectInstanceCategoryCommand.ExecuteAsync(viewModel.InstanceCategories.Single(category => category.Id == "release"));
+        Assert.Equal(["Imported Vanilla"], viewModel.VisibleInstances.Select(instance => instance.Name));
+    }
+
+    [Fact]
+    public async Task GameSettingsPageUsesLoaderDefaultIconsForModdedInstances()
+    {
+        var viewModel = CreateViewModel(
+        [
+            CreateInstance("Fabric Pack", "1.21.4", LoaderKind.Fabric),
+            CreateInstance("Forge Pack", "1.20.1", LoaderKind.Forge)
+        ]);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+
+        Assert.Equal("/Assets/Icons/block/fabric.png", viewModel.VisibleInstances[0].IconSource);
+        Assert.Equal("/Assets/Icons/block/Anvil.png", viewModel.VisibleInstances[1].IconSource);
     }
 
     [Fact]
@@ -456,6 +506,7 @@ public sealed class GameSettingsPageViewModelTests
             Loader = loader,
             LoaderVersion = loader is LoaderKind.Vanilla ? null : "latest",
             VersionName = name,
+            CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
             UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
             InstanceDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"))
         };

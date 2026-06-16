@@ -410,6 +410,9 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     private string ResolveVersionType(GameInstance instance)
     {
+        if (!string.IsNullOrWhiteSpace(instance.VersionType))
+            return instance.VersionType;
+
         var versionName = string.IsNullOrWhiteSpace(instance.MinecraftVersion)
             ? instance.VersionName
             : instance.MinecraftVersion;

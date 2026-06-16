@@ -183,6 +183,8 @@ public sealed class MainViewModelTests
             MinecraftVersion = minecraftVersion,
             VersionName = minecraftVersion,
             Loader = LoaderKind.Vanilla,
+            CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
             InstanceDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"))
         };
     }

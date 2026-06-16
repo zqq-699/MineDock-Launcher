@@ -130,6 +130,31 @@ public sealed class HomePageViewModelTests
     }
 
     [Fact]
+    public void HomePageUsesInstanceVersionTypeForLaunchGameIcons()
+    {
+        var viewModel = CreateViewModel();
+        var snapshot = CreateInstance("snapshot", "Imported Snapshot", "custom-snapshot", LoaderKind.Vanilla);
+        snapshot.VersionType = "snapshot";
+
+        viewModel.SetLaunchInstances([snapshot]);
+
+        Assert.Equal("/Assets/Icons/block/dirt_block.png", viewModel.LaunchInstances.Single().IconSource);
+    }
+
+    [Fact]
+    public void HomePageUsesLoaderDefaultIconsForModdedInstances()
+    {
+        var viewModel = CreateViewModel();
+        var fabric = CreateInstance("fabric", "Fabric Pack", "1.21.4", LoaderKind.Fabric);
+        var forge = CreateInstance("forge", "Forge Pack", "1.20.1", LoaderKind.Forge);
+
+        viewModel.SetLaunchInstances([fabric, forge]);
+
+        Assert.Equal("/Assets/Icons/block/fabric.png", viewModel.LaunchInstances[0].IconSource);
+        Assert.Equal("/Assets/Icons/block/Anvil.png", viewModel.LaunchInstances[1].IconSource);
+    }
+
+    [Fact]
     public void HomePageUsesCustomLaunchGameIconWhenSet()
     {
         var viewModel = CreateViewModel();

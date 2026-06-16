@@ -8,6 +8,10 @@ public interface IGameInstanceRepository
 
     Task SaveAllAsync(IReadOnlyCollection<GameInstance> instances, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<InstalledGameVersion>> DiscoverInstalledVersionsAsync(
+        string minecraftDirectory,
+        CancellationToken cancellationToken = default);
+
     string GetUniqueInstanceDirectory(string dataDirectory, string name);
 
     string GetVersionDirectory(string minecraftDirectory, string versionName);

@@ -8,11 +8,19 @@ internal static class MinecraftVersionIconResolver
     public const string DefaultSnapshotIconSource = "/Assets/Icons/block/dirt_block.png";
     public const string DefaultBetaIconSource = "/Assets/Icons/block/craftingtable_block.png";
     public const string DefaultAlphaIconSource = "/Assets/Icons/block/stone_block.png";
+    public const string DefaultFabricIconSource = "/Assets/Icons/block/fabric.png";
+    public const string DefaultForgeIconSource = "/Assets/Icons/block/Anvil.png";
 
     public static string Resolve(GameInstance instance, string? versionType = null, string? minecraftVersion = null)
     {
         if (!string.IsNullOrWhiteSpace(instance.IconSource))
             return instance.IconSource;
+
+        if (instance.Loader is LoaderKind.Fabric)
+            return DefaultFabricIconSource;
+
+        if (instance.Loader is LoaderKind.Forge)
+            return DefaultForgeIconSource;
 
         return Resolve(versionType, minecraftVersion, instance.MinecraftVersion, instance.VersionName);
     }
