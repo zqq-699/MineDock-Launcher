@@ -13,18 +13,21 @@ namespace Launcher.App.Services;
 public sealed class DialogOverlayService
 {
     private const double BlurRadius = 42;
+    private const double StaticBlurScale = 0.65;
     private const double AnimationBlurScale = 0.5;
     private const double SizeAnimationThreshold = 1;
 
-    private static readonly TimeSpan AnimationBlurInterval = TimeSpan.FromMilliseconds(33);
+    private static readonly TimeSpan AnimationBlurInterval = TimeSpan.Zero;
     private static readonly Duration FadeInDuration = TimeSpan.FromMilliseconds(160);
     private static readonly Duration FadeOutDuration = TimeSpan.FromMilliseconds(180);
     private static readonly Duration SizeTransitionDuration = TimeSpan.FromMilliseconds(240);
-    private static readonly Color BlurTintColor = Color.FromArgb(0x8A, 0x25, 0x25, 0x25);
-
     private readonly Window owner;
     private readonly FrameworkElement sourceLayer;
     private bool isSizeAnimating;
+    private bool isRefreshQueued;
+    private int queuedRefreshAttempts;
+    private BitmapSource? animationBlurredBitmap;
+    private DpiScale animationSourceDpi;
     private EventHandler? blurRenderingHandler;
     private DateTime lastAnimationBlurRefreshUtc;
 
@@ -43,12 +46,20 @@ public sealed class DialogOverlayService
 
     public void QueueRefresh(FrameworkElement dialog, Border target, int attempts = 5)
     {
+        queuedRefreshAttempts = Math.Max(queuedRefreshAttempts, attempts);
+        if (isRefreshQueued)
+            return;
+
+        isRefreshQueued = true;
         owner.Dispatcher.BeginInvoke(
             () =>
             {
-                owner.UpdateLayout();
-                if (!UpdateBlur(dialog, target) && attempts > 0)
-                    QueueRefresh(dialog, target, attempts - 1);
+                var remainingAttempts = queuedRefreshAttempts;
+                queuedRefreshAttempts = 0;
+                isRefreshQueued = false;
+
+                if (!TryUpdateBlur(dialog, target, StaticBlurScale) && remainingAttempts > 0)
+                    QueueRefresh(dialog, target, remainingAttempts - 1);
             },
             DispatcherPriority.ApplicationIdle);
     }
@@ -60,8 +71,7 @@ public sealed class DialogOverlayService
 
     public void RefreshNow(FrameworkElement dialog, Border target)
     {
-        owner.UpdateLayout();
-        UpdateBlur(dialog, target);
+        TryUpdateBlur(dialog, target, StaticBlurScale);
     }
 
     public void AnimateSizeChange(DialogHost host, double previousHeight)
@@ -90,9 +100,14 @@ public sealed class DialogOverlayService
         }
 
         dialog.Height = previousHeight;
-        owner.UpdateLayout();
-        UpdateBlur(dialog, blurTarget, AnimationBlurScale);
-        StartRealtimeBlur(dialog, blurTarget);
+        dialog.UpdateLayout();
+        if (TryCaptureSourceBitmap(AnimationBlurScale, out var animationSource, out var animationDpi))
+        {
+            animationBlurredBitmap = CreateBlurredBitmap(animationSource, animationDpi);
+            animationSourceDpi = animationDpi;
+            UpdateBlurFromBlurredSource(dialog, blurTarget, animationBlurredBitmap, animationSourceDpi);
+            StartRealtimeBlur(dialog, blurTarget);
+        }
 
         var animation = new DoubleAnimation
         {
@@ -108,7 +123,7 @@ public sealed class DialogOverlayService
             StopRealtimeBlur();
             dialog.Height = double.NaN;
             isSizeAnimating = false;
-            RefreshNow(dialog, blurTarget);
+            QueueRefresh(dialog, blurTarget);
         };
 
         dialog.BeginAnimation(FrameworkElement.HeightProperty, animation);
@@ -125,8 +140,7 @@ public sealed class DialogOverlayService
         overlay.Visibility = Visibility.Visible;
         overlay.Opacity = 0;
 
-        owner.UpdateLayout();
-        UpdateBlur(dialog, blurTarget);
+        QueueRefresh(dialog, blurTarget);
 
         var animation = new DoubleAnimation
         {
@@ -192,7 +206,7 @@ public sealed class DialogOverlayService
 
         dialog.ApplyTemplate();
         blurTarget.ApplyTemplate();
-        owner.UpdateLayout();
+        dialog.UpdateLayout();
         UpdateBlur(dialog, blurTarget, AnimationBlurScale);
 
         overlay.Visibility = originalVisibility;
@@ -204,15 +218,15 @@ public sealed class DialogOverlayService
         lastAnimationBlurRefreshUtc = DateTime.MinValue;
         blurRenderingHandler = (_, _) =>
         {
-            if (!isSizeAnimating || !dialog.IsVisible)
+            if (!isSizeAnimating || !dialog.IsVisible || animationBlurredBitmap is null)
                 return;
 
             var now = DateTime.UtcNow;
-            if (now - lastAnimationBlurRefreshUtc < AnimationBlurInterval)
+            if (AnimationBlurInterval > TimeSpan.Zero && now - lastAnimationBlurRefreshUtc < AnimationBlurInterval)
                 return;
 
             lastAnimationBlurRefreshUtc = now;
-            UpdateBlur(dialog, blurTarget, AnimationBlurScale);
+            UpdateBlurFromBlurredSource(dialog, blurTarget, animationBlurredBitmap, animationSourceDpi);
         };
 
         CompositionTarget.Rendering += blurRenderingHandler;
@@ -225,40 +239,29 @@ public sealed class DialogOverlayService
 
         CompositionTarget.Rendering -= blurRenderingHandler;
         blurRenderingHandler = null;
+        animationBlurredBitmap = null;
     }
 
     private bool UpdateBlur(FrameworkElement dialog, Border target, double renderScale = 1)
     {
+        if (!TryCaptureSourceBitmap(renderScale, out var renderedSource, out var renderDpi))
+            return false;
+
+        return UpdateBlur(dialog, target, renderedSource, renderDpi);
+    }
+
+    private bool UpdateBlur(FrameworkElement dialog, Border target, BitmapSource renderedSource, DpiScale renderDpi)
+    {
         if (!dialog.IsVisible
-            || sourceLayer.ActualWidth <= 0
-            || sourceLayer.ActualHeight <= 0
             || dialog.ActualWidth <= 0
             || dialog.ActualHeight <= 0)
             return false;
 
-        var dpi = VisualTreeHelper.GetDpi(owner);
-        var scale = Math.Clamp(renderScale, 0.25, 1);
-        var renderDpiScaleX = dpi.DpiScaleX * scale;
-        var renderDpiScaleY = dpi.DpiScaleY * scale;
-        var renderDpi = new DpiScale(renderDpiScaleX, renderDpiScaleY);
-        var sourceWidth = Math.Max(1, (int)Math.Ceiling(sourceLayer.ActualWidth * renderDpiScaleX));
-        var sourceHeight = Math.Max(1, (int)Math.Ceiling(sourceLayer.ActualHeight * renderDpiScaleY));
-
-        var rendered = new RenderTargetBitmap(
-            sourceWidth,
-            sourceHeight,
-            96 * renderDpiScaleX,
-            96 * renderDpiScaleY,
-            PixelFormats.Pbgra32);
-        rendered.Render(sourceLayer);
-
-        var topLeft = dialog.TransformToVisual(sourceLayer).Transform(new Point(0, 0));
-        var cropX = (int)Math.Round(topLeft.X * renderDpiScaleX);
-        var cropY = (int)Math.Round(topLeft.Y * renderDpiScaleY);
-        var cropWidth = Math.Max(1, (int)Math.Round(dialog.ActualWidth * renderDpiScaleX));
-        var cropHeight = Math.Max(1, (int)Math.Round(dialog.ActualHeight * renderDpiScaleY));
-
-        var targetRect = IntersectWithSource(new Int32Rect(cropX, cropY, cropWidth, cropHeight), sourceWidth, sourceHeight);
+        var sourceWidth = renderedSource.PixelWidth;
+        var sourceHeight = renderedSource.PixelHeight;
+        var renderDpiScaleX = renderDpi.DpiScaleX;
+        var renderDpiScaleY = renderDpi.DpiScaleY;
+        var targetRect = GetTargetRect(dialog, renderDpiScaleX, renderDpiScaleY, sourceWidth, sourceHeight);
         if (targetRect.Width <= 0 || targetRect.Height <= 0)
             return false;
 
@@ -276,7 +279,7 @@ public sealed class DialogOverlayService
         if (expandedRect.Width <= 0 || expandedRect.Height <= 0)
             return false;
 
-        var expandedCrop = new CroppedBitmap(rendered, expandedRect);
+        var expandedCrop = new CroppedBitmap(renderedSource, expandedRect);
         expandedCrop.Freeze();
 
         var blurredExpanded = CreateBlurredBitmap(expandedCrop, renderDpi);
@@ -289,11 +292,86 @@ public sealed class DialogOverlayService
                 targetRect.Height));
         blurredTarget.Freeze();
 
-        var dialogBackground = CreateDialogBackgroundBitmap(blurredTarget, renderDpi);
+        var brush = EnsureLocalDialogBrush(target);
+        brush.ImageSource = blurredTarget;
+        brush.Viewbox = new Rect(0, 0, blurredTarget.Width, blurredTarget.Height);
+        return true;
+    }
+
+    private bool UpdateBlurFromBlurredSource(FrameworkElement dialog, Border target, BitmapSource blurredSource, DpiScale renderDpi)
+    {
+        if (!dialog.IsVisible
+            || dialog.ActualWidth <= 0
+            || dialog.ActualHeight <= 0)
+            return false;
+
+        var targetRect = GetTargetRect(
+            dialog,
+            renderDpi.DpiScaleX,
+            renderDpi.DpiScaleY,
+            blurredSource.PixelWidth,
+            blurredSource.PixelHeight);
+        if (targetRect.Width <= 0 || targetRect.Height <= 0)
+            return false;
 
         var brush = EnsureLocalDialogBrush(target);
-        brush.ImageSource = dialogBackground;
+        brush.ImageSource = blurredSource;
+        brush.Viewbox = new Rect(
+            targetRect.X / renderDpi.DpiScaleX,
+            targetRect.Y / renderDpi.DpiScaleY,
+            targetRect.Width / renderDpi.DpiScaleX,
+            targetRect.Height / renderDpi.DpiScaleY);
         return true;
+    }
+
+    private bool TryCaptureSourceBitmap(double renderScale, out BitmapSource renderedSource, out DpiScale renderDpi)
+    {
+        renderedSource = null!;
+        renderDpi = default;
+
+        if (sourceLayer.ActualWidth <= 0 || sourceLayer.ActualHeight <= 0)
+            return false;
+
+        var dpi = VisualTreeHelper.GetDpi(sourceLayer);
+        var scale = Math.Clamp(renderScale, 0.25, 1);
+        var renderDpiScaleX = dpi.DpiScaleX * scale;
+        var renderDpiScaleY = dpi.DpiScaleY * scale;
+        renderDpi = new DpiScale(renderDpiScaleX, renderDpiScaleY);
+        var sourceWidth = Math.Max(1, (int)Math.Ceiling(sourceLayer.ActualWidth * renderDpiScaleX));
+        var sourceHeight = Math.Max(1, (int)Math.Ceiling(sourceLayer.ActualHeight * renderDpiScaleY));
+
+        var rendered = new RenderTargetBitmap(
+            sourceWidth,
+            sourceHeight,
+            96 * renderDpiScaleX,
+            96 * renderDpiScaleY,
+            PixelFormats.Pbgra32);
+        rendered.Render(sourceLayer);
+        rendered.Freeze();
+        renderedSource = rendered;
+        return true;
+    }
+
+    private bool TryUpdateBlur(FrameworkElement dialog, Border target, double renderScale)
+    {
+        dialog.UpdateLayout();
+        return UpdateBlur(dialog, target, renderScale);
+    }
+
+    private Int32Rect GetTargetRect(
+        FrameworkElement dialog,
+        double renderDpiScaleX,
+        double renderDpiScaleY,
+        int sourceWidth,
+        int sourceHeight)
+    {
+        var topLeft = dialog.TransformToVisual(sourceLayer).Transform(new Point(0, 0));
+        var cropX = (int)Math.Round(topLeft.X * renderDpiScaleX);
+        var cropY = (int)Math.Round(topLeft.Y * renderDpiScaleY);
+        var cropWidth = Math.Max(1, (int)Math.Round(dialog.ActualWidth * renderDpiScaleX));
+        var cropHeight = Math.Max(1, (int)Math.Round(dialog.ActualHeight * renderDpiScaleY));
+
+        return IntersectWithSource(new Int32Rect(cropX, cropY, cropWidth, cropHeight), sourceWidth, sourceHeight);
     }
 
     private static ImageBrush EnsureLocalDialogBrush(Border target)
@@ -303,7 +381,10 @@ public sealed class DialogOverlayService
 
         var brush = new ImageBrush
         {
-            Stretch = Stretch.Fill
+            Stretch = Stretch.Fill,
+            AlignmentX = AlignmentX.Left,
+            AlignmentY = AlignmentY.Top,
+            ViewboxUnits = BrushMappingMode.Absolute
         };
         target.Background = brush;
         return brush;
@@ -341,31 +422,6 @@ public sealed class DialogOverlayService
         blurred.Render(image);
         blurred.Freeze();
         return blurred;
-    }
-
-    private static BitmapSource CreateDialogBackgroundBitmap(BitmapSource blurredSource, DpiScale dpi)
-    {
-        var width = blurredSource.PixelWidth / dpi.DpiScaleX;
-        var height = blurredSource.PixelHeight / dpi.DpiScaleY;
-        var rect = new Rect(0, 0, width, height);
-        var visual = new DrawingVisual();
-
-        using (var context = visual.RenderOpen())
-        {
-            context.DrawRectangle(new SolidColorBrush(Color.FromRgb(0x25, 0x25, 0x25)), null, rect);
-            context.DrawImage(blurredSource, rect);
-            context.DrawRectangle(new SolidColorBrush(BlurTintColor), null, rect);
-        }
-
-        var bitmap = new RenderTargetBitmap(
-            blurredSource.PixelWidth,
-            blurredSource.PixelHeight,
-            96 * dpi.DpiScaleX,
-            96 * dpi.DpiScaleY,
-            PixelFormats.Pbgra32);
-        bitmap.Render(visual);
-        bitmap.Freeze();
-        return bitmap;
     }
 
     private static Int32Rect IntersectWithSource(Int32Rect rect, int sourceWidth, int sourceHeight)

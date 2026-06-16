@@ -46,7 +46,10 @@
         <Setter Property="CornerRadius" Value="16" />
         <Setter Property="Background">
             <Setter.Value>
-                <ImageBrush Stretch="Fill" />
+                <ImageBrush Stretch="Fill"
+                            AlignmentX="Left"
+                            AlignmentY="Top"
+                            ViewboxUnits="Absolute" />
             </Setter.Value>
         </Setter>
     </Style>

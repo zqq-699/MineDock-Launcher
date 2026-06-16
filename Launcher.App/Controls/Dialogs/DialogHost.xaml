@@ -11,8 +11,10 @@
                 Width="{Binding DialogWidth, ElementName=Host}"
                 Style="{StaticResource DialogSurfaceStyle}">
             <Grid ClipToBounds="True">
+                <Border Background="#FF252525" />
                 <Border x:Name="BlurLayer"
                         Style="{StaticResource DialogBlurLayerStyle}" />
+                <Border Background="#8A252525" />
                 <ContentPresenter Content="{Binding DialogContent, ElementName=Host}" />
             </Grid>
         </Border>
