@@ -36,6 +36,50 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task InstanceServiceAutomaticallyInstallsFabricApiForFabricInstances()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var provider = new FakeLoaderProvider { Kind = LoaderKind.Fabric, DisplayName = "Fabric" };
+        var modrinthService = new FakeModrinthService();
+        var service = new GameInstanceService(settingsService, repository, [provider], modrinthService);
+
+        var instance = await service.CreateInstanceAsync("1.20.1", LoaderKind.Fabric, "0.16.10", "Fabric Pack", null);
+
+        Assert.Equal("Fabric Pack", instance.VersionName);
+        Assert.Equal(1, modrinthService.InstallFabricApiCallCount);
+        Assert.Equal(instance.InstanceDirectory, modrinthService.LastInstance?.InstanceDirectory);
+        Assert.Equal("1.20.1", modrinthService.LastInstance?.MinecraftVersion);
+        Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "fabric-api.jar")));
+    }
+
+    [Fact]
+    public async Task InstanceServiceFailsFabricCreateWhenFabricApiInstallFails()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var provider = new FakeLoaderProvider { Kind = LoaderKind.Fabric, DisplayName = "Fabric" };
+        var modrinthService = new FakeModrinthService { InstallFabricApiException = new InvalidOperationException("fabric api failed") };
+        var service = new GameInstanceService(settingsService, repository, [provider], modrinthService);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.CreateInstanceAsync("1.20.1", LoaderKind.Fabric, "0.16.10", "Fabric Pack", null));
+
+        Assert.Empty(await repository.GetAllAsync());
+        Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "Fabric Pack")));
+    }
+
+    [Fact]
     public async Task InstanceServiceQueuesConcurrentCreatesAndPersistsBothInstances()
     {
         var settingsService = new TestSettingsService(new LauncherSettings
@@ -132,6 +176,38 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task InstanceServiceDoesNotDiscoverVersionWhileInstallIsInProgress()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var waitBeforeInstall = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new FakeLoaderProvider
+        {
+            WriteJsonBeforeWaiting = true,
+            WaitBeforeInstall = waitBeforeInstall.Task
+        };
+        var service = new GameInstanceService(settingsService, repository, [provider]);
+
+        var createTask = service.CreateInstanceAsync("1.20.1", LoaderKind.Vanilla, null, "1.20.1", null);
+        await provider.InstallStarted.Task;
+        await TestAsync.WaitForAsync(() => File.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "1.20.1", "1.20.1.json")));
+
+        var instancesDuringInstall = await service.GetInstancesAsync();
+        Assert.Empty(instancesDuringInstall);
+
+        waitBeforeInstall.SetResult(true);
+        await createTask;
+
+        var instancesAfterInstall = await service.GetInstancesAsync();
+        Assert.Single(instancesAfterInstall);
+    }
+
+    [Fact]
     public async Task VanillaVersionIsolatorCopiesJsonAndJarToCustomVersion()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -161,6 +237,115 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         Assert.Equal("My Vanilla", json.RootElement.GetProperty("id").GetString());
         Assert.Equal("My Vanilla", json.RootElement.GetProperty("jar").GetString());
         Assert.Equal("release", json.RootElement.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task VersionIsolatorCanAliasDerivedVersionWithoutClientJar()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var sourceDirectory = Path.Combine(minecraftDirectory, "versions", "fabric-loader-0.16.10-1.20.1");
+        Directory.CreateDirectory(sourceDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(sourceDirectory, "fabric-loader-0.16.10-1.20.1.json"),
+            """
+            {
+              "id": "fabric-loader-0.16.10-1.20.1",
+              "inheritsFrom": "1.20.1",
+              "mainClass": "net.fabricmc.loader.impl.launch.knot.KnotClient"
+            }
+            """);
+
+        var versionName = await VanillaVersionIsolator.CreateIsolatedVersionFromSourceAsync(
+            "fabric-loader-0.16.10-1.20.1",
+            "1.20.1-fabric-0.16.10",
+            minecraftDirectory);
+
+        var destinationDirectory = Path.Combine(minecraftDirectory, "versions", "1.20.1-fabric-0.16.10");
+        Assert.Equal("1.20.1-fabric-0.16.10", versionName);
+        Assert.False(File.Exists(Path.Combine(destinationDirectory, "1.20.1-fabric-0.16.10.jar")));
+
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(destinationDirectory, "1.20.1-fabric-0.16.10.json")));
+        Assert.Equal("1.20.1-fabric-0.16.10", json.RootElement.GetProperty("id").GetString());
+        Assert.Equal("1.20.1", json.RootElement.GetProperty("inheritsFrom").GetString());
+        Assert.False(json.RootElement.TryGetProperty("jar", out _));
+    }
+
+    [Fact]
+    public async Task VersionIsolatorCanFlattenDerivedVersionIntoSingleDirectory()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var baseDirectory = Path.Combine(minecraftDirectory, "versions", "1.20.1");
+        Directory.CreateDirectory(baseDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(baseDirectory, "1.20.1.json"),
+            """
+            {
+              "id": "1.20.1",
+              "type": "release",
+              "mainClass": "net.minecraft.client.main.Main",
+              "libraries": [
+                { "name": "com.mojang:patchy:2.2.10" }
+              ],
+              "arguments": {
+                "game": [ "--username", "${auth_player_name}" ],
+                "jvm": [ "-Djava.library.path=${natives_directory}" ]
+              }
+            }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(baseDirectory, "1.20.1.jar"), "base jar");
+
+        var derivedDirectory = Path.Combine(minecraftDirectory, "versions", "fabric-loader-0.16.10-1.20.1");
+        Directory.CreateDirectory(derivedDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(derivedDirectory, "fabric-loader-0.16.10-1.20.1.json"),
+            """
+            {
+              "id": "fabric-loader-0.16.10-1.20.1",
+              "inheritsFrom": "1.20.1",
+              "mainClass": "net.fabricmc.loader.impl.launch.knot.KnotClient",
+              "libraries": [
+                { "name": "net.fabricmc:fabric-loader:0.16.10" }
+              ],
+              "arguments": {
+                "game": [ "--fabric", "1" ],
+                "jvm": [ "-Dfabric.skipMcProvider=true" ]
+              }
+            }
+            """);
+
+        var versionName = await VanillaVersionIsolator.CreateFlattenedDerivedVersionAsync(
+            "1.20.1",
+            "fabric-loader-0.16.10-1.20.1",
+            "1.20.1-fabric-0.16.10",
+            minecraftDirectory);
+
+        var destinationDirectory = Path.Combine(minecraftDirectory, "versions", "1.20.1-fabric-0.16.10");
+        Assert.Equal("1.20.1-fabric-0.16.10", versionName);
+        Assert.True(File.Exists(Path.Combine(destinationDirectory, "1.20.1-fabric-0.16.10.jar")));
+
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(destinationDirectory, "1.20.1-fabric-0.16.10.json")));
+        Assert.Equal("1.20.1-fabric-0.16.10", json.RootElement.GetProperty("id").GetString());
+        Assert.Equal("1.20.1-fabric-0.16.10", json.RootElement.GetProperty("jar").GetString());
+        Assert.False(json.RootElement.TryGetProperty("inheritsFrom", out _));
+        Assert.Equal("net.fabricmc.loader.impl.launch.knot.KnotClient", json.RootElement.GetProperty("mainClass").GetString());
+
+        var libraries = json.RootElement.GetProperty("libraries").EnumerateArray()
+            .Select(item => item.GetProperty("name").GetString())
+            .ToList();
+        Assert.Contains("com.mojang:patchy:2.2.10", libraries);
+        Assert.Contains("net.fabricmc:fabric-loader:0.16.10", libraries);
+
+        var gameArguments = json.RootElement.GetProperty("arguments").GetProperty("game").EnumerateArray()
+            .Select(item => item.GetString())
+            .ToList();
+        Assert.Contains("--username", gameArguments);
+        Assert.Contains("--fabric", gameArguments);
+
+        var jvmArguments = json.RootElement.GetProperty("arguments").GetProperty("jvm").EnumerateArray()
+            .Select(item => item.GetString())
+            .ToList();
+        Assert.Contains("-Djava.library.path=${natives_directory}", jvmArguments);
+        Assert.Contains("-Dfabric.skipMcProvider=true", jvmArguments);
     }
 
     [Fact]
@@ -636,6 +821,48 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
             InstanceDirectory = string.Empty
         };
     }
+    
+    private sealed class FakeModrinthService : IModrinthService
+    {
+        public int InstallFabricApiCallCount { get; private set; }
+        public GameInstance? LastInstance { get; private set; }
+        public Exception? InstallFabricApiException { get; init; }
 
+        public Task<IReadOnlyList<ModrinthProject>> SearchModsAsync(
+            string query,
+            string minecraftVersion,
+            LoaderKind loader,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<ModrinthProject>>([]);
+        }
+
+        public Task<string> InstallLatestCompatibleAsync(
+            ModrinthProject project,
+            GameInstance instance,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public async Task<string> InstallFabricApiAsync(
+            GameInstance instance,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default)
+        {
+            InstallFabricApiCallCount++;
+            LastInstance = instance;
+
+            if (InstallFabricApiException is not null)
+                throw InstallFabricApiException;
+
+            var modsDirectory = Path.Combine(instance.InstanceDirectory, "mods");
+            Directory.CreateDirectory(modsDirectory);
+            var target = Path.Combine(modsDirectory, "fabric-api.jar");
+            await File.WriteAllTextAsync(target, "fabric api", cancellationToken);
+            return target;
+        }
+    }
 }
 

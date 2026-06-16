@@ -1,6 +1,8 @@
-﻿using System.Net.Http;
+using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Text.Json;
 using CmlLib.Core;
-using CmlLib.Core.ModLoaders.FabricMC;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
@@ -8,27 +10,38 @@ namespace Launcher.Infrastructure.Minecraft;
 
 public sealed class VanillaLoaderProvider : ILoaderProvider
 {
+    private readonly HttpClient httpClient;
+
+    public VanillaLoaderProvider(HttpClient? httpClient = null)
+    {
+        this.httpClient = httpClient ?? new HttpClient();
+    }
+
     public LoaderKind Kind => LoaderKind.Vanilla;
-    public string DisplayName => "原版";
+    public string DisplayName => "鍘熺増";
     public bool IsImplemented => true;
 
     public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(string minecraftVersion, CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<LoaderVersionInfo> versions = [new LoaderVersionInfo("原版")];
+        IReadOnlyList<LoaderVersionInfo> versions = [new LoaderVersionInfo("鍘熺増")];
         return Task.FromResult(versions);
     }
 
     public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
     {
-        progress?.Report(new LauncherProgress("Install", $"正在下载原版 {minecraftVersion}"));
-        var launcher = CreateLauncher(gameDirectory, progress);
-        AttachProgress(launcher, progress);
-        await launcher.InstallAsync(minecraftVersion, cancellationToken);
-        return await VanillaVersionIsolator.CreateIsolatedVersionAsync(
+        progress?.Report(new LauncherProgress("Install", $"姝ｅ湪涓嬭浇鍘熺増 {minecraftVersion}"));
+
+        var finalVersionName = await VanillaVersionComposer.CreateFinalVersionAsync(
+            httpClient,
             minecraftVersion,
             isolatedVersionName,
             gameDirectory,
             cancellationToken);
+
+        var launcher = CreateLauncher(gameDirectory, progress);
+        AttachProgress(launcher, progress);
+        await launcher.InstallAsync(finalVersionName, cancellationToken);
+        return finalVersionName;
     }
 
     internal static void AttachProgress(MinecraftLauncher launcher, IProgress<LauncherProgress>? progress)
@@ -69,7 +82,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
                     ? 0
                     : Math.Clamp(args.ProgressedBytes * 1d / args.TotalBytes, 0, 1);
 
-                ReportProgress("Bytes", "正在下载游戏文件", CalculateTotalPercent());
+                ReportProgress("Bytes", "姝ｅ湪涓嬭浇娓告垙鏂囦欢", CalculateTotalPercent());
             }
         };
 
@@ -132,6 +145,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
 
 public sealed class FabricLoaderProvider : ILoaderProvider
 {
+    private const string NoLoaderMessagePrefix = "Cannot find any loader for";
     private readonly HttpClient httpClient;
 
     public FabricLoaderProvider(HttpClient? httpClient = null)
@@ -145,27 +159,133 @@ public sealed class FabricLoaderProvider : ILoaderProvider
 
     public async Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(string minecraftVersion, CancellationToken cancellationToken = default)
     {
-        var installer = new FabricInstaller(httpClient);
-        var loaders = await installer.GetLoaders(minecraftVersion);
-        return loaders
-            .Where(loader => !string.IsNullOrWhiteSpace(loader.Version))
-            .Select(loader => new LoaderVersionInfo(loader.Version!, loader.Stable))
-            .ToList();
+        try
+        {
+            using var response = await httpClient.GetAsync(
+                $"https://meta.fabricmc.net/v2/versions/loader/{minecraftVersion}",
+                cancellationToken);
+
+            if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
+                return [];
+
+            response.EnsureSuccessStatusCode();
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var json = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            if (json.RootElement.ValueKind is not JsonValueKind.Array)
+                return [];
+
+            return json.RootElement
+                .EnumerateArray()
+                .Select(ReadLoaderVersion)
+                .Where(version => version is not null)
+                .Select(version => version!)
+                .ToList();
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
+        {
+            return [];
+        }
+        catch (Exception exception) when (IsNoAvailableVersionException(exception, minecraftVersion))
+        {
+            return [];
+        }
     }
 
     public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
     {
-        progress?.Report(new LauncherProgress("Install", $"正在安装 Fabric {minecraftVersion}"));
+        progress?.Report(new LauncherProgress("Install", $"姝ｅ湪瀹夎 Fabric {minecraftVersion}"));
         var path = new MinecraftPath(gameDirectory);
-        var installer = new FabricInstaller(httpClient);
-        var versionName = string.IsNullOrWhiteSpace(loaderVersion)
-            ? await installer.Install(minecraftVersion, path)
-            : await installer.Install(minecraftVersion, loaderVersion, path);
+        var selectedLoaderVersion = loaderVersion;
+
+        if (string.IsNullOrWhiteSpace(selectedLoaderVersion))
+        {
+            var availableLoaders = await GetLoaderVersionsAsync(minecraftVersion, cancellationToken);
+            selectedLoaderVersion = availableLoaders.FirstOrDefault()?.Version;
+        }
+
+        if (string.IsNullOrWhiteSpace(selectedLoaderVersion))
+            throw new InvalidOperationException($"No Fabric loader version available for {minecraftVersion}.");
+
+        var finalVersionName = await FabricVersionComposer.CreateFinalVersionAsync(
+            httpClient,
+            minecraftVersion,
+            selectedLoaderVersion,
+            isolatedVersionName,
+            gameDirectory,
+            cancellationToken);
 
         var launcher = VanillaLoaderProvider.CreateLauncher(path, progress);
         VanillaLoaderProvider.AttachProgress(launcher, progress);
-        await launcher.InstallAsync(versionName, cancellationToken);
-        return versionName;
+        await launcher.InstallAsync(finalVersionName, cancellationToken);
+        return finalVersionName;
+    }
+
+    internal static bool IsNoAvailableVersionException(Exception exception, string minecraftVersion)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is HttpRequestException httpRequestException
+                && httpRequestException.StatusCode is HttpStatusCode.NotFound)
+            {
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(current.Message))
+                continue;
+
+            var message = current.Message;
+            if (message.Contains(NoLoaderMessagePrefix, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (message.Contains("404", StringComparison.OrdinalIgnoreCase)
+                && message.Contains("not found", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (message.Contains(minecraftVersion, StringComparison.OrdinalIgnoreCase)
+                && message.Contains("no loader", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (message.Contains(minecraftVersion, StringComparison.OrdinalIgnoreCase)
+                && (message.Contains("cannot find", StringComparison.OrdinalIgnoreCase)
+                    || message.Contains("could not find", StringComparison.OrdinalIgnoreCase)
+                    || message.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                    || message.Contains("unsupported", StringComparison.OrdinalIgnoreCase)
+                    || message.Contains("not support", StringComparison.OrdinalIgnoreCase))
+                && (message.Contains("loader", StringComparison.OrdinalIgnoreCase)
+                    || message.Contains("version", StringComparison.OrdinalIgnoreCase)
+                    || message.Contains("game", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static LoaderVersionInfo? ReadLoaderVersion(JsonElement item)
+    {
+        if (!item.TryGetProperty("loader", out var loader)
+            || loader.ValueKind is not JsonValueKind.Object
+            || !loader.TryGetProperty("version", out var versionProperty)
+            || versionProperty.ValueKind is not JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var version = versionProperty.GetString();
+        if (string.IsNullOrWhiteSpace(version))
+            return null;
+
+        var isStable = loader.TryGetProperty("stable", out var stableProperty)
+            && stableProperty.ValueKind is JsonValueKind.True or JsonValueKind.False
+            && stableProperty.GetBoolean();
+
+        return new LoaderVersionInfo(version, isStable);
     }
 }
 
@@ -189,6 +309,6 @@ public sealed class PlaceholderLoaderProvider : ILoaderProvider
 
     public Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
     {
-        throw new NotSupportedException($"{DisplayName} 将在后续版本接入。");
+        throw new NotSupportedException($"{DisplayName} 灏嗗湪鍚庣画鐗堟湰鎺ュ叆銆?");
     }
 }

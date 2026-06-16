@@ -1,8 +1,119 @@
-﻿<UserControl x:Class="Launcher.App.Views.Download.DownloadInstanceOptionsView"
+<UserControl x:Class="Launcher.App.Views.Download.DownloadInstanceOptionsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Launcher.App.Controls"
+             xmlns:models="clr-namespace:Launcher.Domain.Models;assembly=Launcher.Domain"
              xmlns:res="clr-namespace:Launcher.App.Resources"
              Focusable="False">
+    <UserControl.Resources>
+        <Style x:Key="DownloadLoaderVersionComboBoxItemStyle"
+               TargetType="ComboBoxItem"
+               BasedOn="{StaticResource LauncherComboBoxItemStyle}">
+            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Root"
+                                Padding="{TemplateBinding Padding}"
+                                Background="Transparent"
+                                CornerRadius="7">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#26FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#993D3D3D" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DownloadLoaderVersionDropDownItemStyle"
+               TargetType="ListBoxItem"
+               BasedOn="{StaticResource LauncherComboBoxDropDownItemStyle}">
+            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Root"
+                                Padding="{TemplateBinding Padding}"
+                                Background="Transparent"
+                                CornerRadius="7">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#26FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#993D3D3D" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DownloadLoaderVersionComboBoxStyle"
+               TargetType="controls:AnimatedComboBox"
+               BasedOn="{StaticResource LauncherComboBoxStyle}">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource DownloadLoaderVersionComboBoxItemStyle}" />
+            <Setter Property="DropDownItemContainerStyle" Value="{StaticResource DownloadLoaderVersionDropDownItemStyle}" />
+        </Style>
+
+        <DataTemplate x:Key="DownloadLoaderVersionItemTemplate"
+                      DataType="{x:Type models:LoaderVersionInfo}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Text="{Binding Version}"
+                           FontSize="15"
+                           Foreground="#F4F4F4"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+
+                <TextBlock x:Name="LoaderVersionTagText"
+                           Grid.Column="1"
+                           Margin="10,0,0,0"
+                           FontSize="12"
+                           Foreground="#E8F4F4F4"
+                           VerticalAlignment="Center"
+                           Text="{x:Static res:Strings.Download_LoaderVersionStableTag}" />
+            </Grid>
+
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsStable}" Value="False">
+                    <Setter TargetName="LoaderVersionTagText"
+                            Property="Text"
+                            Value="{x:Static res:Strings.Download_LoaderVersionPreviewTag}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
     <ScrollViewer Style="{StaticResource ListPageScrollViewerStyle}">
         <StackPanel Margin="0,132,12,72"
                     MaxWidth="560"
@@ -37,6 +148,7 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="36" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
                             <Grid Width="36"
@@ -92,6 +204,53 @@
                                 <TextBlock Text="{Binding Subtitle}"
                                            Style="{StaticResource DownloadLoaderOptionSubtitleTextStyle}" />
                             </StackPanel>
+
+                            <StackPanel Grid.Column="2"
+                                        Margin="18,0,0,0"
+                                        Width="200"
+                                        VerticalAlignment="Center">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding Kind}" Value="{x:Static models:LoaderKind.Fabric}" />
+                                                    <Condition Binding="{Binding DataContext.ShouldShowFabricVersionSelector, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+
+                                <Grid>
+                                    <controls:AnimatedComboBox ItemsSource="{Binding DataContext.LoaderVersions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                               SelectedItem="{Binding DataContext.SelectedLoaderVersion, RelativeSource={RelativeSource AncestorType=UserControl}, Mode=TwoWay}"
+                                                               ItemTemplate="{StaticResource DownloadLoaderVersionItemTemplate}"
+                                                               IsEnabled="{Binding DataContext.HasLoaderVersions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                               Style="{StaticResource DownloadLoaderVersionComboBoxStyle}" />
+
+                                    <TextBlock Margin="12,0,34,0"
+                                               Text="{Binding DataContext.LoaderVersionPlaceholderText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                               Foreground="#F4F4F4"
+                                               FontSize="13"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center"
+                                               IsHitTestVisible="False">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DataContext.SelectedLoaderVersion, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </StackPanel>
                         </Grid>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -99,4 +258,3 @@
         </StackPanel>
     </ScrollViewer>
 </UserControl>
-

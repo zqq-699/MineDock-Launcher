@@ -11,6 +11,8 @@ namespace Launcher.Infrastructure.Modrinth;
 public sealed class ModrinthService : IModrinthService
 {
     private const string BaseUrl = "https://api.modrinth.com/v2";
+    private const string FabricApiProjectSlug = "fabric-api";
+    private const string FabricApiTitle = "Fabric API";
     private readonly HttpClient httpClient;
 
     public ModrinthService(HttpClient? httpClient = null)
@@ -65,5 +67,19 @@ public sealed class ModrinthService : IModrinthService
         await using var destination = File.Create(target);
         await stream.CopyToAsync(destination, cancellationToken);
         return target;
+    }
+
+    public Task<string> InstallFabricApiAsync(GameInstance instance, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
+    {
+        return InstallLatestCompatibleAsync(
+            new ModrinthProject
+            {
+                ProjectId = FabricApiProjectSlug,
+                Slug = FabricApiProjectSlug,
+                Title = FabricApiTitle
+            },
+            instance,
+            progress,
+            cancellationToken);
     }
 }

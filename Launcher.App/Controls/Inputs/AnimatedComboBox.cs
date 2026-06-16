@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
@@ -11,6 +12,8 @@ namespace Launcher.App.Controls;
 public class AnimatedComboBox : ComboBox
 {
     private const double PopupGap = 10;
+    private const double DefaultDropDownItemHeightEstimate = 38;
+    private const double PopupVerticalPaddingEstimate = 10;
     private static readonly TimeSpan PopupRealtimeBlurInterval = TimeSpan.FromMilliseconds(33);
     private static readonly Duration OpenDuration = TimeSpan.FromMilliseconds(210);
     private static readonly Duration CloseDuration = TimeSpan.FromMilliseconds(180);
@@ -31,9 +34,17 @@ public class AnimatedComboBox : ComboBox
             typeof(AnimatedComboBox),
             new PropertyMetadata(false));
 
+    public static readonly DependencyProperty DropDownItemContainerStyleProperty =
+        DependencyProperty.Register(
+            nameof(DropDownItemContainerStyle),
+            typeof(Style),
+            typeof(AnimatedComboBox),
+            new PropertyMetadata(null));
+
     private readonly DependencyPropertyDescriptor dropDownDescriptor;
     private DispatcherTimer? closeTimer;
     private Popup? popup;
+    private ListBox? popupListBox;
     private FrameworkElement? popupSurface;
     private ScaleTransform? scaleTransform;
     private TranslateTransform? translateTransform;
@@ -47,6 +58,8 @@ public class AnimatedComboBox : ComboBox
         Unloaded += (_, _) =>
         {
             closeTimer?.Stop();
+            DetachPopupListBox();
+            DetachPopup();
             dropDownDescriptor.RemoveValueChanged(this, OnDropDownOpenChanged);
         };
     }
@@ -63,11 +76,22 @@ public class AnimatedComboBox : ComboBox
         set => SetValue(IsDropDownClosingProperty, value);
     }
 
+    public Style? DropDownItemContainerStyle
+    {
+        get => (Style?)GetValue(DropDownItemContainerStyleProperty);
+        set => SetValue(DropDownItemContainerStyleProperty, value);
+    }
+
     public override void OnApplyTemplate()
     {
+        DetachPopupListBox();
+        DetachPopup();
         base.OnApplyTemplate();
         popup = GetTemplateChild("PART_Popup") as Popup;
+        popupListBox = GetTemplateChild("PART_DropDownList") as ListBox;
         popupSurface = GetTemplateChild("PopupSurface") as FrameworkElement;
+        AttachPopup();
+        AttachPopupListBox();
         if (popupSurface is not null)
         {
             popupSurface.CacheMode = new BitmapCache();
@@ -129,11 +153,8 @@ public class AnimatedComboBox : ComboBox
 
             translateAnimation.Completed += (_, _) =>
             {
-                if (popupSurface is BackdropBlurBorder blurBorder)
-                {
-                    blurBorder.StopRealtimeRefresh();
-                    blurBorder.RequestRefresh();
-                }
+                StopRealtimeBackdropRefresh();
+                RequestBackdropRefreshAfterLayout();
             };
 
             popupSurface.BeginAnimation(OpacityProperty, opacityAnimation);
@@ -176,8 +197,7 @@ public class AnimatedComboBox : ComboBox
             IsDropDownClosing = false;
             if (popupSurface is not null)
             {
-                if (popupSurface is BackdropBlurBorder blurBorder)
-                    blurBorder.StopRealtimeRefresh();
+                StopRealtimeBackdropRefresh();
                 SetPopupVisualState(0, GetCloseTranslateOffset(), 0.92);
             }
         };
@@ -189,6 +209,7 @@ public class AnimatedComboBox : ComboBox
         if (popupSurface is null)
             return;
 
+        UpdateBackdropSampleOffset();
         popupSurface.RenderTransformOrigin = opensAbove ? new Point(0.5, 1) : new Point(0.5, 0);
         if (popupSurface.RenderTransform is TransformGroup { Children.Count: 2 } group
             && group.Children[0] is ScaleTransform existingScale
@@ -244,20 +265,128 @@ public class AnimatedComboBox : ComboBox
 
     private double GetPopupHeightEstimate()
     {
-        if (popupSurface is null)
-            return MaxDropDownHeight;
-
-        var width = Math.Max(ActualWidth, MinWidth);
         var maxHeight = double.IsNaN(MaxDropDownHeight) || MaxDropDownHeight <= 0 ? 260 : MaxDropDownHeight;
-        popupSurface.Measure(new Size(width, maxHeight));
-        var desiredHeight = popupSurface.DesiredSize.Height;
-        if (double.IsNaN(desiredHeight) || desiredHeight <= 0)
+        if (Items.Count <= 0)
             return maxHeight;
 
+        var desiredHeight = Items.Count * GetDropDownItemHeightEstimate() + PopupVerticalPaddingEstimate;
         return Math.Min(desiredHeight, maxHeight);
     }
 
     private double GetOpenTranslateOffset() => opensAbove ? 10 : -10;
 
     private double GetCloseTranslateOffset() => opensAbove ? 8 : -8;
+
+    private double GetDropDownItemHeightEstimate()
+    {
+        if (ItemContainerGenerator.ContainerFromIndex(0) is FrameworkElement container
+            && container.ActualHeight > 0)
+        {
+            return container.ActualHeight;
+        }
+
+        return Math.Max(DefaultDropDownItemHeightEstimate, FontSize + 22);
+    }
+
+    private void AttachPopupListBox()
+    {
+        if (popupListBox is null)
+            return;
+
+        popupListBox.PreviewMouseLeftButtonUp += PopupListBox_PreviewMouseLeftButtonUp;
+        popupListBox.PreviewKeyDown += PopupListBox_PreviewKeyDown;
+    }
+
+    private void DetachPopupListBox()
+    {
+        if (popupListBox is null)
+            return;
+
+        popupListBox.PreviewMouseLeftButtonUp -= PopupListBox_PreviewMouseLeftButtonUp;
+        popupListBox.PreviewKeyDown -= PopupListBox_PreviewKeyDown;
+        popupListBox = null;
+    }
+
+    private void AttachPopup()
+    {
+        if (popup is null)
+            return;
+
+        popup.Opened += Popup_Opened;
+        popup.Closed += Popup_Closed;
+    }
+
+    private void DetachPopup()
+    {
+        if (popup is null)
+            return;
+
+        popup.Opened -= Popup_Opened;
+        popup.Closed -= Popup_Closed;
+        popup = null;
+    }
+
+    private void PopupListBox_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!IsDropDownOpen || sender is not ListBox listBox || e.OriginalSource is not DependencyObject source)
+            return;
+
+        if (ItemsControl.ContainerFromElement(listBox, source) is ListBoxItem { IsEnabled: true })
+            IsDropDownOpen = false;
+    }
+
+    private void PopupListBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (!IsDropDownOpen)
+            return;
+
+        if (e.Key is Key.Enter or Key.Space or Key.Escape)
+        {
+            IsDropDownOpen = false;
+            e.Handled = true;
+        }
+    }
+
+    private void Popup_Opened(object? sender, EventArgs e)
+    {
+        RequestBackdropRefreshAfterLayout();
+    }
+
+    private void Popup_Closed(object? sender, EventArgs e)
+    {
+        StopRealtimeBackdropRefresh();
+    }
+
+    private void RequestBackdropRefreshAfterLayout()
+    {
+        if (popupSurface is not BackdropBlurBorder blurBorder)
+            return;
+
+        Dispatcher.BeginInvoke(
+            () =>
+            {
+                blurBorder.RequestRefresh();
+                Dispatcher.BeginInvoke(blurBorder.RequestRefresh, DispatcherPriority.Loaded);
+            },
+            DispatcherPriority.Render);
+    }
+
+    private void StopRealtimeBackdropRefresh()
+    {
+        if (popupSurface is BackdropBlurBorder blurBorder)
+            blurBorder.StopRealtimeRefresh();
+    }
+
+    private void UpdateBackdropSampleOffset()
+    {
+        if (popupSurface is not BackdropBlurBorder blurBorder)
+            return;
+
+        blurBorder.UseSourceElementAsSampleOrigin = true;
+        blurBorder.SampleOffsetX = 0;
+        var popupVerticalOffset = popup?.VerticalOffset ?? (opensAbove ? -PopupGap : PopupGap);
+        blurBorder.SampleOffsetY = opensAbove
+            ? -popupSurface.ActualHeight + popupVerticalOffset
+            : ActualHeight + popupVerticalOffset;
+    }
 }

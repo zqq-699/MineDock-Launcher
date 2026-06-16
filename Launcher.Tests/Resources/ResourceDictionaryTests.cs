@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using Launcher.App.Controls;
 using Launcher.Application.Accounts;
 
@@ -85,4 +85,3 @@ public sealed class ResourceDictionaryTests
             throw exception;
     }
 }
-

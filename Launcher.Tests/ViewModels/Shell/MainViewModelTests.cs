@@ -140,7 +140,7 @@ public sealed class MainViewModelTests
         return new MainViewModel(
             settingsService,
             accountPage,
-            new DownloadPageViewModel(gameVersionService, instanceService, downloadTasksPage),
+            new DownloadPageViewModel(gameVersionService, instanceService, downloadTasksPage, []),
             downloadTasksPage,
             new GameSettingsPageViewModel(instanceService, gameVersionService, statusService, new FakeInstanceFolderService()),
             gameManagement,
@@ -274,6 +274,14 @@ public sealed class MainViewModelTests
 
         public Task<string> InstallLatestCompatibleAsync(
             ModrinthProject project,
+            GameInstance instance,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<string> InstallFabricApiAsync(
             GameInstance instance,
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default)

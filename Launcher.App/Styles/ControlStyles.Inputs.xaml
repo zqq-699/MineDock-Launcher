@@ -119,16 +119,128 @@
         </Setter>
     </Style>
 
+    <Style x:Key="LauncherComboBoxDropDownItemStyle" TargetType="ListBoxItem">
+        <Setter Property="MinHeight" Value="38" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="Root"
+                            Padding="{TemplateBinding Padding}"
+                            Background="Transparent"
+                            CornerRadius="7">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#26FFFFFF" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#993D3D3D" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="LauncherComboBoxDropDownScrollBarStyle"
+           TargetType="ScrollBar"
+           BasedOn="{StaticResource SlimVerticalScrollBarStyle}">
+        <Setter Property="Margin" Value="0,6,2,6" />
+        <Setter Property="Opacity" Value="0" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" Value="True">
+                <Setter Property="Opacity" Value="1" />
+                <Setter Property="IsHitTestVisible" Value="True" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="LauncherComboBoxDropDownScrollViewerStyle"
+           TargetType="ScrollViewer"
+           BasedOn="{StaticResource OverlayScrollViewerStyle}">
+        <Setter Property="CanContentScroll" Value="True" />
+        <Setter Property="behaviors:SmoothScrollBehavior.IsEnabled" Value="True" />
+        <Setter Property="behaviors:SmoothScrollBehavior.AllowContentScroll" Value="True" />
+        <Setter Property="behaviors:SmoothScrollBehavior.ScrollAmount" Value="72" />
+        <Setter Property="behaviors:SmoothScrollBehavior.WheelAnimationDurationMilliseconds" Value="130" />
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="ClipToBounds" Value="True" />
+        <Style.Resources>
+            <Style TargetType="ScrollBar" BasedOn="{StaticResource LauncherComboBoxDropDownScrollBarStyle}" />
+        </Style.Resources>
+    </Style>
+
+    <Style x:Key="LauncherComboBoxDropDownListStyle" TargetType="ListBox">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Focusable" Value="True" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+        <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+        <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel" />
+        <Setter Property="VirtualizingPanel.CacheLength" Value="1" />
+        <Setter Property="VirtualizingPanel.CacheLengthUnit" Value="Page" />
+        <Setter Property="ItemsPanel">
+            <Setter.Value>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                </ItemsPanelTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="ItemContainerStyle" Value="{StaticResource LauncherComboBoxDropDownItemStyle}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBox">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}">
+                        <ScrollViewer x:Name="PART_ScrollViewer"
+                                      Focusable="False"
+                                      Style="{StaticResource LauncherComboBoxDropDownScrollViewerStyle}">
+                            <ItemsPresenter />
+                        </ScrollViewer>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="LauncherComboBoxStyle" TargetType="controls:AnimatedComboBox">
         <Setter Property="Height" Value="36" />
         <Setter Property="MinWidth" Value="160" />
         <Setter Property="Padding" Value="12,0,34,0" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="#F4F4F4" />
         <Setter Property="Background" Value="#24FFFFFF" />
         <Setter Property="BorderBrush" Value="#20FFFFFF" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="MaxDropDownHeight" Value="260" />
+        <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+        <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+        <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+        <Setter Property="ItemsPanel">
+            <Setter.Value>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                </ItemsPanelTemplate>
+            </Setter.Value>
+        </Setter>
         <Setter Property="ItemContainerStyle" Value="{StaticResource LauncherComboBoxItemStyle}" />
+        <Setter Property="DropDownItemContainerStyle" Value="{StaticResource LauncherComboBoxDropDownItemStyle}" />
         <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
@@ -140,7 +252,7 @@
                                       Style="{StaticResource LauncherComboBoxToggleButtonStyle}">
                             <TextBlock Text="{Binding SelectionBoxItem, RelativeSource={RelativeSource TemplatedParent}}"
                                        Foreground="{TemplateBinding Foreground}"
-                                       FontSize="13"
+                                       FontSize="{TemplateBinding FontSize}"
                                        TextTrimming="CharacterEllipsis"
                                        VerticalAlignment="Center"
                                        IsHitTestVisible="False" />
@@ -178,9 +290,21 @@
                                                              CornerRadius="9"
                                                              ClipToBounds="True"
                                                              behaviors:RoundedClip.Radius="9">
-                                    <ScrollViewer Style="{StaticResource SecondaryMenuScrollViewerStyle}">
-                                        <ItemsPresenter />
-                                    </ScrollViewer>
+                                    <ListBox x:Name="PART_DropDownList"
+                                             Style="{StaticResource LauncherComboBoxDropDownListStyle}"
+                                             ItemsSource="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Items}"
+                                             ItemTemplate="{TemplateBinding ItemTemplate}"
+                                             ItemTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                             ItemStringFormat="{TemplateBinding ItemStringFormat}"
+                                             ItemContainerStyle="{TemplateBinding DropDownItemContainerStyle}"
+                                             ItemsPanel="{TemplateBinding ItemsPanel}"
+                                             DisplayMemberPath="{TemplateBinding DisplayMemberPath}"
+                                             SelectedValuePath="{TemplateBinding SelectedValuePath}"
+                                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                             SelectedItem="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=SelectedItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             SelectedValue="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=SelectedValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
                                 </controls:BackdropBlurBorder>
                             </Grid>
                         </Popup>

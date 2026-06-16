@@ -124,6 +124,13 @@
   <data name="Download_FabricLoaderTitle" xml:space="preserve"><value>Fabric</value></data>
   <data name="Download_ForgeLoaderTitle" xml:space="preserve"><value>Forge</value></data>
   <data name="Download_VanillaLoaderSubtitle" xml:space="preserve"><value>不安装 Mod 加载器</value></data>
+  <data name="Download_FabricLoaderSubtitle" xml:space="preserve"><value>支持选择 Fabric 版本并安装</value></data>
+  <data name="Download_FabricLoaderVersionLabel" xml:space="preserve"><value>Fabric 版本</value></data>
+  <data name="Download_FabricLoaderVersionEmpty" xml:space="preserve"><value>无可用版本</value></data>
+  <data name="Download_LoaderVersionStableTag" xml:space="preserve"><value>稳定版</value></data>
+  <data name="Download_LoaderVersionPreviewTag" xml:space="preserve"><value>测试版</value></data>
+  <data name="Download_SelectVersionPlaceholder" xml:space="preserve"><value>选择版本</value></data>
+  <data name="Download_LoaderVersionLoadFailedShort" xml:space="preserve"><value>获取失败</value></data>
   <data name="Download_LoaderPendingSubtitle" xml:space="preserve"><value>暂未接入安装</value></data>
   <data name="Install_Empty" xml:space="preserve"><value>当前没有下载内容</value></data>
   <data name="DownloadTask_Preparing" xml:space="preserve"><value>准备下载...</value></data>
@@ -158,9 +165,11 @@
   <data name="Status_NoMatchingVersions" xml:space="preserve"><value>没有找到匹配的版本。</value></data>
   <data name="Status_DuplicateInstanceName" xml:space="preserve"><value>已存在同名游戏</value></data>
   <data name="Status_InstallingVanillaFormat" xml:space="preserve"><value>正在安装原版 {0}...</value></data>
+  <data name="Status_InstallingLoaderFormat" xml:space="preserve"><value>正在安装 {0} {1}...</value></data>
   <data name="Status_InstanceInstalledFormat" xml:space="preserve"><value>游戏 {0} 已安装</value></data>
   <data name="Status_InstallFailed" xml:space="preserve"><value>安装失败，请稍后重试。</value></data>
   <data name="Status_LoaderInstallPending" xml:space="preserve"><value>该加载器将在后续版本接入安装。</value></data>
+  <data name="Status_FabricLoaderVersionsLoadFailed" xml:space="preserve"><value>Fabric 版本列表加载失败，请稍后重试。</value></data>
   <data name="Status_OpeningMicrosoftLogin" xml:space="preserve"><value>正在打开 Microsoft 官方登录页面...</value></data>
   <data name="Status_LoginMicrosoftActive" xml:space="preserve"><value>正在登录，请在弹出的 Microsoft 官方页面完成登录...</value></data>
   <data name="Status_LoginMissingProfile" xml:space="preserve"><value>正版登录失败：未获取到 Minecraft Java 账户资料</value></data>

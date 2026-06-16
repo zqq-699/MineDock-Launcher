@@ -126,6 +126,13 @@ public static class Strings
     public static string Download_FabricLoaderTitle => Get(nameof(Download_FabricLoaderTitle));
     public static string Download_ForgeLoaderTitle => Get(nameof(Download_ForgeLoaderTitle));
     public static string Download_VanillaLoaderSubtitle => Get(nameof(Download_VanillaLoaderSubtitle));
+    public static string Download_FabricLoaderSubtitle => Get(nameof(Download_FabricLoaderSubtitle));
+    public static string Download_FabricLoaderVersionLabel => Get(nameof(Download_FabricLoaderVersionLabel));
+    public static string Download_FabricLoaderVersionEmpty => Get(nameof(Download_FabricLoaderVersionEmpty));
+    public static string Download_LoaderVersionStableTag => Get(nameof(Download_LoaderVersionStableTag));
+    public static string Download_LoaderVersionPreviewTag => Get(nameof(Download_LoaderVersionPreviewTag));
+    public static string Download_SelectVersionPlaceholder => Get(nameof(Download_SelectVersionPlaceholder));
+    public static string Download_LoaderVersionLoadFailedShort => Get(nameof(Download_LoaderVersionLoadFailedShort));
     public static string Download_LoaderPendingSubtitle => Get(nameof(Download_LoaderPendingSubtitle));
     public static string Install_Empty => Get(nameof(Install_Empty));
     public static string DownloadTask_Preparing => Get(nameof(DownloadTask_Preparing));
@@ -164,9 +171,11 @@ public static class Strings
     public static string Status_NoMatchingVersions => Get(nameof(Status_NoMatchingVersions));
     public static string Status_DuplicateInstanceName => Get(nameof(Status_DuplicateInstanceName));
     public static string Status_InstallingVanillaFormat => Get(nameof(Status_InstallingVanillaFormat));
+    public static string Status_InstallingLoaderFormat => Get(nameof(Status_InstallingLoaderFormat));
     public static string Status_InstanceInstalledFormat => Get(nameof(Status_InstanceInstalledFormat));
     public static string Status_InstallFailed => Get(nameof(Status_InstallFailed));
     public static string Status_LoaderInstallPending => Get(nameof(Status_LoaderInstallPending));
+    public static string Status_FabricLoaderVersionsLoadFailed => Get(nameof(Status_FabricLoaderVersionsLoadFailed));
     public static string Status_OpeningMicrosoftLogin => Get(nameof(Status_OpeningMicrosoftLogin));
     public static string Status_LoginMicrosoftActive => Get(nameof(Status_LoginMicrosoftActive));
     public static string Status_LoginMissingProfile => Get(nameof(Status_LoginMissingProfile));

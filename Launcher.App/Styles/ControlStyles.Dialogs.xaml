@@ -104,7 +104,12 @@
                             <Border Background="#12FFFFFF"
                                     CornerRadius="10" />
                             <Border x:Name="SelectedBackground"
-                                    Background="#8A727272"
+                                    Background="#6E686868"
+                                    CornerRadius="10"
+                                    Opacity="0" />
+                            <Border x:Name="SelectedOutline"
+                                    BorderBrush="#667ABEFF"
+                                    BorderThickness="1"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <Border x:Name="HoverBackground"
@@ -146,6 +151,7 @@
                         </EventTrigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
+                            <Setter TargetName="SelectedOutline" Property="Opacity" Value="1" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

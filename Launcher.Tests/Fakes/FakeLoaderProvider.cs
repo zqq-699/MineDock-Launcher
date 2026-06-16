@@ -7,9 +7,12 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
 {
     private int installCallCount;
 
-    public LoaderKind Kind => LoaderKind.Vanilla;
-    public string DisplayName => "Fake Vanilla";
-    public bool IsImplemented => true;
+    public LoaderKind Kind { get; init; } = LoaderKind.Vanilla;
+    public string DisplayName { get; init; } = "Fake Vanilla";
+    public bool IsImplemented { get; init; } = true;
+    public IReadOnlyList<LoaderVersionInfo> LoaderVersions { get; init; } = [new LoaderVersionInfo("fake")];
+    public Exception? GetLoaderVersionsException { get; init; }
+    public Task? WaitBeforeGetLoaderVersions { get; init; }
     public string? LastGameDirectory { get; private set; }
     public string? LastIsolatedVersionName { get; private set; }
     public TaskCompletionSource<bool> InstallStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -20,8 +23,18 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
 
     public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(string minecraftVersion, CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<LoaderVersionInfo> versions = [new LoaderVersionInfo("fake")];
-        return Task.FromResult(versions);
+        if (GetLoaderVersionsException is not null)
+            return Task.FromException<IReadOnlyList<LoaderVersionInfo>>(GetLoaderVersionsException);
+
+        return GetLoaderVersionsAsyncCore(cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsyncCore(CancellationToken cancellationToken)
+    {
+        if (WaitBeforeGetLoaderVersions is not null)
+            await WaitBeforeGetLoaderVersions.WaitAsync(cancellationToken);
+
+        return LoaderVersions;
     }
 
     public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)

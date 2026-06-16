@@ -10,16 +10,21 @@ public sealed class GameInstanceService : IGameInstanceService
     private readonly ISettingsService settingsService;
     private readonly IGameInstanceRepository repository;
     private readonly IReadOnlyDictionary<LoaderKind, ILoaderProvider> providers;
+    private readonly IModrinthService? modrinthService;
     private readonly SemaphoreSlim installExecutionLock = new(1, 1);
+    private readonly HashSet<string> installingVersions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object installingVersionsLock = new();
 
     public GameInstanceService(
         ISettingsService settingsService,
         IGameInstanceRepository repository,
-        IEnumerable<ILoaderProvider> providers)
+        IEnumerable<ILoaderProvider> providers,
+        IModrinthService? modrinthService = null)
     {
         this.settingsService = settingsService;
         this.repository = repository;
         this.providers = providers.ToDictionary(provider => provider.Kind);
+        this.modrinthService = modrinthService;
     }
 
     public async Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default)
@@ -33,9 +38,11 @@ public sealed class GameInstanceService : IGameInstanceService
         CancellationToken cancellationToken)
     {
         var storedInstances = (await repository.GetAllAsync(cancellationToken).ConfigureAwait(false)).ToList();
-        var installedVersions = await repository
+        var installedVersions = (await repository
             .DiscoverInstalledVersionsAsync(settings.MinecraftDirectory, cancellationToken)
-            .ConfigureAwait(false);
+            .ConfigureAwait(false))
+            .Where(version => !IsInstallingVersion(settings.MinecraftDirectory, version.VersionName))
+            .ToList();
         var syncedInstances = SynchronizeInstalledInstances(
             storedInstances,
             installedVersions,
@@ -99,6 +106,8 @@ public sealed class GameInstanceService : IGameInstanceService
 
             try
             {
+                TrackInstallingVersion(settings.MinecraftDirectory, versionIdentity);
+
                 var versionName = await provider.InstallAsync(
                     minecraftVersion,
                     settings.MinecraftDirectory,
@@ -126,6 +135,9 @@ public sealed class GameInstanceService : IGameInstanceService
                     UpdatedAt = now
                 };
 
+                if (loader is LoaderKind.Fabric && modrinthService is not null)
+                    await modrinthService.InstallFabricApiAsync(instance, progress, cancellationToken).ConfigureAwait(false);
+
                 instances.Add(instance);
                 await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
 
@@ -135,10 +147,12 @@ public sealed class GameInstanceService : IGameInstanceService
                     await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
                 }
 
+                UntrackInstallingVersion(settings.MinecraftDirectory, versionIdentity);
                 return instance;
             }
             catch
             {
+                UntrackInstallingVersion(settings.MinecraftDirectory, versionIdentity);
                 TryCleanupCreatedVersionDirectories(settings.MinecraftDirectory, cleanupCandidates);
                 throw;
             }
@@ -340,6 +354,31 @@ public sealed class GameInstanceService : IGameInstanceService
         var invalid = Path.GetInvalidFileNameChars();
         var sanitized = new string(value.Select(ch => invalid.Contains(ch) ? '-' : ch).ToArray()).Trim();
         return string.IsNullOrWhiteSpace(sanitized) ? "Minecraft" : sanitized;
+    }
+
+    private void TrackInstallingVersion(string minecraftDirectory, string versionName)
+    {
+        lock (installingVersionsLock)
+            installingVersions.Add(CreateInstallingVersionKey(minecraftDirectory, versionName));
+    }
+
+    private void UntrackInstallingVersion(string minecraftDirectory, string versionName)
+    {
+        lock (installingVersionsLock)
+            installingVersions.Remove(CreateInstallingVersionKey(minecraftDirectory, versionName));
+    }
+
+    private bool IsInstallingVersion(string minecraftDirectory, string versionName)
+    {
+        lock (installingVersionsLock)
+            return installingVersions.Contains(CreateInstallingVersionKey(minecraftDirectory, versionName));
+    }
+
+    private static string CreateInstallingVersionKey(string minecraftDirectory, string versionName)
+    {
+        return Path.GetFullPath(Path.Combine(minecraftDirectory, "versions", versionName))
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .ToUpperInvariant();
     }
 
     private IReadOnlyList<VersionCleanupCandidate> CreateCleanupCandidates(

@@ -67,6 +67,27 @@ public sealed class BackdropBlurBorder : Border
             typeof(BackdropBlurBorder),
             new PropertyMetadata(false, OnBackdropPropertyChanged));
 
+    public static readonly DependencyProperty SampleOffsetXProperty =
+        DependencyProperty.Register(
+            nameof(SampleOffsetX),
+            typeof(double),
+            typeof(BackdropBlurBorder),
+            new PropertyMetadata(0d, OnBackdropPropertyChanged));
+
+    public static readonly DependencyProperty SampleOffsetYProperty =
+        DependencyProperty.Register(
+            nameof(SampleOffsetY),
+            typeof(double),
+            typeof(BackdropBlurBorder),
+            new PropertyMetadata(0d, OnBackdropPropertyChanged));
+
+    public static readonly DependencyProperty UseSourceElementAsSampleOriginProperty =
+        DependencyProperty.Register(
+            nameof(UseSourceElementAsSampleOrigin),
+            typeof(bool),
+            typeof(BackdropBlurBorder),
+            new PropertyMetadata(false, OnBackdropPropertyChanged));
+
     private bool isRefreshQueued;
     private bool isRenderRefreshQueued;
     private int queuedAttempts;
@@ -120,6 +141,24 @@ public sealed class BackdropBlurBorder : Border
     {
         get => (bool)GetValue(UseSourceElementAsRenderRootProperty);
         set => SetValue(UseSourceElementAsRenderRootProperty, value);
+    }
+
+    public double SampleOffsetX
+    {
+        get => (double)GetValue(SampleOffsetXProperty);
+        set => SetValue(SampleOffsetXProperty, value);
+    }
+
+    public double SampleOffsetY
+    {
+        get => (double)GetValue(SampleOffsetYProperty);
+        set => SetValue(SampleOffsetYProperty, value);
+    }
+
+    public bool UseSourceElementAsSampleOrigin
+    {
+        get => (bool)GetValue(UseSourceElementAsSampleOriginProperty);
+        set => SetValue(UseSourceElementAsSampleOriginProperty, value);
     }
 
     public BackdropBlurBorder()
@@ -302,7 +341,28 @@ public sealed class BackdropBlurBorder : Border
             PixelFormats.Pbgra32);
         rendered.Render(sourceRoot);
 
-        var topLeft = sourceRoot.PointFromScreen(PointToScreen(new Point(0, 0)));
+        Point topLeft;
+        if (UseSourceElementAsSampleOrigin
+            && SourceElement is Visual sourceVisual)
+        {
+            try
+            {
+                topLeft = sourceVisual.TransformToVisual(sourceRoot).Transform(new Point(0, 0));
+                topLeft.Offset(SampleOffsetX, SampleOffsetY);
+            }
+            catch (InvalidOperationException)
+            {
+                var sampleOrigin = SourceElement.PointToScreen(new Point(0, 0));
+                sampleOrigin.Offset(SampleOffsetX, SampleOffsetY);
+                topLeft = sourceRoot.PointFromScreen(sampleOrigin);
+            }
+        }
+        else
+        {
+            var sampleOrigin = PointToScreen(new Point(0, 0));
+            sampleOrigin.Offset(SampleOffsetX, SampleOffsetY);
+            topLeft = sourceRoot.PointFromScreen(sampleOrigin);
+        }
         var cropX = (int)Math.Round(topLeft.X * renderDpiScaleX);
         var cropY = (int)Math.Round(topLeft.Y * renderDpiScaleY);
         var cropWidth = Math.Max(1, (int)Math.Round(ActualWidth * renderDpiScaleX));
