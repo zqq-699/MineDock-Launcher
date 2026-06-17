@@ -16,7 +16,9 @@ public sealed partial class HomePageViewModel : ObservableObject
     private readonly ILaunchService launchService;
     private readonly AccountPageViewModel accountPage;
     private readonly IStatusService statusService;
+    private readonly IWindowService windowService;
     private readonly Action<double> reportProgressPercent;
+    private readonly Func<GameInstance?, Task> openGameSettingsForInstance;
     private LauncherSettings settings = new();
     private CancellationTokenSource? launchCancellationTokenSource;
 
@@ -34,13 +36,17 @@ public sealed partial class HomePageViewModel : ObservableObject
         IGameVersionService gameVersionService,
         AccountPageViewModel accountPage,
         IStatusService statusService,
+        IWindowService windowService,
         Action<double> reportProgressPercent,
-        Func<GameInstance, Task<bool>> selectLaunchInstance)
+        Func<GameInstance, Task<bool>> selectLaunchInstance,
+        Func<GameInstance?, Task> openGameSettingsForInstance)
     {
         this.launchService = launchService;
         this.accountPage = accountPage;
         this.statusService = statusService;
+        this.windowService = windowService;
         this.reportProgressPercent = reportProgressPercent;
+        this.openGameSettingsForInstance = openGameSettingsForInstance;
 
         LaunchGames = new HomeLaunchGameListViewModel(gameVersionService, statusService, selectLaunchInstance);
         LaunchGames.PropertyChanged += LaunchGames_PropertyChanged;
@@ -73,6 +79,8 @@ public sealed partial class HomePageViewModel : ObservableObject
     public bool HasSelectedLaunchInstance => LaunchGames.HasSelectedLaunchInstance;
 
     public IAsyncRelayCommand SelectLaunchInstanceCommand => LaunchGames.SelectLaunchInstanceCommand;
+
+    public bool CanOpenSelectedInstanceSettings => SelectedInstance is not null && !IsLaunching;
 
     public string? HomeAvatarUrl
     {
@@ -145,7 +153,8 @@ public sealed partial class HomePageViewModel : ObservableObject
     private async Task LaunchAsync()
     {
         var account = accountPage.SelectedAccount;
-        if (!CanLaunchSelectedGame || SelectedInstance is null || account is null)
+        var launchInstance = SelectedInstance;
+        if (!CanLaunchSelectedGame || launchInstance is null || account is null)
         {
             statusService.Report(Strings.Status_NoLaunchableInstance);
             return;
@@ -155,11 +164,14 @@ public sealed partial class HomePageViewModel : ObservableObject
         {
             var cancellationTokenSource = BeginLaunchProgress();
             await launchService.LaunchAsync(
-                SelectedInstance,
+                launchInstance,
                 account,
                 settings,
                 CreateProgress(),
                 cancellationTokenSource.Token);
+
+            if (ShouldMinimizeLauncherAfterLaunch(launchInstance))
+                windowService.Minimize();
         }
         catch (OperationCanceledException) when (launchCancellationTokenSource?.IsCancellationRequested == true)
         {
@@ -193,6 +205,12 @@ public sealed partial class HomePageViewModel : ObservableObject
         launchCancellationTokenSource?.Cancel();
     }
 
+    [RelayCommand(CanExecute = nameof(CanOpenSelectedInstanceSettings))]
+    private Task OpenSelectedInstanceSettingsAsync()
+    {
+        return openGameSettingsForInstance(SelectedInstance);
+    }
+
     private IProgress<LauncherProgress> CreateProgress()
     {
         return new Progress<LauncherProgress>(progress =>
@@ -215,8 +233,10 @@ public sealed partial class HomePageViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanLaunchSelectedGame));
         OnPropertyChanged(nameof(HasLaunchProgress));
+        OnPropertyChanged(nameof(CanOpenSelectedInstanceSettings));
         LaunchCommand.NotifyCanExecuteChanged();
         CancelLaunchCommand.NotifyCanExecuteChanged();
+        OpenSelectedInstanceSettingsCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnLaunchStatusMessageChanged(string value)
@@ -260,7 +280,9 @@ public sealed partial class HomePageViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(HomeVersionDisplayName));
         OnPropertyChanged(nameof(CanLaunchSelectedGame));
+        OnPropertyChanged(nameof(CanOpenSelectedInstanceSettings));
         LaunchCommand.NotifyCanExecuteChanged();
+        OpenSelectedInstanceSettingsCommand.NotifyCanExecuteChanged();
     }
 
     private CancellationTokenSource BeginLaunchProgress()
@@ -283,6 +305,13 @@ public sealed partial class HomePageViewModel : ObservableObject
         reportProgressPercent(0);
         LaunchStatusMessage = string.Empty;
         IsLaunching = false;
+    }
+
+    private bool ShouldMinimizeLauncherAfterLaunch(GameInstance instance)
+    {
+        return instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
+            ? settings.DefaultMinimizeLauncherAfterLaunch
+            : instance.MinimizeLauncherAfterLaunch;
     }
 
     private static string FormatLaunchProgress(LauncherProgress progress)

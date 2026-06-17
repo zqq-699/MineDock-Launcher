@@ -34,7 +34,7 @@
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
@@ -50,7 +50,7 @@
                                     </StackPanel>
 
                                     <Grid Grid.Column="1"
-                                          Margin="18,-6,-6,0"
+                                          Margin="18,0,0,0"
                                           MinWidth="92"
                                           HorizontalAlignment="Right"
                                           VerticalAlignment="Top">
@@ -65,7 +65,7 @@
                                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
                                         </Button>
 
-                                        <StackPanel Margin="0,30,6,0"
+                                        <StackPanel Margin="0,22,0,0"
                                                     HorizontalAlignment="Right">
                                             <TextBlock Text="{Binding StateText}"
                                                        Style="{StaticResource InstallTaskStateTextStyle}" />
@@ -76,12 +76,14 @@
 
                                     <TextBlock Grid.Row="1"
                                                Grid.ColumnSpan="2"
+                                               VerticalAlignment="Center"
                                                Text="{Binding StatusMessage}"
                                                Style="{StaticResource InstallTaskStatusTextStyle}" />
 
                                     <Grid Grid.Row="2"
                                           Grid.ColumnSpan="2"
-                                          Margin="0,14,0,0">
+                                          Margin="0,8,0,0"
+                                          VerticalAlignment="Bottom">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="48" />

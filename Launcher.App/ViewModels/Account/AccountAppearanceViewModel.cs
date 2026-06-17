@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Launcher.Application.Accounts;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.Utilities;
 
 namespace Launcher.App.ViewModels.Account;
 
@@ -262,7 +263,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             await microsoftAccountService.SetActiveCapeAsync(account, cape.Id);
             AccountProfileMessage = cape.IsNone
                 ? Strings.Status_CapeRemoved
-                : string.Format(Strings.Status_CapeChangedFormat, cape.DisplayName);
+                : string.Format(Strings.Status_CapeChangedFormat, AccountCapeTextProvider.GetDisplayName(cape));
             MarkSelectedCapeActive(cape);
             await StoreSelectedAccountCapeCacheAsync();
         }

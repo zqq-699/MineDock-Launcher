@@ -1,0 +1,80 @@
+using System.Text.Json;
+using Launcher.Domain.Models;
+using Launcher.Infrastructure.Persistence;
+using Launcher.Tests.Helpers;
+
+namespace Launcher.Tests.Infrastructure.Persistence;
+
+public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
+{
+    [Fact]
+    public async Task SaveAllAsyncWritesInstanceSettingsIntoVersionLauncherDirectory()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "demo-pack");
+        repository.CreateInstanceDirectories(versionDirectory);
+
+        await repository.SaveAllAsync(
+        [
+            new GameInstance
+            {
+                Id = "demo-pack",
+                Name = "Demo Pack",
+                MinecraftVersion = "1.20.1",
+                VersionName = "demo-pack",
+                Description = "stored beside the instance",
+                InstanceDirectory = versionDirectory
+            }
+        ]);
+
+        var settingsPath = Path.Combine(versionDirectory, ".launcher", "instance-settings.json");
+        Assert.True(File.Exists(settingsPath));
+        Assert.False(File.Exists(Path.Combine(settings.DataDirectory, "instances.json")));
+
+        var savedJson = await File.ReadAllTextAsync(settingsPath);
+        using var document = JsonDocument.Parse(savedJson);
+        Assert.Equal("Demo Pack", document.RootElement.GetProperty("Name").GetString());
+        Assert.Equal("stored beside the instance", document.RootElement.GetProperty("Description").GetString());
+    }
+
+    [Fact]
+    public async Task GetAllAsyncReadsInstanceSettingsFromVersionLauncherDirectory()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "demo-pack");
+        repository.CreateInstanceDirectories(versionDirectory);
+        var settingsPath = Path.Combine(versionDirectory, ".launcher", "instance-settings.json");
+
+        var storedInstance = new GameInstance
+        {
+            Id = "demo-pack",
+            Name = "Demo Pack",
+            MinecraftVersion = "1.20.1",
+            VersionName = "demo-pack",
+            Description = "loaded from instance folder",
+            InstanceDirectory = "stale-path"
+        };
+
+        await using (var stream = File.Create(settingsPath))
+        {
+            await JsonSerializer.SerializeAsync(stream, storedInstance, new JsonSerializerOptions { WriteIndented = true });
+        }
+
+        var loaded = Assert.Single(await repository.GetAllAsync());
+        Assert.Equal("Demo Pack", loaded.Name);
+        Assert.Equal("loaded from instance folder", loaded.Description);
+        Assert.Equal(versionDirectory, loaded.InstanceDirectory);
+    }
+}

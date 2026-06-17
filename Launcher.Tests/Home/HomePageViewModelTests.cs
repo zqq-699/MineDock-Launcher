@@ -206,6 +206,18 @@ public sealed class HomePageViewModelTests
     }
 
     [Fact]
+    public void HomePageHidesMixinSuffixFromFabricSubtitle()
+    {
+        var viewModel = CreateViewModel();
+        var fabric = CreateInstance("fabric", "Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        fabric.LoaderVersion = "0.16.10+mixin.0.8.7";
+
+        viewModel.SetLaunchInstances([fabric]);
+
+        Assert.Equal("1.20.1 Fabric 0.16.10", viewModel.LaunchInstances.Single().Subtitle);
+    }
+
+    [Fact]
     public void HomePageShowsUnknownMinecraftVersionForImportedInstanceWithoutResolvedVersion()
     {
         var viewModel = CreateViewModel();
@@ -401,12 +413,63 @@ public sealed class HomePageViewModelTests
         Assert.Equal(0, viewModel.LaunchProgressPercent);
     }
 
+    [Fact]
+    public async Task HomePageLaunchMinimizesWindowWhenInstanceOptionEnabled()
+    {
+        var launchService = new FakeLaunchService();
+        var windowService = new FakeWindowService();
+        var account = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "LocalUser",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+        var viewModel = CreateViewModel(launchService: launchService, selectedAccount: account, windowService: windowService);
+        var instance = CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla);
+        instance.LaunchSettingsMode = LaunchSettingsMode.PerInstance;
+        instance.MinimizeLauncherAfterLaunch = true;
+        viewModel.SetSelectedInstance(instance);
+
+        await viewModel.LaunchCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, windowService.MinimizeCallCount);
+    }
+
+    [Fact]
+    public async Task HomePageLaunchUsesGlobalMinimizeSettingWhenInstanceFollowsGlobal()
+    {
+        var launchService = new FakeLaunchService();
+        var windowService = new FakeWindowService();
+        var account = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "LocalUser",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+        var viewModel = CreateViewModel(launchService: launchService, selectedAccount: account, windowService: windowService);
+        viewModel.SetSettings(new LauncherSettings
+        {
+            DefaultMinimizeLauncherAfterLaunch = true
+        });
+        var instance = CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla);
+        instance.LaunchSettingsMode = LaunchSettingsMode.UseGlobal;
+        instance.MinimizeLauncherAfterLaunch = false;
+        viewModel.SetSelectedInstance(instance);
+
+        await viewModel.LaunchCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, windowService.MinimizeCallCount);
+    }
+
     private static HomePageViewModel CreateViewModel(
         FakeStatusService? statusService = null,
         Func<GameInstance, Task<bool>>? selectLaunchInstance = null,
         IReadOnlyList<MinecraftVersionInfo>? versions = null,
         FakeLaunchService? launchService = null,
-        LauncherAccount? selectedAccount = null)
+        LauncherAccount? selectedAccount = null,
+        FakeWindowService? windowService = null)
     {
         statusService ??= new FakeStatusService();
         return new HomePageViewModel(
@@ -414,6 +477,7 @@ public sealed class HomePageViewModelTests
             new FakeGameVersionService(versions ?? []),
             CreateAccountPage(statusService, selectedAccount),
             statusService,
+            windowService ?? new FakeWindowService(),
             _ => { },
             selectLaunchInstance ?? (_ => Task.FromResult(true)));
     }
@@ -653,6 +717,24 @@ public sealed class HomePageViewModelTests
     private sealed class FakeClipboardService : IClipboardService
     {
         public void CopyText(string text)
+        {
+        }
+    }
+
+    private sealed class FakeWindowService : IWindowService
+    {
+        public int MinimizeCallCount { get; private set; }
+
+        public void Attach(Window window)
+        {
+        }
+
+        public void Minimize()
+        {
+            MinimizeCallCount++;
+        }
+
+        public void Close()
         {
         }
     }

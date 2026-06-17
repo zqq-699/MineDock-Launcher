@@ -125,8 +125,6 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
 
     public LoaderKind Kind => LoaderKind.Forge;
 
-    public string DisplayName => "Forge";
-
     public bool IsImplemented => true;
 
     public async Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(string minecraftVersion, CancellationToken cancellationToken = default)
@@ -148,7 +146,7 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default)
     {
-        progress?.Report(new LauncherProgress("Install", $"Installing Forge {minecraftVersion}"));
+        progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
         var selectedLoaderVersion = loaderVersion;
         if (string.IsNullOrWhiteSpace(selectedLoaderVersion))
         {
@@ -173,10 +171,10 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
         {
             EnsureLauncherProfileExists(installerMinecraftDirectory);
 
-            progress?.Report(new LauncherProgress("Install", $"Downloading Forge {selectedLoaderVersion} installer"));
+            progress?.Report(new LauncherProgress(InstallProgressStages.DownloadingLoaderInstaller, string.Empty));
             await DownloadInstallerAsync(catalogEntry.InstallerUrl, installerJarPath, cancellationToken);
 
-            progress?.Report(new LauncherProgress("Install", $"Running Forge {selectedLoaderVersion} installer"));
+            progress?.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
             await installerRunner.RunInstallerAsync(javaPath ?? "java", installerJarPath, installerMinecraftDirectory, cancellationToken);
 
             var sourceVersionName = FindInstalledSourceVersionName(
@@ -185,7 +183,7 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
                 selectedLoaderVersion,
                 []);
 
-            progress?.Report(new LauncherProgress("Install", $"Finalizing Forge {selectedLoaderVersion} version"));
+            progress?.Report(new LauncherProgress(InstallProgressStages.FinalizingVersion, string.Empty));
             var finalVersionName = await CreateFinalVersionAsync(
                 installerMinecraftDirectory,
                 sourceVersionName,
@@ -197,7 +195,7 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
             CopyFinalVersionDirectory(installerMinecraftDirectory, gameDirectory, finalVersionName);
             CopySharedLibraries(installerMinecraftDirectory, gameDirectory);
 
-            progress?.Report(new LauncherProgress("Install", $"Completing Forge {selectedLoaderVersion} files"));
+            progress?.Report(new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty));
             await finalVersionInstaller.InstallAsync(gameDirectory, finalVersionName, progress, cancellationToken);
 
             CleanupCreatedVersionDirectories(gameDirectory, existingVersionNames, finalVersionName);

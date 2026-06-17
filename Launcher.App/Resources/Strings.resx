@@ -38,6 +38,15 @@
   <data name="GameSettings_InstanceSubtitleVanillaFormat" xml:space="preserve"><value>{0}</value></data>
   <data name="GameSettings_InstanceSubtitleLoaderWithoutVersionFormat" xml:space="preserve"><value>{0} {1}</value></data>
   <data name="GameSettings_InstanceSubtitleLoaderFormat" xml:space="preserve"><value>{0} {1} {2}</value></data>
+  <data name="GameSettings_DetailGeneral" xml:space="preserve"><value>通用</value></data>
+  <data name="GameSettings_DetailLaunch" xml:space="preserve"><value>启动</value></data>
+  <data name="GameSettings_DetailJavaMemory" xml:space="preserve"><value>Java与内存</value></data>
+  <data name="GameSettings_DetailModManagement" xml:space="preserve"><value>Mod管理</value></data>
+  <data name="GameSettings_DetailSaves" xml:space="preserve"><value>存档</value></data>
+  <data name="GameSettings_DetailShaders" xml:space="preserve"><value>光影</value></data>
+  <data name="GameSettings_DetailLoader" xml:space="preserve"><value>加载器</value></data>
+  <data name="GameSettings_DetailAdvanced" xml:space="preserve"><value>高级设置</value></data>
+  <data name="GameSettings_DetailBackup" xml:space="preserve"><value>备份</value></data>
   <data name="Nav_GameInstanceList" xml:space="preserve"><value>游戏设置</value></data>
   <data name="Nav_JavaMemory" xml:space="preserve"><value>Java/内存</value></data>
   <data name="Nav_DirectoryManagement" xml:space="preserve"><value>目录管理</value></data>
@@ -90,6 +99,7 @@
   <data name="Cape_NoneState" xml:space="preserve"><value>不使用披风</value></data>
   <data name="Cape_ActiveState" xml:space="preserve"><value>当前使用</value></data>
   <data name="Cape_AvailableState" xml:space="preserve"><value>可用</value></data>
+  <data name="Cape_UnnamedDisplayName" xml:space="preserve"><value>未命名披风</value></data>
   <data name="Dialog_AddAccountTitle" xml:space="preserve"><value>添加账户</value></data>
   <data name="Dialog_AddOfflineAccountTitle" xml:space="preserve"><value>离线账户</value></data>
   <data name="Dialog_AddMicrosoftAccountTitle" xml:space="preserve"><value>正版登录</value></data>
@@ -171,8 +181,12 @@
   <data name="Status_SelectMinecraftVersionFirst" xml:space="preserve"><value>请先选择 Minecraft 版本</value></data>
   <data name="Status_InstanceCreatedFormat" xml:space="preserve"><value>游戏 {0} 已创建</value></data>
   <data name="Status_LocalModImported" xml:space="preserve"><value>本地 Mod 已导入</value></data>
+  <data name="Status_LocalModImportFileNotFound" xml:space="preserve"><value>找不到要导入的 Mod 文件。</value></data>
   <data name="Status_SelectInstanceFirst" xml:space="preserve"><value>请先选择一个游戏</value></data>
   <data name="Status_SearchingModrinth" xml:space="preserve"><value>正在搜索 Modrinth...</value></data>
+  <data name="Status_ModDownloading" xml:space="preserve"><value>正在下载 Mod...</value></data>
+  <data name="Status_ModDownloadingFormat" xml:space="preserve"><value>正在下载 {0}</value></data>
+  <data name="Status_ModCompatibleFileNotFound" xml:space="preserve"><value>没有找到与当前游戏兼容的 Mod 文件。</value></data>
   <data name="Status_ModrinthResultsFoundFormat" xml:space="preserve"><value>找到 {0} 个资源</value></data>
   <data name="Status_ModInstalledFormat" xml:space="preserve"><value>{0} 已安装</value></data>
   <data name="Status_SettingsSaved" xml:space="preserve"><value>启动器设置已保存</value></data>
@@ -185,8 +199,13 @@
   <data name="Status_NoMatchingVersions" xml:space="preserve"><value>没有找到匹配的版本。</value></data>
   <data name="Status_DuplicateInstanceName" xml:space="preserve"><value>已存在同名游戏</value></data>
   <data name="Status_InstallQueued" xml:space="preserve"><value>正在等待其他安装任务完成...</value></data>
+  <data name="Status_InstallPreparing" xml:space="preserve"><value>正在准备安装...</value></data>
   <data name="Status_InstallCheckingFiles" xml:space="preserve"><value>正在检查游戏文件...</value></data>
   <data name="Status_InstallDownloadingFiles" xml:space="preserve"><value>正在下载游戏文件...</value></data>
+  <data name="Status_InstallDownloadingLoaderInstaller" xml:space="preserve"><value>正在下载加载器安装程序...</value></data>
+  <data name="Status_InstallRunningLoaderInstaller" xml:space="preserve"><value>正在运行加载器安装程序...</value></data>
+  <data name="Status_InstallFinalizingVersion" xml:space="preserve"><value>正在整理版本文件...</value></data>
+  <data name="Status_InstallCompletingFiles" xml:space="preserve"><value>正在完成加载器文件处理...</value></data>
   <data name="Status_InstallingVanillaFormat" xml:space="preserve"><value>正在安装原版 {0}...</value></data>
   <data name="Status_InstallingLoaderFormat" xml:space="preserve"><value>正在安装 {0} {1}...</value></data>
   <data name="Status_InstanceInstalledFormat" xml:space="preserve"><value>游戏 {0} 已安装</value></data>
@@ -245,4 +264,45 @@
   <data name="Status_InstanceFolderNotFound" xml:space="preserve"><value>没有找到该版本对应的文件夹。</value></data>
   <data name="Status_OpenInstanceFolderFailed" xml:space="preserve"><value>打开版本文件夹失败，请稍后重试。</value></data>
   <data name="GameSettings_UnknownMinecraftVersion" xml:space="preserve"><value>未知版本</value></data>
+  <data name="GameSettings_DetailsPlaceholderHeader" xml:space="preserve"><value>详细设置</value></data>
+  <data name="GameSettings_DetailsPlaceholderBody" xml:space="preserve"><value>这里会继续补充这个版本的详细设置项，下一步将接入更多可编辑内容。</value></data>
+  <data name="GameSettings_DetailPlaceholderBodyFormat" xml:space="preserve"><value>这里会继续补充“{0}”相关设置项，下一步接入具体可编辑内容。</value></data>
+  <data name="GameSettings_GeneralDescriptionSection" xml:space="preserve"><value>描述</value></data>
+  <data name="GameSettings_GeneralSaveDescriptionButton" xml:space="preserve"><value>保存描述</value></data>
+  <data name="GameSettings_GeneralInstanceDirectorySection" xml:space="preserve"><value>游戏目录</value></data>
+  <data name="GameSettings_GeneralOpenInstanceDirectoryButton" xml:space="preserve"><value>打开游戏目录</value></data>
+  <data name="GameSettings_GeneralCreatedAtSection" xml:space="preserve"><value>创建时间</value></data>
+  <data name="GameSettings_LaunchSettingsSection" xml:space="preserve"><value>启动设置</value></data>
+  <data name="GameSettings_LaunchSettingsModeLabel" xml:space="preserve"><value>设置方式</value></data>
+  <data name="GameSettings_LaunchSettingsModeUseGlobal" xml:space="preserve"><value>跟随全局设置</value></data>
+  <data name="GameSettings_LaunchSettingsModePerInstance" xml:space="preserve"><value>游戏单独设置</value></data>
+  <data name="GameSettings_LaunchCheckFilesOption" xml:space="preserve"><value>启动前检查文件完整性</value></data>
+  <data name="GameSettings_LaunchAutoRepairOption" xml:space="preserve"><value>缺失文件自动补全</value></data>
+  <data name="GameSettings_LaunchMinimizeLauncherOption" xml:space="preserve"><value>启动后最小化启动器</value></data>
+  <data name="GameSettings_InstanceNameLabel" xml:space="preserve"><value>版本名称</value></data>
+  <data name="GameSettings_InstanceIconLabel" xml:space="preserve"><value>版本图标</value></data>
+  <data name="GameSettings_InstanceNameValidation" xml:space="preserve"><value>名称不能为空，且不能包含文件名非法字符。</value></data>
+  <data name="GameSettings_IconGrassBlock" xml:space="preserve"><value>草方块</value></data>
+  <data name="GameSettings_IconDirtBlock" xml:space="preserve"><value>泥土</value></data>
+  <data name="GameSettings_IconCraftingTable" xml:space="preserve"><value>工作台</value></data>
+  <data name="GameSettings_IconStoneBlock" xml:space="preserve"><value>石头</value></data>
+  <data name="GameSettings_IconFabric" xml:space="preserve"><value>Fabric</value></data>
+  <data name="GameSettings_IconAnvil" xml:space="preserve"><value>铁砧</value></data>
+  <data name="GameSettings_IconDiamondBlock" xml:space="preserve"><value>钻石方块</value></data>
+  <data name="GameSettings_IconBeacon" xml:space="preserve"><value>信标</value></data>
+  <data name="GameSettings_IconFurnace" xml:space="preserve"><value>熔炉</value></data>
+  <data name="GameSettings_IconTnt" xml:space="preserve"><value>TNT</value></data>
+  <data name="Dialog_RenameInstanceTitle" xml:space="preserve"><value>修改名称</value></data>
+  <data name="Dialog_RenameInstanceSubtitle" xml:space="preserve"><value>修改当前实例的名称和图标。</value></data>
+  <data name="Dialog_RenameInstanceBusyTitle" xml:space="preserve"><value>正在修改</value></data>
+  <data name="Dialog_RenameInstanceBusySubtitle" xml:space="preserve"><value>正在更新版本目录和配置，请稍候。</value></data>
+  <data name="Dialog_RenameInstanceSuccessTitle" xml:space="preserve"><value>修改成功</value></data>
+  <data name="Dialog_RenameInstanceFailedTitle" xml:space="preserve"><value>修改失败</value></data>
+  <data name="Dialog_RenameInstanceResultSubtitle" xml:space="preserve"><value>点击确定返回版本详情。</value></data>
+  <data name="Status_RenamingInstance" xml:space="preserve"><value>正在修改版本...</value></data>
+  <data name="Status_InstanceRenamedFormat" xml:space="preserve"><value>已将版本修改为 {0}</value></data>
+  <data name="Status_InstanceRenameResultFormat" xml:space="preserve"><value>版本已修改为 {0}</value></data>
+  <data name="Status_InstanceRenameFailed" xml:space="preserve"><value>修改版本失败，请稍后重试。</value></data>
+  <data name="Status_InstanceRenameUnchanged" xml:space="preserve"><value>版本名称和图标没有变化。</value></data>
+  <data name="Status_InstanceSettingsSaveFailed" xml:space="preserve"><value>游戏设置保存失败，请稍后重试。</value></data>
 </root>

@@ -86,12 +86,21 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
         }
 
         var resolvedLoaderVersion = loader is LoaderKind.Vanilla ? null : loaderVersion?.Version;
-        var instance = await instanceService.CreateInstanceAsync(
-            minecraftVersion.Name,
-            loader,
-            resolvedLoaderVersion,
-            NewInstanceName,
-            progress);
+        GameInstance instance;
+        try
+        {
+            instance = await instanceService.CreateInstanceAsync(
+                minecraftVersion.Name,
+                loader,
+                resolvedLoaderVersion,
+                NewInstanceName,
+                progress);
+        }
+        catch (DuplicateGameInstanceNameException)
+        {
+            ReportStatus(Strings.Status_DuplicateInstanceName);
+            return null;
+        }
 
         Instances.Add(instance);
         SelectedInstance = instance;

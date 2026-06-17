@@ -371,11 +371,13 @@
 
     <Style x:Key="InstallTaskCardStyle" TargetType="Border">
         <Setter Property="Margin" Value="0,0,12,12" />
+        <Setter Property="Height" Value="144" />
         <Setter Property="Padding" Value="18" />
         <Setter Property="Background" Value="#1CFFFFFF" />
         <Setter Property="BorderBrush" Value="#18FFFFFF" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="ClipToBounds" Value="True" />
     </Style>
 
     <Style x:Key="InstallTaskTitleTextStyle" TargetType="TextBlock">
@@ -396,6 +398,8 @@
         <Setter Property="Foreground" Value="#DFFFFFFF" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="TextAlignment" Value="Right" />
+        <Setter Property="Height" Value="16" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
 
     <Style x:Key="InstallTaskSpeedTextStyle" TargetType="TextBlock">
@@ -403,7 +407,9 @@
         <Setter Property="Foreground" Value="#9FFFFFFF" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="TextAlignment" Value="Right" />
-        <Setter Property="Visibility" Value="Collapsed" />
+        <Setter Property="Height" Value="16" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="Visibility" Value="Hidden" />
         <Style.Triggers>
             <DataTrigger Binding="{Binding HasDownloadSpeedText}" Value="True">
                 <Setter Property="Visibility" Value="Visible" />
@@ -412,10 +418,12 @@
     </Style>
 
     <Style x:Key="InstallTaskStatusTextStyle" TargetType="TextBlock">
-        <Setter Property="Margin" Value="0,14,0,0" />
+        <Setter Property="Margin" Value="0,4,0,0" />
         <Setter Property="Foreground" Value="#CFFFFFFF" />
         <Setter Property="FontSize" Value="12" />
-        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
     <Style x:Key="InstallTaskProgressTextStyle" TargetType="TextBlock">

@@ -8,7 +8,6 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
     private int installCallCount;
 
     public LoaderKind Kind { get; init; } = LoaderKind.Vanilla;
-    public string DisplayName { get; init; } = "Fake Vanilla";
     public bool IsImplemented { get; init; } = true;
     public IReadOnlyList<LoaderVersionInfo> LoaderVersions { get; init; } = [new LoaderVersionInfo("fake")];
     public Exception? GetLoaderVersionsException { get; init; }

@@ -1,0 +1,27 @@
+using Launcher.App.Resources;
+using Launcher.Domain.Models;
+
+namespace Launcher.App.Utilities;
+
+internal static class LauncherProgressTextFormatter
+{
+    public static string Format(LauncherProgress progress)
+    {
+        return progress.Stage switch
+        {
+            InstallProgressStages.Queue => Strings.Status_InstallQueued,
+            InstallProgressStages.Preparing => Strings.Status_InstallPreparing,
+            InstallProgressStages.DownloadingLoaderInstaller => Strings.Status_InstallDownloadingLoaderInstaller,
+            InstallProgressStages.RunningLoaderInstaller => Strings.Status_InstallRunningLoaderInstaller,
+            InstallProgressStages.FinalizingVersion => Strings.Status_InstallFinalizingVersion,
+            InstallProgressStages.CompletingFiles => Strings.Status_InstallCompletingFiles,
+            LaunchProgressStages.CheckingFiles => Strings.Status_InstallCheckingFiles,
+            LaunchProgressStages.DownloadingFiles or LaunchProgressStages.DownloadSpeed => Strings.Status_InstallDownloadingFiles,
+            ModProgressStages.DownloadingFile when !string.IsNullOrWhiteSpace(progress.Message)
+                => string.Format(Strings.Status_ModDownloadingFormat, progress.Message),
+            ModProgressStages.DownloadingFile => Strings.Status_ModDownloading,
+            _ when !string.IsNullOrWhiteSpace(progress.Message) => progress.Message,
+            _ => Strings.DownloadTask_Preparing
+        };
+    }
+}

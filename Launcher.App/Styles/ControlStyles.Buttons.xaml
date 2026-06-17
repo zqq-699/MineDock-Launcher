@@ -569,6 +569,123 @@
         </Setter>
     </Style>
 
+    <Style x:Key="LauncherSwitchToggleButtonStyle" TargetType="CheckBox">
+        <Setter Property="Width" Value="32" />
+        <Setter Property="Height" Value="16" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Background" Value="#5E5E5E" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <Grid Width="{TemplateBinding Width}"
+                          Height="{TemplateBinding Height}"
+                          Background="Transparent">
+                        <Border x:Name="Track"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="5" />
+                        <Border x:Name="ActiveTrack"
+                                Background="#0891FE"
+                                CornerRadius="5"
+                                Opacity="0" />
+                        <Border x:Name="Thumb"
+                                Width="8"
+                                Height="10"
+                                Margin="3,0"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Background="#FFFFFF"
+                                CornerRadius="3">
+                            <Border.RenderTransform>
+                                <TranslateTransform x:Name="ThumbTranslateTransform" X="0" />
+                            </Border.RenderTransform>
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="10"
+                                                  Color="#20000000"
+                                                  Opacity="0.2"
+                                                  ShadowDepth="0" />
+                            </Border.Effect>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="ActiveTrack" Property="Opacity" Value="1" />
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Thumb"
+                                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                         To="18"
+                                                         Duration="0:0:0.14">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="ActiveTrack"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.14">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Thumb"
+                                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                         To="0"
+                                                         Duration="0:0:0.16">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="ActiveTrack"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.16">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Track" Property="Opacity" Value="0.96" />
+                            <Setter TargetName="Thumb" Property="Opacity" Value="0.98" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Track" Property="Opacity" Value="0.9" />
+                            <Setter TargetName="Thumb" Property="Opacity" Value="0.94" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="1" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                            <Setter TargetName="Track" Property="Background" Value="#424242" />
+                            <Setter TargetName="ActiveTrack" Property="Background" Value="#424242" />
+                            <Setter TargetName="ActiveTrack" Property="Opacity" Value="0" />
+                            <Setter TargetName="Thumb" Property="Background" Value="#B8FFFFFF" />
+                            <Setter TargetName="Thumb" Property="Opacity" Value="0.72" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="LauncherSwitchToggleButtonDisabledStyle"
+           TargetType="CheckBox"
+           BasedOn="{StaticResource LauncherSwitchToggleButtonStyle}">
+        <Setter Property="IsEnabled" Value="False" />
+    </Style>
+
     <Style x:Key="InstallTaskCancelButtonStyle"
            TargetType="Button"
            BasedOn="{StaticResource SecondaryMenuDeleteButtonStyle}">

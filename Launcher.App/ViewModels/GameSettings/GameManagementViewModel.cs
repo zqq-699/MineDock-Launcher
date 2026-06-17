@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Models;
 using Launcher.App.Services;
+using Launcher.App.Utilities;
 using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.GameSettings;
@@ -217,7 +218,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
     {
         return new Progress<LauncherProgress>(progress =>
         {
-            ReportStatus(progress.Message);
+            ReportStatus(LauncherProgressTextFormatter.Format(progress));
             ProgressPercent = progress.Percent ?? 0;
         });
     }

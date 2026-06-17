@@ -21,8 +21,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILoaderProvider, VanillaLoaderProvider>();
         services.AddSingleton<ILoaderProvider, FabricLoaderProvider>();
         services.AddSingleton<ILoaderProvider, ForgeLoaderProvider>();
-        services.AddSingleton<ILoaderProvider>(_ => new PlaceholderLoaderProvider(LoaderKind.NeoForge, "NeoForge"));
-        services.AddSingleton<ILoaderProvider>(_ => new PlaceholderLoaderProvider(LoaderKind.Quilt, "Quilt"));
+        services.AddSingleton<ILoaderProvider>(_ => new PlaceholderLoaderProvider(LoaderKind.NeoForge));
+        services.AddSingleton<ILoaderProvider>(_ => new PlaceholderLoaderProvider(LoaderKind.Quilt));
         services.AddSingleton<ILaunchService, LaunchService>();
         services.AddSingleton<IModService, ModService>();
         services.AddSingleton<IModrinthService, ModrinthService>();

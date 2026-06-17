@@ -15,6 +15,9 @@ public sealed class SettingsServiceTests : TestTempDirectory
         var service = new JsonSettingsService(TempRoot);
 
         var settings = await service.LoadAsync();
+        Assert.True(settings.AccountsInitialized);
+        Assert.Empty(settings.Accounts);
+
         settings.OfflineUsername = "Steve";
         settings.DefaultMemoryMb = 6144;
         await service.SaveAsync(settings);
@@ -25,6 +28,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.Equal(6144, loaded.DefaultMemoryMb);
         Assert.Equal(TempRoot, loaded.DataDirectory);
         Assert.Equal(DefaultMinecraftDirectory, loaded.MinecraftDirectory);
+        Assert.Empty(loaded.Accounts);
     }
 
     [Fact]

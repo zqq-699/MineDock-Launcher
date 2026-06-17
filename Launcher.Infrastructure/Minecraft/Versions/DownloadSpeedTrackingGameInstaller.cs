@@ -132,8 +132,8 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
                 windowBytes = 0;
                 windowStartedAt = now;
                 progress.Report(new LauncherProgress(
-                    "DownloadSpeed",
-                    "\u6b63\u5728\u4e0b\u8f7d\u6e38\u620f\u6587\u4ef6",
+                    LaunchProgressStages.DownloadSpeed,
+                    string.Empty,
                     DownloadSpeedText: speedText));
             }
         }

@@ -55,14 +55,14 @@ public sealed class ModrinthService : IModrinthService
         var versions = await httpClient.GetFromJsonAsync<List<ModrinthVersion>>(versionsUrl, cancellationToken) ?? [];
         var selected = versions.FirstOrDefault(version => version.Files.Count > 0);
         if (selected is null)
-            throw new InvalidOperationException("没有找到与当前游戏兼容的 Mod 文件。");
+            throw new NoCompatibleModFileException(project.ProjectId, instance.MinecraftVersion, instance.Loader);
 
         var file = selected.Files.FirstOrDefault(f => f.IsPrimary) ?? selected.Files[0];
         var modsDirectory = Path.Combine(instance.InstanceDirectory, "mods");
         Directory.CreateDirectory(modsDirectory);
         var target = Path.Combine(modsDirectory, file.FileName);
 
-        progress?.Report(new LauncherProgress("Modrinth", $"正在下载 {project.Title} {selected.VersionNumber}"));
+        progress?.Report(new LauncherProgress(ModProgressStages.DownloadingFile, $"{project.Title} {selected.VersionNumber}"));
         await using var stream = await httpClient.GetStreamAsync(file.Url, cancellationToken);
         await using var destination = File.Create(target);
         await stream.CopyToAsync(destination, cancellationToken);

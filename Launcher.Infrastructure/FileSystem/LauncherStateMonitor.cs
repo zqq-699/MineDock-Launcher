@@ -33,7 +33,7 @@ public sealed class LauncherStateMonitor : ILauncherStateMonitor
 
         dataDirectoryWatcher = TryCreateWatcher(
             settings.DataDirectory,
-            "instances.json",
+            "settings.json",
             includeSubdirectories: false);
     }
 
@@ -99,4 +99,3 @@ public sealed class LauncherStateMonitor : ILauncherStateMonitor
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 }
-

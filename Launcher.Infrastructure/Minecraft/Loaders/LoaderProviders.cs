@@ -18,18 +18,17 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
     }
 
     public LoaderKind Kind => LoaderKind.Vanilla;
-    public string DisplayName => "鍘熺増";
     public bool IsImplemented => true;
 
     public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(string minecraftVersion, CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<LoaderVersionInfo> versions = [new LoaderVersionInfo("鍘熺増")];
+        IReadOnlyList<LoaderVersionInfo> versions = [new LoaderVersionInfo(nameof(LoaderKind.Vanilla))];
         return Task.FromResult(versions);
     }
 
     public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, string? javaPath, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
     {
-        progress?.Report(new LauncherProgress("Install", $"姝ｅ湪涓嬭浇鍘熺増 {minecraftVersion}"));
+        progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
 
         var finalVersionName = await VanillaVersionComposer.CreateFinalVersionAsync(
             httpClient,
@@ -82,7 +81,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
                     ? 0
                     : Math.Clamp(args.ProgressedBytes * 1d / args.TotalBytes, 0, 1);
 
-                ReportProgress("Bytes", "姝ｅ湪涓嬭浇娓告垙鏂囦欢", CalculateTotalPercent());
+                ReportProgress(LaunchProgressStages.DownloadingFiles, string.Empty, CalculateTotalPercent());
             }
         };
 
@@ -154,7 +153,6 @@ public sealed class FabricLoaderProvider : ILoaderProvider
     }
 
     public LoaderKind Kind => LoaderKind.Fabric;
-    public string DisplayName => "Fabric";
     public bool IsImplemented => true;
 
     public async Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(string minecraftVersion, CancellationToken cancellationToken = default)
@@ -194,7 +192,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider
 
     public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, string? javaPath, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
     {
-        progress?.Report(new LauncherProgress("Install", $"姝ｅ湪瀹夎 Fabric {minecraftVersion}"));
+        progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
         var path = new MinecraftPath(gameDirectory);
         var selectedLoaderVersion = loaderVersion;
 
@@ -291,14 +289,12 @@ public sealed class FabricLoaderProvider : ILoaderProvider
 
 public sealed class PlaceholderLoaderProvider : ILoaderProvider
 {
-    public PlaceholderLoaderProvider(LoaderKind kind, string displayName)
+    public PlaceholderLoaderProvider(LoaderKind kind)
     {
         Kind = kind;
-        DisplayName = displayName;
     }
 
     public LoaderKind Kind { get; }
-    public string DisplayName { get; }
     public bool IsImplemented => false;
 
     public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(string minecraftVersion, CancellationToken cancellationToken = default)
@@ -309,6 +305,6 @@ public sealed class PlaceholderLoaderProvider : ILoaderProvider
 
     public Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, string? javaPath, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
     {
-        throw new NotSupportedException($"{DisplayName} 灏嗗湪鍚庣画鐗堟湰鎺ュ叆銆?");
+        throw new NotSupportedException($"{Kind} is not implemented yet.");
     }
 }

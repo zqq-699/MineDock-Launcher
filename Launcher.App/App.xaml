@@ -14,6 +14,7 @@
             <converters:PageTitleConverter x:Key="PageTitleConverter" />
             <converters:AccountKindTextConverter x:Key="AccountKindTextConverter" />
             <converters:UuidTextConverter x:Key="UuidTextConverter" />
+            <converters:CapeDisplayNameConverter x:Key="CapeDisplayNameConverter" />
             <converters:CapeStateTextConverter x:Key="CapeStateTextConverter" />
         </ResourceDictionary>
     </Application.Resources>

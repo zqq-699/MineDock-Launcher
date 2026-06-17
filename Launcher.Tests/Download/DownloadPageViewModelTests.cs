@@ -446,7 +446,6 @@ public sealed class DownloadPageViewModelTests
         var fabricProvider = new FakeLoaderProvider
         {
             Kind = LoaderKind.Fabric,
-            DisplayName = Strings.Download_FabricLoaderTitle,
             LoaderVersions =
             [
                 new LoaderVersionInfo("0.16.10")
@@ -553,7 +552,6 @@ public sealed class DownloadPageViewModelTests
         var fabricProvider = new FakeLoaderProvider
         {
             Kind = LoaderKind.Fabric,
-            DisplayName = Strings.Download_FabricLoaderTitle,
             GetLoaderVersionsException = new InvalidOperationException("boom")
         };
         var viewModel = CreateDownloadPageViewModel(service, loaderProviders: CreateLoaderProviders(fabricProvider));
@@ -581,7 +579,6 @@ public sealed class DownloadPageViewModelTests
         var fabricProvider = new FakeLoaderProvider
         {
             Kind = LoaderKind.Fabric,
-            DisplayName = Strings.Download_FabricLoaderTitle,
             LoaderVersions = []
         };
         var viewModel = CreateDownloadPageViewModel(service, loaderProviders: CreateLoaderProviders(fabricProvider));
@@ -658,7 +655,6 @@ public sealed class DownloadPageViewModelTests
         var forgeProvider = new FakeLoaderProvider
         {
             Kind = LoaderKind.Forge,
-            DisplayName = Strings.Download_ForgeLoaderTitle,
             GetLoaderVersionsException = new InvalidOperationException("boom")
         };
         var viewModel = CreateDownloadPageViewModel(service, loaderProviders: CreateLoaderProviders(forgeProvider: forgeProvider));
@@ -685,7 +681,6 @@ public sealed class DownloadPageViewModelTests
         var forgeProvider = new FakeLoaderProvider
         {
             Kind = LoaderKind.Forge,
-            DisplayName = Strings.Download_ForgeLoaderTitle,
             LoaderVersions = []
         };
         var viewModel = CreateDownloadPageViewModel(service, loaderProviders: CreateLoaderProviders(forgeProvider: forgeProvider));
@@ -749,7 +744,7 @@ public sealed class DownloadPageViewModelTests
         var instanceService = new FakeGameInstanceService
         {
             WaitBeforeCreate = allowCreate.Task,
-            InitialProgress = new LauncherProgress("Bytes", "garbled", 25, "1.2 MB/s")
+            InitialProgress = new LauncherProgress(LaunchProgressStages.DownloadSpeed, "garbled", 25, "1.2 MB/s")
         };
         var tasksPage = new DownloadTasksPageViewModel();
         var viewModel = CreateDownloadPageViewModel(service, instanceService, tasksPage);
@@ -764,6 +759,36 @@ public sealed class DownloadPageViewModelTests
         Assert.Equal(Strings.Status_InstallDownloadingFiles, task.StatusMessage);
         Assert.Equal(Strings.Status_InstallDownloadingFiles, viewModel.InstallStatusMessage);
         Assert.Equal("1.2 MB/s", task.DownloadSpeedText);
+
+        allowCreate.SetResult(true);
+        await installTask;
+    }
+
+    [Fact]
+    public async Task DownloadPageMapsLoaderInstallStagesToFriendlyTaskStatus()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.1", "Release", false)
+        ]);
+        var allowCreate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var instanceService = new FakeGameInstanceService
+        {
+            WaitBeforeCreate = allowCreate.Task,
+            InitialProgress = new LauncherProgress(InstallProgressStages.DownloadingLoaderInstaller, "garbled", 25)
+        };
+        var tasksPage = new DownloadTasksPageViewModel();
+        var viewModel = CreateDownloadPageViewModel(service, instanceService, tasksPage);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+
+        var installTask = viewModel.InstallCommand.ExecuteAsync(null);
+        await instanceService.CreateStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var task = Assert.Single(tasksPage.Tasks);
+        Assert.Equal(Strings.Status_InstallDownloadingLoaderInstaller, task.StatusMessage);
+        Assert.Equal(Strings.Status_InstallDownloadingLoaderInstaller, viewModel.InstallStatusMessage);
 
         allowCreate.SetResult(true);
         await installTask;
@@ -911,7 +936,6 @@ public sealed class DownloadPageViewModelTests
             fabricProvider ?? new FakeLoaderProvider
             {
                 Kind = LoaderKind.Fabric,
-                DisplayName = Strings.Download_FabricLoaderTitle,
                 LoaderVersions =
                 [
                     new LoaderVersionInfo("0.16.10"),
@@ -921,7 +945,6 @@ public sealed class DownloadPageViewModelTests
             forgeProvider ?? new FakeLoaderProvider
             {
                 Kind = LoaderKind.Forge,
-                DisplayName = Strings.Download_ForgeLoaderTitle,
                 LoaderVersions =
                 [
                     new LoaderVersionInfo("47.4.20"),

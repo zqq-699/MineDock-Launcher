@@ -151,9 +151,7 @@ public static class AccountMapper
             .Select(record => new AccountCapeOption
             {
                 Id = record.Id,
-                DisplayName = string.IsNullOrWhiteSpace(record.DisplayName)
-                    ? "\u4e0d\u4f7f\u7528\u62ab\u98ce"
-                    : record.DisplayName,
+                DisplayName = record.DisplayName,
                 ImageUrl = record.ImageUrl,
                 IsActive = record.IsActive,
                 IsNone = record.IsNone

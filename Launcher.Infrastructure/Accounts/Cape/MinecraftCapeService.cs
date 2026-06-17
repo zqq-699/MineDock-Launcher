@@ -30,7 +30,7 @@ internal sealed class MinecraftCapeService
             new()
             {
                 Id = null,
-                DisplayName = "\u4e0d\u4f7f\u7528\u62ab\u98ce",
+                DisplayName = string.Empty,
                 IsActive = capes.All(cape => !MinecraftAccountHelpers.IsActiveState(cape.State)),
                 IsNone = true
             }
@@ -39,7 +39,7 @@ internal sealed class MinecraftCapeService
         options.AddRange(capes.Select(cape => new AccountCapeOption
         {
             Id = cape.Id,
-            DisplayName = string.IsNullOrWhiteSpace(cape.Alias) ? cape.Id ?? "\u672a\u547d\u540d\u62ab\u98ce" : cape.Alias,
+            DisplayName = string.IsNullOrWhiteSpace(cape.Alias) ? cape.Id ?? string.Empty : cape.Alias,
             ImageUrl = cape.Url,
             IsActive = MinecraftAccountHelpers.IsActiveState(cape.State),
             IsNone = false

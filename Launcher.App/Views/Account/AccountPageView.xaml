@@ -14,31 +14,19 @@
             </controls:SecondaryMenuFrame.MenuContent>
         </controls:SecondaryMenuFrame>
 
-        <Grid Margin="284,72,24,24">
-            <TextBlock Text="{x:Static res:Strings.Account_EmptySelection}">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock" BasedOn="{StaticResource PageEmptyStateTextStyle}">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding AccountList.SelectedAccount}" Value="{x:Null}">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
+        <Grid x:Name="AccountContentHost"
+              Margin="284,36,24,8"
+              ClipToBounds="True">
+            <TextBlock x:Name="AccountEmptyStateView"
+                       Text="{x:Static res:Strings.Account_EmptySelection}"
+                       Style="{StaticResource PageEmptyStateTextStyle}" />
 
-            <views:AccountDetailsView x:Name="AccountDetailsView">
-                <views:AccountDetailsView.Style>
-                    <Style TargetType="{x:Type views:AccountDetailsView}">
-                        <Setter Property="Visibility" Value="Visible" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding AccountList.SelectedAccount}" Value="{x:Null}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </views:AccountDetailsView.Style>
+            <views:AccountDetailsView x:Name="AccountDetailsView"
+                                      Opacity="0"
+                                      Visibility="Collapsed">
+                <views:AccountDetailsView.RenderTransform>
+                    <TranslateTransform />
+                </views:AccountDetailsView.RenderTransform>
             </views:AccountDetailsView>
         </Grid>
     </Grid>

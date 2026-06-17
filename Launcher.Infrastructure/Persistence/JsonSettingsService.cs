@@ -86,18 +86,7 @@ public sealed class JsonSettingsService : ISettingsService
         }
 
         if (!settings.AccountsInitialized)
-        {
             settings.AccountsInitialized = true;
-            if (settings.Accounts.Count == 0)
-            {
-                settings.Accounts.Add(new LauncherAccountRecord
-                {
-                    Id = "offline",
-                    DisplayName = settings.OfflineUsername,
-                    IsOffline = true
-                });
-            }
-        }
 
         if (!string.IsNullOrWhiteSpace(settings.SelectedAccountId)
             && settings.Accounts.All(account => !string.Equals(account.Id, settings.SelectedAccountId, StringComparison.Ordinal)))

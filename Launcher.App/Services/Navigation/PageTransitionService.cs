@@ -10,7 +10,7 @@ public sealed class PageTransitionService
     private const double TransitionOffset = 22;
 
     private static readonly Duration TransitionDuration = TimeSpan.FromMilliseconds(240);
-    private static readonly string[] PageOrder =
+    private static readonly string[] DefaultPageOrder =
     [
         "Account",
         "Home",
@@ -23,6 +23,7 @@ public sealed class PageTransitionService
 
     private readonly Dispatcher dispatcher;
     private readonly Func<string, FrameworkElement?> resolvePageRoot;
+    private readonly IReadOnlyList<string> pageOrder;
     private string? currentPage;
     private int transitionToken;
 
@@ -30,9 +31,19 @@ public sealed class PageTransitionService
         Dispatcher dispatcher,
         Func<string, FrameworkElement?> resolvePageRoot,
         string? initialPage)
+        : this(dispatcher, resolvePageRoot, initialPage, null)
+    {
+    }
+
+    public PageTransitionService(
+        Dispatcher dispatcher,
+        Func<string, FrameworkElement?> resolvePageRoot,
+        string? initialPage,
+        IReadOnlyList<string>? pageOrder)
     {
         this.dispatcher = dispatcher;
         this.resolvePageRoot = resolvePageRoot;
+        this.pageOrder = pageOrder is { Count: > 0 } ? pageOrder : DefaultPageOrder;
         currentPage = initialPage;
     }
 
@@ -56,17 +67,33 @@ public sealed class PageTransitionService
             DispatcherPriority.Render);
     }
 
-    private static double GetTransitionStartOffset(string? oldPage, string newPage)
+    public void SyncTo(string? page)
+    {
+        currentPage = page;
+    }
+
+    private double GetTransitionStartOffset(string? oldPage, string newPage)
     {
         if (string.IsNullOrWhiteSpace(oldPage))
             return TransitionOffset;
 
-        var oldIndex = Array.IndexOf(PageOrder, oldPage);
-        var newIndex = Array.IndexOf(PageOrder, newPage);
+        var oldIndex = IndexOfPage(oldPage);
+        var newIndex = IndexOfPage(newPage);
         if (oldIndex < 0 || newIndex < 0 || oldIndex == newIndex)
             return TransitionOffset;
 
         return newIndex > oldIndex ? TransitionOffset : -TransitionOffset;
+    }
+
+    private int IndexOfPage(string page)
+    {
+        for (var index = 0; index < pageOrder.Count; index++)
+        {
+            if (string.Equals(pageOrder[index], page, StringComparison.OrdinalIgnoreCase))
+                return index;
+        }
+
+        return -1;
     }
 
     private static TranslateTransform EnsureTranslateTransform(FrameworkElement target)

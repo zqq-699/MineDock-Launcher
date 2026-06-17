@@ -146,7 +146,7 @@ public sealed class MainViewModelTests
             gameManagement,
             new FakeWindowService(),
             statusService,
-            new HomePageViewModelFactory(new FakeLaunchService(), gameVersionService, statusService));
+            new HomePageViewModelFactory(new FakeLaunchService(), gameVersionService, statusService, new FakeWindowService()));
     }
 
     private static AccountPageViewModel CreateAccountPage(FakeStatusService statusService)

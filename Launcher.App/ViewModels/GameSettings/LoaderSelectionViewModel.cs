@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Launcher.App.Models;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.Utilities;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
@@ -65,15 +66,15 @@ public sealed partial class LoaderSelectionViewModel : ObservableObject
 
         if (!provider.IsImplemented)
         {
-            ReportStatus(string.Format(Strings.Status_LoaderVersionsPendingFormat, provider.DisplayName));
+            ReportStatus(string.Format(Strings.Status_LoaderVersionsPendingFormat, LoaderDisplayNameProvider.GetDisplayName(provider.Kind)));
             return;
         }
 
-        ReportStatus(string.Format(Strings.Status_LoadingLoaderVersionsFormat, provider.DisplayName));
+        ReportStatus(string.Format(Strings.Status_LoadingLoaderVersionsFormat, LoaderDisplayNameProvider.GetDisplayName(provider.Kind)));
         LoaderVersions.ReplaceWith(await provider.GetLoaderVersionsAsync(SelectedMinecraftVersion.Name));
 
         SelectedLoaderVersion = LoaderVersions.FirstOrDefault(v => v.IsStable) ?? LoaderVersions.FirstOrDefault();
-        ReportStatus(string.Format(Strings.Status_LoaderVersionsLoadedFormat, provider.DisplayName));
+        ReportStatus(string.Format(Strings.Status_LoaderVersionsLoadedFormat, LoaderDisplayNameProvider.GetDisplayName(provider.Kind)));
     }
 
     partial void OnSelectedLoaderChanged(LoaderKind value)

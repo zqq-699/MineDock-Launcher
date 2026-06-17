@@ -250,12 +250,20 @@
                                       ClickMode="Press"
                                       IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
                                       Style="{StaticResource LauncherComboBoxToggleButtonStyle}">
-                            <TextBlock Text="{Binding SelectionBoxItem, RelativeSource={RelativeSource TemplatedParent}}"
-                                       Foreground="{TemplateBinding Foreground}"
-                                       FontSize="{TemplateBinding FontSize}"
-                                       TextTrimming="CharacterEllipsis"
-                                       VerticalAlignment="Center"
-                                       IsHitTestVisible="False" />
+                            <Grid IsHitTestVisible="False">
+                                <TextBlock x:Name="SelectionTextBlock"
+                                           Text="{Binding SelectionBoxItem, RelativeSource={RelativeSource TemplatedParent}}"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           FontSize="{TemplateBinding FontSize}"
+                                           TextTrimming="CharacterEllipsis"
+                                           Visibility="Collapsed"
+                                           VerticalAlignment="Center" />
+                                <ContentPresenter x:Name="SelectionContentPresenter"
+                                                  Content="{Binding SelectedItem, RelativeSource={RelativeSource TemplatedParent}}"
+                                                  ContentTemplate="{TemplateBinding SelectionItemTemplate}"
+                                                  ContentTemplateSelector="{TemplateBinding SelectionItemTemplateSelector}"
+                                                  VerticalAlignment="Center" />
+                            </Grid>
                         </ToggleButton>
                         <Popup x:Name="PART_Popup"
                                AllowsTransparency="True"
@@ -316,6 +324,362 @@
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Foreground" Value="#A8FFFFFF" />
                         </Trigger>
+                        <Trigger Property="SelectionItemTemplate" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="SelectionItemTemplate" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="SelectionItemTemplateSelector" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="SelectionItemTemplate" Value="{x:Null}" />
+                                <Condition Property="SelectionItemTemplateSelector" Value="{x:Null}" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiTrigger>
+                        <Trigger Property="SelectionItemTemplate" Value="{x:Null}">
+                            <Setter TargetName="SelectionContentPresenter" Property="ContentTemplate" Value="{x:Null}" />
+                        </Trigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <Trigger Property="SelectionItemTemplate" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="SelectionItemTemplateSelector" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <DataTrigger Binding="{Binding SelectedItem, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectedItem, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectedItem, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectedItem, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectedItem, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectedItem, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectedItem, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectedItem, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <Trigger Property="SelectionItemTemplate" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="SelectionItemTemplateSelector" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectedItem, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectedItem, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </MultiDataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding SelectionItemTemplate, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                                <Condition Binding="{Binding SelectionItemTemplateSelector, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="SelectionContentPresenter" Property="Visibility" Value="Collapsed" />
+                        </MultiDataTrigger>
                         <Trigger Property="IsDropDownClosing" Value="True">
                             <Setter TargetName="PopupSurface" Property="IsHitTestVisible" Value="False" />
                         </Trigger>
@@ -330,3 +694,4 @@
     <Style x:Key="LauncherDangerDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource DangerDialogButtonStyle}" />
     <Style x:Key="LauncherDialogTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource DialogTextBoxStyle}" />
 </ResourceDictionary>
+

@@ -40,7 +40,7 @@ public sealed class ModService : IModService
     public async Task<LocalMod> ImportAsync(GameInstance instance, string sourceJarPath, CancellationToken cancellationToken = default)
     {
         if (!File.Exists(sourceJarPath))
-            throw new FileNotFoundException("找不到要导入的 Mod 文件。", sourceJarPath);
+            throw new ModFileImportNotFoundException(sourceJarPath);
 
         var modsDirectory = GetModsDirectory(instance);
         Directory.CreateDirectory(modsDirectory);

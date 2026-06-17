@@ -117,8 +117,10 @@ public sealed class SvgIcon : Control
         }
     }
 
-    private static void ReadShapes(XElement element, List<SvgShape> shapes)
+    private static void ReadShapes(XElement element, List<SvgShape> shapes, SvgStyleContext? inheritedStyle = null)
     {
+        var currentStyle = SvgStyleContext.Merge(inheritedStyle, element);
+
         foreach (var child in element.Elements())
         {
             var name = child.Name.LocalName;
@@ -129,7 +131,7 @@ public sealed class SvgIcon : Control
             {
                 var data = child.Attribute("d")?.Value;
                 if (!string.IsNullOrWhiteSpace(data))
-                    shapes.Add(CreateShape(child, Geometry.Parse(data)));
+                    shapes.Add(CreateShape(child, Geometry.Parse(data), currentStyle));
                 continue;
             }
 
@@ -137,7 +139,7 @@ public sealed class SvgIcon : Control
             {
                 var center = new Point(ParseDouble(child.Attribute("cx")?.Value), ParseDouble(child.Attribute("cy")?.Value));
                 var radius = ParseDouble(child.Attribute("r")?.Value);
-                shapes.Add(CreateShape(child, new EllipseGeometry(center, radius, radius)));
+                shapes.Add(CreateShape(child, new EllipseGeometry(center, radius, radius), currentStyle));
                 continue;
             }
 
@@ -149,28 +151,29 @@ public sealed class SvgIcon : Control
                 var height = ParseDouble(child.Attribute("height")?.Value);
                 var radiusX = ParseDouble(child.Attribute("rx")?.Value);
                 var radiusY = ParseDouble(child.Attribute("ry")?.Value);
-                shapes.Add(CreateShape(child, new RectangleGeometry(new Rect(x, y, width, height), radiusX, radiusY)));
+                shapes.Add(CreateShape(child, new RectangleGeometry(new Rect(x, y, width, height), radiusX, radiusY), currentStyle));
                 continue;
             }
 
-            ReadShapes(child, shapes);
+            ReadShapes(child, shapes, currentStyle);
         }
     }
 
-    private static SvgShape CreateShape(XElement element, Geometry geometry)
+    private static SvgShape CreateShape(XElement element, Geometry geometry, SvgStyleContext inheritedStyle)
     {
         var transform = ParseTransform(element.Attribute("transform")?.Value);
         if (transform is not null)
             geometry.Transform = transform;
 
+        var style = SvgStyleContext.Merge(inheritedStyle, element);
         geometry.Freeze();
         return new SvgShape(
             geometry,
-            HasPaint(element.Attribute("fill")?.Value),
-            HasPaint(element.Attribute("stroke")?.Value),
-            ParseDouble(element.Attribute("stroke-width")?.Value, 1),
-            ParseLineCap(element.Attribute("stroke-linecap")?.Value),
-            ParseLineJoin(element.Attribute("stroke-linejoin")?.Value));
+            HasPaint(style.Fill),
+            HasPaint(style.Stroke),
+            ParseDouble(style.StrokeWidth, 1),
+            ParseLineCap(style.StrokeLineCap),
+            ParseLineJoin(style.StrokeLineJoin));
     }
 
     private static Rect ParseViewBox(string? value)
@@ -264,4 +267,22 @@ public sealed class SvgIcon : Control
         double StrokeThickness,
         PenLineCap LineCap,
         PenLineJoin LineJoin);
+
+    private sealed record SvgStyleContext(
+        string? Fill,
+        string? Stroke,
+        string? StrokeWidth,
+        string? StrokeLineCap,
+        string? StrokeLineJoin)
+    {
+        public static SvgStyleContext Merge(SvgStyleContext? inheritedStyle, XElement element)
+        {
+            return new SvgStyleContext(
+                element.Attribute("fill")?.Value ?? inheritedStyle?.Fill,
+                element.Attribute("stroke")?.Value ?? inheritedStyle?.Stroke,
+                element.Attribute("stroke-width")?.Value ?? inheritedStyle?.StrokeWidth,
+                element.Attribute("stroke-linecap")?.Value ?? inheritedStyle?.StrokeLineCap,
+                element.Attribute("stroke-linejoin")?.Value ?? inheritedStyle?.StrokeLineJoin);
+        }
+    }
 }

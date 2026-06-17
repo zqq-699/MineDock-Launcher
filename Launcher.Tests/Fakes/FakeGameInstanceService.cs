@@ -16,9 +16,14 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public string? LastName { get; private set; }
     public string? LastDefaultInstanceId { get; private set; }
     public string? LastDeletedInstanceId { get; private set; }
+    public string? LastRenamedInstanceId { get; private set; }
+    public string? LastRenamedName { get; private set; }
+    public string? LastRenamedIconSource { get; private set; }
+    public GameInstance? LastSavedInstance { get; private set; }
     public int CreateCallCount { get; private set; }
     public int GetInstancesCallCount { get; private set; }
     public int DeleteCallCount { get; private set; }
+    public int SaveCallCount { get; private set; }
     public LauncherProgress? InitialProgress { get; init; }
 
     public Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default)
@@ -50,7 +55,7 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
         LastLoader = loader;
         LastLoaderVersion = loaderVersion;
         LastName = name;
-        progress?.Report(InitialProgress ?? new LauncherProgress("Install", "Downloading", 25));
+        progress?.Report(InitialProgress ?? new LauncherProgress(InstallProgressStages.Preparing, string.Empty, 25));
         CreateStarted.TrySetResult(true);
         lock (syncRoot)
         {
@@ -83,7 +88,40 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
 
     public Task SaveInstanceAsync(GameInstance instance, CancellationToken cancellationToken = default)
     {
+        lock (syncRoot)
+        {
+            SaveCallCount++;
+            LastSavedInstance = instance;
+
+            var index = CreatedInstances.FindIndex(existing => existing.Id == instance.Id);
+            if (index >= 0)
+                CreatedInstances[index] = instance;
+            else
+                CreatedInstances.Add(instance);
+        }
+
         return Task.CompletedTask;
+    }
+
+    public Task<GameInstance> RenameInstanceAsync(
+        string instanceId,
+        string? newName,
+        string? newIconSource,
+        CancellationToken cancellationToken = default)
+    {
+        lock (syncRoot)
+        {
+            LastRenamedInstanceId = instanceId;
+            LastRenamedName = newName;
+            LastRenamedIconSource = newIconSource;
+
+            var instance = CreatedInstances.First(existing => existing.Id == instanceId);
+            instance.Name = string.IsNullOrWhiteSpace(newName) ? instance.Name : newName.Trim();
+            instance.VersionName = string.IsNullOrWhiteSpace(newName) ? instance.VersionName : newName.Trim();
+            instance.IconSource = string.IsNullOrWhiteSpace(newIconSource) ? null : newIconSource.Trim();
+            instance.InstanceDirectory = Path.Combine(Path.GetDirectoryName(instance.InstanceDirectory) ?? Path.GetTempPath(), instance.VersionName);
+            return Task.FromResult(instance);
+        }
     }
 
     public Task<bool> SetDefaultInstanceAsync(string instanceId, CancellationToken cancellationToken = default)

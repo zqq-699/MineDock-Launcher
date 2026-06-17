@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using Launcher.App.Resources;
+using Launcher.App.Utilities;
 using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.GameSettings;
@@ -57,15 +58,17 @@ public sealed partial class GameSettingsInstanceItem : ObservableObject
         _ => Loader.ToString()
     };
 
+    public string LoaderVersionDisplay => LoaderVersionDisplayFormatter.Format(Loader, Instance.LoaderVersion);
+
     public string Subtitle => Loader switch
     {
         LoaderKind.Vanilla => string.Format(Strings.GameSettings_InstanceSubtitleVanillaFormat, MinecraftVersion),
-        _ when !string.IsNullOrWhiteSpace(Instance.LoaderVersion)
+        _ when !string.IsNullOrWhiteSpace(LoaderVersionDisplay)
             => string.Format(
                 Strings.GameSettings_InstanceSubtitleLoaderFormat,
                 MinecraftVersion,
                 LoaderLabel,
-                Instance.LoaderVersion),
+                LoaderVersionDisplay),
         _ => string.Format(
             Strings.GameSettings_InstanceSubtitleLoaderWithoutVersionFormat,
             MinecraftVersion,
@@ -127,6 +130,7 @@ public sealed partial class GameSettingsInstanceItem : ObservableObject
         OnPropertyChanged(nameof(IsAlpha));
         OnPropertyChanged(nameof(TypeLabel));
         OnPropertyChanged(nameof(LoaderLabel));
+        OnPropertyChanged(nameof(LoaderVersionDisplay));
         OnPropertyChanged(nameof(Subtitle));
         OnPropertyChanged(nameof(UpdatedDateText));
         OnPropertyChanged(nameof(IconSource));

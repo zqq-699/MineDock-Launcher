@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -17,12 +18,16 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     private readonly IInstanceFolderService instanceFolderService;
     private IReadOnlyDictionary<string, string> versionTypesByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private bool hasLoadedInstances;
+    private INotifyPropertyChanged? selectedInstanceNotifier;
 
     [ObservableProperty]
     private GameSettingsInstanceCategory? selectedInstanceCategory;
 
     [ObservableProperty]
     private GameSettingsInstanceItem? selectedInstance;
+
+    [ObservableProperty]
+    private GameSettingsPageStep currentStep = GameSettingsPageStep.List;
 
     [ObservableProperty]
     private bool isLoadingInstances;
@@ -55,6 +60,9 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         this.gameVersionService = gameVersionService;
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
+        EditDialog = new GameSettingsEditDialogViewModel(instanceService, statusService);
+        Details = new GameSettingsDetailsViewModel(EditDialog, instanceService, statusService, instanceFolderService);
+        EditDialog.InstanceUpdated += EditDialog_InstanceUpdated;
 
         InstanceCategories.Add(new GameSettingsInstanceCategory("all", Strings.GameSettings_AllCategory, string.Empty, "general/general_all_application"));
         InstanceCategories.Add(new GameSettingsInstanceCategory("mod_loader", Strings.GameSettings_ModLoaderCategory, string.Empty, "general/general_extention"));
@@ -62,8 +70,11 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         InstanceCategories.Add(new GameSettingsInstanceCategory("snapshot", Strings.Download_SnapshotCategory, string.Empty, "instance_download_page/snapshot"));
         InstanceCategories.Add(new GameSettingsInstanceCategory("old_beta", Strings.Download_BetaCategory, "\u03b2"));
         InstanceCategories.Add(new GameSettingsInstanceCategory("old_alpha", Strings.Download_AlphaCategory, "\u03b1"));
+        foreach (var section in GameSettingsDetailSectionFactory.Create())
+            DetailSections.Add(section);
 
         SelectInstanceCategoryCore(InstanceCategories.First());
+        SelectDetailsSectionCore(DetailSections.FirstOrDefault());
     }
 
     public event Action<GameInstance>? LaunchInstanceRequested;
@@ -72,9 +83,19 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     public ObservableCollection<GameSettingsInstanceCategory> InstanceCategories { get; } = [];
 
+    public ObservableCollection<GameSettingsDetailSectionItem> DetailSections { get; } = [];
+
+    public GameSettingsDetailsViewModel Details { get; }
+
+    public GameSettingsEditDialogViewModel EditDialog { get; }
+
     public List<GameSettingsInstanceItem> AllInstances { get; } = [];
 
     public ObservableCollection<GameSettingsInstanceItem> VisibleInstances { get; } = [];
+
+    public bool IsListStep => CurrentStep is GameSettingsPageStep.List;
+
+    public bool IsDetailsStep => CurrentStep is GameSettingsPageStep.Details;
 
     public bool HasVisibleInstances => VisibleInstances.Count > 0;
 
@@ -82,7 +103,17 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     public bool HasInstanceEmptyMessage => !string.IsNullOrWhiteSpace(InstanceEmptyMessage);
 
-    public string PageTitle => SelectedInstanceCategory?.Title ?? Strings.GameSettings_AllCategory;
+    public System.Collections.IEnumerable CurrentSecondaryMenuItems => IsDetailsStep
+        ? (System.Collections.IEnumerable)DetailSections
+        : InstanceCategories;
+
+    public string PageTitle => IsDetailsStep && SelectedInstance is not null
+        ? SelectedInstance.Name
+        : SelectedInstanceCategory?.Title ?? Strings.GameSettings_AllCategory;
+
+    public string? PageTitleIconSource => IsDetailsStep && SelectedInstance is not null
+        ? SelectedInstance.IconSource
+        : null;
 
     public string DeleteInstanceDialogMessage => InstancePendingDelete is null
         ? string.Empty
@@ -113,6 +144,32 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     public async Task RefreshInstancesSilentlyAsync(CancellationToken cancellationToken = default)
     {
         await RefreshInstancesCoreAsync(playEntranceAnimation: false, clearVisibleInstancesBeforeRefresh: false, cancellationToken);
+    }
+
+    public async Task OpenInstanceDetailsAsync(GameInstance? instance, CancellationToken cancellationToken = default)
+    {
+        await RefreshInstancesCoreAsync(
+            playEntranceAnimation: !hasLoadedInstances,
+            clearVisibleInstancesBeforeRefresh: !hasLoadedInstances,
+            cancellationToken);
+
+        if (instance is null)
+        {
+            CurrentStep = GameSettingsPageStep.List;
+            return;
+        }
+
+        var targetItem = AllInstances.FirstOrDefault(item =>
+            string.Equals(item.Instance.Id, instance.Id, StringComparison.OrdinalIgnoreCase));
+        if (targetItem is null)
+        {
+            CurrentStep = GameSettingsPageStep.List;
+            return;
+        }
+
+        SelectInstanceCore(targetItem);
+        SelectDetailsSectionCore(DetailSections.FirstOrDefault());
+        CurrentStep = GameSettingsPageStep.Details;
     }
 
     private async Task RefreshInstancesCoreAsync(
@@ -172,6 +229,46 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     private void SelectInstance(GameSettingsInstanceItem instance)
     {
         SelectInstanceCore(instance);
+        SelectDetailsSectionCore(DetailSections.FirstOrDefault());
+        CurrentStep = GameSettingsPageStep.Details;
+    }
+
+    [RelayCommand]
+    private void SelectDetailsSection(GameSettingsDetailSectionItem section)
+    {
+        SelectDetailsSectionCore(section);
+    }
+
+    [RelayCommand]
+    private async Task SelectSecondaryMenuItemAsync(object? item)
+    {
+        switch (item)
+        {
+            case GameSettingsInstanceCategory category:
+                await SelectInstanceCategoryAsync(category);
+                break;
+            case GameSettingsDetailSectionItem section:
+                SelectDetailsSectionCore(section);
+                break;
+        }
+    }
+
+    [RelayCommand]
+    private void BackToInstanceList()
+    {
+        CurrentStep = GameSettingsPageStep.List;
+    }
+
+    [RelayCommand]
+    private void CancelEditInstanceDialog()
+    {
+        EditDialog.Cancel();
+    }
+
+    [RelayCommand]
+    private Task ConfirmEditInstanceDialogAsync()
+    {
+        return EditDialog.ConfirmAsync();
     }
 
     [RelayCommand]
@@ -266,6 +363,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     private void SelectInstanceCategoryCore(GameSettingsInstanceCategory category, bool refreshVisibleInstances = true)
     {
+        CurrentStep = GameSettingsPageStep.List;
         SelectedInstanceCategory = category;
         foreach (var item in InstanceCategories)
             item.IsSelected = ReferenceEquals(item, category);
@@ -274,9 +372,43 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             RefreshVisibleInstances();
     }
 
+    private void SelectDetailsSectionCore(GameSettingsDetailSectionItem? section)
+    {
+        foreach (var item in DetailSections)
+            item.IsSelected = ReferenceEquals(item, section);
+
+        Details.SetSelectedSection(section);
+    }
+
     partial void OnSelectedInstanceCategoryChanged(GameSettingsInstanceCategory? value)
     {
         OnPropertyChanged(nameof(PageTitle));
+    }
+
+    partial void OnCurrentStepChanged(GameSettingsPageStep value)
+    {
+        OnPropertyChanged(nameof(IsListStep));
+        OnPropertyChanged(nameof(IsDetailsStep));
+        OnPropertyChanged(nameof(CurrentSecondaryMenuItems));
+        OnPropertyChanged(nameof(PageTitle));
+        OnPropertyChanged(nameof(PageTitleIconSource));
+    }
+
+    partial void OnSelectedInstanceChanged(GameSettingsInstanceItem? value)
+    {
+        if (selectedInstanceNotifier is not null)
+            selectedInstanceNotifier.PropertyChanged -= SelectedInstance_PropertyChanged;
+
+        selectedInstanceNotifier = value;
+        if (selectedInstanceNotifier is not null)
+            selectedInstanceNotifier.PropertyChanged += SelectedInstance_PropertyChanged;
+
+        Details.SetSelectedInstance(value);
+        OnPropertyChanged(nameof(PageTitle));
+        OnPropertyChanged(nameof(PageTitleIconSource));
+
+        if (value is null && IsDetailsStep)
+            CurrentStep = GameSettingsPageStep.List;
     }
 
     partial void OnInstancePendingDeleteChanged(GameSettingsInstanceItem? value)
@@ -479,5 +611,26 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(VisibleInstances));
         OnPropertyChanged(nameof(HasVisibleInstances));
         OnPropertyChanged(nameof(HasInstanceEmptyMessage));
+    }
+
+    private void SelectedInstance_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(PageTitle));
+        OnPropertyChanged(nameof(PageTitleIconSource));
+    }
+
+    private void EditDialog_InstanceUpdated(GameInstance updatedInstance)
+    {
+        AddOrUpdateInstance(updatedInstance);
+
+        var updatedItem = AllInstances.FirstOrDefault(item =>
+            string.Equals(item.Instance.Id, updatedInstance.Id, StringComparison.OrdinalIgnoreCase));
+        if (updatedItem is not null)
+        {
+            SelectInstanceCore(updatedItem);
+            CurrentStep = GameSettingsPageStep.Details;
+        }
+
+        InstancesChanged?.Invoke();
     }
 }

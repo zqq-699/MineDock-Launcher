@@ -8,6 +8,7 @@ public interface IGameInstanceService
     Task<GameInstance?> GetDefaultInstanceAsync(CancellationToken cancellationToken = default);
     Task<GameInstance> CreateInstanceAsync(string minecraftVersion, LoaderKind loader, string? loaderVersion, string? name, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default);
     Task SaveInstanceAsync(GameInstance instance, CancellationToken cancellationToken = default);
+    Task<GameInstance> RenameInstanceAsync(string instanceId, string? newName, string? newIconSource, CancellationToken cancellationToken = default);
     Task<bool> SetDefaultInstanceAsync(string instanceId, CancellationToken cancellationToken = default);
     Task<bool> DeleteInstanceAsync(string instanceId, CancellationToken cancellationToken = default);
 }

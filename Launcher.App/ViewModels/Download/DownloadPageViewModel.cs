@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.Utilities;
 using Launcher.App.ViewModels.Shared;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
@@ -324,8 +325,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         IsInstalling = activeInstallCountAfterStart > 0;
         InstallError = string.Empty;
         InstallProgressPercent = 0;
-        InstallStatusMessage = string.Format(Strings.Status_InstallingLoaderFormat, loaderDisplayName, versionName);
-        installTask.Report(new LauncherProgress("Install", InstallStatusMessage, 0));
+        InstallStatusMessage = Strings.Status_InstallPreparing;
+        installTask.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty, 0));
         instanceNameTracker.AddPending(instanceName);
         RefreshInstanceNameDuplicateMessage();
         CurrentStep = DownloadPageStep.VersionList;
@@ -362,6 +363,12 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             }
 
             downloadTasksPage.CancelTask(installTask);
+        }
+        catch (DuplicateGameInstanceNameException)
+        {
+            instanceNameTracker.RemovePending(instanceName);
+            SetLatestInstallFailure(installSequence, Strings.Status_DuplicateInstanceName);
+            installTask.Fail(Strings.Status_DuplicateInstanceName);
         }
         catch (Exception)
         {
@@ -744,16 +751,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 
     private static LauncherProgress CreateDisplayProgress(LauncherProgress progress)
     {
-        var message = progress.Stage switch
-        {
-            "Queue" => Strings.Status_InstallQueued,
-            "Files" => Strings.Status_InstallCheckingFiles,
-            "Bytes" => Strings.Status_InstallDownloadingFiles,
-            _ when !string.IsNullOrWhiteSpace(progress.Message) => progress.Message,
-            _ => Strings.DownloadTask_Preparing
-        };
-
-        return progress with { Message = message };
+        return progress with { Message = LauncherProgressTextFormatter.Format(progress) };
     }
 
     private static bool RequiresLoaderVersionSelection(LoaderKind? loaderKind)

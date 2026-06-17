@@ -212,7 +212,8 @@
                   Margin="0,10,0,0"
                   HorizontalAlignment="Center"
                   VerticalAlignment="Top">
-                <Button Content="{x:Static res:Strings.Home_GameSettingsButton}">
+                <Button Content="{x:Static res:Strings.Home_GameSettingsButton}"
+                        Command="{Binding OpenSelectedInstanceSettingsCommand}">
                     <Button.Style>
                         <Style TargetType="Button" BasedOn="{StaticResource HomeChangeVersionButtonStyle}">
                             <Setter Property="Margin" Value="0,-30,0,0" />

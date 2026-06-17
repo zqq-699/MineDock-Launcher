@@ -41,11 +41,27 @@ public class AnimatedComboBox : ComboBox
             typeof(AnimatedComboBox),
             new PropertyMetadata(null));
 
+    public static readonly DependencyProperty SelectionItemTemplateProperty =
+        DependencyProperty.Register(
+            nameof(SelectionItemTemplate),
+            typeof(DataTemplate),
+            typeof(AnimatedComboBox),
+            new PropertyMetadata(null));
+
+    public static readonly DependencyProperty SelectionItemTemplateSelectorProperty =
+        DependencyProperty.Register(
+            nameof(SelectionItemTemplateSelector),
+            typeof(DataTemplateSelector),
+            typeof(AnimatedComboBox),
+            new PropertyMetadata(null));
+
     private readonly DependencyPropertyDescriptor dropDownDescriptor;
     private DispatcherTimer? closeTimer;
     private Popup? popup;
     private ListBox? popupListBox;
     private FrameworkElement? popupSurface;
+    private TextBlock? selectionTextBlock;
+    private ContentPresenter? selectionContentPresenter;
     private ScaleTransform? scaleTransform;
     private TranslateTransform? translateTransform;
     private bool opensAbove;
@@ -82,6 +98,18 @@ public class AnimatedComboBox : ComboBox
         set => SetValue(DropDownItemContainerStyleProperty, value);
     }
 
+    public DataTemplate? SelectionItemTemplate
+    {
+        get => (DataTemplate?)GetValue(SelectionItemTemplateProperty);
+        set => SetValue(SelectionItemTemplateProperty, value);
+    }
+
+    public DataTemplateSelector? SelectionItemTemplateSelector
+    {
+        get => (DataTemplateSelector?)GetValue(SelectionItemTemplateSelectorProperty);
+        set => SetValue(SelectionItemTemplateSelectorProperty, value);
+    }
+
     public override void OnApplyTemplate()
     {
         DetachPopupListBox();
@@ -90,6 +118,8 @@ public class AnimatedComboBox : ComboBox
         popup = GetTemplateChild("PART_Popup") as Popup;
         popupListBox = GetTemplateChild("PART_DropDownList") as ListBox;
         popupSurface = GetTemplateChild("PopupSurface") as FrameworkElement;
+        selectionTextBlock = GetTemplateChild("SelectionTextBlock") as TextBlock;
+        selectionContentPresenter = GetTemplateChild("SelectionContentPresenter") as ContentPresenter;
         AttachPopup();
         AttachPopupListBox();
         if (popupSurface is not null)
@@ -97,6 +127,7 @@ public class AnimatedComboBox : ComboBox
             popupSurface.CacheMode = new BitmapCache();
             popupSurface.IsHitTestVisible = false;
         }
+        UpdateSelectionPresenterMode();
         EnsurePopupTransforms();
         if (IsPopupOpen && popupSurface is not null)
             SetPopupVisualState(1, 0, 1);
@@ -388,5 +419,15 @@ public class AnimatedComboBox : ComboBox
         blurBorder.SampleOffsetY = opensAbove
             ? -popupSurface.ActualHeight + popupVerticalOffset
             : ActualHeight + popupVerticalOffset;
+    }
+
+    private void UpdateSelectionPresenterMode()
+    {
+        if (selectionTextBlock is null || selectionContentPresenter is null)
+            return;
+
+        var useSelectionTemplate = SelectionItemTemplate is not null || SelectionItemTemplateSelector is not null;
+        selectionTextBlock.Visibility = useSelectionTemplate ? Visibility.Collapsed : Visibility.Visible;
+        selectionContentPresenter.Visibility = useSelectionTemplate ? Visibility.Visible : Visibility.Collapsed;
     }
 }

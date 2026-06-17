@@ -8,7 +8,7 @@ namespace Launcher.App.Views.Download;
 
 public partial class DownloadPageView : UserControl
 {
-    private readonly DownloadStepTransitionCoordinator stepTransition;
+    private readonly SlidingContentTransitionCoordinator stepTransition;
     private readonly DownloadVersionListView downloadVersionList;
     private INotifyPropertyChanged? currentViewModelNotifier;
 
@@ -22,12 +22,12 @@ public partial class DownloadPageView : UserControl
             "DownloadVersionList",
             "Download version list view was not found.");
 
-        stepTransition = new DownloadStepTransitionCoordinator(
+        stepTransition = new SlidingContentTransitionCoordinator(
             this,
             downloadStepHost,
             FindStepContent<FrameworkElement>(downloadStepHost, "VersionListStep", "Version list step was not found."),
             FindStepContent<FrameworkElement>(downloadStepHost, "InstanceOptionsStep", "Instance options step was not found."),
-            FindFloatingButton("InstallStep"));
+            [FindFloatingButton("InstallStep")]);
 
         Loaded += DownloadPageView_OnLoaded;
         DataContextChanged += DownloadPageView_OnDataContextChanged;
@@ -37,7 +37,7 @@ public partial class DownloadPageView : UserControl
 
     private void DownloadPageView_OnLoaded(object sender, RoutedEventArgs e)
     {
-        stepTransition.Sync(GetCurrentStep());
+        stepTransition.Sync(IsInstanceOptionsStep());
     }
 
     private void DownloadPageView_OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -49,7 +49,7 @@ public partial class DownloadPageView : UserControl
         if (currentViewModelNotifier is not null)
             currentViewModelNotifier.PropertyChanged += DownloadPageViewModel_OnPropertyChanged;
 
-        stepTransition.Sync(GetCurrentStep());
+        stepTransition.Sync(IsInstanceOptionsStep());
     }
 
     private void DownloadPageViewModel_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -68,13 +68,13 @@ public partial class DownloadPageView : UserControl
         if (e.PropertyName is nameof(DownloadPageViewModel.CurrentStep)
             && sender is DownloadPageViewModel viewModel)
         {
-            stepTransition.AnimateTo(viewModel.CurrentStep);
+            stepTransition.AnimateTo(viewModel.CurrentStep is DownloadPageStep.InstanceOptions);
         }
     }
 
     private void RefreshRightContentView()
     {
-        stepTransition.Sync(GetCurrentStep());
+        stepTransition.Sync(IsInstanceOptionsStep());
         ResetVersionListScrollPosition();
     }
 
@@ -89,11 +89,10 @@ public partial class DownloadPageView : UserControl
         RefreshRightContentView();
     }
 
-    private DownloadPageStep GetCurrentStep()
+    private bool IsInstanceOptionsStep()
     {
         return DataContext is DownloadPageViewModel viewModel
-            ? viewModel.CurrentStep
-            : DownloadPageStep.VersionList;
+            && viewModel.CurrentStep is DownloadPageStep.InstanceOptions;
     }
 
     private FrameworkElement FindDownloadStepHost()

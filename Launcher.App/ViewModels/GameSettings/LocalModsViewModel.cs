@@ -67,7 +67,16 @@ public sealed class LocalModsViewModel
         if (selectedInstance is null || string.IsNullOrWhiteSpace(path))
             return;
 
-        await modService.ImportAsync(selectedInstance, path);
+        try
+        {
+            await modService.ImportAsync(selectedInstance, path);
+        }
+        catch (ModFileImportNotFoundException)
+        {
+            ReportStatus(Strings.Status_LocalModImportFileNotFound);
+            return;
+        }
+
         await RefreshModsAsync();
         ReportStatus(Strings.Status_LocalModImported);
     }

@@ -1,0 +1,239 @@
+<UserControl x:Class="Launcher.App.Views.GameSettings.GameSettingsDetailsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Launcher.App.Controls"
+             xmlns:res="clr-namespace:Launcher.App.Resources"
+             Focusable="False">
+    <UserControl.Resources>
+        <Style x:Key="GeneralDescriptionTextBoxStyle"
+               TargetType="TextBox"
+               BasedOn="{StaticResource LauncherDialogTextBoxStyle}">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="10,0,10,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <Grid Margin="{TemplateBinding Padding}">
+                                <ScrollViewer x:Name="PART_ContentHost"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#667ABEFF" />
+                                <Setter TargetName="Root" Property="Background" Value="#2AFFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SettingsOptionRowStyle" TargetType="Grid">
+            <Setter Property="Margin" Value="0,0,0,14" />
+        </Style>
+
+        <Style x:Key="SettingsOptionTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#F2F2F2" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <DataTemplate x:Key="LaunchSettingsModeOptionTemplate">
+            <TextBlock Text="{Binding Title}"
+                       Foreground="#F4F4F4"
+                       FontSize="13"
+                       FontWeight="Normal"
+                       VerticalAlignment="Center" />
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <ScrollViewer x:Name="DetailsScrollViewer"
+                  Style="{StaticResource ListPageScrollViewerStyle}">
+        <StackPanel x:Name="SectionContentRoot"
+                    Margin="0,132,12,72"
+                    MaxWidth="{StaticResource DetailPageContentMaxWidth}"
+                    HorizontalAlignment="Stretch">
+            <StackPanel.RenderTransform>
+                <TranslateTransform />
+            </StackPanel.RenderTransform>
+
+            <StackPanel Visibility="{Binding IsGeneralSection, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                <Image Width="64"
+                       Height="64"
+                       HorizontalAlignment="Left"
+                       Source="{Binding InstanceIconSource}"
+                       Stretch="Fill"
+                       SnapsToDevicePixels="True"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+
+                <Grid Margin="0,18,0,0"
+                      HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Text="{Binding InstanceName}"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource PageTitleTextStyle}" />
+
+                    <Button Grid.Column="1"
+                            Margin="10,0,0,0"
+                            Style="{StaticResource InlineIconButtonStyle}"
+                            Command="{Binding RequestEditInstanceCommand}">
+                        <controls:SvgIcon Width="16"
+                                          Height="16"
+                                          IconKey="general/general_edit"
+                                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                    </Button>
+                </Grid>
+
+                <TextBlock Margin="0,8,0,0"
+                           Text="{Binding InstanceSubtitle}"
+                           Foreground="#8FFFFFFF"
+                           FontSize="12" />
+            </StackPanel>
+
+            <StackPanel Margin="0,26,0,0"
+                        Visibility="{Binding IsGeneralSection, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                <GroupBox Header="{x:Static res:Strings.GameSettings_GeneralDescriptionSection}"
+                          Style="{StaticResource LauncherContentSectionStyle}">
+                    <StackPanel>
+                        <TextBox x:Name="DescriptionTextBox"
+                                 Loaded="DescriptionTextBox_OnLoaded"
+                                 TextChanged="DescriptionTextBox_OnTextChanged"
+                                 SizeChanged="DescriptionTextBox_OnSizeChanged"
+                                 Height="Auto"
+                                 MinHeight="40"
+                                 MinLines="1"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Disabled"
+                                 Style="{StaticResource GeneralDescriptionTextBoxStyle}"
+                                 Text="{Binding DescriptionText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </GroupBox>
+
+                <GroupBox Margin="0,26,0,0"
+                          Header="{x:Static res:Strings.GameSettings_GeneralInstanceDirectorySection}"
+                          Style="{StaticResource LauncherContentSectionStyle}">
+                    <Button HorizontalAlignment="Left"
+                            Content="{x:Static res:Strings.GameSettings_GeneralOpenInstanceDirectoryButton}"
+                            Command="{Binding OpenInstanceDirectoryCommand}"
+                            Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
+                </GroupBox>
+
+                <GroupBox Margin="0,26,0,0"
+                          Header="{x:Static res:Strings.GameSettings_GeneralCreatedAtSection}"
+                          Style="{StaticResource LauncherContentSectionStyle}">
+                    <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                        <TextBlock Text="{Binding InstanceCreatedAtText}"
+                                   Foreground="#CFFFFFFF"
+                                   FontSize="13" />
+                    </Border>
+                </GroupBox>
+
+            </StackPanel>
+
+            <StackPanel Margin="0"
+                        Visibility="{Binding IsLaunchSection, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                <GroupBox Header="{x:Static res:Strings.GameSettings_LaunchSettingsSection}"
+                          Style="{StaticResource LauncherContentSectionStyle}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="180" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchSettingsModeLabel}"
+                                       Style="{StaticResource SettingsOptionTextStyle}" />
+
+                            <controls:AnimatedComboBox Grid.Column="1"
+                                                       ItemsSource="{Binding LaunchSettingsModeOptions}"
+                                                       SelectedItem="{Binding SelectedLaunchSettingsModeOption, Mode=TwoWay}"
+                                                       ItemTemplate="{StaticResource LaunchSettingsModeOptionTemplate}"
+                                                       Style="{StaticResource LauncherComboBoxStyle}" />
+                        </Grid>
+
+                        <Grid Style="{StaticResource SettingsOptionRowStyle}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchCheckFilesOption}"
+                                       Style="{StaticResource SettingsOptionTextStyle}" />
+
+                            <CheckBox Grid.Column="1"
+                                      IsChecked="{Binding LaunchCheckFilesBeforeLaunchEnabled, Mode=TwoWay}"
+                                      IsEnabled="{Binding AreLaunchSettingsOverridesEnabled}"
+                                      Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
+                        </Grid>
+
+                        <Grid Style="{StaticResource SettingsOptionRowStyle}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchAutoRepairOption}"
+                                       Style="{StaticResource SettingsOptionTextStyle}" />
+
+                            <CheckBox Grid.Column="1"
+                                      IsChecked="{Binding LaunchAutoRepairMissingFilesEnabled, Mode=TwoWay}"
+                                      IsEnabled="{Binding CanEditAutoRepairMissingFiles}"
+                                      Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
+                        </Grid>
+
+                        <Grid Margin="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchMinimizeLauncherOption}"
+                                       Style="{StaticResource SettingsOptionTextStyle}" />
+
+                            <CheckBox Grid.Column="1"
+                                      IsChecked="{Binding LaunchMinimizeLauncherAfterLaunchEnabled, Mode=TwoWay}"
+                                      IsEnabled="{Binding AreLaunchSettingsOverridesEnabled}"
+                                      Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
+                        </Grid>
+                    </StackPanel>
+                </GroupBox>
+            </StackPanel>
+
+            <GroupBox Margin="0"
+                      Header="{Binding SectionTitle}">
+                <GroupBox.Style>
+                    <Style TargetType="GroupBox" BasedOn="{StaticResource LauncherContentSectionStyle}">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsGeneralSection}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsLaunchSection}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </GroupBox.Style>
+                <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                    <TextBlock Text="{Binding SectionPlaceholderBody}"
+                               Foreground="#CFFFFFFF"
+                               FontSize="13"
+                               TextWrapping="Wrap" />
+                </Border>
+            </GroupBox>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

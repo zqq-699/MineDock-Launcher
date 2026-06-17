@@ -53,7 +53,16 @@ public sealed partial class ModrinthSearchViewModel : ObservableObject
         if (selectedInstance is null || SelectedModrinthProject is null)
             return false;
 
-        await modrinthService.InstallLatestCompatibleAsync(SelectedModrinthProject, selectedInstance, progress);
+        try
+        {
+            await modrinthService.InstallLatestCompatibleAsync(SelectedModrinthProject, selectedInstance, progress);
+        }
+        catch (NoCompatibleModFileException)
+        {
+            ReportStatus(Strings.Status_ModCompatibleFileNotFound);
+            return false;
+        }
+
         ReportStatus(string.Format(Strings.Status_ModInstalledFormat, SelectedModrinthProject.Title));
         return true;
     }

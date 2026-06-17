@@ -9,6 +9,9 @@ public sealed class LauncherSettings
     public string MinecraftDirectory { get; set; } = string.Empty;
     public string? DefaultJavaPath { get; set; }
     public int DefaultMemoryMb { get; set; } = LauncherDefaults.DefaultMemoryMb;
+    public bool DefaultCheckFilesBeforeLaunch { get; set; } = true;
+    public bool DefaultAutoRepairMissingFiles { get; set; } = true;
+    public bool DefaultMinimizeLauncherAfterLaunch { get; set; }
     public string? DefaultInstanceId { get; set; }
     public string? SelectedAccountId { get; set; }
     public bool AccountsInitialized { get; set; }

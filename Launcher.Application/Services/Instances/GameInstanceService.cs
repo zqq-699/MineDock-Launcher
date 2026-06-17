@@ -88,7 +88,7 @@ public sealed class GameInstanceService : IGameInstanceService
         var lockAcquiredImmediately = installExecutionLock.Wait(0, cancellationToken);
         if (!lockAcquiredImmediately)
         {
-            progress?.Report(new LauncherProgress("Queue", "等待其他安装任务完成"));
+            progress?.Report(new LauncherProgress(InstallProgressStages.Queue, string.Empty));
             await installExecutionLock.WaitAsync(cancellationToken);
         }
 
@@ -97,12 +97,12 @@ public sealed class GameInstanceService : IGameInstanceService
             var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
             var versionIdentity = SanitizeName(
                 string.IsNullOrWhiteSpace(name)
-                    ? $"{minecraftVersion} {provider.DisplayName}"
+                    ? CreateDefaultInstanceName(minecraftVersion, loader, loaderVersion)
                     : name);
             var cleanupCandidates = CreateCleanupCandidates(settings.MinecraftDirectory, minecraftVersion, versionIdentity, loader);
             var instances = (await GetInstancesCoreAsync(settings, cancellationToken).ConfigureAwait(false)).ToList();
             if (instances.Any(instance => IsSameVersionIdentity(instance, versionIdentity)))
-                throw new InvalidOperationException("已存在同名游戏。");
+                throw new DuplicateGameInstanceNameException(versionIdentity);
 
             try
             {
@@ -176,6 +176,65 @@ public sealed class GameInstanceService : IGameInstanceService
             instances.Add(instance);
 
         await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<GameInstance> RenameInstanceAsync(
+        string instanceId,
+        string? newName,
+        string? newIconSource,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+            throw new InvalidOperationException("Instance id is required.");
+
+        var instances = (await GetInstancesAsync(cancellationToken).ConfigureAwait(false)).ToList();
+        var instance = instances.FirstOrDefault(existing =>
+            string.Equals(existing.Id, instanceId, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException("Instance was not found.");
+
+        var sanitizedName = SanitizeName(newName ?? string.Empty);
+        var normalizedIconSource = string.IsNullOrWhiteSpace(newIconSource) ? null : newIconSource.Trim();
+        var currentVersionName = GetVersionName(instance);
+
+        if (instances.Any(existing =>
+                !string.Equals(existing.Id, instance.Id, StringComparison.OrdinalIgnoreCase)
+                && (string.Equals(existing.Name, sanitizedName, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(existing.VersionName, sanitizedName, StringComparison.OrdinalIgnoreCase))))
+        {
+            throw new DuplicateGameInstanceNameException(sanitizedName);
+        }
+
+        var nameChanged = !string.Equals(currentVersionName, sanitizedName, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(instance.Name, sanitizedName, StringComparison.Ordinal);
+        var iconChanged = !string.Equals(instance.IconSource, normalizedIconSource, StringComparison.Ordinal);
+
+        if (!nameChanged && !iconChanged)
+            return instance;
+
+        if (!string.Equals(currentVersionName, sanitizedName, StringComparison.OrdinalIgnoreCase))
+        {
+            var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+            await repository.RenameVersionAsync(
+                settings.MinecraftDirectory,
+                currentVersionName,
+                sanitizedName,
+                cancellationToken).ConfigureAwait(false);
+
+            instance.VersionName = sanitizedName;
+            instance.InstanceDirectory = repository.GetVersionDirectory(settings.MinecraftDirectory, sanitizedName);
+        }
+
+        instance.Name = sanitizedName;
+        instance.IconSource = normalizedIconSource;
+        instance.UpdatedAt = DateTimeOffset.UtcNow;
+
+        var index = instances.FindIndex(existing =>
+            string.Equals(existing.Id, instance.Id, StringComparison.OrdinalIgnoreCase));
+        if (index >= 0)
+            instances[index] = instance;
+
+        await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
+        return instance;
     }
 
     public async Task<bool> SetDefaultInstanceAsync(string instanceId, CancellationToken cancellationToken = default)
@@ -305,7 +364,8 @@ public sealed class GameInstanceService : IGameInstanceService
     private static bool ApplyInstalledVersion(GameInstance instance, InstalledGameVersion installedVersion)
     {
         var changed = false;
-        changed |= SetIfChanged(instance.Name, installedVersion.VersionName, value => instance.Name = value ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(instance.Name))
+            changed |= SetIfChanged(instance.Name, installedVersion.VersionName, value => instance.Name = value ?? string.Empty);
         changed |= SetIfChanged(
             instance.MinecraftVersion,
             ResolvePreferredMinecraftVersion(instance.MinecraftVersion, installedVersion.MinecraftVersion, installedVersion.VersionName),
@@ -397,6 +457,22 @@ public sealed class GameInstanceService : IGameInstanceService
         var invalid = Path.GetInvalidFileNameChars();
         var sanitized = new string(value.Select(ch => invalid.Contains(ch) ? '-' : ch).ToArray()).Trim();
         return string.IsNullOrWhiteSpace(sanitized) ? "Minecraft" : sanitized;
+    }
+
+    private static string CreateDefaultInstanceName(string minecraftVersion, LoaderKind loader, string? loaderVersion)
+    {
+        return loader switch
+        {
+            LoaderKind.Fabric when !string.IsNullOrWhiteSpace(loaderVersion) => $"{minecraftVersion}-fabric-{loaderVersion}",
+            LoaderKind.Fabric => $"{minecraftVersion}-fabric",
+            LoaderKind.Forge when !string.IsNullOrWhiteSpace(loaderVersion) => $"{minecraftVersion}-forge-{loaderVersion}",
+            LoaderKind.Forge => $"{minecraftVersion}-forge",
+            LoaderKind.NeoForge when !string.IsNullOrWhiteSpace(loaderVersion) => $"{minecraftVersion}-neoforge-{loaderVersion}",
+            LoaderKind.NeoForge => $"{minecraftVersion}-neoforge",
+            LoaderKind.Quilt when !string.IsNullOrWhiteSpace(loaderVersion) => $"{minecraftVersion}-quilt-{loaderVersion}",
+            LoaderKind.Quilt => $"{minecraftVersion}-quilt",
+            _ => minecraftVersion
+        };
     }
 
     private void TrackInstallingVersion(string minecraftDirectory, string versionName)

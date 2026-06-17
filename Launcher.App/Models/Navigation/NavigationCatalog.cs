@@ -1,5 +1,6 @@
 using Launcher.Application.Services;
 using Launcher.App.Resources;
+using Launcher.App.Utilities;
 using Launcher.Domain.Models;
 
 namespace Launcher.App.Models;
@@ -69,7 +70,7 @@ internal static class NavigationCatalog
         return new NavigationItem
         {
             Page = provider.Kind.ToString(),
-            Title = provider.DisplayName,
+            Title = LoaderDisplayNameProvider.GetDisplayName(provider.Kind),
             Icon = provider.Kind is LoaderKind.Vanilla ? "\uE7C3" : "\uE8B7",
             Loader = provider.Kind
         };

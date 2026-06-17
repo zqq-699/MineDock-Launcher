@@ -45,7 +45,7 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         };
         var settingsService = new TestSettingsService(settings);
         var repository = new JsonGameInstanceRepository(settingsService);
-        var provider = new FakeLoaderProvider { Kind = LoaderKind.Fabric, DisplayName = "Fabric" };
+        var provider = new FakeLoaderProvider { Kind = LoaderKind.Fabric };
         var modrinthService = new FakeModrinthService();
         var service = new GameInstanceService(settingsService, repository, [provider], modrinthService);
 
@@ -68,7 +68,7 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         };
         var settingsService = new TestSettingsService(settings);
         var repository = new JsonGameInstanceRepository(settingsService);
-        var provider = new FakeLoaderProvider { Kind = LoaderKind.Fabric, DisplayName = "Fabric" };
+        var provider = new FakeLoaderProvider { Kind = LoaderKind.Fabric };
         var modrinthService = new FakeModrinthService { InstallFabricApiException = new InvalidOperationException("fabric api failed") };
         var service = new GameInstanceService(settingsService, repository, [provider], modrinthService);
 
@@ -90,7 +90,7 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         };
         var settingsService = new TestSettingsService(settings);
         var repository = new JsonGameInstanceRepository(settingsService);
-        var provider = new FakeLoaderProvider { Kind = LoaderKind.Forge, DisplayName = "Forge" };
+        var provider = new FakeLoaderProvider { Kind = LoaderKind.Forge };
         var modrinthService = new FakeModrinthService();
         var service = new GameInstanceService(settingsService, repository, [provider], modrinthService);
 
@@ -436,7 +436,7 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
 
         var instance = Assert.Single(instances);
         Assert.Equal("valid", instance.Id);
-        Assert.Equal("1.21.5", instance.Name);
+        Assert.Equal("Old Display Name", instance.Name);
         Assert.Equal(Path.Combine(settings.MinecraftDirectory, "versions", "1.21.5"), instance.InstanceDirectory);
         Assert.True(Directory.Exists(Path.Combine(instance.InstanceDirectory, "mods")));
 
@@ -639,6 +639,35 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         Assert.Equal("47.2.0", instances["forge-1.20.1-47.2.0"].LoaderVersion);
         Assert.Equal(LoaderKind.NeoForge, instances["neoforge-20.4.237"].Loader);
         Assert.Equal(LoaderKind.Quilt, instances["quilt-loader-0.26.0-1.20.1"].Loader);
+    }
+
+    [Fact]
+    public async Task InstanceServicePrefersFabricLoaderVersionOverMixinLibraryMetadata()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(
+            settings.MinecraftDirectory,
+            "fabric-loader-0.16.9-1.21.4",
+            type: "snapshot",
+            inheritsFrom: "1.21.4",
+            libraries:
+            [
+                "net.fabricmc:sponge-mixin:0.15.0+mixin.0.8.7",
+                "net.fabricmc:fabric-loader:0.16.9"
+            ],
+            writeJar: false);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instance = (await service.GetInstancesAsync()).Single(item => item.VersionName == "fabric-loader-0.16.9-1.21.4");
+
+        Assert.Equal(LoaderKind.Fabric, instance.Loader);
+        Assert.Equal("0.16.9", instance.LoaderVersion);
     }
 
     [Fact]
@@ -912,6 +941,128 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         Assert.False(deleted);
         Assert.Single(await repository.GetAllAsync());
         Assert.True(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "first")));
+    }
+
+    [Fact]
+    public async Task RenameInstanceAsyncRenamesVersionDirectoryAndPrimaryFiles()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultInstanceId = "old"
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(
+            settings.MinecraftDirectory,
+            "Old Pack",
+            type: "release",
+            launcherMinecraftVersion: "1.20.1");
+        await repository.SaveAllAsync(
+        [
+            new GameInstance
+            {
+                Id = "old",
+                Name = "Old Pack",
+                MinecraftVersion = "1.20.1",
+                VersionName = "Old Pack",
+                InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Old Pack")
+            }
+        ]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var updated = await service.RenameInstanceAsync("old", "Renamed Pack", "/Assets/Icons/block/diamond_block.png");
+
+        Assert.Equal("Renamed Pack", updated.Name);
+        Assert.Equal("Renamed Pack", updated.VersionName);
+        Assert.Equal("/Assets/Icons/block/diamond_block.png", updated.IconSource);
+        Assert.Equal(
+            Path.Combine(settings.MinecraftDirectory, "versions", "Renamed Pack"),
+            updated.InstanceDirectory);
+
+        var oldDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Old Pack");
+        var newDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Renamed Pack");
+        Assert.False(Directory.Exists(oldDirectory));
+        Assert.True(Directory.Exists(newDirectory));
+        Assert.False(File.Exists(Path.Combine(newDirectory, "Old Pack.json")));
+        Assert.False(File.Exists(Path.Combine(newDirectory, "Old Pack.jar")));
+        Assert.True(File.Exists(Path.Combine(newDirectory, "Renamed Pack.json")));
+        Assert.True(File.Exists(Path.Combine(newDirectory, "Renamed Pack.jar")));
+
+        using var jsonDocument = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(newDirectory, "Renamed Pack.json")));
+        Assert.Equal("Renamed Pack", jsonDocument.RootElement.GetProperty("id").GetString());
+        Assert.Equal("Renamed Pack", jsonDocument.RootElement.GetProperty("jar").GetString());
+
+        var storedInstance = Assert.Single(await repository.GetAllAsync());
+        Assert.Equal("Renamed Pack", storedInstance.Name);
+        Assert.Equal("Renamed Pack", storedInstance.VersionName);
+        Assert.Equal("/Assets/Icons/block/diamond_block.png", storedInstance.IconSource);
+        Assert.Equal(
+            Path.Combine(settings.MinecraftDirectory, "versions", "Renamed Pack"),
+            storedInstance.InstanceDirectory);
+    }
+
+    [Fact]
+    public async Task RenameInstanceAsyncKeepsInheritedVersionReference()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(
+            settings.MinecraftDirectory,
+            "fabric-child",
+            type: "snapshot",
+            inheritsFrom: "1.20.1");
+        await repository.SaveAllAsync(
+        [
+            new GameInstance
+            {
+                Id = "child",
+                Name = "fabric-child",
+                MinecraftVersion = "1.20.1",
+                VersionName = "fabric-child",
+                InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "fabric-child")
+            }
+        ]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        await service.RenameInstanceAsync("child", "fabric-details", null);
+
+        using var jsonDocument = JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(settings.MinecraftDirectory, "versions", "fabric-details", "fabric-details.json")));
+        Assert.Equal("fabric-details", jsonDocument.RootElement.GetProperty("id").GetString());
+        Assert.Equal("1.20.1", jsonDocument.RootElement.GetProperty("inheritsFrom").GetString());
+    }
+
+    [Fact]
+    public async Task RenameInstanceAsyncRejectsDuplicateVersionIdentity()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "first");
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "second");
+        await repository.SaveAllAsync(
+        [
+            CreateStoredInstance("first"),
+            CreateStoredInstance("second")
+        ]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        await Assert.ThrowsAsync<DuplicateGameInstanceNameException>(() =>
+            service.RenameInstanceAsync("first", "second", null));
+
+        Assert.True(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "first")));
+        Assert.True(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "second")));
     }
 
     private static async Task CreateInstalledVersionAsync(

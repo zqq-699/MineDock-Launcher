@@ -56,7 +56,8 @@ public sealed partial class MainViewModel : ObservableObject
         HomePage = homePageFactory.Create(
             AccountPage,
             percent => ProgressPercent = percent,
-            instance => GameManagement.SelectLaunchInstanceAsync(instance));
+            instance => GameManagement.SelectLaunchInstanceAsync(instance),
+            OpenGameSettingsForInstanceAsync);
 
         statusService.MessageReported += message => StatusMessage = message;
         DownloadPage.InstanceInstalled += DownloadPage_InstanceInstalled;
@@ -328,6 +329,14 @@ public sealed partial class MainViewModel : ObservableObject
         var accountItem = NavigationItems.FirstOrDefault(item => item.Page == NavigationCatalog.AccountPage);
         if (accountItem is not null)
             accountItem.AvatarUrl = AccountPage.SelectedAccount?.AvatarUrl;
+    }
+
+    private async Task OpenGameSettingsForInstanceAsync(GameInstance? instance)
+    {
+        await GameSettingsPage.OpenInstanceDetailsAsync(instance);
+        CurrentPage = NavigationCatalog.GameSettingsPage;
+        UpdateSecondaryItems();
+        UpdateNavigationSelection();
     }
 }
 

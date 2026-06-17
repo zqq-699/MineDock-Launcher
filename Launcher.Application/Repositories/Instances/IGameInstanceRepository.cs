@@ -21,4 +21,10 @@ public interface IGameInstanceRepository
     void CreateInstanceDirectories(string directory);
 
     void DeleteVersionDirectory(string minecraftDirectory, string versionName);
+
+    Task RenameVersionAsync(
+        string minecraftDirectory,
+        string oldVersionName,
+        string newVersionName,
+        CancellationToken cancellationToken = default);
 }

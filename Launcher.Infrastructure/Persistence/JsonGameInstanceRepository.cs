@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Launcher.Application.Repositories;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
@@ -10,6 +11,8 @@ namespace Launcher.Infrastructure.Persistence;
 public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private const string LauncherDirectoryName = ".launcher";
+    private const string InstanceSettingsFileName = "instance-settings.json";
     private readonly ISettingsService settingsService;
     private readonly SemaphoreSlim ioLock = new(1, 1);
 
@@ -20,16 +23,11 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 
     public async Task<IReadOnlyList<GameInstance>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        var path = await GetInstancesPathAsync(cancellationToken);
+        var settings = await settingsService.LoadAsync(cancellationToken);
         await ioLock.WaitAsync(cancellationToken);
         try
         {
-            if (!File.Exists(path))
-                return [];
-
-            await using var stream = File.OpenRead(path);
-            var instances = await JsonSerializer.DeserializeAsync<List<GameInstance>>(stream, JsonOptions, cancellationToken);
-            return instances ?? [];
+            return await ReadPerInstanceSettingsAsync(settings.MinecraftDirectory, cancellationToken);
         }
         finally
         {
@@ -39,13 +37,38 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 
     public async Task SaveAllAsync(IReadOnlyCollection<GameInstance> instances, CancellationToken cancellationToken = default)
     {
-        var path = await GetInstancesPathAsync(cancellationToken);
+        var settings = await settingsService.LoadAsync(cancellationToken);
         await ioLock.WaitAsync(cancellationToken);
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            await using var stream = File.Create(path);
-            await JsonSerializer.SerializeAsync(stream, instances, JsonOptions, cancellationToken);
+            var persistedSettingsPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var persistedVersionNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var instance in instances)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var versionName = GetVersionName(instance);
+                if (string.IsNullOrWhiteSpace(versionName))
+                    continue;
+
+                if (!persistedVersionNames.Add(versionName))
+                    continue;
+
+                var versionDirectory = ResolveVersionDirectory(settings.MinecraftDirectory, instance, versionName);
+                if (!Directory.Exists(versionDirectory))
+                    continue;
+
+                var settingsPath = GetInstanceSettingsPath(versionDirectory);
+                Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+
+                await using var stream = File.Create(settingsPath);
+                var snapshot = CreateStorageSnapshot(instance, versionDirectory, versionName);
+                await JsonSerializer.SerializeAsync(stream, snapshot, JsonOptions, cancellationToken);
+                persistedSettingsPaths.Add(Path.GetFullPath(settingsPath));
+            }
+
+            CleanupOrphanedInstanceSettingsFiles(settings.MinecraftDirectory, persistedSettingsPaths);
         }
         finally
         {
@@ -136,10 +159,267 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             Directory.Delete(versionDirectory, recursive: true);
     }
 
-    private async Task<string> GetInstancesPathAsync(CancellationToken cancellationToken)
+    public async Task RenameVersionAsync(
+        string minecraftDirectory,
+        string oldVersionName,
+        string newVersionName,
+        CancellationToken cancellationToken = default)
     {
-        var settings = await settingsService.LoadAsync(cancellationToken);
-        return Path.Combine(settings.DataDirectory, "instances.json");
+        if (string.IsNullOrWhiteSpace(oldVersionName)
+            || string.IsNullOrWhiteSpace(newVersionName)
+            || string.Equals(oldVersionName, newVersionName, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
+        var sourceDirectory = Path.Combine(versionsDirectory, oldVersionName);
+        var destinationDirectory = Path.Combine(versionsDirectory, newVersionName);
+        var stagingDirectory = Path.Combine(versionsDirectory, $".launcher-rename-{Guid.NewGuid():N}");
+        var backupDirectory = Path.Combine(versionsDirectory, $".launcher-backup-{Guid.NewGuid():N}");
+        var sourceJsonPath = Path.Combine(sourceDirectory, $"{oldVersionName}.json");
+
+        if (!Directory.Exists(sourceDirectory))
+            throw new DirectoryNotFoundException($"Version directory not found: {sourceDirectory}");
+
+        if (!File.Exists(sourceJsonPath))
+            throw new FileNotFoundException($"Version JSON not found: {sourceJsonPath}", sourceJsonPath);
+
+        if (Directory.Exists(destinationDirectory))
+            throw new IOException($"Version directory already exists: {destinationDirectory}");
+
+        var versionJson = await ReadVersionJsonAsync(sourceJsonPath, cancellationToken);
+        RewriteVersionIdentity(versionJson, oldVersionName, newVersionName);
+
+        try
+        {
+            await CopyVersionDirectoryAsync(
+                sourceDirectory,
+                stagingDirectory,
+                oldVersionName,
+                newVersionName,
+                versionJson,
+                cancellationToken);
+
+            Directory.Move(sourceDirectory, backupDirectory);
+
+            try
+            {
+                Directory.Move(stagingDirectory, destinationDirectory);
+                Directory.Delete(backupDirectory, recursive: true);
+            }
+            catch
+            {
+                if (Directory.Exists(destinationDirectory))
+                    Directory.Delete(destinationDirectory, recursive: true);
+
+                if (Directory.Exists(backupDirectory) && !Directory.Exists(sourceDirectory))
+                    Directory.Move(backupDirectory, sourceDirectory);
+
+                throw;
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(stagingDirectory))
+                Directory.Delete(stagingDirectory, recursive: true);
+        }
+    }
+
+    private static string GetInstanceSettingsPath(string versionDirectory)
+    {
+        return Path.Combine(versionDirectory, LauncherDirectoryName, InstanceSettingsFileName);
+    }
+
+    private static string ResolveVersionDirectory(string minecraftDirectory, GameInstance instance, string versionName)
+    {
+        return Path.Combine(minecraftDirectory, "versions", versionName);
+    }
+
+    private static async Task<List<GameInstance>> ReadPerInstanceSettingsAsync(
+        string minecraftDirectory,
+        CancellationToken cancellationToken)
+    {
+        var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
+        if (!Directory.Exists(versionsDirectory))
+            return [];
+
+        var storedInstances = new List<GameInstance>();
+        foreach (var versionDirectory in EnumerateDirectories(versionsDirectory))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var settingsPath = GetInstanceSettingsPath(versionDirectory);
+            if (!File.Exists(settingsPath))
+                continue;
+
+            var instance = await TryReadInstanceSettingsAsync(settingsPath, cancellationToken);
+            if (instance is null)
+                continue;
+
+            var versionName = Path.GetFileName(versionDirectory);
+            if (string.IsNullOrWhiteSpace(instance.VersionName))
+                instance.VersionName = versionName;
+
+            instance.InstanceDirectory = versionDirectory;
+            storedInstances.Add(instance);
+        }
+
+        return storedInstances;
+    }
+
+    private static async Task<GameInstance?> TryReadInstanceSettingsAsync(
+        string settingsPath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var stream = File.OpenRead(settingsPath);
+            return await JsonSerializer.DeserializeAsync<GameInstance>(stream, JsonOptions, cancellationToken);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static GameInstance CreateStorageSnapshot(GameInstance instance, string versionDirectory, string versionName)
+    {
+        return new GameInstance
+        {
+            Id = instance.Id,
+            Name = instance.Name,
+            MinecraftVersion = instance.MinecraftVersion,
+            Loader = instance.Loader,
+            LoaderVersion = instance.LoaderVersion,
+            VersionName = versionName,
+            VersionType = instance.VersionType,
+            Description = instance.Description,
+            IconSource = instance.IconSource,
+            InstanceDirectory = versionDirectory,
+            JavaPath = instance.JavaPath,
+            MemoryMb = instance.MemoryMb,
+            WindowWidth = instance.WindowWidth,
+            WindowHeight = instance.WindowHeight,
+            JvmArguments = instance.JvmArguments,
+            LaunchSettingsMode = instance.LaunchSettingsMode,
+            CheckFilesBeforeLaunch = instance.CheckFilesBeforeLaunch,
+            AutoRepairMissingFiles = instance.AutoRepairMissingFiles,
+            MinimizeLauncherAfterLaunch = instance.MinimizeLauncherAfterLaunch,
+            CreatedAt = instance.CreatedAt,
+            UpdatedAt = instance.UpdatedAt
+        };
+    }
+
+    private static void CleanupOrphanedInstanceSettingsFiles(
+        string minecraftDirectory,
+        IReadOnlySet<string> persistedSettingsPaths)
+    {
+        var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
+        if (!Directory.Exists(versionsDirectory))
+            return;
+
+        foreach (var versionDirectory in EnumerateDirectories(versionsDirectory))
+        {
+            var settingsPath = GetInstanceSettingsPath(versionDirectory);
+            if (!File.Exists(settingsPath))
+                continue;
+
+            var fullSettingsPath = Path.GetFullPath(settingsPath);
+            if (persistedSettingsPaths.Contains(fullSettingsPath))
+                continue;
+
+            try
+            {
+                File.Delete(fullSettingsPath);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    private static async Task<JsonObject> ReadVersionJsonAsync(string versionJsonPath, CancellationToken cancellationToken)
+    {
+        await using var stream = File.OpenRead(versionJsonPath);
+        var jsonNode = await JsonNode.ParseAsync(stream, cancellationToken: cancellationToken)
+            ?? throw new InvalidDataException($"Version JSON is empty: {versionJsonPath}");
+        return jsonNode.AsObject();
+    }
+
+    private static void RewriteVersionIdentity(JsonObject versionObject, string oldVersionName, string newVersionName)
+    {
+        versionObject["id"] = newVersionName;
+
+        if (versionObject["jar"] is JsonValue jarValue
+            && string.Equals(jarValue.ToString(), oldVersionName, StringComparison.OrdinalIgnoreCase))
+        {
+            versionObject["jar"] = newVersionName;
+        }
+    }
+
+    private static async Task CopyVersionDirectoryAsync(
+        string sourceDirectory,
+        string stagingDirectory,
+        string oldVersionName,
+        string newVersionName,
+        JsonObject rewrittenVersionJson,
+        CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(stagingDirectory);
+
+        try
+        {
+            foreach (var sourceFilePath in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var relativePath = Path.GetRelativePath(sourceDirectory, sourceFilePath);
+                var destinationRelativePath = RewriteTopLevelVersionFileName(relativePath, oldVersionName, newVersionName);
+                var destinationPath = Path.Combine(stagingDirectory, destinationRelativePath);
+                Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+
+                if (string.Equals(relativePath, $"{oldVersionName}.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    await File.WriteAllTextAsync(
+                        destinationPath,
+                        rewrittenVersionJson.ToJsonString(JsonOptions),
+                        cancellationToken);
+                    continue;
+                }
+
+                File.Copy(sourceFilePath, destinationPath, overwrite: false);
+            }
+        }
+        catch
+        {
+            if (Directory.Exists(stagingDirectory))
+                Directory.Delete(stagingDirectory, recursive: true);
+
+            throw;
+        }
+    }
+
+    private static string RewriteTopLevelVersionFileName(string relativePath, string oldVersionName, string newVersionName)
+    {
+        if (string.Equals(relativePath, $"{oldVersionName}.json", StringComparison.OrdinalIgnoreCase))
+            return $"{newVersionName}.json";
+
+        if (string.Equals(relativePath, $"{oldVersionName}.jar", StringComparison.OrdinalIgnoreCase))
+            return $"{newVersionName}.jar";
+
+        return relativePath;
     }
 
     private static string GetVersionName(GameInstance instance)
@@ -263,7 +543,7 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
     {
         foreach (var libraryName in metadata.LibraryNames)
         {
-            var loader = ResolveLoaderFromText(libraryName, allowLooseMatch: false);
+            var loader = ResolveLoaderFromLibraryName(libraryName);
             if (loader.Kind is not LoaderKind.Vanilla)
                 return loader;
         }
@@ -273,30 +553,69 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             allowLooseMatch: true);
     }
 
+    private static LoaderInfo ResolveLoaderFromLibraryName(string value)
+    {
+        var parts = value.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length < 3)
+            return ResolveLoaderFromText(value, allowLooseMatch: false);
+
+        var group = parts[0];
+        var artifact = parts[1];
+        var version = parts[2];
+
+        if (group.Equals("net.neoforged", StringComparison.OrdinalIgnoreCase)
+            && artifact.Equals("neoforge", StringComparison.OrdinalIgnoreCase))
+        {
+            return new LoaderInfo(LoaderKind.NeoForge, version);
+        }
+
+        if (group.Equals("org.quiltmc", StringComparison.OrdinalIgnoreCase)
+            && artifact.Equals("quilt-loader", StringComparison.OrdinalIgnoreCase))
+        {
+            return new LoaderInfo(LoaderKind.Quilt, version);
+        }
+
+        if (group.Equals("net.fabricmc", StringComparison.OrdinalIgnoreCase)
+            && artifact.Equals("fabric-loader", StringComparison.OrdinalIgnoreCase))
+        {
+            return new LoaderInfo(LoaderKind.Fabric, version);
+        }
+
+        if (group.Equals("net.minecraftforge", StringComparison.OrdinalIgnoreCase)
+            && artifact.Equals("forge", StringComparison.OrdinalIgnoreCase))
+        {
+            return new LoaderInfo(LoaderKind.Forge, TryReadForgeVersion(version));
+        }
+
+        return new LoaderInfo(LoaderKind.Vanilla, null);
+    }
+
     private static LoaderInfo ResolveLoaderFromText(string value, bool allowLooseMatch)
     {
         var normalized = value.ToLowerInvariant();
-        if (normalized.Contains("net.neoforged", StringComparison.Ordinal)
+        if (normalized.Contains("net.neoforged:neoforge", StringComparison.Ordinal)
+            || normalized.Contains(" neoforge-", StringComparison.Ordinal)
+            || normalized.StartsWith("neoforge-", StringComparison.Ordinal)
             || (allowLooseMatch && normalized.Contains("neoforge", StringComparison.Ordinal)))
         {
             return new LoaderInfo(LoaderKind.NeoForge, TryReadMavenVersion(value));
         }
 
-        if (normalized.Contains("org.quiltmc", StringComparison.Ordinal)
+        if (normalized.Contains("org.quiltmc:quilt-loader", StringComparison.Ordinal)
             || normalized.Contains("quilt-loader", StringComparison.Ordinal)
             || (allowLooseMatch && normalized.Contains("quilt", StringComparison.Ordinal)))
         {
             return new LoaderInfo(LoaderKind.Quilt, TryReadMavenVersion(value));
         }
 
-        if (normalized.Contains("net.fabricmc", StringComparison.Ordinal)
+        if (normalized.Contains("net.fabricmc:fabric-loader", StringComparison.Ordinal)
             || normalized.Contains("fabric-loader", StringComparison.Ordinal)
             || (allowLooseMatch && normalized.Contains("fabric", StringComparison.Ordinal)))
         {
             return new LoaderInfo(LoaderKind.Fabric, TryReadMavenVersion(value));
         }
 
-        if (normalized.Contains("net.minecraftforge", StringComparison.Ordinal)
+        if (normalized.Contains("net.minecraftforge:forge", StringComparison.Ordinal)
             || (allowLooseMatch && normalized.Contains("forge", StringComparison.Ordinal)))
         {
             return new LoaderInfo(LoaderKind.Forge, TryReadMavenVersion(value));

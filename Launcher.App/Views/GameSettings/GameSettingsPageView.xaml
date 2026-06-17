@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
+             xmlns:dialogViews="clr-namespace:Launcher.App.Views.GameSettings.Dialogs"
              xmlns:views="clr-namespace:Launcher.App.Views.GameSettings"
              xmlns:res="clr-namespace:Launcher.App.Resources"
              x:Name="Root"
@@ -10,30 +11,68 @@
     <Grid x:Name="PageRoot">
         <controls:SecondaryMenuFrame Title="{x:Static res:Strings.Nav_GameInstanceList}">
             <controls:SecondaryMenuFrame.MenuContent>
-                <ItemsControl ItemsSource="{Binding InstanceCategories}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
+                <Grid Tag="SecondaryMenuStepHost"
+                      ClipToBounds="True">
+                    <Grid.Resources>
+                        <DataTemplate x:Key="SecondaryMenuItemTemplate">
                             <controls:SecondaryMenuOptionButton Text="{Binding Title}"
                                                                 IconMode="{Binding IconMode}"
                                                                 IconKey="{Binding IconKey}"
                                                                 Glyph="{Binding Icon}"
                                                                 IsSelected="{Binding IsSelected}"
-                                                                Command="{Binding DataContext.SelectInstanceCategoryCommand, RelativeSource={RelativeSource AncestorType={x:Type views:GameSettingsPageView}}}"
+                                                                Command="{Binding DataContext.SelectSecondaryMenuItemCommand, RelativeSource={RelativeSource AncestorType={x:Type views:GameSettingsPageView}}}"
                                                                 CommandParameter="{Binding}" />
                         </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                    </Grid.Resources>
+
+                    <ItemsControl Tag="InstanceCategoryMenuLayer"
+                                  ItemsSource="{Binding InstanceCategories}">
+                        <ItemsControl.RenderTransform>
+                            <TranslateTransform />
+                        </ItemsControl.RenderTransform>
+                        <ItemsControl.ItemTemplate>
+                            <StaticResource ResourceKey="SecondaryMenuItemTemplate" />
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <ItemsControl Tag="DetailsSectionMenuLayer"
+                                  ItemsSource="{Binding DetailSections}"
+                                  Opacity="0"
+                                  Visibility="Collapsed">
+                        <ItemsControl.RenderTransform>
+                            <TranslateTransform />
+                        </ItemsControl.RenderTransform>
+                        <ItemsControl.ItemTemplate>
+                            <StaticResource ResourceKey="SecondaryMenuItemTemplate" />
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
             </controls:SecondaryMenuFrame.MenuContent>
         </controls:SecondaryMenuFrame>
 
-        <controls:ListPageFrame Margin="284,36,24,8"
+        <controls:ListPageFrame x:Name="GameSettingsListFrame"
+                                Margin="284,36,24,8"
                                 Title="{Binding PageTitle}"
+                                TitleIconSource="{Binding PageTitleIconSource}"
+                                IsHeaderBackButtonVisible="{Binding IsDetailsStep}"
+                                HeaderBackCommand="{Binding BackToInstanceListCommand}"
                                 SearchText="{Binding InstanceSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                IsSearchVisible="True"
+                                IsSearchVisible="{Binding IsListStep}"
                                 IsListVisible="True"
                                 UseFrameScrollViewer="False">
             <controls:ListPageFrame.OverlayContent>
                 <Grid>
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsDetailsStep}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+
                     <TextBlock Margin="0,122,0,0"
                                Text="{Binding InstanceLoadError}">
                         <TextBlock.Style>
@@ -66,95 +105,122 @@
             </controls:ListPageFrame.OverlayContent>
 
             <controls:ListPageFrame.ListContent>
-                <ListBox ItemsSource="{Binding VisibleInstances}"
-                         SelectedItem="{Binding SelectedInstance, Mode=OneWay}"
-                         ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
-                         Style="{StaticResource ListPageVirtualizedListBoxStyle}"
-                         behaviors:VirtualizedListItemStateBehavior.IsEnabled="True"
-                         behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding ListEntranceAnimationToken}"
-                         behaviors:VirtualizedListItemStateBehavior.ContentTopOffset="132"
-                         VirtualizingPanel.IsVirtualizing="True"
-                         VirtualizingPanel.VirtualizationMode="Recycling"
-                         VirtualizingPanel.ScrollUnit="Pixel"
-                         ScrollViewer.CanContentScroll="True">
-                    <ListBox.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <VirtualizingStackPanel Margin="0,132,0,64"
-                                                    VirtualizingPanel.IsVirtualizing="True"
-                                                    VirtualizingPanel.VirtualizationMode="Recycling"
-                                                    VirtualizingPanel.ScrollUnit="Pixel" />
-                        </ItemsPanelTemplate>
-                    </ListBox.ItemsPanel>
+                <Grid Tag="GameSettingsStepHost"
+                      ClipToBounds="True">
+                    <Grid Tag="InstanceListStep">
+                        <Grid.RenderTransform>
+                            <TranslateTransform />
+                        </Grid.RenderTransform>
 
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <controls:ListPageItemButton Title="{Binding Name}"
-                                                         Subtitle="{Binding Subtitle}"
-                                                         TrailingText="{Binding UpdatedDateText}"
-                                                         IconSource="{Binding IconSource}"
-                                                         IsSelected="{Binding IsSelected}"
-                                                         IsFirstVisible="{Binding Tag.IsFirstVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
-                                                         IsLastVisible="{Binding Tag.IsLastVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
-                                                         IsPreviousItemHighlighted="{Binding Tag.IsPreviousItemHighlighted, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
-                                                         ShouldPlayEnterAnimation="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}, Mode=TwoWay}"
-                                                         EnterAnimationIndex="{Binding Tag.EnterAnimationIndex, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
-                                                         Command="{Binding DataContext.SelectInstanceCommand, RelativeSource={RelativeSource AncestorType={x:Type views:GameSettingsPageView}}}"
-                                                         CommandParameter="{Binding}">
-                                <controls:ListPageItemButton.TrailingContent>
-                                    <StackPanel Orientation="Horizontal">
-                                        <Button Style="{StaticResource InlineIconButtonStyle}"
-                                                ToolTip="{x:Static res:Strings.GameSettings_SelectInstanceAndGoHomeTooltip}"
-                                                Command="{Binding DataContext.SelectInstanceAndGoHomeCommand, RelativeSource={RelativeSource AncestorType={x:Type views:GameSettingsPageView}}}"
-                                                CommandParameter="{Binding}">
-                                            <controls:SvgIcon Width="16"
-                                                              Height="16"
-                                                              IconKey="main_menu_launch"
-                                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
-                                        </Button>
+                        <ListBox ItemsSource="{Binding VisibleInstances}"
+                                 SelectedItem="{Binding SelectedInstance, Mode=OneWay}"
+                                 ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
+                                 Style="{StaticResource ListPageVirtualizedListBoxStyle}"
+                                 behaviors:VirtualizedListItemStateBehavior.IsEnabled="True"
+                                 behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding ListEntranceAnimationToken}"
+                                 behaviors:VirtualizedListItemStateBehavior.ContentTopOffset="132"
+                                 VirtualizingPanel.IsVirtualizing="True"
+                                 VirtualizingPanel.VirtualizationMode="Recycling"
+                                 VirtualizingPanel.ScrollUnit="Pixel"
+                                 ScrollViewer.CanContentScroll="True">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel Margin="0,132,0,64"
+                                                            VirtualizingPanel.IsVirtualizing="True"
+                                                            VirtualizingPanel.VirtualizationMode="Recycling"
+                                                            VirtualizingPanel.ScrollUnit="Pixel" />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
 
-                                        <Button Margin="4,0,0,0"
-                                                Style="{StaticResource InlineIconButtonStyle}"
-                                                ToolTip="{x:Static res:Strings.GameSettings_OpenInstanceFolderTooltip}"
-                                                Command="{Binding DataContext.OpenInstanceFolderCommand, RelativeSource={RelativeSource AncestorType={x:Type views:GameSettingsPageView}}}"
-                                                CommandParameter="{Binding}">
-                                            <controls:SvgIcon Width="16"
-                                                              Height="16"
-                                                              IconKey="general/general_folder"
-                                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
-                                        </Button>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <controls:ListPageItemButton Title="{Binding Name}"
+                                                                 Subtitle="{Binding Subtitle}"
+                                                                 TrailingText="{Binding UpdatedDateText}"
+                                                                 IconSource="{Binding IconSource}"
+                                                                 IsSelected="{Binding IsSelected}"
+                                                                 IsFirstVisible="{Binding Tag.IsFirstVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                                                 IsLastVisible="{Binding Tag.IsLastVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                                                 IsPreviousItemHighlighted="{Binding Tag.IsPreviousItemHighlighted, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                                                 ShouldPlayEnterAnimation="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}, Mode=TwoWay}"
+                                                                 EnterAnimationIndex="{Binding Tag.EnterAnimationIndex, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                                                 Command="{Binding DataContext.SelectInstanceCommand, RelativeSource={RelativeSource AncestorType={x:Type views:GameSettingsPageView}}}"
+                                                                 CommandParameter="{Binding}">
+                                        <controls:ListPageItemButton.TrailingContent>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Style="{StaticResource InlineIconButtonStyle}"
+                                                        ToolTip="{x:Static res:Strings.GameSettings_SelectInstanceAndGoHomeTooltip}"
+                                                        Command="{Binding DataContext.SelectInstanceAndGoHomeCommand, RelativeSource={RelativeSource AncestorType={x:Type views:GameSettingsPageView}}}"
+                                                        CommandParameter="{Binding}">
+                                                    <controls:SvgIcon Width="16"
+                                                                      Height="16"
+                                                                      IconKey="main_menu_launch"
+                                                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                                                </Button>
 
-                                        <Button Margin="4,0,0,0"
-                                                Style="{StaticResource SecondaryMenuDeleteButtonStyle}"
-                                                ToolTip="{x:Static res:Strings.GameSettings_DeleteInstanceTooltip}"
-                                                Command="{Binding DataContext.OpenDeleteInstanceDialogCommand, RelativeSource={RelativeSource AncestorType={x:Type views:GameSettingsPageView}}}"
-                                                CommandParameter="{Binding}">
-                                            <controls:SvgIcon Width="16"
-                                                              Height="16"
-                                                              IconKey="general/general_delete"
-                                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
-                                        </Button>
-                                    </StackPanel>
-                                </controls:ListPageItemButton.TrailingContent>
+                                                <Button Margin="4,0,0,0"
+                                                        Style="{StaticResource InlineIconButtonStyle}"
+                                                        ToolTip="{x:Static res:Strings.GameSettings_OpenInstanceFolderTooltip}"
+                                                        Command="{Binding DataContext.OpenInstanceFolderCommand, RelativeSource={RelativeSource AncestorType={x:Type views:GameSettingsPageView}}}"
+                                                        CommandParameter="{Binding}">
+                                                    <controls:SvgIcon Width="16"
+                                                                      Height="16"
+                                                                      IconKey="general/general_folder"
+                                                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                                                </Button>
 
-                                <controls:ListPageItemButton.Style>
-                                    <Style TargetType="{x:Type controls:ListPageItemButton}">
-                                        <Setter Property="Opacity" Value="0" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="True">
-                                                <Setter Property="Opacity" Value="1" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="False">
-                                                <Setter Property="Opacity" Value="1" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </controls:ListPageItemButton.Style>
-                            </controls:ListPageItemButton>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                                                <Button Margin="4,0,0,0"
+                                                        Style="{StaticResource SecondaryMenuDeleteButtonStyle}"
+                                                        ToolTip="{x:Static res:Strings.GameSettings_DeleteInstanceTooltip}"
+                                                        Command="{Binding DataContext.OpenDeleteInstanceDialogCommand, RelativeSource={RelativeSource AncestorType={x:Type views:GameSettingsPageView}}}"
+                                                        CommandParameter="{Binding}">
+                                                    <controls:SvgIcon Width="16"
+                                                                      Height="16"
+                                                                      IconKey="general/general_delete"
+                                                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                                                </Button>
+                                            </StackPanel>
+                                        </controls:ListPageItemButton.TrailingContent>
+
+                                        <controls:ListPageItemButton.Style>
+                                            <Style TargetType="{x:Type controls:ListPageItemButton}">
+                                                <Setter Property="Opacity" Value="0" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="True">
+                                                        <Setter Property="Opacity" Value="1" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="False">
+                                                        <Setter Property="Opacity" Value="1" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </controls:ListPageItemButton.Style>
+                                    </controls:ListPageItemButton>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+
+                    <Grid Tag="InstanceDetailsStep"
+                          Opacity="0"
+                          Visibility="Collapsed">
+                        <Grid.RenderTransform>
+                            <TranslateTransform />
+                        </Grid.RenderTransform>
+
+                        <views:GameSettingsDetailsView DataContext="{Binding Details}" />
+                    </Grid>
+                </Grid>
             </controls:ListPageFrame.ListContent>
         </controls:ListPageFrame>
+
+        <controls:DialogHost x:Name="RenameInstanceDialogHost"
+                             DialogWidth="420"
+                             IsOpen="{Binding EditDialog.IsEditInstanceDialogOpen}"
+                             UseIntegratedOverlay="True"
+                             Panel.ZIndex="11">
+            <dialogViews:RenameInstanceDialogView />
+        </controls:DialogHost>
 
         <controls:DialogHost x:Name="DeleteInstanceDialogHost"
                              DialogWidth="380"
