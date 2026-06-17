@@ -16,23 +16,30 @@ public sealed partial class HomePageViewModel : ObservableObject
     private readonly ILaunchService launchService;
     private readonly AccountPageViewModel accountPage;
     private readonly IStatusService statusService;
-    private readonly Action<string> navigateToPage;
     private readonly Action<double> reportProgressPercent;
     private LauncherSettings settings = new();
+    private CancellationTokenSource? launchCancellationTokenSource;
+
+    [ObservableProperty]
+    private bool isLaunching;
+
+    [ObservableProperty]
+    private string launchStatusMessage = string.Empty;
+
+    [ObservableProperty]
+    private double launchProgressPercent;
 
     public HomePageViewModel(
         ILaunchService launchService,
         IGameVersionService gameVersionService,
         AccountPageViewModel accountPage,
         IStatusService statusService,
-        Action<string> navigateToPage,
         Action<double> reportProgressPercent,
         Func<GameInstance, Task<bool>> selectLaunchInstance)
     {
         this.launchService = launchService;
         this.accountPage = accountPage;
         this.statusService = statusService;
-        this.navigateToPage = navigateToPage;
         this.reportProgressPercent = reportProgressPercent;
 
         LaunchGames = new HomeLaunchGameListViewModel(gameVersionService, statusService, selectLaunchInstance);
@@ -51,7 +58,9 @@ public sealed partial class HomePageViewModel : ObservableObject
 
     public GameInstance? SelectedInstance => LaunchGames.SelectedInstance;
 
-    public bool CanLaunchSelectedGame => HasSelectedAccount && SelectedInstance is not null;
+    public bool CanLaunchSelectedGame => HasSelectedAccount && SelectedInstance is not null && !IsLaunching;
+
+    public bool HasLaunchProgress => IsLaunching && !string.IsNullOrWhiteSpace(LaunchStatusMessage);
 
     public ObservableCollection<HomeLaunchInstanceItem> LaunchInstances => LaunchGames.LaunchInstances;
 
@@ -144,31 +153,75 @@ public sealed partial class HomePageViewModel : ObservableObject
 
         try
         {
-            await launchService.LaunchAsync(SelectedInstance, account, settings, CreateProgress());
+            var cancellationTokenSource = BeginLaunchProgress();
+            await launchService.LaunchAsync(
+                SelectedInstance,
+                account,
+                settings,
+                CreateProgress(),
+                cancellationTokenSource.Token);
+        }
+        catch (OperationCanceledException) when (launchCancellationTokenSource?.IsCancellationRequested == true)
+        {
+            statusService.Report(Strings.Status_LaunchCanceled);
         }
         catch (LaunchAccountSessionException)
         {
             statusService.Report(Strings.Status_LaunchAccountUnavailable);
         }
+        catch (LaunchProcessExitedException)
+        {
+            statusService.Report(Strings.Status_LaunchExitedQuickly);
+        }
+        catch (InstanceRepairException)
+        {
+            statusService.Report(Strings.Status_LaunchInstanceRepairFailed);
+        }
         catch (Exception)
         {
             statusService.Report(Strings.Status_LaunchFailed);
         }
+        finally
+        {
+            ResetLaunchProgress();
+        }
     }
 
-    [RelayCommand]
-    private void ChangeHomeVersion()
+    [RelayCommand(CanExecute = nameof(IsLaunching))]
+    private void CancelLaunch()
     {
-        navigateToPage(NavigationCatalog.GameSettingsPage);
+        launchCancellationTokenSource?.Cancel();
     }
 
     private IProgress<LauncherProgress> CreateProgress()
     {
         return new Progress<LauncherProgress>(progress =>
         {
-            statusService.Report(progress.Message);
-            reportProgressPercent(progress.Percent ?? 0);
+            if (!IsLaunching)
+                return;
+
+            var message = FormatLaunchProgress(progress);
+            LaunchStatusMessage = message;
+
+            if (progress.Percent is double percent)
+                LaunchProgressPercent = Math.Clamp(percent, 0, 100);
+
+            statusService.Report(message);
+            reportProgressPercent(LaunchProgressPercent);
         });
+    }
+
+    partial void OnIsLaunchingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanLaunchSelectedGame));
+        OnPropertyChanged(nameof(HasLaunchProgress));
+        LaunchCommand.NotifyCanExecuteChanged();
+        CancelLaunchCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnLaunchStatusMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasLaunchProgress));
     }
 
     private void LaunchGames_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -208,6 +261,48 @@ public sealed partial class HomePageViewModel : ObservableObject
         OnPropertyChanged(nameof(HomeVersionDisplayName));
         OnPropertyChanged(nameof(CanLaunchSelectedGame));
         LaunchCommand.NotifyCanExecuteChanged();
+    }
+
+    private CancellationTokenSource BeginLaunchProgress()
+    {
+        launchCancellationTokenSource?.Dispose();
+        launchCancellationTokenSource = new CancellationTokenSource();
+        IsLaunching = true;
+        LaunchProgressPercent = 0;
+        LaunchStatusMessage = Strings.Status_LaunchPreparing;
+        statusService.Report(LaunchStatusMessage);
+        reportProgressPercent(LaunchProgressPercent);
+        return launchCancellationTokenSource;
+    }
+
+    private void ResetLaunchProgress()
+    {
+        launchCancellationTokenSource?.Dispose();
+        launchCancellationTokenSource = null;
+        LaunchProgressPercent = 0;
+        reportProgressPercent(0);
+        LaunchStatusMessage = string.Empty;
+        IsLaunching = false;
+    }
+
+    private static string FormatLaunchProgress(LauncherProgress progress)
+    {
+        return progress.Stage switch
+        {
+            LaunchProgressStages.CheckingInstance => Strings.Status_LaunchCheckingInstance,
+            LaunchProgressStages.RepairingMetadata => Strings.Status_LaunchRepairingMetadata,
+            LaunchProgressStages.RepairingJar => Strings.Status_LaunchRepairingJar,
+            LaunchProgressStages.RepairingLibraries => Strings.Status_LaunchRepairingLibraries,
+            LaunchProgressStages.RepairingAssets => Strings.Status_LaunchRepairingAssets,
+            LaunchProgressStages.RepairingLogging => Strings.Status_LaunchRepairingLogging,
+            LaunchProgressStages.CheckingJava => Strings.Status_LaunchCheckingJava,
+            LaunchProgressStages.PreparingProcess => Strings.Status_LaunchPreparingProcess,
+            LaunchProgressStages.StartingProcess => Strings.Status_LaunchStartingProcess,
+            LaunchProgressStages.CheckingFiles => Strings.Status_LaunchCheckingFiles,
+            LaunchProgressStages.DownloadingFiles or LaunchProgressStages.DownloadSpeed => Strings.Status_LaunchDownloadingFiles,
+            _ when !string.IsNullOrWhiteSpace(progress.Message) => progress.Message,
+            _ => Strings.Status_LaunchPreparing
+        };
     }
 }
 

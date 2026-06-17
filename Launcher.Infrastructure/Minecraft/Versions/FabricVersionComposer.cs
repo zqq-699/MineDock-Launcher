@@ -26,7 +26,7 @@ internal static class FabricVersionComposer
 
         var baseVersionJson = await DownloadBaseVersionJsonAsync(httpClient, minecraftVersion, cancellationToken);
         var fabricProfileJson = await DownloadFabricProfileJsonAsync(httpClient, minecraftVersion, loaderVersion, cancellationToken);
-        var finalVersionJson = BuildFinalVersionJson(baseVersionJson, fabricProfileJson, finalVersionName);
+        var finalVersionJson = BuildFinalVersionJson(baseVersionJson, fabricProfileJson, finalVersionName, minecraftVersion);
 
         Directory.CreateDirectory(finalVersionDirectory);
 
@@ -53,43 +53,14 @@ internal static class FabricVersionComposer
     internal static JsonObject BuildFinalVersionJson(
         JsonObject baseVersionJson,
         JsonObject fabricProfileJson,
-        string finalVersionName)
+        string finalVersionName,
+        string minecraftVersion)
     {
-        var mergedVersion = (JsonObject)baseVersionJson.DeepClone();
-
-        foreach (var property in fabricProfileJson)
-        {
-            switch (property.Key)
-            {
-                case "id":
-                case "inheritsFrom":
-                case "jar":
-                    continue;
-                case "libraries":
-                    mergedVersion["libraries"] = MergeLibraries(
-                        mergedVersion["libraries"] as JsonArray,
-                        property.Value as JsonArray);
-                    break;
-                case "arguments":
-                    mergedVersion["arguments"] = MergeArguments(
-                        mergedVersion["arguments"] as JsonObject,
-                        property.Value as JsonObject);
-                    break;
-                case "minecraftArguments":
-                    mergedVersion["minecraftArguments"] = MergeMinecraftArguments(
-                        mergedVersion["minecraftArguments"]?.GetValue<string>(),
-                        property.Value?.GetValue<string>());
-                    break;
-                default:
-                    mergedVersion[property.Key] = property.Value?.DeepClone();
-                    break;
-            }
-        }
-
-        mergedVersion["id"] = finalVersionName;
-        mergedVersion["jar"] = finalVersionName;
-        mergedVersion.Remove("inheritsFrom");
-        return mergedVersion;
+        return VersionJsonMergeHelper.MergeFlattenedVersion(
+            baseVersionJson,
+            fabricProfileJson,
+            finalVersionName,
+            minecraftVersion);
     }
 
     private static async Task<JsonObject> DownloadBaseVersionJsonAsync(
@@ -97,26 +68,10 @@ internal static class FabricVersionComposer
         string minecraftVersion,
         CancellationToken cancellationToken)
     {
-        using var manifestStream = await httpClient.GetStreamAsync(
-            "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
+        return await VanillaVersionMetadataClient.DownloadVersionJsonAsync(
+            httpClient,
+            minecraftVersion,
             cancellationToken);
-        var manifestNode = await JsonNode.ParseAsync(manifestStream, cancellationToken: cancellationToken)
-            ?? throw new InvalidDataException("Minecraft version manifest is empty.");
-
-        var versionEntries = manifestNode["versions"]?.AsArray()
-            ?? throw new InvalidDataException("Minecraft version manifest is missing versions.");
-        var versionUrl = versionEntries
-            .Select(entry => entry?.AsObject())
-            .FirstOrDefault(entry =>
-                string.Equals(entry?["id"]?.GetValue<string>(), minecraftVersion, StringComparison.OrdinalIgnoreCase))?["url"]?.GetValue<string>();
-
-        if (string.IsNullOrWhiteSpace(versionUrl))
-            throw new InvalidOperationException($"Minecraft version metadata not found: {minecraftVersion}");
-
-        using var versionStream = await httpClient.GetStreamAsync(versionUrl, cancellationToken);
-        var versionNode = await JsonNode.ParseAsync(versionStream, cancellationToken: cancellationToken)
-            ?? throw new InvalidDataException($"Minecraft version metadata is empty: {minecraftVersion}");
-        return versionNode.AsObject();
     }
 
     private static async Task<JsonObject> DownloadFabricProfileJsonAsync(
@@ -138,7 +93,7 @@ internal static class FabricVersionComposer
         string destinationJarPath,
         CancellationToken cancellationToken)
     {
-        var clientUrl = baseVersionJson["downloads"]?["client"]?["url"]?.GetValue<string>();
+        var clientUrl = VanillaVersionMetadataClient.GetClientJarUrl(baseVersionJson);
         if (string.IsNullOrWhiteSpace(clientUrl))
             throw new InvalidDataException("Minecraft version metadata is missing downloads.client.url.");
 
@@ -147,79 +102,4 @@ internal static class FabricVersionComposer
         await jarStream.CopyToAsync(destinationStream, cancellationToken);
     }
 
-    private static JsonArray MergeLibraries(JsonArray? baseLibraries, JsonArray? derivedLibraries)
-    {
-        var mergedLibraries = new JsonArray();
-        var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        AppendLibraries(baseLibraries);
-        AppendLibraries(derivedLibraries);
-        return mergedLibraries;
-
-        void AppendLibraries(JsonArray? source)
-        {
-            if (source is null)
-                return;
-
-            foreach (var library in source)
-            {
-                if (library is null)
-                    continue;
-
-                var key = library is JsonObject libraryObject
-                    && libraryObject["name"] is JsonValue libraryNameValue
-                    && libraryNameValue.TryGetValue<string>(out var libraryName)
-                    && !string.IsNullOrWhiteSpace(libraryName)
-                        ? libraryName
-                        : library.ToJsonString();
-
-                if (!seenNames.Add(key))
-                    continue;
-
-                mergedLibraries.Add(library.DeepClone());
-            }
-        }
-    }
-
-    private static JsonObject MergeArguments(JsonObject? baseArguments, JsonObject? derivedArguments)
-    {
-        var mergedArguments = baseArguments is null
-            ? new JsonObject()
-            : (JsonObject)baseArguments.DeepClone();
-
-        if (derivedArguments is null)
-            return mergedArguments;
-
-        foreach (var property in derivedArguments)
-        {
-            if (mergedArguments[property.Key] is JsonArray baseArray
-                && property.Value is JsonArray derivedArray)
-            {
-                var mergedArray = new JsonArray();
-                foreach (var item in baseArray)
-                    mergedArray.Add(item?.DeepClone());
-
-                foreach (var item in derivedArray)
-                    mergedArray.Add(item?.DeepClone());
-
-                mergedArguments[property.Key] = mergedArray;
-                continue;
-            }
-
-            mergedArguments[property.Key] = property.Value?.DeepClone();
-        }
-
-        return mergedArguments;
-    }
-
-    private static string MergeMinecraftArguments(string? baseArguments, string? derivedArguments)
-    {
-        if (string.IsNullOrWhiteSpace(baseArguments))
-            return derivedArguments ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(derivedArguments))
-            return baseArguments;
-
-        return $"{baseArguments} {derivedArguments}";
-    }
 }

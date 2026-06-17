@@ -47,7 +47,10 @@ public sealed partial class HomeLaunchGameListViewModel : ObservableObject
     public void SetLaunchInstances(IEnumerable<GameInstance> instances)
     {
         var selectedInstanceId = SelectedInstance?.Id;
-        LaunchInstances.ReplaceWith(instances.Select(CreateLaunchInstanceItem));
+        LaunchInstances.ReplaceWith(
+            instances
+                .OrderByDescending(instance => instance.CreatedAt)
+                .Select(CreateLaunchInstanceItem));
         UpdateLaunchInstanceSelection(selectedInstanceId);
         NotifyLaunchInstancesChanged();
     }

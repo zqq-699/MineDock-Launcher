@@ -215,8 +215,8 @@
                                         <Style.Triggers>
                                             <MultiDataTrigger>
                                                 <MultiDataTrigger.Conditions>
-                                                    <Condition Binding="{Binding Kind}" Value="{x:Static models:LoaderKind.Fabric}" />
-                                                    <Condition Binding="{Binding DataContext.ShouldShowFabricVersionSelector, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+                                                    <Condition Binding="{Binding IsSelected}" Value="True" />
+                                                    <Condition Binding="{Binding DataContext.ShouldShowLoaderVersionSelector, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
                                                 </MultiDataTrigger.Conditions>
                                                 <Setter Property="Visibility" Value="Visible" />
                                             </MultiDataTrigger>

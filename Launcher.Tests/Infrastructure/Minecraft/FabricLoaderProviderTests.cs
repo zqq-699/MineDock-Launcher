@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http;
+using System.Text.Json;
 using Launcher.Infrastructure.Minecraft;
 using Launcher.Tests.Helpers;
 
@@ -27,6 +28,8 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
         Assert.Equal(["1.20.2"], versionDirectories);
         Assert.True(File.Exists(Path.Combine(versionsDirectory, "1.20.2", "1.20.2.json")));
         Assert.True(File.Exists(Path.Combine(versionsDirectory, "1.20.2", "1.20.2.jar")));
+        using var vanillaJson = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(versionsDirectory, "1.20.2", "1.20.2.json")));
+        Assert.Equal("1.20.2", vanillaJson.RootElement.GetProperty("launcher").GetProperty("minecraftVersion").GetString());
     }
 
     [Fact]
@@ -109,6 +112,8 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
         Assert.Equal(["1.20.2-fabric-0.19.3"], versionDirectories);
         Assert.True(File.Exists(Path.Combine(versionsDirectory, "1.20.2-fabric-0.19.3", "1.20.2-fabric-0.19.3.json")));
         Assert.True(File.Exists(Path.Combine(versionsDirectory, "1.20.2-fabric-0.19.3", "1.20.2-fabric-0.19.3.jar")));
+        using var fabricJson = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(versionsDirectory, "1.20.2-fabric-0.19.3", "1.20.2-fabric-0.19.3.json")));
+        Assert.Equal("1.20.2", fabricJson.RootElement.GetProperty("launcher").GetProperty("minecraftVersion").GetString());
     }
 
     private sealed class NotFoundHandler : HttpMessageHandler

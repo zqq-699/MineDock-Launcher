@@ -55,7 +55,6 @@ public sealed partial class MainViewModel : ObservableObject
         GameManagement = gameManagement;
         HomePage = homePageFactory.Create(
             AccountPage,
-            NavigateToPage,
             percent => ProgressPercent = percent,
             instance => GameManagement.SelectLaunchInstanceAsync(instance));
 
@@ -276,13 +275,6 @@ public sealed partial class MainViewModel : ObservableObject
             CurrentPage);
     }
 
-    private void NavigateToPage(string page)
-    {
-        CurrentPage = page;
-        UpdateSecondaryItems();
-        UpdateNavigationSelection();
-    }
-
     private void GameSettingsPage_LaunchInstanceRequested(GameInstance instance)
     {
         _ = HandleGameSettingsLaunchRequestAsync(instance);
@@ -306,7 +298,9 @@ public sealed partial class MainViewModel : ObservableObject
 
             HomePage.SetLaunchInstances(GameManagement.Instances);
             HomePage.SetSelectedInstance(GameManagement.SelectedInstance);
-            NavigateToPage(NavigationCatalog.HomePage);
+            CurrentPage = NavigationCatalog.HomePage;
+            UpdateSecondaryItems();
+            UpdateNavigationSelection();
             statusService.Report(string.Format(Strings.Status_LaunchInstanceSelectedFormat, instance.Name));
         }
         catch (Exception)

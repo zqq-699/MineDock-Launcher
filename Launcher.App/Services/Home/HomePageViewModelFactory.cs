@@ -21,7 +21,6 @@ public sealed class HomePageViewModelFactory : IHomePageViewModelFactory
 
     public HomePageViewModel Create(
         AccountPageViewModel accountPage,
-        Action<string> navigateToPage,
         Action<double> reportProgressPercent,
         Func<GameInstance, Task<bool>> selectLaunchInstance)
     {
@@ -30,7 +29,6 @@ public sealed class HomePageViewModelFactory : IHomePageViewModelFactory
             gameVersionService,
             accountPage,
             statusService,
-            navigateToPage,
             reportProgressPercent,
             selectLaunchInstance);
     }

@@ -1,208 +1,283 @@
 ﻿<UserControl x:Class="Launcher.App.Views.Home.HomeLaunchPanelView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Launcher.App.Controls"
              xmlns:res="clr-namespace:Launcher.App.Resources"
              Focusable="False">
     <Grid Margin="0,48,24,0">
-        <StackPanel HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    Margin="0,-18,0,0">
-            <Border Style="{StaticResource HomeAvatarContainerStyle}"
-                    RenderTransformOrigin="0.5,0.5">
-                <Border.RenderTransform>
-                    <ScaleTransform x:Name="HomeAvatarScale"
-                                    ScaleX="1"
-                                    ScaleY="1" />
-                </Border.RenderTransform>
-                <Border.Triggers>
-                    <EventTrigger RoutedEvent="Mouse.MouseEnter">
-                        <BeginStoryboard>
-                            <Storyboard>
-                                <DoubleAnimation Storyboard.TargetName="HomeAvatarScale"
-                                                 Storyboard.TargetProperty="ScaleX"
-                                                 To="1.125"
-                                                 Duration="0:0:0.22">
-                                    <DoubleAnimation.EasingFunction>
-                                        <CubicEase EasingMode="EaseOut" />
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                                <DoubleAnimation Storyboard.TargetName="HomeAvatarScale"
-                                                 Storyboard.TargetProperty="ScaleY"
-                                                 To="1.125"
-                                                 Duration="0:0:0.22">
-                                    <DoubleAnimation.EasingFunction>
-                                        <CubicEase EasingMode="EaseOut" />
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                                <DoubleAnimation Storyboard.TargetName="HomeAvatarShadow"
-                                                 Storyboard.TargetProperty="Opacity"
-                                                 To="0.66"
-                                                 Duration="0:0:0.22">
-                                    <DoubleAnimation.EasingFunction>
-                                        <CubicEase EasingMode="EaseOut" />
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                                <DoubleAnimation Storyboard.TargetName="HomeAvatarShadowBlur"
-                                                 Storyboard.TargetProperty="Radius"
-                                                 To="28"
-                                                 Duration="0:0:0.22">
-                                    <DoubleAnimation.EasingFunction>
-                                        <CubicEase EasingMode="EaseOut" />
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                                <DoubleAnimation Storyboard.TargetName="HomeAvatarShadowOffset"
-                                                 Storyboard.TargetProperty="Y"
-                                                 To="11"
-                                                 Duration="0:0:0.22">
-                                    <DoubleAnimation.EasingFunction>
-                                        <CubicEase EasingMode="EaseOut" />
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                            </Storyboard>
-                        </BeginStoryboard>
-                    </EventTrigger>
-                    <EventTrigger RoutedEvent="Mouse.MouseLeave">
-                        <BeginStoryboard>
-                            <Storyboard>
-                                <DoubleAnimation Storyboard.TargetName="HomeAvatarScale"
-                                                 Storyboard.TargetProperty="ScaleX"
-                                                 To="1"
-                                                 Duration="0:0:0.28">
-                                    <DoubleAnimation.EasingFunction>
-                                        <CubicEase EasingMode="EaseOut" />
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                                <DoubleAnimation Storyboard.TargetName="HomeAvatarScale"
-                                                 Storyboard.TargetProperty="ScaleY"
-                                                 To="1"
-                                                 Duration="0:0:0.28">
-                                    <DoubleAnimation.EasingFunction>
-                                        <CubicEase EasingMode="EaseOut" />
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                                <DoubleAnimation Storyboard.TargetName="HomeAvatarShadow"
-                                                 Storyboard.TargetProperty="Opacity"
-                                                 To="0.46"
-                                                 Duration="0:0:0.28">
-                                    <DoubleAnimation.EasingFunction>
-                                        <CubicEase EasingMode="EaseOut" />
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                                <DoubleAnimation Storyboard.TargetName="HomeAvatarShadowBlur"
-                                                 Storyboard.TargetProperty="Radius"
-                                                 To="20"
-                                                 Duration="0:0:0.28">
-                                    <DoubleAnimation.EasingFunction>
-                                        <CubicEase EasingMode="EaseOut" />
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                                <DoubleAnimation Storyboard.TargetName="HomeAvatarShadowOffset"
-                                                 Storyboard.TargetProperty="Y"
-                                                 To="8"
-                                                 Duration="0:0:0.28">
-                                    <DoubleAnimation.EasingFunction>
-                                        <CubicEase EasingMode="EaseOut" />
-                                    </DoubleAnimation.EasingFunction>
-                                </DoubleAnimation>
-                            </Storyboard>
-                        </BeginStoryboard>
-                    </EventTrigger>
-                </Border.Triggers>
+        <Grid HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Margin="0,-18,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="74" />
+            </Grid.RowDefinitions>
 
-                <Grid>
-                    <Border x:Name="HomeAvatarShadow"
-                            Width="64"
-                            Height="64"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Background="#000000"
-                            IsHitTestVisible="False"
-                            Opacity="0.46">
-                        <Border.RenderTransform>
-                            <TranslateTransform x:Name="HomeAvatarShadowOffset"
-                                                Y="8" />
-                        </Border.RenderTransform>
-                        <Border.Effect>
-                            <BlurEffect x:Name="HomeAvatarShadowBlur"
-                                        Radius="20" />
-                        </Border.Effect>
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasSelectedAccount}" Value="False">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                    </Border>
+            <StackPanel Grid.Row="0"
+                        HorizontalAlignment="Center">
+                <Border Style="{StaticResource HomeAvatarContainerStyle}"
+                        RenderTransformOrigin="0.5,0.5">
+                    <Border.RenderTransform>
+                        <ScaleTransform x:Name="HomeAvatarScale"
+                                        ScaleX="1"
+                                        ScaleY="1" />
+                    </Border.RenderTransform>
+                    <Border.Triggers>
+                        <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HomeAvatarScale"
+                                                     Storyboard.TargetProperty="ScaleX"
+                                                     To="1.125"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                    <DoubleAnimation Storyboard.TargetName="HomeAvatarScale"
+                                                     Storyboard.TargetProperty="ScaleY"
+                                                     To="1.125"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                    <DoubleAnimation Storyboard.TargetName="HomeAvatarShadow"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0.66"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                    <DoubleAnimation Storyboard.TargetName="HomeAvatarShadowBlur"
+                                                     Storyboard.TargetProperty="Radius"
+                                                     To="28"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                    <DoubleAnimation Storyboard.TargetName="HomeAvatarShadowOffset"
+                                                     Storyboard.TargetProperty="Y"
+                                                     To="11"
+                                                     Duration="0:0:0.22">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                        <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="HomeAvatarScale"
+                                                     Storyboard.TargetProperty="ScaleX"
+                                                     To="1"
+                                                     Duration="0:0:0.28">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                    <DoubleAnimation Storyboard.TargetName="HomeAvatarScale"
+                                                     Storyboard.TargetProperty="ScaleY"
+                                                     To="1"
+                                                     Duration="0:0:0.28">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                    <DoubleAnimation Storyboard.TargetName="HomeAvatarShadow"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0.46"
+                                                     Duration="0:0:0.28">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                    <DoubleAnimation Storyboard.TargetName="HomeAvatarShadowBlur"
+                                                     Storyboard.TargetProperty="Radius"
+                                                     To="20"
+                                                     Duration="0:0:0.28">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                    <DoubleAnimation Storyboard.TargetName="HomeAvatarShadowOffset"
+                                                     Storyboard.TargetProperty="Y"
+                                                     To="8"
+                                                     Duration="0:0:0.28">
+                                        <DoubleAnimation.EasingFunction>
+                                            <CubicEase EasingMode="EaseOut" />
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                    </Border.Triggers>
 
-                    <TextBlock Text="&#xE77B;"
-                               FontFamily="Segoe MDL2 Assets"
-                               FontSize="42"
-                               Foreground="#E8FFFFFF"
+                    <Grid>
+                        <Border x:Name="HomeAvatarShadow"
+                                Width="64"
+                                Height="64"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Background="#000000"
+                                IsHitTestVisible="False"
+                                Opacity="0.46">
+                            <Border.RenderTransform>
+                                <TranslateTransform x:Name="HomeAvatarShadowOffset"
+                                                    Y="8" />
+                            </Border.RenderTransform>
+                            <Border.Effect>
+                                <BlurEffect x:Name="HomeAvatarShadowBlur"
+                                            Radius="20" />
+                            </Border.Effect>
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasSelectedAccount}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                        </Border>
+
+                        <TextBlock Text="&#xE77B;"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="42"
+                                   Foreground="#E8FFFFFF"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource HomeDefaultAvatarGlyphStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasSelectedAccount}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <Image Width="64"
+                               Height="64"
+                               Source="{Binding HomeAvatarUrl}"
+                               Stretch="Fill"
+                               SnapsToDevicePixels="True"
+                               RenderOptions.BitmapScalingMode="NearestNeighbor">
+                            <Image.Style>
+                                <Style TargetType="Image">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasSelectedAccount}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Image.Style>
+                        </Image>
+                    </Grid>
+                </Border>
+
+                <TextBlock Text="{Binding HomeAccountDisplayName}"
+                           Style="{StaticResource HomeAccountNameTextStyle}" />
+
+                <TextBlock Text="{x:Static res:Strings.Home_ChooseOrCreateAccount}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource HomeAccountHintTextStyle}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasSelectedAccount}" Value="False">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <Button Content="{x:Static res:Strings.Launch_Button}"
+                        Command="{Binding LaunchCommand}"
+                        Style="{StaticResource HomeLaunchButtonStyle}" />
+
+                <TextBlock Text="{Binding HomeVersionDisplayName}"
+                           Style="{StaticResource HomeVersionNameTextStyle}" />
+            </StackPanel>
+
+            <Grid Grid.Row="1"
+                  Margin="0,10,0,0"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Top">
+                <Button Content="{x:Static res:Strings.Home_GameSettingsButton}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource HomeChangeVersionButtonStyle}">
+                            <Setter Property="Margin" Value="0,-30,0,0" />
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLaunching}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Top">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Opacity" Value="0" />
+                            <Setter Property="IsHitTestVisible" Value="False" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLaunching}" Value="True">
+                                    <Setter Property="Opacity" Value="1" />
+                                    <Setter Property="IsHitTestVisible" Value="True" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+
+                    <TextBlock Text="{Binding LaunchStatusMessage}"
+                               Margin="0,0,0,8"
                                HorizontalAlignment="Center"
-                               VerticalAlignment="Center">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock" BasedOn="{StaticResource HomeDefaultAvatarGlyphStyle}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasSelectedAccount}" Value="False">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
+                               Foreground="#CCFFFFFF"
+                               FontSize="13"
+                               TextAlignment="Center" />
 
-                    <Image Width="64"
-                           Height="64"
-                           Source="{Binding HomeAvatarUrl}"
-                           Stretch="Fill"
-                           SnapsToDevicePixels="True"
-                           RenderOptions.BitmapScalingMode="NearestNeighbor">
-                        <Image.Style>
-                            <Style TargetType="Image">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasSelectedAccount}" Value="False">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Image.Style>
-                    </Image>
-                </Grid>
-            </Border>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="40" />
+                        </Grid.ColumnDefinitions>
 
-            <TextBlock Text="{Binding HomeAccountDisplayName}"
-                       Style="{StaticResource HomeAccountNameTextStyle}" />
+                        <ProgressBar Grid.Column="0"
+                                     Height="5"
+                                     Maximum="100"
+                                     VerticalAlignment="Center"
+                                     Style="{StaticResource LauncherProgressBarStyle}"
+                                     Value="{Binding LaunchProgressPercent}" />
 
-            <TextBlock Text="{x:Static res:Strings.Home_ChooseOrCreateAccount}">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock" BasedOn="{StaticResource HomeAccountHintTextStyle}">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasSelectedAccount}" Value="False">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-
-            <Button Content="{x:Static res:Strings.Launch_Button}"
-                    Command="{Binding LaunchCommand}"
-                    Style="{StaticResource HomeLaunchButtonStyle}" />
-
-            <TextBlock Text="{Binding HomeVersionDisplayName}"
-                       Style="{StaticResource HomeVersionNameTextStyle}" />
-
-            <Button Content="{x:Static res:Strings.Home_MoreVersionsButton}"
-                    Command="{Binding ChangeHomeVersionCommand}"
-                    Style="{StaticResource HomeChangeVersionButtonStyle}" />
-        </StackPanel>
+                        <Button Grid.Column="1"
+                                Margin="8,0,0,0"
+                                Command="{Binding CancelLaunchCommand}"
+                                Width="28"
+                                Height="28"
+                                Foreground="#8F96A3"
+                                Style="{StaticResource InlineIconButtonStyle}"
+                                ToolTip="{x:Static res:Strings.Cancel_Button}">
+                            <controls:SvgIcon Width="16"
+                                              Height="16"
+                                              IconKey="home_page/home_page_close"
+                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Grid>
     </Grid>
 </UserControl>
 

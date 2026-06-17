@@ -113,6 +113,7 @@ public sealed class GameInstanceService : IGameInstanceService
                     settings.MinecraftDirectory,
                     versionIdentity,
                     loaderVersion,
+                    settings.DefaultJavaPath,
                     progress,
                     cancellationToken).ConfigureAwait(false);
 
@@ -305,7 +306,10 @@ public sealed class GameInstanceService : IGameInstanceService
     {
         var changed = false;
         changed |= SetIfChanged(instance.Name, installedVersion.VersionName, value => instance.Name = value ?? string.Empty);
-        changed |= SetIfChanged(instance.MinecraftVersion, installedVersion.MinecraftVersion, value => instance.MinecraftVersion = value ?? string.Empty);
+        changed |= SetIfChanged(
+            instance.MinecraftVersion,
+            ResolvePreferredMinecraftVersion(instance.MinecraftVersion, installedVersion.MinecraftVersion, installedVersion.VersionName),
+            value => instance.MinecraftVersion = value ?? string.Empty);
         changed |= SetIfChanged(instance.VersionName, installedVersion.VersionName, value => instance.VersionName = value ?? string.Empty);
         changed |= SetIfChanged(instance.VersionType, installedVersion.VersionType, value => instance.VersionType = value ?? string.Empty);
         changed |= SetIfChanged(instance.LoaderVersion, installedVersion.LoaderVersion, value => instance.LoaderVersion = value);
@@ -331,6 +335,45 @@ public sealed class GameInstanceService : IGameInstanceService
 
         setValue(nextValue);
         return true;
+    }
+
+    private static string ResolvePreferredMinecraftVersion(
+        string? currentMinecraftVersion,
+        string? discoveredMinecraftVersion,
+        string versionName)
+    {
+        if (LooksLikeMinecraftVersion(discoveredMinecraftVersion))
+            return discoveredMinecraftVersion ?? string.Empty;
+
+        if (LooksLikeMinecraftVersion(currentMinecraftVersion)
+            && !string.Equals(currentMinecraftVersion, versionName, StringComparison.OrdinalIgnoreCase))
+        {
+            return currentMinecraftVersion ?? string.Empty;
+        }
+
+        return discoveredMinecraftVersion ?? string.Empty;
+    }
+
+    private static bool LooksLikeMinecraftVersion(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        if (Version.TryParse(value, out _))
+            return true;
+
+        if (value.Length >= 6
+            && char.IsDigit(value[0])
+            && char.IsDigit(value[1])
+            && value[2] == 'w'
+            && char.IsDigit(value[3])
+            && char.IsDigit(value[4]))
+        {
+            return true;
+        }
+
+        return value.StartsWith("a", StringComparison.OrdinalIgnoreCase)
+               || value.StartsWith("b", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string CreateDiscoveredInstanceId(string minecraftDirectory, string versionName)

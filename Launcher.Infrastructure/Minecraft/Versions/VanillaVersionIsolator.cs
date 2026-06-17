@@ -61,6 +61,15 @@ internal static class VanillaVersionIsolator
             if (hasSourceJar)
                 File.Copy(sourceJarPath, destinationJarPath, overwrite: false);
 
+            CopySupplementaryFiles(
+                sourceDirectory,
+                destinationDirectory,
+                excludedFileNames:
+                [
+                    $"{sourceVersionName}.json",
+                    $"{sourceVersionName}.jar"
+                ]);
+
             await using var sourceJsonStream = File.OpenRead(sourceJsonPath);
             var versionJson = await JsonNode.ParseAsync(sourceJsonStream, cancellationToken: cancellationToken)
                 ?? throw new InvalidDataException($"Version JSON is empty: {sourceJsonPath}");
@@ -131,6 +140,14 @@ internal static class VanillaVersionIsolator
         try
         {
             File.Copy(baseJarPath, destinationJarPath, overwrite: false);
+            CopySupplementaryFiles(
+                derivedDirectory,
+                destinationDirectory,
+                excludedFileNames:
+                [
+                    $"{derivedVersionName}.json",
+                    $"{derivedVersionName}.jar"
+                ]);
 
             var baseVersionObject = await ReadJsonObjectAsync(baseJsonPath, cancellationToken);
             var derivedVersionObject = await ReadJsonObjectAsync(derivedJsonPath, cancellationToken);
@@ -165,116 +182,25 @@ internal static class VanillaVersionIsolator
         JsonObject derivedVersion,
         string versionName)
     {
-        var mergedVersion = (JsonObject)baseVersion.DeepClone();
-
-        foreach (var property in derivedVersion)
-        {
-            switch (property.Key)
-            {
-                case "id":
-                case "inheritsFrom":
-                case "jar":
-                    continue;
-                case "libraries":
-                    mergedVersion["libraries"] = MergeLibraries(
-                        mergedVersion["libraries"] as JsonArray,
-                        property.Value as JsonArray);
-                    break;
-                case "arguments":
-                    mergedVersion["arguments"] = MergeArguments(
-                        mergedVersion["arguments"] as JsonObject,
-                        property.Value as JsonObject);
-                    break;
-                case "minecraftArguments":
-                    mergedVersion["minecraftArguments"] = MergeMinecraftArguments(
-                        mergedVersion["minecraftArguments"]?.GetValue<string>(),
-                        property.Value?.GetValue<string>());
-                    break;
-                default:
-                    mergedVersion[property.Key] = property.Value?.DeepClone();
-                    break;
-            }
-        }
-
-        mergedVersion["id"] = versionName;
-        mergedVersion["jar"] = versionName;
-        mergedVersion.Remove("inheritsFrom");
-        return mergedVersion;
+        return VersionJsonMergeHelper.MergeFlattenedVersion(baseVersion, derivedVersion, versionName);
     }
 
-    private static JsonArray MergeLibraries(JsonArray? baseLibraries, JsonArray? derivedLibraries)
+    private static void CopySupplementaryFiles(
+        string sourceDirectory,
+        string destinationDirectory,
+        IReadOnlyCollection<string> excludedFileNames)
     {
-        var mergedLibraries = new JsonArray();
-        var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        AppendLibraries(baseLibraries);
-        AppendLibraries(derivedLibraries);
-        return mergedLibraries;
-
-        void AppendLibraries(JsonArray? source)
+        var excluded = new HashSet<string>(excludedFileNames, StringComparer.OrdinalIgnoreCase);
+        foreach (var sourceFilePath in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
         {
-            if (source is null)
-                return;
-
-            foreach (var library in source)
-            {
-                if (library is null)
-                    continue;
-
-                var key = library is JsonObject libraryObject
-                    && libraryObject["name"] is JsonValue libraryNameValue
-                    && libraryNameValue.TryGetValue<string>(out var libraryName)
-                    && !string.IsNullOrWhiteSpace(libraryName)
-                        ? libraryName
-                        : library.ToJsonString();
-
-                if (!seenNames.Add(key))
-                    continue;
-
-                mergedLibraries.Add(library.DeepClone());
-            }
-        }
-    }
-
-    private static JsonObject MergeArguments(JsonObject? baseArguments, JsonObject? derivedArguments)
-    {
-        var mergedArguments = baseArguments is null
-            ? new JsonObject()
-            : (JsonObject)baseArguments.DeepClone();
-
-        if (derivedArguments is null)
-            return mergedArguments;
-
-        foreach (var property in derivedArguments)
-        {
-            if (mergedArguments[property.Key] is JsonArray baseArray
-                && property.Value is JsonArray derivedArray)
-            {
-                var mergedArray = new JsonArray();
-                foreach (var item in baseArray)
-                    mergedArray.Add(item?.DeepClone());
-
-                foreach (var item in derivedArray)
-                    mergedArray.Add(item?.DeepClone());
-
-                mergedArguments[property.Key] = mergedArray;
+            var fileName = Path.GetFileName(sourceFilePath);
+            if (excluded.Contains(fileName))
                 continue;
-            }
 
-            mergedArguments[property.Key] = property.Value?.DeepClone();
+            var relativePath = Path.GetRelativePath(sourceDirectory, sourceFilePath);
+            var destinationPath = Path.Combine(destinationDirectory, relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+            File.Copy(sourceFilePath, destinationPath, overwrite: false);
         }
-
-        return mergedArguments;
-    }
-
-    private static string MergeMinecraftArguments(string? baseArguments, string? derivedArguments)
-    {
-        if (string.IsNullOrWhiteSpace(baseArguments))
-            return derivedArguments ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(derivedArguments))
-            return baseArguments;
-
-        return $"{baseArguments} {derivedArguments}";
     }
 }

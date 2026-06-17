@@ -80,6 +80,28 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task InstanceServicePassesDefaultJavaPathToForgeProvider()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultJavaPath = @"C:\Java\bin\java.exe"
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var provider = new FakeLoaderProvider { Kind = LoaderKind.Forge, DisplayName = "Forge" };
+        var modrinthService = new FakeModrinthService();
+        var service = new GameInstanceService(settingsService, repository, [provider], modrinthService);
+
+        var instance = await service.CreateInstanceAsync("1.20.1", LoaderKind.Forge, "47.4.20", "Forge Pack", null);
+
+        Assert.Equal("Forge Pack", instance.VersionName);
+        Assert.Equal(settings.DefaultJavaPath, provider.LastJavaPath);
+        Assert.Equal(0, modrinthService.InstallFabricApiCallCount);
+    }
+
+    [Fact]
     public async Task InstanceServiceQueuesConcurrentCreatesAndPersistsBothInstances()
     {
         var settingsService = new TestSettingsService(new LauncherSettings
@@ -254,6 +276,9 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
               "mainClass": "net.fabricmc.loader.impl.launch.knot.KnotClient"
             }
             """);
+        await File.WriteAllTextAsync(
+            Path.Combine(sourceDirectory, "win_args.txt"),
+            "--launchTarget forge_client");
 
         var versionName = await VanillaVersionIsolator.CreateIsolatedVersionFromSourceAsync(
             "fabric-loader-0.16.10-1.20.1",
@@ -263,6 +288,7 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         var destinationDirectory = Path.Combine(minecraftDirectory, "versions", "1.20.1-fabric-0.16.10");
         Assert.Equal("1.20.1-fabric-0.16.10", versionName);
         Assert.False(File.Exists(Path.Combine(destinationDirectory, "1.20.1-fabric-0.16.10.jar")));
+        Assert.True(File.Exists(Path.Combine(destinationDirectory, "win_args.txt")));
 
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(destinationDirectory, "1.20.1-fabric-0.16.10.json")));
         Assert.Equal("1.20.1-fabric-0.16.10", json.RootElement.GetProperty("id").GetString());
@@ -312,6 +338,9 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
               }
             }
             """);
+        await File.WriteAllTextAsync(
+            Path.Combine(derivedDirectory, "win_args.txt"),
+            "--launchTarget forge_client");
 
         var versionName = await VanillaVersionIsolator.CreateFlattenedDerivedVersionAsync(
             "1.20.1",
@@ -322,6 +351,7 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         var destinationDirectory = Path.Combine(minecraftDirectory, "versions", "1.20.1-fabric-0.16.10");
         Assert.Equal("1.20.1-fabric-0.16.10", versionName);
         Assert.True(File.Exists(Path.Combine(destinationDirectory, "1.20.1-fabric-0.16.10.jar")));
+        Assert.True(File.Exists(Path.Combine(destinationDirectory, "win_args.txt")));
 
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(destinationDirectory, "1.20.1-fabric-0.16.10.json")));
         Assert.Equal("1.20.1-fabric-0.16.10", json.RootElement.GetProperty("id").GetString());
@@ -435,7 +465,7 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         var instance = Assert.Single(instances);
         Assert.StartsWith("local-", instance.Id);
         Assert.Equal("External Pack", instance.Name);
-        Assert.Equal("External Pack", instance.MinecraftVersion);
+        Assert.Equal(string.Empty, instance.MinecraftVersion);
         Assert.Equal("External Pack", instance.VersionName);
         Assert.Equal("release", instance.VersionType);
         Assert.Equal(LoaderKind.Vanilla, instance.Loader);
@@ -444,6 +474,119 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         var stored = Assert.Single(await repository.GetAllAsync());
         Assert.Equal(instance.Id, stored.Id);
         Assert.Equal("External Pack", stored.VersionName);
+    }
+
+    [Fact]
+    public async Task InstanceServiceUsesVersionNameForImportedVanillaInstanceWhenItIsARealMinecraftVersion()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "1.20.1", type: "release", writeJar: false);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instance = Assert.Single(await service.GetInstancesAsync());
+
+        Assert.Equal("1.20.1", instance.MinecraftVersion);
+        Assert.Equal("1.20.1", instance.VersionName);
+    }
+
+    [Fact]
+    public async Task InstanceServiceUsesBaseMinecraftVersionForRenamedSelfContainedInstance()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(
+            settings.MinecraftDirectory,
+            "My Forge Pack",
+            type: "release",
+            libraries: ["net.minecraftforge:forge:1.20.1-47.4.20"],
+            launcherMinecraftVersion: "1.20.1",
+            writeJar: false);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instances = await service.GetInstancesAsync();
+
+        var instance = Assert.Single(instances);
+        Assert.Equal("My Forge Pack", instance.Name);
+        Assert.Equal("1.20.1", instance.MinecraftVersion);
+        Assert.Equal("My Forge Pack", instance.VersionName);
+        Assert.Equal(LoaderKind.Forge, instance.Loader);
+    }
+
+    [Fact]
+    public async Task InstanceServiceIgnoresNumericAssetIndexAndUsesForgeMinecraftVersion()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(
+            settings.MinecraftDirectory,
+            "My Forge Pack",
+            type: "release",
+            libraries: ["net.minecraftforge:forge:1.20.1-47.4.20"],
+            assetIndexId: "30",
+            writeJar: false);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instance = Assert.Single(await service.GetInstancesAsync());
+
+        Assert.Equal("1.20.1", instance.MinecraftVersion);
+        Assert.Equal("47.4.20", instance.LoaderVersion);
+    }
+
+    [Fact]
+    public async Task InstanceServiceRepairsStoredMinecraftVersionWhenRenamedInstanceMetadataHasBaseVersion()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(
+            settings.MinecraftDirectory,
+            "My Forge Pack",
+            type: "release",
+            libraries: ["net.minecraftforge:forge:1.20.1-47.4.20"],
+            launcherMinecraftVersion: "1.20.1",
+            writeJar: false);
+        await repository.SaveAllAsync(
+        [
+            new GameInstance
+            {
+                Id = "stored",
+                Name = "Renamed Display Name",
+                MinecraftVersion = "My Forge Pack",
+                Loader = LoaderKind.Forge,
+                LoaderVersion = "47.4.20",
+                VersionName = "My Forge Pack",
+                VersionType = "release",
+                InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "My Forge Pack")
+            }
+        ]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instance = Assert.Single(await service.GetInstancesAsync());
+
+        Assert.Equal("1.20.1", instance.MinecraftVersion);
+
+        var stored = Assert.Single(await repository.GetAllAsync());
+        Assert.Equal("1.20.1", stored.MinecraftVersion);
     }
 
     [Fact]
@@ -493,6 +636,7 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         Assert.Equal("snapshot", instances["fabric-loader-0.16.9-1.21.4"].VersionType);
         Assert.Equal("1.21.4", instances["fabric-loader-0.16.9-1.21.4"].MinecraftVersion);
         Assert.Equal(LoaderKind.Forge, instances["forge-1.20.1-47.2.0"].Loader);
+        Assert.Equal("47.2.0", instances["forge-1.20.1-47.2.0"].LoaderVersion);
         Assert.Equal(LoaderKind.NeoForge, instances["neoforge-20.4.237"].Loader);
         Assert.Equal(LoaderKind.Quilt, instances["quilt-loader-0.26.0-1.20.1"].Loader);
     }
@@ -777,6 +921,8 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         string? inheritsFrom = null,
         string? jar = null,
         IReadOnlyList<string>? libraries = null,
+        string? launcherMinecraftVersion = null,
+        string? assetIndexId = null,
         bool writeJar = true)
     {
         var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
@@ -800,6 +946,22 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
                 libraryArray.Add(new JsonObject { ["name"] = library });
 
             versionJson["libraries"] = libraryArray;
+        }
+
+        if (!string.IsNullOrWhiteSpace(launcherMinecraftVersion))
+        {
+            versionJson["launcher"] = new JsonObject
+            {
+                ["minecraftVersion"] = launcherMinecraftVersion
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(assetIndexId))
+        {
+            versionJson["assetIndex"] = new JsonObject
+            {
+                ["id"] = assetIndexId
+            };
         }
 
         await File.WriteAllTextAsync(

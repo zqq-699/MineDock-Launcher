@@ -30,6 +30,28 @@ public sealed class HomePageViewModelTests
     }
 
     [Fact]
+    public void HomePageOrdersNewestLaunchInstancesFirst()
+    {
+        var viewModel = CreateViewModel();
+        var older = CreateInstance(
+            "older",
+            "Older World",
+            "1.20.1",
+            LoaderKind.Vanilla,
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var newer = CreateInstance(
+            "newer",
+            "Newer World",
+            "1.21.1",
+            LoaderKind.Fabric,
+            new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero));
+
+        viewModel.SetLaunchInstances([older, newer]);
+
+        Assert.Equal(["Newer World", "Older World"], viewModel.LaunchInstances.Select(instance => instance.Name));
+    }
+
+    [Fact]
     public async Task HomePageSelectLaunchInstanceCommandPersistsAndSelectsInstance()
     {
         GameInstance? requestedInstance = null;
@@ -167,6 +189,35 @@ public sealed class HomePageViewModelTests
     }
 
     [Fact]
+    public void HomePageUsesFixedLaunchInstanceSubtitleFormat()
+    {
+        var viewModel = CreateViewModel();
+        var vanilla = CreateInstance("vanilla", "Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var fabric = CreateInstance("fabric", "Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        fabric.LoaderVersion = "0.16.10";
+        var forge = CreateInstance("forge", "Forge Pack", "26.1.1", LoaderKind.Forge);
+        forge.LoaderVersion = "63.0.2";
+
+        viewModel.SetLaunchInstances([vanilla, fabric, forge]);
+
+        Assert.Equal("1.21.4", viewModel.LaunchInstances.Single(instance => instance.Name == "Vanilla World").Subtitle);
+        Assert.Equal("1.20.1 Fabric 0.16.10", viewModel.LaunchInstances.Single(instance => instance.Name == "Fabric Pack").Subtitle);
+        Assert.Equal("26.1.1 Forge 63.0.2", viewModel.LaunchInstances.Single(instance => instance.Name == "Forge Pack").Subtitle);
+    }
+
+    [Fact]
+    public void HomePageShowsUnknownMinecraftVersionForImportedInstanceWithoutResolvedVersion()
+    {
+        var viewModel = CreateViewModel();
+        var imported = CreateInstance("imported", "Imported Pack", string.Empty, LoaderKind.Fabric);
+        imported.LoaderVersion = "0.16.10";
+
+        viewModel.SetLaunchInstances([imported]);
+
+        Assert.Equal("未知版本 Fabric 0.16.10", viewModel.LaunchInstances.Single().Subtitle);
+    }
+
+    [Fact]
     public async Task HomePageLaunchPassesSelectedAccountToLaunchService()
     {
         var launchService = new FakeLaunchService();
@@ -185,6 +236,88 @@ public sealed class HomePageViewModelTests
 
         Assert.Same(instance, launchService.LastInstance);
         Assert.Same(account, launchService.LastAccount);
+    }
+
+    [Fact]
+    public async Task HomePageLaunchShowsProgressDuringLaunchAndResetsAfterSuccess()
+    {
+        var releaseLaunch = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var statusService = new FakeStatusService();
+        var launchService = new FakeLaunchService
+        {
+            LaunchBehavior = async (progress, cancellationToken) =>
+            {
+                progress!.Report(new LauncherProgress(LaunchProgressStages.CheckingInstance, "ignored", 12));
+                await Task.Delay(25, cancellationToken);
+                await releaseLaunch.Task;
+            }
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "LocalUser",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+        var viewModel = CreateViewModel(statusService, launchService: launchService, selectedAccount: account);
+        viewModel.SetSelectedInstance(CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla));
+
+        var launchTask = viewModel.LaunchCommand.ExecuteAsync(null);
+        await Task.Delay(60);
+
+        Assert.True(viewModel.IsLaunching);
+        Assert.True(viewModel.HasLaunchProgress);
+        Assert.False(viewModel.CanLaunchSelectedGame);
+        Assert.False(viewModel.LaunchCommand.CanExecute(null));
+        Assert.Equal(Strings.Status_LaunchCheckingInstance, viewModel.LaunchStatusMessage);
+        Assert.Equal(12, viewModel.LaunchProgressPercent);
+        Assert.Equal(Strings.Status_LaunchCheckingInstance, statusService.LastMessage);
+
+        releaseLaunch.SetResult();
+        await launchTask;
+
+        Assert.False(viewModel.IsLaunching);
+        Assert.False(viewModel.HasLaunchProgress);
+        Assert.True(viewModel.CanLaunchSelectedGame);
+        Assert.Equal(string.Empty, viewModel.LaunchStatusMessage);
+        Assert.Equal(0, viewModel.LaunchProgressPercent);
+    }
+
+    [Fact]
+    public async Task HomePageCancelLaunchCancelsCurrentLaunchAndResetsProgress()
+    {
+        var statusService = new FakeStatusService();
+        var launchService = new FakeLaunchService
+        {
+            LaunchBehavior = async (progress, cancellationToken) =>
+            {
+                progress!.Report(new LauncherProgress(LaunchProgressStages.CheckingInstance, "ignored", 12));
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "LocalUser",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+        var viewModel = CreateViewModel(statusService, launchService: launchService, selectedAccount: account);
+        viewModel.SetSelectedInstance(CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla));
+
+        var launchTask = viewModel.LaunchCommand.ExecuteAsync(null);
+        await Task.Delay(60);
+
+        Assert.True(viewModel.CancelLaunchCommand.CanExecute(null));
+        viewModel.CancelLaunchCommand.Execute(null);
+        await launchTask;
+
+        Assert.Equal(Strings.Status_LaunchCanceled, statusService.LastMessage);
+        Assert.False(viewModel.IsLaunching);
+        Assert.False(viewModel.HasLaunchProgress);
+        Assert.False(viewModel.CancelLaunchCommand.CanExecute(null));
+        Assert.Equal(string.Empty, viewModel.LaunchStatusMessage);
+        Assert.Equal(0, viewModel.LaunchProgressPercent);
     }
 
     [Fact]
@@ -208,6 +341,64 @@ public sealed class HomePageViewModelTests
         await viewModel.LaunchCommand.ExecuteAsync(null);
 
         Assert.Equal(Strings.Status_LaunchAccountUnavailable, statusService.LastMessage);
+        Assert.False(viewModel.IsLaunching);
+        Assert.False(viewModel.HasLaunchProgress);
+        Assert.Equal(string.Empty, viewModel.LaunchStatusMessage);
+        Assert.Equal(0, viewModel.LaunchProgressPercent);
+    }
+
+    [Fact]
+    public async Task HomePageLaunchShowsFriendlyRepairFailure()
+    {
+        var statusService = new FakeStatusService();
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new InstanceRepairException("repair failed")
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "LocalUser",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+        var viewModel = CreateViewModel(statusService, launchService: launchService, selectedAccount: account);
+        viewModel.SetSelectedInstance(CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla));
+
+        await viewModel.LaunchCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_LaunchInstanceRepairFailed, statusService.LastMessage);
+        Assert.False(viewModel.IsLaunching);
+        Assert.False(viewModel.HasLaunchProgress);
+        Assert.Equal(string.Empty, viewModel.LaunchStatusMessage);
+        Assert.Equal(0, viewModel.LaunchProgressPercent);
+    }
+
+    [Fact]
+    public async Task HomePageLaunchShowsFriendlyQuickExitFailure()
+    {
+        var statusService = new FakeStatusService();
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new LaunchProcessExitedException(@"C:\temp\diagnostic.log")
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "LocalUser",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+        var viewModel = CreateViewModel(statusService, launchService: launchService, selectedAccount: account);
+        viewModel.SetSelectedInstance(CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla));
+
+        await viewModel.LaunchCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_LaunchExitedQuickly, statusService.LastMessage);
+        Assert.False(viewModel.IsLaunching);
+        Assert.False(viewModel.HasLaunchProgress);
+        Assert.Equal(string.Empty, viewModel.LaunchStatusMessage);
+        Assert.Equal(0, viewModel.LaunchProgressPercent);
     }
 
     private static HomePageViewModel CreateViewModel(
@@ -223,7 +414,6 @@ public sealed class HomePageViewModelTests
             new FakeGameVersionService(versions ?? []),
             CreateAccountPage(statusService, selectedAccount),
             statusService,
-            _ => { },
             _ => { },
             selectLaunchInstance ?? (_ => Task.FromResult(true)));
     }
@@ -261,7 +451,12 @@ public sealed class HomePageViewModelTests
             accountDialogService);
     }
 
-    private static GameInstance CreateInstance(string id, string name, string minecraftVersion, LoaderKind loader)
+    private static GameInstance CreateInstance(
+        string id,
+        string name,
+        string minecraftVersion,
+        LoaderKind loader,
+        DateTimeOffset? createdAt = null)
     {
         return new GameInstance
         {
@@ -269,7 +464,8 @@ public sealed class HomePageViewModelTests
             Name = name,
             MinecraftVersion = minecraftVersion,
             VersionName = minecraftVersion,
-            Loader = loader
+            Loader = loader,
+            CreatedAt = createdAt ?? new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
         };
     }
 
@@ -278,6 +474,7 @@ public sealed class HomePageViewModelTests
         public GameInstance? LastInstance { get; private set; }
         public LauncherAccount? LastAccount { get; private set; }
         public Exception? ExceptionToThrow { get; init; }
+        public Func<IProgress<LauncherProgress>?, CancellationToken, Task>? LaunchBehavior { get; init; }
 
         public Task LaunchAsync(
             GameInstance instance,
@@ -288,6 +485,9 @@ public sealed class HomePageViewModelTests
         {
             LastInstance = instance;
             LastAccount = account;
+            if (LaunchBehavior is not null)
+                return LaunchBehavior(progress, cancellationToken);
+
             if (ExceptionToThrow is not null)
                 throw ExceptionToThrow;
 

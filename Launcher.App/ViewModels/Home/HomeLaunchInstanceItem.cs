@@ -21,7 +21,7 @@ public sealed partial class HomeLaunchInstanceItem : ObservableObject
         : Instance.Name;
 
     public string MinecraftVersion => string.IsNullOrWhiteSpace(Instance.MinecraftVersion)
-        ? VersionName
+        ? Strings.GameSettings_UnknownMinecraftVersion
         : Instance.MinecraftVersion;
 
     public string VersionName => string.IsNullOrWhiteSpace(Instance.VersionName)
@@ -36,7 +36,20 @@ public sealed partial class HomeLaunchInstanceItem : ObservableObject
         _ => Instance.Loader.ToString()
     };
 
-    public string Subtitle => string.Format(Strings.Home_LaunchInstanceSubtitleFormat, MinecraftVersion, LoaderLabel);
+    public string Subtitle => Instance.Loader switch
+    {
+        LoaderKind.Vanilla => string.Format(Strings.GameSettings_InstanceSubtitleVanillaFormat, MinecraftVersion),
+        _ when !string.IsNullOrWhiteSpace(Instance.LoaderVersion)
+            => string.Format(
+                Strings.GameSettings_InstanceSubtitleLoaderFormat,
+                MinecraftVersion,
+                LoaderLabel,
+                Instance.LoaderVersion),
+        _ => string.Format(
+            Strings.GameSettings_InstanceSubtitleLoaderWithoutVersionFormat,
+            MinecraftVersion,
+            LoaderLabel)
+    };
 
     public string IconSource => MinecraftVersionIconResolver.Resolve(Instance, VersionType, MinecraftVersion);
 

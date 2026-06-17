@@ -3,6 +3,7 @@ using System.Text.Json;
 using Launcher.Application.Repositories;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Minecraft;
 
 namespace Launcher.Infrastructure.Persistence;
 
@@ -175,13 +176,17 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             using var stream = File.OpenRead(versionJsonPath);
             using var json = JsonDocument.Parse(stream);
             var root = json.RootElement;
+            var libraryNames = ReadLibraryNames(root);
             return new VersionJsonMetadata(
                 versionName,
                 GetStringProperty(root, "id"),
                 GetStringProperty(root, "inheritsFrom"),
                 GetStringProperty(root, "jar"),
                 GetStringProperty(root, "type"),
-                ReadLibraryNames(root));
+                LauncherVersionMetadata.ReadMinecraftVersion(root),
+                ReadAssetIndexMinecraftVersion(root),
+                libraryNames,
+                TryResolveMinecraftVersionFromLibraries(libraryNames));
         }
         catch (JsonException)
         {
@@ -200,10 +205,13 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
     private static string ResolveMinecraftVersion(VersionJsonMetadata metadata)
     {
         return FirstNonEmpty(
+            metadata.LauncherMinecraftVersion,
             metadata.InheritsFrom,
-            metadata.Jar,
-            metadata.Id,
-            metadata.VersionName);
+            metadata.AssetIndexId,
+            metadata.LibraryMinecraftVersion,
+            GetVersionLikeValueOrEmpty(metadata.Jar),
+            GetVersionLikeValueOrEmpty(metadata.Id),
+            GetVersionLikeValueOrEmpty(metadata.VersionName));
     }
 
     private static string ResolveVersionType(VersionJsonMetadata metadata, string minecraftDirectory)
@@ -300,7 +308,24 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
     private static string? TryReadMavenVersion(string value)
     {
         var parts = value.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return parts.Length >= 3 ? parts[2] : null;
+        if (parts.Length < 3)
+            return null;
+
+        if (parts[0].Equals("net.minecraftforge", StringComparison.OrdinalIgnoreCase)
+            && parts[1].Equals("forge", StringComparison.OrdinalIgnoreCase))
+        {
+            return TryReadForgeVersion(parts[2]);
+        }
+
+        return parts[2];
+    }
+
+    private static string TryReadForgeVersion(string combinedVersion)
+    {
+        var separatorIndex = combinedVersion.IndexOf('-');
+        return separatorIndex >= 0 && separatorIndex < combinedVersion.Length - 1
+            ? combinedVersion[(separatorIndex + 1)..]
+            : combinedVersion;
     }
 
     private static IReadOnlyList<string> ReadLibraryNames(JsonElement root)
@@ -322,12 +347,79 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         return names;
     }
 
+    private static string ReadAssetIndexMinecraftVersion(JsonElement root)
+    {
+        if (!root.TryGetProperty("assetIndex", out var assetIndex)
+            || assetIndex.ValueKind is not JsonValueKind.Object)
+        {
+            return string.Empty;
+        }
+
+        var assetIndexId = GetStringProperty(assetIndex, "id");
+        return LooksLikeMinecraftVersion(assetIndexId) ? assetIndexId : string.Empty;
+    }
+
+    private static string? TryResolveMinecraftVersionFromLibraries(IReadOnlyList<string> libraryNames)
+    {
+        foreach (var libraryName in libraryNames)
+        {
+            var minecraftVersion = TryResolveMinecraftVersionFromLibrary(libraryName);
+            if (!string.IsNullOrWhiteSpace(minecraftVersion))
+                return minecraftVersion;
+        }
+
+        return null;
+    }
+
+    private static string? TryResolveMinecraftVersionFromLibrary(string libraryName)
+    {
+        var parts = libraryName.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length < 3)
+            return null;
+
+        if (parts[0].Equals("net.minecraftforge", StringComparison.OrdinalIgnoreCase)
+            && parts[1].Equals("forge", StringComparison.OrdinalIgnoreCase))
+        {
+            var separatorIndex = parts[2].IndexOf('-');
+            return separatorIndex > 0 ? parts[2][..separatorIndex] : parts[2];
+        }
+
+        return null;
+    }
+
     private static string GetStringProperty(JsonElement element, string name)
     {
         return element.TryGetProperty(name, out var property)
                && property.ValueKind is JsonValueKind.String
             ? property.GetString() ?? string.Empty
             : string.Empty;
+    }
+
+    private static bool LooksLikeMinecraftVersion(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        if (Version.TryParse(value, out _))
+            return true;
+
+        if (value.Length >= 6
+            && char.IsDigit(value[0])
+            && char.IsDigit(value[1])
+            && value[2] == 'w'
+            && char.IsDigit(value[3])
+            && char.IsDigit(value[4]))
+        {
+            return true;
+        }
+
+        return value.StartsWith("a", StringComparison.OrdinalIgnoreCase)
+               || value.StartsWith("b", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetVersionLikeValueOrEmpty(string? value)
+    {
+        return LooksLikeMinecraftVersion(value) ? value ?? string.Empty : string.Empty;
     }
 
     private static string NormalizeVersionType(string? type)
@@ -387,9 +479,19 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         string InheritsFrom,
         string Jar,
         string Type,
-        IReadOnlyList<string> LibraryNames)
+        string LauncherMinecraftVersion,
+        string AssetIndexId,
+        IReadOnlyList<string> LibraryNames,
+        string? LibraryMinecraftVersion)
     {
-        public string MinecraftVersion => FirstNonEmpty(InheritsFrom, Jar, Id, VersionName);
+        public string MinecraftVersion => FirstNonEmpty(
+            LauncherMinecraftVersion,
+            InheritsFrom,
+            AssetIndexId,
+            LibraryMinecraftVersion,
+            GetVersionLikeValueOrEmpty(Jar),
+            GetVersionLikeValueOrEmpty(Id),
+            GetVersionLikeValueOrEmpty(VersionName));
     }
 
     private sealed record LoaderInfo(LoaderKind Kind, string? Version);

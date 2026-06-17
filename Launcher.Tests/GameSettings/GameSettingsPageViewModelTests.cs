@@ -141,6 +141,35 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task GameSettingsPageUsesFixedInstanceSubtitleFormat()
+    {
+        var vanilla = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var fabric = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        fabric.LoaderVersion = "0.16.10";
+        var forge = CreateInstance("Forge Pack", "26.1.1", LoaderKind.Forge);
+        forge.LoaderVersion = "63.0.2";
+        var viewModel = CreateViewModel([vanilla, fabric, forge]);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+
+        Assert.Equal("1.21.4", viewModel.VisibleInstances.Single(instance => instance.Name == "Vanilla World").Subtitle);
+        Assert.Equal("1.20.1 Fabric 0.16.10", viewModel.VisibleInstances.Single(instance => instance.Name == "Fabric Pack").Subtitle);
+        Assert.Equal("26.1.1 Forge 63.0.2", viewModel.VisibleInstances.Single(instance => instance.Name == "Forge Pack").Subtitle);
+    }
+
+    [Fact]
+    public async Task GameSettingsPageShowsUnknownMinecraftVersionForImportedInstanceWithoutResolvedVersion()
+    {
+        var imported = CreateInstance("Imported Pack", string.Empty, LoaderKind.Fabric);
+        imported.LoaderVersion = "0.16.10";
+        var viewModel = CreateViewModel([imported]);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+
+        Assert.Equal("未知版本 Fabric 0.16.10", viewModel.VisibleInstances.Single().Subtitle);
+    }
+
+    [Fact]
     public async Task GameSettingsPageSearchesInstanceMetadata()
     {
         var viewModel = CreateViewModel(

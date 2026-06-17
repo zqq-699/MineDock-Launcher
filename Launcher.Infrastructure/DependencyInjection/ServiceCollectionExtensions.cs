@@ -20,7 +20,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IGameVersionService, GameVersionService>();
         services.AddSingleton<ILoaderProvider, VanillaLoaderProvider>();
         services.AddSingleton<ILoaderProvider, FabricLoaderProvider>();
-        services.AddSingleton<ILoaderProvider>(_ => new PlaceholderLoaderProvider(LoaderKind.Forge, "Forge"));
+        services.AddSingleton<ILoaderProvider, ForgeLoaderProvider>();
         services.AddSingleton<ILoaderProvider>(_ => new PlaceholderLoaderProvider(LoaderKind.NeoForge, "NeoForge"));
         services.AddSingleton<ILoaderProvider>(_ => new PlaceholderLoaderProvider(LoaderKind.Quilt, "Quilt"));
         services.AddSingleton<ILaunchService, LaunchService>();

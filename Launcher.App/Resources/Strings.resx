@@ -35,6 +35,9 @@
   <data name="GameSettings_NoMatchingInstances" xml:space="preserve"><value>没有找到匹配的游戏。</value></data>
   <data name="GameSettings_NoCategoryInstancesFormat" xml:space="preserve"><value>没有找到{0}游戏。</value></data>
   <data name="GameSettings_InstanceSubtitleFormat" xml:space="preserve"><value>Minecraft {0} · {1}</value></data>
+  <data name="GameSettings_InstanceSubtitleVanillaFormat" xml:space="preserve"><value>{0}</value></data>
+  <data name="GameSettings_InstanceSubtitleLoaderWithoutVersionFormat" xml:space="preserve"><value>{0} {1}</value></data>
+  <data name="GameSettings_InstanceSubtitleLoaderFormat" xml:space="preserve"><value>{0} {1} {2}</value></data>
   <data name="Nav_GameInstanceList" xml:space="preserve"><value>游戏设置</value></data>
   <data name="Nav_JavaMemory" xml:space="preserve"><value>Java/内存</value></data>
   <data name="Nav_DirectoryManagement" xml:space="preserve"><value>目录管理</value></data>
@@ -45,9 +48,9 @@
   <data name="Nav_DefaultSettings" xml:space="preserve"><value>默认设置</value></data>
   <data name="Nav_About" xml:space="preserve"><value>关于</value></data>
   <data name="Home_ChooseOrCreateAccount" xml:space="preserve"><value>选择或创建账户以进行游戏。</value></data>
+  <data name="Home_GameSettingsButton" xml:space="preserve"><value>游戏设置 &gt;</value></data>
   <data name="Home_NoAccountSelected" xml:space="preserve"><value>未选择账户</value></data>
   <data name="Home_NoVersionSelected" xml:space="preserve"><value>未选择游戏版本</value></data>
-  <data name="Home_MoreVersionsButton" xml:space="preserve"><value>更多版本 &gt;</value></data>
   <data name="Home_LaunchInstanceMenuTitle" xml:space="preserve"><value>主页</value></data>
   <data name="Home_LaunchInstanceSubtitleFormat" xml:space="preserve"><value>Minecraft {0} · {1}</value></data>
   <data name="Home_NoLaunchInstances" xml:space="preserve"><value>还没有本地游戏。</value></data>
@@ -125,8 +128,10 @@
   <data name="Download_ForgeLoaderTitle" xml:space="preserve"><value>Forge</value></data>
   <data name="Download_VanillaLoaderSubtitle" xml:space="preserve"><value>不安装 Mod 加载器</value></data>
   <data name="Download_FabricLoaderSubtitle" xml:space="preserve"><value>支持选择 Fabric 版本并安装</value></data>
+  <data name="Download_ForgeLoaderSubtitle" xml:space="preserve"><value>支持选择 Forge 版本并安装</value></data>
   <data name="Download_FabricLoaderVersionLabel" xml:space="preserve"><value>Fabric 版本</value></data>
   <data name="Download_FabricLoaderVersionEmpty" xml:space="preserve"><value>无可用版本</value></data>
+  <data name="Download_LoaderVersionEmptyFormat" xml:space="preserve"><value>{0} 无可用版本</value></data>
   <data name="Download_LoaderVersionStableTag" xml:space="preserve"><value>稳定版</value></data>
   <data name="Download_LoaderVersionPreviewTag" xml:space="preserve"><value>测试版</value></data>
   <data name="Download_SelectVersionPlaceholder" xml:space="preserve"><value>选择版本</value></data>
@@ -139,8 +144,23 @@
   <data name="DownloadTask_Running" xml:space="preserve"><value>下载中</value></data>
   <data name="Status_Ready" xml:space="preserve"><value>准备就绪</value></data>
   <data name="Status_NoLaunchableInstance" xml:space="preserve"><value>还没有可启动的游戏</value></data>
+  <data name="Status_LaunchPreparing" xml:space="preserve"><value>正在准备启动游戏...</value></data>
+  <data name="Status_LaunchCheckingInstance" xml:space="preserve"><value>正在检查当前实例...</value></data>
+  <data name="Status_LaunchRepairingMetadata" xml:space="preserve"><value>正在整理当前版本信息...</value></data>
+  <data name="Status_LaunchRepairingJar" xml:space="preserve"><value>正在补齐当前实例 jar 文件...</value></data>
+  <data name="Status_LaunchRepairingLibraries" xml:space="preserve"><value>正在补齐共享 libraries...</value></data>
+  <data name="Status_LaunchRepairingAssets" xml:space="preserve"><value>正在补齐游戏资源...</value></data>
+  <data name="Status_LaunchRepairingLogging" xml:space="preserve"><value>正在补齐日志配置...</value></data>
+  <data name="Status_LaunchCheckingJava" xml:space="preserve"><value>正在检查 Java 运行环境...</value></data>
+  <data name="Status_LaunchPreparingProcess" xml:space="preserve"><value>正在生成启动参数...</value></data>
+  <data name="Status_LaunchStartingProcess" xml:space="preserve"><value>正在启动游戏进程...</value></data>
+  <data name="Status_LaunchCheckingFiles" xml:space="preserve"><value>正在检查游戏文件...</value></data>
+  <data name="Status_LaunchDownloadingFiles" xml:space="preserve"><value>正在下载游戏缺失文件...</value></data>
+  <data name="Status_LaunchCanceled" xml:space="preserve"><value>已取消本次启动</value></data>
   <data name="Status_LaunchAccountUnavailable" xml:space="preserve"><value>当前账户无法启动游戏，请重新登录或切换账户。</value></data>
+  <data name="Status_LaunchExitedQuickly" xml:space="preserve"><value>游戏启动后立即退出，已记录诊断日志，请检查当前实例的 logs\launcher 目录。</value></data>
   <data name="Status_LaunchFailed" xml:space="preserve"><value>启动失败，请稍后重试。</value></data>
+  <data name="Status_LaunchInstanceRepairFailed" xml:space="preserve"><value>当前实例缺少关键文件，且无法在不新增版本的情况下自动补齐，请重新安装该实例或检查版本文件。</value></data>
   <data name="Status_LaunchInstanceSelectedFormat" xml:space="preserve"><value>当前游戏已切换为 {0}</value></data>
   <data name="Status_LaunchInstanceSelectionFailed" xml:space="preserve"><value>当前游戏切换失败，请刷新后重试。</value></data>
   <data name="Status_LoadingVersions" xml:space="preserve"><value>正在获取 Minecraft 版本列表...</value></data>
@@ -164,12 +184,16 @@
   <data name="Status_NoCategoryVersionsFormat" xml:space="preserve"><value>没有找到{0}版本。</value></data>
   <data name="Status_NoMatchingVersions" xml:space="preserve"><value>没有找到匹配的版本。</value></data>
   <data name="Status_DuplicateInstanceName" xml:space="preserve"><value>已存在同名游戏</value></data>
+  <data name="Status_InstallQueued" xml:space="preserve"><value>正在等待其他安装任务完成...</value></data>
+  <data name="Status_InstallCheckingFiles" xml:space="preserve"><value>正在检查游戏文件...</value></data>
+  <data name="Status_InstallDownloadingFiles" xml:space="preserve"><value>正在下载游戏文件...</value></data>
   <data name="Status_InstallingVanillaFormat" xml:space="preserve"><value>正在安装原版 {0}...</value></data>
   <data name="Status_InstallingLoaderFormat" xml:space="preserve"><value>正在安装 {0} {1}...</value></data>
   <data name="Status_InstanceInstalledFormat" xml:space="preserve"><value>游戏 {0} 已安装</value></data>
   <data name="Status_InstallFailed" xml:space="preserve"><value>安装失败，请稍后重试。</value></data>
   <data name="Status_LoaderInstallPending" xml:space="preserve"><value>该加载器将在后续版本接入安装。</value></data>
   <data name="Status_FabricLoaderVersionsLoadFailed" xml:space="preserve"><value>Fabric 版本列表加载失败，请稍后重试。</value></data>
+  <data name="Status_LoaderVersionsLoadFailedFormat" xml:space="preserve"><value>{0} 版本列表加载失败，请稍后重试。</value></data>
   <data name="Status_OpeningMicrosoftLogin" xml:space="preserve"><value>正在打开 Microsoft 官方登录页面...</value></data>
   <data name="Status_LoginMicrosoftActive" xml:space="preserve"><value>正在登录，请在弹出的 Microsoft 官方页面完成登录...</value></data>
   <data name="Status_LoginMissingProfile" xml:space="preserve"><value>正版登录失败：未获取到 Minecraft Java 账户资料</value></data>
@@ -220,4 +244,5 @@
   <data name="Status_DeleteInstanceFailed" xml:space="preserve"><value>删除版本失败，请稍后重试。</value></data>
   <data name="Status_InstanceFolderNotFound" xml:space="preserve"><value>没有找到该版本对应的文件夹。</value></data>
   <data name="Status_OpenInstanceFolderFailed" xml:space="preserve"><value>打开版本文件夹失败，请稍后重试。</value></data>
+  <data name="GameSettings_UnknownMinecraftVersion" xml:space="preserve"><value>未知版本</value></data>
 </root>

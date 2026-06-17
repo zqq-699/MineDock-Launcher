@@ -19,6 +19,7 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public int CreateCallCount { get; private set; }
     public int GetInstancesCallCount { get; private set; }
     public int DeleteCallCount { get; private set; }
+    public LauncherProgress? InitialProgress { get; init; }
 
     public Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default)
     {
@@ -49,7 +50,7 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
         LastLoader = loader;
         LastLoaderVersion = loaderVersion;
         LastName = name;
-        progress?.Report(new LauncherProgress("Install", "Downloading", 25));
+        progress?.Report(InitialProgress ?? new LauncherProgress("Install", "Downloading", 25));
         CreateStarted.TrySetResult(true);
         lock (syncRoot)
         {

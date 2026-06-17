@@ -27,7 +27,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         return Task.FromResult(versions);
     }
 
-    public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
+    public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, string? javaPath, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
     {
         progress?.Report(new LauncherProgress("Install", $"姝ｅ湪涓嬭浇鍘熺増 {minecraftVersion}"));
 
@@ -192,7 +192,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider
         }
     }
 
-    public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
+    public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, string? javaPath, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
     {
         progress?.Report(new LauncherProgress("Install", $"姝ｅ湪瀹夎 Fabric {minecraftVersion}"));
         var path = new MinecraftPath(gameDirectory);
@@ -307,7 +307,7 @@ public sealed class PlaceholderLoaderProvider : ILoaderProvider
         return Task.FromResult(versions);
     }
 
-    public Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
+    public Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, string? javaPath, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
     {
         throw new NotSupportedException($"{DisplayName} 灏嗗湪鍚庣画鐗堟湰鎺ュ叆銆?");
     }

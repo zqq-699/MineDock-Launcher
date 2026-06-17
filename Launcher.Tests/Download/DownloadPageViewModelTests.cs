@@ -378,7 +378,7 @@ public sealed class DownloadPageViewModelTests
         Assert.Same(fabric, viewModel.SelectedLoaderOption);
         Assert.True(fabric.IsSelected);
         Assert.False(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Vanilla).IsSelected);
-        Assert.True(viewModel.ShouldShowFabricVersionSelector);
+        Assert.True(viewModel.ShouldShowLoaderVersionSelector);
         Assert.Null(viewModel.SelectedLoaderVersion);
         Assert.Equal("1.20.1-fabric", viewModel.InstanceName);
     }
@@ -516,7 +516,7 @@ public sealed class DownloadPageViewModelTests
         viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Vanilla));
 
         Assert.Equal("1.20.2", viewModel.InstanceName);
-        Assert.False(viewModel.ShouldShowFabricVersionSelector);
+        Assert.False(viewModel.ShouldShowLoaderVersionSelector);
         Assert.Null(viewModel.SelectedLoaderVersion);
     }
 
@@ -565,7 +565,9 @@ public sealed class DownloadPageViewModelTests
         await TestAsync.WaitForAsync(() => viewModel.HasLoaderVersionLoadError);
 
         Assert.False(viewModel.InstallCommand.CanExecute(null));
-        Assert.Equal(Strings.Status_FabricLoaderVersionsLoadFailed, viewModel.LoaderVersionLoadError);
+        Assert.Equal(
+            string.Format(Strings.Status_LoaderVersionsLoadFailedFormat, Strings.Download_FabricLoaderTitle),
+            viewModel.LoaderVersionLoadError);
         Assert.Equal(Strings.Download_LoaderVersionLoadFailedShort, viewModel.LoaderVersionPlaceholderText);
     }
 
@@ -593,7 +595,111 @@ public sealed class DownloadPageViewModelTests
         Assert.False(viewModel.HasLoaderVersionLoadError);
         Assert.False(viewModel.HasLoaderVersions);
         Assert.False(viewModel.InstallCommand.CanExecute(null));
-        Assert.Equal(Strings.Download_FabricLoaderVersionEmpty, viewModel.LoaderVersionPlaceholderText);
+        Assert.Equal(
+            string.Format(Strings.Download_LoaderVersionEmptyFormat, Strings.Download_FabricLoaderTitle),
+            viewModel.LoaderVersionPlaceholderText);
+    }
+
+    [Fact]
+    public async Task DownloadPageSelectingForgeShowsVersionSelectorAndSuggestedName()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.1", "Release", false)
+        ]);
+        var viewModel = CreateDownloadPageViewModel(service);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+
+        var forge = viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Forge);
+        viewModel.SelectLoaderOptionCommand.Execute(forge);
+        await TestAsync.WaitForAsync(() => viewModel.HasLoaderVersions);
+
+        Assert.Same(forge, viewModel.SelectedLoaderOption);
+        Assert.True(viewModel.ShouldShowLoaderVersionSelector);
+        Assert.Equal("1.20.1-forge", viewModel.InstanceName);
+
+        viewModel.SelectedLoaderVersion = viewModel.LoaderVersions.Single(version => version.Version == "47.4.20");
+
+        Assert.Equal("1.20.1-forge-47.4.20", viewModel.InstanceName);
+    }
+
+    [Fact]
+    public async Task DownloadPageForgeInstallPassesSelectedLoaderVersion()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.1", "Release", false)
+        ]);
+        var instanceService = new FakeGameInstanceService();
+        var viewModel = CreateDownloadPageViewModel(service, instanceService);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Forge));
+        await TestAsync.WaitForAsync(() => viewModel.HasLoaderVersions);
+        viewModel.SelectedLoaderVersion = viewModel.LoaderVersions.Single(version => version.Version == "47.4.20");
+        await viewModel.InstallCommand.ExecuteAsync(null);
+
+        Assert.Equal("1.20.1", instanceService.LastMinecraftVersion);
+        Assert.Equal(LoaderKind.Forge, instanceService.LastLoader);
+        Assert.Equal("47.4.20", instanceService.LastLoaderVersion);
+        Assert.Equal("1.20.1-forge-47.4.20", instanceService.LastName);
+    }
+
+    [Fact]
+    public async Task DownloadPageForgeInstallIsDisabledWhenLoaderVersionsFailToLoad()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.1", "Release", false)
+        ]);
+        var forgeProvider = new FakeLoaderProvider
+        {
+            Kind = LoaderKind.Forge,
+            DisplayName = Strings.Download_ForgeLoaderTitle,
+            GetLoaderVersionsException = new InvalidOperationException("boom")
+        };
+        var viewModel = CreateDownloadPageViewModel(service, loaderProviders: CreateLoaderProviders(forgeProvider: forgeProvider));
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Forge));
+
+        await TestAsync.WaitForAsync(() => viewModel.HasLoaderVersionLoadError);
+
+        Assert.False(viewModel.InstallCommand.CanExecute(null));
+        Assert.Equal(
+            string.Format(Strings.Status_LoaderVersionsLoadFailedFormat, Strings.Download_ForgeLoaderTitle),
+            viewModel.LoaderVersionLoadError);
+    }
+
+    [Fact]
+    public async Task DownloadPageShowsNoAvailableVersionWhenForgeHasNoCompatibleVersions()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.1", "Release", false)
+        ]);
+        var forgeProvider = new FakeLoaderProvider
+        {
+            Kind = LoaderKind.Forge,
+            DisplayName = Strings.Download_ForgeLoaderTitle,
+            LoaderVersions = []
+        };
+        var viewModel = CreateDownloadPageViewModel(service, loaderProviders: CreateLoaderProviders(forgeProvider: forgeProvider));
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Forge));
+
+        await TestAsync.WaitForAsync(() => viewModel.HasNoLoaderVersions);
+
+        Assert.False(viewModel.InstallCommand.CanExecute(null));
+        Assert.Equal(
+            string.Format(Strings.Download_LoaderVersionEmptyFormat, Strings.Download_ForgeLoaderTitle),
+            viewModel.LoaderVersionPlaceholderText);
     }
 
     [Fact]
@@ -630,6 +736,37 @@ public sealed class DownloadPageViewModelTests
         Assert.Equal(100, task.ProgressPercent);
         Assert.Contains("1.20.1", task.Title);
         Assert.Equal(DownloadPageStep.VersionList, viewModel.CurrentStep);
+    }
+
+    [Fact]
+    public async Task DownloadPageMapsKnownInstallStagesToFriendlyTaskStatus()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.1", "Release", false)
+        ]);
+        var allowCreate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var instanceService = new FakeGameInstanceService
+        {
+            WaitBeforeCreate = allowCreate.Task,
+            InitialProgress = new LauncherProgress("Bytes", "garbled", 25, "1.2 MB/s")
+        };
+        var tasksPage = new DownloadTasksPageViewModel();
+        var viewModel = CreateDownloadPageViewModel(service, instanceService, tasksPage);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+
+        var installTask = viewModel.InstallCommand.ExecuteAsync(null);
+        await instanceService.CreateStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var task = Assert.Single(tasksPage.Tasks);
+        Assert.Equal(Strings.Status_InstallDownloadingFiles, task.StatusMessage);
+        Assert.Equal(Strings.Status_InstallDownloadingFiles, viewModel.InstallStatusMessage);
+        Assert.Equal("1.2 MB/s", task.DownloadSpeedText);
+
+        allowCreate.SetResult(true);
+        await installTask;
     }
 
     [Fact]
@@ -731,7 +868,7 @@ public sealed class DownloadPageViewModelTests
     }
 
     [Fact]
-    public async Task DownloadPageInstallShowsErrorAndPropagatesFailure()
+    public async Task DownloadPageInstallShowsErrorWithoutCrashingWhenCreateFails()
     {
         var service = new FakeGameVersionService(
         [
@@ -744,10 +881,8 @@ public sealed class DownloadPageViewModelTests
         await viewModel.EnsureVersionsLoadedAsync();
         await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
 
-        var actual = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => viewModel.InstallCommand.ExecuteAsync(null));
+        await viewModel.InstallCommand.ExecuteAsync(null);
 
-        Assert.Same(expected, actual);
         Assert.False(viewModel.IsInstalling);
         Assert.True(viewModel.HasInstallError);
         Assert.Equal(Strings.Status_InstallFailed, viewModel.InstallError);
@@ -756,7 +891,7 @@ public sealed class DownloadPageViewModelTests
 
     private static DownloadPageViewModel CreateDownloadPageViewModel(
         IGameVersionService gameVersionService,
-        FakeGameInstanceService? instanceService = null,
+        IGameInstanceService? instanceService = null,
         DownloadTasksPageViewModel? tasksPage = null,
         IEnumerable<ILoaderProvider>? loaderProviders = null)
     {
@@ -767,7 +902,9 @@ public sealed class DownloadPageViewModelTests
             loaderProviders ?? CreateLoaderProviders());
     }
 
-    private static IEnumerable<ILoaderProvider> CreateLoaderProviders(FakeLoaderProvider? fabricProvider = null)
+    private static IEnumerable<ILoaderProvider> CreateLoaderProviders(
+        FakeLoaderProvider? fabricProvider = null,
+        FakeLoaderProvider? forgeProvider = null)
     {
         return
         [
@@ -779,6 +916,16 @@ public sealed class DownloadPageViewModelTests
                 [
                     new LoaderVersionInfo("0.16.10"),
                     new LoaderVersionInfo("0.16.9", false)
+                ]
+            },
+            forgeProvider ?? new FakeLoaderProvider
+            {
+                Kind = LoaderKind.Forge,
+                DisplayName = Strings.Download_ForgeLoaderTitle,
+                LoaderVersions =
+                [
+                    new LoaderVersionInfo("47.4.20"),
+                    new LoaderVersionInfo("47.4.10")
                 ]
             }
         ];

@@ -21,7 +21,7 @@ public sealed partial class GameSettingsInstanceItem : ObservableObject
         : Instance.Name;
 
     public string MinecraftVersion => string.IsNullOrWhiteSpace(Instance.MinecraftVersion)
-        ? VersionName
+        ? Strings.GameSettings_UnknownMinecraftVersion
         : Instance.MinecraftVersion;
 
     public string VersionName => string.IsNullOrWhiteSpace(Instance.VersionName)
@@ -57,7 +57,20 @@ public sealed partial class GameSettingsInstanceItem : ObservableObject
         _ => Loader.ToString()
     };
 
-    public string Subtitle => string.Format(Strings.GameSettings_InstanceSubtitleFormat, MinecraftVersion, LoaderLabel);
+    public string Subtitle => Loader switch
+    {
+        LoaderKind.Vanilla => string.Format(Strings.GameSettings_InstanceSubtitleVanillaFormat, MinecraftVersion),
+        _ when !string.IsNullOrWhiteSpace(Instance.LoaderVersion)
+            => string.Format(
+                Strings.GameSettings_InstanceSubtitleLoaderFormat,
+                MinecraftVersion,
+                LoaderLabel,
+                Instance.LoaderVersion),
+        _ => string.Format(
+            Strings.GameSettings_InstanceSubtitleLoaderWithoutVersionFormat,
+            MinecraftVersion,
+            LoaderLabel)
+    };
 
     public string UpdatedDateText => Instance.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd");
 
@@ -86,6 +99,7 @@ public sealed partial class GameSettingsInstanceItem : ObservableObject
             || Contains(MinecraftVersion, query)
             || Contains(VersionName, query)
             || Contains(LoaderLabel, query)
+            || Contains(Instance.LoaderVersion ?? string.Empty, query)
             || Contains(TypeLabel, query);
     }
 

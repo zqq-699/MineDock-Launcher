@@ -24,7 +24,7 @@ internal static class VanillaVersionComposer
             throw new IOException($"Version directory already exists: {finalVersionName}");
 
         var baseVersionJson = await DownloadBaseVersionJsonAsync(httpClient, minecraftVersion, cancellationToken);
-        var finalVersionJson = BuildFinalVersionJson(baseVersionJson, finalVersionName);
+        var finalVersionJson = BuildFinalVersionJson(baseVersionJson, finalVersionName, minecraftVersion);
 
         Directory.CreateDirectory(finalVersionDirectory);
 
@@ -48,12 +48,16 @@ internal static class VanillaVersionComposer
         return finalVersionName;
     }
 
-    internal static JsonObject BuildFinalVersionJson(JsonObject baseVersionJson, string finalVersionName)
+    internal static JsonObject BuildFinalVersionJson(
+        JsonObject baseVersionJson,
+        string finalVersionName,
+        string minecraftVersion)
     {
         var finalVersionJson = (JsonObject)baseVersionJson.DeepClone();
         finalVersionJson["id"] = finalVersionName;
         finalVersionJson["jar"] = finalVersionName;
         finalVersionJson.Remove("inheritsFrom");
+        LauncherVersionMetadata.Apply(finalVersionJson, minecraftVersion);
         return finalVersionJson;
     }
 
@@ -62,26 +66,10 @@ internal static class VanillaVersionComposer
         string minecraftVersion,
         CancellationToken cancellationToken)
     {
-        using var manifestStream = await httpClient.GetStreamAsync(
-            "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
+        return await VanillaVersionMetadataClient.DownloadVersionJsonAsync(
+            httpClient,
+            minecraftVersion,
             cancellationToken);
-        var manifestNode = await JsonNode.ParseAsync(manifestStream, cancellationToken: cancellationToken)
-            ?? throw new InvalidDataException("Minecraft version manifest is empty.");
-
-        var versionEntries = manifestNode["versions"]?.AsArray()
-            ?? throw new InvalidDataException("Minecraft version manifest is missing versions.");
-        var versionUrl = versionEntries
-            .Select(entry => entry?.AsObject())
-            .FirstOrDefault(entry =>
-                string.Equals(entry?["id"]?.GetValue<string>(), minecraftVersion, StringComparison.OrdinalIgnoreCase))?["url"]?.GetValue<string>();
-
-        if (string.IsNullOrWhiteSpace(versionUrl))
-            throw new InvalidOperationException($"Minecraft version metadata not found: {minecraftVersion}");
-
-        using var versionStream = await httpClient.GetStreamAsync(versionUrl, cancellationToken);
-        var versionNode = await JsonNode.ParseAsync(versionStream, cancellationToken: cancellationToken)
-            ?? throw new InvalidDataException($"Minecraft version metadata is empty: {minecraftVersion}");
-        return versionNode.AsObject();
     }
 
     private static async Task DownloadClientJarAsync(
@@ -90,7 +78,7 @@ internal static class VanillaVersionComposer
         string destinationJarPath,
         CancellationToken cancellationToken)
     {
-        var clientUrl = baseVersionJson["downloads"]?["client"]?["url"]?.GetValue<string>();
+        var clientUrl = VanillaVersionMetadataClient.GetClientJarUrl(baseVersionJson);
         if (string.IsNullOrWhiteSpace(clientUrl))
             throw new InvalidDataException("Minecraft version metadata is missing downloads.client.url.");
 

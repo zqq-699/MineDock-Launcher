@@ -11,10 +11,29 @@ namespace Launcher.Infrastructure.Minecraft;
 public sealed class LaunchService : ILaunchService
 {
     private readonly ILaunchAccountSessionService accountSessionService;
+    private readonly IManagedVersionRepairService versionRepairService;
+    private readonly ILaunchGameLauncherFactory launcherFactory;
+    private readonly ILaunchCrashMonitor crashMonitor;
 
     public LaunchService(ILaunchAccountSessionService accountSessionService)
+        : this(
+            accountSessionService,
+            new ManagedVersionRepairService(),
+            new LaunchGameLauncherFactory(),
+            new LaunchCrashMonitor())
+    {
+    }
+
+    internal LaunchService(
+        ILaunchAccountSessionService accountSessionService,
+        IManagedVersionRepairService versionRepairService,
+        ILaunchGameLauncherFactory launcherFactory,
+        ILaunchCrashMonitor crashMonitor)
     {
         this.accountSessionService = accountSessionService;
+        this.versionRepairService = versionRepairService;
+        this.launcherFactory = launcherFactory;
+        this.crashMonitor = crashMonitor;
     }
 
     public async Task LaunchAsync(
@@ -24,39 +43,143 @@ public sealed class LaunchService : ILaunchService
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default)
     {
-        progress?.Report(new LauncherProgress("Launch", $"正在检查 {instance.Name}"));
-        var launcher = VanillaLoaderProvider.CreateLauncher(settings.MinecraftDirectory, progress);
-        VanillaLoaderProvider.AttachProgress(launcher, progress);
-
         var versionName = string.IsNullOrWhiteSpace(instance.VersionName) ? instance.MinecraftVersion : instance.VersionName;
-        await launcher.InstallAsync(versionName, cancellationToken);
-        var isolatedPath = CreateIsolatedLaunchPath(settings.MinecraftDirectory, versionName);
-
-        var accountSession = await accountSessionService.CreateSessionAsync(account, cancellationToken);
         var javaPath = string.IsNullOrWhiteSpace(instance.JavaPath) ? settings.DefaultJavaPath : instance.JavaPath;
-        var launchOption = new MLaunchOption
+        System.Diagnostics.Process? process = null;
+
+        try
         {
-            Path = isolatedPath,
-            Session = new MSession(
-                accountSession.Username,
-                accountSession.AccessToken,
-                accountSession.Uuid),
-            MaximumRamMb = instance.MemoryMb > 0 ? instance.MemoryMb : settings.DefaultMemoryMb,
-            ScreenWidth = instance.WindowWidth,
-            ScreenHeight = instance.WindowHeight,
-            GameLauncherName = "Launcher",
-            GameLauncherVersion = "0.1"
-        };
+            await versionRepairService.RepairAsync(
+                settings.MinecraftDirectory,
+                versionName,
+                instance.InstanceDirectory,
+                javaPath,
+                progress,
+                cancellationToken);
 
-        if (!string.IsNullOrWhiteSpace(javaPath))
-            launchOption.JavaPath = javaPath;
+            progress?.Report(new LauncherProgress(
+                LaunchProgressStages.PreparingProcess,
+                "Preparing launch process",
+                94));
 
-        if (!string.IsNullOrWhiteSpace(instance.JvmArguments))
-            launchOption.ExtraJvmArguments = [MArgument.FromCommandLine(instance.JvmArguments)];
+            var launcher = launcherFactory.Create(settings.MinecraftDirectory, progress);
+            var isolatedPath = CreateIsolatedLaunchPath(settings.MinecraftDirectory, versionName);
 
-        var process = await launcher.BuildProcessAsync(versionName, launchOption, cancellationToken);
-        progress?.Report(new LauncherProgress("Launch", "游戏进程已启动"));
-        process.Start();
+            var accountSession = await accountSessionService.CreateSessionAsync(account, cancellationToken);
+            var launchOption = new MLaunchOption
+            {
+                Path = isolatedPath,
+                Session = new MSession(
+                    accountSession.Username,
+                    accountSession.AccessToken,
+                    accountSession.Uuid),
+                MaximumRamMb = instance.MemoryMb > 0 ? instance.MemoryMb : settings.DefaultMemoryMb,
+                ScreenWidth = instance.WindowWidth,
+                ScreenHeight = instance.WindowHeight,
+                GameLauncherName = "Launcher",
+                GameLauncherVersion = "0.1"
+            };
+
+            if (!string.IsNullOrWhiteSpace(javaPath))
+                launchOption.JavaPath = javaPath;
+
+            if (!string.IsNullOrWhiteSpace(instance.JvmArguments))
+                launchOption.ExtraJvmArguments = [MArgument.FromCommandLine(instance.JvmArguments)];
+
+            process = await launcher.BuildProcessAsync(versionName, launchOption, cancellationToken);
+            var crashMonitorSession = crashMonitor.CreateSession(
+                settings.MinecraftDirectory,
+                instance.InstanceDirectory,
+                versionName);
+            crashMonitorSession.Configure(process);
+            progress?.Report(new LauncherProgress(
+                LaunchProgressStages.StartingProcess,
+                "Starting game process",
+                100));
+            process.Start();
+
+            var quickExitResult = await crashMonitorSession.WaitForQuickExitAsync(process, cancellationToken);
+            if (quickExitResult is not null)
+                throw new LaunchProcessExitedException(quickExitResult.DiagnosticPath);
+        }
+        catch (LaunchProcessExitedException)
+        {
+            throw;
+        }
+        catch (LaunchAccountSessionException exception)
+        {
+            await WriteFailureDiagnosticAsync(
+                settings,
+                instance,
+                versionName,
+                javaPath,
+                "account_session_failed",
+                "Failed to create a valid Minecraft account session.",
+                exception,
+                process?.StartInfo,
+                cancellationToken);
+            throw;
+        }
+        catch (InstanceRepairException exception)
+        {
+            await WriteFailureDiagnosticAsync(
+                settings,
+                instance,
+                versionName,
+                javaPath,
+                "instance_repair_failed",
+                exception.Message,
+                exception,
+                process?.StartInfo,
+                cancellationToken);
+            throw;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            await WriteFailureDiagnosticAsync(
+                settings,
+                instance,
+                versionName,
+                javaPath,
+                "launch_failed",
+                exception.Message,
+                exception,
+                process?.StartInfo,
+                cancellationToken);
+            throw;
+        }
+    }
+
+    private static async Task WriteFailureDiagnosticAsync(
+        LauncherSettings settings,
+        GameInstance instance,
+        string versionName,
+        string? javaPath,
+        string failureKind,
+        string failureSummary,
+        Exception exception,
+        System.Diagnostics.ProcessStartInfo? startInfo,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var diagnosticPath = await LaunchDiagnosticsWriter.WriteExceptionDiagnosticAsync(
+                settings.MinecraftDirectory,
+                instance.InstanceDirectory,
+                versionName,
+                failureKind,
+                failureSummary,
+                javaPath,
+                exception,
+                startInfo,
+                cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(diagnosticPath))
+                exception.Data["DiagnosticPath"] = diagnosticPath;
+        }
+        catch
+        {
+        }
     }
 
     private static MinecraftPath CreateIsolatedLaunchPath(string minecraftDirectory, string versionName)
