@@ -616,7 +616,7 @@ public sealed class GameSettingsPageViewModelTests
         viewModel.Details.LaunchMinimizeLauncherAfterLaunchEnabled = true;
 
         await TestAsync.WaitForAsync(() =>
-            instanceService.SaveCallCount >= 4
+            instanceService.SaveCallCount >= 3
             && instanceService.LastSavedInstance is not null
             && instanceService.LastSavedInstance.LaunchSettingsMode == LaunchSettingsMode.PerInstance
             && !instanceService.LastSavedInstance.CheckFilesBeforeLaunch
@@ -627,6 +627,73 @@ public sealed class GameSettingsPageViewModelTests
         Assert.False(viewModel.SelectedInstance?.Instance.CheckFilesBeforeLaunch);
         Assert.False(viewModel.SelectedInstance?.Instance.AutoRepairMissingFiles);
         Assert.True(viewModel.SelectedInstance?.Instance.MinimizeLauncherAfterLaunch);
+    }
+
+    [Fact]
+    public async Task PerInstanceLaunchCheckSynchronizesAutoRepair()
+    {
+        var instanceService = new FakeGameInstanceService();
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.CheckFilesBeforeLaunch = true;
+        instance.AutoRepairMissingFiles = true;
+        instanceService.CreatedInstances.Add(instance);
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.Details.SelectedLaunchSettingsModeOption = viewModel.Details.LaunchSettingsModeOptions
+            .Single(option => option.Mode == LaunchSettingsMode.PerInstance);
+
+        viewModel.Details.LaunchCheckFilesBeforeLaunchEnabled = false;
+
+        Assert.False(viewModel.Details.LaunchAutoRepairMissingFilesEnabled);
+        Assert.False(viewModel.Details.CanEditAutoRepairMissingFiles);
+
+        viewModel.Details.LaunchCheckFilesBeforeLaunchEnabled = true;
+
+        Assert.True(viewModel.Details.LaunchAutoRepairMissingFilesEnabled);
+        Assert.True(viewModel.Details.CanEditAutoRepairMissingFiles);
+        await TestAsync.WaitForAsync(() =>
+            instanceService.LastSavedInstance is not null
+            && instanceService.LastSavedInstance.CheckFilesBeforeLaunch
+            && instanceService.LastSavedInstance.AutoRepairMissingFiles);
+    }
+
+    [Fact]
+    public async Task UseGlobalLaunchSettingsSynchronizesEditorValuesFromGlobalSettings()
+    {
+        var instanceService = new FakeGameInstanceService();
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.LaunchSettingsMode = LaunchSettingsMode.PerInstance;
+        instance.CheckFilesBeforeLaunch = true;
+        instance.AutoRepairMissingFiles = true;
+        instance.MinimizeLauncherAfterLaunch = false;
+        instanceService.CreatedInstances.Add(instance);
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+        viewModel.PrimeFromSettings(new LauncherSettings
+        {
+            DefaultCheckFilesBeforeLaunch = false,
+            DefaultAutoRepairMissingFiles = false,
+            DefaultMinimizeLauncherAfterLaunch = true
+        });
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+
+        viewModel.Details.SelectedLaunchSettingsModeOption = viewModel.Details.LaunchSettingsModeOptions
+            .Single(option => option.Mode == LaunchSettingsMode.UseGlobal);
+
+        Assert.False(viewModel.Details.LaunchCheckFilesBeforeLaunchEnabled);
+        Assert.False(viewModel.Details.LaunchAutoRepairMissingFilesEnabled);
+        Assert.True(viewModel.Details.LaunchMinimizeLauncherAfterLaunchEnabled);
+        Assert.False(viewModel.Details.AreLaunchSettingsOverridesEnabled);
+
+        await TestAsync.WaitForAsync(() =>
+            instanceService.LastSavedInstance is not null
+            && instanceService.LastSavedInstance.LaunchSettingsMode == LaunchSettingsMode.UseGlobal
+            && !instanceService.LastSavedInstance.CheckFilesBeforeLaunch
+            && !instanceService.LastSavedInstance.AutoRepairMissingFiles
+            && instanceService.LastSavedInstance.MinimizeLauncherAfterLaunch);
     }
 
     [Fact]

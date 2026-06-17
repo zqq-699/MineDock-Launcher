@@ -24,6 +24,9 @@
                     <DataTrigger Binding="{Binding CurrentPage}" Value="GameSettings">
                         <Setter Property="Visibility" Value="Collapsed" />
                     </DataTrigger>
+                    <DataTrigger Binding="{Binding CurrentPage}" Value="Settings">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
                 </Style.Triggers>
             </Style>
         </ScrollViewer.Style>

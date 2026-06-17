@@ -130,6 +130,7 @@ public sealed class MainViewModelTests
         var gameVersionService = new FakeGameVersionService([]);
         var downloadTasksPage = new DownloadTasksPageViewModel();
         var accountPage = CreateAccountPage(statusService);
+        var settingsPage = new SettingsPageViewModel(settingsService, statusService);
         var gameManagement = new GameManagementViewModel(
             new InstanceManagementViewModel(settingsService, instanceService, statusService),
             new LoaderSelectionViewModel(gameVersionService, [], statusService),
@@ -143,6 +144,7 @@ public sealed class MainViewModelTests
             new DownloadPageViewModel(gameVersionService, instanceService, downloadTasksPage, []),
             downloadTasksPage,
             new GameSettingsPageViewModel(instanceService, gameVersionService, statusService, new FakeInstanceFolderService()),
+            settingsPage,
             gameManagement,
             new FakeWindowService(),
             statusService,

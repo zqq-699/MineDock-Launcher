@@ -110,6 +110,9 @@ public partial class MainWindow : Window
         if (string.Equals(page, "GameSettings", StringComparison.OrdinalIgnoreCase))
             return GameSettingsPageView.RootElement;
 
+        if (string.Equals(page, "Settings", StringComparison.OrdinalIgnoreCase))
+            return SettingsPageView.RootElement;
+
         return GeneralPageView.RootElement;
     }
 

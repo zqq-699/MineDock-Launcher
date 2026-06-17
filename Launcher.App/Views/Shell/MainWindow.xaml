@@ -10,6 +10,7 @@
         xmlns:accountDialogViews="clr-namespace:Launcher.App.Views.Account.Dialogs"
         xmlns:gameSettingsViews="clr-namespace:Launcher.App.Views.GameSettings"
         xmlns:generalViews="clr-namespace:Launcher.App.Views.General"
+        xmlns:settingsViews="clr-namespace:Launcher.App.Views.Settings"
         xmlns:res="clr-namespace:Launcher.App.Resources"
         x:Class="Launcher.App.Views.Shell.MainWindow"
         x:Name="RootWindow"
@@ -78,6 +79,9 @@
                     <gameSettingsViews:GameSettingsPageView x:Name="GameSettingsPageView"
                                                             DataContext="{Binding GameSettingsPage}"
                                                             Visibility="{Binding DataContext.CurrentPage, ElementName=RootWindow, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=GameSettings}" />
+                    <settingsViews:SettingsPageView x:Name="SettingsPageView"
+                                                    DataContext="{Binding SettingsPage}"
+                                                    Visibility="{Binding DataContext.CurrentPage, ElementName=RootWindow, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=Settings}" />
                     <generalViews:GeneralPageView x:Name="GeneralPageView" />
                 </Grid>
 

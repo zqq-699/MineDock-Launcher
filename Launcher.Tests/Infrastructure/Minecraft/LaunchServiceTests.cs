@@ -39,6 +39,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
             versionDirectory,
             Environment.ProcessPath,
             progress,
+            allowRepair: true,
             CancellationToken.None);
 
         Assert.True(File.Exists(Path.Combine(versionDirectory, "Forge Pack.jar")));
@@ -94,6 +95,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
             versionDirectory,
             Environment.ProcessPath,
             progress,
+            allowRepair: true,
             CancellationToken.None);
 
         Assert.True(File.Exists(Path.Combine(minecraftDirectory, "libraries", "com", "example", "demo", "1.0.0", "demo-1.0.0.jar")));
@@ -142,6 +144,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
             versionDirectory,
             Environment.ProcessPath,
             progress: null,
+            allowRepair: true,
             CancellationToken.None);
 
         Assert.True(File.Exists(Path.Combine(
@@ -195,6 +198,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
             versionDirectory,
             Environment.ProcessPath,
             progress: null,
+            allowRepair: true,
             CancellationToken.None);
 
         var repairedJson = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(versionDirectory, "External Pack.json")))!.AsObject();
@@ -228,6 +232,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
             versionDirectory,
             Environment.ProcessPath,
             progress: null,
+            allowRepair: true,
             CancellationToken.None);
 
         var repairedJson = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(versionDirectory, "Imported Pack.json")))!.AsObject();
@@ -259,6 +264,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
             versionDirectory,
             Environment.ProcessPath,
             progress: null,
+            allowRepair: true,
             CancellationToken.None));
 
         Assert.Equal(["Broken Pack"], Directory.GetDirectories(Path.Combine(minecraftDirectory, "versions")).Select(Path.GetFileName));
@@ -299,7 +305,160 @@ public sealed class LaunchServiceTests : TestTempDirectory
         Assert.Equal("Forge Pack", repairService.LastVersionName);
         Assert.Equal(instance.InstanceDirectory, repairService.LastInstanceDirectory);
         Assert.Equal(instance.JavaPath, repairService.LastJavaPath);
+        Assert.True(repairService.LastAllowRepair);
         Assert.Equal("Forge Pack", launcherFactory.Launcher.LastBuiltVersionName);
+    }
+
+    [Fact]
+    public async Task LaunchServiceSkipsCheckWhenDisabledByGlobalSettings()
+    {
+        var repairService = new FakeManagedVersionRepairService();
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            repairService,
+            launcherFactory,
+            new NoOpLaunchCrashMonitor());
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultCheckFilesBeforeLaunch = false,
+            DefaultAutoRepairMissingFiles = true
+        };
+        var instance = new GameInstance
+        {
+            Name = "Forge Pack",
+            VersionName = "Forge Pack",
+            InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Forge Pack"),
+            LaunchSettingsMode = LaunchSettingsMode.UseGlobal
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline",
+            DisplayName = "Player",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+
+        await service.LaunchAsync(instance, account, settings, progress: null);
+
+        Assert.Null(repairService.LastVersionName);
+        Assert.Equal("Forge Pack", launcherFactory.Launcher.LastBuiltVersionName);
+    }
+
+    [Fact]
+    public async Task LaunchServiceUsesCheckOnlyModeWhenAutoRepairDisabled()
+    {
+        var repairService = new FakeManagedVersionRepairService();
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            repairService,
+            launcherFactory,
+            new NoOpLaunchCrashMonitor());
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultCheckFilesBeforeLaunch = true,
+            DefaultAutoRepairMissingFiles = false
+        };
+        var instance = new GameInstance
+        {
+            Name = "Forge Pack",
+            VersionName = "Forge Pack",
+            InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Forge Pack"),
+            LaunchSettingsMode = LaunchSettingsMode.UseGlobal
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline",
+            DisplayName = "Player",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+
+        await service.LaunchAsync(instance, account, settings, progress: null);
+
+        Assert.False(repairService.LastAllowRepair);
+    }
+
+    [Fact]
+    public async Task ManagedVersionRepairThrowsWhenJarIsMissingAndAutoRepairDisabled()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", "Forge Pack");
+        Directory.CreateDirectory(versionDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(versionDirectory, "Forge Pack.json"),
+            """
+            {
+              "id": "Forge Pack",
+              "jar": "Forge Pack",
+              "downloads": {
+                "client": {
+                  "url": "https://example.test/client.jar"
+                }
+              }
+            }
+            """);
+
+        var repairService = new ManagedVersionRepairService(new HttpClient(new RepairHttpHandler()));
+
+        await Assert.ThrowsAsync<InstanceRepairException>(() => repairService.RepairAsync(
+            minecraftDirectory,
+            "Forge Pack",
+            versionDirectory,
+            Environment.ProcessPath,
+            progress: null,
+            allowRepair: false,
+            CancellationToken.None));
+
+        Assert.False(File.Exists(Path.Combine(versionDirectory, "Forge Pack.jar")));
+    }
+
+    [Fact]
+    public async Task ManagedVersionRepairReportsCheckingFilesWhenAutoRepairDisabled()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", "Fabric Pack");
+        Directory.CreateDirectory(versionDirectory);
+        await File.WriteAllTextAsync(Path.Combine(versionDirectory, "Fabric Pack.jar"), "jar");
+        await File.WriteAllTextAsync(
+            Path.Combine(versionDirectory, "Fabric Pack.json"),
+            """
+            {
+              "id": "Fabric Pack",
+              "jar": "Fabric Pack",
+              "libraries": [],
+              "assetIndex": {
+                "id": "1.20.1",
+                "url": "https://example.test/assets/index.json"
+              }
+            }
+            """);
+        Directory.CreateDirectory(Path.Combine(minecraftDirectory, "assets", "indexes"));
+        await File.WriteAllTextAsync(
+            Path.Combine(minecraftDirectory, "assets", "indexes", "1.20.1.json"),
+            """
+            {
+              "objects": {}
+            }
+            """);
+
+        var repairService = new ManagedVersionRepairService(new HttpClient(new RepairHttpHandler()));
+        var progress = new RecordingProgress();
+
+        await repairService.RepairAsync(
+            minecraftDirectory,
+            "Fabric Pack",
+            versionDirectory,
+            Environment.ProcessPath,
+            progress,
+            allowRepair: false,
+            CancellationToken.None);
+
+        Assert.Contains(progress.Items, item => item.Stage == LaunchProgressStages.CheckingFiles);
+        Assert.DoesNotContain(progress.Items, item => item.Stage == LaunchProgressStages.RepairingAssets);
     }
 
     [Fact]
@@ -483,6 +642,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
         public string? LastVersionName { get; private set; }
         public string? LastInstanceDirectory { get; private set; }
         public string? LastJavaPath { get; private set; }
+        public bool LastAllowRepair { get; private set; }
         public Func<IProgress<LauncherProgress>?, Task>? OnRepairAsync { get; init; }
 
         public Task RepairAsync(
@@ -491,11 +651,13 @@ public sealed class LaunchServiceTests : TestTempDirectory
             string instanceDirectory,
             string? javaPath,
             IProgress<LauncherProgress>? progress,
+            bool allowRepair,
             CancellationToken cancellationToken)
         {
             LastVersionName = versionName;
             LastInstanceDirectory = instanceDirectory;
             LastJavaPath = javaPath;
+            LastAllowRepair = allowRepair;
             if (OnRepairAsync is not null)
                 return OnRepairAsync(progress);
 

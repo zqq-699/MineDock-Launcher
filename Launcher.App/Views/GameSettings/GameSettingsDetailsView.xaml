@@ -35,24 +35,6 @@
             </Setter>
         </Style>
 
-        <Style x:Key="SettingsOptionRowStyle" TargetType="Grid">
-            <Setter Property="Margin" Value="0,0,0,14" />
-        </Style>
-
-        <Style x:Key="SettingsOptionTextStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#F2F2F2" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="FontWeight" Value="Normal" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-
-        <DataTemplate x:Key="LaunchSettingsModeOptionTemplate">
-            <TextBlock Text="{Binding Title}"
-                       Foreground="#F4F4F4"
-                       FontSize="13"
-                       FontWeight="Normal"
-                       VerticalAlignment="Center" />
-        </DataTemplate>
     </UserControl.Resources>
 
     <ScrollViewer x:Name="DetailsScrollViewer"
@@ -145,71 +127,14 @@
 
             <StackPanel Margin="0"
                         Visibility="{Binding IsLaunchSection, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
-                <GroupBox Header="{x:Static res:Strings.GameSettings_LaunchSettingsSection}"
-                          Style="{StaticResource LauncherContentSectionStyle}">
-                    <StackPanel>
-                        <Grid Margin="0,0,0,18">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="180" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchSettingsModeLabel}"
-                                       Style="{StaticResource SettingsOptionTextStyle}" />
-
-                            <controls:AnimatedComboBox Grid.Column="1"
-                                                       ItemsSource="{Binding LaunchSettingsModeOptions}"
-                                                       SelectedItem="{Binding SelectedLaunchSettingsModeOption, Mode=TwoWay}"
-                                                       ItemTemplate="{StaticResource LaunchSettingsModeOptionTemplate}"
-                                                       Style="{StaticResource LauncherComboBoxStyle}" />
-                        </Grid>
-
-                        <Grid Style="{StaticResource SettingsOptionRowStyle}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchCheckFilesOption}"
-                                       Style="{StaticResource SettingsOptionTextStyle}" />
-
-                            <CheckBox Grid.Column="1"
-                                      IsChecked="{Binding LaunchCheckFilesBeforeLaunchEnabled, Mode=TwoWay}"
-                                      IsEnabled="{Binding AreLaunchSettingsOverridesEnabled}"
-                                      Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
-                        </Grid>
-
-                        <Grid Style="{StaticResource SettingsOptionRowStyle}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchAutoRepairOption}"
-                                       Style="{StaticResource SettingsOptionTextStyle}" />
-
-                            <CheckBox Grid.Column="1"
-                                      IsChecked="{Binding LaunchAutoRepairMissingFilesEnabled, Mode=TwoWay}"
-                                      IsEnabled="{Binding CanEditAutoRepairMissingFiles}"
-                                      Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
-                        </Grid>
-
-                        <Grid Margin="0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchMinimizeLauncherOption}"
-                                       Style="{StaticResource SettingsOptionTextStyle}" />
-
-                            <CheckBox Grid.Column="1"
-                                      IsChecked="{Binding LaunchMinimizeLauncherAfterLaunchEnabled, Mode=TwoWay}"
-                                      IsEnabled="{Binding AreLaunchSettingsOverridesEnabled}"
-                                      Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
-                        </Grid>
-                    </StackPanel>
-                </GroupBox>
+                <controls:LaunchSettingsEditor ShowModeSelector="True"
+                                              LaunchSettingsModeOptions="{Binding LaunchSettingsModeOptions}"
+                                              SelectedLaunchSettingsModeOption="{Binding SelectedLaunchSettingsModeOption, Mode=TwoWay}"
+                                              AreLaunchSettingsOverridesEnabled="{Binding AreLaunchSettingsOverridesEnabled}"
+                                              CanEditAutoRepairMissingFiles="{Binding CanEditAutoRepairMissingFiles}"
+                                              LaunchCheckFilesBeforeLaunchEnabled="{Binding LaunchCheckFilesBeforeLaunchEnabled, Mode=TwoWay}"
+                                              LaunchAutoRepairMissingFilesEnabled="{Binding LaunchAutoRepairMissingFilesEnabled, Mode=TwoWay}"
+                                              LaunchMinimizeLauncherAfterLaunchEnabled="{Binding LaunchMinimizeLauncherAfterLaunchEnabled, Mode=TwoWay}" />
             </StackPanel>
 
             <GroupBox Margin="0"

@@ -45,17 +45,27 @@ public sealed class LaunchService : ILaunchService
     {
         var versionName = string.IsNullOrWhiteSpace(instance.VersionName) ? instance.MinecraftVersion : instance.VersionName;
         var javaPath = string.IsNullOrWhiteSpace(instance.JavaPath) ? settings.DefaultJavaPath : instance.JavaPath;
+        var shouldCheckFilesBeforeLaunch = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
+            ? settings.DefaultCheckFilesBeforeLaunch
+            : instance.CheckFilesBeforeLaunch;
+        var shouldAutoRepairMissingFiles = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
+            ? settings.DefaultAutoRepairMissingFiles
+            : instance.AutoRepairMissingFiles;
         System.Diagnostics.Process? process = null;
 
         try
         {
-            await versionRepairService.RepairAsync(
-                settings.MinecraftDirectory,
-                versionName,
-                instance.InstanceDirectory,
-                javaPath,
-                progress,
-                cancellationToken);
+            if (shouldCheckFilesBeforeLaunch)
+            {
+                await versionRepairService.RepairAsync(
+                    settings.MinecraftDirectory,
+                    versionName,
+                    instance.InstanceDirectory,
+                    javaPath,
+                    progress,
+                    shouldAutoRepairMissingFiles,
+                    cancellationToken);
+            }
 
             progress?.Report(new LauncherProgress(
                 LaunchProgressStages.PreparingProcess,

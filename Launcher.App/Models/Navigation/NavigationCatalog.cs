@@ -57,9 +57,9 @@ internal static class NavigationCatalog
             ],
             SettingsPage =>
             [
-                new NavigationItem { Page = SettingsPage, Title = Strings.Nav_AppearanceTheme, Icon = "\uE771" },
-                new NavigationItem { Page = SettingsPage, Title = Strings.Nav_DefaultSettings, Icon = "\uE713" },
-                new NavigationItem { Page = SettingsPage, Title = Strings.Nav_About, Icon = "\uE946" }
+                new NavigationItem { Page = SettingsPage, Title = Strings.Settings_SectionGeneral, Icon = "\uE713" },
+                new NavigationItem { Page = SettingsPage, Title = Strings.Settings_SectionLaunch, Icon = "\uE768" },
+                new NavigationItem { Page = SettingsPage, Title = Strings.Settings_SectionJavaMemory, Icon = "\uE950" }
             ],
             _ => []
         };

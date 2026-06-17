@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Models;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Settings;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
@@ -40,6 +41,7 @@ public sealed partial class MainViewModel : ObservableObject
         DownloadPageViewModel downloadPage,
         DownloadTasksPageViewModel downloadTasksPage,
         GameSettingsPageViewModel gameSettingsPage,
+        SettingsPageViewModel settingsPage,
         GameManagementViewModel gameManagement,
         IWindowService windowService,
         IStatusService statusService,
@@ -52,6 +54,7 @@ public sealed partial class MainViewModel : ObservableObject
         DownloadPage = downloadPage;
         DownloadTasksPage = downloadTasksPage;
         GameSettingsPage = gameSettingsPage;
+        SettingsPage = settingsPage;
         GameManagement = gameManagement;
         HomePage = homePageFactory.Create(
             AccountPage,
@@ -79,6 +82,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     public GameSettingsPageViewModel GameSettingsPage { get; }
 
+    public SettingsPageViewModel SettingsPage { get; }
+
     public GameManagementViewModel GameManagement { get; }
 
     public NavigationItem DownloadTasksNavigationItem { get; } = NavigationCatalog.CreateDownloadTasksItem();
@@ -96,6 +101,8 @@ public sealed partial class MainViewModel : ObservableObject
         IsMenuExpanded = Settings.IsMenuExpanded;
         AccountPage.PrimeFromSettings(Settings);
         HomePage.SetSettings(Settings);
+        GameSettingsPage.PrimeFromSettings(Settings);
+        SettingsPage.PrimeFromSettings(Settings);
         UpdateNavigationSelection();
         UpdateAccountNavigationAvatar();
         hasPrimedSettings = true;

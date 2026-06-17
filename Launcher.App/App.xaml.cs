@@ -34,6 +34,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<DownloadTasksPageViewModel>();
         services.AddSingleton<DownloadPageViewModel>();
         services.AddSingleton<GameSettingsPageViewModel>();
+        services.AddSingleton<SettingsPageViewModel>();
         services.AddSingleton<InstanceManagementViewModel>();
         services.AddSingleton<LoaderSelectionViewModel>();
         services.AddSingleton<LocalModsViewModel>();

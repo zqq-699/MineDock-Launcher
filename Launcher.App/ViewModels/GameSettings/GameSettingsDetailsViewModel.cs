@@ -17,6 +17,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
     private INotifyPropertyChanged? selectedInstanceNotifier;
+    private LauncherSettings globalSettings = new();
     private CancellationTokenSource? descriptionSaveCancellationTokenSource;
     private bool suppressInstanceSettingsAutoSave;
 
@@ -83,6 +84,14 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         new(LaunchSettingsMode.PerInstance, Strings.GameSettings_LaunchSettingsModePerInstance)
     ];
 
+    public void PrimeFromSettings(LauncherSettings launcherSettings)
+    {
+        globalSettings = launcherSettings;
+
+        if (SelectedLaunchSettingsModeOption?.Mode is LaunchSettingsMode.UseGlobal)
+            ApplyGlobalLaunchSettingsToEditor();
+    }
+
     public void SetSelectedInstance(GameSettingsInstanceItem? instance)
     {
         SelectedInstance = instance;
@@ -135,12 +144,27 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         OnPropertyChanged(nameof(InstanceCreatedAtText));
         CancelPendingDescriptionSave();
         suppressInstanceSettingsAutoSave = true;
-        DescriptionText = value?.Instance.Description ?? string.Empty;
-        LaunchCheckFilesBeforeLaunchEnabled = value?.Instance.CheckFilesBeforeLaunch ?? true;
-        LaunchAutoRepairMissingFilesEnabled = value?.Instance.AutoRepairMissingFiles ?? true;
-        LaunchMinimizeLauncherAfterLaunchEnabled = value?.Instance.MinimizeLauncherAfterLaunch ?? false;
-        SelectedLaunchSettingsModeOption = ResolveLaunchSettingsModeOption(value?.Instance.LaunchSettingsMode ?? LaunchSettingsMode.UseGlobal);
-        suppressInstanceSettingsAutoSave = false;
+        try
+        {
+            DescriptionText = value?.Instance.Description ?? string.Empty;
+            var mode = value?.Instance.LaunchSettingsMode ?? LaunchSettingsMode.UseGlobal;
+            SelectedLaunchSettingsModeOption = ResolveLaunchSettingsModeOption(mode);
+
+            if (mode is LaunchSettingsMode.UseGlobal)
+            {
+                ApplyGlobalLaunchSettingsToEditor();
+            }
+            else
+            {
+                LaunchCheckFilesBeforeLaunchEnabled = value?.Instance.CheckFilesBeforeLaunch ?? true;
+                LaunchAutoRepairMissingFilesEnabled = value?.Instance.AutoRepairMissingFiles ?? true;
+                LaunchMinimizeLauncherAfterLaunchEnabled = value?.Instance.MinimizeLauncherAfterLaunch ?? false;
+            }
+        }
+        finally
+        {
+            suppressInstanceSettingsAutoSave = false;
+        }
     }
 
     partial void OnSelectedSectionChanged(GameSettingsDetailSectionItem? value)
@@ -159,6 +183,9 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         if (suppressInstanceSettingsAutoSave)
             return;
 
+        if (value?.Mode is LaunchSettingsMode.UseGlobal)
+            ApplyGlobalLaunchSettingsToEditor();
+
         SaveLaunchSettings();
     }
 
@@ -172,6 +199,9 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
 
     partial void OnLaunchCheckFilesBeforeLaunchEnabledChanged(bool value)
     {
+        if (!suppressInstanceSettingsAutoSave)
+            ApplyLaunchCheckDependency(value, synchronizeAutoRepair: true);
+
         OnPropertyChanged(nameof(CanEditAutoRepairMissingFiles));
 
         if (suppressInstanceSettingsAutoSave)
@@ -207,6 +237,41 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     private static string NormalizeDescription(string? value)
     {
         return value?.Trim() ?? string.Empty;
+    }
+
+    private void ApplyGlobalLaunchSettingsToEditor()
+    {
+        suppressInstanceSettingsAutoSave = true;
+        try
+        {
+            LaunchCheckFilesBeforeLaunchEnabled = globalSettings.DefaultCheckFilesBeforeLaunch;
+            LaunchAutoRepairMissingFilesEnabled = globalSettings.DefaultAutoRepairMissingFiles;
+            LaunchMinimizeLauncherAfterLaunchEnabled = globalSettings.DefaultMinimizeLauncherAfterLaunch;
+        }
+        finally
+        {
+            suppressInstanceSettingsAutoSave = false;
+        }
+    }
+
+    private void ApplyLaunchCheckDependency(bool checkFilesBeforeLaunch, bool synchronizeAutoRepair)
+    {
+        if (!synchronizeAutoRepair)
+            return;
+
+        var targetAutoRepairValue = checkFilesBeforeLaunch;
+        if (LaunchAutoRepairMissingFilesEnabled == targetAutoRepairValue)
+            return;
+
+        suppressInstanceSettingsAutoSave = true;
+        try
+        {
+            LaunchAutoRepairMissingFilesEnabled = targetAutoRepairValue;
+        }
+        finally
+        {
+            suppressInstanceSettingsAutoSave = false;
+        }
     }
 
     private void SaveLaunchSettings()

@@ -6,8 +6,8 @@
                     xmlns:converters="clr-namespace:Launcher.App.Converters"
                     xmlns:res="clr-namespace:Launcher.App.Resources">
     <ResourceDictionary.MergedDictionaries>
-        <ResourceDictionary Source="ControlStyles.Scroll.xaml" />
-        <ResourceDictionary Source="ControlStyles.Dialogs.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Scroll.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Dialogs.xaml" />
     </ResourceDictionary.MergedDictionaries>
 
     <Style x:Key="DialogTextBoxStyle" TargetType="TextBox">

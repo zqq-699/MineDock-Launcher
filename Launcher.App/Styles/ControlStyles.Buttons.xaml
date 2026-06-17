@@ -573,7 +573,7 @@
         <Setter Property="Width" Value="32" />
         <Setter Property="Height" Value="16" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Background" Value="#5E5E5E" />
+        <Setter Property="Background" Value="#6E6E6E" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Focusable" Value="False" />
         <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
@@ -585,6 +585,11 @@
                           Background="Transparent">
                         <Border x:Name="Track"
                                 Background="{TemplateBinding Background}"
+                                CornerRadius="5" />
+                        <Border x:Name="TrackOutline"
+                                Background="Transparent"
+                                BorderBrush="#1AFFFFFF"
+                                BorderThickness="1"
                                 CornerRadius="5" />
                         <Border x:Name="ActiveTrack"
                                 Background="#0891FE"
@@ -658,22 +663,35 @@
                             </Trigger.ExitActions>
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Track" Property="Opacity" Value="0.96" />
+                            <Setter TargetName="Track" Property="Opacity" Value="0.98" />
                             <Setter TargetName="Thumb" Property="Opacity" Value="0.98" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Track" Property="Opacity" Value="0.9" />
+                            <Setter TargetName="Track" Property="Opacity" Value="0.92" />
                             <Setter TargetName="Thumb" Property="Opacity" Value="0.94" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="1" />
                             <Setter Property="Cursor" Value="Arrow" />
-                            <Setter TargetName="Track" Property="Background" Value="#424242" />
-                            <Setter TargetName="ActiveTrack" Property="Background" Value="#424242" />
+                            <Setter TargetName="Track" Property="Background" Value="#434343" />
+                            <Setter TargetName="TrackOutline" Property="BorderBrush" Value="#18FFFFFF" />
+                            <Setter TargetName="ActiveTrack" Property="Background" Value="#434343" />
                             <Setter TargetName="ActiveTrack" Property="Opacity" Value="0" />
-                            <Setter TargetName="Thumb" Property="Background" Value="#B8FFFFFF" />
-                            <Setter TargetName="Thumb" Property="Opacity" Value="0.72" />
+                            <Setter TargetName="Thumb" Property="Background" Value="#C8D0D9" />
+                            <Setter TargetName="Thumb" Property="Opacity" Value="0.62" />
                         </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsEnabled" Value="False" />
+                                <Condition Property="IsChecked" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Track" Property="Background" Value="#1F4F7D" />
+                            <Setter TargetName="TrackOutline" Property="BorderBrush" Value="#2A89D8FF" />
+                            <Setter TargetName="ActiveTrack" Property="Background" Value="#1F4F7D" />
+                            <Setter TargetName="ActiveTrack" Property="Opacity" Value="1" />
+                            <Setter TargetName="Thumb" Property="Background" Value="#E5F4FF" />
+                            <Setter TargetName="Thumb" Property="Opacity" Value="0.82" />
+                        </MultiTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>

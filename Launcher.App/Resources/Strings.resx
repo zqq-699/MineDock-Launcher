@@ -28,7 +28,21 @@
   <data name="Page_Install" xml:space="preserve"><value>下载</value></data>
   <data name="Page_GameSettings" xml:space="preserve"><value>游戏设置</value></data>
   <data name="Page_Resources" xml:space="preserve"><value>资源中心</value></data>
-  <data name="Page_Settings" xml:space="preserve"><value>设置</value></data>
+  <data name="Page_Settings" xml:space="preserve"><value>全局设置</value></data>
+  <data name="Settings_SectionGeneral" xml:space="preserve"><value>通用</value></data>
+  <data name="Settings_SectionLaunch" xml:space="preserve"><value>启动设置</value></data>
+  <data name="Settings_SectionJavaMemory" xml:space="preserve"><value>Java与内存设置</value></data>
+  <data name="Settings_GeneralAccountSection" xml:space="preserve"><value>离线玩家</value></data>
+  <data name="Settings_OfflineUsernameLabel" xml:space="preserve"><value>默认离线玩家名称</value></data>
+  <data name="Settings_GeneralDirectorySection" xml:space="preserve"><value>目录</value></data>
+  <data name="Settings_DataDirectoryLabel" xml:space="preserve"><value>启动器数据目录</value></data>
+  <data name="Settings_MinecraftDirectoryLabel" xml:space="preserve"><value>Minecraft 目录</value></data>
+  <data name="Settings_LaunchDefaultsSection" xml:space="preserve"><value>默认启动行为</value></data>
+  <data name="Settings_JavaSection" xml:space="preserve"><value>Java</value></data>
+  <data name="Settings_JavaPathLabel" xml:space="preserve"><value>默认 Java 路径</value></data>
+  <data name="Settings_MemorySection" xml:space="preserve"><value>内存</value></data>
+  <data name="Settings_DefaultMemoryLabel" xml:space="preserve"><value>默认最大内存</value></data>
+  <data name="Settings_MemoryOptionFormat" xml:space="preserve"><value>{0} MB</value></data>
   <data name="GameSettings_AllCategory" xml:space="preserve"><value>全部</value></data>
   <data name="GameSettings_ModLoaderCategory" xml:space="preserve"><value>可装mod</value></data>
   <data name="GameSettings_NoInstances" xml:space="preserve"><value>还没有已下载的游戏。</value></data>
@@ -190,6 +204,7 @@
   <data name="Status_ModrinthResultsFoundFormat" xml:space="preserve"><value>找到 {0} 个资源</value></data>
   <data name="Status_ModInstalledFormat" xml:space="preserve"><value>{0} 已安装</value></data>
   <data name="Status_SettingsSaved" xml:space="preserve"><value>启动器设置已保存</value></data>
+  <data name="Status_SettingsSaveFailed" xml:space="preserve"><value>启动器设置保存失败，请稍后重试。</value></data>
   <data name="Status_InstanceSettingsSaved" xml:space="preserve"><value>游戏设置已保存</value></data>
   <data name="Status_DefaultInstanceSetFormat" xml:space="preserve"><value>{0} 已设为默认游戏</value></data>
   <data name="Status_LoadInstancesFailed" xml:space="preserve"><value>游戏加载失败，请稍后重试。</value></data>

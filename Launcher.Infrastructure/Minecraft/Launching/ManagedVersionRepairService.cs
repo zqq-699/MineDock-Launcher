@@ -15,6 +15,7 @@ internal interface IManagedVersionRepairService
         string instanceDirectory,
         string? javaPath,
         IProgress<LauncherProgress>? progress,
+        bool allowRepair,
         CancellationToken cancellationToken);
 }
 
@@ -37,6 +38,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         string instanceDirectory,
         string? javaPath,
         IProgress<LauncherProgress>? progress,
+        bool allowRepair,
         CancellationToken cancellationToken)
     {
         var versionDirectory = ResolveVersionDirectory(minecraftDirectory, versionName, instanceDirectory);
@@ -44,25 +46,45 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             throw new InstanceRepairException($"Version directory is missing for {versionName}.");
 
         ReportProgress(progress, LaunchProgressStages.CheckingInstance, "Checking instance files", 6);
-
-        ReportProgress(progress, LaunchProgressStages.RepairingMetadata, "Repairing version metadata", 18);
+        ReportProgress(
+            progress,
+            allowRepair ? LaunchProgressStages.RepairingMetadata : LaunchProgressStages.CheckingFiles,
+            allowRepair ? "Repairing version metadata" : "Checking launch files",
+            18);
         var resolvedVersion = await EnsureVersionIsSelfContainedAsync(
             minecraftDirectory,
             versionName,
             versionDirectory,
-            cancellationToken);
+            cancellationToken,
+            allowRepair);
 
-        ReportProgress(progress, LaunchProgressStages.RepairingJar, "Repairing instance jar", 32);
-        await EnsureVersionJarAsync(versionDirectory, versionName, resolvedVersion, cancellationToken);
+        ReportProgress(
+            progress,
+            allowRepair ? LaunchProgressStages.RepairingJar : LaunchProgressStages.CheckingFiles,
+            allowRepair ? "Repairing instance jar" : "Checking launch files",
+            32);
+        await EnsureVersionJarAsync(versionDirectory, versionName, resolvedVersion, allowRepair, cancellationToken);
 
-        ReportProgress(progress, LaunchProgressStages.RepairingLibraries, "Repairing shared libraries", 48);
-        await EnsureLibrariesAsync(minecraftDirectory, resolvedVersion.VersionJson, cancellationToken);
+        ReportProgress(
+            progress,
+            allowRepair ? LaunchProgressStages.RepairingLibraries : LaunchProgressStages.CheckingFiles,
+            allowRepair ? "Repairing shared libraries" : "Checking launch files",
+            48);
+        await EnsureLibrariesAsync(minecraftDirectory, resolvedVersion.VersionJson, allowRepair, cancellationToken);
 
-        ReportProgress(progress, LaunchProgressStages.RepairingAssets, "Repairing shared assets", 64);
-        await EnsureAssetsAsync(minecraftDirectory, resolvedVersion.VersionJson, cancellationToken);
+        ReportProgress(
+            progress,
+            allowRepair ? LaunchProgressStages.RepairingAssets : LaunchProgressStages.CheckingFiles,
+            allowRepair ? "Repairing shared assets" : "Checking launch files",
+            64);
+        await EnsureAssetsAsync(minecraftDirectory, resolvedVersion.VersionJson, allowRepair, cancellationToken);
 
-        ReportProgress(progress, LaunchProgressStages.RepairingLogging, "Repairing logging configuration", 80);
-        await EnsureLoggingAsync(minecraftDirectory, resolvedVersion.VersionJson, cancellationToken);
+        ReportProgress(
+            progress,
+            allowRepair ? LaunchProgressStages.RepairingLogging : LaunchProgressStages.CheckingFiles,
+            allowRepair ? "Repairing logging configuration" : "Checking launch files",
+            80);
+        await EnsureLoggingAsync(minecraftDirectory, resolvedVersion.VersionJson, allowRepair, cancellationToken);
 
         ReportProgress(progress, LaunchProgressStages.CheckingJava, "Checking Java runtime", 90);
         EnsureJavaIsUsable(javaPath);
@@ -72,8 +94,27 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         string minecraftDirectory,
         string versionName,
         string versionDirectory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool allowRepair = true)
     {
+        if (!allowRepair)
+        {
+            var versionJson = await ReadVersionJsonAsync(versionDirectory, versionName, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(GetStringProperty(versionJson, "inheritsFrom")))
+            {
+                throw new InstanceRepairException(
+                    $"Version {versionName} still depends on another version and automatic repair is disabled.");
+            }
+
+            var jarPath = Path.Combine(versionDirectory, $"{versionName}.jar");
+            return new ResolvedVersionMetadata(
+                versionName,
+                versionJson,
+                File.Exists(jarPath) ? jarPath : null,
+                VanillaVersionMetadataClient.GetClientJarUrl(versionJson),
+                WasModified: false);
+        }
+
         var result = await ResolveCurrentVersionAsync(
             minecraftDirectory,
             versionName,
@@ -176,11 +217,18 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         string versionDirectory,
         string versionName,
         ResolvedVersionMetadata resolvedVersion,
+        bool allowRepair,
         CancellationToken cancellationToken)
     {
         var jarPath = Path.Combine(versionDirectory, $"{versionName}.jar");
         if (File.Exists(jarPath))
             return;
+
+        if (!allowRepair)
+        {
+            throw new InstanceRepairException(
+                $"Version {versionName} is missing its client jar and automatic repair is disabled.");
+        }
 
         if (!string.IsNullOrWhiteSpace(resolvedVersion.LocalJarPath)
             && File.Exists(resolvedVersion.LocalJarPath))
@@ -201,6 +249,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
     private async Task EnsureLibrariesAsync(
         string minecraftDirectory,
         JsonObject versionJson,
+        bool allowRepair,
         CancellationToken cancellationToken)
     {
         if (versionJson["libraries"] is not JsonArray libraries)
@@ -218,6 +267,12 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
                 if (File.Exists(destinationPath))
                     continue;
 
+                if (!allowRepair)
+                {
+                    throw new InstanceRepairException(
+                        $"Required library {artifact.RelativePath} is missing and automatic repair is disabled.");
+                }
+
                 await DownloadFileAsync(artifact.Url, destinationPath, cancellationToken);
             }
         }
@@ -226,6 +281,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
     private async Task EnsureAssetsAsync(
         string minecraftDirectory,
         JsonObject versionJson,
+        bool allowRepair,
         CancellationToken cancellationToken)
     {
         if (versionJson["assetIndex"] is not JsonObject assetIndex)
@@ -238,7 +294,12 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
 
         var indexPath = Path.Combine(minecraftDirectory, "assets", "indexes", $"{assetIndexId}.json");
         if (!File.Exists(indexPath))
+        {
+            if (!allowRepair)
+                throw new InstanceRepairException($"Asset index {assetIndexId} is missing and automatic repair is disabled.");
+
             await DownloadFileAsync(assetIndexUrl, indexPath, cancellationToken);
+        }
 
         await using var indexStream = File.OpenRead(indexPath);
         var indexNode = await JsonNode.ParseAsync(indexStream, cancellationToken: cancellationToken)
@@ -260,6 +321,12 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             if (File.Exists(objectPath))
                 continue;
 
+            if (!allowRepair)
+            {
+                throw new InstanceRepairException(
+                    $"Required asset {hash} is missing and automatic repair is disabled.");
+            }
+
             var assetUrl = $"https://resources.download.minecraft.net/{hash[..2]}/{hash}";
             await DownloadFileAsync(assetUrl, objectPath, cancellationToken);
         }
@@ -268,6 +335,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
     private async Task EnsureLoggingAsync(
         string minecraftDirectory,
         JsonObject versionJson,
+        bool allowRepair,
         CancellationToken cancellationToken)
     {
         if (versionJson["logging"]?["client"] is not JsonObject clientLogging)
@@ -284,6 +352,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         var logConfigPath = Path.Combine(minecraftDirectory, "assets", "log_configs", id);
         if (File.Exists(logConfigPath))
             return;
+
+        if (!allowRepair)
+            throw new InstanceRepairException($"Logging configuration {id} is missing and automatic repair is disabled.");
 
         await DownloadFileAsync(url, logConfigPath, cancellationToken);
     }

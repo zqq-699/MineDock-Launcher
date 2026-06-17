@@ -119,6 +119,11 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         ? string.Empty
         : string.Format(Strings.Dialog_DeleteInstanceMessageFormat, InstancePendingDelete.Name);
 
+    public void PrimeFromSettings(LauncherSettings launcherSettings)
+    {
+        Details.PrimeFromSettings(launcherSettings);
+    }
+
     public async Task EnsureInstancesLoadedAsync(CancellationToken cancellationToken = default)
     {
         if (hasLoadedInstances || IsLoadingInstances)
