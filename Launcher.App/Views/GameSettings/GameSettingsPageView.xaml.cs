@@ -94,7 +94,9 @@ public partial class GameSettingsPageView : UserControl
             secondaryMenuHost,
             instanceCategoryMenuLayer,
             detailsSectionMenuLayer,
-            useSlideTransition: false);
+            useSlideTransition: false,
+            useScaleTransition: true,
+            transitionScale: 0.96);
         secondaryMenuTransition.Sync(IsDetailsStep());
 
         if (isWaitingForSecondaryMenuTransition)
