@@ -356,7 +356,7 @@
            TargetType="ListBoxItem"
            BasedOn="{StaticResource DownloadVersionListBoxItemStyle}" />
 
-    <Style x:Key="DownloadVersionListItemButtonEntranceStyle"
+    <Style x:Key="ListPageItemButtonEntranceStyle"
            TargetType="{x:Type controls:ListPageItemButton}">
         <Setter Property="Opacity" Value="0" />
         <Style.Triggers>
@@ -368,6 +368,10 @@
             </DataTrigger>
         </Style.Triggers>
     </Style>
+
+    <Style x:Key="DownloadVersionListItemButtonEntranceStyle"
+           TargetType="{x:Type controls:ListPageItemButton}"
+           BasedOn="{StaticResource ListPageItemButtonEntranceStyle}" />
 
     <Style x:Key="InstallTaskCardStyle" TargetType="Border">
         <Setter Property="Margin" Value="0,0,12,12" />

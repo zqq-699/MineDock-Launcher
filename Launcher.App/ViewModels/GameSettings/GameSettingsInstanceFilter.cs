@@ -22,15 +22,24 @@ internal static class GameSettingsInstanceFilter
             return Empty(shouldClearSelectedInstance: false);
 
         var query = searchQuery.Trim();
-        var filteredInstances = category?.Id switch
+        var filteredInstances = category?.Id == "mod_loader"
+            ? allInstances.Where(instance => instance.HasModLoader)
+            : ListFilterUtilities.ApplyMinecraftCategory(
+                allInstances,
+                category?.Id,
+                instance => instance.IsRelease,
+                instance => instance.IsSnapshot,
+                instance => instance.IsBeta,
+                instance => instance.IsAlpha);
+
+        if (category?.Id is null or "all")
+            filteredInstances = allInstances;
+
+        if (category?.Id is not (null or "all" or "mod_loader")
+            && !ListFilterUtilities.IsKnownMinecraftCategory(category.Id))
         {
-            "mod_loader" => allInstances.Where(instance => instance.HasModLoader),
-            "release" => allInstances.Where(instance => instance.IsRelease),
-            "snapshot" => allInstances.Where(instance => instance.IsSnapshot),
-            "old_beta" => allInstances.Where(instance => instance.IsBeta),
-            "old_alpha" => allInstances.Where(instance => instance.IsAlpha),
-            _ => allInstances
-        };
+            filteredInstances = allInstances;
+        }
 
         if (!string.IsNullOrWhiteSpace(query))
             filteredInstances = filteredInstances.Where(instance => instance.MatchesSearch(query));
@@ -39,10 +48,12 @@ internal static class GameSettingsInstanceFilter
             .OrderByDescending(instance => instance.Instance.CreatedAt)
             .ThenByDescending(instance => instance.Instance.UpdatedAt)
             .ToList();
-        var emptyMessage = instances.Count == 0 && hasLoadedInstances && !isLoadingInstances
-            ? CreateEmptyMessage(category, query)
-            : string.Empty;
-        var shouldClearSelectedInstance = selectedInstance is not null && !instances.Contains(selectedInstance);
+        var emptyMessage = ListFilterUtilities.CreateEmptyMessage(
+            instances.Count,
+            hasLoadedInstances,
+            isLoadingInstances,
+            () => CreateEmptyMessage(category, query));
+        var shouldClearSelectedInstance = ListFilterUtilities.ShouldClearSelection(selectedInstance, instances);
 
         return new GameSettingsInstanceFilterResult(instances, emptyMessage, shouldClearSelectedInstance);
     }

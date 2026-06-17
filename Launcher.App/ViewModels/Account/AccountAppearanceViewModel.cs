@@ -105,7 +105,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         catch (Exception ex)
         {
             AccountProfileMessage = Strings.Status_SkinUpdateFailed;
-            AccountProfileErrorCodeMessage = GetErrorCodeMessage(ex);
+            AccountProfileErrorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
         }
         finally
         {
@@ -177,7 +177,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         catch (Exception ex)
         {
             AccountProfileMessage = Strings.Status_AccountProfileRefreshFailed;
-            AccountProfileErrorCodeMessage = GetErrorCodeMessage(ex);
+            AccountProfileErrorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
         }
         finally
         {
@@ -330,7 +330,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             if (IsSelectedAccount(account))
             {
                 AccountProfileMessage = Strings.Status_LoadAccountProfileFailed;
-                AccountProfileErrorCodeMessage = GetErrorCodeMessage(ex);
+                AccountProfileErrorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
             }
         }
         finally
@@ -430,18 +430,5 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         OnPropertyChanged(nameof(CanApplySelectedCape));
     }
 
-    private static string GetErrorCodeMessage(Exception exception)
-    {
-        var errorCode = exception switch
-        {
-            MicrosoftAccountSkinUpdateException { ErrorCode: { Length: > 0 } code } => code,
-            MicrosoftAccountProfileRefreshException { ErrorCode: { Length: > 0 } code } => code,
-            _ => null
-        };
-
-        return string.IsNullOrWhiteSpace(errorCode)
-            ? string.Empty
-            : string.Format(Strings.Status_ErrorCodeFormat, errorCode);
-    }
 }
 

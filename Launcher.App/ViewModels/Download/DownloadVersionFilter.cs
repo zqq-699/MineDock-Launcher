@@ -30,7 +30,7 @@ internal static class DownloadVersionFilter
         }
 
         var categoryId = MinecraftVersionIconResolver.NormalizeVersionType(category.Id);
-        if (categoryId is not ("release" or "snapshot" or "old_beta" or "old_alpha"))
+        if (!ListFilterUtilities.IsKnownMinecraftCategory(categoryId))
         {
             return new DownloadVersionFilterResult(
                 Array.Empty<DownloadMinecraftVersionItem>(),
@@ -39,22 +39,24 @@ internal static class DownloadVersionFilter
         }
 
         var query = searchQuery.Trim();
-        var filteredVersions = categoryId switch
-        {
-            "snapshot" => allVersions.Where(version => version.IsSnapshot),
-            "old_beta" => allVersions.Where(version => version.IsBeta),
-            "old_alpha" => allVersions.Where(version => version.IsAlpha),
-            _ => allVersions.Where(version => version.IsRelease)
-        };
+        var filteredVersions = ListFilterUtilities.ApplyMinecraftCategory(
+            allVersions,
+            categoryId,
+            version => version.IsRelease,
+            version => version.IsSnapshot,
+            version => version.IsBeta,
+            version => version.IsAlpha);
 
         if (!string.IsNullOrWhiteSpace(query))
             filteredVersions = filteredVersions.Where(version => version.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
 
         var versions = Sort(filteredVersions, categoryId).ToList();
-        var emptyMessage = versions.Count == 0 && hasLoadedVersions && !isLoadingVersions
-            ? CreateEmptyMessage(category.Title, query)
-            : string.Empty;
-        var shouldClearSelectedVersion = selectedVersion is not null && !versions.Contains(selectedVersion);
+        var emptyMessage = ListFilterUtilities.CreateEmptyMessage(
+            versions.Count,
+            hasLoadedVersions,
+            isLoadingVersions,
+            () => CreateEmptyMessage(category.Title, query));
+        var shouldClearSelectedVersion = ListFilterUtilities.ShouldClearSelection(selectedVersion, versions);
 
         return new DownloadVersionFilterResult(versions, emptyMessage, shouldClearSelectedVersion);
     }

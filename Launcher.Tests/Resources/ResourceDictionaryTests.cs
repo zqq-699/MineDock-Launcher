@@ -25,6 +25,7 @@ public sealed class ResourceDictionaryTests
                 Assert.NotNull(dictionary["NavigationMenuButtonStyle"]);
                 Assert.NotNull(dictionary["MainContentScrollViewerStyle"]);
                 Assert.NotNull(dictionary["DownloadVersionListBoxStyle"]);
+                Assert.NotNull(dictionary["ListPageItemButtonEntranceStyle"]);
                 Assert.NotNull(dictionary["LauncherDialogButtonStyle"]);
                 Assert.NotNull(dictionary["LauncherComboBoxStyle"]);
             }

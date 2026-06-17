@@ -417,7 +417,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         catch (Exception ex)
         {
             var message = GetRenameFailureMessage(ex);
-            var errorCodeMessage = GetErrorCodeMessage(ex);
+            var errorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
             ReportStatus(message);
             ShowRenameAccountResult(false, message, errorCodeMessage);
         }
@@ -593,20 +593,6 @@ public sealed partial class AccountDialogViewModel : ObservableObject
                 _ => Strings.Status_AccountRenameFailed
             }
             : Strings.Status_AccountRenameFailed;
-    }
-
-    private static string GetErrorCodeMessage(Exception exception)
-    {
-        var errorCode = exception switch
-        {
-            MicrosoftAccountNameChangeException { ErrorCode: { Length: > 0 } code } => code,
-            MicrosoftAccountSkinUpdateException { ErrorCode: { Length: > 0 } code } => code,
-            _ => null
-        };
-
-        return string.IsNullOrWhiteSpace(errorCode)
-            ? string.Empty
-            : string.Format(Strings.Status_ErrorCodeFormat, errorCode);
     }
 
     private void ReportStatus(string message)

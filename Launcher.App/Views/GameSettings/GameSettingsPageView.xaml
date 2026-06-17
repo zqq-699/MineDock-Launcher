@@ -183,17 +183,7 @@
                                         </controls:ListPageItemButton.TrailingContent>
 
                                         <controls:ListPageItemButton.Style>
-                                            <Style TargetType="{x:Type controls:ListPageItemButton}">
-                                                <Setter Property="Opacity" Value="0" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="True">
-                                                        <Setter Property="Opacity" Value="1" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="False">
-                                                        <Setter Property="Opacity" Value="1" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
+                                            <StaticResource ResourceKey="ListPageItemButtonEntranceStyle" />
                                         </controls:ListPageItemButton.Style>
                                     </controls:ListPageItemButton>
                                 </DataTemplate>

@@ -479,7 +479,8 @@ public sealed class HomePageViewModelTests
             statusService,
             windowService ?? new FakeWindowService(),
             _ => { },
-            selectLaunchInstance ?? (_ => Task.FromResult(true)));
+            selectLaunchInstance ?? (_ => Task.FromResult(true)),
+            _ => Task.CompletedTask);
     }
 
     private static AccountPageViewModel CreateAccountPage(
