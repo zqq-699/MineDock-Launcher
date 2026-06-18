@@ -248,7 +248,15 @@ public sealed class MainViewModelTests
             "1.20.1",
             1,
             @"C:\logs\launch-diagnostics.log",
-            @"C:\logs");
+            @"C:\logs",
+            new LaunchFailureAnalysis(
+                LaunchFailureCategory.JavaVersionMismatch,
+                "java_version_mismatch",
+                "java_version_mismatch",
+                "select_required_java",
+                RequiredJavaMajorVersion: 21,
+                CurrentJavaMajorVersion: 8,
+                ModName: "Fabric API"));
         var launchService = new FakeLaunchService
         {
             ExceptionToThrow = new LaunchProcessExitedException(report)
@@ -266,6 +274,15 @@ public sealed class MainViewModelTests
         Assert.Equal(1, windowService.RestoreAndActivateCallCount);
         Assert.Equal(Strings.Dialog_LaunchStatusFailedTitle, viewModel.LaunchStatusDialog.Title);
         Assert.Contains("Vanilla World", viewModel.LaunchStatusDialog.Message);
+        Assert.Contains("Fabric API", viewModel.LaunchStatusDialog.Message);
+        Assert.Contains("Java 21", viewModel.LaunchStatusDialog.Message);
+        Assert.Contains("Java 8", viewModel.LaunchStatusDialog.Message);
+        Assert.True(viewModel.LaunchStatusDialog.HasAnalysis);
+        Assert.Equal(Strings.Dialog_LaunchAnalysisJavaVersionTitle, viewModel.LaunchStatusDialog.AnalysisReasonTitle);
+        Assert.Contains("Fabric API", viewModel.LaunchStatusDialog.AnalysisReasonDetail);
+        Assert.Contains("Java 21", viewModel.LaunchStatusDialog.AnalysisReasonDetail);
+        Assert.Contains("Java 8", viewModel.LaunchStatusDialog.AnalysisReasonDetail);
+        Assert.Contains("Java 21", viewModel.LaunchStatusDialog.AnalysisRecommendation);
     }
 
     [Fact]
@@ -338,6 +355,58 @@ public sealed class MainViewModelTests
         dialog.OpenLogDirectoryCommand.Execute(null);
 
         Assert.Equal(@"C:\logs", folderService.LastOpenedPath);
+    }
+
+    [Fact]
+    public void LaunchStatusDialogShowsMissingClasspathEntryPath()
+    {
+        const string missingPath = @"C:\Minecraft\versions\example\example.jar";
+        var dialog = new LaunchStatusDialogViewModel(new FakeInstanceFolderService(), new FakeStatusService());
+
+        dialog.Show(new LaunchFailureReport(
+            LaunchFailureKind.StartupAbnormalExit,
+            "Fabric World",
+            "1.21.9-fabric-0.19.3",
+            1,
+            @"C:\logs\launch-diagnostics.log",
+            @"C:\logs",
+            new LaunchFailureAnalysis(
+                LaunchFailureCategory.MissingGameFiles,
+                "missing_game_files",
+                "missing_classpath_entry",
+                "repair_or_reinstall_instance",
+                MissingPath: missingPath)));
+
+        Assert.True(dialog.HasAnalysis);
+        Assert.Contains(missingPath, dialog.Message);
+        Assert.Contains(missingPath, dialog.AnalysisReasonDetail);
+        Assert.Equal(Strings.Dialog_LaunchAnalysisMissingFilesTitle, dialog.AnalysisReasonTitle);
+    }
+
+    [Fact]
+    public void LaunchStatusDialogShowsMissingClientJarPath()
+    {
+        const string missingPath = @"C:\Minecraft\versions\example\example.jar";
+        var dialog = new LaunchStatusDialogViewModel(new FakeInstanceFolderService(), new FakeStatusService());
+
+        dialog.Show(new LaunchFailureReport(
+            LaunchFailureKind.StartupFailed,
+            "Fabric World",
+            "1.21.9-fabric-0.19.3",
+            null,
+            @"C:\logs\launch-diagnostics.log",
+            @"C:\logs",
+            new LaunchFailureAnalysis(
+                LaunchFailureCategory.MissingGameFiles,
+                "missing_game_files",
+                "missing_client_jar",
+                "repair_or_reinstall_instance",
+                MissingPath: missingPath)));
+
+        Assert.True(dialog.HasAnalysis);
+        Assert.Contains(missingPath, dialog.Message);
+        Assert.Contains(missingPath, dialog.AnalysisReasonDetail);
+        Assert.Contains("客户端 jar", dialog.AnalysisReasonDetail);
     }
 
     [Fact]

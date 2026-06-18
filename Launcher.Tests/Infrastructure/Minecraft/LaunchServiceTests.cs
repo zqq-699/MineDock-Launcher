@@ -882,6 +882,78 @@ public sealed class LaunchServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task LaunchServiceAnalyzesMissingClientJarRepairFailure()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var instanceDirectory = Path.Combine(minecraftDirectory, "versions", "1.21.9-fabric-0.19.3");
+        Directory.CreateDirectory(instanceDirectory);
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService
+            {
+                OnRepairAsync = _ => throw new InstanceRepairException(
+                    "Version 1.21.9-fabric-0.19.3 is missing its client jar and automatic repair is disabled.")
+            },
+            new FakeLaunchGameLauncherFactory(),
+            new NoOpLaunchCrashMonitor());
+
+        var exception = await Assert.ThrowsAsync<LaunchFailedException>(() => service.LaunchAsync(
+            CreateInstance(instanceDirectory, "1.21.9-fabric-0.19.3"),
+            CreateAccount(),
+            new LauncherSettings { MinecraftDirectory = minecraftDirectory },
+            progress: null));
+
+        var expectedMissingPath = Path.Combine(instanceDirectory, "1.21.9-fabric-0.19.3.jar");
+        Assert.Equal(LaunchFailureKind.StartupFailed, exception.Report.Kind);
+        Assert.NotNull(exception.Report.Analysis);
+        Assert.Equal(LaunchFailureCategory.MissingGameFiles, exception.Report.Analysis.Category);
+        Assert.Equal("missing_client_jar", exception.Report.Analysis.ReasonDetail);
+        Assert.Equal(expectedMissingPath, exception.Report.Analysis.MissingPath);
+        var diagnostic = await File.ReadAllTextAsync(exception.Report.DiagnosticPath!);
+        Assert.Contains("Category: MissingGameFiles", diagnostic);
+        Assert.Contains($"MissingPath: {expectedMissingPath}", diagnostic);
+    }
+
+    [Fact]
+    public async Task LaunchServiceKeepsOnlyLatestFiftyDiagnosticLogs()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var instanceDirectory = Path.Combine(minecraftDirectory, "versions", "Broken Pack");
+        var logsDirectory = Path.Combine(instanceDirectory, "logs", "launcher");
+        Directory.CreateDirectory(logsDirectory);
+        var oldLogPaths = new List<string>();
+        for (var index = 0; index < 55; index++)
+        {
+            var path = Path.Combine(logsDirectory, $"launch-diagnostics-20260101-0000{index:D2}.log");
+            await File.WriteAllTextAsync(path, $"old {index}");
+            File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(-120 + index));
+            oldLogPaths.Add(path);
+        }
+
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService
+            {
+                OnRepairAsync = _ => throw new InstanceRepairException("No usable Java runtime was found.")
+            },
+            new FakeLaunchGameLauncherFactory(),
+            new NoOpLaunchCrashMonitor());
+
+        var exception = await Assert.ThrowsAsync<LaunchFailedException>(() => service.LaunchAsync(
+            CreateInstance(instanceDirectory, "Broken Pack"),
+            CreateAccount(),
+            new LauncherSettings { MinecraftDirectory = minecraftDirectory },
+            progress: null));
+
+        var diagnostics = Directory.GetFiles(logsDirectory, "launch-diagnostics-*.log");
+        Assert.Equal(50, diagnostics.Length);
+        Assert.Contains(exception.Report.DiagnosticPath!, diagnostics);
+        Assert.DoesNotContain(oldLogPaths[0], diagnostics);
+        Assert.DoesNotContain(oldLogPaths[5], diagnostics);
+        Assert.Contains(oldLogPaths[6], diagnostics);
+    }
+
+    [Fact]
     public async Task LaunchServiceClassifiesZeroQuickExitWithoutNewCrashAsStartupProcessExited()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -991,7 +1063,15 @@ public sealed class LaunchServiceTests : TestTempDirectory
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
         var instanceDirectory = Path.Combine(minecraftDirectory, "versions", "Stable Pack");
-        Directory.CreateDirectory(instanceDirectory);
+        Directory.CreateDirectory(Path.Combine(instanceDirectory, "logs"));
+        var latestLogPath = Path.Combine(instanceDirectory, "logs", "latest.log");
+        await File.WriteAllTextAsync(
+            latestLogPath,
+            """
+            [main/ERROR]: Incompatible mods found!
+            More details:
+             - Mod 'Fabric API' (fabric-api) 0.134.1+1.21.9 requires version 21 or later of 'Java HotSpot(TM) 64-Bit Server VM' (java), but only the wrong version is present: 8!
+            """);
         var service = new LaunchService(
             new FakeLaunchAccountSessionService(),
             new FakeManagedVersionRepairService(),
@@ -1006,11 +1086,18 @@ public sealed class LaunchServiceTests : TestTempDirectory
             CreateAccount(),
             new LauncherSettings { MinecraftDirectory = minecraftDirectory },
             progress: null);
+        File.SetLastWriteTimeUtc(latestLogPath, DateTime.UtcNow.AddSeconds(1));
 
         var result = await session.ExitTask.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.True(result.IsFailure);
         Assert.Equal(LaunchFailureKind.RuntimeAbnormalExit, result.FailureReport?.Kind);
         Assert.Equal(2, result.FailureReport?.ExitCode);
+        Assert.Equal(LaunchFailureCategory.JavaVersionMismatch, result.FailureReport?.Analysis?.Category);
+        Assert.Equal(21, result.FailureReport?.Analysis?.RequiredJavaMajorVersion);
+        Assert.Equal(8, result.FailureReport?.Analysis?.CurrentJavaMajorVersion);
+        var diagnostic = await File.ReadAllTextAsync(result.FailureReport!.DiagnosticPath!);
+        Assert.Contains("[Analysis]", diagnostic);
+        Assert.Contains("Category: JavaVersionMismatch", diagnostic);
         Assert.True(session.TryMarkExitHandled());
         Assert.False(session.TryMarkExitHandled());
     }

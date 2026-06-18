@@ -7,7 +7,10 @@ namespace Launcher.Infrastructure.Minecraft;
 
 internal static class LaunchDiagnosticsWriter
 {
-    public static async Task<string?> WriteQuickExitDiagnosticAsync(
+    private const int MaxDiagnosticLogFiles = 50;
+    private const string DiagnosticFilePattern = "launch-diagnostics-*.log";
+
+    public static async Task<LaunchDiagnosticResult> WriteQuickExitDiagnosticAsync(
         LaunchDiagnosticContext context,
         string failureKind,
         int exitCode,
@@ -19,18 +22,26 @@ internal static class LaunchDiagnosticsWriter
         string stderr,
         CancellationToken cancellationToken)
     {
-        var latestLogTail = ReadLatestLogTail(context.MinecraftDirectory, context.InstanceDirectory);
+        var latestLog = ReadLatestLogTail(context.MinecraftDirectory, context.InstanceDirectory, createdAt);
+        var latestLogTail = latestLog.Text;
         var crashFiles = newCrashFiles
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         var matchedErrorLines = FindMatchedErrorLines(stdout, stderr, latestLogTail, crashFiles);
         var failureSummary = matchedErrorLines.FirstOrDefault() ?? $"Minecraft exited with code {exitCode}.";
+        var analysis = LaunchFailureAnalyzer.Analyze(
+            context,
+            stdout,
+            stderr,
+            latestLog.IsFresh ? latestLogTail : string.Empty,
+            crashFiles);
 
-        return await WriteDiagnosticAsync(
+        var diagnosticPath = await WriteDiagnosticAsync(
             context,
             failureKind,
             failureSummary,
+            analysis,
             createdAt,
             cancellationToken,
             builder =>
@@ -45,9 +56,11 @@ internal static class LaunchDiagnosticsWriter
                 AppendTextSection(builder, "StdOut", RedactSensitiveText(LimitTail(stdout, 120), context.SensitiveValues));
                 AppendTextSection(builder, "StdErr", RedactSensitiveText(LimitTail(stderr, 120), context.SensitiveValues));
             });
+
+        return new LaunchDiagnosticResult(diagnosticPath, analysis);
     }
 
-    public static Task<string?> WriteExceptionDiagnosticAsync(
+    public static async Task<LaunchDiagnosticResult> WriteExceptionDiagnosticAsync(
         LaunchDiagnosticContext context,
         string failureKind,
         string failureSummary,
@@ -55,34 +68,47 @@ internal static class LaunchDiagnosticsWriter
         ProcessStartInfo? startInfo,
         CancellationToken cancellationToken)
     {
-        var latestLogTail = ReadLatestLogTail(context.MinecraftDirectory, context.InstanceDirectory);
+        var createdAt = DateTimeOffset.UtcNow;
+        var latestLog = ReadLatestLogTail(context.MinecraftDirectory, context.InstanceDirectory, createdAt);
+        var latestLogTail = latestLog.Text;
         var crashFiles = EnumerateCandidateCrashFiles(context.MinecraftDirectory, context.InstanceDirectory)
             .Select(Path.GetFullPath)
             .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
             .ToList();
         var matchedErrorLines = FindMatchedErrorLines(string.Empty, string.Empty, latestLogTail, crashFiles);
+        var exceptionText = FormatExceptionChain(exception);
+        var analysis = LaunchFailureAnalyzer.Analyze(
+            context,
+            string.Empty,
+            exceptionText,
+            latestLog.IsFresh ? latestLogTail : string.Empty,
+            crashFiles);
 
-        return WriteDiagnosticAsync(
+        var diagnosticPath = await WriteDiagnosticAsync(
             context,
             failureKind,
             failureSummary,
-            DateTimeOffset.UtcNow,
+            analysis,
+            createdAt,
             cancellationToken,
             builder =>
             {
                 AppendProcessSection(builder, startInfo, context.SensitiveValues);
-                AppendTextSection(builder, "ExceptionChain", RedactSensitiveText(FormatExceptionChain(exception), context.SensitiveValues));
+                AppendTextSection(builder, "ExceptionChain", RedactSensitiveText(exceptionText, context.SensitiveValues));
                 AppendFileSection(builder, "CrashFiles", crashFiles);
                 AppendCrashPreviewSection(builder, crashFiles, context.SensitiveValues);
                 AppendTextSection(builder, "MatchedErrorLines", RedactSensitiveLines(matchedErrorLines, context.SensitiveValues));
                 AppendTextSection(builder, "LatestLogTail", RedactSensitiveText(LimitTail(latestLogTail, 120), context.SensitiveValues));
             });
+
+        return new LaunchDiagnosticResult(diagnosticPath, analysis);
     }
 
     private static async Task<string?> WriteDiagnosticAsync(
         LaunchDiagnosticContext context,
         string failureKind,
         string failureSummary,
+        Launcher.Application.Services.LaunchFailureAnalysis? analysis,
         DateTimeOffset createdAt,
         CancellationToken cancellationToken,
         Action<StringBuilder> appendSections)
@@ -107,13 +133,84 @@ internal static class LaunchDiagnosticsWriter
         builder.AppendLine($"InstanceDirectory: {Path.GetFullPath(context.InstanceDirectory)}");
         builder.AppendLine($"MinecraftDirectory: {Path.GetFullPath(context.MinecraftDirectory)}");
 
+        AppendAnalysisSection(builder, analysis);
         appendSections(builder);
 
         await File.WriteAllTextAsync(diagnosticPath, builder.ToString(), cancellationToken);
+        PruneOldDiagnostics(logsDirectory);
         return diagnosticPath;
     }
 
-    private static string ReadLatestLogTail(string minecraftDirectory, string instanceDirectory)
+    private static void PruneOldDiagnostics(string logsDirectory)
+    {
+        try
+        {
+            var files = Directory.GetFiles(logsDirectory, DiagnosticFilePattern, SearchOption.TopDirectoryOnly)
+                .Select(path => new FileInfo(path))
+                .OrderByDescending(file => file.LastWriteTimeUtc)
+                .ThenByDescending(file => file.Name, StringComparer.OrdinalIgnoreCase)
+                .Skip(MaxDiagnosticLogFiles)
+                .ToList();
+
+            foreach (var file in files)
+                DeleteDiagnosticSafely(file);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static void DeleteDiagnosticSafely(FileInfo file)
+    {
+        try
+        {
+            file.Delete();
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static void AppendAnalysisSection(
+        StringBuilder builder,
+        Launcher.Application.Services.LaunchFailureAnalysis? analysis)
+    {
+        builder.AppendLine();
+        builder.AppendLine("[Analysis]");
+        if (analysis is null)
+        {
+            builder.AppendLine("(none)");
+            return;
+        }
+
+        builder.AppendLine($"Category: {analysis.Category}");
+        builder.AppendLine($"ReasonTitle: {analysis.ReasonTitle}");
+        builder.AppendLine($"ReasonDetail: {analysis.ReasonDetail}");
+        builder.AppendLine($"Recommendation: {analysis.Recommendation}");
+        if (analysis.RequiredJavaMajorVersion is int requiredJava)
+            builder.AppendLine($"RequiredJavaMajorVersion: {requiredJava}");
+        if (analysis.CurrentJavaMajorVersion is int currentJava)
+            builder.AppendLine($"CurrentJavaMajorVersion: {currentJava}");
+        if (!string.IsNullOrWhiteSpace(analysis.ModName))
+            builder.AppendLine($"ModName: {analysis.ModName}");
+        if (!string.IsNullOrWhiteSpace(analysis.DependencyName))
+            builder.AppendLine($"DependencyName: {analysis.DependencyName}");
+        if (!string.IsNullOrWhiteSpace(analysis.MissingPath))
+            builder.AppendLine($"MissingPath: {analysis.MissingPath}");
+    }
+
+    private sealed record LatestLogTail(string Text, bool IsFresh);
+
+    private static LatestLogTail ReadLatestLogTail(
+        string minecraftDirectory,
+        string instanceDirectory,
+        DateTimeOffset createdAt)
     {
         foreach (var root in EnumerateRoots(minecraftDirectory, instanceDirectory))
         {
@@ -124,7 +221,10 @@ internal static class LaunchDiagnosticsWriter
             try
             {
                 var lines = File.ReadAllLines(latestLogPath);
-                return string.Join(Environment.NewLine, lines.TakeLast(120));
+                var lastWriteTime = File.GetLastWriteTimeUtc(latestLogPath);
+                return new LatestLogTail(
+                    string.Join(Environment.NewLine, lines.TakeLast(120)),
+                    lastWriteTime >= createdAt.UtcDateTime);
             }
             catch (IOException)
             {
@@ -134,7 +234,7 @@ internal static class LaunchDiagnosticsWriter
             }
         }
 
-        return string.Empty;
+        return new LatestLogTail(string.Empty, false);
     }
 
     private static IEnumerable<string> EnumerateCandidateCrashFiles(string minecraftDirectory, string instanceDirectory)

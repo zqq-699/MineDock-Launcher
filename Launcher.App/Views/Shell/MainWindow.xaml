@@ -236,6 +236,7 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <TextBlock Text="{Binding Title}"
@@ -246,13 +247,26 @@
                                Text="{Binding Message}"
                                Style="{StaticResource DialogBodyTextStyle}" />
 
-                    <TextBlock Grid.Row="2"
+                    <StackPanel Grid.Row="2"
+                                Margin="0,14,0,0"
+                                Visibility="{Binding HasAnalysis, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                        <TextBlock Text="{Binding AnalysisReasonTitle}"
+                                   Style="{StaticResource DialogSubtitleTextStyle}"
+                                   FontWeight="SemiBold"
+                                   Foreground="#F4F4F4" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Text="{Binding AnalysisRecommendation}"
+                                   Style="{StaticResource DialogSubtitleTextStyle}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="3"
                                Margin="0,10,0,24"
                                Text="{Binding DiagnosticHint}"
                                Style="{StaticResource DialogSubtitleTextStyle}"
                                TextWrapping="Wrap" />
 
-                    <StackPanel Grid.Row="3"
+                    <StackPanel Grid.Row="4"
                                 Style="{StaticResource DialogFooterStyle}">
                         <Button Style="{StaticResource LauncherDialogButtonStyle}"
                                 Content="{x:Static res:Strings.Dialog_OpenLaunchLogFolderButton}"

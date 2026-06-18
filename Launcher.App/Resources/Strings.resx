@@ -364,4 +364,26 @@
   <data name="Dialog_LaunchStatusDiagnosticFileHint" xml:space="preserve"><value>已生成启动诊断日志，可打开日志目录查看详细信息。</value></data>
   <data name="Dialog_LaunchStatusDiagnosticDirectoryHint" xml:space="preserve"><value>可打开日志目录查看 latest.log 和崩溃报告。</value></data>
   <data name="Dialog_OpenLaunchLogFolderButton" xml:space="preserve"><value>打开日志目录</value></data>
+  <data name="Dialog_LaunchAnalysisCurrentInstance" xml:space="preserve"><value>当前实例</value></data>
+  <data name="Dialog_LaunchAnalysisUnknownTitle" xml:space="preserve"><value>可能原因</value></data>
+  <data name="Dialog_LaunchAnalysisUnknownDetail" xml:space="preserve"><value>启动器无法确定具体原因。</value></data>
+  <data name="Dialog_LaunchAnalysisUnknownRecommendation" xml:space="preserve"><value>请打开日志目录查看详细信息。</value></data>
+  <data name="Dialog_LaunchAnalysisJavaVersionTitle" xml:space="preserve"><value>Java 版本不满足要求</value></data>
+  <data name="Dialog_LaunchAnalysisJavaVersionDetailFormat" xml:space="preserve"><value>{0} 需要 Java {1} 或更高，但当前实例使用的是 Java {2}。</value></data>
+  <data name="Dialog_LaunchAnalysisJavaVersionRecommendationFormat" xml:space="preserve"><value>请在设置中导入或选择 Java {0} 或更高，然后重新启动该实例。</value></data>
+  <data name="Dialog_LaunchAnalysisModDependencyTitle" xml:space="preserve"><value>缺少必要 Mod 或依赖</value></data>
+  <data name="Dialog_LaunchAnalysisModDependencyDetailFormat" xml:space="preserve"><value>{0} 需要依赖 {1}，但当前实例中没有找到它。</value></data>
+  <data name="Dialog_LaunchAnalysisModDependencyDetail" xml:space="preserve"><value>当前实例缺少某个必要 Mod 或依赖。</value></data>
+  <data name="Dialog_LaunchAnalysisModDependencyRecommendation" xml:space="preserve"><value>请根据日志安装缺失依赖，或移除依赖不完整的 Mod。</value></data>
+  <data name="Dialog_LaunchAnalysisModVersionTitle" xml:space="preserve"><value>Mod 版本不兼容</value></data>
+  <data name="Dialog_LaunchAnalysisModVersionDetail" xml:space="preserve"><value>当前实例中的某些 Mod 与 Minecraft、加载器或其他 Mod 版本不兼容。</value></data>
+  <data name="Dialog_LaunchAnalysisModVersionRecommendation" xml:space="preserve"><value>请检查 Mod 是否匹配当前 Minecraft 和加载器版本，必要时更新或移除冲突 Mod。</value></data>
+  <data name="Dialog_LaunchAnalysisMissingFilesTitle" xml:space="preserve"><value>游戏文件或库缺失</value></data>
+  <data name="Dialog_LaunchAnalysisMissingFilesDetail" xml:space="preserve"><value>启动过程缺少关键游戏文件、库文件或启动目标。</value></data>
+  <data name="Dialog_LaunchAnalysisMissingClasspathEntryDetailFormat" xml:space="preserve"><value>启动命令引用了不存在的文件：{0}</value></data>
+  <data name="Dialog_LaunchAnalysisMissingClientJarDetailFormat" xml:space="preserve"><value>当前实例缺少客户端 jar 文件：{0}</value></data>
+  <data name="Dialog_LaunchAnalysisMissingFilesRecommendation" xml:space="preserve"><value>请开启启动前文件检查并重试，或重新安装该实例。</value></data>
+  <data name="Dialog_LaunchAnalysisOutOfMemoryTitle" xml:space="preserve"><value>内存不足</value></data>
+  <data name="Dialog_LaunchAnalysisOutOfMemoryDetail" xml:space="preserve"><value>Java 虚拟机在启动或运行时内存不足。</value></data>
+  <data name="Dialog_LaunchAnalysisOutOfMemoryRecommendation" xml:space="preserve"><value>请在启动设置中适当增加内存，或减少资源包、光影和大型 Mod。</value></data>
 </root>

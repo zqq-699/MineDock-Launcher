@@ -236,10 +236,10 @@ public sealed class LaunchService : ILaunchService
         System.Diagnostics.ProcessStartInfo? startInfo,
         CancellationToken cancellationToken)
     {
-        string? diagnosticPath = null;
+        LaunchDiagnosticResult? diagnostic = null;
         try
         {
-            diagnosticPath = await LaunchDiagnosticsWriter.WriteExceptionDiagnosticAsync(
+            diagnostic = await LaunchDiagnosticsWriter.WriteExceptionDiagnosticAsync(
                 context,
                 failureKind,
                 failureSummary,
@@ -247,8 +247,8 @@ public sealed class LaunchService : ILaunchService
                 startInfo,
                 cancellationToken);
 
-            if (!string.IsNullOrWhiteSpace(diagnosticPath))
-                exception.Data["DiagnosticPath"] = diagnosticPath;
+            if (!string.IsNullOrWhiteSpace(diagnostic.DiagnosticPath))
+                exception.Data["DiagnosticPath"] = diagnostic.DiagnosticPath;
         }
         catch
         {
@@ -259,8 +259,9 @@ public sealed class LaunchService : ILaunchService
             context.InstanceName,
             context.VersionName,
             null,
-            diagnosticPath,
-            ResolveDiagnosticDirectory(context, diagnosticPath));
+            diagnostic?.DiagnosticPath,
+            ResolveDiagnosticDirectory(context, diagnostic?.DiagnosticPath),
+            diagnostic?.Analysis);
     }
 
     private static LaunchDiagnosticContext CreateDiagnosticContext(

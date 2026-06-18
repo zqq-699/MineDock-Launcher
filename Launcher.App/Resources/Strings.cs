@@ -361,4 +361,26 @@ public static class Strings
     public static string Dialog_LaunchStatusDiagnosticFileHint => Get(nameof(Dialog_LaunchStatusDiagnosticFileHint));
     public static string Dialog_LaunchStatusDiagnosticDirectoryHint => Get(nameof(Dialog_LaunchStatusDiagnosticDirectoryHint));
     public static string Dialog_OpenLaunchLogFolderButton => Get(nameof(Dialog_OpenLaunchLogFolderButton));
+    public static string Dialog_LaunchAnalysisCurrentInstance => Get(nameof(Dialog_LaunchAnalysisCurrentInstance));
+    public static string Dialog_LaunchAnalysisUnknownTitle => Get(nameof(Dialog_LaunchAnalysisUnknownTitle));
+    public static string Dialog_LaunchAnalysisUnknownDetail => Get(nameof(Dialog_LaunchAnalysisUnknownDetail));
+    public static string Dialog_LaunchAnalysisUnknownRecommendation => Get(nameof(Dialog_LaunchAnalysisUnknownRecommendation));
+    public static string Dialog_LaunchAnalysisJavaVersionTitle => Get(nameof(Dialog_LaunchAnalysisJavaVersionTitle));
+    public static string Dialog_LaunchAnalysisJavaVersionDetailFormat => Get(nameof(Dialog_LaunchAnalysisJavaVersionDetailFormat));
+    public static string Dialog_LaunchAnalysisJavaVersionRecommendationFormat => Get(nameof(Dialog_LaunchAnalysisJavaVersionRecommendationFormat));
+    public static string Dialog_LaunchAnalysisModDependencyTitle => Get(nameof(Dialog_LaunchAnalysisModDependencyTitle));
+    public static string Dialog_LaunchAnalysisModDependencyDetailFormat => Get(nameof(Dialog_LaunchAnalysisModDependencyDetailFormat));
+    public static string Dialog_LaunchAnalysisModDependencyDetail => Get(nameof(Dialog_LaunchAnalysisModDependencyDetail));
+    public static string Dialog_LaunchAnalysisModDependencyRecommendation => Get(nameof(Dialog_LaunchAnalysisModDependencyRecommendation));
+    public static string Dialog_LaunchAnalysisModVersionTitle => Get(nameof(Dialog_LaunchAnalysisModVersionTitle));
+    public static string Dialog_LaunchAnalysisModVersionDetail => Get(nameof(Dialog_LaunchAnalysisModVersionDetail));
+    public static string Dialog_LaunchAnalysisModVersionRecommendation => Get(nameof(Dialog_LaunchAnalysisModVersionRecommendation));
+    public static string Dialog_LaunchAnalysisMissingFilesTitle => Get(nameof(Dialog_LaunchAnalysisMissingFilesTitle));
+    public static string Dialog_LaunchAnalysisMissingFilesDetail => Get(nameof(Dialog_LaunchAnalysisMissingFilesDetail));
+    public static string Dialog_LaunchAnalysisMissingClasspathEntryDetailFormat => Get(nameof(Dialog_LaunchAnalysisMissingClasspathEntryDetailFormat));
+    public static string Dialog_LaunchAnalysisMissingClientJarDetailFormat => Get(nameof(Dialog_LaunchAnalysisMissingClientJarDetailFormat));
+    public static string Dialog_LaunchAnalysisMissingFilesRecommendation => Get(nameof(Dialog_LaunchAnalysisMissingFilesRecommendation));
+    public static string Dialog_LaunchAnalysisOutOfMemoryTitle => Get(nameof(Dialog_LaunchAnalysisOutOfMemoryTitle));
+    public static string Dialog_LaunchAnalysisOutOfMemoryDetail => Get(nameof(Dialog_LaunchAnalysisOutOfMemoryDetail));
+    public static string Dialog_LaunchAnalysisOutOfMemoryRecommendation => Get(nameof(Dialog_LaunchAnalysisOutOfMemoryRecommendation));
 }
