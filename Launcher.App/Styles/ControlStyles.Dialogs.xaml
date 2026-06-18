@@ -104,12 +104,12 @@
                             <Border Background="#12FFFFFF"
                                     CornerRadius="10" />
                             <Border x:Name="SelectedBackground"
-                                    Background="#6E686868"
+                                    Background="#80686868"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <Border x:Name="SelectedOutline"
-                                    BorderBrush="#667ABEFF"
-                                    BorderThickness="1"
+                                    BorderBrush="#887ABEFF"
+                                    BorderThickness="2"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <Border x:Name="HoverBackground"

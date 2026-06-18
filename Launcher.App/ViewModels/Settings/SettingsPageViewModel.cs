@@ -11,6 +11,8 @@ namespace Launcher.App.ViewModels.Settings;
 public sealed partial class SettingsPageViewModel : ObservableObject
 {
     private const int AutoSaveDelayMilliseconds = 350;
+    private const string JavaSelectionAutoId = "auto";
+    private const string JavaSelectionManualId = "manual";
 
     private readonly ISettingsService settingsService;
     private readonly IStatusService statusService;
@@ -38,6 +40,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     [ObservableProperty]
     private SettingsJavaSelectionOption? selectedJavaSelectionOption;
+
+    [ObservableProperty]
+    private SettingsJavaRuntimeItem? selectedJavaRuntime;
 
     [ObservableProperty]
     private bool isJavaRuntimeScanRunning;
@@ -101,8 +106,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         foreach (var memoryMb in new[] { 2048, 4096, 6144, 8192, 12288, 16384 })
             MemoryOptions.Add(new SettingsMemoryOption(memoryMb));
 
-        JavaSelectionOptions.Add(new SettingsJavaSelectionOption("auto", Strings.Settings_JavaSelectionAuto));
-        JavaSelectionOptions.Add(new SettingsJavaSelectionOption("manual", Strings.Settings_JavaSelectionManual));
+        JavaSelectionOptions.Add(new SettingsJavaSelectionOption(JavaSelectionAutoId, Strings.Settings_JavaSelectionAuto));
+        JavaSelectionOptions.Add(new SettingsJavaSelectionOption(JavaSelectionManualId, Strings.Settings_JavaSelectionManual));
         SelectedJavaSelectionOption = JavaSelectionOptions[0];
 
         SelectedSection = Sections[0];
@@ -128,6 +133,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     public bool HasJavaRuntimeListMessage => !string.IsNullOrWhiteSpace(JavaRuntimeListMessage);
 
+    public bool IsJavaManualSelection => GetSelectedJavaSelectionMode() is JavaSelectionMode.Manual;
+
     public void PrimeFromSettings(LauncherSettings launcherSettings)
     {
         settings = launcherSettings;
@@ -146,6 +153,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             DefaultJvmArguments = launcherSettings.DefaultJvmArguments;
             DefaultGameArguments = launcherSettings.DefaultGameArguments;
             SelectedMemoryOption = EnsureMemoryOption(launcherSettings.DefaultMemoryMb);
+            SelectedJavaSelectionOption = GetJavaSelectionOption(launcherSettings.JavaSelectionMode);
+            SelectedJavaRuntime = null;
         }
         finally
         {
@@ -190,6 +199,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             foreach (var runtime in discoveredRuntimes)
                 JavaRuntimes.Add(new SettingsJavaRuntimeItem(runtime));
 
+            await EnsureSavedSelectedJavaRuntimePresentAsync(cancellationTokenSource.Token);
+            UpdateJavaRuntimeSelectionAfterListChanged();
             JavaRuntimeListMessage = JavaRuntimes.Count == 0
                 ? Strings.Settings_JavaListEmpty
                 : string.Empty;
@@ -230,6 +241,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
                 return;
             }
 
+            UpdateJavaRuntimeSelectionAfterListChanged();
             JavaRuntimeListMessage = JavaRuntimes.Count == 0
                 ? Strings.Settings_JavaListEmpty
                 : string.Empty;
@@ -260,6 +272,55 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     partial void OnJavaRuntimeListMessageChanged(string value)
     {
         OnPropertyChanged(nameof(HasJavaRuntimeListMessage));
+    }
+
+    partial void OnSelectedJavaSelectionOptionChanged(SettingsJavaSelectionOption? value)
+    {
+        OnPropertyChanged(nameof(IsJavaManualSelection));
+
+        if (IsJavaManualSelection)
+        {
+            UpdateJavaRuntimeSelectionAfterListChanged();
+        }
+        else
+        {
+            suppressAutoSave = true;
+            try
+            {
+                SelectedJavaRuntime = null;
+            }
+            finally
+            {
+                suppressAutoSave = false;
+            }
+        }
+
+        ScheduleAutoSave();
+        NotifyLaunchDefaultsChanged();
+    }
+
+    partial void OnSelectedJavaRuntimeChanged(SettingsJavaRuntimeItem? value)
+    {
+        if (!IsJavaManualSelection)
+        {
+            if (value is not null)
+            {
+                suppressAutoSave = true;
+                try
+                {
+                    SelectedJavaRuntime = null;
+                }
+                finally
+                {
+                    suppressAutoSave = false;
+                }
+            }
+
+            return;
+        }
+
+        ScheduleAutoSave();
+        NotifyLaunchDefaultsChanged();
     }
 
     partial void OnSelectedMemoryOptionChanged(SettingsMemoryOption? value)
@@ -397,7 +458,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     private static bool IsSameJavaRuntime(SettingsJavaRuntimeItem item, JavaRuntimeInfo runtime)
     {
-        if (string.Equals(item.ExecutablePath, runtime.ExecutablePath, StringComparison.OrdinalIgnoreCase))
+        if (IsSameExecutablePath(item.ExecutablePath, runtime.ExecutablePath))
             return true;
 
         if (string.IsNullOrWhiteSpace(runtime.Version))
@@ -406,6 +467,24 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         return string.Equals(item.InstallationDirectory, runtime.InstallationDirectory, StringComparison.OrdinalIgnoreCase)
             && string.Equals(item.VersionText, runtime.Version, StringComparison.OrdinalIgnoreCase)
             && string.Equals(item.Architecture, runtime.Architecture, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSameExecutablePath(string? left, string? right)
+    {
+        return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private SettingsJavaSelectionOption GetJavaSelectionOption(JavaSelectionMode mode)
+    {
+        var targetId = mode is JavaSelectionMode.Manual ? JavaSelectionManualId : JavaSelectionAutoId;
+        return JavaSelectionOptions.FirstOrDefault(option => option.Id == targetId) ?? JavaSelectionOptions[0];
+    }
+
+    private JavaSelectionMode GetSelectedJavaSelectionMode()
+    {
+        return SelectedJavaSelectionOption?.Id == JavaSelectionManualId
+            ? JavaSelectionMode.Manual
+            : JavaSelectionMode.Auto;
     }
 
     private void ApplyLaunchDefaultsToSettings()
@@ -419,6 +498,52 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         settings.DefaultPostExitCommand = NormalizeSettingText(DefaultPostExitCommand);
         settings.DefaultJvmArguments = NormalizeSettingText(DefaultJvmArguments);
         settings.DefaultGameArguments = NormalizeSettingText(DefaultGameArguments);
+        settings.JavaSelectionMode = GetSelectedJavaSelectionMode();
+        if (settings.JavaSelectionMode is JavaSelectionMode.Manual && SelectedJavaRuntime is not null)
+            settings.SelectedJavaExecutablePath = SelectedJavaRuntime.ExecutablePath;
+    }
+
+    private async Task EnsureSavedSelectedJavaRuntimePresentAsync(CancellationToken cancellationToken)
+    {
+        if (!IsJavaManualSelection || string.IsNullOrWhiteSpace(settings.SelectedJavaExecutablePath))
+            return;
+
+        if (JavaRuntimes.Any(item => IsSameExecutablePath(item.ExecutablePath, settings.SelectedJavaExecutablePath)))
+            return;
+
+        try
+        {
+            var runtime = await javaRuntimeDiscoveryService.DiscoverExecutableAsync(
+                settings.SelectedJavaExecutablePath,
+                cancellationToken);
+            AddJavaRuntime(runtime);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+        }
+    }
+
+    private void UpdateJavaRuntimeSelectionAfterListChanged()
+    {
+        if (!IsJavaManualSelection)
+        {
+            SelectedJavaRuntime = null;
+            return;
+        }
+
+        var savedPath = settings.SelectedJavaExecutablePath;
+        var savedRuntime = string.IsNullOrWhiteSpace(savedPath)
+            ? null
+            : JavaRuntimes.FirstOrDefault(item => IsSameExecutablePath(item.ExecutablePath, savedPath));
+        var currentRuntime = SelectedJavaRuntime is null
+            ? null
+            : JavaRuntimes.FirstOrDefault(item => IsSameExecutablePath(item.ExecutablePath, SelectedJavaRuntime.ExecutablePath));
+
+        SelectedJavaRuntime = savedRuntime ?? currentRuntime ?? JavaRuntimes.FirstOrDefault();
     }
 
     private static string NormalizeSettingText(string? value)

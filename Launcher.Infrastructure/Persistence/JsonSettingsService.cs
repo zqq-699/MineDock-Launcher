@@ -95,6 +95,15 @@ public sealed class JsonSettingsService : ISettingsService
         }
 
         settings.DefaultMemoryMb = Math.Clamp(settings.DefaultMemoryMb, 1024, 32768);
+        if (settings.JavaSelectionMode is not JavaSelectionMode.Auto
+            && settings.JavaSelectionMode is not JavaSelectionMode.Manual)
+        {
+            settings.JavaSelectionMode = JavaSelectionMode.Auto;
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.SelectedJavaExecutablePath))
+            settings.SelectedJavaExecutablePath = null;
+
         return settings;
     }
 }

@@ -198,6 +198,10 @@ public sealed partial class HomePageViewModel : ObservableObject
         {
             statusService.Report(Strings.Status_LaunchInstanceRepairFailed);
         }
+        catch (JavaRuntimeSelectionException)
+        {
+            statusService.Report(Strings.Status_JavaSelectionFailed);
+        }
         catch (Exception)
         {
             statusService.Report(Strings.Status_LaunchFailed);

@@ -262,6 +262,7 @@ public static class Strings
     public static string Status_JavaImported => Get(nameof(Status_JavaImported));
     public static string Status_JavaAlreadyExists => Get(nameof(Status_JavaAlreadyExists));
     public static string Status_JavaImportFailed => Get(nameof(Status_JavaImportFailed));
+    public static string Status_JavaSelectionFailed => Get(nameof(Status_JavaSelectionFailed));
     public static string Status_InstanceSettingsSaved => Get(nameof(Status_InstanceSettingsSaved));
     public static string Status_DefaultInstanceSetFormat => Get(nameof(Status_DefaultInstanceSetFormat));
     public static string Status_InstanceDeletedFormat => Get(nameof(Status_InstanceDeletedFormat));

@@ -8,6 +8,8 @@ public sealed class LauncherSettings
     public string DataDirectory { get; set; } = string.Empty;
     public string MinecraftDirectory { get; set; } = string.Empty;
     public int DefaultMemoryMb { get; set; } = LauncherDefaults.DefaultMemoryMb;
+    public JavaSelectionMode JavaSelectionMode { get; set; } = JavaSelectionMode.Auto;
+    public string? SelectedJavaExecutablePath { get; set; }
     public bool DefaultCheckFilesBeforeLaunch { get; set; } = true;
     public bool DefaultAutoRepairMissingFiles { get; set; } = true;
     public bool DefaultMinimizeLauncherAfterLaunch { get; set; }

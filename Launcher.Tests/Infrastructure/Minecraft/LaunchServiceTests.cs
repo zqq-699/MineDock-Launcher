@@ -454,6 +454,117 @@ public sealed class LaunchServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task LaunchServiceAppliesSelectedJavaRuntimeToLaunchOption()
+    {
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var javaDirectory = Path.Combine(TempRoot, "java", "jdk-21", "bin");
+        Directory.CreateDirectory(javaDirectory);
+        var javaPath = Path.Combine(javaDirectory, "java.exe");
+        var javawPath = Path.Combine(javaDirectory, "javaw.exe");
+        await File.WriteAllTextAsync(javaPath, string.Empty);
+        await File.WriteAllTextAsync(javawPath, string.Empty);
+        var javaRuntime = new JavaRuntimeInfo(
+            "Java 21",
+            "21.0.0",
+            21,
+            "x64",
+            javaPath,
+            Path.Combine(TempRoot, "java", "jdk-21"),
+            "Test");
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            launcherFactory,
+            new NoOpLaunchCrashMonitor(),
+            javaRuntimeSelectionService: new FakeJavaRuntimeSelectionService(javaRuntime));
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            JavaSelectionMode = JavaSelectionMode.Auto
+        };
+        var instance = new GameInstance
+        {
+            Name = "Vanilla World",
+            VersionName = "1.21.4",
+            InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "1.21.4")
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline",
+            DisplayName = "Player",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+
+        await service.LaunchAsync(instance, account, settings, progress: null);
+
+        Assert.Equal(javawPath, launcherFactory.Launcher.LastLaunchOption?.JavaPath);
+    }
+
+    [Fact]
+    public async Task LaunchServicePassesManualJavaSelectionSettingsToSelectionService()
+    {
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var javaDirectory = Path.Combine(TempRoot, "java", "jdk-17", "bin");
+        Directory.CreateDirectory(javaDirectory);
+        var javaPath = Path.Combine(javaDirectory, "java.exe");
+        var javawPath = Path.Combine(javaDirectory, "javaw.exe");
+        await File.WriteAllTextAsync(javaPath, string.Empty);
+        await File.WriteAllTextAsync(javawPath, string.Empty);
+        var javaRuntime = new JavaRuntimeInfo(
+            "Java 17",
+            "17.0.0",
+            17,
+            "x64",
+            javaPath,
+            Path.Combine(TempRoot, "java", "jdk-17"),
+            "Test");
+        var javaRuntimeSelectionService = new FakeJavaRuntimeSelectionService(javaRuntime);
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            launcherFactory,
+            new NoOpLaunchCrashMonitor(),
+            javaRuntimeSelectionService: javaRuntimeSelectionService);
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            JavaSelectionMode = JavaSelectionMode.Manual,
+            SelectedJavaExecutablePath = javaRuntime.ExecutablePath
+        };
+        var instance = new GameInstance
+        {
+            Name = "Vanilla World",
+            VersionName = "1.20.1",
+            InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "1.20.1")
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline",
+            DisplayName = "Player",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+
+        await service.LaunchAsync(instance, account, settings, progress: null);
+
+        Assert.Same(settings, javaRuntimeSelectionService.LastSettings);
+        Assert.Equal(JavaSelectionMode.Manual, javaRuntimeSelectionService.LastSettings?.JavaSelectionMode);
+        Assert.Equal(javawPath, launcherFactory.Launcher.LastLaunchOption?.JavaPath);
+    }
+
+    [Fact]
+    public void ResolveWindowlessJavaPathKeepsJavaExeWhenJavawIsMissing()
+    {
+        var javaDirectory = Path.Combine(TempRoot, "java", "jdk-8", "bin");
+        Directory.CreateDirectory(javaDirectory);
+        var javaPath = Path.Combine(javaDirectory, "java.exe");
+        File.WriteAllText(javaPath, string.Empty);
+
+        Assert.Equal(javaPath, LaunchService.ResolveWindowlessJavaPath(javaPath));
+    }
+
+    [Fact]
     public async Task LaunchServiceAppliesAdvancedLaunchSettingsFromEffectiveSettings()
     {
         var launcherFactory = new FakeLaunchGameLauncherFactory();
@@ -790,6 +901,27 @@ public sealed class LaunchServiceTests : TestTempDirectory
                 return OnRepairAsync(progress);
 
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeJavaRuntimeSelectionService : IJavaRuntimeSelectionService
+    {
+        private readonly JavaRuntimeInfo runtime;
+
+        public FakeJavaRuntimeSelectionService(JavaRuntimeInfo runtime)
+        {
+            this.runtime = runtime;
+        }
+
+        public LauncherSettings? LastSettings { get; private set; }
+
+        public Task<JavaRuntimeInfo> SelectForLaunchAsync(
+            GameInstance instance,
+            LauncherSettings settings,
+            CancellationToken cancellationToken = default)
+        {
+            LastSettings = settings;
+            return Task.FromResult(runtime);
         }
     }
 

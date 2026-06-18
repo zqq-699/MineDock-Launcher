@@ -217,6 +217,7 @@
   <data name="Status_JavaImported" xml:space="preserve"><value>Java 已导入</value></data>
   <data name="Status_JavaAlreadyExists" xml:space="preserve"><value>已存在这个 Java</value></data>
   <data name="Status_JavaImportFailed" xml:space="preserve"><value>导入 Java 失败，请确认选择的是 Java 可执行文件。</value></data>
+  <data name="Status_JavaSelectionFailed" xml:space="preserve"><value>Java 选择不可用，请检查全局设置中的 Java 配置。</value></data>
   <data name="Status_InstanceSettingsSaved" xml:space="preserve"><value>游戏设置已保存</value></data>
   <data name="Status_DefaultInstanceSetFormat" xml:space="preserve"><value>{0} 已设为默认游戏</value></data>
   <data name="Status_LoadInstancesFailed" xml:space="preserve"><value>游戏加载失败，请稍后重试。</value></data>

@@ -68,6 +68,161 @@ public sealed class SettingsPageViewModelTests
 
         Assert.Equal(2, viewModel.JavaSelectionOptions.Count);
         Assert.Equal(Strings.Settings_JavaSelectionAuto, viewModel.SelectedJavaSelectionOption?.Title);
+        Assert.Null(viewModel.SelectedJavaRuntime);
+    }
+
+    [Fact]
+    public async Task AutomaticJavaSelectionDoesNotSelectRuntimeAfterRefresh()
+    {
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            Runtimes =
+            [
+                CreateJavaRuntime(@"C:\Java\jdk-21\bin\java.exe", 21)
+            ]
+        };
+        var viewModel = CreateViewModel(
+            new LauncherSettings(),
+            javaRuntimeDiscoveryService,
+            out _,
+            out _);
+
+        await viewModel.RefreshJavaRuntimesCommand.ExecuteAsync(null);
+
+        Assert.Single(viewModel.JavaRuntimes);
+        Assert.Null(viewModel.SelectedJavaRuntime);
+    }
+
+    [Fact]
+    public async Task SwitchingFromAutomaticToManualSelectsFirstRuntime()
+    {
+        var firstRuntime = CreateJavaRuntime(@"C:\Java\jdk-21\bin\java.exe", 21);
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            Runtimes =
+            [
+                firstRuntime,
+                CreateJavaRuntime(@"C:\Java\jdk-17\bin\java.exe", 17)
+            ]
+        };
+        var viewModel = CreateViewModel(
+            new LauncherSettings(),
+            javaRuntimeDiscoveryService,
+            out _,
+            out _);
+
+        await viewModel.RefreshJavaRuntimesCommand.ExecuteAsync(null);
+        viewModel.SelectedJavaSelectionOption = viewModel.JavaSelectionOptions.Single(option => option.Id == "manual");
+
+        Assert.Equal(firstRuntime.ExecutablePath, viewModel.SelectedJavaRuntime?.ExecutablePath);
+    }
+
+    [Fact]
+    public async Task ManualJavaSelectionSavesSelectedRuntimePath()
+    {
+        var selectedRuntime = CreateJavaRuntime(@"C:\Java\jdk-17\bin\java.exe", 17);
+        var settings = new LauncherSettings
+        {
+            JavaSelectionMode = JavaSelectionMode.Manual
+        };
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            Runtimes =
+            [
+                CreateJavaRuntime(@"C:\Java\jdk-21\bin\java.exe", 21),
+                selectedRuntime
+            ]
+        };
+        var viewModel = CreateViewModel(settings, javaRuntimeDiscoveryService, out var settingsService, out _);
+        viewModel.PrimeFromSettings(settings);
+
+        await viewModel.RefreshJavaRuntimesCommand.ExecuteAsync(null);
+        viewModel.SelectedJavaRuntime = viewModel.JavaRuntimes.Single(item => item.ExecutablePath == selectedRuntime.ExecutablePath);
+
+        await TestAsync.WaitForAsync(() =>
+            settingsService.SaveCount >= 1
+            && settings.JavaSelectionMode is JavaSelectionMode.Manual
+            && settings.SelectedJavaExecutablePath == selectedRuntime.ExecutablePath);
+    }
+
+    [Fact]
+    public async Task SwitchingManualJavaSelectionBackToAutomaticClearsUiSelectionOnly()
+    {
+        var savedPath = @"C:\Java\jdk-17\bin\java.exe";
+        var settings = new LauncherSettings
+        {
+            JavaSelectionMode = JavaSelectionMode.Manual,
+            SelectedJavaExecutablePath = savedPath
+        };
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            Runtimes =
+            [
+                CreateJavaRuntime(savedPath, 17)
+            ]
+        };
+        var viewModel = CreateViewModel(settings, javaRuntimeDiscoveryService, out var settingsService, out _);
+        viewModel.PrimeFromSettings(settings);
+
+        await viewModel.RefreshJavaRuntimesCommand.ExecuteAsync(null);
+        Assert.NotNull(viewModel.SelectedJavaRuntime);
+
+        viewModel.SelectedJavaSelectionOption = viewModel.JavaSelectionOptions.Single(option => option.Id == "auto");
+
+        Assert.Null(viewModel.SelectedJavaRuntime);
+        await TestAsync.WaitForAsync(() =>
+            settingsService.SaveCount >= 1
+            && settings.JavaSelectionMode is JavaSelectionMode.Auto);
+        Assert.Equal(savedPath, settings.SelectedJavaExecutablePath);
+    }
+
+    [Fact]
+    public async Task ManualJavaSelectionRestoresSavedPathAfterRefresh()
+    {
+        var savedPath = @"C:\Java\jdk-17\bin\java.exe";
+        var settings = new LauncherSettings
+        {
+            JavaSelectionMode = JavaSelectionMode.Manual,
+            SelectedJavaExecutablePath = savedPath
+        };
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            Runtimes =
+            [
+                CreateJavaRuntime(@"C:\Java\jdk-21\bin\java.exe", 21),
+                CreateJavaRuntime(savedPath, 17)
+            ]
+        };
+        var viewModel = CreateViewModel(settings, javaRuntimeDiscoveryService, out _, out _);
+        viewModel.PrimeFromSettings(settings);
+
+        await viewModel.RefreshJavaRuntimesCommand.ExecuteAsync(null);
+
+        Assert.Equal(savedPath, viewModel.SelectedJavaRuntime?.ExecutablePath);
+    }
+
+    [Fact]
+    public async Task ManualJavaSelectionAddsSavedPathWhenMissingFromScan()
+    {
+        var savedPath = @"C:\Imported\jdk-21\bin\java.exe";
+        var settings = new LauncherSettings
+        {
+            JavaSelectionMode = JavaSelectionMode.Manual,
+            SelectedJavaExecutablePath = savedPath
+        };
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            Runtimes = [],
+            ImportedRuntime = CreateJavaRuntime(savedPath, 21)
+        };
+        var viewModel = CreateViewModel(settings, javaRuntimeDiscoveryService, out _, out _);
+        viewModel.PrimeFromSettings(settings);
+
+        await viewModel.RefreshJavaRuntimesCommand.ExecuteAsync(null);
+
+        Assert.Single(viewModel.JavaRuntimes);
+        Assert.Equal(savedPath, viewModel.SelectedJavaRuntime?.ExecutablePath);
+        Assert.Equal(savedPath, javaRuntimeDiscoveryService.LastImportedExecutablePath);
     }
 
     [Fact]
@@ -410,6 +565,19 @@ public sealed class SettingsPageViewModelTests
             javaRuntimeDiscoveryService,
             filePickerService,
             floatingMessageService);
+    }
+
+    private static JavaRuntimeInfo CreateJavaRuntime(string executablePath, int majorVersion)
+    {
+        var installationDirectory = Path.GetDirectoryName(Path.GetDirectoryName(executablePath)) ?? string.Empty;
+        return new JavaRuntimeInfo(
+            $"Java {majorVersion}",
+            $"{majorVersion}.0.0",
+            majorVersion,
+            "x64",
+            executablePath,
+            installationDirectory,
+            "Test");
     }
 
     private sealed class FakeStatusService : IStatusService

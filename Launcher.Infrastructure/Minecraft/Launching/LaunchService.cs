@@ -15,14 +15,18 @@ public sealed class LaunchService : ILaunchService
     private readonly ILaunchGameLauncherFactory launcherFactory;
     private readonly ILaunchCrashMonitor crashMonitor;
     private readonly ILaunchCommandRunner commandRunner;
+    private readonly IJavaRuntimeSelectionService? javaRuntimeSelectionService;
 
-    public LaunchService(ILaunchAccountSessionService accountSessionService)
+    public LaunchService(
+        ILaunchAccountSessionService accountSessionService,
+        IJavaRuntimeSelectionService javaRuntimeSelectionService)
         : this(
             accountSessionService,
             new ManagedVersionRepairService(),
             new LaunchGameLauncherFactory(),
             new LaunchCrashMonitor(),
-            new LaunchCommandRunner())
+            new LaunchCommandRunner(),
+            javaRuntimeSelectionService)
     {
     }
 
@@ -31,13 +35,15 @@ public sealed class LaunchService : ILaunchService
         IManagedVersionRepairService versionRepairService,
         ILaunchGameLauncherFactory launcherFactory,
         ILaunchCrashMonitor crashMonitor,
-        ILaunchCommandRunner? commandRunner = null)
+        ILaunchCommandRunner? commandRunner = null,
+        IJavaRuntimeSelectionService? javaRuntimeSelectionService = null)
     {
         this.accountSessionService = accountSessionService;
         this.versionRepairService = versionRepairService;
         this.launcherFactory = launcherFactory;
         this.crashMonitor = crashMonitor;
         this.commandRunner = commandRunner ?? new LaunchCommandRunner();
+        this.javaRuntimeSelectionService = javaRuntimeSelectionService;
     }
 
     public async Task LaunchAsync(
@@ -109,6 +115,9 @@ public sealed class LaunchService : ILaunchService
             var isolatedPath = CreateIsolatedLaunchPath(settings.MinecraftDirectory, versionName);
 
             var accountSession = await accountSessionService.CreateSessionAsync(account, cancellationToken);
+            var selectedJavaRuntime = javaRuntimeSelectionService is null
+                ? null
+                : await javaRuntimeSelectionService.SelectForLaunchAsync(instance, settings, cancellationToken);
             var launchOption = new MLaunchOption
             {
                 Path = isolatedPath,
@@ -121,7 +130,8 @@ public sealed class LaunchService : ILaunchService
                 ScreenHeight = instance.WindowHeight,
                 FullScreen = shouldLaunchFullScreen,
                 GameLauncherName = "Launcher",
-                GameLauncherVersion = "0.1"
+                GameLauncherVersion = "0.1",
+                JavaPath = ResolveWindowlessJavaPath(selectedJavaRuntime?.ExecutablePath)
             };
 
             if (!string.IsNullOrWhiteSpace(jvmArguments))
@@ -171,6 +181,19 @@ public sealed class LaunchService : ILaunchService
                 instance,
                 versionName,
                 "instance_repair_failed",
+                exception.Message,
+                exception,
+                process?.StartInfo,
+                cancellationToken);
+            throw;
+        }
+        catch (JavaRuntimeSelectionException exception)
+        {
+            await WriteFailureDiagnosticAsync(
+                settings,
+                instance,
+                versionName,
+                "java_runtime_selection_failed",
                 exception.Message,
                 exception,
                 process?.StartInfo,
@@ -235,6 +258,23 @@ public sealed class LaunchService : ILaunchService
         };
 
         return isolatedPath;
+    }
+
+    internal static string? ResolveWindowlessJavaPath(string? executablePath)
+    {
+        if (string.IsNullOrWhiteSpace(executablePath)
+            || !OperatingSystem.IsWindows()
+            || !string.Equals(Path.GetFileName(executablePath), "java.exe", StringComparison.OrdinalIgnoreCase))
+        {
+            return executablePath;
+        }
+
+        var directory = Path.GetDirectoryName(executablePath);
+        if (string.IsNullOrWhiteSpace(directory))
+            return executablePath;
+
+        var javawPath = Path.Combine(directory, "javaw.exe");
+        return File.Exists(javawPath) ? javawPath : executablePath;
     }
 
     private void ConfigurePostExitCommand(
