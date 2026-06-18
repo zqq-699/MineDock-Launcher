@@ -198,7 +198,12 @@ public sealed class MainViewModelTests
         var gameVersionService = new FakeGameVersionService([]);
         var downloadTasksPage = new DownloadTasksPageViewModel();
         var accountPage = CreateAccountPage(statusService);
-        var settingsPage = new SettingsPageViewModel(settingsService, statusService);
+        var settingsPage = new SettingsPageViewModel(
+            settingsService,
+            statusService,
+            new FakeJavaRuntimeDiscoveryService(),
+            new FakeFilePickerService(),
+            floatingMessageService);
         var gameManagement = new GameManagementViewModel(
             new InstanceManagementViewModel(settingsService, instanceService, statusService),
             new LoaderSelectionViewModel(gameVersionService, [], statusService),
@@ -533,6 +538,11 @@ public sealed class MainViewModelTests
             return null;
         }
 
+        public string? PickJavaExecutable()
+        {
+            return null;
+        }
+
     }
 
     private sealed class FakeSkinFileValidator : IMinecraftSkinFileValidator
@@ -542,6 +552,23 @@ public sealed class MainViewModelTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult(new MinecraftSkinFileValidationResult(true, 64, 64));
+        }
+    }
+
+    private sealed class FakeJavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryService
+    {
+        public Task<IReadOnlyList<JavaRuntimeInfo>> DiscoverAsync(
+            string? minecraftDirectory,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<JavaRuntimeInfo>>([]);
+        }
+
+        public Task<JavaRuntimeInfo> DiscoverExecutableAsync(
+            string executablePath,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
         }
     }
 }

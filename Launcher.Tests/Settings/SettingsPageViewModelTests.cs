@@ -1,5 +1,6 @@
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
 namespace Launcher.Tests.Settings;
@@ -58,6 +59,160 @@ public sealed class SettingsPageViewModelTests
         Assert.False(viewModel.IsGeneralSection);
         Assert.True(launchSection.IsSelected);
         Assert.False(viewModel.Sections.Single(section => section.Section is SettingsPageSection.General).IsSelected);
+    }
+
+    [Fact]
+    public void JavaSelectionDefaultsToAutomatic()
+    {
+        var viewModel = CreateViewModel(out _, out _);
+
+        Assert.Equal(2, viewModel.JavaSelectionOptions.Count);
+        Assert.Equal(Strings.Settings_JavaSelectionAuto, viewModel.SelectedJavaSelectionOption?.Title);
+    }
+
+    [Fact]
+    public async Task RefreshJavaRuntimesShowsDiscoveredRuntimes()
+    {
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = @"C:\Launcher\.minecraft"
+        };
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            Runtimes =
+            [
+                new JavaRuntimeInfo(
+                    "Java 21",
+                    "21.0.2",
+                    21,
+                    "x64",
+                    @"C:\Program Files\Java\jdk-21\bin\java.exe",
+                    @"C:\Program Files\Java\jdk-21",
+                    "JAVA_HOME")
+            ]
+        };
+        var viewModel = CreateViewModel(settings, javaRuntimeDiscoveryService, out _, out _);
+        viewModel.PrimeFromSettings(settings);
+
+        await viewModel.RefreshJavaRuntimesCommand.ExecuteAsync(null);
+
+        Assert.Single(viewModel.JavaRuntimes);
+        Assert.Equal("Java 21", viewModel.JavaRuntimes[0].DisplayName);
+        Assert.Equal("21.0.2", viewModel.JavaRuntimes[0].VersionText);
+        Assert.Equal(@"C:\Launcher\.minecraft", javaRuntimeDiscoveryService.LastMinecraftDirectory);
+        Assert.False(viewModel.HasJavaRuntimeListMessage);
+    }
+
+    [Fact]
+    public async Task RefreshJavaRuntimesReportsFriendlyMessageWhenDiscoveryFails()
+    {
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            ExceptionToThrow = new InvalidOperationException("boom")
+        };
+        var viewModel = CreateViewModel(
+            new LauncherSettings(),
+            javaRuntimeDiscoveryService,
+            out _,
+            out var statusService);
+
+        await viewModel.RefreshJavaRuntimesCommand.ExecuteAsync(null);
+
+        Assert.Empty(viewModel.JavaRuntimes);
+        Assert.Equal(Strings.Settings_JavaListEmpty, viewModel.JavaRuntimeListMessage);
+        Assert.Equal(Strings.Status_JavaScanFailed, statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task ImportJavaRuntimeAddsPickedRuntime()
+    {
+        const string executablePath = @"C:\Java\jdk-21\bin\java.exe";
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            ImportedRuntime = new JavaRuntimeInfo(
+                "Java 21",
+                "21.0.2",
+                21,
+                "x64",
+                executablePath,
+                @"C:\Java\jdk-21",
+                "ManualImport")
+        };
+        var filePickerService = new FakeFilePickerService
+        {
+            JavaExecutablePath = executablePath
+        };
+        var viewModel = CreateViewModel(
+            new LauncherSettings(),
+            javaRuntimeDiscoveryService,
+            filePickerService,
+            out _,
+            out var statusService,
+            out _);
+
+        await viewModel.ImportJavaRuntimeCommand.ExecuteAsync(null);
+
+        Assert.Single(viewModel.JavaRuntimes);
+        Assert.Equal(executablePath, viewModel.JavaRuntimes[0].ExecutablePath);
+        Assert.Equal(executablePath, javaRuntimeDiscoveryService.LastImportedExecutablePath);
+        Assert.Equal(Strings.Status_JavaImported, statusService.LastMessage);
+        Assert.False(viewModel.HasJavaRuntimeListMessage);
+    }
+
+    [Fact]
+    public async Task ImportJavaRuntimeDoesNotDuplicateExistingRuntime()
+    {
+        const string executablePath = @"C:\Java\jdk-21\bin\java.exe";
+        var runtime = new JavaRuntimeInfo(
+            "Java 21",
+            "21.0.2",
+            21,
+            "x64",
+            executablePath,
+            @"C:\Java\jdk-21",
+            "ManualImport");
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            ImportedRuntime = runtime
+        };
+        var filePickerService = new FakeFilePickerService
+        {
+            JavaExecutablePath = executablePath
+        };
+        var viewModel = CreateViewModel(
+            new LauncherSettings(),
+            javaRuntimeDiscoveryService,
+            filePickerService,
+            out _,
+            out var statusService,
+            out var floatingMessageService);
+
+        await viewModel.ImportJavaRuntimeCommand.ExecuteAsync(null);
+        await viewModel.ImportJavaRuntimeCommand.ExecuteAsync(null);
+
+        Assert.Single(viewModel.JavaRuntimes);
+        Assert.Equal(Strings.Status_JavaImported, statusService.LastMessage);
+        Assert.Equal(Strings.Status_JavaAlreadyExists, floatingMessageService.LastMessage);
+    }
+
+    [Fact]
+    public async Task ImportJavaRuntimeReportsFriendlyMessageWhenImportFails()
+    {
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            ImportExceptionToThrow = new InvalidOperationException("boom")
+        };
+        var viewModel = CreateViewModel(
+            new LauncherSettings(),
+            javaRuntimeDiscoveryService,
+            new FakeFilePickerService { JavaExecutablePath = @"C:\bad\java.exe" },
+            out _,
+            out var statusService);
+
+        await viewModel.ImportJavaRuntimeCommand.ExecuteAsync(null);
+
+        Assert.Empty(viewModel.JavaRuntimes);
+        Assert.Equal(Strings.Status_JavaImportFailed, statusService.LastMessage);
     }
 
     [Fact]
@@ -210,9 +365,51 @@ public sealed class SettingsPageViewModelTests
         out TestSettingsService settingsService,
         out FakeStatusService statusService)
     {
+        return CreateViewModel(settings, new FakeJavaRuntimeDiscoveryService(), out settingsService, out statusService);
+    }
+
+    private static SettingsPageViewModel CreateViewModel(
+        LauncherSettings settings,
+        FakeJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
+        out TestSettingsService settingsService,
+        out FakeStatusService statusService)
+    {
+        return CreateViewModel(settings, javaRuntimeDiscoveryService, new FakeFilePickerService(), out settingsService, out statusService);
+    }
+
+    private static SettingsPageViewModel CreateViewModel(
+        LauncherSettings settings,
+        FakeJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
+        FakeFilePickerService filePickerService,
+        out TestSettingsService settingsService,
+        out FakeStatusService statusService)
+    {
+        return CreateViewModel(
+            settings,
+            javaRuntimeDiscoveryService,
+            filePickerService,
+            out settingsService,
+            out statusService,
+            out _);
+    }
+
+    private static SettingsPageViewModel CreateViewModel(
+        LauncherSettings settings,
+        FakeJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
+        FakeFilePickerService filePickerService,
+        out TestSettingsService settingsService,
+        out FakeStatusService statusService,
+        out FakeFloatingMessageService floatingMessageService)
+    {
         settingsService = new TestSettingsService(settings);
         statusService = new FakeStatusService();
-        return new SettingsPageViewModel(settingsService, statusService);
+        floatingMessageService = new FakeFloatingMessageService();
+        return new SettingsPageViewModel(
+            settingsService,
+            statusService,
+            javaRuntimeDiscoveryService,
+            filePickerService,
+            floatingMessageService);
     }
 
     private sealed class FakeStatusService : IStatusService
@@ -225,6 +422,80 @@ public sealed class SettingsPageViewModelTests
         {
             LastMessage = message;
             MessageReported?.Invoke(message);
+        }
+    }
+
+    private sealed class FakeJavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryService
+    {
+        public IReadOnlyList<JavaRuntimeInfo> Runtimes { get; init; } = [];
+
+        public JavaRuntimeInfo ImportedRuntime { get; init; } = new(
+            "Java",
+            null,
+            null,
+            "unknown",
+            @"C:\Java\bin\java.exe",
+            @"C:\Java",
+            "ManualImport");
+
+        public Exception? ExceptionToThrow { get; init; }
+
+        public Exception? ImportExceptionToThrow { get; init; }
+
+        public string? LastMinecraftDirectory { get; private set; }
+
+        public string? LastImportedExecutablePath { get; private set; }
+
+        public Task<IReadOnlyList<JavaRuntimeInfo>> DiscoverAsync(
+            string? minecraftDirectory,
+            CancellationToken cancellationToken = default)
+        {
+            LastMinecraftDirectory = minecraftDirectory;
+
+            if (ExceptionToThrow is not null)
+                throw ExceptionToThrow;
+
+            return Task.FromResult(Runtimes);
+        }
+
+        public Task<JavaRuntimeInfo> DiscoverExecutableAsync(
+            string executablePath,
+            CancellationToken cancellationToken = default)
+        {
+            LastImportedExecutablePath = executablePath;
+
+            if (ImportExceptionToThrow is not null)
+                throw ImportExceptionToThrow;
+
+            return Task.FromResult(ImportedRuntime);
+        }
+    }
+
+    private sealed class FakeFilePickerService : IFilePickerService
+    {
+        public string? JavaExecutablePath { get; init; }
+
+        public string? PickMinecraftSkin()
+        {
+            return null;
+        }
+
+        public string? PickJavaExecutable()
+        {
+            return JavaExecutablePath;
+        }
+    }
+
+    private sealed class FakeFloatingMessageService : IFloatingMessageService
+    {
+        public event Action<string>? MessageRequested;
+
+        public string? LastMessage { get; private set; }
+
+        public void Show(string message)
+        {
+            LastMessage = message;
+            MessageRequested?.Invoke(message);
         }
     }
 

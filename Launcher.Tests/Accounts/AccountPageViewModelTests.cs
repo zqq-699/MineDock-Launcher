@@ -1053,6 +1053,11 @@ public sealed class AccountPageViewModelTests
             return skinFilePath;
         }
 
+        public string? PickJavaExecutable()
+        {
+            return null;
+        }
+
     }
 
     private sealed class FakeSkinFileValidator(bool isValid) : IMinecraftSkinFileValidator

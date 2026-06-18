@@ -14,9 +14,13 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     private readonly ISettingsService settingsService;
     private readonly IStatusService statusService;
+    private readonly IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService;
+    private readonly IFilePickerService filePickerService;
+    private readonly IFloatingMessageService floatingMessageService;
     private readonly SemaphoreSlim saveLock = new(1, 1);
     private LauncherSettings settings = new();
     private CancellationTokenSource? autoSaveCancellationTokenSource;
+    private CancellationTokenSource? javaRuntimeScanCancellationTokenSource;
     private bool hasPrimedSettings;
     private bool suppressAutoSave;
 
@@ -31,6 +35,15 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     [ObservableProperty]
     private SettingsMemoryOption? selectedMemoryOption;
+
+    [ObservableProperty]
+    private SettingsJavaSelectionOption? selectedJavaSelectionOption;
+
+    [ObservableProperty]
+    private bool isJavaRuntimeScanRunning;
+
+    [ObservableProperty]
+    private string javaRuntimeListMessage = Strings.Settings_JavaListEmpty;
 
     [ObservableProperty]
     private bool defaultCheckFilesBeforeLaunch = true;
@@ -61,10 +74,16 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     public SettingsPageViewModel(
         ISettingsService settingsService,
-        IStatusService statusService)
+        IStatusService statusService,
+        IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
+        IFilePickerService filePickerService,
+        IFloatingMessageService floatingMessageService)
     {
         this.settingsService = settingsService;
         this.statusService = statusService;
+        this.javaRuntimeDiscoveryService = javaRuntimeDiscoveryService;
+        this.filePickerService = filePickerService;
+        this.floatingMessageService = floatingMessageService;
 
         Sections.Add(new SettingsSectionItem(
             SettingsPageSection.General,
@@ -82,12 +101,20 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         foreach (var memoryMb in new[] { 2048, 4096, 6144, 8192, 12288, 16384 })
             MemoryOptions.Add(new SettingsMemoryOption(memoryMb));
 
+        JavaSelectionOptions.Add(new SettingsJavaSelectionOption("auto", Strings.Settings_JavaSelectionAuto));
+        JavaSelectionOptions.Add(new SettingsJavaSelectionOption("manual", Strings.Settings_JavaSelectionManual));
+        SelectedJavaSelectionOption = JavaSelectionOptions[0];
+
         SelectedSection = Sections[0];
     }
 
     public ObservableCollection<SettingsSectionItem> Sections { get; } = [];
 
     public ObservableCollection<SettingsMemoryOption> MemoryOptions { get; } = [];
+
+    public ObservableCollection<SettingsJavaSelectionOption> JavaSelectionOptions { get; } = [];
+
+    public ObservableCollection<SettingsJavaRuntimeItem> JavaRuntimes { get; } = [];
 
     public event EventHandler? LaunchDefaultsChanged;
 
@@ -98,6 +125,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public bool IsLaunchSection => SelectedSection?.Section is SettingsPageSection.Launch;
 
     public bool IsJavaMemorySection => SelectedSection?.Section is SettingsPageSection.JavaMemory;
+
+    public bool HasJavaRuntimeListMessage => !string.IsNullOrWhiteSpace(JavaRuntimeListMessage);
 
     public void PrimeFromSettings(LauncherSettings launcherSettings)
     {
@@ -124,6 +153,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         }
 
         hasPrimedSettings = true;
+        _ = RefreshJavaRuntimesAsync();
     }
 
     [RelayCommand]
@@ -135,6 +165,82 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         SelectedSection = section;
     }
 
+    [RelayCommand(CanExecute = nameof(CanRefreshJavaRuntimes))]
+    private async Task RefreshJavaRuntimesAsync()
+    {
+        if (IsJavaRuntimeScanRunning)
+            return;
+
+        javaRuntimeScanCancellationTokenSource?.Cancel();
+        javaRuntimeScanCancellationTokenSource?.Dispose();
+
+        var cancellationTokenSource = new CancellationTokenSource();
+        javaRuntimeScanCancellationTokenSource = cancellationTokenSource;
+
+        IsJavaRuntimeScanRunning = true;
+        JavaRuntimeListMessage = Strings.Settings_JavaListLoading;
+
+        try
+        {
+            var discoveredRuntimes = await javaRuntimeDiscoveryService.DiscoverAsync(
+                MinecraftDirectory,
+                cancellationTokenSource.Token);
+
+            JavaRuntimes.Clear();
+            foreach (var runtime in discoveredRuntimes)
+                JavaRuntimes.Add(new SettingsJavaRuntimeItem(runtime));
+
+            JavaRuntimeListMessage = JavaRuntimes.Count == 0
+                ? Strings.Settings_JavaListEmpty
+                : string.Empty;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception)
+        {
+            JavaRuntimes.Clear();
+            JavaRuntimeListMessage = Strings.Settings_JavaListEmpty;
+            statusService.Report(Strings.Status_JavaScanFailed);
+        }
+        finally
+        {
+            if (ReferenceEquals(javaRuntimeScanCancellationTokenSource, cancellationTokenSource))
+            {
+                IsJavaRuntimeScanRunning = false;
+                cancellationTokenSource.Dispose();
+                javaRuntimeScanCancellationTokenSource = null;
+            }
+        }
+    }
+
+    [RelayCommand]
+    private async Task ImportJavaRuntimeAsync()
+    {
+        var executablePath = filePickerService.PickJavaExecutable();
+        if (string.IsNullOrWhiteSpace(executablePath))
+            return;
+
+        try
+        {
+            var runtime = await javaRuntimeDiscoveryService.DiscoverExecutableAsync(executablePath);
+            if (!AddJavaRuntime(runtime))
+            {
+                floatingMessageService.Show(Strings.Status_JavaAlreadyExists);
+                return;
+            }
+
+            JavaRuntimeListMessage = JavaRuntimes.Count == 0
+                ? Strings.Settings_JavaListEmpty
+                : string.Empty;
+            statusService.Report(Strings.Status_JavaImported);
+        }
+        catch (Exception)
+        {
+            statusService.Report(Strings.Status_JavaImportFailed);
+        }
+    }
+
     partial void OnSelectedSectionChanged(SettingsSectionItem? value)
     {
         foreach (var section in Sections)
@@ -144,6 +250,16 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(IsGeneralSection));
         OnPropertyChanged(nameof(IsLaunchSection));
         OnPropertyChanged(nameof(IsJavaMemorySection));
+    }
+
+    partial void OnIsJavaRuntimeScanRunningChanged(bool value)
+    {
+        RefreshJavaRuntimesCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnJavaRuntimeListMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasJavaRuntimeListMessage));
     }
 
     partial void OnSelectedMemoryOptionChanged(SettingsMemoryOption? value)
@@ -255,6 +371,41 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
         ApplyLaunchDefaultsToSettings();
         LaunchDefaultsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private bool CanRefreshJavaRuntimes()
+    {
+        return !IsJavaRuntimeScanRunning;
+    }
+
+    private bool AddJavaRuntime(JavaRuntimeInfo runtime)
+    {
+        if (JavaRuntimes.Any(item => IsSameJavaRuntime(item, runtime)))
+            return false;
+
+        var newItem = new SettingsJavaRuntimeItem(runtime);
+        var insertIndex = 0;
+        while (insertIndex < JavaRuntimes.Count
+            && (JavaRuntimes[insertIndex].MajorVersion ?? 0) > (newItem.MajorVersion ?? 0))
+        {
+            insertIndex++;
+        }
+
+        JavaRuntimes.Insert(insertIndex, newItem);
+        return true;
+    }
+
+    private static bool IsSameJavaRuntime(SettingsJavaRuntimeItem item, JavaRuntimeInfo runtime)
+    {
+        if (string.Equals(item.ExecutablePath, runtime.ExecutablePath, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (string.IsNullOrWhiteSpace(runtime.Version))
+            return false;
+
+        return string.Equals(item.InstallationDirectory, runtime.InstallationDirectory, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(item.VersionText, runtime.Version, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(item.Architecture, runtime.Architecture, StringComparison.OrdinalIgnoreCase);
     }
 
     private void ApplyLaunchDefaultsToSettings()

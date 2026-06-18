@@ -42,6 +42,14 @@
   <data name="Settings_MemorySection" xml:space="preserve"><value>内存</value></data>
   <data name="Settings_DefaultMemoryLabel" xml:space="preserve"><value>默认最大内存</value></data>
   <data name="Settings_MemoryOptionFormat" xml:space="preserve"><value>{0} MB</value></data>
+  <data name="Settings_JavaSection" xml:space="preserve"><value>Java</value></data>
+  <data name="Settings_JavaSelectionLabel" xml:space="preserve"><value>Java 选择</value></data>
+  <data name="Settings_JavaSelectionAuto" xml:space="preserve"><value>自动选择</value></data>
+  <data name="Settings_JavaSelectionManual" xml:space="preserve"><value>手动选择</value></data>
+  <data name="Settings_JavaListLabel" xml:space="preserve"><value>Java 列表</value></data>
+  <data name="Settings_JavaListLoading" xml:space="preserve"><value>正在扫描本机 Java...</value></data>
+  <data name="Settings_JavaListEmpty" xml:space="preserve"><value>没有找到本机 Java。</value></data>
+  <data name="Settings_JavaVersionUnknown" xml:space="preserve"><value>未知版本</value></data>
   <data name="GameSettings_AllCategory" xml:space="preserve"><value>全部</value></data>
   <data name="GameSettings_ModLoaderCategory" xml:space="preserve"><value>可装mod</value></data>
   <data name="GameSettings_NoInstances" xml:space="preserve"><value>还没有已下载的游戏。</value></data>
@@ -205,6 +213,10 @@
   <data name="Status_ModInstalledFormat" xml:space="preserve"><value>{0} 已安装</value></data>
   <data name="Status_SettingsSaved" xml:space="preserve"><value>启动器设置已保存</value></data>
   <data name="Status_SettingsSaveFailed" xml:space="preserve"><value>启动器设置保存失败，请稍后重试。</value></data>
+  <data name="Status_JavaScanFailed" xml:space="preserve"><value>扫描本机 Java 失败，请稍后重试。</value></data>
+  <data name="Status_JavaImported" xml:space="preserve"><value>Java 已导入</value></data>
+  <data name="Status_JavaAlreadyExists" xml:space="preserve"><value>已存在这个 Java</value></data>
+  <data name="Status_JavaImportFailed" xml:space="preserve"><value>导入 Java 失败，请确认选择的是 Java 可执行文件。</value></data>
   <data name="Status_InstanceSettingsSaved" xml:space="preserve"><value>游戏设置已保存</value></data>
   <data name="Status_DefaultInstanceSetFormat" xml:space="preserve"><value>{0} 已设为默认游戏</value></data>
   <data name="Status_LoadInstancesFailed" xml:space="preserve"><value>游戏加载失败，请稍后重试。</value></data>

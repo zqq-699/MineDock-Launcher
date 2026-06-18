@@ -18,4 +18,17 @@ public sealed class FilePickerService : IFilePickerService
 
         return dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) == true ? dialog.FileName : null;
     }
+
+    public string? PickJavaExecutable()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = Strings.FilePicker_JavaExecutableTitle,
+            Filter = Strings.FilePicker_JavaExecutableFilter,
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        return dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) == true ? dialog.FileName : null;
+    }
 }

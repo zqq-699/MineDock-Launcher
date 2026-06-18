@@ -817,6 +817,11 @@ public sealed class HomePageViewModelTests
             return null;
         }
 
+        public string? PickJavaExecutable()
+        {
+            return null;
+        }
+
     }
 
     private sealed class FakeSkinFileValidator : IMinecraftSkinFileValidator

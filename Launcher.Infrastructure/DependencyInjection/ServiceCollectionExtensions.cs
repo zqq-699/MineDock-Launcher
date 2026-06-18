@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILoaderProvider>(_ => new PlaceholderLoaderProvider(LoaderKind.NeoForge));
         services.AddSingleton<ILoaderProvider>(_ => new PlaceholderLoaderProvider(LoaderKind.Quilt));
         services.AddSingleton<ILaunchService, LaunchService>();
+        services.AddSingleton<IJavaRuntimeDiscoveryService, JavaRuntimeDiscoveryService>();
         services.AddSingleton<IModService, ModService>();
         services.AddSingleton<IModrinthService, ModrinthService>();
         services.AddSingleton<ILauncherStateMonitor, LauncherStateMonitor>();

@@ -43,6 +43,104 @@
                        VerticalAlignment="Center" />
         </DataTemplate>
 
+        <DataTemplate x:Key="JavaSelectionOptionTemplate">
+            <TextBlock Text="{Binding Title}"
+                       Foreground="#F4F4F4"
+                       FontSize="13"
+                       VerticalAlignment="Center" />
+        </DataTemplate>
+
+        <Style x:Key="JavaRuntimeListBoxStyle" TargetType="ListBox">
+            <Setter Property="Margin" Value="0,10,0,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+            <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+            <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel" />
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="JavaRuntimeListBoxItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Root"
+                                Padding="9,6"
+                                Background="#12FFFFFF"
+                                BorderBrush="#14FFFFFF"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#1FFFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#283D3D3D" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#447ABEFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <DataTemplate x:Key="JavaRuntimeItemTemplate">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding DisplayName}"
+                               Foreground="#F4F4F4"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding VersionText}"
+                               Margin="10,0,0,0"
+                               Foreground="{StaticResource LauncherTextSecondaryBrush}"
+                               FontSize="11"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding Architecture}"
+                               Foreground="#CFFFFFFF"
+                               FontSize="11"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <TextBlock Grid.Row="1"
+                           Grid.ColumnSpan="2"
+                           Margin="0,4,0,0"
+                           Text="{Binding ExecutablePath}"
+                           Foreground="#AFFFFFFF"
+                           FontSize="11"
+                           TextTrimming="CharacterEllipsis" />
+            </Grid>
+        </DataTemplate>
+
     </UserControl.Resources>
 
     <Grid x:Name="PageRoot">
@@ -105,7 +203,67 @@
 
                     <StackPanel Margin="0"
                                 Visibility="{Binding IsJavaMemorySection, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
-                        <GroupBox Header="{x:Static res:Strings.Settings_MemorySection}"
+                        <GroupBox Header="{x:Static res:Strings.Settings_JavaSection}"
+                                  Style="{StaticResource LauncherContentSectionStyle}">
+                            <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="180" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{x:Static res:Strings.Settings_JavaSelectionLabel}"
+                                                   Style="{StaticResource SettingsOptionTextStyle}" />
+
+                                        <controls:AnimatedComboBox Grid.Column="1"
+                                                                   ItemsSource="{Binding JavaSelectionOptions}"
+                                                                   SelectedItem="{Binding SelectedJavaSelectionOption, Mode=TwoWay}"
+                                                                   ItemTemplate="{StaticResource JavaSelectionOptionTemplate}"
+                                                                   SelectionItemTemplate="{StaticResource JavaSelectionOptionTemplate}"
+                                                                   Style="{StaticResource LauncherComboBoxStyle}" />
+                                    </Grid>
+
+                                    <Grid Margin="0,18,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{x:Static res:Strings.Settings_JavaListLabel}"
+                                                   Style="{StaticResource SettingsOptionTextStyle}" />
+
+                                        <Button Grid.Column="1"
+                                                Margin="0,0,10,0"
+                                                Content="{x:Static res:Strings.Refresh_Button}"
+                                                Command="{Binding RefreshJavaRuntimesCommand}"
+                                                Style="{StaticResource LauncherDialogButtonStyle}" />
+                                        <Button Grid.Column="2"
+                                                Content="{x:Static res:Strings.ManualImport_Button}"
+                                                Command="{Binding ImportJavaRuntimeCommand}"
+                                                Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
+                                    </Grid>
+
+                                    <Grid>
+                                        <ListBox ItemsSource="{Binding JavaRuntimes}"
+                                                 ItemTemplate="{StaticResource JavaRuntimeItemTemplate}"
+                                                 ItemContainerStyle="{StaticResource JavaRuntimeListBoxItemStyle}"
+                                                 Style="{StaticResource JavaRuntimeListBoxStyle}" />
+
+                                        <TextBlock Margin="4,18,4,0"
+                                                   Text="{Binding JavaRuntimeListMessage}"
+                                                   Foreground="{StaticResource LauncherTextSecondaryBrush}"
+                                                   FontSize="13"
+                                                   TextWrapping="Wrap"
+                                                   Visibility="{Binding HasJavaRuntimeListMessage, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </GroupBox>
+
+                        <GroupBox Margin="0,26,0,0"
+                                  Header="{x:Static res:Strings.Settings_MemorySection}"
                                   Style="{StaticResource LauncherContentSectionStyle}">
                             <Border Style="{StaticResource SectionFieldSurfaceStyle}">
                                 <Grid>

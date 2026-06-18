@@ -39,6 +39,14 @@ public static class Strings
     public static string Settings_MemorySection => Get(nameof(Settings_MemorySection));
     public static string Settings_DefaultMemoryLabel => Get(nameof(Settings_DefaultMemoryLabel));
     public static string Settings_MemoryOptionFormat => Get(nameof(Settings_MemoryOptionFormat));
+    public static string Settings_JavaSection => Get(nameof(Settings_JavaSection));
+    public static string Settings_JavaSelectionLabel => Get(nameof(Settings_JavaSelectionLabel));
+    public static string Settings_JavaSelectionAuto => Get(nameof(Settings_JavaSelectionAuto));
+    public static string Settings_JavaSelectionManual => Get(nameof(Settings_JavaSelectionManual));
+    public static string Settings_JavaListLabel => Get(nameof(Settings_JavaListLabel));
+    public static string Settings_JavaListLoading => Get(nameof(Settings_JavaListLoading));
+    public static string Settings_JavaListEmpty => Get(nameof(Settings_JavaListEmpty));
+    public static string Settings_JavaVersionUnknown => Get(nameof(Settings_JavaVersionUnknown));
     public static string GameSettings_AllCategory => Get(nameof(GameSettings_AllCategory));
     public static string GameSettings_ModLoaderCategory => Get(nameof(GameSettings_ModLoaderCategory));
     public static string GameSettings_NoInstances => Get(nameof(GameSettings_NoInstances));
@@ -250,6 +258,10 @@ public static class Strings
     public static string Status_ModInstalledFormat => Get(nameof(Status_ModInstalledFormat));
     public static string Status_SettingsSaved => Get(nameof(Status_SettingsSaved));
     public static string Status_SettingsSaveFailed => Get(nameof(Status_SettingsSaveFailed));
+    public static string Status_JavaScanFailed => Get(nameof(Status_JavaScanFailed));
+    public static string Status_JavaImported => Get(nameof(Status_JavaImported));
+    public static string Status_JavaAlreadyExists => Get(nameof(Status_JavaAlreadyExists));
+    public static string Status_JavaImportFailed => Get(nameof(Status_JavaImportFailed));
     public static string Status_InstanceSettingsSaved => Get(nameof(Status_InstanceSettingsSaved));
     public static string Status_DefaultInstanceSetFormat => Get(nameof(Status_DefaultInstanceSetFormat));
     public static string Status_InstanceDeletedFormat => Get(nameof(Status_InstanceDeletedFormat));
