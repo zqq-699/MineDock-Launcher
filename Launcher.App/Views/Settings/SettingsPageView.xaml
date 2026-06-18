@@ -210,8 +210,18 @@
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
 
-                                        <TextBlock Text="{x:Static res:Strings.Settings_JavaListLabel}"
-                                                   Style="{StaticResource SettingsOptionTextStyle}" />
+                                        <StackPanel Orientation="Horizontal"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock Text="{x:Static res:Strings.Settings_JavaListLabel}"
+                                                       Style="{StaticResource SettingsOptionTextStyle}" />
+                                            <TextBlock Margin="10,0,0,0"
+                                                       Text="{Binding JavaRuntimeListMessage}"
+                                                       Foreground="{StaticResource LauncherTextSecondaryBrush}"
+                                                       FontSize="12"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Visibility="{Binding HasJavaRuntimeListMessage, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                                        </StackPanel>
 
                                         <Button Grid.Column="1"
                                                 Margin="0,0,10,0"
@@ -230,13 +240,6 @@
                                                  ItemTemplate="{StaticResource JavaRuntimeItemTemplate}"
                                                  ItemContainerStyle="{StaticResource JavaRuntimeListBoxItemStyle}"
                                                  Style="{StaticResource JavaRuntimeListBoxStyle}" />
-
-                                        <TextBlock Margin="4,18,4,0"
-                                                   Text="{Binding JavaRuntimeListMessage}"
-                                                   Foreground="{StaticResource LauncherTextSecondaryBrush}"
-                                                   FontSize="13"
-                                                   TextWrapping="Wrap"
-                                                   Visibility="{Binding HasJavaRuntimeListMessage, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                                     </Grid>
                                 </StackPanel>
                             </Border>

@@ -21,6 +21,9 @@ public sealed class GameInstance
     public string JvmArguments { get; set; } = string.Empty;
     public string GameArguments { get; set; } = string.Empty;
     public LaunchSettingsMode LaunchSettingsMode { get; set; } = LaunchSettingsMode.UseGlobal;
+    public LaunchSettingsMode JavaSettingsMode { get; set; } = LaunchSettingsMode.UseGlobal;
+    public JavaSelectionMode JavaSelectionMode { get; set; } = JavaSelectionMode.Auto;
+    public string? SelectedJavaExecutablePath { get; set; }
     public bool CheckFilesBeforeLaunch { get; set; } = true;
     public bool AutoRepairMissingFiles { get; set; } = true;
     public bool MinimizeLauncherAfterLaunch { get; set; }

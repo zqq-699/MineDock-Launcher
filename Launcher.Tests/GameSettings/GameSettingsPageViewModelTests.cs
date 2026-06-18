@@ -754,6 +754,196 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task InstanceJavaSettingsDefaultToUseGlobalAndAutomatic()
+    {
+        var viewModel = CreateViewModel([CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla)]);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+
+        Assert.Equal(LaunchSettingsMode.UseGlobal, viewModel.Details.SelectedInstanceJavaSettingsModeOption?.Mode);
+        Assert.False(viewModel.Details.AreInstanceJavaSettingsOverridesEnabled);
+        Assert.Equal(Strings.Settings_JavaSelectionAuto, viewModel.Details.SelectedInstanceJavaSelectionOption?.Title);
+        Assert.Null(viewModel.Details.SelectedInstanceJavaRuntime);
+    }
+
+    [Fact]
+    public async Task UseGlobalInstanceJavaSettingsShowsGlobalJavaSelection()
+    {
+        var globalJavaPath = @"C:\Global\jdk-21\bin\java.exe";
+        var instanceJavaPath = @"C:\Instance\jdk-17\bin\java.exe";
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.JavaSettingsMode = LaunchSettingsMode.UseGlobal;
+        instance.JavaSelectionMode = JavaSelectionMode.Manual;
+        instance.SelectedJavaExecutablePath = instanceJavaPath;
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            Runtimes =
+            [
+                CreateJavaRuntime(globalJavaPath, 21),
+                CreateJavaRuntime(instanceJavaPath, 17)
+            ]
+        };
+        var viewModel = CreateViewModel(
+            [instance],
+            javaRuntimeDiscoveryService: javaRuntimeDiscoveryService);
+        viewModel.PrimeFromSettings(new LauncherSettings
+        {
+            JavaSelectionMode = JavaSelectionMode.Manual,
+            SelectedJavaExecutablePath = globalJavaPath
+        });
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        await viewModel.Details.InstanceJavaSettings.RefreshJavaRuntimesForDisplayAsync();
+
+        Assert.False(viewModel.Details.AreInstanceJavaSettingsOverridesEnabled);
+        Assert.False(viewModel.Details.CanInteractWithInstanceJavaRuntimeList);
+        Assert.Equal(Strings.Settings_JavaSelectionManual, viewModel.Details.SelectedInstanceJavaSelectionOption?.Title);
+        Assert.Equal(globalJavaPath, viewModel.Details.SelectedInstanceJavaRuntime?.ExecutablePath);
+        Assert.Equal(instanceJavaPath, viewModel.SelectedInstance?.Instance.SelectedJavaExecutablePath);
+    }
+
+    [Fact]
+    public async Task UseGlobalInstanceJavaSettingsUpdatesWhenGlobalJavaSettingsChange()
+    {
+        var globalJavaPath = @"C:\Global\jdk-21\bin\java.exe";
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.JavaSettingsMode = LaunchSettingsMode.UseGlobal;
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            Runtimes =
+            [
+                CreateJavaRuntime(globalJavaPath, 21)
+            ]
+        };
+        var viewModel = CreateViewModel(
+            [instance],
+            javaRuntimeDiscoveryService: javaRuntimeDiscoveryService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+
+        viewModel.PrimeFromSettings(new LauncherSettings
+        {
+            JavaSelectionMode = JavaSelectionMode.Manual,
+            SelectedJavaExecutablePath = globalJavaPath
+        });
+        await viewModel.Details.InstanceJavaSettings.RefreshJavaRuntimesForDisplayAsync();
+
+        Assert.Equal(globalJavaPath, viewModel.Details.SelectedInstanceJavaRuntime?.ExecutablePath);
+
+        viewModel.PrimeFromSettings(new LauncherSettings
+        {
+            JavaSelectionMode = JavaSelectionMode.Auto,
+            SelectedJavaExecutablePath = globalJavaPath
+        });
+
+        Assert.Equal(Strings.Settings_JavaSelectionAuto, viewModel.Details.SelectedInstanceJavaSelectionOption?.Title);
+        Assert.Null(viewModel.Details.SelectedInstanceJavaRuntime);
+    }
+
+    [Fact]
+    public async Task InstanceJavaAutomaticModeRefreshesWithoutSelectedRuntime()
+    {
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            Runtimes =
+            [
+                CreateJavaRuntime(@"C:\Java\jdk-21\bin\java.exe", 21)
+            ]
+        };
+        var viewModel = CreateViewModel(
+            [CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla)],
+            javaRuntimeDiscoveryService: javaRuntimeDiscoveryService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.Details.SelectedInstanceJavaSettingsModeOption = viewModel.Details.LaunchSettingsModeOptions
+            .Single(option => option.Mode == LaunchSettingsMode.PerInstance);
+        await viewModel.Details.RefreshInstanceJavaRuntimesCommand.ExecuteAsync(null);
+
+        Assert.Single(viewModel.Details.InstanceJavaRuntimes);
+        Assert.Null(viewModel.Details.SelectedInstanceJavaRuntime);
+    }
+
+    [Fact]
+    public async Task InstanceJavaManualModeSelectsFirstRuntimeAndSavesPath()
+    {
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla));
+        var firstRuntime = CreateJavaRuntime(@"C:\Java\jdk-21\bin\java.exe", 21);
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            Runtimes =
+            [
+                firstRuntime,
+                CreateJavaRuntime(@"C:\Java\jdk-17\bin\java.exe", 17)
+            ]
+        };
+        var viewModel = CreateViewModel(
+            instanceService,
+            new FakeGameVersionService([]),
+            new FakeStatusService(),
+            new FakeInstanceFolderService(),
+            javaRuntimeDiscoveryService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.Details.SelectedInstanceJavaSettingsModeOption = viewModel.Details.LaunchSettingsModeOptions
+            .Single(option => option.Mode == LaunchSettingsMode.PerInstance);
+        await viewModel.Details.RefreshInstanceJavaRuntimesCommand.ExecuteAsync(null);
+
+        viewModel.Details.SelectedInstanceJavaSelectionOption = viewModel.Details.InstanceJavaSelectionOptions
+            .Single(option => option.Id == "manual");
+
+        Assert.Equal(firstRuntime.ExecutablePath, viewModel.Details.SelectedInstanceJavaRuntime?.ExecutablePath);
+        await TestAsync.WaitForAsync(() =>
+            instanceService.LastSavedInstance is not null
+            && instanceService.LastSavedInstance.JavaSettingsMode == LaunchSettingsMode.PerInstance
+            && instanceService.LastSavedInstance.JavaSelectionMode == JavaSelectionMode.Manual
+            && instanceService.LastSavedInstance.SelectedJavaExecutablePath == firstRuntime.ExecutablePath);
+    }
+
+    [Fact]
+    public async Task InstanceJavaSwitchingBackToAutomaticClearsSelectionButKeepsSavedPath()
+    {
+        var instanceService = new FakeGameInstanceService();
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.JavaSettingsMode = LaunchSettingsMode.PerInstance;
+        instance.JavaSelectionMode = JavaSelectionMode.Manual;
+        instance.SelectedJavaExecutablePath = @"C:\Java\jdk-17\bin\java.exe";
+        instanceService.CreatedInstances.Add(instance);
+        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
+        {
+            Runtimes =
+            [
+                CreateJavaRuntime(instance.SelectedJavaExecutablePath, 17)
+            ]
+        };
+        var viewModel = CreateViewModel(
+            instanceService,
+            new FakeGameVersionService([]),
+            new FakeStatusService(),
+            new FakeInstanceFolderService(),
+            javaRuntimeDiscoveryService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        await viewModel.Details.RefreshInstanceJavaRuntimesCommand.ExecuteAsync(null);
+        Assert.NotNull(viewModel.Details.SelectedInstanceJavaRuntime);
+
+        viewModel.Details.SelectedInstanceJavaSelectionOption = viewModel.Details.InstanceJavaSelectionOptions
+            .Single(option => option.Id == "auto");
+
+        Assert.Null(viewModel.Details.SelectedInstanceJavaRuntime);
+        await TestAsync.WaitForAsync(() =>
+            instanceService.LastSavedInstance is not null
+            && instanceService.LastSavedInstance.JavaSelectionMode == JavaSelectionMode.Auto);
+        Assert.Equal(@"C:\Java\jdk-17\bin\java.exe", viewModel.SelectedInstance?.Instance.SelectedJavaExecutablePath);
+    }
+
+    [Fact]
     public async Task OpenInstanceDirectoryCommandUsesFolderServiceFromGeneralSection()
     {
         var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
@@ -826,7 +1016,10 @@ public sealed class GameSettingsPageViewModelTests
         IReadOnlyList<GameInstance> instances,
         IReadOnlyList<MinecraftVersionInfo>? versions = null,
         FakeStatusService? statusService = null,
-        FakeInstanceFolderService? folderService = null)
+        FakeInstanceFolderService? folderService = null,
+        FakeJavaRuntimeDiscoveryService? javaRuntimeDiscoveryService = null,
+        FakeFilePickerService? filePickerService = null,
+        FakeFloatingMessageService? floatingMessageService = null)
     {
         var instanceService = new FakeGameInstanceService();
         instanceService.CreatedInstances.AddRange(instances);
@@ -834,20 +1027,29 @@ public sealed class GameSettingsPageViewModelTests
             instanceService,
             new FakeGameVersionService(versions ?? []),
             statusService ?? new FakeStatusService(),
-            folderService ?? new FakeInstanceFolderService());
+            folderService ?? new FakeInstanceFolderService(),
+            javaRuntimeDiscoveryService ?? new FakeJavaRuntimeDiscoveryService(),
+            filePickerService ?? new FakeFilePickerService(),
+            floatingMessageService ?? new FakeFloatingMessageService());
     }
 
     private static GameSettingsPageViewModel CreateViewModel(
         IGameInstanceService instanceService,
         IGameVersionService gameVersionService,
         FakeStatusService statusService,
-        FakeInstanceFolderService folderService)
+        FakeInstanceFolderService folderService,
+        FakeJavaRuntimeDiscoveryService? javaRuntimeDiscoveryService = null,
+        FakeFilePickerService? filePickerService = null,
+        FakeFloatingMessageService? floatingMessageService = null)
     {
         return new GameSettingsPageViewModel(
             instanceService,
             gameVersionService,
             statusService,
-            folderService);
+            folderService,
+            javaRuntimeDiscoveryService ?? new FakeJavaRuntimeDiscoveryService(),
+            filePickerService ?? new FakeFilePickerService(),
+            floatingMessageService ?? new FakeFloatingMessageService());
     }
 
     private static GameInstance CreateInstance(string name, string minecraftVersion, LoaderKind loader)
@@ -865,6 +1067,19 @@ public sealed class GameSettingsPageViewModelTests
             UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
             InstanceDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"))
         };
+    }
+
+    private static JavaRuntimeInfo CreateJavaRuntime(string executablePath, int majorVersion)
+    {
+        var installationDirectory = Path.GetDirectoryName(Path.GetDirectoryName(executablePath)) ?? string.Empty;
+        return new JavaRuntimeInfo(
+            $"Java {majorVersion}",
+            $"{majorVersion}.0.0",
+            majorVersion,
+            "x64",
+            executablePath,
+            installationDirectory,
+            "Test");
     }
 
     private sealed class FakeStatusService : IStatusService
@@ -888,6 +1103,68 @@ public sealed class GameSettingsPageViewModelTests
         {
             LastOpenedPath = folderPath;
             return true;
+        }
+    }
+
+    private sealed class FakeJavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryService
+    {
+        public IReadOnlyList<JavaRuntimeInfo> Runtimes { get; init; } = [];
+
+        public JavaRuntimeInfo ImportedRuntime { get; init; } = new(
+            "Java",
+            null,
+            null,
+            "unknown",
+            @"C:\Java\bin\java.exe",
+            @"C:\Java",
+            "ManualImport");
+
+        public string? LastMinecraftDirectory { get; private set; }
+
+        public string? LastImportedExecutablePath { get; private set; }
+
+        public Task<IReadOnlyList<JavaRuntimeInfo>> DiscoverAsync(
+            string? minecraftDirectory,
+            CancellationToken cancellationToken = default)
+        {
+            LastMinecraftDirectory = minecraftDirectory;
+            return Task.FromResult(Runtimes);
+        }
+
+        public Task<JavaRuntimeInfo> DiscoverExecutableAsync(
+            string executablePath,
+            CancellationToken cancellationToken = default)
+        {
+            LastImportedExecutablePath = executablePath;
+            return Task.FromResult(ImportedRuntime);
+        }
+    }
+
+    private sealed class FakeFilePickerService : IFilePickerService
+    {
+        public string? JavaExecutablePath { get; init; }
+
+        public string? PickMinecraftSkin()
+        {
+            return null;
+        }
+
+        public string? PickJavaExecutable()
+        {
+            return JavaExecutablePath;
+        }
+    }
+
+    private sealed class FakeFloatingMessageService : IFloatingMessageService
+    {
+        public event Action<string>? MessageRequested;
+
+        public string? LastMessage { get; private set; }
+
+        public void Show(string message)
+        {
+            LastMessage = message;
+            MessageRequested?.Invoke(message);
         }
     }
 

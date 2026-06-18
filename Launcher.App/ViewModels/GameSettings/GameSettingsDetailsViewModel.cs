@@ -62,25 +62,30 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     private GameSettingsLaunchSettingsModeOption? selectedLaunchSettingsModeOption;
 
     [ObservableProperty]
-    private SettingsJavaSelectionOption? selectedInstanceJavaSelectionOption;
-
-    [ObservableProperty]
     private GameSettingsLaunchSettingsModeOption? selectedInstanceJavaSettingsModeOption;
 
     public GameSettingsDetailsViewModel(
         GameSettingsEditDialogViewModel editDialog,
         IGameInstanceService instanceService,
         IStatusService statusService,
-        IInstanceFolderService instanceFolderService)
+        IInstanceFolderService instanceFolderService,
+        IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
+        IFilePickerService filePickerService,
+        IFloatingMessageService floatingMessageService)
     {
         this.editDialog = editDialog;
         this.instanceService = instanceService;
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
-
-        InstanceJavaSelectionOptions.Add(new SettingsJavaSelectionOption("auto", Strings.Settings_JavaSelectionAuto));
-        InstanceJavaSelectionOptions.Add(new SettingsJavaSelectionOption("manual", Strings.Settings_JavaSelectionManual));
-        SelectedInstanceJavaSelectionOption = InstanceJavaSelectionOptions[0];
+        InstanceJavaSettings = new JavaSettingsEditorViewModel(
+            javaRuntimeDiscoveryService,
+            statusService,
+            filePickerService,
+            floatingMessageService,
+            () => globalSettings.MinecraftDirectory);
+        InstanceJavaSettings.IsEditorEnabled = false;
+        InstanceJavaSettings.PropertyChanged += InstanceJavaSettings_PropertyChanged;
+        InstanceJavaSettings.JavaSelectionChanged += InstanceJavaSettings_JavaSelectionChanged;
         SelectedInstanceJavaSettingsModeOption = LaunchSettingsModeOptions[0];
     }
 
@@ -108,6 +113,10 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
 
     public bool AreInstanceJavaSettingsOverridesEnabled => SelectedInstanceJavaSettingsModeOption?.Mode is LaunchSettingsMode.PerInstance;
 
+    public bool IsInstanceJavaManualSelection => InstanceJavaSettings.IsJavaManualSelection;
+
+    public bool CanInteractWithInstanceJavaRuntimeList => AreInstanceJavaSettingsOverridesEnabled && IsInstanceJavaManualSelection;
+
     public bool CanEditAutoRepairMissingFiles => AreLaunchSettingsOverridesEnabled && LaunchCheckFilesBeforeLaunchEnabled;
 
     public string InstanceCreatedAtText => SelectedInstance?.Instance.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? string.Empty;
@@ -118,13 +127,33 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         new(LaunchSettingsMode.PerInstance, Strings.GameSettings_LaunchSettingsModePerInstance)
     ];
 
-    public ObservableCollection<SettingsJavaSelectionOption> InstanceJavaSelectionOptions { get; } = [];
+    public JavaSettingsEditorViewModel InstanceJavaSettings { get; }
 
-    public ObservableCollection<SettingsJavaRuntimeItem> InstanceJavaRuntimes { get; } = [];
+    public ObservableCollection<SettingsJavaSelectionOption> InstanceJavaSelectionOptions => InstanceJavaSettings.JavaSelectionOptions;
 
-    public string InstanceJavaRuntimeListMessage => string.Empty;
+    public ObservableCollection<SettingsJavaRuntimeItem> InstanceJavaRuntimes => InstanceJavaSettings.JavaRuntimes;
 
-    public bool HasInstanceJavaRuntimeListMessage => false;
+    public SettingsJavaSelectionOption? SelectedInstanceJavaSelectionOption
+    {
+        get => InstanceJavaSettings.SelectedJavaSelectionOption;
+        set => InstanceJavaSettings.SelectedJavaSelectionOption = value;
+    }
+
+    public SettingsJavaRuntimeItem? SelectedInstanceJavaRuntime
+    {
+        get => InstanceJavaSettings.SelectedJavaRuntime;
+        set => InstanceJavaSettings.SelectedJavaRuntime = value;
+    }
+
+    public bool IsInstanceJavaRuntimeScanRunning => InstanceJavaSettings.IsJavaRuntimeScanRunning;
+
+    public string InstanceJavaRuntimeListMessage => InstanceJavaSettings.JavaRuntimeListMessage;
+
+    public bool HasInstanceJavaRuntimeListMessage => InstanceJavaSettings.HasJavaRuntimeListMessage;
+
+    public IAsyncRelayCommand RefreshInstanceJavaRuntimesCommand => InstanceJavaSettings.RefreshJavaRuntimesCommand;
+
+    public IAsyncRelayCommand ImportInstanceJavaRuntimeCommand => InstanceJavaSettings.ImportJavaRuntimeCommand;
 
     public void PrimeFromSettings(LauncherSettings launcherSettings)
     {
@@ -132,6 +161,21 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
 
         if (SelectedLaunchSettingsModeOption?.Mode is LaunchSettingsMode.UseGlobal)
             ApplyGlobalLaunchSettingsToEditor();
+
+        if (SelectedInstanceJavaSettingsModeOption?.Mode is LaunchSettingsMode.UseGlobal)
+        {
+            suppressInstanceSettingsAutoSave = true;
+            try
+            {
+                ApplyJavaSettingsToEditor();
+            }
+            finally
+            {
+                suppressInstanceSettingsAutoSave = false;
+            }
+
+            _ = InstanceJavaSettings.RefreshJavaRuntimesForDisplayAsync();
+        }
     }
 
     public void SetSelectedInstance(GameSettingsInstanceItem? instance)
@@ -191,6 +235,9 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             DescriptionText = value?.Instance.Description ?? string.Empty;
             var mode = value?.Instance.LaunchSettingsMode ?? LaunchSettingsMode.UseGlobal;
             SelectedLaunchSettingsModeOption = ResolveLaunchSettingsModeOption(mode);
+            var javaSettingsMode = value?.Instance.JavaSettingsMode ?? LaunchSettingsMode.UseGlobal;
+            SelectedInstanceJavaSettingsModeOption = ResolveLaunchSettingsModeOption(javaSettingsMode);
+            ApplyJavaSettingsToEditor();
 
             if (mode is LaunchSettingsMode.UseGlobal)
             {
@@ -213,6 +260,9 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         {
             suppressInstanceSettingsAutoSave = false;
         }
+
+        if (IsJavaMemorySection || InstanceJavaRuntimes.Count == 0)
+            _ = InstanceJavaSettings.RefreshJavaRuntimesForDisplayAsync();
     }
 
     partial void OnSelectedSectionChanged(GameSettingsDetailSectionItem? value)
@@ -241,6 +291,24 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     partial void OnSelectedInstanceJavaSettingsModeOptionChanged(GameSettingsLaunchSettingsModeOption? value)
     {
         OnPropertyChanged(nameof(AreInstanceJavaSettingsOverridesEnabled));
+        OnPropertyChanged(nameof(CanInteractWithInstanceJavaRuntimeList));
+
+        if (suppressInstanceSettingsAutoSave)
+            return;
+
+        suppressInstanceSettingsAutoSave = true;
+        try
+        {
+            ApplyJavaSettingsToEditor();
+        }
+        finally
+        {
+            suppressInstanceSettingsAutoSave = false;
+        }
+
+        SaveJavaSettings();
+
+        _ = InstanceJavaSettings.RefreshJavaRuntimesForDisplayAsync();
     }
 
     partial void OnDescriptionTextChanged(string value)
@@ -336,6 +404,41 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         OnPropertyChanged(nameof(InstanceCreatedAtText));
     }
 
+    private void InstanceJavaSettings_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(JavaSettingsEditorViewModel.SelectedJavaSelectionOption):
+                OnPropertyChanged(nameof(SelectedInstanceJavaSelectionOption));
+                break;
+            case nameof(JavaSettingsEditorViewModel.SelectedJavaRuntime):
+                OnPropertyChanged(nameof(SelectedInstanceJavaRuntime));
+                break;
+            case nameof(JavaSettingsEditorViewModel.IsJavaRuntimeScanRunning):
+                OnPropertyChanged(nameof(IsInstanceJavaRuntimeScanRunning));
+                break;
+            case nameof(JavaSettingsEditorViewModel.JavaRuntimeListMessage):
+                OnPropertyChanged(nameof(InstanceJavaRuntimeListMessage));
+                OnPropertyChanged(nameof(HasInstanceJavaRuntimeListMessage));
+                break;
+            case nameof(JavaSettingsEditorViewModel.HasJavaRuntimeListMessage):
+                OnPropertyChanged(nameof(HasInstanceJavaRuntimeListMessage));
+                break;
+            case nameof(JavaSettingsEditorViewModel.IsJavaManualSelection):
+                OnPropertyChanged(nameof(IsInstanceJavaManualSelection));
+                OnPropertyChanged(nameof(CanInteractWithInstanceJavaRuntimeList));
+                break;
+        }
+    }
+
+    private void InstanceJavaSettings_JavaSelectionChanged(object? sender, EventArgs e)
+    {
+        if (suppressInstanceSettingsAutoSave)
+            return;
+
+        SaveJavaSettings();
+    }
+
     private static string NormalizeDescription(string? value)
     {
         return value?.Trim() ?? string.Empty;
@@ -410,6 +513,27 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             postExitCommand,
             jvmArguments,
             gameArguments);
+    }
+
+    private void SaveJavaSettings()
+    {
+        if (SelectedInstance is null)
+            return;
+
+        var instanceId = SelectedInstance.Instance.Id;
+        var javaSettingsMode = SelectedInstanceJavaSettingsModeOption?.Mode ?? LaunchSettingsMode.UseGlobal;
+        var javaSelectionMode = javaSettingsMode is LaunchSettingsMode.UseGlobal
+            ? SelectedInstance.Instance.JavaSelectionMode
+            : InstanceJavaSettings.SelectedMode;
+        var selectedJavaExecutablePath = javaSettingsMode is LaunchSettingsMode.UseGlobal
+            ? SelectedInstance.Instance.SelectedJavaExecutablePath
+            : InstanceJavaSettings.SelectedExecutablePath;
+
+        _ = SaveJavaSettingsAsync(
+            instanceId,
+            javaSettingsMode,
+            javaSelectionMode,
+            selectedJavaExecutablePath);
     }
 
     private void ScheduleDescriptionSave()
@@ -551,6 +675,80 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
 
             statusService.Report(Strings.Status_InstanceSettingsSaveFailed);
         }
+    }
+
+    private async Task SaveJavaSettingsAsync(
+        string instanceId,
+        LaunchSettingsMode javaSettingsMode,
+        JavaSelectionMode javaSelectionMode,
+        string? selectedJavaExecutablePath)
+    {
+        if (SelectedInstance is null
+            || !string.Equals(SelectedInstance.Instance.Id, instanceId, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        selectedJavaExecutablePath = string.IsNullOrWhiteSpace(selectedJavaExecutablePath)
+            ? null
+            : selectedJavaExecutablePath;
+
+        var instance = SelectedInstance.Instance;
+        var originalJavaSettingsMode = instance.JavaSettingsMode;
+        var originalJavaSelectionMode = instance.JavaSelectionMode;
+        var originalSelectedJavaExecutablePath = instance.SelectedJavaExecutablePath;
+
+        if (originalJavaSettingsMode == javaSettingsMode
+            && originalJavaSelectionMode == javaSelectionMode
+            && string.Equals(originalSelectedJavaExecutablePath, selectedJavaExecutablePath, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        try
+        {
+            instance.JavaSettingsMode = javaSettingsMode;
+            instance.JavaSelectionMode = javaSelectionMode;
+            instance.SelectedJavaExecutablePath = selectedJavaExecutablePath;
+            await instanceService.SaveInstanceAsync(instance);
+        }
+        catch (Exception)
+        {
+            instance.JavaSettingsMode = originalJavaSettingsMode;
+            instance.JavaSelectionMode = originalJavaSelectionMode;
+            instance.SelectedJavaExecutablePath = originalSelectedJavaExecutablePath;
+
+            suppressInstanceSettingsAutoSave = true;
+            try
+            {
+                SelectedInstanceJavaSettingsModeOption = ResolveLaunchSettingsModeOption(originalJavaSettingsMode);
+                InstanceJavaSettings.IsEditorEnabled = originalJavaSettingsMode is LaunchSettingsMode.PerInstance;
+                InstanceJavaSettings.LoadSelection(originalJavaSelectionMode, originalSelectedJavaExecutablePath);
+            }
+            finally
+            {
+                suppressInstanceSettingsAutoSave = false;
+            }
+
+            statusService.Report(Strings.Status_InstanceSettingsSaveFailed);
+        }
+    }
+
+    private void ApplyJavaSettingsToEditor()
+    {
+        var instance = SelectedInstance?.Instance;
+        var usePerInstanceJavaSettings = SelectedInstanceJavaSettingsModeOption?.Mode is LaunchSettingsMode.PerInstance;
+        var javaSelectionMode = usePerInstanceJavaSettings
+            ? instance?.JavaSelectionMode ?? JavaSelectionMode.Auto
+            : globalSettings.JavaSelectionMode;
+        var selectedJavaExecutablePath = usePerInstanceJavaSettings
+            ? instance?.SelectedJavaExecutablePath
+            : globalSettings.SelectedJavaExecutablePath;
+
+        InstanceJavaSettings.IsEditorEnabled = usePerInstanceJavaSettings;
+        InstanceJavaSettings.LoadSelection(javaSelectionMode, selectedJavaExecutablePath);
+        OnPropertyChanged(nameof(IsInstanceJavaManualSelection));
+        OnPropertyChanged(nameof(CanInteractWithInstanceJavaRuntimeList));
     }
 
     private GameSettingsLaunchSettingsModeOption ResolveLaunchSettingsModeOption(LaunchSettingsMode mode)

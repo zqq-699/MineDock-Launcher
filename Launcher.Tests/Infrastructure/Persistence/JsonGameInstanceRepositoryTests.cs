@@ -29,7 +29,10 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
                 MinecraftVersion = "1.20.1",
                 VersionName = "demo-pack",
                 Description = "stored beside the instance",
-                InstanceDirectory = versionDirectory
+                InstanceDirectory = versionDirectory,
+                JavaSettingsMode = LaunchSettingsMode.PerInstance,
+                JavaSelectionMode = JavaSelectionMode.Manual,
+                SelectedJavaExecutablePath = @"C:\Java\jdk-21\bin\java.exe"
             }
         ]);
 
@@ -41,6 +44,9 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         using var document = JsonDocument.Parse(savedJson);
         Assert.Equal("Demo Pack", document.RootElement.GetProperty("Name").GetString());
         Assert.Equal("stored beside the instance", document.RootElement.GetProperty("Description").GetString());
+        Assert.Equal((int)LaunchSettingsMode.PerInstance, document.RootElement.GetProperty("JavaSettingsMode").GetInt32());
+        Assert.Equal((int)JavaSelectionMode.Manual, document.RootElement.GetProperty("JavaSelectionMode").GetInt32());
+        Assert.Equal(@"C:\Java\jdk-21\bin\java.exe", document.RootElement.GetProperty("SelectedJavaExecutablePath").GetString());
     }
 
     [Fact]
@@ -76,5 +82,37 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         Assert.Equal("Demo Pack", loaded.Name);
         Assert.Equal("loaded from instance folder", loaded.Description);
         Assert.Equal(versionDirectory, loaded.InstanceDirectory);
+    }
+
+    [Fact]
+    public async Task GetAllAsyncDefaultsMissingJavaSettingsToUseGlobalAutomatic()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "legacy-pack");
+        repository.CreateInstanceDirectories(versionDirectory);
+        var settingsPath = Path.Combine(versionDirectory, ".launcher", "instance-settings.json");
+
+        await File.WriteAllTextAsync(
+            settingsPath,
+            """
+            {
+              "Id": "legacy-pack",
+              "Name": "Legacy Pack",
+              "MinecraftVersion": "1.20.1",
+              "VersionName": "legacy-pack"
+            }
+            """);
+
+        var loaded = Assert.Single(await repository.GetAllAsync());
+
+        Assert.Equal(LaunchSettingsMode.UseGlobal, loaded.JavaSettingsMode);
+        Assert.Equal(JavaSelectionMode.Auto, loaded.JavaSelectionMode);
+        Assert.Null(loaded.SelectedJavaExecutablePath);
     }
 }

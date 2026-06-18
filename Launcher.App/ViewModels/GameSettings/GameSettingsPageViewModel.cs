@@ -54,14 +54,24 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         IGameInstanceService instanceService,
         IGameVersionService gameVersionService,
         IStatusService statusService,
-        IInstanceFolderService instanceFolderService)
+        IInstanceFolderService instanceFolderService,
+        IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
+        IFilePickerService filePickerService,
+        IFloatingMessageService floatingMessageService)
     {
         this.instanceService = instanceService;
         this.gameVersionService = gameVersionService;
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
         EditDialog = new GameSettingsEditDialogViewModel(instanceService, statusService);
-        Details = new GameSettingsDetailsViewModel(EditDialog, instanceService, statusService, instanceFolderService);
+        Details = new GameSettingsDetailsViewModel(
+            EditDialog,
+            instanceService,
+            statusService,
+            instanceFolderService,
+            javaRuntimeDiscoveryService,
+            filePickerService,
+            floatingMessageService);
         EditDialog.InstanceUpdated += EditDialog_InstanceUpdated;
 
         InstanceCategories.Add(new GameSettingsInstanceCategory("all", Strings.GameSettings_AllCategory, string.Empty, "general/general_all_application"));

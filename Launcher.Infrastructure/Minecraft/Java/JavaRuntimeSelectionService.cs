@@ -19,10 +19,18 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
         LauncherSettings settings,
         CancellationToken cancellationToken = default)
     {
-        if (settings.JavaSelectionMode is JavaSelectionMode.Manual)
-            return await SelectManualRuntimeAsync(settings, cancellationToken);
+        var effectiveSelection = ResolveEffectiveSelection(instance, settings);
+        if (effectiveSelection.Mode is JavaSelectionMode.Manual)
+            return await SelectManualRuntimeAsync(effectiveSelection.ExecutablePath, cancellationToken);
 
         return await SelectAutomaticRuntimeAsync(instance, settings, cancellationToken);
+    }
+
+    internal static EffectiveJavaSelection ResolveEffectiveSelection(GameInstance instance, LauncherSettings settings)
+    {
+        return instance.JavaSettingsMode is LaunchSettingsMode.PerInstance
+            ? new EffectiveJavaSelection(instance.JavaSelectionMode, instance.SelectedJavaExecutablePath)
+            : new EffectiveJavaSelection(settings.JavaSelectionMode, settings.SelectedJavaExecutablePath);
     }
 
     internal static int? ResolveRequiredMajorVersion(
@@ -102,16 +110,16 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
     }
 
     private async Task<JavaRuntimeInfo> SelectManualRuntimeAsync(
-        LauncherSettings settings,
+        string? executablePath,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(settings.SelectedJavaExecutablePath))
+        if (string.IsNullOrWhiteSpace(executablePath))
             throw new JavaRuntimeSelectionException("No Java runtime is selected for manual Java mode.");
 
         try
         {
             return await javaRuntimeDiscoveryService.DiscoverExecutableAsync(
-                settings.SelectedJavaExecutablePath,
+                executablePath,
                 cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -272,4 +280,6 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
     {
         return string.Equals(runtime.Architecture, "x64", StringComparison.OrdinalIgnoreCase);
     }
+
+    internal sealed record EffectiveJavaSelection(JavaSelectionMode Mode, string? ExecutablePath);
 }

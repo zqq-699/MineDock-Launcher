@@ -122,6 +122,59 @@ public sealed class JavaRuntimeSelectionServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task PerInstanceAutomaticSelectionIgnoresGlobalManualPath()
+    {
+        var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService
+        {
+            Runtimes =
+            [
+                CreateRuntime(@"C:\Java\jdk-21\bin\java.exe", 21, "x64")
+            ],
+            ImportedRuntime = CreateRuntime(@"C:\Global\jdk-8\bin\java.exe", 8, "x64")
+        });
+        var settings = new LauncherSettings
+        {
+            JavaSelectionMode = JavaSelectionMode.Manual,
+            SelectedJavaExecutablePath = @"C:\Global\jdk-8\bin\java.exe"
+        };
+        var instance = new GameInstance
+        {
+            JavaSettingsMode = LaunchSettingsMode.PerInstance,
+            JavaSelectionMode = JavaSelectionMode.Auto,
+            MinecraftVersion = "1.20.5"
+        };
+
+        var selectedRuntime = await service.SelectForLaunchAsync(instance, settings);
+
+        Assert.Equal(21, selectedRuntime.MajorVersion);
+    }
+
+    [Fact]
+    public async Task PerInstanceManualSelectionUsesInstancePath()
+    {
+        var instancePath = @"C:\Instance\jdk-17\bin\java.exe";
+        var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService
+        {
+            ImportedRuntime = CreateRuntime(instancePath, 17, "x64")
+        });
+        var settings = new LauncherSettings
+        {
+            JavaSelectionMode = JavaSelectionMode.Manual,
+            SelectedJavaExecutablePath = @"C:\Global\jdk-21\bin\java.exe"
+        };
+        var instance = new GameInstance
+        {
+            JavaSettingsMode = LaunchSettingsMode.PerInstance,
+            JavaSelectionMode = JavaSelectionMode.Manual,
+            SelectedJavaExecutablePath = instancePath
+        };
+
+        var selectedRuntime = await service.SelectForLaunchAsync(instance, settings);
+
+        Assert.Equal(instancePath, selectedRuntime.ExecutablePath);
+    }
+
+    [Fact]
     public async Task ManualSelectionThrowsWhenPathIsMissing()
     {
         var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService());
