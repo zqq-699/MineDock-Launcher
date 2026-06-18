@@ -1,9 +1,11 @@
 using System.ComponentModel;
+using System.Collections.ObjectModel;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Settings;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
@@ -59,6 +61,12 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     [ObservableProperty]
     private GameSettingsLaunchSettingsModeOption? selectedLaunchSettingsModeOption;
 
+    [ObservableProperty]
+    private SettingsJavaSelectionOption? selectedInstanceJavaSelectionOption;
+
+    [ObservableProperty]
+    private GameSettingsLaunchSettingsModeOption? selectedInstanceJavaSettingsModeOption;
+
     public GameSettingsDetailsViewModel(
         GameSettingsEditDialogViewModel editDialog,
         IGameInstanceService instanceService,
@@ -69,6 +77,11 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         this.instanceService = instanceService;
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
+
+        InstanceJavaSelectionOptions.Add(new SettingsJavaSelectionOption("auto", Strings.Settings_JavaSelectionAuto));
+        InstanceJavaSelectionOptions.Add(new SettingsJavaSelectionOption("manual", Strings.Settings_JavaSelectionManual));
+        SelectedInstanceJavaSelectionOption = InstanceJavaSelectionOptions[0];
+        SelectedInstanceJavaSettingsModeOption = LaunchSettingsModeOptions[0];
     }
 
     public bool HasSelectedInstance => SelectedInstance is not null;
@@ -93,6 +106,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
 
     public bool AreLaunchSettingsOverridesEnabled => SelectedLaunchSettingsModeOption?.Mode is LaunchSettingsMode.PerInstance;
 
+    public bool AreInstanceJavaSettingsOverridesEnabled => SelectedInstanceJavaSettingsModeOption?.Mode is LaunchSettingsMode.PerInstance;
+
     public bool CanEditAutoRepairMissingFiles => AreLaunchSettingsOverridesEnabled && LaunchCheckFilesBeforeLaunchEnabled;
 
     public string InstanceCreatedAtText => SelectedInstance?.Instance.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? string.Empty;
@@ -102,6 +117,14 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         new(LaunchSettingsMode.UseGlobal, Strings.GameSettings_LaunchSettingsModeUseGlobal),
         new(LaunchSettingsMode.PerInstance, Strings.GameSettings_LaunchSettingsModePerInstance)
     ];
+
+    public ObservableCollection<SettingsJavaSelectionOption> InstanceJavaSelectionOptions { get; } = [];
+
+    public ObservableCollection<SettingsJavaRuntimeItem> InstanceJavaRuntimes { get; } = [];
+
+    public string InstanceJavaRuntimeListMessage => string.Empty;
+
+    public bool HasInstanceJavaRuntimeListMessage => false;
 
     public void PrimeFromSettings(LauncherSettings launcherSettings)
     {
@@ -213,6 +236,11 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             ApplyGlobalLaunchSettingsToEditor();
 
         SaveLaunchSettings();
+    }
+
+    partial void OnSelectedInstanceJavaSettingsModeOptionChanged(GameSettingsLaunchSettingsModeOption? value)
+    {
+        OnPropertyChanged(nameof(AreInstanceJavaSettingsOverridesEnabled));
     }
 
     partial void OnDescriptionTextChanged(string value)

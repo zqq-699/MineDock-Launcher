@@ -5,6 +5,13 @@
              xmlns:res="clr-namespace:Launcher.App.Resources"
              Focusable="False">
     <UserControl.Resources>
+        <Style x:Key="SettingsOptionTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#F2F2F2" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
         <Style x:Key="GeneralDescriptionTextBoxStyle"
                TargetType="TextBox"
                BasedOn="{StaticResource LauncherDialogTextBoxStyle}">
@@ -34,6 +41,79 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <DataTemplate x:Key="InstanceJavaSelectionOptionTemplate">
+            <TextBlock Text="{Binding Title}"
+                       Foreground="#F4F4F4"
+                       FontSize="13"
+                       VerticalAlignment="Center" />
+        </DataTemplate>
+
+        <Style x:Key="InstanceJavaRuntimeListBoxStyle" TargetType="ListBox">
+            <Setter Property="Margin" Value="0,10,0,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+            <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+            <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel" />
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="InstanceJavaRuntimeListBoxItemStyle"
+               TargetType="ListBoxItem"
+               BasedOn="{StaticResource DialogChoiceItemStyle}">
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+
+        <DataTemplate x:Key="InstanceJavaRuntimeItemTemplate">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding DisplayName}"
+                               Foreground="#F4F4F4"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding VersionText}"
+                               Margin="10,0,0,0"
+                               Foreground="{StaticResource LauncherTextSecondaryBrush}"
+                               FontSize="12"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Architecture}"
+                           Foreground="#CFFFFFFF"
+                           FontSize="12"
+                           VerticalAlignment="Center" />
+
+                <TextBlock Grid.Row="1"
+                           Grid.ColumnSpan="2"
+                           Margin="0,4,0,0"
+                           Text="{Binding ExecutablePath}"
+                           Foreground="#AFFFFFFF"
+                           FontSize="12"
+                           TextTrimming="CharacterEllipsis" />
+            </Grid>
+        </DataTemplate>
 
     </UserControl.Resources>
 
@@ -144,6 +224,89 @@
                                               LaunchGameArguments="{Binding LaunchGameArguments, Mode=TwoWay}" />
             </StackPanel>
 
+            <StackPanel Margin="0"
+                        Visibility="{Binding IsJavaMemorySection, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                <Border Margin="0,0,0,26"
+                        Style="{StaticResource SectionFieldSurfaceStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="180" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchSettingsModeLabel}"
+                                   Style="{StaticResource SettingsOptionTextStyle}" />
+
+                        <controls:AnimatedComboBox Grid.Column="1"
+                                                   ItemsSource="{Binding LaunchSettingsModeOptions}"
+                                                   SelectedItem="{Binding SelectedInstanceJavaSettingsModeOption, Mode=TwoWay}"
+                                                   ItemTemplate="{StaticResource InstanceJavaSelectionOptionTemplate}"
+                                                   SelectionItemTemplate="{StaticResource InstanceJavaSelectionOptionTemplate}"
+                                                   Style="{StaticResource LauncherComboBoxStyle}" />
+                    </Grid>
+                </Border>
+
+                <GroupBox Header="{x:Static res:Strings.Settings_JavaSection}"
+                          IsEnabled="{Binding AreInstanceJavaSettingsOverridesEnabled}"
+                          Style="{StaticResource LauncherContentSectionStyle}">
+                    <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="180" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="{x:Static res:Strings.Settings_JavaSelectionLabel}"
+                                           Style="{StaticResource SettingsOptionTextStyle}" />
+
+                                <controls:AnimatedComboBox Grid.Column="1"
+                                                           ItemsSource="{Binding InstanceJavaSelectionOptions}"
+                                                           SelectedItem="{Binding SelectedInstanceJavaSelectionOption, Mode=TwoWay}"
+                                                           ItemTemplate="{StaticResource InstanceJavaSelectionOptionTemplate}"
+                                                           SelectionItemTemplate="{StaticResource InstanceJavaSelectionOptionTemplate}"
+                                                           Style="{StaticResource LauncherComboBoxStyle}" />
+                            </Grid>
+
+                            <Grid Margin="0,18,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="{x:Static res:Strings.Settings_JavaListLabel}"
+                                           Style="{StaticResource SettingsOptionTextStyle}" />
+
+                                <Button Grid.Column="1"
+                                        Margin="0,0,10,0"
+                                        Content="{x:Static res:Strings.Refresh_Button}"
+                                        IsEnabled="False"
+                                        Style="{StaticResource LauncherDialogButtonStyle}" />
+                                <Button Grid.Column="2"
+                                        Content="{x:Static res:Strings.ManualImport_Button}"
+                                        IsEnabled="False"
+                                        Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
+                            </Grid>
+
+                            <Grid>
+                                <ListBox ItemsSource="{Binding InstanceJavaRuntimes}"
+                                         ItemTemplate="{StaticResource InstanceJavaRuntimeItemTemplate}"
+                                         ItemContainerStyle="{StaticResource InstanceJavaRuntimeListBoxItemStyle}"
+                                         Style="{StaticResource InstanceJavaRuntimeListBoxStyle}" />
+
+                                <TextBlock Margin="4,18,4,0"
+                                           Text="{Binding InstanceJavaRuntimeListMessage}"
+                                           Foreground="{StaticResource LauncherTextSecondaryBrush}"
+                                           FontSize="13"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding HasInstanceJavaRuntimeListMessage, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </GroupBox>
+            </StackPanel>
+
             <GroupBox Margin="0"
                       Header="{Binding SectionTitle}">
                 <GroupBox.Style>
@@ -154,6 +317,9 @@
                                 <Setter Property="Visibility" Value="Collapsed" />
                             </DataTrigger>
                             <DataTrigger Binding="{Binding IsLaunchSection}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsJavaMemorySection}" Value="True">
                                 <Setter Property="Visibility" Value="Collapsed" />
                             </DataTrigger>
                         </Style.Triggers>
