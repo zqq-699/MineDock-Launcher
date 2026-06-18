@@ -13,12 +13,16 @@ namespace Launcher.App.ViewModels.Shell;
 
 public sealed partial class MainViewModel : ObservableObject
 {
+    private static readonly TimeSpan FloatingMessageDuration = TimeSpan.FromSeconds(2.2);
+
     private readonly ISettingsService settingsService;
     private readonly IWindowService windowService;
     private readonly IStatusService statusService;
+    private readonly IUiDispatcher uiDispatcher;
     private bool hasPrimedSettings;
     private bool hasInitialized;
     private bool isSyncingCurrentState;
+    private CancellationTokenSource? floatingMessageHideCancellation;
 
     [ObservableProperty]
     private LauncherSettings settings = new();
@@ -35,6 +39,12 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private double progressPercent;
 
+    [ObservableProperty]
+    private string floatingMessage = string.Empty;
+
+    [ObservableProperty]
+    private bool isFloatingMessageOpen;
+
     public MainViewModel(
         ISettingsService settingsService,
         AccountPageViewModel accountPage,
@@ -45,11 +55,14 @@ public sealed partial class MainViewModel : ObservableObject
         GameManagementViewModel gameManagement,
         IWindowService windowService,
         IStatusService statusService,
+        IFloatingMessageService floatingMessageService,
+        IUiDispatcher uiDispatcher,
         IHomePageViewModelFactory homePageFactory)
     {
         this.settingsService = settingsService;
         this.windowService = windowService;
         this.statusService = statusService;
+        this.uiDispatcher = uiDispatcher;
         AccountPage = accountPage;
         DownloadPage = downloadPage;
         DownloadTasksPage = downloadTasksPage;
@@ -63,11 +76,13 @@ public sealed partial class MainViewModel : ObservableObject
             OpenGameSettingsForInstanceAsync);
 
         statusService.MessageReported += message => StatusMessage = message;
+        floatingMessageService.MessageRequested += ShowFloatingMessage;
         DownloadPage.InstanceInstalled += DownloadPage_InstanceInstalled;
         AccountPage.PropertyChanged += AccountPage_PropertyChanged;
         GameManagement.PropertyChanged += GameManagement_PropertyChanged;
         GameSettingsPage.LaunchInstanceRequested += GameSettingsPage_LaunchInstanceRequested;
         GameSettingsPage.InstancesChanged += GameSettingsPage_InstancesChanged;
+        SettingsPage.LaunchDefaultsChanged += SettingsPage_LaunchDefaultsChanged;
 
         UpdateNavigationSelection();
     }
@@ -293,6 +308,12 @@ public sealed partial class MainViewModel : ObservableObject
         _ = SyncInstancesFromGameSettingsAsync();
     }
 
+    private void SettingsPage_LaunchDefaultsChanged(object? sender, EventArgs e)
+    {
+        HomePage.SetSettings(Settings);
+        GameSettingsPage.PrimeFromSettings(Settings);
+    }
+
     private async Task HandleGameSettingsLaunchRequestAsync(GameInstance instance)
     {
         try
@@ -344,6 +365,43 @@ public sealed partial class MainViewModel : ObservableObject
         CurrentPage = NavigationCatalog.GameSettingsPage;
         UpdateSecondaryItems();
         UpdateNavigationSelection();
+    }
+
+    private void ShowFloatingMessage(string message)
+    {
+        if (!uiDispatcher.HasAccess)
+        {
+            uiDispatcher.Post(() => ShowFloatingMessage(message));
+            return;
+        }
+
+        floatingMessageHideCancellation?.Cancel();
+        floatingMessageHideCancellation?.Dispose();
+        floatingMessageHideCancellation = new CancellationTokenSource();
+
+        FloatingMessage = message;
+        IsFloatingMessageOpen = true;
+        _ = HideFloatingMessageAfterDelayAsync(floatingMessageHideCancellation.Token);
+    }
+
+    private async Task HideFloatingMessageAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(FloatingMessageDuration, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        uiDispatcher.Post(() =>
+        {
+            if (cancellationToken.IsCancellationRequested)
+                return;
+
+            IsFloatingMessageOpen = false;
+        });
     }
 }
 

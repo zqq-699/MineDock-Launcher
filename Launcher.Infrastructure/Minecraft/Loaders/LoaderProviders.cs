@@ -26,7 +26,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         return Task.FromResult(versions);
     }
 
-    public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, string? javaPath, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
+    public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
     {
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
 
@@ -190,7 +190,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider
         }
     }
 
-    public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, string? javaPath, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
+    public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
     {
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
         var path = new MinecraftPath(gameDirectory);
@@ -303,7 +303,7 @@ public sealed class PlaceholderLoaderProvider : ILoaderProvider
         return Task.FromResult(versions);
     }
 
-    public Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, string? javaPath, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
+    public Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
     {
         throw new NotSupportedException($"{Kind} is not implemented yet.");
     }

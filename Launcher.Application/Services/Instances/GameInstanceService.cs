@@ -113,7 +113,6 @@ public sealed class GameInstanceService : IGameInstanceService
                     settings.MinecraftDirectory,
                     versionIdentity,
                     loaderVersion,
-                    settings.DefaultJavaPath,
                     progress,
                     cancellationToken).ConfigureAwait(false);
 
@@ -130,7 +129,6 @@ public sealed class GameInstanceService : IGameInstanceService
                     VersionName = versionName,
                     VersionType = string.Empty,
                     InstanceDirectory = instanceDirectory,
-                    JavaPath = settings.DefaultJavaPath,
                     MemoryMb = settings.DefaultMemoryMb,
                     CreatedAt = now,
                     UpdatedAt = now
@@ -354,7 +352,6 @@ public sealed class GameInstanceService : IGameInstanceService
             VersionName = installedVersion.VersionName,
             VersionType = installedVersion.VersionType,
             InstanceDirectory = installedVersion.Directory,
-            JavaPath = settings.DefaultJavaPath,
             MemoryMb = settings.DefaultMemoryMb,
             CreatedAt = installedVersion.DiscoveredAt,
             UpdatedAt = installedVersion.DiscoveredAt

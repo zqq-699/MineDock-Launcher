@@ -2,6 +2,7 @@ using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Persistence;
 using Launcher.Tests.Helpers;
 
 namespace Launcher.Tests.GameSettings;
@@ -557,6 +558,25 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task JavaMemoryDetailsSectionKeepsEntryAndShowsPlaceholder()
+    {
+        var viewModel = CreateViewModel([CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla)]);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var section = viewModel.DetailSections.Single(section => section.Id == "java_memory");
+
+        viewModel.SelectDetailsSectionCommand.Execute(section);
+
+        Assert.True(section.IsSelected);
+        Assert.True(viewModel.Details.IsJavaMemorySection);
+        Assert.Equal(Strings.GameSettings_DetailJavaMemory, viewModel.Details.SectionTitle);
+        Assert.Equal(
+            string.Format(Strings.GameSettings_DetailPlaceholderBodyFormat, Strings.GameSettings_DetailJavaMemory),
+            viewModel.Details.SectionPlaceholderBody);
+    }
+
+    [Fact]
     public async Task BackToInstanceListCommandReturnsToListStep()
     {
         var viewModel = CreateViewModel([CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla)]);
@@ -614,19 +634,37 @@ public sealed class GameSettingsPageViewModelTests
         viewModel.Details.LaunchCheckFilesBeforeLaunchEnabled = false;
         viewModel.Details.LaunchAutoRepairMissingFilesEnabled = false;
         viewModel.Details.LaunchMinimizeLauncherAfterLaunchEnabled = true;
+        viewModel.Details.LaunchFullScreenEnabled = true;
+        viewModel.Details.LaunchPreLaunchCommand = "echo before";
+        viewModel.Details.LaunchWaitForPreLaunchCommand = false;
+        viewModel.Details.LaunchPostExitCommand = "echo after";
+        viewModel.Details.LaunchJvmArguments = "-Dfoo=bar";
+        viewModel.Details.LaunchGameArguments = "--demo";
 
         await TestAsync.WaitForAsync(() =>
-            instanceService.SaveCallCount >= 3
+            instanceService.SaveCallCount >= 9
             && instanceService.LastSavedInstance is not null
             && instanceService.LastSavedInstance.LaunchSettingsMode == LaunchSettingsMode.PerInstance
             && !instanceService.LastSavedInstance.CheckFilesBeforeLaunch
             && !instanceService.LastSavedInstance.AutoRepairMissingFiles
-            && instanceService.LastSavedInstance.MinimizeLauncherAfterLaunch);
+            && instanceService.LastSavedInstance.MinimizeLauncherAfterLaunch
+            && instanceService.LastSavedInstance.LaunchFullScreen
+            && instanceService.LastSavedInstance.PreLaunchCommand == "echo before"
+            && !instanceService.LastSavedInstance.WaitForPreLaunchCommand
+            && instanceService.LastSavedInstance.PostExitCommand == "echo after"
+            && instanceService.LastSavedInstance.JvmArguments == "-Dfoo=bar"
+            && instanceService.LastSavedInstance.GameArguments == "--demo");
 
         Assert.Equal(LaunchSettingsMode.PerInstance, viewModel.SelectedInstance?.Instance.LaunchSettingsMode);
         Assert.False(viewModel.SelectedInstance?.Instance.CheckFilesBeforeLaunch);
         Assert.False(viewModel.SelectedInstance?.Instance.AutoRepairMissingFiles);
         Assert.True(viewModel.SelectedInstance?.Instance.MinimizeLauncherAfterLaunch);
+        Assert.True(viewModel.SelectedInstance?.Instance.LaunchFullScreen);
+        Assert.Equal("echo before", viewModel.SelectedInstance?.Instance.PreLaunchCommand);
+        Assert.False(viewModel.SelectedInstance?.Instance.WaitForPreLaunchCommand);
+        Assert.Equal("echo after", viewModel.SelectedInstance?.Instance.PostExitCommand);
+        Assert.Equal("-Dfoo=bar", viewModel.SelectedInstance?.Instance.JvmArguments);
+        Assert.Equal("--demo", viewModel.SelectedInstance?.Instance.GameArguments);
     }
 
     [Fact]
@@ -668,13 +706,20 @@ public sealed class GameSettingsPageViewModelTests
         instance.CheckFilesBeforeLaunch = true;
         instance.AutoRepairMissingFiles = true;
         instance.MinimizeLauncherAfterLaunch = false;
+        instance.LaunchFullScreen = false;
         instanceService.CreatedInstances.Add(instance);
         var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
         viewModel.PrimeFromSettings(new LauncherSettings
         {
             DefaultCheckFilesBeforeLaunch = false,
             DefaultAutoRepairMissingFiles = false,
-            DefaultMinimizeLauncherAfterLaunch = true
+            DefaultMinimizeLauncherAfterLaunch = true,
+            DefaultLaunchFullScreen = true,
+            DefaultPreLaunchCommand = "echo global-before",
+            DefaultWaitForPreLaunchCommand = false,
+            DefaultPostExitCommand = "echo global-after",
+            DefaultJvmArguments = "-Dglobal=true",
+            DefaultGameArguments = "--global"
         });
 
         await viewModel.EnsureInstancesLoadedAsync();
@@ -686,6 +731,12 @@ public sealed class GameSettingsPageViewModelTests
         Assert.False(viewModel.Details.LaunchCheckFilesBeforeLaunchEnabled);
         Assert.False(viewModel.Details.LaunchAutoRepairMissingFilesEnabled);
         Assert.True(viewModel.Details.LaunchMinimizeLauncherAfterLaunchEnabled);
+        Assert.True(viewModel.Details.LaunchFullScreenEnabled);
+        Assert.Equal("echo global-before", viewModel.Details.LaunchPreLaunchCommand);
+        Assert.False(viewModel.Details.LaunchWaitForPreLaunchCommand);
+        Assert.Equal("echo global-after", viewModel.Details.LaunchPostExitCommand);
+        Assert.Equal("-Dglobal=true", viewModel.Details.LaunchJvmArguments);
+        Assert.Equal("--global", viewModel.Details.LaunchGameArguments);
         Assert.False(viewModel.Details.AreLaunchSettingsOverridesEnabled);
 
         await TestAsync.WaitForAsync(() =>
@@ -693,7 +744,13 @@ public sealed class GameSettingsPageViewModelTests
             && instanceService.LastSavedInstance.LaunchSettingsMode == LaunchSettingsMode.UseGlobal
             && !instanceService.LastSavedInstance.CheckFilesBeforeLaunch
             && !instanceService.LastSavedInstance.AutoRepairMissingFiles
-            && instanceService.LastSavedInstance.MinimizeLauncherAfterLaunch);
+            && instanceService.LastSavedInstance.MinimizeLauncherAfterLaunch
+            && instanceService.LastSavedInstance.LaunchFullScreen
+            && instanceService.LastSavedInstance.PreLaunchCommand == "echo global-before"
+            && !instanceService.LastSavedInstance.WaitForPreLaunchCommand
+            && instanceService.LastSavedInstance.PostExitCommand == "echo global-after"
+            && instanceService.LastSavedInstance.JvmArguments == "-Dglobal=true"
+            && instanceService.LastSavedInstance.GameArguments == "--global");
     }
 
     [Fact]
@@ -773,7 +830,11 @@ public sealed class GameSettingsPageViewModelTests
     {
         var instanceService = new FakeGameInstanceService();
         instanceService.CreatedInstances.AddRange(instances);
-        return CreateViewModel(instanceService, new FakeGameVersionService(versions ?? []), statusService ?? new FakeStatusService(), folderService ?? new FakeInstanceFolderService());
+        return CreateViewModel(
+            instanceService,
+            new FakeGameVersionService(versions ?? []),
+            statusService ?? new FakeStatusService(),
+            folderService ?? new FakeInstanceFolderService());
     }
 
     private static GameSettingsPageViewModel CreateViewModel(
@@ -782,7 +843,11 @@ public sealed class GameSettingsPageViewModelTests
         FakeStatusService statusService,
         FakeInstanceFolderService folderService)
     {
-        return new GameSettingsPageViewModel(instanceService, gameVersionService, statusService, folderService);
+        return new GameSettingsPageViewModel(
+            instanceService,
+            gameVersionService,
+            statusService,
+            folderService);
     }
 
     private static GameInstance CreateInstance(string name, string minecraftVersion, LoaderKind loader)

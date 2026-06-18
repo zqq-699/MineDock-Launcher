@@ -55,7 +55,6 @@ internal static class LaunchDiagnosticsWriter
         string versionName,
         string failureKind,
         string failureSummary,
-        string? javaPath,
         Exception exception,
         ProcessStartInfo? startInfo,
         CancellationToken cancellationToken)
@@ -77,7 +76,6 @@ internal static class LaunchDiagnosticsWriter
             cancellationToken,
             builder =>
             {
-                builder.AppendLine($"JavaPath: {javaPath ?? string.Empty}");
                 AppendProcessSection(builder, startInfo);
                 AppendTextSection(builder, "ExceptionChain", FormatExceptionChain(exception));
                 AppendFileSection(builder, "CrashFiles", crashFiles);

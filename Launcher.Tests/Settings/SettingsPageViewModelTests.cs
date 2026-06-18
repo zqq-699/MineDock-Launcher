@@ -14,11 +14,16 @@ public sealed class SettingsPageViewModelTests
         {
             DataDirectory = @"C:\Launcher\Data",
             MinecraftDirectory = @"C:\Launcher\.minecraft",
-            DefaultJavaPath = @"C:\Java\bin\javaw.exe",
             DefaultMemoryMb = 8192,
             DefaultCheckFilesBeforeLaunch = false,
             DefaultAutoRepairMissingFiles = false,
-            DefaultMinimizeLauncherAfterLaunch = true
+            DefaultMinimizeLauncherAfterLaunch = true,
+            DefaultLaunchFullScreen = true,
+            DefaultPreLaunchCommand = "echo before",
+            DefaultWaitForPreLaunchCommand = false,
+            DefaultPostExitCommand = "echo after",
+            DefaultJvmArguments = "-Dfoo=bar",
+            DefaultGameArguments = "--demo"
         };
 
         viewModel.PrimeFromSettings(settings);
@@ -27,11 +32,16 @@ public sealed class SettingsPageViewModelTests
         Assert.True(viewModel.IsGeneralSection);
         Assert.Equal(@"C:\Launcher\Data", viewModel.DataDirectory);
         Assert.Equal(@"C:\Launcher\.minecraft", viewModel.MinecraftDirectory);
-        Assert.Equal(@"C:\Java\bin\javaw.exe", viewModel.JavaPath);
         Assert.Equal(8192, viewModel.SelectedMemoryOption?.MemoryMb);
         Assert.False(viewModel.DefaultCheckFilesBeforeLaunch);
         Assert.False(viewModel.DefaultAutoRepairMissingFiles);
         Assert.True(viewModel.DefaultMinimizeLauncherAfterLaunch);
+        Assert.True(viewModel.DefaultLaunchFullScreen);
+        Assert.Equal("echo before", viewModel.DefaultPreLaunchCommand);
+        Assert.False(viewModel.DefaultWaitForPreLaunchCommand);
+        Assert.Equal("echo after", viewModel.DefaultPostExitCommand);
+        Assert.Equal("-Dfoo=bar", viewModel.DefaultJvmArguments);
+        Assert.Equal("--demo", viewModel.DefaultGameArguments);
     }
 
     [Fact]
@@ -62,26 +72,41 @@ public sealed class SettingsPageViewModelTests
         var viewModel = CreateViewModel(settings, out var settingsService, out var statusService);
         viewModel.PrimeFromSettings(settings);
 
-        viewModel.JavaPath = @"D:\Java\bin\javaw.exe";
         viewModel.SelectedMemoryOption = new SettingsMemoryOption(12288);
         viewModel.DefaultCheckFilesBeforeLaunch = false;
         viewModel.DefaultAutoRepairMissingFiles = false;
         viewModel.DefaultMinimizeLauncherAfterLaunch = true;
+        viewModel.DefaultLaunchFullScreen = true;
+        viewModel.DefaultPreLaunchCommand = "echo before";
+        viewModel.DefaultWaitForPreLaunchCommand = false;
+        viewModel.DefaultPostExitCommand = "echo after";
+        viewModel.DefaultJvmArguments = "-Dfoo=bar";
+        viewModel.DefaultGameArguments = "--demo";
 
         await TestAsync.WaitForAsync(() =>
             settingsService.SaveCount >= 1
-            && settings.DefaultJavaPath == @"D:\Java\bin\javaw.exe"
             && settings.DefaultMemoryMb == 12288
             && settings.DefaultCheckFilesBeforeLaunch == false
             && settings.DefaultAutoRepairMissingFiles == false
-            && settings.DefaultMinimizeLauncherAfterLaunch);
+            && settings.DefaultMinimizeLauncherAfterLaunch
+            && settings.DefaultLaunchFullScreen
+            && settings.DefaultPreLaunchCommand == "echo before"
+            && !settings.DefaultWaitForPreLaunchCommand
+            && settings.DefaultPostExitCommand == "echo after"
+            && settings.DefaultJvmArguments == "-Dfoo=bar"
+            && settings.DefaultGameArguments == "--demo");
 
         Assert.True(settingsService.SaveCount >= 1);
-        Assert.Equal(@"D:\Java\bin\javaw.exe", settings.DefaultJavaPath);
         Assert.Equal(12288, settings.DefaultMemoryMb);
         Assert.False(settings.DefaultCheckFilesBeforeLaunch);
         Assert.False(settings.DefaultAutoRepairMissingFiles);
         Assert.True(settings.DefaultMinimizeLauncherAfterLaunch);
+        Assert.True(settings.DefaultLaunchFullScreen);
+        Assert.Equal("echo before", settings.DefaultPreLaunchCommand);
+        Assert.False(settings.DefaultWaitForPreLaunchCommand);
+        Assert.Equal("echo after", settings.DefaultPostExitCommand);
+        Assert.Equal("-Dfoo=bar", settings.DefaultJvmArguments);
+        Assert.Equal("--demo", settings.DefaultGameArguments);
         Assert.Null(statusService.LastMessage);
     }
 
@@ -126,6 +151,43 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
+    public void LaunchDefaultsChangedUpdatesSharedSettingsImmediately()
+    {
+        var settings = new LauncherSettings
+        {
+            DefaultCheckFilesBeforeLaunch = true,
+            DefaultAutoRepairMissingFiles = true,
+            DefaultMinimizeLauncherAfterLaunch = false,
+            DefaultLaunchFullScreen = false
+        };
+        var viewModel = CreateViewModel(settings, out _, out _);
+        viewModel.PrimeFromSettings(settings);
+        var changedCount = 0;
+        viewModel.LaunchDefaultsChanged += (_, _) => changedCount++;
+
+        viewModel.DefaultCheckFilesBeforeLaunch = false;
+
+        Assert.Equal(1, changedCount);
+        Assert.False(settings.DefaultCheckFilesBeforeLaunch);
+        Assert.False(settings.DefaultAutoRepairMissingFiles);
+
+        viewModel.DefaultLaunchFullScreen = true;
+
+        Assert.Equal(2, changedCount);
+        Assert.True(settings.DefaultLaunchFullScreen);
+
+        viewModel.DefaultGameArguments = "--quickPlaySingleplayer world";
+
+        Assert.Equal(3, changedCount);
+        Assert.Equal("--quickPlaySingleplayer world", settings.DefaultGameArguments);
+
+        viewModel.DefaultWaitForPreLaunchCommand = false;
+
+        Assert.Equal(4, changedCount);
+        Assert.False(settings.DefaultWaitForPreLaunchCommand);
+    }
+
+    [Fact]
     public void PrimeFromSettingsDoesNotAutoSave()
     {
         var settings = new LauncherSettings();
@@ -165,4 +227,5 @@ public sealed class SettingsPageViewModelTests
             MessageReported?.Invoke(message);
         }
     }
+
 }

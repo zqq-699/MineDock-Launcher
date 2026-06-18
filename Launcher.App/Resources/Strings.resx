@@ -21,6 +21,7 @@
   <data name="Confirm_Button" xml:space="preserve"><value>确定</value></data>
   <data name="Delete_Button" xml:space="preserve"><value>删除</value></data>
   <data name="Refresh_Button" xml:space="preserve"><value>刷新</value></data>
+  <data name="ManualImport_Button" xml:space="preserve"><value>导入</value></data>
   <data name="Apply_Button" xml:space="preserve"><value>应用</value></data>
   <data name="Page_Account" xml:space="preserve"><value>账户</value></data>
   <data name="Page_Home" xml:space="preserve"><value>主页</value></data>
@@ -38,8 +39,6 @@
   <data name="Settings_DataDirectoryLabel" xml:space="preserve"><value>启动器数据目录</value></data>
   <data name="Settings_MinecraftDirectoryLabel" xml:space="preserve"><value>Minecraft 目录</value></data>
   <data name="Settings_LaunchDefaultsSection" xml:space="preserve"><value>默认启动行为</value></data>
-  <data name="Settings_JavaSection" xml:space="preserve"><value>Java</value></data>
-  <data name="Settings_JavaPathLabel" xml:space="preserve"><value>默认 Java 路径</value></data>
   <data name="Settings_MemorySection" xml:space="preserve"><value>内存</value></data>
   <data name="Settings_DefaultMemoryLabel" xml:space="preserve"><value>默认最大内存</value></data>
   <data name="Settings_MemoryOptionFormat" xml:space="preserve"><value>{0} MB</value></data>
@@ -176,6 +175,7 @@
   <data name="Status_LaunchRepairingAssets" xml:space="preserve"><value>正在补齐游戏资源...</value></data>
   <data name="Status_LaunchRepairingLogging" xml:space="preserve"><value>正在补齐日志配置...</value></data>
   <data name="Status_LaunchCheckingJava" xml:space="preserve"><value>正在检查 Java 运行环境...</value></data>
+  <data name="Status_LaunchRunningPreLaunchCommand" xml:space="preserve"><value>正在运行启动前命令...</value></data>
   <data name="Status_LaunchPreparingProcess" xml:space="preserve"><value>正在生成启动参数...</value></data>
   <data name="Status_LaunchStartingProcess" xml:space="preserve"><value>正在启动游戏进程...</value></data>
   <data name="Status_LaunchCheckingFiles" xml:space="preserve"><value>正在检查游戏文件...</value></data>
@@ -214,6 +214,7 @@
   <data name="Status_NoMatchingVersions" xml:space="preserve"><value>没有找到匹配的版本。</value></data>
   <data name="Status_DuplicateInstanceName" xml:space="preserve"><value>已存在同名游戏</value></data>
   <data name="Status_InstallQueued" xml:space="preserve"><value>正在等待其他安装任务完成...</value></data>
+  <data name="Status_InstallStartingDownload" xml:space="preserve"><value>正在开始下载</value></data>
   <data name="Status_InstallPreparing" xml:space="preserve"><value>正在准备安装...</value></data>
   <data name="Status_InstallCheckingFiles" xml:space="preserve"><value>正在检查游戏文件...</value></data>
   <data name="Status_InstallDownloadingFiles" xml:space="preserve"><value>正在下载游戏文件...</value></data>
@@ -269,6 +270,8 @@
   <data name="Status_LoadAccountProfileFailed" xml:space="preserve"><value>读取正版账户资料失败，请稍后重试。</value></data>
   <data name="FilePicker_MinecraftSkinTitle" xml:space="preserve"><value>选择 Minecraft 皮肤</value></data>
   <data name="FilePicker_MinecraftSkinFilter" xml:space="preserve"><value>PNG 皮肤 (*.png)|*.png</value></data>
+  <data name="FilePicker_JavaExecutableTitle" xml:space="preserve"><value>选择 Java 可执行文件</value></data>
+  <data name="FilePicker_JavaExecutableFilter" xml:space="preserve"><value>Java 可执行文件 (java.exe;java)|java.exe;java|所有文件 (*.*)|*.*</value></data>
   <data name="GameSettings_DeleteInstanceTooltip" xml:space="preserve"><value>删除版本</value></data>
   <data name="GameSettings_OpenInstanceFolderTooltip" xml:space="preserve"><value>打开文件夹位置</value></data>
   <data name="GameSettings_SelectInstanceAndGoHomeTooltip" xml:space="preserve"><value>返回主页并选择此版本</value></data>
@@ -294,6 +297,13 @@
   <data name="GameSettings_LaunchCheckFilesOption" xml:space="preserve"><value>启动前检查文件完整性</value></data>
   <data name="GameSettings_LaunchAutoRepairOption" xml:space="preserve"><value>缺失文件自动补全</value></data>
   <data name="GameSettings_LaunchMinimizeLauncherOption" xml:space="preserve"><value>启动后最小化启动器</value></data>
+  <data name="GameSettings_LaunchFullScreenOption" xml:space="preserve"><value>全屏启动</value></data>
+  <data name="GameSettings_AdvancedLaunchSettingsSection" xml:space="preserve"><value>高级启动设置</value></data>
+  <data name="GameSettings_PreLaunchCommandOption" xml:space="preserve"><value>启动前执行命令</value></data>
+  <data name="GameSettings_WaitForPreLaunchCommandOption" xml:space="preserve"><value>等待命令执行完毕再启动</value></data>
+  <data name="GameSettings_PostExitCommandOption" xml:space="preserve"><value>退出后执行命令</value></data>
+  <data name="GameSettings_CustomJvmArgumentsOption" xml:space="preserve"><value>追加 JVM 参数</value></data>
+  <data name="GameSettings_CustomGameArgumentsOption" xml:space="preserve"><value>追加游戏参数</value></data>
   <data name="GameSettings_InstanceNameLabel" xml:space="preserve"><value>版本名称</value></data>
   <data name="GameSettings_InstanceIconLabel" xml:space="preserve"><value>版本图标</value></data>
   <data name="GameSettings_InstanceNameValidation" xml:space="preserve"><value>名称不能为空，且不能包含文件名非法字符。</value></data>

@@ -13,7 +13,6 @@ internal interface IManagedVersionRepairService
         string minecraftDirectory,
         string versionName,
         string instanceDirectory,
-        string? javaPath,
         IProgress<LauncherProgress>? progress,
         bool allowRepair,
         CancellationToken cancellationToken);
@@ -21,6 +20,8 @@ internal interface IManagedVersionRepairService
 
 internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
 {
+    private const int MaxRepairDownloadConcurrency = 8;
+    private const int DownloadBufferSize = 81920;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private static readonly StringComparer PathComparer = OperatingSystem.IsWindows()
         ? StringComparer.OrdinalIgnoreCase
@@ -36,7 +37,6 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         string minecraftDirectory,
         string versionName,
         string instanceDirectory,
-        string? javaPath,
         IProgress<LauncherProgress>? progress,
         bool allowRepair,
         CancellationToken cancellationToken)
@@ -45,6 +45,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         if (!Directory.Exists(versionDirectory))
             throw new InstanceRepairException($"Version directory is missing for {versionName}.");
 
+        var downloadSpeedReporter = new RepairDownloadSpeedReporter(progress);
         ReportProgress(progress, LaunchProgressStages.CheckingInstance, "Checking instance files", 6);
         ReportProgress(
             progress,
@@ -63,31 +64,31 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             allowRepair ? LaunchProgressStages.RepairingJar : LaunchProgressStages.CheckingFiles,
             allowRepair ? "Repairing instance jar" : "Checking launch files",
             32);
-        await EnsureVersionJarAsync(versionDirectory, versionName, resolvedVersion, allowRepair, cancellationToken);
+        await EnsureVersionJarAsync(versionDirectory, versionName, resolvedVersion, allowRepair, downloadSpeedReporter, cancellationToken);
 
         ReportProgress(
             progress,
             allowRepair ? LaunchProgressStages.RepairingLibraries : LaunchProgressStages.CheckingFiles,
             allowRepair ? "Repairing shared libraries" : "Checking launch files",
             48);
-        await EnsureLibrariesAsync(minecraftDirectory, resolvedVersion.VersionJson, allowRepair, cancellationToken);
+        await EnsureLibrariesAsync(minecraftDirectory, resolvedVersion.VersionJson, allowRepair, downloadSpeedReporter, cancellationToken);
 
         ReportProgress(
             progress,
             allowRepair ? LaunchProgressStages.RepairingAssets : LaunchProgressStages.CheckingFiles,
             allowRepair ? "Repairing shared assets" : "Checking launch files",
             64);
-        await EnsureAssetsAsync(minecraftDirectory, resolvedVersion.VersionJson, allowRepair, cancellationToken);
+        await EnsureAssetsAsync(minecraftDirectory, resolvedVersion.VersionJson, allowRepair, downloadSpeedReporter, cancellationToken);
 
         ReportProgress(
             progress,
             allowRepair ? LaunchProgressStages.RepairingLogging : LaunchProgressStages.CheckingFiles,
             allowRepair ? "Repairing logging configuration" : "Checking launch files",
             80);
-        await EnsureLoggingAsync(minecraftDirectory, resolvedVersion.VersionJson, allowRepair, cancellationToken);
+        await EnsureLoggingAsync(minecraftDirectory, resolvedVersion.VersionJson, allowRepair, downloadSpeedReporter, cancellationToken);
 
         ReportProgress(progress, LaunchProgressStages.CheckingJava, "Checking Java runtime", 90);
-        EnsureJavaIsUsable(javaPath);
+        EnsureJavaIsUsable();
     }
 
     internal async Task<ResolvedVersionMetadata> EnsureVersionIsSelfContainedAsync(
@@ -218,6 +219,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         string versionName,
         ResolvedVersionMetadata resolvedVersion,
         bool allowRepair,
+        RepairDownloadSpeedReporter downloadSpeedReporter,
         CancellationToken cancellationToken)
     {
         var jarPath = Path.Combine(versionDirectory, $"{versionName}.jar");
@@ -239,7 +241,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
 
         if (!string.IsNullOrWhiteSpace(resolvedVersion.ClientJarUrl))
         {
-            await DownloadFileAsync(resolvedVersion.ClientJarUrl, jarPath, cancellationToken);
+            await DownloadFileAsync(resolvedVersion.ClientJarUrl, jarPath, downloadSpeedReporter, cancellationToken);
             return;
         }
 
@@ -250,11 +252,13 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         string minecraftDirectory,
         JsonObject versionJson,
         bool allowRepair,
+        RepairDownloadSpeedReporter downloadSpeedReporter,
         CancellationToken cancellationToken)
     {
         if (versionJson["libraries"] is not JsonArray libraries)
             return;
 
+        var downloads = new List<DownloadRequest>();
         foreach (var libraryNode in libraries)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -273,15 +277,18 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
                         $"Required library {artifact.RelativePath} is missing and automatic repair is disabled.");
                 }
 
-                await DownloadFileAsync(artifact.Url, destinationPath, cancellationToken);
+                downloads.Add(new DownloadRequest(artifact.Url, destinationPath));
             }
         }
+
+        await DownloadFilesAsync(downloads, downloadSpeedReporter, cancellationToken);
     }
 
     private async Task EnsureAssetsAsync(
         string minecraftDirectory,
         JsonObject versionJson,
         bool allowRepair,
+        RepairDownloadSpeedReporter downloadSpeedReporter,
         CancellationToken cancellationToken)
     {
         if (versionJson["assetIndex"] is not JsonObject assetIndex)
@@ -298,7 +305,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             if (!allowRepair)
                 throw new InstanceRepairException($"Asset index {assetIndexId} is missing and automatic repair is disabled.");
 
-            await DownloadFileAsync(assetIndexUrl, indexPath, cancellationToken);
+            await DownloadFileAsync(assetIndexUrl, indexPath, downloadSpeedReporter, cancellationToken);
         }
 
         await using var indexStream = File.OpenRead(indexPath);
@@ -307,6 +314,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         if (indexNode["objects"] is not JsonObject objects)
             return;
 
+        var downloads = new List<DownloadRequest>();
         foreach (var asset in objects)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -328,14 +336,17 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             }
 
             var assetUrl = $"https://resources.download.minecraft.net/{hash[..2]}/{hash}";
-            await DownloadFileAsync(assetUrl, objectPath, cancellationToken);
+            downloads.Add(new DownloadRequest(assetUrl, objectPath));
         }
+
+        await DownloadFilesAsync(downloads, downloadSpeedReporter, cancellationToken);
     }
 
     private async Task EnsureLoggingAsync(
         string minecraftDirectory,
         JsonObject versionJson,
         bool allowRepair,
+        RepairDownloadSpeedReporter downloadSpeedReporter,
         CancellationToken cancellationToken)
     {
         if (versionJson["logging"]?["client"] is not JsonObject clientLogging)
@@ -356,14 +367,11 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         if (!allowRepair)
             throw new InstanceRepairException($"Logging configuration {id} is missing and automatic repair is disabled.");
 
-        await DownloadFileAsync(url, logConfigPath, cancellationToken);
+        await DownloadFileAsync(url, logConfigPath, downloadSpeedReporter, cancellationToken);
     }
 
-    private static void EnsureJavaIsUsable(string? javaPath)
+    private static void EnsureJavaIsUsable()
     {
-        if (!string.IsNullOrWhiteSpace(javaPath) && File.Exists(javaPath))
-            return;
-
         var command = OperatingSystem.IsWindows() ? "where" : "which";
         var argument = OperatingSystem.IsWindows() ? "java" : "java";
         try
@@ -603,15 +611,56 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         return true;
     }
 
-    private async Task DownloadFileAsync(string url, string destinationPath, CancellationToken cancellationToken)
+    private async Task DownloadFilesAsync(
+        IEnumerable<DownloadRequest> downloads,
+        RepairDownloadSpeedReporter downloadSpeedReporter,
+        CancellationToken cancellationToken)
+    {
+        var uniqueDownloads = downloads
+            .Where(download => !string.IsNullOrWhiteSpace(download.Url)
+                && !string.IsNullOrWhiteSpace(download.DestinationPath))
+            .GroupBy(download => Path.GetFullPath(download.DestinationPath), PathComparer)
+            .Select(group => group.First())
+            .ToList();
+        if (uniqueDownloads.Count == 0)
+            return;
+
+        await Parallel.ForEachAsync(
+            uniqueDownloads,
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = MaxRepairDownloadConcurrency,
+                CancellationToken = cancellationToken
+            },
+            async (download, token) =>
+            {
+                await DownloadFileAsync(download.Url, download.DestinationPath, downloadSpeedReporter, token);
+            });
+    }
+
+    private async Task DownloadFileAsync(
+        string url,
+        string destinationPath,
+        RepairDownloadSpeedReporter downloadSpeedReporter,
+        CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        downloadSpeedReporter.ReportDownloadStarted();
         using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
 
         await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
         await using var destination = File.Create(destinationPath);
-        await source.CopyToAsync(destination, cancellationToken);
+        var buffer = new byte[DownloadBufferSize];
+        while (true)
+        {
+            var read = await source.ReadAsync(buffer, cancellationToken);
+            if (read <= 0)
+                break;
+
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            downloadSpeedReporter.ReportDownloadedBytes(read);
+        }
     }
 
     private static async Task<JsonObject> ReadVersionJsonAsync(
@@ -687,6 +736,78 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         string? LocalJarPath,
         string? ClientJarUrl,
         bool WasModified);
+
+    private sealed record DownloadRequest(string Url, string DestinationPath);
+
+    private sealed class RepairDownloadSpeedReporter
+    {
+        private static readonly TimeSpan SampleWindow = TimeSpan.FromSeconds(0.75);
+
+        private readonly object syncRoot = new();
+        private readonly IProgress<LauncherProgress>? progress;
+        private long windowBytes;
+        private bool hasReportedDownloadStarted;
+        private DateTimeOffset windowStartedAt = DateTimeOffset.UtcNow;
+
+        public RepairDownloadSpeedReporter(IProgress<LauncherProgress>? progress)
+        {
+            this.progress = progress;
+        }
+
+        public void ReportDownloadStarted()
+        {
+            if (progress is null)
+                return;
+
+            lock (syncRoot)
+            {
+                if (hasReportedDownloadStarted)
+                    return;
+
+                hasReportedDownloadStarted = true;
+                windowBytes = 0;
+                windowStartedAt = DateTimeOffset.UtcNow;
+                progress.Report(new LauncherProgress(
+                    LaunchProgressStages.DownloadSpeed,
+                    string.Empty,
+                    DownloadSpeedText: "0 B/s"));
+            }
+        }
+
+        public void ReportDownloadedBytes(long bytesDelta)
+        {
+            if (progress is null || bytesDelta <= 0)
+                return;
+
+            lock (syncRoot)
+            {
+                windowBytes += bytesDelta;
+                var now = DateTimeOffset.UtcNow;
+                var elapsed = now - windowStartedAt;
+                if (elapsed < SampleWindow)
+                    return;
+
+                var speedText = FormatSpeed(windowBytes / elapsed.TotalSeconds);
+                windowBytes = 0;
+                windowStartedAt = now;
+                progress.Report(new LauncherProgress(
+                    LaunchProgressStages.DownloadSpeed,
+                    string.Empty,
+                    DownloadSpeedText: speedText));
+            }
+        }
+
+        private static string FormatSpeed(double bytesPerSecond)
+        {
+            if (bytesPerSecond >= 1024 * 1024)
+                return $"{bytesPerSecond / 1024 / 1024:0.0} MB/s";
+
+            if (bytesPerSecond >= 1024)
+                return $"{bytesPerSecond / 1024:0.0} KB/s";
+
+            return $"{bytesPerSecond:0} B/s";
+        }
+    }
 
     private sealed record LibraryArtifact(string Url, string RelativePath);
 }

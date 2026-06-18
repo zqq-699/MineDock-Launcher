@@ -30,9 +30,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private string minecraftDirectory = string.Empty;
 
     [ObservableProperty]
-    private string javaPath = string.Empty;
-
-    [ObservableProperty]
     private SettingsMemoryOption? selectedMemoryOption;
 
     [ObservableProperty]
@@ -43,6 +40,24 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     [ObservableProperty]
     private bool defaultMinimizeLauncherAfterLaunch;
+
+    [ObservableProperty]
+    private bool defaultLaunchFullScreen;
+
+    [ObservableProperty]
+    private string defaultPreLaunchCommand = string.Empty;
+
+    [ObservableProperty]
+    private bool defaultWaitForPreLaunchCommand = true;
+
+    [ObservableProperty]
+    private string defaultPostExitCommand = string.Empty;
+
+    [ObservableProperty]
+    private string defaultJvmArguments = string.Empty;
+
+    [ObservableProperty]
+    private string defaultGameArguments = string.Empty;
 
     public SettingsPageViewModel(
         ISettingsService settingsService,
@@ -74,6 +89,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     public ObservableCollection<SettingsMemoryOption> MemoryOptions { get; } = [];
 
+    public event EventHandler? LaunchDefaultsChanged;
+
     public string SectionTitle => SelectedSection?.Title ?? Strings.Settings_SectionGeneral;
 
     public bool IsGeneralSection => SelectedSection?.Section is SettingsPageSection.General;
@@ -90,10 +107,15 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         {
             DataDirectory = launcherSettings.DataDirectory;
             MinecraftDirectory = launcherSettings.MinecraftDirectory;
-            JavaPath = launcherSettings.DefaultJavaPath ?? string.Empty;
             DefaultCheckFilesBeforeLaunch = launcherSettings.DefaultCheckFilesBeforeLaunch;
             DefaultAutoRepairMissingFiles = launcherSettings.DefaultAutoRepairMissingFiles;
             DefaultMinimizeLauncherAfterLaunch = launcherSettings.DefaultMinimizeLauncherAfterLaunch;
+            DefaultLaunchFullScreen = launcherSettings.DefaultLaunchFullScreen;
+            DefaultPreLaunchCommand = launcherSettings.DefaultPreLaunchCommand;
+            DefaultWaitForPreLaunchCommand = launcherSettings.DefaultWaitForPreLaunchCommand;
+            DefaultPostExitCommand = launcherSettings.DefaultPostExitCommand;
+            DefaultJvmArguments = launcherSettings.DefaultJvmArguments;
+            DefaultGameArguments = launcherSettings.DefaultGameArguments;
             SelectedMemoryOption = EnsureMemoryOption(launcherSettings.DefaultMemoryMb);
         }
         finally
@@ -124,11 +146,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(IsJavaMemorySection));
     }
 
-    partial void OnJavaPathChanged(string value)
-    {
-        ScheduleAutoSave();
-    }
-
     partial void OnSelectedMemoryOptionChanged(SettingsMemoryOption? value)
     {
         ScheduleAutoSave();
@@ -140,32 +157,69 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             ApplyLaunchCheckDependency(value, synchronizeAutoRepair: true);
 
         ScheduleAutoSave();
+        NotifyLaunchDefaultsChanged();
     }
 
     partial void OnDefaultAutoRepairMissingFilesChanged(bool value)
     {
         ScheduleAutoSave();
+        NotifyLaunchDefaultsChanged();
     }
 
     partial void OnDefaultMinimizeLauncherAfterLaunchChanged(bool value)
     {
         ScheduleAutoSave();
+        NotifyLaunchDefaultsChanged();
+    }
+
+    partial void OnDefaultLaunchFullScreenChanged(bool value)
+    {
+        ScheduleAutoSave();
+        NotifyLaunchDefaultsChanged();
+    }
+
+    partial void OnDefaultPreLaunchCommandChanged(string value)
+    {
+        ScheduleAutoSave();
+        NotifyLaunchDefaultsChanged();
+    }
+
+    partial void OnDefaultWaitForPreLaunchCommandChanged(bool value)
+    {
+        ScheduleAutoSave();
+        NotifyLaunchDefaultsChanged();
+    }
+
+    partial void OnDefaultPostExitCommandChanged(string value)
+    {
+        ScheduleAutoSave();
+        NotifyLaunchDefaultsChanged();
+    }
+
+    partial void OnDefaultJvmArgumentsChanged(string value)
+    {
+        ScheduleAutoSave();
+        NotifyLaunchDefaultsChanged();
+    }
+
+    partial void OnDefaultGameArgumentsChanged(string value)
+    {
+        ScheduleAutoSave();
+        NotifyLaunchDefaultsChanged();
     }
 
     private void ApplySettings()
     {
-        settings.DefaultJavaPath = string.IsNullOrWhiteSpace(JavaPath)
-            ? null
-            : JavaPath.Trim();
         settings.DefaultMemoryMb = SelectedMemoryOption?.MemoryMb ?? LauncherDefaults.DefaultMemoryMb;
         settings.DefaultCheckFilesBeforeLaunch = DefaultCheckFilesBeforeLaunch;
         settings.DefaultAutoRepairMissingFiles = DefaultAutoRepairMissingFiles;
         settings.DefaultMinimizeLauncherAfterLaunch = DefaultMinimizeLauncherAfterLaunch;
+        settings.DefaultLaunchFullScreen = DefaultLaunchFullScreen;
+        ApplyLaunchDefaultsToSettings();
 
         suppressAutoSave = true;
         try
         {
-            JavaPath = settings.DefaultJavaPath ?? string.Empty;
             SelectedMemoryOption = EnsureMemoryOption(settings.DefaultMemoryMb);
         }
         finally
@@ -192,6 +246,33 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         {
             suppressAutoSave = false;
         }
+    }
+
+    private void NotifyLaunchDefaultsChanged()
+    {
+        if (suppressAutoSave || !hasPrimedSettings)
+            return;
+
+        ApplyLaunchDefaultsToSettings();
+        LaunchDefaultsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void ApplyLaunchDefaultsToSettings()
+    {
+        settings.DefaultCheckFilesBeforeLaunch = DefaultCheckFilesBeforeLaunch;
+        settings.DefaultAutoRepairMissingFiles = DefaultAutoRepairMissingFiles;
+        settings.DefaultMinimizeLauncherAfterLaunch = DefaultMinimizeLauncherAfterLaunch;
+        settings.DefaultLaunchFullScreen = DefaultLaunchFullScreen;
+        settings.DefaultPreLaunchCommand = NormalizeSettingText(DefaultPreLaunchCommand);
+        settings.DefaultWaitForPreLaunchCommand = DefaultWaitForPreLaunchCommand;
+        settings.DefaultPostExitCommand = NormalizeSettingText(DefaultPostExitCommand);
+        settings.DefaultJvmArguments = NormalizeSettingText(DefaultJvmArguments);
+        settings.DefaultGameArguments = NormalizeSettingText(DefaultGameArguments);
+    }
+
+    private static string NormalizeSettingText(string? value)
+    {
+        return value?.Trim() ?? string.Empty;
     }
 
     private SettingsMemoryOption EnsureMemoryOption(int memoryMb)
@@ -258,4 +339,5 @@ public sealed partial class SettingsPageViewModel : ObservableObject
                 saveLock.Release();
         }
     }
+
 }

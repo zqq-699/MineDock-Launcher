@@ -1052,6 +1052,7 @@ public sealed class AccountPageViewModelTests
         {
             return skinFilePath;
         }
+
     }
 
     private sealed class FakeSkinFileValidator(bool isValid) : IMinecraftSkinFileValidator

@@ -18,6 +18,7 @@ public static class Strings
     public static string Confirm_Button => Get(nameof(Confirm_Button));
     public static string Delete_Button => Get(nameof(Delete_Button));
     public static string Refresh_Button => Get(nameof(Refresh_Button));
+    public static string ManualImport_Button => Get(nameof(ManualImport_Button));
     public static string Apply_Button => Get(nameof(Apply_Button));
     public static string Page_Account => Get(nameof(Page_Account));
     public static string Page_Home => Get(nameof(Page_Home));
@@ -35,8 +36,6 @@ public static class Strings
     public static string Settings_DataDirectoryLabel => Get(nameof(Settings_DataDirectoryLabel));
     public static string Settings_MinecraftDirectoryLabel => Get(nameof(Settings_MinecraftDirectoryLabel));
     public static string Settings_LaunchDefaultsSection => Get(nameof(Settings_LaunchDefaultsSection));
-    public static string Settings_JavaSection => Get(nameof(Settings_JavaSection));
-    public static string Settings_JavaPathLabel => Get(nameof(Settings_JavaPathLabel));
     public static string Settings_MemorySection => Get(nameof(Settings_MemorySection));
     public static string Settings_DefaultMemoryLabel => Get(nameof(Settings_DefaultMemoryLabel));
     public static string Settings_MemoryOptionFormat => Get(nameof(Settings_MemoryOptionFormat));
@@ -70,6 +69,13 @@ public static class Strings
     public static string GameSettings_LaunchCheckFilesOption => Get(nameof(GameSettings_LaunchCheckFilesOption));
     public static string GameSettings_LaunchAutoRepairOption => Get(nameof(GameSettings_LaunchAutoRepairOption));
     public static string GameSettings_LaunchMinimizeLauncherOption => Get(nameof(GameSettings_LaunchMinimizeLauncherOption));
+    public static string GameSettings_LaunchFullScreenOption => Get(nameof(GameSettings_LaunchFullScreenOption));
+    public static string GameSettings_AdvancedLaunchSettingsSection => Get(nameof(GameSettings_AdvancedLaunchSettingsSection));
+    public static string GameSettings_PreLaunchCommandOption => Get(nameof(GameSettings_PreLaunchCommandOption));
+    public static string GameSettings_WaitForPreLaunchCommandOption => Get(nameof(GameSettings_WaitForPreLaunchCommandOption));
+    public static string GameSettings_PostExitCommandOption => Get(nameof(GameSettings_PostExitCommandOption));
+    public static string GameSettings_CustomJvmArgumentsOption => Get(nameof(GameSettings_CustomJvmArgumentsOption));
+    public static string GameSettings_CustomGameArgumentsOption => Get(nameof(GameSettings_CustomGameArgumentsOption));
     public static string GameSettings_InstanceNameLabel => Get(nameof(GameSettings_InstanceNameLabel));
     public static string GameSettings_InstanceIconLabel => Get(nameof(GameSettings_InstanceIconLabel));
     public static string GameSettings_InstanceNameValidation => Get(nameof(GameSettings_InstanceNameValidation));
@@ -214,6 +220,7 @@ public static class Strings
     public static string Status_LaunchRepairingAssets => Get(nameof(Status_LaunchRepairingAssets));
     public static string Status_LaunchRepairingLogging => Get(nameof(Status_LaunchRepairingLogging));
     public static string Status_LaunchCheckingJava => Get(nameof(Status_LaunchCheckingJava));
+    public static string Status_LaunchRunningPreLaunchCommand => Get(nameof(Status_LaunchRunningPreLaunchCommand));
     public static string Status_LaunchPreparingProcess => Get(nameof(Status_LaunchPreparingProcess));
     public static string Status_LaunchStartingProcess => Get(nameof(Status_LaunchStartingProcess));
     public static string Status_LaunchCheckingFiles => Get(nameof(Status_LaunchCheckingFiles));
@@ -262,6 +269,7 @@ public static class Strings
     public static string Status_NoMatchingVersions => Get(nameof(Status_NoMatchingVersions));
     public static string Status_DuplicateInstanceName => Get(nameof(Status_DuplicateInstanceName));
     public static string Status_InstallQueued => Get(nameof(Status_InstallQueued));
+    public static string Status_InstallStartingDownload => Get(nameof(Status_InstallStartingDownload));
     public static string Status_InstallPreparing => Get(nameof(Status_InstallPreparing));
     public static string Status_InstallCheckingFiles => Get(nameof(Status_InstallCheckingFiles));
     public static string Status_InstallDownloadingFiles => Get(nameof(Status_InstallDownloadingFiles));
@@ -317,4 +325,6 @@ public static class Strings
     public static string Status_LoadAccountProfileFailed => Get(nameof(Status_LoadAccountProfileFailed));
     public static string FilePicker_MinecraftSkinTitle => Get(nameof(FilePicker_MinecraftSkinTitle));
     public static string FilePicker_MinecraftSkinFilter => Get(nameof(FilePicker_MinecraftSkinFilter));
+    public static string FilePicker_JavaExecutableTitle => Get(nameof(FilePicker_JavaExecutableTitle));
+    public static string FilePicker_JavaExecutableFilter => Get(nameof(FilePicker_JavaExecutableFilter));
 }

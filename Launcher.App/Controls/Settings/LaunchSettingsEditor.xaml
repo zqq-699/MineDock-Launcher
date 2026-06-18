@@ -17,6 +17,46 @@
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
+        <Style x:Key="AdvancedLaunchTextBoxStyle"
+               TargetType="TextBox"
+               BasedOn="{StaticResource LauncherDialogTextBoxStyle}">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+
+        <Style x:Key="AdvancedLaunchEditableTextBoxStyle"
+               TargetType="TextBox"
+               BasedOn="{StaticResource AdvancedLaunchTextBoxStyle}">
+            <Setter Property="Visibility" Value="Visible" />
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding ShowModeSelector, ElementName=Root}" Value="True" />
+                        <Condition Binding="{Binding AreLaunchSettingsOverridesEnabled, ElementName=Root}" Value="False" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AdvancedLaunchGlobalTextBoxStyle"
+               TargetType="TextBox"
+               BasedOn="{StaticResource AdvancedLaunchTextBoxStyle}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Setter Property="IsEnabled" Value="False" />
+            <Setter Property="Text" Value="{x:Static res:Strings.GameSettings_LaunchSettingsModeUseGlobal}" />
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding ShowModeSelector, ElementName=Root}" Value="True" />
+                        <Condition Binding="{Binding AreLaunchSettingsOverridesEnabled, ElementName=Root}" Value="False" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Visible" />
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <DataTemplate x:Key="LaunchSettingsModeOptionTemplate">
             <TextBlock Text="{Binding Title}"
                        Foreground="#F4F4F4"
@@ -26,81 +66,163 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <GroupBox Header="{x:Static res:Strings.GameSettings_LaunchSettingsSection}"
-              Style="{StaticResource LauncherContentSectionStyle}">
-        <Border Style="{StaticResource SectionFieldSurfaceStyle}">
-            <StackPanel>
-                <Grid Margin="0,0,0,18">
-                    <Grid.Style>
-                        <Style TargetType="Grid">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding ShowModeSelector, ElementName=Root}" Value="False">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="180" />
-                    </Grid.ColumnDefinitions>
+    <StackPanel>
+        <Border Margin="0,0,0,26">
+            <Border.Style>
+                <Style TargetType="Border" BasedOn="{StaticResource SectionFieldSurfaceStyle}">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding ShowModeSelector, ElementName=Root}" Value="False">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="180" />
+                </Grid.ColumnDefinitions>
 
-                    <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchSettingsModeLabel}"
-                               Style="{StaticResource SettingsOptionTextStyle}" />
+                <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchSettingsModeLabel}"
+                           Style="{StaticResource SettingsOptionTextStyle}" />
 
-                    <controls:AnimatedComboBox Grid.Column="1"
-                                               ItemsSource="{Binding LaunchSettingsModeOptions, ElementName=Root}"
-                                               SelectedItem="{Binding SelectedLaunchSettingsModeOption, ElementName=Root, Mode=TwoWay}"
-                                               ItemTemplate="{StaticResource LaunchSettingsModeOptionTemplate}"
-                                               Style="{StaticResource LauncherComboBoxStyle}" />
-                </Grid>
-
-                <Grid Style="{StaticResource SettingsOptionRowStyle}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchCheckFilesOption}"
-                               Style="{StaticResource SettingsOptionTextStyle}" />
-
-                    <CheckBox Grid.Column="1"
-                              IsChecked="{Binding LaunchCheckFilesBeforeLaunchEnabled, ElementName=Root, Mode=TwoWay}"
-                              IsEnabled="{Binding AreLaunchSettingsOverridesEnabled, ElementName=Root}"
-                              Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
-                </Grid>
-
-                <Grid Style="{StaticResource SettingsOptionRowStyle}">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchAutoRepairOption}"
-                               Style="{StaticResource SettingsOptionTextStyle}" />
-
-                    <CheckBox Grid.Column="1"
-                              IsChecked="{Binding LaunchAutoRepairMissingFilesEnabled, ElementName=Root, Mode=TwoWay}"
-                              IsEnabled="{Binding CanEditAutoRepairMissingFiles, ElementName=Root}"
-                              Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
-                </Grid>
-
-                <Grid Margin="0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchMinimizeLauncherOption}"
-                               Style="{StaticResource SettingsOptionTextStyle}" />
-
-                    <CheckBox Grid.Column="1"
-                              IsChecked="{Binding LaunchMinimizeLauncherAfterLaunchEnabled, ElementName=Root, Mode=TwoWay}"
-                              IsEnabled="{Binding AreLaunchSettingsOverridesEnabled, ElementName=Root}"
-                              Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
-                </Grid>
-            </StackPanel>
+                <controls:AnimatedComboBox Grid.Column="1"
+                                           ItemsSource="{Binding LaunchSettingsModeOptions, ElementName=Root}"
+                                           SelectedItem="{Binding SelectedLaunchSettingsModeOption, ElementName=Root, Mode=TwoWay}"
+                                           ItemTemplate="{StaticResource LaunchSettingsModeOptionTemplate}"
+                                           Style="{StaticResource LauncherComboBoxStyle}" />
+            </Grid>
         </Border>
-    </GroupBox>
+
+        <GroupBox Header="{x:Static res:Strings.GameSettings_LaunchSettingsSection}"
+                  Style="{StaticResource LauncherContentSectionStyle}">
+            <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                <StackPanel>
+                    <Grid Style="{StaticResource SettingsOptionRowStyle}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchCheckFilesOption}"
+                                   Style="{StaticResource SettingsOptionTextStyle}" />
+
+                        <CheckBox Grid.Column="1"
+                                  IsChecked="{Binding LaunchCheckFilesBeforeLaunchEnabled, ElementName=Root, Mode=TwoWay}"
+                                  IsEnabled="{Binding AreLaunchSettingsOverridesEnabled, ElementName=Root}"
+                                  Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
+                    </Grid>
+
+                    <Grid Style="{StaticResource SettingsOptionRowStyle}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchAutoRepairOption}"
+                                   Style="{StaticResource SettingsOptionTextStyle}" />
+
+                        <CheckBox Grid.Column="1"
+                                  IsChecked="{Binding LaunchAutoRepairMissingFilesEnabled, ElementName=Root, Mode=TwoWay}"
+                                  IsEnabled="{Binding CanEditAutoRepairMissingFiles, ElementName=Root}"
+                                  Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
+                    </Grid>
+
+                    <Grid Style="{StaticResource SettingsOptionRowStyle}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchMinimizeLauncherOption}"
+                                   Style="{StaticResource SettingsOptionTextStyle}" />
+
+                        <CheckBox Grid.Column="1"
+                                  IsChecked="{Binding LaunchMinimizeLauncherAfterLaunchEnabled, ElementName=Root, Mode=TwoWay}"
+                                  IsEnabled="{Binding AreLaunchSettingsOverridesEnabled, ElementName=Root}"
+                                  Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
+                    </Grid>
+
+                    <Grid Margin="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="{x:Static res:Strings.GameSettings_LaunchFullScreenOption}"
+                                   Style="{StaticResource SettingsOptionTextStyle}" />
+
+                        <CheckBox Grid.Column="1"
+                                  IsChecked="{Binding LaunchFullScreenEnabled, ElementName=Root, Mode=TwoWay}"
+                                  IsEnabled="{Binding AreLaunchSettingsOverridesEnabled, ElementName=Root}"
+                                  Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </GroupBox>
+
+        <GroupBox Margin="0,26,0,0"
+                  Header="{x:Static res:Strings.GameSettings_AdvancedLaunchSettingsSection}"
+                  Style="{StaticResource LauncherContentSectionStyle}">
+            <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                <StackPanel>
+                    <TextBlock Text="{x:Static res:Strings.GameSettings_PreLaunchCommandOption}"
+                               Style="{StaticResource SettingsOptionTextStyle}"
+                               Margin="0,0,0,8" />
+                    <Grid>
+                        <TextBox Text="{Binding LaunchPreLaunchCommand, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding AreLaunchSettingsOverridesEnabled, ElementName=Root}"
+                                 Style="{StaticResource AdvancedLaunchEditableTextBoxStyle}" />
+                        <TextBox Style="{StaticResource AdvancedLaunchGlobalTextBoxStyle}" />
+                    </Grid>
+
+                    <Grid Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="{x:Static res:Strings.GameSettings_WaitForPreLaunchCommandOption}"
+                                   Style="{StaticResource SettingsOptionTextStyle}" />
+
+                        <CheckBox Grid.Column="1"
+                                  IsChecked="{Binding LaunchWaitForPreLaunchCommand, ElementName=Root, Mode=TwoWay}"
+                                  IsEnabled="{Binding AreLaunchSettingsOverridesEnabled, ElementName=Root}"
+                                  Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
+                    </Grid>
+
+                    <TextBlock Text="{x:Static res:Strings.GameSettings_PostExitCommandOption}"
+                               Style="{StaticResource SettingsOptionTextStyle}"
+                               Margin="0,16,0,8" />
+                    <Grid>
+                        <TextBox Text="{Binding LaunchPostExitCommand, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding AreLaunchSettingsOverridesEnabled, ElementName=Root}"
+                                 Style="{StaticResource AdvancedLaunchEditableTextBoxStyle}" />
+                        <TextBox Style="{StaticResource AdvancedLaunchGlobalTextBoxStyle}" />
+                    </Grid>
+
+                    <TextBlock Text="{x:Static res:Strings.GameSettings_CustomJvmArgumentsOption}"
+                               Style="{StaticResource SettingsOptionTextStyle}"
+                               Margin="0,16,0,8" />
+                    <Grid>
+                        <TextBox Text="{Binding LaunchJvmArguments, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding AreLaunchSettingsOverridesEnabled, ElementName=Root}"
+                                 Style="{StaticResource AdvancedLaunchEditableTextBoxStyle}" />
+                        <TextBox Style="{StaticResource AdvancedLaunchGlobalTextBoxStyle}" />
+                    </Grid>
+
+                    <TextBlock Text="{x:Static res:Strings.GameSettings_CustomGameArgumentsOption}"
+                               Style="{StaticResource SettingsOptionTextStyle}"
+                               Margin="0,16,0,8" />
+                    <Grid>
+                        <TextBox Text="{Binding LaunchGameArguments, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                 IsEnabled="{Binding AreLaunchSettingsOverridesEnabled, ElementName=Root}"
+                                 Style="{StaticResource AdvancedLaunchEditableTextBoxStyle}" />
+                        <TextBox Style="{StaticResource AdvancedLaunchGlobalTextBoxStyle}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </GroupBox>
+    </StackPanel>
 </UserControl>

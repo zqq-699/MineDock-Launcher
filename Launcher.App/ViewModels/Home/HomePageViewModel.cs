@@ -16,6 +16,7 @@ public sealed partial class HomePageViewModel : ObservableObject
     private readonly ILaunchService launchService;
     private readonly AccountPageViewModel accountPage;
     private readonly IStatusService statusService;
+    private readonly IFloatingMessageService floatingMessageService;
     private readonly IWindowService windowService;
     private readonly Action<double> reportProgressPercent;
     private readonly Func<GameInstance?, Task> openGameSettingsForInstance;
@@ -31,11 +32,15 @@ public sealed partial class HomePageViewModel : ObservableObject
     [ObservableProperty]
     private double launchProgressPercent;
 
+    [ObservableProperty]
+    private string launchDownloadSpeedText = string.Empty;
+
     public HomePageViewModel(
         ILaunchService launchService,
         IGameVersionService gameVersionService,
         AccountPageViewModel accountPage,
         IStatusService statusService,
+        IFloatingMessageService floatingMessageService,
         IWindowService windowService,
         Action<double> reportProgressPercent,
         Func<GameInstance, Task<bool>> selectLaunchInstance,
@@ -44,6 +49,7 @@ public sealed partial class HomePageViewModel : ObservableObject
         this.launchService = launchService;
         this.accountPage = accountPage;
         this.statusService = statusService;
+        this.floatingMessageService = floatingMessageService;
         this.windowService = windowService;
         this.reportProgressPercent = reportProgressPercent;
         this.openGameSettingsForInstance = openGameSettingsForInstance;
@@ -67,6 +73,8 @@ public sealed partial class HomePageViewModel : ObservableObject
     public bool CanLaunchSelectedGame => HasSelectedAccount && SelectedInstance is not null && !IsLaunching;
 
     public bool HasLaunchProgress => IsLaunching && !string.IsNullOrWhiteSpace(LaunchStatusMessage);
+
+    public bool HasLaunchDownloadSpeedText => IsLaunching && !string.IsNullOrWhiteSpace(LaunchDownloadSpeedText);
 
     public ObservableCollection<HomeLaunchInstanceItem> LaunchInstances => LaunchGames.LaunchInstances;
 
@@ -176,6 +184,7 @@ public sealed partial class HomePageViewModel : ObservableObject
         catch (OperationCanceledException) when (launchCancellationTokenSource?.IsCancellationRequested == true)
         {
             statusService.Report(Strings.Status_LaunchCanceled);
+            floatingMessageService.Show(Strings.Status_LaunchCanceled);
         }
         catch (LaunchAccountSessionException)
         {
@@ -220,6 +229,8 @@ public sealed partial class HomePageViewModel : ObservableObject
 
             var message = FormatLaunchProgress(progress);
             LaunchStatusMessage = message;
+            if (progress.DownloadSpeedText is not null)
+                LaunchDownloadSpeedText = progress.DownloadSpeedText;
 
             if (progress.Percent is double percent)
                 LaunchProgressPercent = Math.Clamp(percent, 0, 100);
@@ -233,6 +244,7 @@ public sealed partial class HomePageViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanLaunchSelectedGame));
         OnPropertyChanged(nameof(HasLaunchProgress));
+        OnPropertyChanged(nameof(HasLaunchDownloadSpeedText));
         OnPropertyChanged(nameof(CanOpenSelectedInstanceSettings));
         LaunchCommand.NotifyCanExecuteChanged();
         CancelLaunchCommand.NotifyCanExecuteChanged();
@@ -242,6 +254,11 @@ public sealed partial class HomePageViewModel : ObservableObject
     partial void OnLaunchStatusMessageChanged(string value)
     {
         OnPropertyChanged(nameof(HasLaunchProgress));
+    }
+
+    partial void OnLaunchDownloadSpeedTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasLaunchDownloadSpeedText));
     }
 
     private void LaunchGames_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -291,6 +308,7 @@ public sealed partial class HomePageViewModel : ObservableObject
         launchCancellationTokenSource = new CancellationTokenSource();
         IsLaunching = true;
         LaunchProgressPercent = 0;
+        LaunchDownloadSpeedText = string.Empty;
         LaunchStatusMessage = Strings.Status_LaunchPreparing;
         statusService.Report(LaunchStatusMessage);
         reportProgressPercent(LaunchProgressPercent);
@@ -303,6 +321,7 @@ public sealed partial class HomePageViewModel : ObservableObject
         launchCancellationTokenSource = null;
         LaunchProgressPercent = 0;
         reportProgressPercent(0);
+        LaunchDownloadSpeedText = string.Empty;
         LaunchStatusMessage = string.Empty;
         IsLaunching = false;
     }
@@ -325,6 +344,7 @@ public sealed partial class HomePageViewModel : ObservableObject
             LaunchProgressStages.RepairingAssets => Strings.Status_LaunchRepairingAssets,
             LaunchProgressStages.RepairingLogging => Strings.Status_LaunchRepairingLogging,
             LaunchProgressStages.CheckingJava => Strings.Status_LaunchCheckingJava,
+            LaunchProgressStages.RunningPreLaunchCommand => Strings.Status_LaunchRunningPreLaunchCommand,
             LaunchProgressStages.PreparingProcess => Strings.Status_LaunchPreparingProcess,
             LaunchProgressStages.StartingProcess => Strings.Status_LaunchStartingProcess,
             LaunchProgressStages.CheckingFiles => Strings.Status_LaunchCheckingFiles,

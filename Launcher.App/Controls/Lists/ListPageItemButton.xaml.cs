@@ -25,6 +25,9 @@ public partial class ListPageItemButton : UserControl
     public static readonly DependencyProperty IconSourceProperty =
         DependencyProperty.Register(nameof(IconSource), typeof(ImageSource), typeof(ListPageItemButton), new PropertyMetadata(null));
 
+    public static readonly DependencyProperty IconKeyProperty =
+        DependencyProperty.Register(nameof(IconKey), typeof(string), typeof(ListPageItemButton), new PropertyMetadata(null));
+
     public static readonly DependencyProperty CommandProperty =
         DependencyProperty.Register(nameof(Command), typeof(ICommand), typeof(ListPageItemButton), new PropertyMetadata(null));
 
@@ -134,6 +137,12 @@ public partial class ListPageItemButton : UserControl
     {
         get => (ImageSource?)GetValue(IconSourceProperty);
         set => SetValue(IconSourceProperty, value);
+    }
+
+    public string? IconKey
+    {
+        get => (string?)GetValue(IconKeyProperty);
+        set => SetValue(IconKeyProperty, value);
     }
 
     public ICommand? Command

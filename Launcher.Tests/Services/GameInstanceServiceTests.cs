@@ -80,28 +80,6 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task InstanceServicePassesDefaultJavaPathToForgeProvider()
-    {
-        var settings = new LauncherSettings
-        {
-            DataDirectory = TempRoot,
-            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
-            DefaultJavaPath = @"C:\Java\bin\java.exe"
-        };
-        var settingsService = new TestSettingsService(settings);
-        var repository = new JsonGameInstanceRepository(settingsService);
-        var provider = new FakeLoaderProvider { Kind = LoaderKind.Forge };
-        var modrinthService = new FakeModrinthService();
-        var service = new GameInstanceService(settingsService, repository, [provider], modrinthService);
-
-        var instance = await service.CreateInstanceAsync("1.20.1", LoaderKind.Forge, "47.4.20", "Forge Pack", null);
-
-        Assert.Equal("Forge Pack", instance.VersionName);
-        Assert.Equal(settings.DefaultJavaPath, provider.LastJavaPath);
-        Assert.Equal(0, modrinthService.InstallFabricApiCallCount);
-    }
-
-    [Fact]
     public async Task InstanceServiceQueuesConcurrentCreatesAndPersistsBothInstances()
     {
         var settingsService = new TestSettingsService(new LauncherSettings

@@ -255,13 +255,68 @@ public sealed class HomePageViewModelTests
     {
         var releaseLaunch = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var statusService = new FakeStatusService();
+        var floatingMessageService = new FakeFloatingMessageService();
         var launchService = new FakeLaunchService
         {
             LaunchBehavior = async (progress, cancellationToken) =>
             {
-                progress!.Report(new LauncherProgress(LaunchProgressStages.CheckingInstance, "ignored", 12));
+                progress!.Report(new LauncherProgress(LaunchProgressStages.RunningPreLaunchCommand, "ignored", 4));
                 await Task.Delay(25, cancellationToken);
                 await releaseLaunch.Task;
+            }
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "LocalUser",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+        var viewModel = CreateViewModel(
+            statusService,
+            launchService: launchService,
+            selectedAccount: account,
+            floatingMessageService: floatingMessageService);
+        viewModel.SetSelectedInstance(CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla));
+
+        var launchTask = viewModel.LaunchCommand.ExecuteAsync(null);
+        await Task.Delay(60);
+
+        Assert.True(viewModel.IsLaunching);
+        Assert.True(viewModel.HasLaunchProgress);
+        Assert.False(viewModel.CanLaunchSelectedGame);
+        Assert.False(viewModel.LaunchCommand.CanExecute(null));
+        Assert.Equal(Strings.Status_LaunchRunningPreLaunchCommand, viewModel.LaunchStatusMessage);
+        Assert.Equal(4, viewModel.LaunchProgressPercent);
+        Assert.False(viewModel.HasLaunchDownloadSpeedText);
+        Assert.Equal(string.Empty, viewModel.LaunchDownloadSpeedText);
+        Assert.Equal(Strings.Status_LaunchRunningPreLaunchCommand, statusService.LastMessage);
+
+        releaseLaunch.SetResult();
+        await launchTask;
+
+        Assert.False(viewModel.IsLaunching);
+        Assert.False(viewModel.HasLaunchProgress);
+        Assert.True(viewModel.CanLaunchSelectedGame);
+        Assert.Equal(string.Empty, viewModel.LaunchStatusMessage);
+        Assert.Equal(string.Empty, viewModel.LaunchDownloadSpeedText);
+        Assert.Equal(0, viewModel.LaunchProgressPercent);
+    }
+
+    [Fact]
+    public async Task HomePageLaunchShowsDownloadSpeedOnlyWhenStartupDownloadsFiles()
+    {
+        var releaseLaunch = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var statusService = new FakeStatusService();
+        var launchService = new FakeLaunchService
+        {
+            LaunchBehavior = async (progress, cancellationToken) =>
+            {
+                progress!.Report(new LauncherProgress(
+                    LaunchProgressStages.DownloadSpeed,
+                    string.Empty,
+                    DownloadSpeedText: "1.2 MB/s"));
+                await releaseLaunch.Task.WaitAsync(cancellationToken);
             }
         };
         var account = new LauncherAccount
@@ -278,27 +333,22 @@ public sealed class HomePageViewModelTests
         await Task.Delay(60);
 
         Assert.True(viewModel.IsLaunching);
-        Assert.True(viewModel.HasLaunchProgress);
-        Assert.False(viewModel.CanLaunchSelectedGame);
-        Assert.False(viewModel.LaunchCommand.CanExecute(null));
-        Assert.Equal(Strings.Status_LaunchCheckingInstance, viewModel.LaunchStatusMessage);
-        Assert.Equal(12, viewModel.LaunchProgressPercent);
-        Assert.Equal(Strings.Status_LaunchCheckingInstance, statusService.LastMessage);
+        Assert.True(viewModel.HasLaunchDownloadSpeedText);
+        Assert.Equal("1.2 MB/s", viewModel.LaunchDownloadSpeedText);
+        Assert.Equal(Strings.Status_LaunchDownloadingFiles, viewModel.LaunchStatusMessage);
 
         releaseLaunch.SetResult();
         await launchTask;
 
-        Assert.False(viewModel.IsLaunching);
-        Assert.False(viewModel.HasLaunchProgress);
-        Assert.True(viewModel.CanLaunchSelectedGame);
-        Assert.Equal(string.Empty, viewModel.LaunchStatusMessage);
-        Assert.Equal(0, viewModel.LaunchProgressPercent);
+        Assert.False(viewModel.HasLaunchDownloadSpeedText);
+        Assert.Equal(string.Empty, viewModel.LaunchDownloadSpeedText);
     }
 
     [Fact]
     public async Task HomePageCancelLaunchCancelsCurrentLaunchAndResetsProgress()
     {
         var statusService = new FakeStatusService();
+        var floatingMessageService = new FakeFloatingMessageService();
         var launchService = new FakeLaunchService
         {
             LaunchBehavior = async (progress, cancellationToken) =>
@@ -314,7 +364,11 @@ public sealed class HomePageViewModelTests
             Uuid = "00000000-0000-0000-0000-000000000001",
             IsOffline = true
         };
-        var viewModel = CreateViewModel(statusService, launchService: launchService, selectedAccount: account);
+        var viewModel = CreateViewModel(
+            statusService,
+            launchService: launchService,
+            selectedAccount: account,
+            floatingMessageService: floatingMessageService);
         viewModel.SetSelectedInstance(CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla));
 
         var launchTask = viewModel.LaunchCommand.ExecuteAsync(null);
@@ -325,6 +379,7 @@ public sealed class HomePageViewModelTests
         await launchTask;
 
         Assert.Equal(Strings.Status_LaunchCanceled, statusService.LastMessage);
+        Assert.Equal(Strings.Status_LaunchCanceled, floatingMessageService.LastMessage);
         Assert.False(viewModel.IsLaunching);
         Assert.False(viewModel.HasLaunchProgress);
         Assert.False(viewModel.CancelLaunchCommand.CanExecute(null));
@@ -469,7 +524,8 @@ public sealed class HomePageViewModelTests
         IReadOnlyList<MinecraftVersionInfo>? versions = null,
         FakeLaunchService? launchService = null,
         LauncherAccount? selectedAccount = null,
-        FakeWindowService? windowService = null)
+        FakeWindowService? windowService = null,
+        FakeFloatingMessageService? floatingMessageService = null)
     {
         statusService ??= new FakeStatusService();
         return new HomePageViewModel(
@@ -477,6 +533,7 @@ public sealed class HomePageViewModelTests
             new FakeGameVersionService(versions ?? []),
             CreateAccountPage(statusService, selectedAccount),
             statusService,
+            floatingMessageService ?? new FakeFloatingMessageService(),
             windowService ?? new FakeWindowService(),
             _ => { },
             selectLaunchInstance ?? (_ => Task.FromResult(true)),
@@ -570,6 +627,19 @@ public sealed class HomePageViewModelTests
         {
             LastMessage = message;
             MessageReported?.Invoke(message);
+        }
+    }
+
+    private sealed class FakeFloatingMessageService : IFloatingMessageService
+    {
+        public event Action<string>? MessageRequested;
+
+        public string? LastMessage { get; private set; }
+
+        public void Show(string message)
+        {
+            LastMessage = message;
+            MessageRequested?.Invoke(message);
         }
     }
 
@@ -746,6 +816,7 @@ public sealed class HomePageViewModelTests
         {
             return null;
         }
+
     }
 
     private sealed class FakeSkinFileValidator : IMinecraftSkinFileValidator

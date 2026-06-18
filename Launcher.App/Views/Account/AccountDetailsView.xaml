@@ -53,12 +53,11 @@
                        Foreground="#AFFFFFFF"
                        FontSize="13" />
 
-            <StackPanel Margin="0,26,0,0"
-                        HorizontalAlignment="Left">
+            <StackPanel Margin="0,26,0,0">
                 <GroupBox Header="{x:Static res:Strings.Account_UuidHeader}"
                           Style="{StaticResource LauncherContentSectionStyle}">
                     <StackPanel>
-                        <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                        <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -66,8 +65,8 @@
                                 </Grid.ColumnDefinitions>
 
                                 <TextBlock Text="{Binding OfflineUuid.SelectedAccountUuidText}"
-                                           Foreground="#E8FFFFFF"
-                                           FontSize="14"
+                                           Foreground="#CFFFFFFF"
+                                           FontSize="13"
                                            TextWrapping="Wrap"
                                            VerticalAlignment="Center" />
                                 <Button Grid.Column="1"

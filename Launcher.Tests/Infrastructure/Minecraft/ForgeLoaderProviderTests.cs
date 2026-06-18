@@ -55,7 +55,6 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
             minecraftDirectory,
             "1.20.1-forge-47.4.20",
             "47.4.20",
-            @"C:\Java\bin\java.exe",
             progress: null);
 
         var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
@@ -107,7 +106,6 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
             minecraftDirectory,
             "1.20.1-forge-47.4.20",
             "47.4.20",
-            javaPath: null,
             progress: null);
 
         Assert.NotNull(installerGameDirectory);
@@ -137,7 +135,6 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
             minecraftDirectory,
             "1.20.1-forge-47.4.20",
             "47.4.20",
-            javaPath: null,
             progress: null);
 
         Assert.True(sawLauncherProfile);
@@ -160,7 +157,6 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
             minecraftDirectory,
             "1.20.1-forge-47.4.20",
             "47.4.20",
-            javaPath: null,
             progress: null));
 
         Assert.True(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "1.20.1")));
@@ -185,7 +181,6 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
             minecraftDirectory,
             "Existing Forge Pack",
             "47.4.20",
-            javaPath: null,
             progress: null);
 
         Assert.Equal("Existing Forge Pack", finalVersionName);
@@ -278,7 +273,7 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
 
     private sealed class NoOpForgeInstallerRunner : IForgeInstallerRunner
     {
-        public Task RunInstallerAsync(string javaPath, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken)
+        public Task RunInstallerAsync(string javaCommand, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken)
         {
             return Task.CompletedTask;
         }
@@ -312,9 +307,9 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
             this.callback = callback;
         }
 
-        public Task RunInstallerAsync(string javaPath, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken)
+        public Task RunInstallerAsync(string javaCommand, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken)
         {
-            return callback(minecraftDirectory, javaPath, installerJarPath);
+            return callback(minecraftDirectory, javaCommand, installerJarPath);
         }
     }
 

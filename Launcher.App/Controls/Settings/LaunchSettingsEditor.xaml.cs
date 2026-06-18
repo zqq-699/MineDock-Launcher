@@ -30,6 +30,24 @@ public partial class LaunchSettingsEditor : UserControl
     public static readonly DependencyProperty LaunchMinimizeLauncherAfterLaunchEnabledProperty =
         DependencyProperty.Register(nameof(LaunchMinimizeLauncherAfterLaunchEnabled), typeof(bool), typeof(LaunchSettingsEditor), new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
 
+    public static readonly DependencyProperty LaunchFullScreenEnabledProperty =
+        DependencyProperty.Register(nameof(LaunchFullScreenEnabled), typeof(bool), typeof(LaunchSettingsEditor), new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+    public static readonly DependencyProperty LaunchPreLaunchCommandProperty =
+        DependencyProperty.Register(nameof(LaunchPreLaunchCommand), typeof(string), typeof(LaunchSettingsEditor), new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+    public static readonly DependencyProperty LaunchWaitForPreLaunchCommandProperty =
+        DependencyProperty.Register(nameof(LaunchWaitForPreLaunchCommand), typeof(bool), typeof(LaunchSettingsEditor), new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+    public static readonly DependencyProperty LaunchPostExitCommandProperty =
+        DependencyProperty.Register(nameof(LaunchPostExitCommand), typeof(string), typeof(LaunchSettingsEditor), new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+    public static readonly DependencyProperty LaunchJvmArgumentsProperty =
+        DependencyProperty.Register(nameof(LaunchJvmArguments), typeof(string), typeof(LaunchSettingsEditor), new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+    public static readonly DependencyProperty LaunchGameArgumentsProperty =
+        DependencyProperty.Register(nameof(LaunchGameArguments), typeof(string), typeof(LaunchSettingsEditor), new FrameworkPropertyMetadata(string.Empty, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
     public LaunchSettingsEditor()
     {
         InitializeComponent();
@@ -81,5 +99,41 @@ public partial class LaunchSettingsEditor : UserControl
     {
         get => (bool)GetValue(LaunchMinimizeLauncherAfterLaunchEnabledProperty);
         set => SetValue(LaunchMinimizeLauncherAfterLaunchEnabledProperty, value);
+    }
+
+    public bool LaunchFullScreenEnabled
+    {
+        get => (bool)GetValue(LaunchFullScreenEnabledProperty);
+        set => SetValue(LaunchFullScreenEnabledProperty, value);
+    }
+
+    public string LaunchPreLaunchCommand
+    {
+        get => (string)GetValue(LaunchPreLaunchCommandProperty);
+        set => SetValue(LaunchPreLaunchCommandProperty, value);
+    }
+
+    public bool LaunchWaitForPreLaunchCommand
+    {
+        get => (bool)GetValue(LaunchWaitForPreLaunchCommandProperty);
+        set => SetValue(LaunchWaitForPreLaunchCommandProperty, value);
+    }
+
+    public string LaunchPostExitCommand
+    {
+        get => (string)GetValue(LaunchPostExitCommandProperty);
+        set => SetValue(LaunchPostExitCommandProperty, value);
+    }
+
+    public string LaunchJvmArguments
+    {
+        get => (string)GetValue(LaunchJvmArgumentsProperty);
+        set => SetValue(LaunchJvmArgumentsProperty, value);
+    }
+
+    public string LaunchGameArguments
+    {
+        get => (string)GetValue(LaunchGameArgumentsProperty);
+        set => SetValue(LaunchGameArgumentsProperty, value);
     }
 }

@@ -18,6 +18,7 @@ public partial class App : System.Windows.Application
         services.AddLauncherApplication();
         services.AddLauncherInfrastructure();
         services.AddSingleton<IStatusService, StatusService>();
+        services.AddSingleton<IFloatingMessageService, FloatingMessageService>();
         services.AddSingleton<IWindowService, WindowService>();
         services.AddSingleton<IClipboardService, ClipboardService>();
         services.AddSingleton<IFilePickerService, FilePickerService>();

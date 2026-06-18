@@ -116,9 +116,10 @@
                 <GroupBox Margin="0,26,0,0"
                           Header="{x:Static res:Strings.GameSettings_GeneralCreatedAtSection}"
                           Style="{StaticResource LauncherContentSectionStyle}">
-                    <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                    <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
                         <TextBlock Text="{Binding InstanceCreatedAtText}"
                                    Foreground="#CFFFFFFF"
+                                   VerticalAlignment="Center"
                                    FontSize="13" />
                     </Border>
                 </GroupBox>
@@ -134,7 +135,13 @@
                                               CanEditAutoRepairMissingFiles="{Binding CanEditAutoRepairMissingFiles}"
                                               LaunchCheckFilesBeforeLaunchEnabled="{Binding LaunchCheckFilesBeforeLaunchEnabled, Mode=TwoWay}"
                                               LaunchAutoRepairMissingFilesEnabled="{Binding LaunchAutoRepairMissingFilesEnabled, Mode=TwoWay}"
-                                              LaunchMinimizeLauncherAfterLaunchEnabled="{Binding LaunchMinimizeLauncherAfterLaunchEnabled, Mode=TwoWay}" />
+                                              LaunchMinimizeLauncherAfterLaunchEnabled="{Binding LaunchMinimizeLauncherAfterLaunchEnabled, Mode=TwoWay}"
+                                              LaunchFullScreenEnabled="{Binding LaunchFullScreenEnabled, Mode=TwoWay}"
+                                              LaunchPreLaunchCommand="{Binding LaunchPreLaunchCommand, Mode=TwoWay}"
+                                              LaunchWaitForPreLaunchCommand="{Binding LaunchWaitForPreLaunchCommand, Mode=TwoWay}"
+                                              LaunchPostExitCommand="{Binding LaunchPostExitCommand, Mode=TwoWay}"
+                                              LaunchJvmArguments="{Binding LaunchJvmArguments, Mode=TwoWay}"
+                                              LaunchGameArguments="{Binding LaunchGameArguments, Mode=TwoWay}" />
             </StackPanel>
 
             <GroupBox Margin="0"

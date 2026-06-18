@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.IO;
-using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
@@ -40,6 +39,24 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     private bool launchMinimizeLauncherAfterLaunchEnabled;
 
     [ObservableProperty]
+    private bool launchFullScreenEnabled;
+
+    [ObservableProperty]
+    private string launchPreLaunchCommand = string.Empty;
+
+    [ObservableProperty]
+    private bool launchWaitForPreLaunchCommand = true;
+
+    [ObservableProperty]
+    private string launchPostExitCommand = string.Empty;
+
+    [ObservableProperty]
+    private string launchJvmArguments = string.Empty;
+
+    [ObservableProperty]
+    private string launchGameArguments = string.Empty;
+
+    [ObservableProperty]
     private GameSettingsLaunchSettingsModeOption? selectedLaunchSettingsModeOption;
 
     public GameSettingsDetailsViewModel(
@@ -71,6 +88,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     public bool IsGeneralSection => string.Equals(SelectedSection?.Id, "general", StringComparison.OrdinalIgnoreCase);
 
     public bool IsLaunchSection => string.Equals(SelectedSection?.Id, "launch", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsJavaMemorySection => string.Equals(SelectedSection?.Id, "java_memory", StringComparison.OrdinalIgnoreCase);
 
     public bool AreLaunchSettingsOverridesEnabled => SelectedLaunchSettingsModeOption?.Mode is LaunchSettingsMode.PerInstance;
 
@@ -159,6 +178,12 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
                 LaunchCheckFilesBeforeLaunchEnabled = value?.Instance.CheckFilesBeforeLaunch ?? true;
                 LaunchAutoRepairMissingFilesEnabled = value?.Instance.AutoRepairMissingFiles ?? true;
                 LaunchMinimizeLauncherAfterLaunchEnabled = value?.Instance.MinimizeLauncherAfterLaunch ?? false;
+                LaunchFullScreenEnabled = value?.Instance.LaunchFullScreen ?? false;
+                LaunchPreLaunchCommand = value?.Instance.PreLaunchCommand ?? string.Empty;
+                LaunchWaitForPreLaunchCommand = value?.Instance.WaitForPreLaunchCommand ?? true;
+                LaunchPostExitCommand = value?.Instance.PostExitCommand ?? string.Empty;
+                LaunchJvmArguments = value?.Instance.JvmArguments ?? string.Empty;
+                LaunchGameArguments = value?.Instance.GameArguments ?? string.Empty;
             }
         }
         finally
@@ -171,6 +196,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsGeneralSection));
         OnPropertyChanged(nameof(IsLaunchSection));
+        OnPropertyChanged(nameof(IsJavaMemorySection));
         OnPropertyChanged(nameof(SectionTitle));
         OnPropertyChanged(nameof(SectionPlaceholderBody));
     }
@@ -226,6 +252,54 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         SaveLaunchSettings();
     }
 
+    partial void OnLaunchFullScreenEnabledChanged(bool value)
+    {
+        if (suppressInstanceSettingsAutoSave)
+            return;
+
+        SaveLaunchSettings();
+    }
+
+    partial void OnLaunchPreLaunchCommandChanged(string value)
+    {
+        if (suppressInstanceSettingsAutoSave)
+            return;
+
+        SaveLaunchSettings();
+    }
+
+    partial void OnLaunchWaitForPreLaunchCommandChanged(bool value)
+    {
+        if (suppressInstanceSettingsAutoSave)
+            return;
+
+        SaveLaunchSettings();
+    }
+
+    partial void OnLaunchPostExitCommandChanged(string value)
+    {
+        if (suppressInstanceSettingsAutoSave)
+            return;
+
+        SaveLaunchSettings();
+    }
+
+    partial void OnLaunchJvmArgumentsChanged(string value)
+    {
+        if (suppressInstanceSettingsAutoSave)
+            return;
+
+        SaveLaunchSettings();
+    }
+
+    partial void OnLaunchGameArgumentsChanged(string value)
+    {
+        if (suppressInstanceSettingsAutoSave)
+            return;
+
+        SaveLaunchSettings();
+    }
+
     private void SelectedInstance_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         OnPropertyChanged(nameof(InstanceName));
@@ -247,6 +321,12 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             LaunchCheckFilesBeforeLaunchEnabled = globalSettings.DefaultCheckFilesBeforeLaunch;
             LaunchAutoRepairMissingFilesEnabled = globalSettings.DefaultAutoRepairMissingFiles;
             LaunchMinimizeLauncherAfterLaunchEnabled = globalSettings.DefaultMinimizeLauncherAfterLaunch;
+            LaunchFullScreenEnabled = globalSettings.DefaultLaunchFullScreen;
+            LaunchPreLaunchCommand = globalSettings.DefaultPreLaunchCommand;
+            LaunchWaitForPreLaunchCommand = globalSettings.DefaultWaitForPreLaunchCommand;
+            LaunchPostExitCommand = globalSettings.DefaultPostExitCommand;
+            LaunchJvmArguments = globalSettings.DefaultJvmArguments;
+            LaunchGameArguments = globalSettings.DefaultGameArguments;
         }
         finally
         {
@@ -284,12 +364,24 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         var checkFilesBeforeLaunch = LaunchCheckFilesBeforeLaunchEnabled;
         var autoRepairMissingFiles = LaunchAutoRepairMissingFilesEnabled;
         var minimizeLauncherAfterLaunch = LaunchMinimizeLauncherAfterLaunchEnabled;
+        var launchFullScreen = LaunchFullScreenEnabled;
+        var preLaunchCommand = NormalizeSettingText(LaunchPreLaunchCommand);
+        var waitForPreLaunchCommand = LaunchWaitForPreLaunchCommand;
+        var postExitCommand = NormalizeSettingText(LaunchPostExitCommand);
+        var jvmArguments = NormalizeSettingText(LaunchJvmArguments);
+        var gameArguments = NormalizeSettingText(LaunchGameArguments);
         _ = SaveLaunchSettingsAsync(
             instanceId,
             mode,
             checkFilesBeforeLaunch,
             autoRepairMissingFiles,
-            minimizeLauncherAfterLaunch);
+            minimizeLauncherAfterLaunch,
+            launchFullScreen,
+            preLaunchCommand,
+            waitForPreLaunchCommand,
+            postExitCommand,
+            jvmArguments,
+            gameArguments);
     }
 
     private void ScheduleDescriptionSave()
@@ -349,7 +441,13 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         LaunchSettingsMode mode,
         bool checkFilesBeforeLaunch,
         bool autoRepairMissingFiles,
-        bool minimizeLauncherAfterLaunch)
+        bool minimizeLauncherAfterLaunch,
+        bool launchFullScreen,
+        string preLaunchCommand,
+        bool waitForPreLaunchCommand,
+        string postExitCommand,
+        string jvmArguments,
+        string gameArguments)
     {
         if (SelectedInstance is null
             || !string.Equals(SelectedInstance.Instance.Id, instanceId, StringComparison.OrdinalIgnoreCase))
@@ -362,11 +460,23 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         var originalCheckFilesBeforeLaunch = instance.CheckFilesBeforeLaunch;
         var originalAutoRepairMissingFiles = instance.AutoRepairMissingFiles;
         var originalMinimizeLauncherAfterLaunch = instance.MinimizeLauncherAfterLaunch;
+        var originalLaunchFullScreen = instance.LaunchFullScreen;
+        var originalPreLaunchCommand = instance.PreLaunchCommand;
+        var originalWaitForPreLaunchCommand = instance.WaitForPreLaunchCommand;
+        var originalPostExitCommand = instance.PostExitCommand;
+        var originalJvmArguments = instance.JvmArguments;
+        var originalGameArguments = instance.GameArguments;
 
         if (originalMode == mode
             && originalCheckFilesBeforeLaunch == checkFilesBeforeLaunch
             && originalAutoRepairMissingFiles == autoRepairMissingFiles
-            && originalMinimizeLauncherAfterLaunch == minimizeLauncherAfterLaunch)
+            && originalMinimizeLauncherAfterLaunch == minimizeLauncherAfterLaunch
+            && originalLaunchFullScreen == launchFullScreen
+            && string.Equals(originalPreLaunchCommand, preLaunchCommand, StringComparison.Ordinal)
+            && originalWaitForPreLaunchCommand == waitForPreLaunchCommand
+            && string.Equals(originalPostExitCommand, postExitCommand, StringComparison.Ordinal)
+            && string.Equals(originalJvmArguments, jvmArguments, StringComparison.Ordinal)
+            && string.Equals(originalGameArguments, gameArguments, StringComparison.Ordinal))
         {
             return;
         }
@@ -377,6 +487,12 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             instance.CheckFilesBeforeLaunch = checkFilesBeforeLaunch;
             instance.AutoRepairMissingFiles = autoRepairMissingFiles;
             instance.MinimizeLauncherAfterLaunch = minimizeLauncherAfterLaunch;
+            instance.LaunchFullScreen = launchFullScreen;
+            instance.PreLaunchCommand = preLaunchCommand;
+            instance.WaitForPreLaunchCommand = waitForPreLaunchCommand;
+            instance.PostExitCommand = postExitCommand;
+            instance.JvmArguments = jvmArguments;
+            instance.GameArguments = gameArguments;
             await instanceService.SaveInstanceAsync(instance);
         }
         catch (Exception)
@@ -385,12 +501,24 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             instance.CheckFilesBeforeLaunch = originalCheckFilesBeforeLaunch;
             instance.AutoRepairMissingFiles = originalAutoRepairMissingFiles;
             instance.MinimizeLauncherAfterLaunch = originalMinimizeLauncherAfterLaunch;
+            instance.LaunchFullScreen = originalLaunchFullScreen;
+            instance.PreLaunchCommand = originalPreLaunchCommand;
+            instance.WaitForPreLaunchCommand = originalWaitForPreLaunchCommand;
+            instance.PostExitCommand = originalPostExitCommand;
+            instance.JvmArguments = originalJvmArguments;
+            instance.GameArguments = originalGameArguments;
 
             suppressInstanceSettingsAutoSave = true;
             SelectedLaunchSettingsModeOption = ResolveLaunchSettingsModeOption(originalMode);
             LaunchCheckFilesBeforeLaunchEnabled = originalCheckFilesBeforeLaunch;
             LaunchAutoRepairMissingFilesEnabled = originalAutoRepairMissingFiles;
             LaunchMinimizeLauncherAfterLaunchEnabled = originalMinimizeLauncherAfterLaunch;
+            LaunchFullScreenEnabled = originalLaunchFullScreen;
+            LaunchPreLaunchCommand = originalPreLaunchCommand;
+            LaunchWaitForPreLaunchCommand = originalWaitForPreLaunchCommand;
+            LaunchPostExitCommand = originalPostExitCommand;
+            LaunchJvmArguments = originalJvmArguments;
+            LaunchGameArguments = originalGameArguments;
             suppressInstanceSettingsAutoSave = false;
 
             statusService.Report(Strings.Status_InstanceSettingsSaveFailed);
@@ -401,6 +529,11 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     {
         return LaunchSettingsModeOptions.FirstOrDefault(option => option.Mode == mode)
                ?? LaunchSettingsModeOptions[0];
+    }
+
+    private static string NormalizeSettingText(string? value)
+    {
+        return value?.Trim() ?? string.Empty;
     }
 
     private void CancelPendingDescriptionSave()

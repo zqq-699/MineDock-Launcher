@@ -1,5 +1,6 @@
 ﻿using System.Windows;
 using Launcher.App.Controls;
+using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application.Accounts;
 using Launcher.Application.Services;
@@ -121,12 +122,79 @@ public sealed class MainViewModelTests
         Assert.Equal(["Vanilla World", "Fabric Pack"], viewModel.GameSettingsPage.VisibleInstances.Select(instance => instance.Name));
     }
 
+    [Fact]
+    public async Task GlobalLaunchDefaultsRefreshUseGlobalGameSettingsTogglesImmediately()
+    {
+        var settings = new LauncherSettings
+        {
+            DefaultCheckFilesBeforeLaunch = false,
+            DefaultAutoRepairMissingFiles = false,
+            DefaultMinimizeLauncherAfterLaunch = false,
+            DefaultLaunchFullScreen = false,
+            DefaultWaitForPreLaunchCommand = true,
+            DefaultGameArguments = string.Empty
+        };
+        var instanceService = new FakeGameInstanceService();
+        var instance = CreateInstance("Vanilla World", "1.21.4");
+        instance.LaunchSettingsMode = LaunchSettingsMode.UseGlobal;
+        instanceService.CreatedInstances.Add(instance);
+        var viewModel = CreateViewModel(instanceService, settings);
+
+        await viewModel.InitializeAsync();
+        await viewModel.GameSettingsPage.EnsureInstancesLoadedAsync();
+        viewModel.GameSettingsPage.SelectInstanceCommand.Execute(viewModel.GameSettingsPage.VisibleInstances.Single());
+
+        Assert.False(viewModel.GameSettingsPage.Details.LaunchCheckFilesBeforeLaunchEnabled);
+        Assert.False(viewModel.GameSettingsPage.Details.LaunchAutoRepairMissingFilesEnabled);
+        Assert.False(viewModel.GameSettingsPage.Details.LaunchMinimizeLauncherAfterLaunchEnabled);
+        Assert.False(viewModel.GameSettingsPage.Details.LaunchFullScreenEnabled);
+        Assert.True(viewModel.GameSettingsPage.Details.LaunchWaitForPreLaunchCommand);
+        Assert.Equal(string.Empty, viewModel.GameSettingsPage.Details.LaunchGameArguments);
+
+        viewModel.SettingsPage.DefaultCheckFilesBeforeLaunch = true;
+        viewModel.SettingsPage.DefaultMinimizeLauncherAfterLaunch = true;
+        viewModel.SettingsPage.DefaultLaunchFullScreen = true;
+        viewModel.SettingsPage.DefaultWaitForPreLaunchCommand = false;
+        viewModel.SettingsPage.DefaultGameArguments = "--demo";
+
+        Assert.True(viewModel.GameSettingsPage.Details.LaunchCheckFilesBeforeLaunchEnabled);
+        Assert.True(viewModel.GameSettingsPage.Details.LaunchAutoRepairMissingFilesEnabled);
+        Assert.True(viewModel.GameSettingsPage.Details.LaunchMinimizeLauncherAfterLaunchEnabled);
+        Assert.True(viewModel.GameSettingsPage.Details.LaunchFullScreenEnabled);
+        Assert.False(viewModel.GameSettingsPage.Details.LaunchWaitForPreLaunchCommand);
+        Assert.Equal("--demo", viewModel.GameSettingsPage.Details.LaunchGameArguments);
+    }
+
+    [Fact]
+    public void FloatingMessageShowsOnlyWhenExplicitlyRequested()
+    {
+        var statusService = new FakeStatusService();
+        var floatingMessageService = new FakeFloatingMessageService();
+        var viewModel = CreateViewModel(
+            new FakeGameInstanceService(),
+            statusService: statusService,
+            floatingMessageService: floatingMessageService);
+
+        statusService.Report(Strings.Status_LaunchCanceled);
+
+        Assert.False(viewModel.IsFloatingMessageOpen);
+        Assert.Equal(string.Empty, viewModel.FloatingMessage);
+
+        floatingMessageService.Show(Strings.Status_LaunchCanceled);
+
+        Assert.True(viewModel.IsFloatingMessageOpen);
+        Assert.Equal(Strings.Status_LaunchCanceled, viewModel.FloatingMessage);
+    }
+
     private static MainViewModel CreateViewModel(
         FakeGameInstanceService instanceService,
-        LauncherSettings? settings = null)
+        LauncherSettings? settings = null,
+        FakeStatusService? statusService = null,
+        FakeFloatingMessageService? floatingMessageService = null)
     {
         var settingsService = new TestSettingsService(settings ?? new LauncherSettings());
-        var statusService = new FakeStatusService();
+        statusService ??= new FakeStatusService();
+        floatingMessageService ??= new FakeFloatingMessageService();
         var gameVersionService = new FakeGameVersionService([]);
         var downloadTasksPage = new DownloadTasksPageViewModel();
         var accountPage = CreateAccountPage(statusService);
@@ -148,7 +216,14 @@ public sealed class MainViewModelTests
             gameManagement,
             new FakeWindowService(),
             statusService,
-            new HomePageViewModelFactory(new FakeLaunchService(), gameVersionService, statusService, new FakeWindowService()));
+            floatingMessageService,
+            ImmediateUiDispatcher.Instance,
+            new HomePageViewModelFactory(
+                new FakeLaunchService(),
+                gameVersionService,
+                statusService,
+                floatingMessageService,
+                new FakeWindowService()));
     }
 
     private static AccountPageViewModel CreateAccountPage(FakeStatusService statusService)
@@ -201,6 +276,16 @@ public sealed class MainViewModelTests
         {
             LastMessage = message;
             MessageReported?.Invoke(message);
+        }
+    }
+
+    private sealed class FakeFloatingMessageService : IFloatingMessageService
+    {
+        public event Action<string>? MessageRequested;
+
+        public void Show(string message)
+        {
+            MessageRequested?.Invoke(message);
         }
     }
 
@@ -447,6 +532,7 @@ public sealed class MainViewModelTests
         {
             return null;
         }
+
     }
 
     private sealed class FakeSkinFileValidator : IMinecraftSkinFileValidator

@@ -7,11 +7,16 @@ public sealed class LauncherSettings
     public string Theme { get; set; } = LauncherDefaults.DefaultTheme;
     public string DataDirectory { get; set; } = string.Empty;
     public string MinecraftDirectory { get; set; } = string.Empty;
-    public string? DefaultJavaPath { get; set; }
     public int DefaultMemoryMb { get; set; } = LauncherDefaults.DefaultMemoryMb;
     public bool DefaultCheckFilesBeforeLaunch { get; set; } = true;
     public bool DefaultAutoRepairMissingFiles { get; set; } = true;
     public bool DefaultMinimizeLauncherAfterLaunch { get; set; }
+    public bool DefaultLaunchFullScreen { get; set; }
+    public string DefaultPreLaunchCommand { get; set; } = string.Empty;
+    public bool DefaultWaitForPreLaunchCommand { get; set; } = true;
+    public string DefaultPostExitCommand { get; set; } = string.Empty;
+    public string DefaultJvmArguments { get; set; } = string.Empty;
+    public string DefaultGameArguments { get; set; } = string.Empty;
     public string? DefaultInstanceId { get; set; }
     public string? SelectedAccountId { get; set; }
     public bool AccountsInitialized { get; set; }

@@ -37,7 +37,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
             minecraftDirectory,
             "Forge Pack",
             versionDirectory,
-            Environment.ProcessPath,
             progress,
             allowRepair: true,
             CancellationToken.None);
@@ -46,7 +45,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
         Assert.Equal(["Forge Pack"], Directory.GetDirectories(Path.Combine(minecraftDirectory, "versions")).Select(Path.GetFileName));
         Assert.Contains(progress.Items, item => item.Stage == LaunchProgressStages.CheckingInstance);
         Assert.Contains(progress.Items, item => item.Stage == LaunchProgressStages.RepairingJar);
-        Assert.True(progress.Items.Select(item => item.Percent ?? 0).SequenceEqual(progress.Items.Select(item => item.Percent ?? 0).Order()));
+        AssertProgressPercentIsMonotonic(progress.Items);
     }
 
     [Fact]
@@ -93,7 +92,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
             minecraftDirectory,
             "Fabric Pack",
             versionDirectory,
-            Environment.ProcessPath,
             progress,
             allowRepair: true,
             CancellationToken.None);
@@ -107,7 +105,44 @@ public sealed class LaunchServiceTests : TestTempDirectory
         Assert.Contains(progress.Items, item => item.Stage == LaunchProgressStages.RepairingAssets);
         Assert.Contains(progress.Items, item => item.Stage == LaunchProgressStages.RepairingLogging);
         Assert.Contains(progress.Items, item => item.Stage == LaunchProgressStages.CheckingJava);
-        Assert.True(progress.Items.Select(item => item.Percent ?? 0).SequenceEqual(progress.Items.Select(item => item.Percent ?? 0).Order()));
+        AssertProgressPercentIsMonotonic(progress.Items);
+    }
+
+    [Fact]
+    public async Task ManagedVersionRepairDownloadsMissingAssetsConcurrently()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", "Fabric Pack");
+        Directory.CreateDirectory(versionDirectory);
+        await File.WriteAllTextAsync(Path.Combine(versionDirectory, "Fabric Pack.jar"), "jar");
+        await File.WriteAllTextAsync(
+            Path.Combine(versionDirectory, "Fabric Pack.json"),
+            """
+            {
+              "id": "Fabric Pack",
+              "jar": "Fabric Pack",
+              "libraries": [],
+              "assetIndex": {
+                "id": "concurrent-assets",
+                "url": "https://example.test/assets/concurrent-index.json"
+              }
+            }
+            """);
+
+        var handler = new ConcurrentAssetRepairHttpHandler();
+        var repairService = new ManagedVersionRepairService(new HttpClient(handler));
+
+        await repairService.RepairAsync(
+            minecraftDirectory,
+            "Fabric Pack",
+            versionDirectory,
+            progress: null,
+            allowRepair: true,
+            CancellationToken.None);
+
+        Assert.True(handler.MaxConcurrentAssetRequests > 1);
+        Assert.True(File.Exists(Path.Combine(minecraftDirectory, "assets", "objects", "aa", ConcurrentAssetRepairHttpHandler.AssetHashes[0])));
+        Assert.True(File.Exists(Path.Combine(minecraftDirectory, "assets", "objects", "dd", ConcurrentAssetRepairHttpHandler.AssetHashes[3])));
     }
 
     [Fact]
@@ -142,7 +177,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
             minecraftDirectory,
             "Forge Pack",
             versionDirectory,
-            Environment.ProcessPath,
             progress: null,
             allowRepair: true,
             CancellationToken.None);
@@ -196,7 +230,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
             minecraftDirectory,
             "External Pack",
             versionDirectory,
-            Environment.ProcessPath,
             progress: null,
             allowRepair: true,
             CancellationToken.None);
@@ -230,7 +263,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
             minecraftDirectory,
             "Imported Pack",
             versionDirectory,
-            Environment.ProcessPath,
             progress: null,
             allowRepair: true,
             CancellationToken.None);
@@ -262,7 +294,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
             minecraftDirectory,
             "Broken Pack",
             versionDirectory,
-            Environment.ProcessPath,
             progress: null,
             allowRepair: true,
             CancellationToken.None));
@@ -282,15 +313,13 @@ public sealed class LaunchServiceTests : TestTempDirectory
             new NoOpLaunchCrashMonitor());
         var settings = new LauncherSettings
         {
-            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
-            DefaultJavaPath = @"C:\Java\bin\java.exe"
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
         };
         var instance = new GameInstance
         {
             Name = "Forge Pack",
             VersionName = "Forge Pack",
-            InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Forge Pack"),
-            JavaPath = @"D:\Java\bin\java.exe"
+            InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Forge Pack")
         };
         var account = new LauncherAccount
         {
@@ -304,7 +333,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
 
         Assert.Equal("Forge Pack", repairService.LastVersionName);
         Assert.Equal(instance.InstanceDirectory, repairService.LastInstanceDirectory);
-        Assert.Equal(instance.JavaPath, repairService.LastJavaPath);
         Assert.True(repairService.LastAllowRepair);
         Assert.Equal("Forge Pack", launcherFactory.Launcher.LastBuiltVersionName);
     }
@@ -383,6 +411,114 @@ public sealed class LaunchServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task LaunchServiceAppliesFullscreenLaunchOptionFromEffectiveSettings()
+    {
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            launcherFactory,
+            new NoOpLaunchCrashMonitor());
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultLaunchFullScreen = true
+        };
+        var instance = new GameInstance
+        {
+            Name = "Vanilla World",
+            VersionName = "1.21.4",
+            InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "1.21.4"),
+            LaunchSettingsMode = LaunchSettingsMode.UseGlobal,
+            LaunchFullScreen = false
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline",
+            DisplayName = "Player",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+
+        await service.LaunchAsync(instance, account, settings, progress: null);
+
+        Assert.True(launcherFactory.Launcher.LastLaunchOption?.FullScreen);
+
+        settings.DefaultLaunchFullScreen = false;
+        instance.LaunchSettingsMode = LaunchSettingsMode.PerInstance;
+        instance.LaunchFullScreen = true;
+
+        await service.LaunchAsync(instance, account, settings, progress: null);
+
+        Assert.True(launcherFactory.Launcher.LastLaunchOption?.FullScreen);
+    }
+
+    [Fact]
+    public async Task LaunchServiceAppliesAdvancedLaunchSettingsFromEffectiveSettings()
+    {
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var commandRunner = new FakeLaunchCommandRunner();
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            launcherFactory,
+            new NoOpLaunchCrashMonitor(),
+            commandRunner);
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultPreLaunchCommand = "echo global-before",
+            DefaultWaitForPreLaunchCommand = false,
+            DefaultPostExitCommand = "echo global-after",
+            DefaultJvmArguments = "-Dglobal=true",
+            DefaultGameArguments = "--global"
+        };
+        var instance = new GameInstance
+        {
+            Name = "Vanilla World",
+            VersionName = "1.21.4",
+            InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "1.21.4"),
+            LaunchSettingsMode = LaunchSettingsMode.UseGlobal,
+            PreLaunchCommand = "echo instance-before",
+            WaitForPreLaunchCommand = true,
+            PostExitCommand = "echo instance-after",
+            JvmArguments = "-Dinstance=true",
+            GameArguments = "--instance"
+        };
+        Directory.CreateDirectory(instance.InstanceDirectory);
+        var account = new LauncherAccount
+        {
+            Id = "offline",
+            DisplayName = "Player",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+        var progress = new RecordingProgress();
+
+        await service.LaunchAsync(instance, account, settings, progress);
+        await TestAsync.WaitForAsync(() => commandRunner.CommandCount >= 2);
+
+        Assert.Contains(progress.Items, item => item.Stage == LaunchProgressStages.RunningPreLaunchCommand);
+        Assert.Equal("-Dglobal=true", FlattenArguments(launcherFactory.Launcher.LastLaunchOption?.ExtraJvmArguments));
+        Assert.Equal("--global", FlattenArguments(launcherFactory.Launcher.LastLaunchOption?.ExtraGameArguments));
+        var globalCommands = commandRunner.Snapshot();
+        Assert.Contains(globalCommands, command => command.Command == "echo global-before" && !command.WaitForExit);
+        Assert.Contains(globalCommands, command => command.Command == "echo global-after" && !command.WaitForExit);
+
+        commandRunner.Clear();
+        instance.LaunchSettingsMode = LaunchSettingsMode.PerInstance;
+
+        await service.LaunchAsync(instance, account, settings, progress: null);
+        await TestAsync.WaitForAsync(() => commandRunner.CommandCount >= 2);
+
+        Assert.Equal("-Dinstance=true", FlattenArguments(launcherFactory.Launcher.LastLaunchOption?.ExtraJvmArguments));
+        Assert.Equal("--instance", FlattenArguments(launcherFactory.Launcher.LastLaunchOption?.ExtraGameArguments));
+        var instanceCommands = commandRunner.Snapshot();
+        Assert.Contains(instanceCommands, command => command.Command == "echo instance-before" && command.WaitForExit);
+        Assert.Contains(instanceCommands, command => command.Command == "echo instance-after" && !command.WaitForExit);
+    }
+
+    [Fact]
     public async Task ManagedVersionRepairThrowsWhenJarIsMissingAndAutoRepairDisabled()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -408,7 +544,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
             minecraftDirectory,
             "Forge Pack",
             versionDirectory,
-            Environment.ProcessPath,
             progress: null,
             allowRepair: false,
             CancellationToken.None));
@@ -452,7 +587,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
             minecraftDirectory,
             "Fabric Pack",
             versionDirectory,
-            Environment.ProcessPath,
             progress,
             allowRepair: false,
             CancellationToken.None);
@@ -483,8 +617,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
             new NoOpLaunchCrashMonitor());
         var settings = new LauncherSettings
         {
-            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
-            DefaultJavaPath = @"C:\Java\bin\java.exe"
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
         };
         var instance = new GameInstance
         {
@@ -510,7 +643,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
         Assert.Equal(
             [LaunchProgressStages.RepairingAssets, LaunchProgressStages.PreparingProcess, LaunchProgressStages.StartingProcess],
             progress.Items.Select(item => item.Stage));
-        Assert.True(progress.Items.Select(item => item.Percent ?? 0).SequenceEqual(progress.Items.Select(item => item.Percent ?? 0).Order()));
+        AssertProgressPercentIsMonotonic(progress.Items);
     }
 
     [Fact]
@@ -546,8 +679,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
             new LaunchCrashMonitor(TimeSpan.FromSeconds(2)));
         var settings = new LauncherSettings
         {
-            MinecraftDirectory = minecraftDirectory,
-            DefaultJavaPath = @"C:\Java\bin\java.exe"
+            MinecraftDirectory = minecraftDirectory
         };
         var instance = new GameInstance
         {
@@ -597,8 +729,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
             new NoOpLaunchCrashMonitor());
         var settings = new LauncherSettings
         {
-            MinecraftDirectory = minecraftDirectory,
-            DefaultJavaPath = @"C:\Java\bin\java.exe"
+            MinecraftDirectory = minecraftDirectory
         };
         var instance = new GameInstance
         {
@@ -641,7 +772,6 @@ public sealed class LaunchServiceTests : TestTempDirectory
     {
         public string? LastVersionName { get; private set; }
         public string? LastInstanceDirectory { get; private set; }
-        public string? LastJavaPath { get; private set; }
         public bool LastAllowRepair { get; private set; }
         public Func<IProgress<LauncherProgress>?, Task>? OnRepairAsync { get; init; }
 
@@ -649,14 +779,12 @@ public sealed class LaunchServiceTests : TestTempDirectory
             string minecraftDirectory,
             string versionName,
             string instanceDirectory,
-            string? javaPath,
             IProgress<LauncherProgress>? progress,
             bool allowRepair,
             CancellationToken cancellationToken)
         {
             LastVersionName = versionName;
             LastInstanceDirectory = instanceDirectory;
-            LastJavaPath = javaPath;
             LastAllowRepair = allowRepair;
             if (OnRepairAsync is not null)
                 return OnRepairAsync(progress);
@@ -682,11 +810,13 @@ public sealed class LaunchServiceTests : TestTempDirectory
     private sealed class FakeLaunchGameLauncher : ILaunchGameLauncher
     {
         public string? LastBuiltVersionName { get; private set; }
+        public MLaunchOption? LastLaunchOption { get; private set; }
         public Func<string, MLaunchOption, Process>? BuildProcess { get; set; }
 
         public ValueTask<Process> BuildProcessAsync(string versionName, MLaunchOption launchOption, CancellationToken cancellationToken)
         {
             LastBuiltVersionName = versionName;
+            LastLaunchOption = launchOption;
             if (BuildProcess is not null)
                 return ValueTask.FromResult(BuildProcess(versionName, launchOption));
 
@@ -700,6 +830,50 @@ public sealed class LaunchServiceTests : TestTempDirectory
                     UseShellExecute = false
                 }
             });
+        }
+    }
+
+    private sealed class FakeLaunchCommandRunner : ILaunchCommandRunner
+    {
+        private readonly object syncRoot = new();
+
+        private readonly List<(string Command, string WorkingDirectory, bool WaitForExit)> commands = [];
+
+        public int CommandCount
+        {
+            get
+            {
+                lock (syncRoot)
+                {
+                    return commands.Count;
+                }
+            }
+        }
+
+        public Task RunAsync(string command, string workingDirectory, bool waitForExit, CancellationToken cancellationToken)
+        {
+            lock (syncRoot)
+            {
+                commands.Add((command, workingDirectory, waitForExit));
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public IReadOnlyList<(string Command, string WorkingDirectory, bool WaitForExit)> Snapshot()
+        {
+            lock (syncRoot)
+            {
+                return commands.ToList();
+            }
+        }
+
+        public void Clear()
+        {
+            lock (syncRoot)
+            {
+                commands.Clear();
+            }
         }
     }
 
@@ -786,6 +960,93 @@ public sealed class LaunchServiceTests : TestTempDirectory
         }
     }
 
+    private sealed class ConcurrentAssetRepairHttpHandler : HttpMessageHandler
+    {
+        public static readonly string[] AssetHashes =
+        [
+            "aa00000000000000000000000000000000000000",
+            "bb00000000000000000000000000000000000000",
+            "cc00000000000000000000000000000000000000",
+            "dd00000000000000000000000000000000000000"
+        ];
+
+        private int activeAssetRequests;
+        private int maxConcurrentAssetRequests;
+
+        public int MaxConcurrentAssetRequests => Volatile.Read(ref maxConcurrentAssetRequests);
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var uri = request.RequestUri!.AbsoluteUri;
+            if (uri == "https://example.test/assets/concurrent-index.json")
+            {
+                return CreateJsonResponse(request, $$"""
+                    {
+                      "objects": {
+                        "asset/a.txt": { "hash": "{{AssetHashes[0]}}", "size": 4 },
+                        "asset/b.txt": { "hash": "{{AssetHashes[1]}}", "size": 4 },
+                        "asset/c.txt": { "hash": "{{AssetHashes[2]}}", "size": 4 },
+                        "asset/d.txt": { "hash": "{{AssetHashes[3]}}", "size": 4 }
+                      }
+                    }
+                    """);
+            }
+
+            if (AssetHashes.Any(hash => uri == $"https://resources.download.minecraft.net/{hash[..2]}/{hash}"))
+                return await CreateDelayedAssetResponseAsync(request, cancellationToken);
+
+            throw new InvalidOperationException($"Unexpected request: {uri}");
+        }
+
+        private async Task<HttpResponseMessage> CreateDelayedAssetResponseAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var activeRequests = Interlocked.Increment(ref activeAssetRequests);
+            TrackMaxConcurrentRequests(activeRequests);
+            try
+            {
+                await Task.Delay(100, cancellationToken);
+                return CreateBinaryResponse(request, "asset");
+            }
+            finally
+            {
+                Interlocked.Decrement(ref activeAssetRequests);
+            }
+        }
+
+        private void TrackMaxConcurrentRequests(int activeRequests)
+        {
+            while (true)
+            {
+                var observedMax = Volatile.Read(ref maxConcurrentAssetRequests);
+                if (activeRequests <= observedMax)
+                    return;
+
+                if (Interlocked.CompareExchange(ref maxConcurrentAssetRequests, activeRequests, observedMax) == observedMax)
+                    return;
+            }
+        }
+
+        private static HttpResponseMessage CreateJsonResponse(HttpRequestMessage request, string json)
+        {
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new StringContent(json)
+            };
+        }
+
+        private static HttpResponseMessage CreateBinaryResponse(HttpRequestMessage request, string content)
+        {
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes(content))
+            };
+        }
+    }
+
     private sealed class RecordingProgress : IProgress<LauncherProgress>
     {
         public List<LauncherProgress> Items { get; } = [];
@@ -814,5 +1075,19 @@ public sealed class LaunchServiceTests : TestTempDirectory
                 return Task.FromResult<LaunchCrashMonitorResult?>(null);
             }
         }
+    }
+
+    private static void AssertProgressPercentIsMonotonic(IEnumerable<LauncherProgress> items)
+    {
+        var percents = items
+            .Where(item => item.Percent is not null)
+            .Select(item => item.Percent!.Value)
+            .ToList();
+        Assert.True(percents.SequenceEqual(percents.Order()));
+    }
+
+    private static string FlattenArguments(IEnumerable<MArgument>? arguments)
+    {
+        return string.Join(" ", arguments?.SelectMany(argument => argument.Values) ?? []);
     }
 }

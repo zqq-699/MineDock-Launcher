@@ -13,7 +13,7 @@ namespace Launcher.Infrastructure.Minecraft;
 
 internal interface IForgeInstallerRunner
 {
-    Task RunInstallerAsync(string javaPath, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken);
+    Task RunInstallerAsync(string javaCommand, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken);
 }
 
 internal interface IFinalVersionInstaller
@@ -41,13 +41,13 @@ internal sealed class FinalVersionInstaller : IFinalVersionInstaller
 
 internal sealed class ForgeInstallerRunner : IForgeInstallerRunner
 {
-    public async Task RunInstallerAsync(string javaPath, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken)
+    public async Task RunInstallerAsync(string javaCommand, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken)
     {
         try
         {
             var startInfo = new ProcessStartInfo
             {
-                FileName = string.IsNullOrWhiteSpace(javaPath) ? "java" : javaPath,
+                FileName = string.IsNullOrWhiteSpace(javaCommand) ? "java" : javaCommand,
                 Arguments = $"-jar \"{installerJarPath}\" --installClient \"{minecraftDirectory}\"",
                 WorkingDirectory = minecraftDirectory,
                 UseShellExecute = false,
@@ -142,7 +142,6 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
         string gameDirectory,
         string isolatedVersionName,
         string? loaderVersion,
-        string? javaPath,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default)
     {
@@ -175,7 +174,7 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
             await DownloadInstallerAsync(catalogEntry.InstallerUrl, installerJarPath, cancellationToken);
 
             progress?.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
-            await installerRunner.RunInstallerAsync(javaPath ?? "java", installerJarPath, installerMinecraftDirectory, cancellationToken);
+            await installerRunner.RunInstallerAsync("java", installerJarPath, installerMinecraftDirectory, cancellationToken);
 
             var sourceVersionName = FindInstalledSourceVersionName(
                 installerMinecraftDirectory,

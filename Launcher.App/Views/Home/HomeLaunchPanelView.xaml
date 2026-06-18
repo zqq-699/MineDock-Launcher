@@ -10,7 +10,7 @@
               Margin="0,-18,0,0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="74" />
+                <RowDefinition Height="92" />
             </Grid.RowDefinitions>
 
             <StackPanel Grid.Row="0"
@@ -276,6 +276,15 @@
                                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                         </Button>
                     </Grid>
+
+                    <TextBlock Text="{Binding LaunchDownloadSpeedText}"
+                               Width="260"
+                               Margin="0,7,0,0"
+                               HorizontalAlignment="Center"
+                               Foreground="#8FB8C7D9"
+                               FontSize="11"
+                               TextAlignment="Center"
+                               Visibility="{Binding HasLaunchDownloadSpeedText, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                 </StackPanel>
             </Grid>
         </Grid>

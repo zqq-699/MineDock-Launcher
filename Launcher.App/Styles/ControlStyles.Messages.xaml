@@ -1,0 +1,31 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Style x:Key="FloatingMessageSurfaceStyle" TargetType="Border">
+        <Setter Property="MinWidth" Value="96" />
+        <Setter Property="MaxWidth" Value="560" />
+        <Setter Property="Padding" Value="18,10" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="#EA252A30" />
+        <Setter Property="BorderBrush" Value="#22FFFFFF" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect BlurRadius="24"
+                                  Color="#000000"
+                                  Opacity="0.36"
+                                  ShadowDepth="8"
+                                  Direction="270" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="FloatingMessageTextStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="#F4FFFFFF" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextAlignment" Value="Center" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+</ResourceDictionary>

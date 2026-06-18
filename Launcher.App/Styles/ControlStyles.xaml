@@ -8,5 +8,6 @@
         <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Buttons.xaml" />
         <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Dialogs.xaml" />
         <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Inputs.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Messages.xaml" />
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>

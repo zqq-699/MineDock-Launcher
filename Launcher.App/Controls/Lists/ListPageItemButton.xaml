@@ -1,6 +1,7 @@
 <UserControl x:Class="Launcher.App.Controls.ListPageItemButton"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Launcher.App.Controls"
              x:Name="Root"
              MouseEnter="Root_MouseEnter"
              MouseLeave="Root_MouseLeave"
@@ -27,7 +28,41 @@
                        VerticalAlignment="Center"
                        RenderOptions.BitmapScalingMode="{Binding IconScalingMode, ElementName=Root}"
                        SnapsToDevicePixels="True"
-                       Source="{Binding IconSource, ElementName=Root}" />
+                       Source="{Binding IconSource, ElementName=Root}">
+                    <Image.Style>
+                        <Style TargetType="Image">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IconSource, ElementName=Root}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Image.Style>
+                </Image>
+
+                <controls:SvgIcon Width="{Binding IconWidth, ElementName=Root}"
+                                  Height="{Binding IconHeight, ElementName=Root}"
+                                  Margin="{Binding IconMargin, ElementName=Root}"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Center"
+                                  IconKey="{Binding IconKey, ElementName=Root}"
+                                  Foreground="#DFFFFFFF"
+                                  IsHitTestVisible="False">
+                    <controls:SvgIcon.Style>
+                        <Style TargetType="{x:Type controls:SvgIcon}">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IconKey, ElementName=Root}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IconKey, ElementName=Root}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </controls:SvgIcon.Style>
+                </controls:SvgIcon>
 
                 <Grid Grid.Column="1"
                       Margin="{Binding TextMargin, ElementName=Root}"

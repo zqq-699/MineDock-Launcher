@@ -14,13 +14,15 @@ public sealed class LaunchService : ILaunchService
     private readonly IManagedVersionRepairService versionRepairService;
     private readonly ILaunchGameLauncherFactory launcherFactory;
     private readonly ILaunchCrashMonitor crashMonitor;
+    private readonly ILaunchCommandRunner commandRunner;
 
     public LaunchService(ILaunchAccountSessionService accountSessionService)
         : this(
             accountSessionService,
             new ManagedVersionRepairService(),
             new LaunchGameLauncherFactory(),
-            new LaunchCrashMonitor())
+            new LaunchCrashMonitor(),
+            new LaunchCommandRunner())
     {
     }
 
@@ -28,12 +30,14 @@ public sealed class LaunchService : ILaunchService
         ILaunchAccountSessionService accountSessionService,
         IManagedVersionRepairService versionRepairService,
         ILaunchGameLauncherFactory launcherFactory,
-        ILaunchCrashMonitor crashMonitor)
+        ILaunchCrashMonitor crashMonitor,
+        ILaunchCommandRunner? commandRunner = null)
     {
         this.accountSessionService = accountSessionService;
         this.versionRepairService = versionRepairService;
         this.launcherFactory = launcherFactory;
         this.crashMonitor = crashMonitor;
+        this.commandRunner = commandRunner ?? new LaunchCommandRunner();
     }
 
     public async Task LaunchAsync(
@@ -44,24 +48,53 @@ public sealed class LaunchService : ILaunchService
         CancellationToken cancellationToken = default)
     {
         var versionName = string.IsNullOrWhiteSpace(instance.VersionName) ? instance.MinecraftVersion : instance.VersionName;
-        var javaPath = string.IsNullOrWhiteSpace(instance.JavaPath) ? settings.DefaultJavaPath : instance.JavaPath;
         var shouldCheckFilesBeforeLaunch = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
             ? settings.DefaultCheckFilesBeforeLaunch
             : instance.CheckFilesBeforeLaunch;
         var shouldAutoRepairMissingFiles = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
             ? settings.DefaultAutoRepairMissingFiles
             : instance.AutoRepairMissingFiles;
+        var shouldLaunchFullScreen = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
+            ? settings.DefaultLaunchFullScreen
+            : instance.LaunchFullScreen;
+        var preLaunchCommand = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
+            ? settings.DefaultPreLaunchCommand
+            : instance.PreLaunchCommand;
+        var shouldWaitForPreLaunchCommand = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
+            ? settings.DefaultWaitForPreLaunchCommand
+            : instance.WaitForPreLaunchCommand;
+        var postExitCommand = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
+            ? settings.DefaultPostExitCommand
+            : instance.PostExitCommand;
+        var jvmArguments = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
+            ? settings.DefaultJvmArguments
+            : instance.JvmArguments;
+        var gameArguments = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
+            ? settings.DefaultGameArguments
+            : instance.GameArguments;
         System.Diagnostics.Process? process = null;
 
         try
         {
+            if (!string.IsNullOrWhiteSpace(preLaunchCommand))
+            {
+                progress?.Report(new LauncherProgress(
+                    LaunchProgressStages.RunningPreLaunchCommand,
+                    "Running pre-launch command",
+                    4));
+                await commandRunner.RunAsync(
+                    preLaunchCommand,
+                    instance.InstanceDirectory,
+                    shouldWaitForPreLaunchCommand,
+                    cancellationToken);
+            }
+
             if (shouldCheckFilesBeforeLaunch)
             {
                 await versionRepairService.RepairAsync(
                     settings.MinecraftDirectory,
                     versionName,
                     instance.InstanceDirectory,
-                    javaPath,
                     progress,
                     shouldAutoRepairMissingFiles,
                     cancellationToken);
@@ -86,15 +119,16 @@ public sealed class LaunchService : ILaunchService
                 MaximumRamMb = instance.MemoryMb > 0 ? instance.MemoryMb : settings.DefaultMemoryMb,
                 ScreenWidth = instance.WindowWidth,
                 ScreenHeight = instance.WindowHeight,
+                FullScreen = shouldLaunchFullScreen,
                 GameLauncherName = "Launcher",
                 GameLauncherVersion = "0.1"
             };
 
-            if (!string.IsNullOrWhiteSpace(javaPath))
-                launchOption.JavaPath = javaPath;
+            if (!string.IsNullOrWhiteSpace(jvmArguments))
+                launchOption.ExtraJvmArguments = [MArgument.FromCommandLine(jvmArguments)];
 
-            if (!string.IsNullOrWhiteSpace(instance.JvmArguments))
-                launchOption.ExtraJvmArguments = [MArgument.FromCommandLine(instance.JvmArguments)];
+            if (!string.IsNullOrWhiteSpace(gameArguments))
+                launchOption.ExtraGameArguments = [MArgument.FromCommandLine(gameArguments)];
 
             process = await launcher.BuildProcessAsync(versionName, launchOption, cancellationToken);
             var crashMonitorSession = crashMonitor.CreateSession(
@@ -102,6 +136,7 @@ public sealed class LaunchService : ILaunchService
                 instance.InstanceDirectory,
                 versionName);
             crashMonitorSession.Configure(process);
+            ConfigurePostExitCommand(process, postExitCommand, instance.InstanceDirectory);
             progress?.Report(new LauncherProgress(
                 LaunchProgressStages.StartingProcess,
                 "Starting game process",
@@ -122,7 +157,6 @@ public sealed class LaunchService : ILaunchService
                 settings,
                 instance,
                 versionName,
-                javaPath,
                 "account_session_failed",
                 "Failed to create a valid Minecraft account session.",
                 exception,
@@ -136,7 +170,6 @@ public sealed class LaunchService : ILaunchService
                 settings,
                 instance,
                 versionName,
-                javaPath,
                 "instance_repair_failed",
                 exception.Message,
                 exception,
@@ -150,7 +183,6 @@ public sealed class LaunchService : ILaunchService
                 settings,
                 instance,
                 versionName,
-                javaPath,
                 "launch_failed",
                 exception.Message,
                 exception,
@@ -164,7 +196,6 @@ public sealed class LaunchService : ILaunchService
         LauncherSettings settings,
         GameInstance instance,
         string versionName,
-        string? javaPath,
         string failureKind,
         string failureSummary,
         Exception exception,
@@ -179,7 +210,6 @@ public sealed class LaunchService : ILaunchService
                 versionName,
                 failureKind,
                 failureSummary,
-                javaPath,
                 exception,
                 startInfo,
                 cancellationToken);
@@ -205,5 +235,33 @@ public sealed class LaunchService : ILaunchService
         };
 
         return isolatedPath;
+    }
+
+    private void ConfigurePostExitCommand(
+        System.Diagnostics.Process process,
+        string postExitCommand,
+        string workingDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(postExitCommand))
+            return;
+
+        process.EnableRaisingEvents = true;
+        process.Exited += (_, _) =>
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await commandRunner.RunAsync(
+                        postExitCommand,
+                        workingDirectory,
+                        waitForExit: false,
+                        CancellationToken.None);
+                }
+                catch
+                {
+                }
+            });
+        };
     }
 }

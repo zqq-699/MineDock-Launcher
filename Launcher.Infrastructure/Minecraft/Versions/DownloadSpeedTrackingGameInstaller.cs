@@ -41,6 +41,7 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         IProgress<ByteProgress>? progress,
         CancellationToken cancellationToken)
     {
+        speedAggregator.ReportDownloadStarted();
         var downloadProgress = new NetworkDownloadProgress(progress, speedAggregator);
         return base.Download(file, downloadProgress, cancellationToken);
     }
@@ -108,11 +109,32 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         private readonly object syncRoot = new();
         private readonly IProgress<LauncherProgress>? progress;
         private long windowBytes;
+        private bool hasReportedDownloadStarted;
         private DateTimeOffset windowStartedAt = DateTimeOffset.UtcNow;
 
         public DownloadSpeedAggregator(IProgress<LauncherProgress>? progress)
         {
             this.progress = progress;
+        }
+
+        public void ReportDownloadStarted()
+        {
+            if (progress is null)
+                return;
+
+            lock (syncRoot)
+            {
+                if (hasReportedDownloadStarted)
+                    return;
+
+                hasReportedDownloadStarted = true;
+                windowBytes = 0;
+                windowStartedAt = DateTimeOffset.UtcNow;
+                progress.Report(new LauncherProgress(
+                    LaunchProgressStages.DownloadSpeed,
+                    string.Empty,
+                    DownloadSpeedText: "0 B/s"));
+            }
         }
 
         public void ReportDownloadedBytes(long bytesDelta)

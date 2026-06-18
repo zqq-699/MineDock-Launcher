@@ -12,15 +12,19 @@ public sealed class GameInstance
     public string Description { get; set; } = string.Empty;
     public string? IconSource { get; set; }
     public string InstanceDirectory { get; set; } = string.Empty;
-    public string? JavaPath { get; set; }
     public int MemoryMb { get; set; } = 4096;
     public int WindowWidth { get; set; } = 1280;
     public int WindowHeight { get; set; } = 720;
+    public string PreLaunchCommand { get; set; } = string.Empty;
+    public bool WaitForPreLaunchCommand { get; set; } = true;
+    public string PostExitCommand { get; set; } = string.Empty;
     public string JvmArguments { get; set; } = string.Empty;
+    public string GameArguments { get; set; } = string.Empty;
     public LaunchSettingsMode LaunchSettingsMode { get; set; } = LaunchSettingsMode.UseGlobal;
     public bool CheckFilesBeforeLaunch { get; set; } = true;
     public bool AutoRepairMissingFiles { get; set; } = true;
     public bool MinimizeLauncherAfterLaunch { get; set; }
+    public bool LaunchFullScreen { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

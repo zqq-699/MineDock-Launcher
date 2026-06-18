@@ -17,6 +17,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     private readonly DownloadTasksPageViewModel downloadTasksPage;
     private readonly IReadOnlyDictionary<LoaderKind, ILoaderProvider> loaderProviders;
     private readonly IUiDispatcher uiDispatcher;
+    private readonly IFloatingMessageService floatingMessageService;
     private readonly DownloadInstanceNameTracker instanceNameTracker = new();
     private bool hasLoadedVersions;
     private int refreshRequestVersion;
@@ -91,7 +92,13 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         IGameInstanceService instanceService,
         DownloadTasksPageViewModel downloadTasksPage,
         IEnumerable<ILoaderProvider> loaderProviders)
-        : this(gameVersionService, instanceService, downloadTasksPage, loaderProviders, ImmediateUiDispatcher.Instance)
+        : this(
+            gameVersionService,
+            instanceService,
+            downloadTasksPage,
+            loaderProviders,
+            ImmediateUiDispatcher.Instance,
+            NullFloatingMessageService.Instance)
     {
     }
 
@@ -101,12 +108,24 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         DownloadTasksPageViewModel downloadTasksPage,
         IEnumerable<ILoaderProvider> loaderProviders,
         IUiDispatcher uiDispatcher)
+        : this(gameVersionService, instanceService, downloadTasksPage, loaderProviders, uiDispatcher, NullFloatingMessageService.Instance)
+    {
+    }
+
+    public DownloadPageViewModel(
+        IGameVersionService gameVersionService,
+        IGameInstanceService instanceService,
+        DownloadTasksPageViewModel downloadTasksPage,
+        IEnumerable<ILoaderProvider> loaderProviders,
+        IUiDispatcher uiDispatcher,
+        IFloatingMessageService floatingMessageService)
     {
         this.gameVersionService = gameVersionService;
         this.instanceService = instanceService;
         this.downloadTasksPage = downloadTasksPage;
         this.loaderProviders = loaderProviders.ToDictionary(provider => provider.Kind);
         this.uiDispatcher = uiDispatcher;
+        this.floatingMessageService = floatingMessageService;
 
         LoaderVersions.CollectionChanged += (_, _) =>
         {
@@ -320,6 +339,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         var loaderDisplayName = GetSelectedLoaderDisplayName();
         var installSequence = Interlocked.Increment(ref latestInstallSequence);
         var installTask = downloadTasksPage.BeginTask($"{loaderDisplayName} {versionName}", instanceName);
+        floatingMessageService.Show(Strings.Status_InstallStartingDownload);
 
         var activeInstallCountAfterStart = Interlocked.Increment(ref activeInstallCount);
         IsInstalling = activeInstallCountAfterStart > 0;
@@ -764,5 +784,24 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         SelectedMinecraftVersion = null;
         foreach (var item in AllVersions)
             item.IsSelected = false;
+    }
+
+    private sealed class NullFloatingMessageService : IFloatingMessageService
+    {
+        public static NullFloatingMessageService Instance { get; } = new();
+
+        public event Action<string>? MessageRequested
+        {
+            add { }
+            remove { }
+        }
+
+        private NullFloatingMessageService()
+        {
+        }
+
+        public void Show(string message)
+        {
+        }
     }
 }

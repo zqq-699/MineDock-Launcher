@@ -1,4 +1,5 @@
 ﻿using Launcher.App.Resources;
+using Launcher.App.Services;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
@@ -734,6 +735,28 @@ public sealed class DownloadPageViewModelTests
     }
 
     [Fact]
+    public async Task DownloadPageShowsFloatingMessageWhenInstallStarts()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.1", "Release", false)
+        ]);
+        var instanceService = new FakeGameInstanceService();
+        var floatingMessageService = new FakeFloatingMessageService();
+        var viewModel = CreateDownloadPageViewModel(
+            service,
+            instanceService,
+            floatingMessageService: floatingMessageService);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+
+        await viewModel.InstallCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_InstallStartingDownload, floatingMessageService.LastMessage);
+    }
+
+    [Fact]
     public async Task DownloadPageMapsKnownInstallStagesToFriendlyTaskStatus()
     {
         var service = new FakeGameVersionService(
@@ -918,13 +941,16 @@ public sealed class DownloadPageViewModelTests
         IGameVersionService gameVersionService,
         IGameInstanceService? instanceService = null,
         DownloadTasksPageViewModel? tasksPage = null,
-        IEnumerable<ILoaderProvider>? loaderProviders = null)
+        IEnumerable<ILoaderProvider>? loaderProviders = null,
+        IFloatingMessageService? floatingMessageService = null)
     {
         return new DownloadPageViewModel(
             gameVersionService,
             instanceService ?? new FakeGameInstanceService(),
             tasksPage ?? new DownloadTasksPageViewModel(),
-            loaderProviders ?? CreateLoaderProviders());
+            loaderProviders ?? CreateLoaderProviders(),
+            ImmediateUiDispatcher.Instance,
+            floatingMessageService ?? new FakeFloatingMessageService());
     }
 
     private static IEnumerable<ILoaderProvider> CreateLoaderProviders(
@@ -952,6 +978,19 @@ public sealed class DownloadPageViewModelTests
                 ]
             }
         ];
+    }
+
+    private sealed class FakeFloatingMessageService : IFloatingMessageService
+    {
+        public event Action<string>? MessageRequested;
+
+        public string? LastMessage { get; private set; }
+
+        public void Show(string message)
+        {
+            LastMessage = message;
+            MessageRequested?.Invoke(message);
+        }
     }
 }
 

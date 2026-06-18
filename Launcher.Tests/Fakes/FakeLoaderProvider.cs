@@ -14,7 +14,6 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
     public Task? WaitBeforeGetLoaderVersions { get; init; }
     public string? LastGameDirectory { get; private set; }
     public string? LastIsolatedVersionName { get; private set; }
-    public string? LastJavaPath { get; private set; }
     public TaskCompletionSource<bool> InstallStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Task? WaitBeforeInstall { get; init; }
     public bool WriteJsonBeforeWaiting { get; init; }
@@ -37,11 +36,10 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
         return LoaderVersions;
     }
 
-    public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, string? javaPath, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
+    public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
     {
         LastGameDirectory = gameDirectory;
         LastIsolatedVersionName = isolatedVersionName;
-        LastJavaPath = javaPath;
         Interlocked.Increment(ref installCallCount);
         InstallStarted.TrySetResult(true);
 

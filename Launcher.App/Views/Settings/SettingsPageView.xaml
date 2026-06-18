@@ -36,12 +36,13 @@
                                                 CommandParameter="{Binding}" />
         </DataTemplate>
 
-        <DataTemplate x:Key="MemoryOptionTemplate" DataType="{x:Type settings:SettingsMemoryOption}">
+        <DataTemplate x:Key="MemoryOptionTemplate">
             <TextBlock Text="{Binding Title}"
                        Foreground="#F4F4F4"
                        FontSize="13"
                        VerticalAlignment="Center" />
         </DataTemplate>
+
     </UserControl.Resources>
 
     <Grid x:Name="PageRoot">
@@ -92,26 +93,19 @@
                                                       CanEditAutoRepairMissingFiles="{Binding DefaultCheckFilesBeforeLaunch}"
                                                       LaunchCheckFilesBeforeLaunchEnabled="{Binding DefaultCheckFilesBeforeLaunch, Mode=TwoWay}"
                                                       LaunchAutoRepairMissingFilesEnabled="{Binding DefaultAutoRepairMissingFiles, Mode=TwoWay}"
-                                                      LaunchMinimizeLauncherAfterLaunchEnabled="{Binding DefaultMinimizeLauncherAfterLaunch, Mode=TwoWay}" />
+                                                      LaunchMinimizeLauncherAfterLaunchEnabled="{Binding DefaultMinimizeLauncherAfterLaunch, Mode=TwoWay}"
+                                                      LaunchFullScreenEnabled="{Binding DefaultLaunchFullScreen, Mode=TwoWay}"
+                                                      LaunchPreLaunchCommand="{Binding DefaultPreLaunchCommand, Mode=TwoWay}"
+                                                      LaunchWaitForPreLaunchCommand="{Binding DefaultWaitForPreLaunchCommand, Mode=TwoWay}"
+                                                      LaunchPostExitCommand="{Binding DefaultPostExitCommand, Mode=TwoWay}"
+                                                      LaunchJvmArguments="{Binding DefaultJvmArguments, Mode=TwoWay}"
+                                                      LaunchGameArguments="{Binding DefaultGameArguments, Mode=TwoWay}" />
 
                     </StackPanel>
 
                     <StackPanel Margin="0"
                                 Visibility="{Binding IsJavaMemorySection, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
-                        <GroupBox Header="{x:Static res:Strings.Settings_JavaSection}"
-                                  Style="{StaticResource LauncherContentSectionStyle}">
-                            <Border Style="{StaticResource SectionFieldSurfaceStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="{x:Static res:Strings.Settings_JavaPathLabel}"
-                                               Style="{StaticResource SettingsFieldLabelStyle}" />
-                                    <TextBox Text="{Binding JavaPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             Style="{StaticResource LauncherDialogTextBoxStyle}" />
-                                </StackPanel>
-                            </Border>
-                        </GroupBox>
-
-                        <GroupBox Margin="0,26,0,0"
-                                  Header="{x:Static res:Strings.Settings_MemorySection}"
+                        <GroupBox Header="{x:Static res:Strings.Settings_MemorySection}"
                                   Style="{StaticResource LauncherContentSectionStyle}">
                             <Border Style="{StaticResource SectionFieldSurfaceStyle}">
                                 <Grid>
@@ -127,11 +121,11 @@
                                                                ItemsSource="{Binding MemoryOptions}"
                                                                SelectedItem="{Binding SelectedMemoryOption, Mode=TwoWay}"
                                                                ItemTemplate="{StaticResource MemoryOptionTemplate}"
+                                                               SelectionItemTemplate="{StaticResource MemoryOptionTemplate}"
                                                                Style="{StaticResource LauncherComboBoxStyle}" />
                                 </Grid>
                             </Border>
                         </GroupBox>
-
                     </StackPanel>
                 </StackPanel>
             </controls:ListPageFrame.ListContent>
