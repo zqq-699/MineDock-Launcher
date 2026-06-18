@@ -1,15 +1,15 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Launcher.Infrastructure.Minecraft;
 
 internal static class LaunchDiagnosticsWriter
 {
     public static async Task<string?> WriteQuickExitDiagnosticAsync(
-        string minecraftDirectory,
-        string instanceDirectory,
-        string versionName,
+        LaunchDiagnosticContext context,
+        string failureKind,
         int exitCode,
         TimeSpan runtime,
         DateTimeOffset createdAt,
@@ -19,7 +19,7 @@ internal static class LaunchDiagnosticsWriter
         string stderr,
         CancellationToken cancellationToken)
     {
-        var latestLogTail = ReadLatestLogTail(minecraftDirectory, instanceDirectory);
+        var latestLogTail = ReadLatestLogTail(context.MinecraftDirectory, context.InstanceDirectory);
         var crashFiles = newCrashFiles
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -28,10 +28,8 @@ internal static class LaunchDiagnosticsWriter
         var failureSummary = matchedErrorLines.FirstOrDefault() ?? $"Minecraft exited with code {exitCode}.";
 
         return await WriteDiagnosticAsync(
-            minecraftDirectory,
-            instanceDirectory,
-            versionName,
-            "quick_exit",
+            context,
+            failureKind,
             failureSummary,
             createdAt,
             cancellationToken,
@@ -39,75 +37,75 @@ internal static class LaunchDiagnosticsWriter
             {
                 builder.AppendLine($"ExitCode: {exitCode}");
                 builder.AppendLine($"Runtime: {runtime}");
-                AppendProcessSection(builder, startInfo);
+                AppendProcessSection(builder, startInfo, context.SensitiveValues);
                 AppendFileSection(builder, "NewCrashFiles", crashFiles);
-                AppendCrashPreviewSection(builder, crashFiles);
-                AppendTextSection(builder, "MatchedErrorLines", matchedErrorLines);
-                AppendTextSection(builder, "LatestLogTail", latestLogTail);
-                AppendTextSection(builder, "StdOut", stdout);
-                AppendTextSection(builder, "StdErr", stderr);
+                AppendCrashPreviewSection(builder, crashFiles, context.SensitiveValues);
+                AppendTextSection(builder, "MatchedErrorLines", RedactSensitiveLines(matchedErrorLines, context.SensitiveValues));
+                AppendTextSection(builder, "LatestLogTail", RedactSensitiveText(LimitTail(latestLogTail, 120), context.SensitiveValues));
+                AppendTextSection(builder, "StdOut", RedactSensitiveText(LimitTail(stdout, 120), context.SensitiveValues));
+                AppendTextSection(builder, "StdErr", RedactSensitiveText(LimitTail(stderr, 120), context.SensitiveValues));
             });
     }
 
     public static Task<string?> WriteExceptionDiagnosticAsync(
-        string minecraftDirectory,
-        string instanceDirectory,
-        string versionName,
+        LaunchDiagnosticContext context,
         string failureKind,
         string failureSummary,
         Exception exception,
         ProcessStartInfo? startInfo,
         CancellationToken cancellationToken)
     {
-        var latestLogTail = ReadLatestLogTail(minecraftDirectory, instanceDirectory);
-        var crashFiles = EnumerateCandidateCrashFiles(minecraftDirectory, instanceDirectory)
+        var latestLogTail = ReadLatestLogTail(context.MinecraftDirectory, context.InstanceDirectory);
+        var crashFiles = EnumerateCandidateCrashFiles(context.MinecraftDirectory, context.InstanceDirectory)
             .Select(Path.GetFullPath)
             .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
             .ToList();
         var matchedErrorLines = FindMatchedErrorLines(string.Empty, string.Empty, latestLogTail, crashFiles);
 
         return WriteDiagnosticAsync(
-            minecraftDirectory,
-            instanceDirectory,
-            versionName,
+            context,
             failureKind,
             failureSummary,
             DateTimeOffset.UtcNow,
             cancellationToken,
             builder =>
             {
-                AppendProcessSection(builder, startInfo);
-                AppendTextSection(builder, "ExceptionChain", FormatExceptionChain(exception));
+                AppendProcessSection(builder, startInfo, context.SensitiveValues);
+                AppendTextSection(builder, "ExceptionChain", RedactSensitiveText(FormatExceptionChain(exception), context.SensitiveValues));
                 AppendFileSection(builder, "CrashFiles", crashFiles);
-                AppendCrashPreviewSection(builder, crashFiles);
-                AppendTextSection(builder, "MatchedErrorLines", matchedErrorLines);
-                AppendTextSection(builder, "LatestLogTail", latestLogTail);
+                AppendCrashPreviewSection(builder, crashFiles, context.SensitiveValues);
+                AppendTextSection(builder, "MatchedErrorLines", RedactSensitiveLines(matchedErrorLines, context.SensitiveValues));
+                AppendTextSection(builder, "LatestLogTail", RedactSensitiveText(LimitTail(latestLogTail, 120), context.SensitiveValues));
             });
     }
 
     private static async Task<string?> WriteDiagnosticAsync(
-        string minecraftDirectory,
-        string instanceDirectory,
-        string versionName,
+        LaunchDiagnosticContext context,
         string failureKind,
         string failureSummary,
         DateTimeOffset createdAt,
         CancellationToken cancellationToken,
         Action<StringBuilder> appendSections)
     {
-        var logsDirectory = Path.Combine(instanceDirectory, "logs", "launcher");
+        var logsDirectory = Path.Combine(context.InstanceDirectory, "logs", "launcher");
         Directory.CreateDirectory(logsDirectory);
         var diagnosticPath = Path.Combine(
             logsDirectory,
             $"launch-diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}.log");
 
         var builder = new StringBuilder();
-        builder.AppendLine($"Version: {versionName}");
         builder.AppendLine($"CreatedAtUtc: {createdAt:O}");
         builder.AppendLine($"FailureKind: {failureKind}");
         builder.AppendLine($"FailureSummary: {failureSummary}");
-        builder.AppendLine($"InstanceDirectory: {Path.GetFullPath(instanceDirectory)}");
-        builder.AppendLine($"MinecraftDirectory: {Path.GetFullPath(minecraftDirectory)}");
+        builder.AppendLine($"InstanceName: {context.InstanceName}");
+        builder.AppendLine($"VersionName: {context.VersionName}");
+        builder.AppendLine($"MinecraftVersion: {context.MinecraftVersion}");
+        builder.AppendLine($"Loader: {context.Loader}");
+        builder.AppendLine($"LoaderVersion: {context.LoaderVersion ?? string.Empty}");
+        builder.AppendLine($"JavaPath: {context.JavaPath ?? string.Empty}");
+        builder.AppendLine($"MemoryMb: {context.MemoryMb}");
+        builder.AppendLine($"InstanceDirectory: {Path.GetFullPath(context.InstanceDirectory)}");
+        builder.AppendLine($"MinecraftDirectory: {Path.GetFullPath(context.MinecraftDirectory)}");
 
         appendSections(builder);
 
@@ -224,7 +222,10 @@ internal static class LaunchDiagnosticsWriter
         return builder.ToString();
     }
 
-    private static void AppendProcessSection(StringBuilder builder, ProcessStartInfo? startInfo)
+    private static void AppendProcessSection(
+        StringBuilder builder,
+        ProcessStartInfo? startInfo,
+        IReadOnlyList<string> sensitiveValues)
     {
         builder.AppendLine();
         builder.AppendLine("[Process]");
@@ -235,11 +236,60 @@ internal static class LaunchDiagnosticsWriter
         }
 
         builder.AppendLine($"FileName: {startInfo.FileName}");
-        builder.AppendLine($"Arguments: {startInfo.Arguments}");
+        builder.AppendLine($"Arguments: {RedactSensitiveText(startInfo.Arguments, sensitiveValues)}");
         builder.AppendLine($"WorkingDirectory: {startInfo.WorkingDirectory}");
     }
 
-    private static void AppendCrashPreviewSection(StringBuilder builder, IReadOnlyList<string> crashFiles)
+    private static string RedactSensitiveText(string text, IReadOnlyList<string> sensitiveValues)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return text;
+
+        var redacted = Regex.Replace(
+            text,
+            @"(?i)(--?accessToken(?:=|\s+))(""[^""]+""|\S+)",
+            "$1<redacted>");
+        redacted = Regex.Replace(
+            redacted,
+            @"(?i)(--?session(?:=|\s+))(""[^""]+""|\S+)",
+            "$1<redacted>");
+        redacted = Regex.Replace(
+            redacted,
+            @"(?i)(--?token(?:=|\s+))(""[^""]+""|\S+)",
+            "$1<redacted>");
+
+        foreach (var sensitiveValue in sensitiveValues)
+        {
+            if (string.IsNullOrWhiteSpace(sensitiveValue) || sensitiveValue.Length < 8)
+                continue;
+
+            redacted = redacted.Replace(sensitiveValue, "<redacted>", StringComparison.Ordinal);
+        }
+
+        return redacted;
+    }
+
+    private static IEnumerable<string> RedactSensitiveLines(
+        IEnumerable<string> lines,
+        IReadOnlyList<string> sensitiveValues)
+    {
+        foreach (var line in lines)
+            yield return RedactSensitiveText(line, sensitiveValues);
+    }
+
+    private static string LimitTail(string content, int maxLines)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+            return content;
+
+        var lines = content.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(Environment.NewLine, lines.TakeLast(maxLines));
+    }
+
+    private static void AppendCrashPreviewSection(
+        StringBuilder builder,
+        IReadOnlyList<string> crashFiles,
+        IReadOnlyList<string> sensitiveValues)
     {
         builder.AppendLine();
         builder.AppendLine("[CrashPreview]");
@@ -252,7 +302,7 @@ internal static class LaunchDiagnosticsWriter
         foreach (var crashFile in crashFiles.Take(2))
         {
             builder.AppendLine($"> {crashFile}");
-            var preview = ReadCrashFilePreview(crashFile);
+            var preview = RedactSensitiveText(ReadCrashFilePreview(crashFile), sensitiveValues);
             builder.AppendLine(string.IsNullOrWhiteSpace(preview) ? "(empty)" : preview);
         }
     }

@@ -191,6 +191,9 @@
   <data name="Status_LaunchCanceled" xml:space="preserve"><value>已取消本次启动</value></data>
   <data name="Status_LaunchAccountUnavailable" xml:space="preserve"><value>当前账户无法启动游戏，请重新登录或切换账户。</value></data>
   <data name="Status_LaunchExitedQuickly" xml:space="preserve"><value>游戏启动后立即退出，已记录诊断日志，请检查当前实例的 logs\launcher 目录。</value></data>
+  <data name="Status_LaunchProcessExited" xml:space="preserve"><value>游戏进程已退出，已记录诊断日志。</value></data>
+  <data name="Status_LaunchAbnormalExit" xml:space="preserve"><value>游戏启动异常退出，已记录诊断日志。</value></data>
+  <data name="Status_LaunchRuntimeAbnormalExit" xml:space="preserve"><value>游戏运行时异常退出，已记录诊断日志。</value></data>
   <data name="Status_LaunchFailed" xml:space="preserve"><value>启动失败，请稍后重试。</value></data>
   <data name="Status_LaunchInstanceRepairFailed" xml:space="preserve"><value>当前实例缺少关键文件，且无法在不新增版本的情况下自动补齐，请重新安装该实例或检查版本文件。</value></data>
   <data name="Status_LaunchInstanceSelectedFormat" xml:space="preserve"><value>当前游戏已切换为 {0}</value></data>
@@ -294,6 +297,7 @@
   <data name="Status_DeleteInstanceFailed" xml:space="preserve"><value>删除版本失败，请稍后重试。</value></data>
   <data name="Status_InstanceFolderNotFound" xml:space="preserve"><value>没有找到该版本对应的文件夹。</value></data>
   <data name="Status_OpenInstanceFolderFailed" xml:space="preserve"><value>打开版本文件夹失败，请稍后重试。</value></data>
+  <data name="Status_OpenLaunchLogFolderFailed" xml:space="preserve"><value>打开启动诊断日志目录失败，请稍后重试。</value></data>
   <data name="GameSettings_UnknownMinecraftVersion" xml:space="preserve"><value>未知版本</value></data>
   <data name="GameSettings_DetailsPlaceholderHeader" xml:space="preserve"><value>详细设置</value></data>
   <data name="GameSettings_DetailsPlaceholderBody" xml:space="preserve"><value>这里会继续补充这个版本的详细设置项，下一步将接入更多可编辑内容。</value></data>
@@ -348,4 +352,16 @@
   <data name="Dialog_JavaRequirementNotMetMessage" xml:space="preserve"><value>自动选择 Java 时没有找到满足当前版本要求的 Java。请到设置中刷新或导入合适的 Java 后再启动游戏。</value></data>
   <data name="Dialog_JavaRequirementNotMetMessageFormat" xml:space="preserve"><value>自动选择 Java 时没有找到满足当前版本要求的 Java。当前版本至少需要 Java {0}。请到设置中刷新或导入合适的 Java 后再启动游戏。</value></data>
   <data name="Dialog_GoToSettingsButton" xml:space="preserve"><value>转到设置</value></data>
+  <data name="Dialog_LaunchStatusFailedTitle" xml:space="preserve"><value>游戏启动失败</value></data>
+  <data name="Dialog_LaunchStatusExitedTitle" xml:space="preserve"><value>游戏进程已退出</value></data>
+  <data name="Dialog_LaunchStatusRuntimeFailedTitle" xml:space="preserve"><value>游戏异常退出</value></data>
+  <data name="Dialog_LaunchStatusMessageFormat" xml:space="preserve"><value>“{0}”：{1}</value></data>
+  <data name="Dialog_LaunchStatusStartupFailedMessage" xml:space="preserve"><value>启动器未能完成游戏启动准备。</value></data>
+  <data name="Dialog_LaunchStatusStartupExitedMessage" xml:space="preserve"><value>游戏进程在启动阶段正常退出，但没有进入可玩的运行状态。</value></data>
+  <data name="Dialog_LaunchStatusStartupAbnormalMessage" xml:space="preserve"><value>游戏进程在启动阶段异常退出，退出码：{0}。</value></data>
+  <data name="Dialog_LaunchStatusRuntimeAbnormalMessage" xml:space="preserve"><value>游戏运行过程中异常退出，退出码：{0}。</value></data>
+  <data name="Dialog_LaunchStatusUnknownExitCode" xml:space="preserve"><value>未知</value></data>
+  <data name="Dialog_LaunchStatusDiagnosticFileHint" xml:space="preserve"><value>已生成启动诊断日志，可打开日志目录查看详细信息。</value></data>
+  <data name="Dialog_LaunchStatusDiagnosticDirectoryHint" xml:space="preserve"><value>可打开日志目录查看 latest.log 和崩溃报告。</value></data>
+  <data name="Dialog_OpenLaunchLogFolderButton" xml:space="preserve"><value>打开日志目录</value></data>
 </root>

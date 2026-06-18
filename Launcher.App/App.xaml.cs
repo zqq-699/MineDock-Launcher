@@ -26,6 +26,7 @@ public partial class App : System.Windows.Application
         services.AddSingleton<IAccountDialogService, AccountDialogService>();
         services.AddSingleton<IUiDispatcher, WpfUiDispatcher>();
         services.AddSingleton<IHomePageViewModelFactory, HomePageViewModelFactory>();
+        services.AddSingleton<LaunchStatusDialogViewModel>();
         services.AddSingleton<AccountListViewModel>();
         services.AddSingleton<AccountDialogViewModel>();
         services.AddSingleton<AccountAppearanceViewModel>();

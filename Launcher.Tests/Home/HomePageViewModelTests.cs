@@ -505,9 +505,16 @@ public sealed class HomePageViewModelTests
     public async Task HomePageLaunchShowsFriendlyQuickExitFailure()
     {
         var statusService = new FakeStatusService();
+        var report = new LaunchFailureReport(
+            LaunchFailureKind.StartupProcessExited,
+            "First World",
+            "1.20.1",
+            0,
+            @"C:\temp\diagnostic.log",
+            @"C:\temp");
         var launchService = new FakeLaunchService
         {
-            ExceptionToThrow = new LaunchProcessExitedException(@"C:\temp\diagnostic.log")
+            ExceptionToThrow = new LaunchProcessExitedException(report)
         };
         var account = new LauncherAccount
         {
@@ -521,7 +528,7 @@ public sealed class HomePageViewModelTests
 
         await viewModel.LaunchCommand.ExecuteAsync(null);
 
-        Assert.Equal(Strings.Status_LaunchExitedQuickly, statusService.LastMessage);
+        Assert.Equal(Strings.Status_LaunchProcessExited, statusService.LastMessage);
         Assert.False(viewModel.IsLaunching);
         Assert.False(viewModel.HasLaunchProgress);
         Assert.Equal(string.Empty, viewModel.LaunchStatusMessage);
@@ -595,6 +602,7 @@ public sealed class HomePageViewModelTests
             statusService,
             floatingMessageService ?? new FakeFloatingMessageService(),
             windowService ?? new FakeWindowService(),
+            ImmediateUiDispatcher.Instance,
             _ => { },
             selectLaunchInstance ?? (_ => Task.FromResult(true)),
             _ => Task.CompletedTask);
@@ -658,7 +666,7 @@ public sealed class HomePageViewModelTests
         public Exception? ExceptionToThrow { get; init; }
         public Func<IProgress<LauncherProgress>?, CancellationToken, Task>? LaunchBehavior { get; init; }
 
-        public Task LaunchAsync(
+        public async Task<GameLaunchSession> LaunchAsync(
             GameInstance instance,
             LauncherAccount account,
             LauncherSettings settings,
@@ -668,12 +676,23 @@ public sealed class HomePageViewModelTests
             LastInstance = instance;
             LastAccount = account;
             if (LaunchBehavior is not null)
-                return LaunchBehavior(progress, cancellationToken);
+            {
+                await LaunchBehavior(progress, cancellationToken);
+                return CreateSuccessfulSession(instance);
+            }
 
             if (ExceptionToThrow is not null)
                 throw ExceptionToThrow;
 
-            return Task.CompletedTask;
+            return CreateSuccessfulSession(instance);
+        }
+
+        private static GameLaunchSession CreateSuccessfulSession(GameInstance instance)
+        {
+            return new GameLaunchSession(
+                instance.Id,
+                instance.Name,
+                Task.FromResult(LaunchExitResult.Success));
         }
     }
 
@@ -863,6 +882,10 @@ public sealed class HomePageViewModelTests
         public void Minimize()
         {
             MinimizeCallCount++;
+        }
+
+        public void RestoreAndActivate()
+        {
         }
 
         public void Close()

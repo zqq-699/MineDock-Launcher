@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using Launcher.Application.Services;
 
 namespace Launcher.Infrastructure.Minecraft;
 
@@ -12,10 +13,15 @@ internal interface ILaunchCrashMonitorSession
 {
     void Configure(Process process);
 
-    Task<LaunchCrashMonitorResult?> WaitForQuickExitAsync(Process process, CancellationToken cancellationToken);
+    Task<LaunchCrashMonitorResult?> WaitForQuickExitAsync(
+        Process process,
+        LaunchDiagnosticContext context,
+        CancellationToken cancellationToken);
+
+    GameLaunchSession CreateGameLaunchSession(Process process, LaunchDiagnosticContext context);
 }
 
-internal sealed record LaunchCrashMonitorResult(int ExitCode, string? DiagnosticPath);
+internal sealed record LaunchCrashMonitorResult(LaunchFailureReport Report);
 
 internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
 {
@@ -40,6 +46,8 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
         private readonly TimeSpan quickExitThreshold;
         private readonly DateTimeOffset createdAt = DateTimeOffset.UtcNow;
         private readonly HashSet<string> existingCrashFiles;
+        private Task<string>? stdoutTask;
+        private Task<string>? stderrTask;
 
         public Session(
             string minecraftDirectory,
@@ -65,13 +73,13 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
             process.StartInfo.RedirectStandardError = true;
         }
 
-        public async Task<LaunchCrashMonitorResult?> WaitForQuickExitAsync(Process process, CancellationToken cancellationToken)
+        public async Task<LaunchCrashMonitorResult?> WaitForQuickExitAsync(
+            Process process,
+            LaunchDiagnosticContext context,
+            CancellationToken cancellationToken)
         {
             var stopwatch = Stopwatch.StartNew();
-            var stdoutTask = ReadStreamSafelyAsync(
-                () => process.StartInfo.RedirectStandardOutput ? process.StandardOutput : null);
-            var stderrTask = ReadStreamSafelyAsync(
-                () => process.StartInfo.RedirectStandardError ? process.StandardError : null);
+            EnsureOutputReadersStarted(process);
             var exitTask = process.WaitForExitAsync(cancellationToken);
             var delayTask = Task.Delay(quickExitThreshold, cancellationToken);
 
@@ -79,13 +87,15 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
                 return null;
 
             await exitTask;
-            var stdout = await stdoutTask;
-            var stderr = await stderrTask;
+            var stdout = await stdoutTask!;
+            var stderr = await stderrTask!;
             var newCrashFiles = FindNewCrashFiles().ToList();
+            var failureKind = IsAbnormalExit(process.ExitCode, newCrashFiles)
+                ? LaunchFailureKind.StartupAbnormalExit
+                : LaunchFailureKind.StartupProcessExited;
             var diagnosticPath = await LaunchDiagnosticsWriter.WriteQuickExitDiagnosticAsync(
-                minecraftDirectory,
-                instanceDirectory,
-                versionName,
+                context,
+                GetFailureKindText(failureKind),
                 process.ExitCode,
                 stopwatch.Elapsed,
                 createdAt,
@@ -95,14 +105,56 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
                 stderr,
                 cancellationToken);
 
-            return new LaunchCrashMonitorResult(process.ExitCode, diagnosticPath);
+            return new LaunchCrashMonitorResult(CreateReport(
+                context,
+                failureKind,
+                process.ExitCode,
+                diagnosticPath));
+        }
+
+        public GameLaunchSession CreateGameLaunchSession(Process process, LaunchDiagnosticContext context)
+        {
+            EnsureOutputReadersStarted(process);
+            var exitTask = MonitorProcessExitAsync(process, context);
+            return new GameLaunchSession(context.InstanceId, context.InstanceName, exitTask);
+        }
+
+        private async Task<LaunchExitResult> MonitorProcessExitAsync(Process process, LaunchDiagnosticContext context)
+        {
+            await process.WaitForExitAsync(CancellationToken.None);
+            var stdout = await stdoutTask!;
+            var stderr = await stderrTask!;
+            var newCrashFiles = FindNewCrashFiles().ToList();
+
+            if (!IsAbnormalExit(process.ExitCode, newCrashFiles))
+                return LaunchExitResult.Success;
+
+            var diagnosticPath = await LaunchDiagnosticsWriter.WriteQuickExitDiagnosticAsync(
+                context,
+                "runtime_abnormal_exit",
+                process.ExitCode,
+                DateTimeOffset.UtcNow - createdAt,
+                createdAt,
+                process.StartInfo,
+                newCrashFiles,
+                stdout,
+                stderr,
+                CancellationToken.None);
+
+            var report = CreateReport(
+                context,
+                LaunchFailureKind.RuntimeAbnormalExit,
+                process.ExitCode,
+                diagnosticPath);
+            return new LaunchExitResult(report);
         }
 
         private IEnumerable<string> FindNewCrashFiles()
         {
             return EnumerateCandidateCrashFiles()
                 .Select(Path.GetFullPath)
-                .Where(path => !existingCrashFiles.Contains(path))
+                .Where(path => !existingCrashFiles.Contains(path)
+                    && File.GetLastWriteTimeUtc(path) >= createdAt.UtcDateTime)
                 .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
                 .ToList();
         }
@@ -153,5 +205,51 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
             }
         }
 
+        private void EnsureOutputReadersStarted(Process process)
+        {
+            stdoutTask ??= ReadStreamSafelyAsync(
+                () => process.StartInfo.RedirectStandardOutput ? process.StandardOutput : null);
+            stderrTask ??= ReadStreamSafelyAsync(
+                () => process.StartInfo.RedirectStandardError ? process.StandardError : null);
+        }
+
+        private static bool IsAbnormalExit(int exitCode, IReadOnlyCollection<string> newCrashFiles)
+        {
+            return exitCode != 0 || newCrashFiles.Count > 0;
+        }
+
+        private static LaunchFailureReport CreateReport(
+            LaunchDiagnosticContext context,
+            LaunchFailureKind kind,
+            int? exitCode,
+            string? diagnosticPath)
+        {
+            return new LaunchFailureReport(
+                kind,
+                context.InstanceName,
+                context.VersionName,
+                exitCode,
+                diagnosticPath,
+                ResolveDiagnosticDirectory(context, diagnosticPath));
+        }
+
+        private static string ResolveDiagnosticDirectory(LaunchDiagnosticContext context, string? diagnosticPath)
+        {
+            if (!string.IsNullOrWhiteSpace(diagnosticPath))
+                return Path.GetDirectoryName(diagnosticPath) ?? Path.Combine(context.InstanceDirectory, "logs", "launcher");
+
+            return Path.Combine(context.InstanceDirectory, "logs", "launcher");
+        }
+
+        private static string GetFailureKindText(LaunchFailureKind failureKind)
+        {
+            return failureKind switch
+            {
+                LaunchFailureKind.StartupProcessExited => "startup_process_exited",
+                LaunchFailureKind.StartupAbnormalExit => "startup_abnormal_exit",
+                LaunchFailureKind.RuntimeAbnormalExit => "runtime_abnormal_exit",
+                _ => "startup_failed"
+            };
+        }
     }
 }

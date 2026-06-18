@@ -17,6 +17,20 @@ public sealed class WindowService : IWindowService
             window.WindowState = WindowState.Minimized;
     }
 
+    public void RestoreAndActivate()
+    {
+        if (window is null)
+            return;
+
+        if (!window.IsVisible)
+            window.Show();
+
+        if (window.WindowState == WindowState.Minimized)
+            window.WindowState = WindowState.Normal;
+
+        window.Activate();
+    }
+
     public void Close()
     {
         window?.Close();

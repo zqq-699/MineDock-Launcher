@@ -5,7 +5,7 @@ namespace Launcher.Application.Services;
 
 public interface ILaunchService
 {
-    Task LaunchAsync(
+    Task<GameLaunchSession> LaunchAsync(
         GameInstance instance,
         LauncherAccount account,
         LauncherSettings settings,

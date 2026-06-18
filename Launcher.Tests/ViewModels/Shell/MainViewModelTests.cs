@@ -239,6 +239,108 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task LaunchFailureOpensLaunchStatusDialog()
+    {
+        var windowService = new FakeWindowService();
+        var report = new LaunchFailureReport(
+            LaunchFailureKind.StartupAbnormalExit,
+            "Vanilla World",
+            "1.20.1",
+            1,
+            @"C:\logs\launch-diagnostics.log",
+            @"C:\logs");
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new LaunchProcessExitedException(report)
+        };
+        var viewModel = CreateViewModel(
+            new FakeGameInstanceService(),
+            launchService: launchService,
+            selectedAccount: CreateOfflineAccount(),
+            windowService: windowService);
+        viewModel.HomePage.SetSelectedInstance(CreateInstance("Vanilla World", "1.20.1"));
+
+        await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.LaunchStatusDialog.IsOpen);
+        Assert.Equal(1, windowService.RestoreAndActivateCallCount);
+        Assert.Equal(Strings.Dialog_LaunchStatusFailedTitle, viewModel.LaunchStatusDialog.Title);
+        Assert.Contains("Vanilla World", viewModel.LaunchStatusDialog.Message);
+    }
+
+    [Fact]
+    public async Task RuntimeLaunchFailureOpensDialogOnlyOnce()
+    {
+        var report = new LaunchFailureReport(
+            LaunchFailureKind.RuntimeAbnormalExit,
+            "Vanilla World",
+            "1.20.1",
+            2,
+            @"C:\logs\launch-diagnostics.log",
+            @"C:\logs");
+        var launchService = new FakeLaunchService
+        {
+            SessionToReturn = new GameLaunchSession(
+                "instance",
+                "Vanilla World",
+                Task.FromResult(new LaunchExitResult(report)))
+        };
+        var viewModel = CreateViewModel(
+            new FakeGameInstanceService(),
+            launchService: launchService,
+            selectedAccount: CreateOfflineAccount());
+        viewModel.HomePage.SetSelectedInstance(CreateInstance("Vanilla World", "1.20.1"));
+
+        await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
+        await TestAsync.WaitForAsync(() => viewModel.LaunchStatusDialog.IsOpen);
+        viewModel.LaunchStatusDialog.CloseCommand.Execute(null);
+
+        Assert.False(viewModel.LaunchStatusDialog.IsOpen);
+        Assert.False(launchService.SessionToReturn.TryMarkExitHandled());
+    }
+
+    [Fact]
+    public async Task NormalRuntimeExitDoesNotOpenLaunchStatusDialog()
+    {
+        var launchService = new FakeLaunchService
+        {
+            SessionToReturn = new GameLaunchSession(
+                "instance",
+                "Vanilla World",
+                Task.FromResult(LaunchExitResult.Success))
+        };
+        var viewModel = CreateViewModel(
+            new FakeGameInstanceService(),
+            launchService: launchService,
+            selectedAccount: CreateOfflineAccount());
+        viewModel.HomePage.SetSelectedInstance(CreateInstance("Vanilla World", "1.20.1"));
+
+        await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
+        await Task.Delay(50);
+
+        Assert.False(viewModel.LaunchStatusDialog.IsOpen);
+    }
+
+    [Fact]
+    public void LaunchStatusDialogOpenLogDirectoryUsesFolderService()
+    {
+        var folderService = new FakeInstanceFolderService();
+        var statusService = new FakeStatusService();
+        var dialog = new LaunchStatusDialogViewModel(folderService, statusService);
+
+        dialog.Show(new LaunchFailureReport(
+            LaunchFailureKind.StartupFailed,
+            "Vanilla World",
+            "1.20.1",
+            null,
+            @"C:\logs\launch-diagnostics.log",
+            @"C:\logs"));
+        dialog.OpenLogDirectoryCommand.Execute(null);
+
+        Assert.Equal(@"C:\logs", folderService.LastOpenedPath);
+    }
+
+    [Fact]
     public async Task InstanceJavaSettingsChangesSynchronizeHomeSelectedInstance()
     {
         var instanceService = new FakeGameInstanceService();
@@ -275,7 +377,8 @@ public sealed class MainViewModelTests
         FakeStatusService? statusService = null,
         FakeFloatingMessageService? floatingMessageService = null,
         FakeLaunchService? launchService = null,
-        LauncherAccount? selectedAccount = null)
+        LauncherAccount? selectedAccount = null,
+        FakeWindowService? windowService = null)
     {
         var settingsService = new TestSettingsService(settings ?? new LauncherSettings());
         statusService ??= new FakeStatusService();
@@ -311,7 +414,7 @@ public sealed class MainViewModelTests
                 floatingMessageService),
             settingsPage,
             gameManagement,
-            new FakeWindowService(),
+            windowService ?? new FakeWindowService(),
             statusService,
             floatingMessageService,
             ImmediateUiDispatcher.Instance,
@@ -320,7 +423,9 @@ public sealed class MainViewModelTests
                 gameVersionService,
                 statusService,
                 floatingMessageService,
-                new FakeWindowService()));
+                new FakeWindowService(),
+                ImmediateUiDispatcher.Instance),
+            new LaunchStatusDialogViewModel(new FakeInstanceFolderService(), statusService));
     }
 
     private static AccountPageViewModel CreateAccountPage(
@@ -407,20 +512,30 @@ public sealed class MainViewModelTests
 
     private sealed class FakeInstanceFolderService : IInstanceFolderService
     {
+        public string? LastOpenedPath { get; private set; }
+
         public bool TryOpen(string folderPath)
         {
+            LastOpenedPath = folderPath;
             return true;
         }
     }
 
     private sealed class FakeWindowService : IWindowService
     {
+        public int RestoreAndActivateCallCount { get; private set; }
+
         public void Attach(Window window)
         {
         }
 
         public void Minimize()
         {
+        }
+
+        public void RestoreAndActivate()
+        {
+            RestoreAndActivateCallCount++;
         }
 
         public void Close()
@@ -431,8 +546,9 @@ public sealed class MainViewModelTests
     private sealed class FakeLaunchService : ILaunchService
     {
         public Exception? ExceptionToThrow { get; init; }
+        public GameLaunchSession? SessionToReturn { get; init; }
 
-        public Task LaunchAsync(
+        public Task<GameLaunchSession> LaunchAsync(
             GameInstance instance,
             LauncherAccount account,
             LauncherSettings settings,
@@ -442,7 +558,10 @@ public sealed class MainViewModelTests
             if (ExceptionToThrow is not null)
                 throw ExceptionToThrow;
 
-            return Task.CompletedTask;
+            return Task.FromResult(SessionToReturn ?? new GameLaunchSession(
+                instance.Id,
+                instance.Name,
+                Task.FromResult(LaunchExitResult.Success)));
         }
     }
 

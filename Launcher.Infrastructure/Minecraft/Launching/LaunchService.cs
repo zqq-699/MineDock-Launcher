@@ -46,7 +46,7 @@ public sealed class LaunchService : ILaunchService
         this.javaRuntimeSelectionService = javaRuntimeSelectionService;
     }
 
-    public async Task LaunchAsync(
+    public async Task<GameLaunchSession> LaunchAsync(
         GameInstance instance,
         LauncherAccount account,
         LauncherSettings settings,
@@ -78,7 +78,15 @@ public sealed class LaunchService : ILaunchService
         var gameArguments = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
             ? settings.DefaultGameArguments
             : instance.GameArguments;
+        var memoryMb = instance.MemoryMb > 0 ? instance.MemoryMb : settings.DefaultMemoryMb;
         System.Diagnostics.Process? process = null;
+        LaunchDiagnosticContext diagnosticContext = CreateDiagnosticContext(
+            instance,
+            settings,
+            versionName,
+            javaPath: null,
+            memoryMb,
+            sensitiveValues: []);
 
         try
         {
@@ -118,6 +126,13 @@ public sealed class LaunchService : ILaunchService
             var selectedJavaRuntime = javaRuntimeSelectionService is null
                 ? null
                 : await javaRuntimeSelectionService.SelectForLaunchAsync(instance, settings, cancellationToken);
+            diagnosticContext = CreateDiagnosticContext(
+                instance,
+                settings,
+                versionName,
+                selectedJavaRuntime?.ExecutablePath,
+                memoryMb,
+                [accountSession.AccessToken]);
             var launchOption = new MLaunchOption
             {
                 Path = isolatedPath,
@@ -125,7 +140,7 @@ public sealed class LaunchService : ILaunchService
                     accountSession.Username,
                     accountSession.AccessToken,
                     accountSession.Uuid),
-                MaximumRamMb = instance.MemoryMb > 0 ? instance.MemoryMb : settings.DefaultMemoryMb,
+                MaximumRamMb = memoryMb,
                 ScreenWidth = instance.WindowWidth,
                 ScreenHeight = instance.WindowHeight,
                 FullScreen = shouldLaunchFullScreen,
@@ -151,11 +166,17 @@ public sealed class LaunchService : ILaunchService
                 LaunchProgressStages.StartingProcess,
                 "Starting game process",
                 100));
-            process.Start();
+            if (!process.Start())
+                throw new InvalidOperationException("Minecraft process did not start.");
 
-            var quickExitResult = await crashMonitorSession.WaitForQuickExitAsync(process, cancellationToken);
+            var quickExitResult = await crashMonitorSession.WaitForQuickExitAsync(
+                process,
+                diagnosticContext,
+                cancellationToken);
             if (quickExitResult is not null)
-                throw new LaunchProcessExitedException(quickExitResult.DiagnosticPath);
+                throw new LaunchProcessExitedException(quickExitResult.Report);
+
+            return crashMonitorSession.CreateGameLaunchSession(process, diagnosticContext);
         }
         catch (LaunchProcessExitedException)
         {
@@ -163,74 +184,63 @@ public sealed class LaunchService : ILaunchService
         }
         catch (LaunchAccountSessionException exception)
         {
-            await WriteFailureDiagnosticAsync(
-                settings,
-                instance,
-                versionName,
+            var report = await WriteFailureDiagnosticAsync(
+                diagnosticContext,
                 "account_session_failed",
                 "Failed to create a valid Minecraft account session.",
                 exception,
                 process?.StartInfo,
                 cancellationToken);
-            throw;
+            throw new LaunchFailedException(report, exception);
         }
         catch (InstanceRepairException exception)
         {
-            await WriteFailureDiagnosticAsync(
-                settings,
-                instance,
-                versionName,
+            var report = await WriteFailureDiagnosticAsync(
+                diagnosticContext,
                 "instance_repair_failed",
                 exception.Message,
                 exception,
                 process?.StartInfo,
                 cancellationToken);
-            throw;
+            throw new LaunchFailedException(report, exception);
         }
         catch (JavaRuntimeSelectionException exception)
         {
-            await WriteFailureDiagnosticAsync(
-                settings,
-                instance,
-                versionName,
+            var report = await WriteFailureDiagnosticAsync(
+                diagnosticContext,
                 "java_runtime_selection_failed",
                 exception.Message,
                 exception,
                 process?.StartInfo,
                 cancellationToken);
-            throw;
+            throw new LaunchFailedException(report, exception);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            await WriteFailureDiagnosticAsync(
-                settings,
-                instance,
-                versionName,
+            var report = await WriteFailureDiagnosticAsync(
+                diagnosticContext,
                 "launch_failed",
                 exception.Message,
                 exception,
                 process?.StartInfo,
                 cancellationToken);
-            throw;
+            throw new LaunchFailedException(report, exception);
         }
     }
 
-    private static async Task WriteFailureDiagnosticAsync(
-        LauncherSettings settings,
-        GameInstance instance,
-        string versionName,
+    private static async Task<LaunchFailureReport> WriteFailureDiagnosticAsync(
+        LaunchDiagnosticContext context,
         string failureKind,
         string failureSummary,
         Exception exception,
         System.Diagnostics.ProcessStartInfo? startInfo,
         CancellationToken cancellationToken)
     {
+        string? diagnosticPath = null;
         try
         {
-            var diagnosticPath = await LaunchDiagnosticsWriter.WriteExceptionDiagnosticAsync(
-                settings.MinecraftDirectory,
-                instance.InstanceDirectory,
-                versionName,
+            diagnosticPath = await LaunchDiagnosticsWriter.WriteExceptionDiagnosticAsync(
+                context,
                 failureKind,
                 failureSummary,
                 exception,
@@ -243,6 +253,44 @@ public sealed class LaunchService : ILaunchService
         catch
         {
         }
+
+        return new LaunchFailureReport(
+            LaunchFailureKind.StartupFailed,
+            context.InstanceName,
+            context.VersionName,
+            null,
+            diagnosticPath,
+            ResolveDiagnosticDirectory(context, diagnosticPath));
+    }
+
+    private static LaunchDiagnosticContext CreateDiagnosticContext(
+        GameInstance instance,
+        LauncherSettings settings,
+        string versionName,
+        string? javaPath,
+        int memoryMb,
+        IReadOnlyList<string> sensitiveValues)
+    {
+        return new LaunchDiagnosticContext(
+            settings.MinecraftDirectory,
+            instance.InstanceDirectory,
+            instance.Id,
+            string.IsNullOrWhiteSpace(instance.Name) ? versionName : instance.Name,
+            versionName,
+            instance.MinecraftVersion,
+            instance.Loader,
+            instance.LoaderVersion,
+            javaPath,
+            memoryMb,
+            sensitiveValues);
+    }
+
+    private static string ResolveDiagnosticDirectory(LaunchDiagnosticContext context, string? diagnosticPath)
+    {
+        if (!string.IsNullOrWhiteSpace(diagnosticPath))
+            return Path.GetDirectoryName(diagnosticPath) ?? Path.Combine(context.InstanceDirectory, "logs", "launcher");
+
+        return Path.Combine(context.InstanceDirectory, "logs", "launcher");
     }
 
     private static MinecraftPath CreateIsolatedLaunchPath(string minecraftDirectory, string versionName)

@@ -63,7 +63,8 @@ public sealed partial class MainViewModel : ObservableObject
         IStatusService statusService,
         IFloatingMessageService floatingMessageService,
         IUiDispatcher uiDispatcher,
-        IHomePageViewModelFactory homePageFactory)
+        IHomePageViewModelFactory homePageFactory,
+        LaunchStatusDialogViewModel launchStatusDialog)
     {
         this.settingsService = settingsService;
         this.windowService = windowService;
@@ -75,12 +76,14 @@ public sealed partial class MainViewModel : ObservableObject
         GameSettingsPage = gameSettingsPage;
         SettingsPage = settingsPage;
         GameManagement = gameManagement;
+        LaunchStatusDialog = launchStatusDialog;
         HomePage = homePageFactory.Create(
             AccountPage,
             percent => ProgressPercent = percent,
             instance => GameManagement.SelectLaunchInstanceAsync(instance),
             OpenGameSettingsForInstanceAsync);
         HomePage.JavaRequirementNotMet += HomePage_JavaRequirementNotMet;
+        HomePage.LaunchFailureReported += HomePage_LaunchFailureReported;
 
         statusService.MessageReported += message => StatusMessage = message;
         floatingMessageService.MessageRequested += ShowFloatingMessage;
@@ -107,6 +110,8 @@ public sealed partial class MainViewModel : ObservableObject
     public SettingsPageViewModel SettingsPage { get; }
 
     public GameManagementViewModel GameManagement { get; }
+
+    public LaunchStatusDialogViewModel LaunchStatusDialog { get; }
 
     public NavigationItem DownloadTasksNavigationItem { get; } = NavigationCatalog.CreateDownloadTasksItem();
 
@@ -343,6 +348,18 @@ public sealed partial class MainViewModel : ObservableObject
             ? string.Format(Strings.Dialog_JavaRequirementNotMetMessageFormat, requiredMajorVersion)
             : Strings.Dialog_JavaRequirementNotMetMessage;
         IsJavaRequirementDialogOpen = true;
+    }
+
+    private void HomePage_LaunchFailureReported(object? sender, LaunchFailureReport report)
+    {
+        if (!uiDispatcher.HasAccess)
+        {
+            uiDispatcher.Post(() => HomePage_LaunchFailureReported(sender, report));
+            return;
+        }
+
+        windowService.RestoreAndActivate();
+        LaunchStatusDialog.Show(report);
     }
 
     private async Task HandleGameSettingsLaunchRequestAsync(GameInstance instance)

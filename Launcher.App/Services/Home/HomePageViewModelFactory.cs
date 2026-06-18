@@ -10,19 +10,22 @@ public sealed class HomePageViewModelFactory : IHomePageViewModelFactory
     private readonly IStatusService statusService;
     private readonly IFloatingMessageService floatingMessageService;
     private readonly IWindowService windowService;
+    private readonly IUiDispatcher uiDispatcher;
 
     public HomePageViewModelFactory(
         ILaunchService launchService,
         IGameVersionService gameVersionService,
         IStatusService statusService,
         IFloatingMessageService floatingMessageService,
-        IWindowService windowService)
+        IWindowService windowService,
+        IUiDispatcher uiDispatcher)
     {
         this.launchService = launchService;
         this.gameVersionService = gameVersionService;
         this.statusService = statusService;
         this.floatingMessageService = floatingMessageService;
         this.windowService = windowService;
+        this.uiDispatcher = uiDispatcher;
     }
 
     public HomePageViewModel Create(
@@ -38,6 +41,7 @@ public sealed class HomePageViewModelFactory : IHomePageViewModelFactory
             statusService,
             floatingMessageService,
             windowService,
+            uiDispatcher,
             reportProgressPercent,
             selectLaunchInstance,
             openGameSettingsForInstance);

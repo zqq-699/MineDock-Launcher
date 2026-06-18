@@ -815,8 +815,15 @@ public sealed class LaunchServiceTests : TestTempDirectory
         Assert.False(string.IsNullOrWhiteSpace(exception.DiagnosticPath));
         Assert.True(File.Exists(exception.DiagnosticPath));
         var diagnostic = await File.ReadAllTextAsync(exception.DiagnosticPath);
-        Assert.Contains("FailureKind: quick_exit", diagnostic);
+        Assert.Equal(LaunchFailureKind.StartupAbnormalExit, exception.Report.Kind);
+        Assert.Equal(1, exception.Report.ExitCode);
+        Assert.Contains("FailureKind: startup_abnormal_exit", diagnostic);
         Assert.Contains("FailureSummary: Missing launch target", diagnostic);
+        Assert.Contains("VersionName: Forge Pack", diagnostic);
+        Assert.Contains("MinecraftVersion:", diagnostic);
+        Assert.Contains("Loader: Vanilla", diagnostic);
+        Assert.Contains("MemoryMb:", diagnostic);
+        Assert.DoesNotContain("super-secret-access-token", diagnostic);
         Assert.Contains("[MatchedErrorLines]", diagnostic);
         Assert.Contains("[Process]", diagnostic);
         Assert.Contains("Missing launch target", diagnostic);
@@ -856,12 +863,15 @@ public sealed class LaunchServiceTests : TestTempDirectory
             IsOffline = true
         };
 
-        await Assert.ThrowsAsync<InstanceRepairException>(() => service.LaunchAsync(
+        var exception = await Assert.ThrowsAsync<LaunchFailedException>(() => service.LaunchAsync(
             instance,
             account,
             settings,
             progress: null));
 
+        Assert.IsType<InstanceRepairException>(exception.InnerException);
+        Assert.Equal(LaunchFailureKind.StartupFailed, exception.Report.Kind);
+        Assert.False(string.IsNullOrWhiteSpace(exception.Report.DiagnosticPath));
         var logsDirectory = Path.Combine(instanceDirectory, "logs", "launcher");
         var diagnosticPath = Directory.GetFiles(logsDirectory, "launch-diagnostics-*.log").Single();
         var diagnostic = await File.ReadAllTextAsync(diagnosticPath);
@@ -871,12 +881,189 @@ public sealed class LaunchServiceTests : TestTempDirectory
         Assert.Contains("InstanceRepairException", diagnostic);
     }
 
+    [Fact]
+    public async Task LaunchServiceClassifiesZeroQuickExitWithoutNewCrashAsStartupProcessExited()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var instanceDirectory = Path.Combine(minecraftDirectory, "versions", "Vanilla Pack");
+        Directory.CreateDirectory(instanceDirectory);
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            new FakeLaunchGameLauncherFactory
+            {
+                BuildProcess = (_, _) => CreateCommandProcess("/c exit 0")
+            },
+            new LaunchCrashMonitor(TimeSpan.FromSeconds(2)));
+
+        var exception = await Assert.ThrowsAsync<LaunchProcessExitedException>(() => service.LaunchAsync(
+            CreateInstance(instanceDirectory, "Vanilla Pack"),
+            CreateAccount(),
+            new LauncherSettings { MinecraftDirectory = minecraftDirectory },
+            progress: null));
+
+        Assert.Equal(LaunchFailureKind.StartupProcessExited, exception.Report.Kind);
+        Assert.Equal(0, exception.Report.ExitCode);
+    }
+
+    [Fact]
+    public async Task LaunchServiceIgnoresOldCrashReportsWhenClassifyingQuickExit()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var instanceDirectory = Path.Combine(minecraftDirectory, "versions", "Vanilla Pack");
+        var crashDirectory = Path.Combine(instanceDirectory, "crash-reports");
+        Directory.CreateDirectory(crashDirectory);
+        var oldCrashPath = Path.Combine(crashDirectory, "crash-old.txt");
+        await File.WriteAllTextAsync(oldCrashPath, "old crash");
+        File.SetLastWriteTimeUtc(oldCrashPath, DateTime.UtcNow.AddMinutes(-5));
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            new FakeLaunchGameLauncherFactory
+            {
+                BuildProcess = (_, _) => CreateCommandProcess("/c exit 0")
+            },
+            new LaunchCrashMonitor(TimeSpan.FromSeconds(2)));
+
+        var exception = await Assert.ThrowsAsync<LaunchProcessExitedException>(() => service.LaunchAsync(
+            CreateInstance(instanceDirectory, "Vanilla Pack"),
+            CreateAccount(),
+            new LauncherSettings { MinecraftDirectory = minecraftDirectory },
+            progress: null));
+
+        Assert.Equal(LaunchFailureKind.StartupProcessExited, exception.Report.Kind);
+    }
+
+    [Fact]
+    public async Task LaunchServiceTreatsNewCrashReportAsAbnormalEvenWithZeroExitCode()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var instanceDirectory = Path.Combine(minecraftDirectory, "versions", "Vanilla Pack");
+        var crashDirectory = Path.Combine(instanceDirectory, "crash-reports");
+        Directory.CreateDirectory(crashDirectory);
+        var crashPath = Path.Combine(crashDirectory, "crash-new.txt");
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            new FakeLaunchGameLauncherFactory
+            {
+                BuildProcess = (_, _) => CreateCommandProcess($"/c echo crash> \"{crashPath}\" & exit 0")
+            },
+            new LaunchCrashMonitor(TimeSpan.FromSeconds(2)));
+
+        var exception = await Assert.ThrowsAsync<LaunchProcessExitedException>(() => service.LaunchAsync(
+            CreateInstance(instanceDirectory, "Vanilla Pack"),
+            CreateAccount(),
+            new LauncherSettings { MinecraftDirectory = minecraftDirectory },
+            progress: null));
+
+        Assert.Equal(LaunchFailureKind.StartupAbnormalExit, exception.Report.Kind);
+        Assert.Equal(0, exception.Report.ExitCode);
+    }
+
+    [Fact]
+    public async Task LaunchServiceReturnsSuccessfulExitForStableZeroExitWithoutNewCrash()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var instanceDirectory = Path.Combine(minecraftDirectory, "versions", "Stable Pack");
+        Directory.CreateDirectory(instanceDirectory);
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            new FakeLaunchGameLauncherFactory
+            {
+                BuildProcess = (_, _) => CreateCommandProcess("/c ping -n 2 127.0.0.1 > nul & exit 0")
+            },
+            new LaunchCrashMonitor(TimeSpan.FromMilliseconds(150)));
+
+        var session = await service.LaunchAsync(
+            CreateInstance(instanceDirectory, "Stable Pack"),
+            CreateAccount(),
+            new LauncherSettings { MinecraftDirectory = minecraftDirectory },
+            progress: null);
+
+        var result = await session.ExitTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(result.IsFailure);
+    }
+
+    [Fact]
+    public async Task LaunchServiceReportsStableNonZeroExitOnlyOnce()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var instanceDirectory = Path.Combine(minecraftDirectory, "versions", "Stable Pack");
+        Directory.CreateDirectory(instanceDirectory);
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            new FakeLaunchGameLauncherFactory
+            {
+                BuildProcess = (_, _) => CreateCommandProcess("/c ping -n 2 127.0.0.1 > nul & exit 2")
+            },
+            new LaunchCrashMonitor(TimeSpan.FromMilliseconds(150)));
+
+        var session = await service.LaunchAsync(
+            CreateInstance(instanceDirectory, "Stable Pack"),
+            CreateAccount(),
+            new LauncherSettings { MinecraftDirectory = minecraftDirectory },
+            progress: null);
+
+        var result = await session.ExitTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(result.IsFailure);
+        Assert.Equal(LaunchFailureKind.RuntimeAbnormalExit, result.FailureReport?.Kind);
+        Assert.Equal(2, result.FailureReport?.ExitCode);
+        Assert.True(session.TryMarkExitHandled());
+        Assert.False(session.TryMarkExitHandled());
+    }
+
     private sealed class FakeLaunchAccountSessionService : ILaunchAccountSessionService
     {
         public Task<LaunchAccountSession> CreateSessionAsync(LauncherAccount account, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(new LaunchAccountSession(account.DisplayName, "token", account.Uuid ?? string.Empty, account.IsOffline));
+            return Task.FromResult(new LaunchAccountSession(
+                account.DisplayName,
+                "super-secret-access-token",
+                account.Uuid ?? string.Empty,
+                account.IsOffline));
         }
+    }
+
+    private static Process CreateCommandProcess(string arguments)
+    {
+        return new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = Path.Combine(Environment.SystemDirectory, "cmd.exe"),
+                Arguments = arguments,
+                CreateNoWindow = true,
+                UseShellExecute = false
+            }
+        };
+    }
+
+    private static GameInstance CreateInstance(string instanceDirectory, string name)
+    {
+        return new GameInstance
+        {
+            Id = name,
+            Name = name,
+            MinecraftVersion = "1.20.1",
+            VersionName = name,
+            InstanceDirectory = instanceDirectory,
+            Loader = LoaderKind.Vanilla,
+            MemoryMb = 4096
+        };
+    }
+
+    private static LauncherAccount CreateAccount()
+    {
+        return new LauncherAccount
+        {
+            Id = "offline",
+            DisplayName = "Player",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
     }
 
     private sealed class FakeManagedVersionRepairService : IManagedVersionRepairService
@@ -1202,9 +1389,20 @@ public sealed class LaunchServiceTests : TestTempDirectory
             {
             }
 
-            public Task<LaunchCrashMonitorResult?> WaitForQuickExitAsync(Process process, CancellationToken cancellationToken)
+            public Task<LaunchCrashMonitorResult?> WaitForQuickExitAsync(
+                Process process,
+                LaunchDiagnosticContext context,
+                CancellationToken cancellationToken)
             {
                 return Task.FromResult<LaunchCrashMonitorResult?>(null);
+            }
+
+            public GameLaunchSession CreateGameLaunchSession(Process process, LaunchDiagnosticContext context)
+            {
+                return new GameLaunchSession(
+                    context.InstanceId,
+                    context.InstanceName,
+                    Task.FromResult(LaunchExitResult.Success));
             }
         }
     }

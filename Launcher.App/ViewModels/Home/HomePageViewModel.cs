@@ -18,6 +18,7 @@ public sealed partial class HomePageViewModel : ObservableObject
     private readonly IStatusService statusService;
     private readonly IFloatingMessageService floatingMessageService;
     private readonly IWindowService windowService;
+    private readonly IUiDispatcher uiDispatcher;
     private readonly Action<double> reportProgressPercent;
     private readonly Func<GameInstance?, Task> openGameSettingsForInstance;
     private LauncherSettings settings = new();
@@ -42,6 +43,7 @@ public sealed partial class HomePageViewModel : ObservableObject
         IStatusService statusService,
         IFloatingMessageService floatingMessageService,
         IWindowService windowService,
+        IUiDispatcher uiDispatcher,
         Action<double> reportProgressPercent,
         Func<GameInstance, Task<bool>> selectLaunchInstance,
         Func<GameInstance?, Task> openGameSettingsForInstance)
@@ -51,6 +53,7 @@ public sealed partial class HomePageViewModel : ObservableObject
         this.statusService = statusService;
         this.floatingMessageService = floatingMessageService;
         this.windowService = windowService;
+        this.uiDispatcher = uiDispatcher;
         this.reportProgressPercent = reportProgressPercent;
         this.openGameSettingsForInstance = openGameSettingsForInstance;
 
@@ -91,6 +94,8 @@ public sealed partial class HomePageViewModel : ObservableObject
     public bool CanOpenSelectedInstanceSettings => SelectedInstance is not null && !IsLaunching;
 
     public event EventHandler<JavaRequirementNotMetEventArgs>? JavaRequirementNotMet;
+
+    public event EventHandler<LaunchFailureReport>? LaunchFailureReported;
 
     public string? HomeAvatarUrl
     {
@@ -173,12 +178,13 @@ public sealed partial class HomePageViewModel : ObservableObject
         try
         {
             var cancellationTokenSource = BeginLaunchProgress();
-            await launchService.LaunchAsync(
+            var session = await launchService.LaunchAsync(
                 launchInstance,
                 account,
                 settings,
                 CreateProgress(),
                 cancellationTokenSource.Token);
+            ObserveGameExit(session);
 
             if (ShouldMinimizeLauncherAfterLaunch(launchInstance))
                 windowService.Minimize();
@@ -192,9 +198,21 @@ public sealed partial class HomePageViewModel : ObservableObject
         {
             statusService.Report(Strings.Status_LaunchAccountUnavailable);
         }
-        catch (LaunchProcessExitedException)
+        catch (LaunchFailedException exception)
         {
-            statusService.Report(Strings.Status_LaunchExitedQuickly);
+            if (exception.InnerException is JavaRuntimeSelectionException
+                {
+                    Reason: JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound
+                } javaException)
+            {
+                JavaRequirementNotMet?.Invoke(this, new JavaRequirementNotMetEventArgs(javaException.RequiredMajorVersion));
+            }
+
+            ReportLaunchFailure(exception.Report);
+        }
+        catch (LaunchProcessExitedException exception)
+        {
+            ReportLaunchFailure(exception.Report);
         }
         catch (InstanceRepairException)
         {
@@ -360,6 +378,51 @@ public sealed partial class HomePageViewModel : ObservableObject
             LaunchProgressStages.DownloadingFiles or LaunchProgressStages.DownloadSpeed => Strings.Status_LaunchDownloadingFiles,
             _ when !string.IsNullOrWhiteSpace(progress.Message) => progress.Message,
             _ => Strings.Status_LaunchPreparing
+        };
+    }
+
+    private void ObserveGameExit(GameLaunchSession session)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var exitResult = await session.ExitTask;
+                if (!exitResult.IsFailure
+                    || exitResult.FailureReport is null
+                    || !session.TryMarkExitHandled())
+                {
+                    return;
+                }
+
+                ReportLaunchFailure(exitResult.FailureReport);
+            }
+            catch
+            {
+            }
+        });
+    }
+
+    private void ReportLaunchFailure(LaunchFailureReport report)
+    {
+        if (!uiDispatcher.HasAccess)
+        {
+            uiDispatcher.Post(() => ReportLaunchFailure(report));
+            return;
+        }
+
+        statusService.Report(GetLaunchFailureStatus(report.Kind));
+        LaunchFailureReported?.Invoke(this, report);
+    }
+
+    private static string GetLaunchFailureStatus(LaunchFailureKind kind)
+    {
+        return kind switch
+        {
+            LaunchFailureKind.StartupProcessExited => Strings.Status_LaunchProcessExited,
+            LaunchFailureKind.RuntimeAbnormalExit => Strings.Status_LaunchRuntimeAbnormalExit,
+            LaunchFailureKind.StartupAbnormalExit => Strings.Status_LaunchAbnormalExit,
+            _ => Strings.Status_LaunchFailed
         };
     }
 }

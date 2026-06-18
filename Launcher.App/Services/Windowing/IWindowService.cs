@@ -8,5 +8,7 @@ public interface IWindowService
 
     void Minimize();
 
+    void RestoreAndActivate();
+
     void Close();
 }

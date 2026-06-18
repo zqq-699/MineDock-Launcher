@@ -241,6 +241,9 @@ public static class Strings
     public static string Status_LaunchCanceled => Get(nameof(Status_LaunchCanceled));
     public static string Status_LaunchAccountUnavailable => Get(nameof(Status_LaunchAccountUnavailable));
     public static string Status_LaunchExitedQuickly => Get(nameof(Status_LaunchExitedQuickly));
+    public static string Status_LaunchProcessExited => Get(nameof(Status_LaunchProcessExited));
+    public static string Status_LaunchAbnormalExit => Get(nameof(Status_LaunchAbnormalExit));
+    public static string Status_LaunchRuntimeAbnormalExit => Get(nameof(Status_LaunchRuntimeAbnormalExit));
     public static string Status_LaunchFailed => Get(nameof(Status_LaunchFailed));
     public static string Status_LaunchInstanceRepairFailed => Get(nameof(Status_LaunchInstanceRepairFailed));
     public static string Status_LaunchInstanceSelectedFormat => Get(nameof(Status_LaunchInstanceSelectedFormat));
@@ -274,6 +277,7 @@ public static class Strings
     public static string Status_DeleteInstanceFailed => Get(nameof(Status_DeleteInstanceFailed));
     public static string Status_InstanceFolderNotFound => Get(nameof(Status_InstanceFolderNotFound));
     public static string Status_OpenInstanceFolderFailed => Get(nameof(Status_OpenInstanceFolderFailed));
+    public static string Status_OpenLaunchLogFolderFailed => Get(nameof(Status_OpenLaunchLogFolderFailed));
     public static string Status_RenamingInstance => Get(nameof(Status_RenamingInstance));
     public static string Status_InstanceRenamedFormat => Get(nameof(Status_InstanceRenamedFormat));
     public static string Status_InstanceRenameResultFormat => Get(nameof(Status_InstanceRenameResultFormat));
@@ -345,4 +349,16 @@ public static class Strings
     public static string FilePicker_MinecraftSkinFilter => Get(nameof(FilePicker_MinecraftSkinFilter));
     public static string FilePicker_JavaExecutableTitle => Get(nameof(FilePicker_JavaExecutableTitle));
     public static string FilePicker_JavaExecutableFilter => Get(nameof(FilePicker_JavaExecutableFilter));
+    public static string Dialog_LaunchStatusFailedTitle => Get(nameof(Dialog_LaunchStatusFailedTitle));
+    public static string Dialog_LaunchStatusExitedTitle => Get(nameof(Dialog_LaunchStatusExitedTitle));
+    public static string Dialog_LaunchStatusRuntimeFailedTitle => Get(nameof(Dialog_LaunchStatusRuntimeFailedTitle));
+    public static string Dialog_LaunchStatusMessageFormat => Get(nameof(Dialog_LaunchStatusMessageFormat));
+    public static string Dialog_LaunchStatusStartupFailedMessage => Get(nameof(Dialog_LaunchStatusStartupFailedMessage));
+    public static string Dialog_LaunchStatusStartupExitedMessage => Get(nameof(Dialog_LaunchStatusStartupExitedMessage));
+    public static string Dialog_LaunchStatusStartupAbnormalMessage => Get(nameof(Dialog_LaunchStatusStartupAbnormalMessage));
+    public static string Dialog_LaunchStatusRuntimeAbnormalMessage => Get(nameof(Dialog_LaunchStatusRuntimeAbnormalMessage));
+    public static string Dialog_LaunchStatusUnknownExitCode => Get(nameof(Dialog_LaunchStatusUnknownExitCode));
+    public static string Dialog_LaunchStatusDiagnosticFileHint => Get(nameof(Dialog_LaunchStatusDiagnosticFileHint));
+    public static string Dialog_LaunchStatusDiagnosticDirectoryHint => Get(nameof(Dialog_LaunchStatusDiagnosticDirectoryHint));
+    public static string Dialog_OpenLaunchLogFolderButton => Get(nameof(Dialog_OpenLaunchLogFolderButton));
 }
