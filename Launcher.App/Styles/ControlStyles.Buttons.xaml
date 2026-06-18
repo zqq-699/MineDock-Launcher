@@ -352,9 +352,9 @@
     </Style>
 
     <Style x:Key="SecondaryMenuButtonStyle" TargetType="Button">
-        <Setter Property="Height" Value="40" />
-        <Setter Property="Margin" Value="0,0,0,6" />
-        <Setter Property="Padding" Value="12,4" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Padding" Value="12,3" />
         <Setter Property="Foreground" Value="#F2F2F2" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />

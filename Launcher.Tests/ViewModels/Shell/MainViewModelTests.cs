@@ -186,18 +186,103 @@ public sealed class MainViewModelTests
         Assert.Equal(Strings.Status_LaunchCanceled, viewModel.FloatingMessage);
     }
 
+    [Fact]
+    public async Task AutomaticJavaRequirementFailureOpensDialog()
+    {
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new JavaRuntimeSelectionException(
+                "missing java",
+                JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound,
+                21)
+        };
+        var account = CreateOfflineAccount();
+        var viewModel = CreateViewModel(
+            new FakeGameInstanceService(),
+            launchService: launchService,
+            selectedAccount: account);
+        viewModel.HomePage.SetSelectedInstance(CreateInstance("Vanilla World", "1.20.5"));
+
+        await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsJavaRequirementDialogOpen);
+        Assert.Contains("Java 21", viewModel.JavaRequirementDialogMessage);
+
+        viewModel.CloseJavaRequirementDialogCommand.Execute(null);
+
+        Assert.False(viewModel.IsJavaRequirementDialogOpen);
+    }
+
+    [Fact]
+    public async Task JavaRequirementDialogCanNavigateToGlobalJavaSettings()
+    {
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new JavaRuntimeSelectionException(
+                "missing java",
+                JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound,
+                17)
+        };
+        var account = CreateOfflineAccount();
+        var viewModel = CreateViewModel(
+            new FakeGameInstanceService(),
+            launchService: launchService,
+            selectedAccount: account);
+        viewModel.HomePage.SetSelectedInstance(CreateInstance("Vanilla World", "1.20.1"));
+
+        await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
+        viewModel.OpenJavaSettingsFromRequirementDialogCommand.Execute(null);
+
+        Assert.False(viewModel.IsJavaRequirementDialogOpen);
+        Assert.Equal("Settings", viewModel.CurrentPage);
+        Assert.True(viewModel.SettingsPage.IsJavaMemorySection);
+    }
+
+    [Fact]
+    public async Task InstanceJavaSettingsChangesSynchronizeHomeSelectedInstance()
+    {
+        var instanceService = new FakeGameInstanceService();
+        var instance = CreateInstance("Vanilla World", "1.20.5");
+        instance.JavaSettingsMode = LaunchSettingsMode.UseGlobal;
+        instance.JavaSelectionMode = JavaSelectionMode.Manual;
+        instanceService.CreatedInstances.Add(instance);
+        var viewModel = CreateViewModel(
+            instanceService,
+            settings: new LauncherSettings
+            {
+                JavaSelectionMode = JavaSelectionMode.Manual,
+                SelectedJavaExecutablePath = @"C:\Global\jdk-21\bin\java.exe"
+            });
+
+        await viewModel.InitializeAsync();
+        await viewModel.GameSettingsPage.EnsureInstancesLoadedAsync();
+        viewModel.GameSettingsPage.SelectInstanceCommand.Execute(viewModel.GameSettingsPage.VisibleInstances.Single());
+        viewModel.HomePage.SetSelectedInstance(instance);
+
+        viewModel.GameSettingsPage.Details.SelectedInstanceJavaSettingsModeOption = viewModel.GameSettingsPage.Details.LaunchSettingsModeOptions
+            .Single(option => option.Mode == LaunchSettingsMode.PerInstance);
+        viewModel.GameSettingsPage.Details.SelectedInstanceJavaSelectionOption = viewModel.GameSettingsPage.Details.InstanceJavaSelectionOptions
+            .Single(option => option.Id == "auto");
+
+        await TestAsync.WaitForAsync(() =>
+            viewModel.HomePage.SelectedInstance?.JavaSettingsMode == LaunchSettingsMode.PerInstance
+            && viewModel.HomePage.SelectedInstance.JavaSelectionMode == JavaSelectionMode.Auto);
+    }
+
     private static MainViewModel CreateViewModel(
         FakeGameInstanceService instanceService,
         LauncherSettings? settings = null,
         FakeStatusService? statusService = null,
-        FakeFloatingMessageService? floatingMessageService = null)
+        FakeFloatingMessageService? floatingMessageService = null,
+        FakeLaunchService? launchService = null,
+        LauncherAccount? selectedAccount = null)
     {
         var settingsService = new TestSettingsService(settings ?? new LauncherSettings());
         statusService ??= new FakeStatusService();
         floatingMessageService ??= new FakeFloatingMessageService();
         var gameVersionService = new FakeGameVersionService([]);
         var downloadTasksPage = new DownloadTasksPageViewModel();
-        var accountPage = CreateAccountPage(statusService);
+        var accountPage = CreateAccountPage(statusService, selectedAccount);
         var settingsPage = new SettingsPageViewModel(
             settingsService,
             statusService,
@@ -231,16 +316,24 @@ public sealed class MainViewModelTests
             floatingMessageService,
             ImmediateUiDispatcher.Instance,
             new HomePageViewModelFactory(
-                new FakeLaunchService(),
+                launchService ?? new FakeLaunchService(),
                 gameVersionService,
                 statusService,
                 floatingMessageService,
                 new FakeWindowService()));
     }
 
-    private static AccountPageViewModel CreateAccountPage(FakeStatusService statusService)
+    private static AccountPageViewModel CreateAccountPage(
+        FakeStatusService statusService,
+        LauncherAccount? selectedAccount = null)
     {
         var accountList = new AccountListViewModel(new FakeAccountStore());
+        if (selectedAccount is not null)
+        {
+            accountList.Accounts.Add(selectedAccount);
+            accountList.SelectAccount(selectedAccount);
+        }
+
         var microsoftAccountService = new FakeMicrosoftAccountService();
         var offlineUuidService = new FakeOfflineAccountUuidService();
         var accountDialogService = new FakeAccountDialogService();
@@ -261,6 +354,17 @@ public sealed class MainViewModelTests
                 statusService,
                 new FakeClipboardService()),
             accountDialogService);
+    }
+
+    private static LauncherAccount CreateOfflineAccount()
+    {
+        return new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "LocalUser",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
     }
 
     private static GameInstance CreateInstance(string name, string minecraftVersion)
@@ -326,6 +430,8 @@ public sealed class MainViewModelTests
 
     private sealed class FakeLaunchService : ILaunchService
     {
+        public Exception? ExceptionToThrow { get; init; }
+
         public Task LaunchAsync(
             GameInstance instance,
             LauncherAccount account,
@@ -333,6 +439,9 @@ public sealed class MainViewModelTests
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default)
         {
+            if (ExceptionToThrow is not null)
+                throw ExceptionToThrow;
+
             return Task.CompletedTask;
         }
     }

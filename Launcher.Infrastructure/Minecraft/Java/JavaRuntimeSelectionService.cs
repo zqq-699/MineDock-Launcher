@@ -114,7 +114,11 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(executablePath))
-            throw new JavaRuntimeSelectionException("No Java runtime is selected for manual Java mode.");
+        {
+            throw new JavaRuntimeSelectionException(
+                "No Java runtime is selected for manual Java mode.",
+                JavaRuntimeSelectionFailureReason.ManualRuntimeMissing);
+        }
 
         try
         {
@@ -124,7 +128,10 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            throw new JavaRuntimeSelectionException("The selected Java runtime is not available.", exception);
+            throw new JavaRuntimeSelectionException(
+                "The selected Java runtime is not available.",
+                exception,
+                JavaRuntimeSelectionFailureReason.ManualRuntimeUnavailable);
         }
     }
 
@@ -152,9 +159,12 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderByDescending(version => version));
 
-        throw new JavaRuntimeSelectionException(string.IsNullOrWhiteSpace(discoveredVersions)
-            ? $"No {requirementText} was found."
-            : $"No {requirementText} was found. Discovered Java versions: {discoveredVersions}.");
+        throw new JavaRuntimeSelectionException(
+            string.IsNullOrWhiteSpace(discoveredVersions)
+                ? $"No {requirementText} was found."
+                : $"No {requirementText} was found. Discovered Java versions: {discoveredVersions}.",
+            JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound,
+            requiredMajorVersion);
     }
 
     private static IEnumerable<string> EnumerateVersionJsonPaths(GameInstance instance, LauncherSettings settings)

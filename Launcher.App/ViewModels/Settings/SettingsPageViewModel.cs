@@ -170,8 +170,18 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         _ = RefreshJavaRuntimesCommand.ExecuteAsync(null);
     }
 
+    public void ShowJavaMemorySection()
+    {
+        SelectSectionCore(Sections.FirstOrDefault(section => section.Section is SettingsPageSection.JavaMemory));
+    }
+
     [RelayCommand]
     private void SelectSection(SettingsSectionItem? section)
+    {
+        SelectSectionCore(section);
+    }
+
+    private void SelectSectionCore(SettingsSectionItem? section)
     {
         if (section is null)
             return;

@@ -9,6 +9,7 @@
         xmlns:accountViews="clr-namespace:Launcher.App.Views.Account"
         xmlns:accountDialogViews="clr-namespace:Launcher.App.Views.Account.Dialogs"
         xmlns:gameSettingsViews="clr-namespace:Launcher.App.Views.GameSettings"
+        xmlns:gameSettingsDialogViews="clr-namespace:Launcher.App.Views.GameSettings.Dialogs"
         xmlns:generalViews="clr-namespace:Launcher.App.Views.General"
         xmlns:settingsViews="clr-namespace:Launcher.App.Views.Settings"
         xmlns:res="clr-namespace:Launcher.App.Resources"
@@ -141,6 +142,85 @@
                                  UseIntegratedOverlay="True"
                                  DataContext="{Binding AccountPage}">
                 <accountDialogViews:SkinModelDialogView />
+            </controls:DialogHost>
+
+            <controls:DialogHost x:Name="RenameInstanceDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="420"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding EditDialog.IsEditInstanceDialogOpen}"
+                                 DataContext="{Binding GameSettingsPage}">
+                <gameSettingsDialogViews:RenameInstanceDialogView />
+            </controls:DialogHost>
+
+            <controls:DialogHost x:Name="DeleteInstanceDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="380"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsDeleteInstanceDialogOpen}"
+                                 DataContext="{Binding GameSettingsPage}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Dialog_DeleteInstanceTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,16,0,24"
+                               Text="{Binding DeleteInstanceDialogMessage}"
+                               Style="{StaticResource DialogBodyTextStyle}" />
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                Content="{x:Static res:Strings.Cancel_Button}"
+                                Command="{Binding CancelDeleteInstanceDialogCommand}" />
+                        <Button Style="{StaticResource LauncherDangerDialogButtonStyle}"
+                                Margin="{StaticResource DialogTrailingButtonMargin}"
+                                Content="{x:Static res:Strings.Delete_Button}"
+                                Command="{Binding ConfirmDeleteInstanceDialogCommand}" />
+                    </StackPanel>
+                </Grid>
+            </controls:DialogHost>
+
+            <controls:DialogHost x:Name="JavaRequirementDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="420"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsJavaRequirementDialogOpen}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Dialog_JavaRequirementNotMetTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,16,0,24"
+                               Text="{Binding JavaRequirementDialogMessage}"
+                               Style="{StaticResource DialogBodyTextStyle}" />
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                Content="{x:Static res:Strings.Dialog_GoToSettingsButton}"
+                                Command="{Binding OpenJavaSettingsFromRequirementDialogCommand}" />
+                        <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                Margin="{StaticResource DialogTrailingButtonMargin}"
+                                Content="{x:Static res:Strings.Confirm_Button}"
+                                Command="{Binding CloseJavaRequirementDialogCommand}" />
+                    </StackPanel>
+                </Grid>
             </controls:DialogHost>
 
             <controls:FloatingMessage Message="{Binding FloatingMessage}"

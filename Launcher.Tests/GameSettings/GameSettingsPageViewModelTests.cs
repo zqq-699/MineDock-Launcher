@@ -401,6 +401,24 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task DetailsDeleteGameCommandOpensDeleteDialogForSelectedInstance()
+    {
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla));
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        var item = viewModel.VisibleInstances.Single();
+        viewModel.SelectInstanceCommand.Execute(item);
+
+        viewModel.Details.RequestDeleteInstanceCommand.Execute(null);
+
+        Assert.True(viewModel.IsDeleteInstanceDialogOpen);
+        Assert.Same(item, viewModel.InstancePendingDelete);
+        Assert.Contains(item.Name, viewModel.DeleteInstanceDialogMessage);
+    }
+
+    [Fact]
     public async Task CancelDeleteInstanceDialogClosesWithoutDeleting()
     {
         var instanceService = new FakeGameInstanceService();
@@ -941,6 +959,30 @@ public sealed class GameSettingsPageViewModelTests
             instanceService.LastSavedInstance is not null
             && instanceService.LastSavedInstance.JavaSelectionMode == JavaSelectionMode.Auto);
         Assert.Equal(@"C:\Java\jdk-17\bin\java.exe", viewModel.SelectedInstance?.Instance.SelectedJavaExecutablePath);
+    }
+
+    [Fact]
+    public async Task InstanceJavaSettingsSaveKeepsCurrentJavaMemorySection()
+    {
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla));
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var javaMemorySection = viewModel.DetailSections.Single(section => section.Id == "java_memory");
+        viewModel.SelectDetailsSectionCommand.Execute(javaMemorySection);
+
+        viewModel.Details.SelectedInstanceJavaSettingsModeOption = viewModel.Details.LaunchSettingsModeOptions
+            .Single(option => option.Mode == LaunchSettingsMode.PerInstance);
+
+        await TestAsync.WaitForAsync(() =>
+            instanceService.LastSavedInstance is not null
+            && instanceService.LastSavedInstance.JavaSettingsMode == LaunchSettingsMode.PerInstance);
+
+        Assert.True(viewModel.Details.IsJavaMemorySection);
+        Assert.True(javaMemorySection.IsSelected);
+        Assert.Equal(Strings.GameSettings_DetailJavaMemory, viewModel.Details.SectionTitle);
     }
 
     [Fact]

@@ -205,6 +205,12 @@
                     </Border>
                 </GroupBox>
 
+                <Button Margin="0,26,0,0"
+                        HorizontalAlignment="Left"
+                        Content="{x:Static res:Strings.GameSettings_DeleteGameButton}"
+                        Command="{Binding RequestDeleteInstanceCommand}"
+                        Style="{StaticResource LauncherDangerDialogButtonStyle}" />
+
             </StackPanel>
 
             <StackPanel Margin="0"

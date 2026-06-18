@@ -303,6 +303,7 @@
   <data name="GameSettings_GeneralInstanceDirectorySection" xml:space="preserve"><value>游戏目录</value></data>
   <data name="GameSettings_GeneralOpenInstanceDirectoryButton" xml:space="preserve"><value>打开游戏目录</value></data>
   <data name="GameSettings_GeneralCreatedAtSection" xml:space="preserve"><value>创建时间</value></data>
+  <data name="GameSettings_DeleteGameButton" xml:space="preserve"><value>删除游戏</value></data>
   <data name="GameSettings_LaunchSettingsSection" xml:space="preserve"><value>启动设置</value></data>
   <data name="GameSettings_LaunchSettingsModeLabel" xml:space="preserve"><value>设置方式</value></data>
   <data name="GameSettings_LaunchSettingsModeUseGlobal" xml:space="preserve"><value>跟随全局设置</value></data>
@@ -343,4 +344,8 @@
   <data name="Status_InstanceRenameFailed" xml:space="preserve"><value>修改版本失败，请稍后重试。</value></data>
   <data name="Status_InstanceRenameUnchanged" xml:space="preserve"><value>版本名称和图标没有变化。</value></data>
   <data name="Status_InstanceSettingsSaveFailed" xml:space="preserve"><value>游戏设置保存失败，请稍后重试。</value></data>
+  <data name="Dialog_JavaRequirementNotMetTitle" xml:space="preserve"><value>未找到满足要求的 Java</value></data>
+  <data name="Dialog_JavaRequirementNotMetMessage" xml:space="preserve"><value>自动选择 Java 时没有找到满足当前版本要求的 Java。请到设置中刷新或导入合适的 Java 后再启动游戏。</value></data>
+  <data name="Dialog_JavaRequirementNotMetMessageFormat" xml:space="preserve"><value>自动选择 Java 时没有找到满足当前版本要求的 Java。当前版本至少需要 Java {0}。请到设置中刷新或导入合适的 Java 后再启动游戏。</value></data>
+  <data name="Dialog_GoToSettingsButton" xml:space="preserve"><value>转到设置</value></data>
 </root>

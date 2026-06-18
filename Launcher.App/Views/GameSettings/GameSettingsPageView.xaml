@@ -3,7 +3,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
-             xmlns:dialogViews="clr-namespace:Launcher.App.Views.GameSettings.Dialogs"
              xmlns:views="clr-namespace:Launcher.App.Views.GameSettings"
              xmlns:res="clr-namespace:Launcher.App.Resources"
              x:Name="Root"
@@ -204,45 +203,5 @@
             </controls:ListPageFrame.ListContent>
         </controls:ListPageFrame>
 
-        <controls:DialogHost x:Name="RenameInstanceDialogHost"
-                             DialogWidth="420"
-                             IsOpen="{Binding EditDialog.IsEditInstanceDialogOpen}"
-                             UseIntegratedOverlay="True"
-                             Panel.ZIndex="11">
-            <dialogViews:RenameInstanceDialogView />
-        </controls:DialogHost>
-
-        <controls:DialogHost x:Name="DeleteInstanceDialogHost"
-                             DialogWidth="380"
-                             IsOpen="{Binding IsDeleteInstanceDialogOpen}"
-                             UseIntegratedOverlay="True"
-                             Panel.ZIndex="10">
-            <Grid Style="{StaticResource DialogContentGridStyle}">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <TextBlock Text="{x:Static res:Strings.Dialog_DeleteInstanceTitle}"
-                           Style="{StaticResource DialogTitleTextStyle}" />
-
-                <TextBlock Grid.Row="1"
-                           Margin="0,16,0,24"
-                           Text="{Binding DeleteInstanceDialogMessage}"
-                           Style="{StaticResource DialogBodyTextStyle}" />
-
-                <StackPanel Grid.Row="2"
-                            Style="{StaticResource DialogFooterStyle}">
-                    <Button Style="{StaticResource LauncherDialogButtonStyle}"
-                            Content="{x:Static res:Strings.Cancel_Button}"
-                            Command="{Binding CancelDeleteInstanceDialogCommand}" />
-                    <Button Style="{StaticResource LauncherDangerDialogButtonStyle}"
-                            Margin="{StaticResource DialogTrailingButtonMargin}"
-                            Content="{x:Static res:Strings.Delete_Button}"
-                            Command="{Binding ConfirmDeleteInstanceDialogCommand}" />
-                </StackPanel>
-            </Grid>
-        </controls:DialogHost>
     </Grid>
 </UserControl>

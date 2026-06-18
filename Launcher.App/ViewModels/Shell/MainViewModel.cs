@@ -45,6 +45,12 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool isFloatingMessageOpen;
 
+    [ObservableProperty]
+    private bool isJavaRequirementDialogOpen;
+
+    [ObservableProperty]
+    private string javaRequirementDialogMessage = string.Empty;
+
     public MainViewModel(
         ISettingsService settingsService,
         AccountPageViewModel accountPage,
@@ -74,6 +80,7 @@ public sealed partial class MainViewModel : ObservableObject
             percent => ProgressPercent = percent,
             instance => GameManagement.SelectLaunchInstanceAsync(instance),
             OpenGameSettingsForInstanceAsync);
+        HomePage.JavaRequirementNotMet += HomePage_JavaRequirementNotMet;
 
         statusService.MessageReported += message => StatusMessage = message;
         floatingMessageService.MessageRequested += ShowFloatingMessage;
@@ -195,6 +202,22 @@ public sealed partial class MainViewModel : ObservableObject
         windowService.Close();
     }
 
+    [RelayCommand]
+    private void CloseJavaRequirementDialog()
+    {
+        IsJavaRequirementDialogOpen = false;
+    }
+
+    [RelayCommand]
+    private void OpenJavaSettingsFromRequirementDialog()
+    {
+        IsJavaRequirementDialogOpen = false;
+        SettingsPage.ShowJavaMemorySection();
+        CurrentPage = NavigationCatalog.SettingsPage;
+        UpdateSecondaryItems();
+        UpdateNavigationSelection();
+    }
+
     partial void OnCurrentPageChanged(string value)
     {
         UpdateNavigationSelection();
@@ -312,6 +335,14 @@ public sealed partial class MainViewModel : ObservableObject
     {
         HomePage.SetSettings(Settings);
         GameSettingsPage.PrimeFromSettings(Settings);
+    }
+
+    private void HomePage_JavaRequirementNotMet(object? sender, JavaRequirementNotMetEventArgs e)
+    {
+        JavaRequirementDialogMessage = e.RequiredMajorVersion is int requiredMajorVersion
+            ? string.Format(Strings.Dialog_JavaRequirementNotMetMessageFormat, requiredMajorVersion)
+            : Strings.Dialog_JavaRequirementNotMetMessage;
+        IsJavaRequirementDialogOpen = true;
     }
 
     private async Task HandleGameSettingsLaunchRequestAsync(GameInstance instance)

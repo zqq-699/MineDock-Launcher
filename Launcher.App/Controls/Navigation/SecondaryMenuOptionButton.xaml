@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
              x:Name="Root"
-             Margin="0,0,0,6"
+             Margin="0,0,0,3"
              Focusable="False">
     <Button x:Name="PART_Button"
             Margin="0"

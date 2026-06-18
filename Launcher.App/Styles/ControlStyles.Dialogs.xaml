@@ -186,6 +186,8 @@
         <Setter Property="Foreground" Value="#F4F4F4" />
         <Setter Property="Background" Value="#20FFFFFF" />
         <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
         <Setter Property="Template">

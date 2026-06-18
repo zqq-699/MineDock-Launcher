@@ -175,6 +175,29 @@ public sealed class JavaRuntimeSelectionServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task AutomaticSelectionThrowsReasonWhenNoCompatibleRuntimeIsFound()
+    {
+        var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService
+        {
+            Runtimes =
+            [
+                CreateRuntime(@"C:\Java\jdk-17\bin\java.exe", 17, "x64")
+            ]
+        });
+        var settings = new LauncherSettings();
+        var instance = new GameInstance
+        {
+            MinecraftVersion = "1.20.5"
+        };
+
+        var exception = await Assert.ThrowsAsync<JavaRuntimeSelectionException>(() =>
+            service.SelectForLaunchAsync(instance, settings));
+
+        Assert.Equal(JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound, exception.Reason);
+        Assert.Equal(21, exception.RequiredMajorVersion);
+    }
+
+    [Fact]
     public async Task ManualSelectionThrowsWhenPathIsMissing()
     {
         var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService());
@@ -183,8 +206,10 @@ public sealed class JavaRuntimeSelectionServiceTests : TestTempDirectory
             JavaSelectionMode = JavaSelectionMode.Manual
         };
 
-        await Assert.ThrowsAsync<JavaRuntimeSelectionException>(() =>
+        var exception = await Assert.ThrowsAsync<JavaRuntimeSelectionException>(() =>
             service.SelectForLaunchAsync(new GameInstance(), settings));
+
+        Assert.Equal(JavaRuntimeSelectionFailureReason.ManualRuntimeMissing, exception.Reason);
     }
 
     [Fact]
@@ -200,8 +225,10 @@ public sealed class JavaRuntimeSelectionServiceTests : TestTempDirectory
             SelectedJavaExecutablePath = @"C:\missing\java.exe"
         };
 
-        await Assert.ThrowsAsync<JavaRuntimeSelectionException>(() =>
+        var exception = await Assert.ThrowsAsync<JavaRuntimeSelectionException>(() =>
             service.SelectForLaunchAsync(new GameInstance(), settings));
+
+        Assert.Equal(JavaRuntimeSelectionFailureReason.ManualRuntimeUnavailable, exception.Reason);
     }
 
     private static JavaRuntimeInfo CreateRuntime(string executablePath, int majorVersion, string architecture)

@@ -70,6 +70,7 @@ public static class Strings
     public static string GameSettings_GeneralInstanceDirectorySection => Get(nameof(GameSettings_GeneralInstanceDirectorySection));
     public static string GameSettings_GeneralOpenInstanceDirectoryButton => Get(nameof(GameSettings_GeneralOpenInstanceDirectoryButton));
     public static string GameSettings_GeneralCreatedAtSection => Get(nameof(GameSettings_GeneralCreatedAtSection));
+    public static string GameSettings_DeleteGameButton => Get(nameof(GameSettings_DeleteGameButton));
     public static string GameSettings_LaunchSettingsSection => Get(nameof(GameSettings_LaunchSettingsSection));
     public static string GameSettings_LaunchSettingsModeLabel => Get(nameof(GameSettings_LaunchSettingsModeLabel));
     public static string GameSettings_LaunchSettingsModeUseGlobal => Get(nameof(GameSettings_LaunchSettingsModeUseGlobal));
@@ -178,6 +179,10 @@ public static class Strings
     public static string Dialog_RenameInstanceResultSubtitle => Get(nameof(Dialog_RenameInstanceResultSubtitle));
     public static string Dialog_DeleteAccountTitle => Get(nameof(Dialog_DeleteAccountTitle));
     public static string Dialog_DeleteAccountMessage => Get(nameof(Dialog_DeleteAccountMessage));
+    public static string Dialog_JavaRequirementNotMetTitle => Get(nameof(Dialog_JavaRequirementNotMetTitle));
+    public static string Dialog_JavaRequirementNotMetMessage => Get(nameof(Dialog_JavaRequirementNotMetMessage));
+    public static string Dialog_JavaRequirementNotMetMessageFormat => Get(nameof(Dialog_JavaRequirementNotMetMessageFormat));
+    public static string Dialog_GoToSettingsButton => Get(nameof(Dialog_GoToSettingsButton));
     public static string Dialog_RenameAccountTitle => Get(nameof(Dialog_RenameAccountTitle));
     public static string Dialog_RenameAccountBusyTitle => Get(nameof(Dialog_RenameAccountBusyTitle));
     public static string Dialog_RenameAccountSuccessTitle => Get(nameof(Dialog_RenameAccountSuccessTitle));

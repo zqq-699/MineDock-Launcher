@@ -90,6 +90,8 @@ public sealed partial class HomePageViewModel : ObservableObject
 
     public bool CanOpenSelectedInstanceSettings => SelectedInstance is not null && !IsLaunching;
 
+    public event EventHandler<JavaRequirementNotMetEventArgs>? JavaRequirementNotMet;
+
     public string? HomeAvatarUrl
     {
         get
@@ -198,8 +200,11 @@ public sealed partial class HomePageViewModel : ObservableObject
         {
             statusService.Report(Strings.Status_LaunchInstanceRepairFailed);
         }
-        catch (JavaRuntimeSelectionException)
+        catch (JavaRuntimeSelectionException exception)
         {
+            if (exception.Reason is JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound)
+                JavaRequirementNotMet?.Invoke(this, new JavaRequirementNotMetEventArgs(exception.RequiredMajorVersion));
+
             statusService.Report(Strings.Status_JavaSelectionFailed);
         }
         catch (Exception)
@@ -357,5 +362,15 @@ public sealed partial class HomePageViewModel : ObservableObject
             _ => Strings.Status_LaunchPreparing
         };
     }
+}
+
+public sealed class JavaRequirementNotMetEventArgs : EventArgs
+{
+    public JavaRequirementNotMetEventArgs(int? requiredMajorVersion)
+    {
+        RequiredMajorVersion = requiredMajorVersion;
+    }
+
+    public int? RequiredMajorVersion { get; }
 }
 

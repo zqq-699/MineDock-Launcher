@@ -73,6 +73,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             filePickerService,
             floatingMessageService);
         EditDialog.InstanceUpdated += EditDialog_InstanceUpdated;
+        Details.InstanceSettingsSaved += Details_InstanceSettingsSaved;
+        Details.DeleteInstanceRequested += Details_DeleteInstanceRequested;
 
         InstanceCategories.Add(new GameSettingsInstanceCategory("all", Strings.GameSettings_AllCategory, string.Empty, "general/general_all_application"));
         InstanceCategories.Add(new GameSettingsInstanceCategory("mod_loader", Strings.GameSettings_ModLoaderCategory, string.Empty, "general/general_extention"));
@@ -293,6 +295,11 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         IsDeleteInstanceDialogOpen = true;
     }
 
+    private void Details_DeleteInstanceRequested(GameSettingsInstanceItem instance)
+    {
+        OpenDeleteInstanceDialog(instance);
+    }
+
     [RelayCommand]
     private void CancelDeleteInstanceDialog()
     {
@@ -365,7 +372,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
                 || string.Equals(SelectedInstance?.Instance.Id, instance.Id, StringComparison.OrdinalIgnoreCase);
             item.Update(instance, ResolveVersionType(instance));
             if (wasSelected)
-                SelectInstance(item);
+                SelectInstanceCore(item);
         }
         else
         {
@@ -646,6 +653,12 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             CurrentStep = GameSettingsPageStep.Details;
         }
 
+        InstancesChanged?.Invoke();
+    }
+
+    private void Details_InstanceSettingsSaved(GameInstance instance)
+    {
+        AddOrUpdateInstance(instance);
         InstancesChanged?.Invoke();
     }
 }

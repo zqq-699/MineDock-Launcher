@@ -89,6 +89,10 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         SelectedInstanceJavaSettingsModeOption = LaunchSettingsModeOptions[0];
     }
 
+    public event Action<GameInstance>? InstanceSettingsSaved;
+
+    public event Action<GameSettingsInstanceItem>? DeleteInstanceRequested;
+
     public bool HasSelectedInstance => SelectedInstance is not null;
 
     public string InstanceName => SelectedInstance?.Name ?? string.Empty;
@@ -212,6 +216,15 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
 
         if (!instanceFolderService.TryOpen(folderPath))
             statusService.Report(Strings.Status_OpenInstanceFolderFailed);
+    }
+
+    [RelayCommand]
+    private void RequestDeleteInstance()
+    {
+        if (SelectedInstance is null)
+            return;
+
+        DeleteInstanceRequested?.Invoke(SelectedInstance);
     }
 
     partial void OnSelectedInstanceChanged(GameSettingsInstanceItem? value)
@@ -646,6 +659,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             instance.JvmArguments = jvmArguments;
             instance.GameArguments = gameArguments;
             await instanceService.SaveInstanceAsync(instance);
+            InstanceSettingsSaved?.Invoke(instance);
         }
         catch (Exception)
         {
@@ -711,6 +725,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             instance.JavaSelectionMode = javaSelectionMode;
             instance.SelectedJavaExecutablePath = selectedJavaExecutablePath;
             await instanceService.SaveInstanceAsync(instance);
+            InstanceSettingsSaved?.Invoke(instance);
         }
         catch (Exception)
         {

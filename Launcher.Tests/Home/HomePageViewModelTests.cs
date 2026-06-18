@@ -442,6 +442,66 @@ public sealed class HomePageViewModelTests
     }
 
     [Fact]
+    public async Task HomePageLaunchRaisesJavaRequirementEventForAutomaticRuntimeNotFound()
+    {
+        var statusService = new FakeStatusService();
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new JavaRuntimeSelectionException(
+                "missing java",
+                JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound,
+                21)
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "LocalUser",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+        var viewModel = CreateViewModel(statusService, launchService: launchService, selectedAccount: account);
+        viewModel.SetSelectedInstance(CreateInstance("first", "First World", "1.20.5", LoaderKind.Vanilla));
+        JavaRequirementNotMetEventArgs? eventArgs = null;
+        viewModel.JavaRequirementNotMet += (_, args) => eventArgs = args;
+
+        await viewModel.LaunchCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_JavaSelectionFailed, statusService.LastMessage);
+        Assert.NotNull(eventArgs);
+        Assert.Equal(21, eventArgs.RequiredMajorVersion);
+        Assert.False(viewModel.IsLaunching);
+    }
+
+    [Fact]
+    public async Task HomePageLaunchDoesNotRaiseJavaRequirementEventForManualJavaFailure()
+    {
+        var statusService = new FakeStatusService();
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new JavaRuntimeSelectionException(
+                "manual missing",
+                JavaRuntimeSelectionFailureReason.ManualRuntimeMissing)
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "LocalUser",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+        var viewModel = CreateViewModel(statusService, launchService: launchService, selectedAccount: account);
+        viewModel.SetSelectedInstance(CreateInstance("first", "First World", "1.20.5", LoaderKind.Vanilla));
+        var eventRaised = false;
+        viewModel.JavaRequirementNotMet += (_, _) => eventRaised = true;
+
+        await viewModel.LaunchCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_JavaSelectionFailed, statusService.LastMessage);
+        Assert.False(eventRaised);
+        Assert.False(viewModel.IsLaunching);
+    }
+
+    [Fact]
     public async Task HomePageLaunchShowsFriendlyQuickExitFailure()
     {
         var statusService = new FakeStatusService();
