@@ -91,13 +91,13 @@
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{Binding DisplayName}"
                                Foreground="#F4F4F4"
-                               FontSize="12"
+                               FontSize="13"
                                FontWeight="SemiBold"
                                VerticalAlignment="Center" />
                     <TextBlock Text="{Binding VersionText}"
                                Margin="10,0,0,0"
                                Foreground="{StaticResource LauncherTextSecondaryBrush}"
-                               FontSize="11"
+                               FontSize="12"
                                VerticalAlignment="Center" />
                 </StackPanel>
 
@@ -106,7 +106,7 @@
                             HorizontalAlignment="Right">
                     <TextBlock Text="{Binding Architecture}"
                                Foreground="#CFFFFFFF"
-                               FontSize="11"
+                               FontSize="12"
                                VerticalAlignment="Center" />
                 </StackPanel>
 
@@ -115,7 +115,7 @@
                            Margin="0,4,0,0"
                            Text="{Binding ExecutablePath}"
                            Foreground="#AFFFFFFF"
-                           FontSize="11"
+                           FontSize="12"
                            TextTrimming="CharacterEllipsis" />
             </Grid>
         </DataTemplate>
