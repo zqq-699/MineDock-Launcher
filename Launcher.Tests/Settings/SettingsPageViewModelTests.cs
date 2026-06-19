@@ -62,6 +62,57 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
+    public void ControlListSectionShowsInteractiveControls()
+    {
+        var viewModel = CreateViewModel(out _, out _);
+
+        var controlListSection = viewModel.Sections.Single(section => section.Section is SettingsPageSection.ControlList);
+        viewModel.SelectSectionCommand.Execute(controlListSection);
+
+        Assert.Same(controlListSection, viewModel.SelectedSection);
+        Assert.Equal(Strings.Settings_SectionControlList, viewModel.SectionTitle);
+        Assert.True(viewModel.IsControlListSection);
+        Assert.False(viewModel.IsGeneralSection);
+        Assert.False(viewModel.IsLaunchSection);
+        Assert.False(viewModel.IsJavaMemorySection);
+        Assert.Contains(
+            viewModel.InteractiveControls,
+            control => control.Title == Strings.Settings_ControlComboBox);
+        Assert.Contains(
+            viewModel.InteractiveControls,
+            control => control.Title == Strings.Settings_ControlSwitch);
+        Assert.Contains(
+            viewModel.InteractiveControls,
+            control => control.Title == Strings.Settings_ControlSlider);
+    }
+
+    [Fact]
+    public void ControlDemoActionUpdatesOnlyDemoState()
+    {
+        var viewModel = CreateViewModel(out var settingsService, out _);
+        var initialProgress = viewModel.ControlDemoProgress;
+        var initialSelection = viewModel.ControlDemoSecondaryMenuSelected;
+
+        viewModel.RunControlDemoActionCommand.Execute(null);
+
+        Assert.Equal(initialProgress + 20, viewModel.ControlDemoProgress);
+        Assert.NotEqual(initialSelection, viewModel.ControlDemoSecondaryMenuSelected);
+        Assert.Equal(Strings.Settings_ControlDemoStatusClicked, viewModel.ControlDemoStatusText);
+        Assert.Equal(0, settingsService.SaveCount);
+    }
+
+    [Fact]
+    public void ControlDemoSliderDoesNotSaveSettings()
+    {
+        var viewModel = CreateViewModel(out var settingsService, out _);
+
+        viewModel.ControlDemoSliderValue = 72;
+
+        Assert.Equal(72, viewModel.ControlDemoSliderValue);
+        Assert.Equal(0, settingsService.SaveCount);
+    }
+
+    [Fact]
     public void JavaSelectionDefaultsToAutomatic()
     {
         var viewModel = CreateViewModel(out _, out _);

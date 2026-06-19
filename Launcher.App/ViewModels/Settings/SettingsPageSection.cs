@@ -4,5 +4,6 @@ public enum SettingsPageSection
 {
     General,
     Launch,
-    JavaMemory
+    JavaMemory,
+    ControlList
 }

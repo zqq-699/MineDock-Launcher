@@ -689,6 +689,104 @@
         </Setter>
     </Style>
 
+    <Style x:Key="LauncherSliderTrackButtonStyle" TargetType="RepeatButton">
+        <Setter Property="Height" Value="20" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <Border Height="4"
+                            VerticalAlignment="Center"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="2" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="LauncherSliderThumbStyle" TargetType="Thumb">
+        <Setter Property="Width" Value="9" />
+        <Setter Property="Height" Value="11.25" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="Root"
+                            Background="#FFFFFF"
+                            CornerRadius="3.375">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="11.25"
+                                              Color="#20000000"
+                                              Opacity="0.2"
+                                              ShadowDepth="0" />
+                        </Border.Effect>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.98" />
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.94" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Background" Value="#C8D0D9" />
+                            <Setter TargetName="Root" Property="Opacity" Value="0.62" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="LauncherSliderStyle" TargetType="Slider">
+        <Setter Property="Height" Value="28" />
+        <Setter Property="Minimum" Value="0" />
+        <Setter Property="Maximum" Value="100" />
+        <Setter Property="IsMoveToPointEnabled" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Slider">
+                    <Grid Height="{TemplateBinding Height}"
+                          Background="Transparent">
+                        <Border Height="4"
+                                VerticalAlignment="Center"
+                                Background="#24FFFFFF"
+                                CornerRadius="2" />
+                        <Track x:Name="PART_Track"
+                               Height="20"
+                               VerticalAlignment="Center"
+                               Minimum="{TemplateBinding Minimum}"
+                               Maximum="{TemplateBinding Maximum}"
+                               Value="{Binding Value, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                               IsDirectionReversed="{TemplateBinding IsDirectionReversed}">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Background="{StaticResource LauncherAccentBrush}"
+                                              Command="Slider.DecreaseLarge"
+                                              Style="{StaticResource LauncherSliderTrackButtonStyle}" />
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Background="Transparent"
+                                              Command="Slider.IncreaseLarge"
+                                              Style="{StaticResource LauncherSliderTrackButtonStyle}" />
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource LauncherSliderThumbStyle}" />
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.58" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="LauncherDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogButtonStyle}" />
     <Style x:Key="LauncherPrimaryDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryDialogButtonStyle}" />
     <Style x:Key="LauncherDangerDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource DangerDialogButtonStyle}" />

@@ -60,6 +60,33 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     [ObservableProperty]
     private string defaultGameArguments = string.Empty;
 
+    [ObservableProperty]
+    private string controlDemoInputText = Strings.Settings_ControlDemoDefaultInput;
+
+    [ObservableProperty]
+    private string controlDemoSearchText = string.Empty;
+
+    [ObservableProperty]
+    private string controlDemoStatusText = Strings.Settings_ControlDemoStatusReady;
+
+    [ObservableProperty]
+    private bool controlDemoSwitchEnabled = true;
+
+    [ObservableProperty]
+    private double controlDemoSliderValue = 48;
+
+    [ObservableProperty]
+    private bool controlDemoSecondaryMenuSelected = true;
+
+    [ObservableProperty]
+    private int controlDemoProgress = 64;
+
+    [ObservableProperty]
+    private SettingsInteractiveControlItem? selectedControlDemoComboOption;
+
+    [ObservableProperty]
+    private SettingsInteractiveControlItem? selectedInteractiveControl;
+
     public SettingsPageViewModel(
         ISettingsService settingsService,
         IStatusService statusService,
@@ -90,16 +117,27 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             SettingsPageSection.JavaMemory,
             Strings.Settings_SectionJavaMemory,
             "instance_setting_page/java"));
+        Sections.Add(new SettingsSectionItem(
+            SettingsPageSection.ControlList,
+            Strings.Settings_SectionControlList,
+            "general/general_all_application"));
 
         foreach (var memoryMb in new[] { 2048, 4096, 6144, 8192, 12288, 16384 })
             MemoryOptions.Add(new SettingsMemoryOption(memoryMb));
 
+        foreach (var control in SettingsInteractiveControlCatalog.Create())
+            InteractiveControls.Add(control);
+
+        SelectedControlDemoComboOption = InteractiveControls.FirstOrDefault();
+        SelectedInteractiveControl = InteractiveControls.FirstOrDefault();
         SelectedSection = Sections[0];
     }
 
     public ObservableCollection<SettingsSectionItem> Sections { get; } = [];
 
     public ObservableCollection<SettingsMemoryOption> MemoryOptions { get; } = [];
+
+    public ObservableCollection<SettingsInteractiveControlItem> InteractiveControls { get; } = [];
 
     public JavaSettingsEditorViewModel JavaSettings { get; }
 
@@ -136,6 +174,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public bool IsLaunchSection => SelectedSection?.Section is SettingsPageSection.Launch;
 
     public bool IsJavaMemorySection => SelectedSection?.Section is SettingsPageSection.JavaMemory;
+
+    public bool IsControlListSection => SelectedSection?.Section is SettingsPageSection.ControlList;
 
     public bool HasJavaRuntimeListMessage => JavaSettings.HasJavaRuntimeListMessage;
 
@@ -181,6 +221,14 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         SelectSectionCore(section);
     }
 
+    [RelayCommand]
+    private void RunControlDemoAction()
+    {
+        ControlDemoProgress = ControlDemoProgress >= 100 ? 20 : ControlDemoProgress + 20;
+        ControlDemoStatusText = Strings.Settings_ControlDemoStatusClicked;
+        ControlDemoSecondaryMenuSelected = !ControlDemoSecondaryMenuSelected;
+    }
+
     private void SelectSectionCore(SettingsSectionItem? section)
     {
         if (section is null)
@@ -198,6 +246,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(IsGeneralSection));
         OnPropertyChanged(nameof(IsLaunchSection));
         OnPropertyChanged(nameof(IsJavaMemorySection));
+        OnPropertyChanged(nameof(IsControlListSection));
     }
 
     partial void OnSelectedMemoryOptionChanged(SettingsMemoryOption? value)

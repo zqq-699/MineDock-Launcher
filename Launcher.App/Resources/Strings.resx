@@ -31,8 +31,9 @@
   <data name="Page_Resources" xml:space="preserve"><value>资源中心</value></data>
   <data name="Page_Settings" xml:space="preserve"><value>全局设置</value></data>
   <data name="Settings_SectionGeneral" xml:space="preserve"><value>通用</value></data>
-  <data name="Settings_SectionLaunch" xml:space="preserve"><value>启动设置</value></data>
-  <data name="Settings_SectionJavaMemory" xml:space="preserve"><value>Java与内存设置</value></data>
+  <data name="Settings_SectionLaunch" xml:space="preserve"><value>启动与内存</value></data>
+  <data name="Settings_SectionJavaMemory" xml:space="preserve"><value>Java</value></data>
+  <data name="Settings_SectionControlList" xml:space="preserve"><value>控件列表</value></data>
   <data name="Settings_GeneralAccountSection" xml:space="preserve"><value>离线玩家</value></data>
   <data name="Settings_OfflineUsernameLabel" xml:space="preserve"><value>默认离线玩家名称</value></data>
   <data name="Settings_GeneralDirectorySection" xml:space="preserve"><value>目录</value></data>
@@ -50,6 +51,47 @@
   <data name="Settings_JavaListLoading" xml:space="preserve"><value>正在扫描本机 Java...</value></data>
   <data name="Settings_JavaListEmpty" xml:space="preserve"><value>没有找到本机 Java。</value></data>
   <data name="Settings_JavaVersionUnknown" xml:space="preserve"><value>未知版本</value></data>
+  <data name="Settings_ControlDemoButtonsSection" xml:space="preserve"><value>按钮与导航</value></data>
+  <data name="Settings_ControlDemoInputsSection" xml:space="preserve"><value>输入与开关</value></data>
+  <data name="Settings_ControlDemoSelectionSection" xml:space="preserve"><value>选择控件</value></data>
+  <data name="Settings_ControlDemoFeedbackSection" xml:space="preserve"><value>反馈控件</value></data>
+  <data name="Settings_ControlDemoMenuButton" xml:space="preserve"><value>二级菜单项</value></data>
+  <data name="Settings_ControlDemoListItemTitle" xml:space="preserve"><value>列表项按钮</value></data>
+  <data name="Settings_ControlDemoListItemSubtitle" xml:space="preserve"><value>包含图标、标题、副标题和尾随文本</value></data>
+  <data name="Settings_ControlDemoListItemTrailing" xml:space="preserve"><value>示例</value></data>
+  <data name="Settings_ControlDemoNormalButton" xml:space="preserve"><value>普通按钮</value></data>
+  <data name="Settings_ControlDemoPrimaryButton" xml:space="preserve"><value>主按钮</value></data>
+  <data name="Settings_ControlDemoDangerButton" xml:space="preserve"><value>危险按钮</value></data>
+  <data name="Settings_ControlDemoIconButton" xml:space="preserve"><value>图标按钮</value></data>
+  <data name="Settings_ControlDemoSwitchLabel" xml:space="preserve"><value>切换开关</value></data>
+  <data name="Settings_ControlDemoSliderLabel" xml:space="preserve"><value>滑动条</value></data>
+  <data name="Settings_ControlDemoTextBoxLabel" xml:space="preserve"><value>文本输入框</value></data>
+  <data name="Settings_ControlDemoSearchBoxLabel" xml:space="preserve"><value>搜索框</value></data>
+  <data name="Settings_ControlDemoComboBoxLabel" xml:space="preserve"><value>下拉选择框</value></data>
+  <data name="Settings_ControlDemoListBoxLabel" xml:space="preserve"><value>选择列表</value></data>
+  <data name="Settings_ControlDemoProgressLabel" xml:space="preserve"><value>进度条</value></data>
+  <data name="Settings_ControlDemoStatusLabel" xml:space="preserve"><value>状态文本</value></data>
+  <data name="Settings_ControlDemoDefaultInput" xml:space="preserve"><value>可以在这里输入文字</value></data>
+  <data name="Settings_ControlDemoStatusReady" xml:space="preserve"><value>等待交互</value></data>
+  <data name="Settings_ControlDemoStatusClicked" xml:space="preserve"><value>已触发示例交互</value></data>
+  <data name="Settings_ControlCategoryNavigation" xml:space="preserve"><value>导航</value></data>
+  <data name="Settings_ControlCategoryButton" xml:space="preserve"><value>按钮</value></data>
+  <data name="Settings_ControlCategoryToggle" xml:space="preserve"><value>开关</value></data>
+  <data name="Settings_ControlCategorySelection" xml:space="preserve"><value>选择</value></data>
+  <data name="Settings_ControlCategoryInput" xml:space="preserve"><value>输入</value></data>
+  <data name="Settings_ControlSecondaryMenuButton" xml:space="preserve"><value>二级菜单项</value></data>
+  <data name="Settings_ControlListPageItemButton" xml:space="preserve"><value>列表项按钮</value></data>
+  <data name="Settings_ControlDialogButton" xml:space="preserve"><value>普通按钮</value></data>
+  <data name="Settings_ControlPrimaryButton" xml:space="preserve"><value>主按钮</value></data>
+  <data name="Settings_ControlDangerButton" xml:space="preserve"><value>危险按钮</value></data>
+  <data name="Settings_ControlInlineIconButton" xml:space="preserve"><value>图标按钮</value></data>
+  <data name="Settings_ControlSwitch" xml:space="preserve"><value>切换开关</value></data>
+  <data name="Settings_ControlSlider" xml:space="preserve"><value>滑动条</value></data>
+  <data name="Settings_ControlComboBox" xml:space="preserve"><value>下拉选择框</value></data>
+  <data name="Settings_ControlTextBox" xml:space="preserve"><value>文本输入框</value></data>
+  <data name="Settings_ControlSearchBox" xml:space="preserve"><value>搜索框</value></data>
+  <data name="Settings_ControlChoiceList" xml:space="preserve"><value>选择列表</value></data>
+  <data name="Settings_ControlVirtualizedList" xml:space="preserve"><value>虚拟化列表</value></data>
   <data name="GameSettings_AllCategory" xml:space="preserve"><value>全部</value></data>
   <data name="GameSettings_ModLoaderCategory" xml:space="preserve"><value>可装mod</value></data>
   <data name="GameSettings_NoInstances" xml:space="preserve"><value>还没有已下载的游戏。</value></data>
@@ -60,8 +102,8 @@
   <data name="GameSettings_InstanceSubtitleLoaderWithoutVersionFormat" xml:space="preserve"><value>{0} {1}</value></data>
   <data name="GameSettings_InstanceSubtitleLoaderFormat" xml:space="preserve"><value>{0} {1} {2}</value></data>
   <data name="GameSettings_DetailGeneral" xml:space="preserve"><value>通用</value></data>
-  <data name="GameSettings_DetailLaunch" xml:space="preserve"><value>启动</value></data>
-  <data name="GameSettings_DetailJavaMemory" xml:space="preserve"><value>Java与内存</value></data>
+  <data name="GameSettings_DetailLaunch" xml:space="preserve"><value>启动与内存</value></data>
+  <data name="GameSettings_DetailJavaMemory" xml:space="preserve"><value>Java</value></data>
   <data name="GameSettings_DetailModManagement" xml:space="preserve"><value>Mod管理</value></data>
   <data name="GameSettings_DetailSaves" xml:space="preserve"><value>存档</value></data>
   <data name="GameSettings_DetailShaders" xml:space="preserve"><value>光影</value></data>

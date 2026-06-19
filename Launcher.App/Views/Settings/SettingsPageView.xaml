@@ -120,6 +120,21 @@
             </Grid>
         </DataTemplate>
 
+        <DataTemplate x:Key="InteractiveControlItemTemplate"
+                      DataType="{x:Type settings:SettingsInteractiveControlItem}">
+            <StackPanel>
+                <TextBlock Text="{Binding Title}"
+                           Foreground="#F4F4F4"
+                           FontSize="13"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Margin="0,3,0,0"
+                           Text="{Binding Category}"
+                           Foreground="{StaticResource LauncherTextSecondaryBrush}"
+                           FontSize="11"
+                           TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </DataTemplate>
+
     </UserControl.Resources>
 
     <Grid x:Name="PageRoot">
@@ -245,26 +260,179 @@
                             </Border>
                         </GroupBox>
 
+                    </StackPanel>
+
+                    <StackPanel Margin="0"
+                                Visibility="{Binding IsControlListSection, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                        <GroupBox Header="{x:Static res:Strings.Settings_ControlDemoButtonsSection}"
+                                  Style="{StaticResource LauncherContentSectionStyle}">
+                            <StackPanel>
+                                <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                                    <StackPanel>
+                                        <controls:SecondaryMenuOptionButton Width="240"
+                                                                            HorizontalAlignment="Left"
+                                                                            Text="{x:Static res:Strings.Settings_ControlDemoMenuButton}"
+                                                                            IconMode="Svg"
+                                                                            IconKey="general/general_all_application"
+                                                                            IsSelected="{Binding ControlDemoSecondaryMenuSelected}"
+                                                                            Command="{Binding RunControlDemoActionCommand}" />
+
+                                        <controls:ListPageItemButton Margin="0,12,0,0"
+                                                                     Title="{x:Static res:Strings.Settings_ControlDemoListItemTitle}"
+                                                                     Subtitle="{x:Static res:Strings.Settings_ControlDemoListItemSubtitle}"
+                                                                     TrailingText="{x:Static res:Strings.Settings_ControlDemoListItemTrailing}"
+                                                                     IconKey="general/general_extention"
+                                                                     Command="{Binding RunControlDemoActionCommand}" />
+
+                                        <WrapPanel Margin="0,16,0,0">
+                                            <Button Margin="0,0,10,10"
+                                                    Content="{x:Static res:Strings.Settings_ControlDemoNormalButton}"
+                                                    Command="{Binding RunControlDemoActionCommand}"
+                                                    Style="{StaticResource LauncherDialogButtonStyle}" />
+                                            <Button Margin="0,0,10,10"
+                                                    Content="{x:Static res:Strings.Settings_ControlDemoPrimaryButton}"
+                                                    Command="{Binding RunControlDemoActionCommand}"
+                                                    Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
+                                            <Button Margin="0,0,10,10"
+                                                    Content="{x:Static res:Strings.Settings_ControlDemoDangerButton}"
+                                                    Command="{Binding RunControlDemoActionCommand}"
+                                                    Style="{StaticResource LauncherDangerDialogButtonStyle}" />
+                                            <Button Margin="0,0,10,10"
+                                                    ToolTip="{x:Static res:Strings.Settings_ControlDemoIconButton}"
+                                                    Command="{Binding RunControlDemoActionCommand}"
+                                                    Style="{StaticResource InlineIconButtonStyle}">
+                                                <controls:SvgIcon Width="18"
+                                                                  Height="18"
+                                                                  IconKey="general/general_edit"
+                                                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                                            </Button>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </GroupBox>
+
                         <GroupBox Margin="0,26,0,0"
-                                  Header="{x:Static res:Strings.Settings_MemorySection}"
+                                  Header="{x:Static res:Strings.Settings_ControlDemoInputsSection}"
                                   Style="{StaticResource LauncherContentSectionStyle}">
                             <Border Style="{StaticResource SectionFieldSurfaceStyle}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="180" />
-                                    </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
 
-                                    <TextBlock Text="{x:Static res:Strings.Settings_DefaultMemoryLabel}"
-                                               Style="{StaticResource SettingsOptionTextStyle}" />
+                                        <TextBlock Text="{x:Static res:Strings.Settings_ControlDemoSwitchLabel}"
+                                                   Style="{StaticResource SettingsOptionTextStyle}" />
+                                        <CheckBox Grid.Column="1"
+                                                  IsChecked="{Binding ControlDemoSwitchEnabled, Mode=TwoWay}"
+                                                  Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
+                                    </Grid>
 
-                                    <controls:AnimatedComboBox Grid.Column="1"
-                                                               ItemsSource="{Binding MemoryOptions}"
-                                                               SelectedItem="{Binding SelectedMemoryOption, Mode=TwoWay}"
-                                                               ItemTemplate="{StaticResource MemoryOptionTemplate}"
-                                                               SelectionItemTemplate="{StaticResource MemoryOptionTemplate}"
-                                                               Style="{StaticResource LauncherComboBoxStyle}" />
-                                </Grid>
+                                    <Grid Margin="0,18,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="220" />
+                                            <ColumnDefinition Width="46" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{x:Static res:Strings.Settings_ControlDemoSliderLabel}"
+                                                   Style="{StaticResource SettingsOptionTextStyle}" />
+                                        <Slider Grid.Column="1"
+                                                Value="{Binding ControlDemoSliderValue, Mode=TwoWay}"
+                                                Style="{StaticResource LauncherSliderStyle}" />
+                                        <TextBlock Grid.Column="2"
+                                                   Margin="12,0,0,0"
+                                                   Text="{Binding ControlDemoSliderValue, StringFormat={}{0:F0}}"
+                                                   Style="{StaticResource SettingsReadOnlyTextStyle}"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+
+                                    <TextBlock Margin="0,18,0,8"
+                                               Text="{x:Static res:Strings.Settings_ControlDemoTextBoxLabel}"
+                                               Style="{StaticResource SettingsFieldLabelStyle}" />
+                                    <TextBox Text="{Binding ControlDemoInputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource LauncherDialogTextBoxStyle}" />
+
+                                    <TextBlock Margin="0,18,0,8"
+                                               Text="{x:Static res:Strings.Settings_ControlDemoSearchBoxLabel}"
+                                               Style="{StaticResource SettingsFieldLabelStyle}" />
+                                    <TextBox Margin="0"
+                                             Text="{Binding ControlDemoSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource ListPageSearchBoxStyle}" />
+                                </StackPanel>
+                            </Border>
+                        </GroupBox>
+
+                        <GroupBox Margin="0,26,0,0"
+                                  Header="{x:Static res:Strings.Settings_ControlDemoSelectionSection}"
+                                  Style="{StaticResource LauncherContentSectionStyle}">
+                            <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="220" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{x:Static res:Strings.Settings_ControlDemoComboBoxLabel}"
+                                                   Style="{StaticResource SettingsOptionTextStyle}" />
+
+                                        <controls:AnimatedComboBox Grid.Column="1"
+                                                                   ItemsSource="{Binding InteractiveControls}"
+                                                                   SelectedItem="{Binding SelectedControlDemoComboOption, Mode=TwoWay}"
+                                                                   ItemTemplate="{StaticResource InteractiveControlItemTemplate}"
+                                                                   SelectionItemTemplate="{StaticResource InteractiveControlItemTemplate}"
+                                                                   Style="{StaticResource LauncherComboBoxStyle}" />
+                                    </Grid>
+
+                                    <TextBlock Margin="0,18,0,8"
+                                               Text="{x:Static res:Strings.Settings_ControlDemoListBoxLabel}"
+                                               Style="{StaticResource SettingsFieldLabelStyle}" />
+                                    <ListBox MaxHeight="260"
+                                             ItemsSource="{Binding InteractiveControls}"
+                                             SelectedItem="{Binding SelectedInteractiveControl, Mode=TwoWay}"
+                                             ItemTemplate="{StaticResource InteractiveControlItemTemplate}"
+                                             Style="{StaticResource DialogChoiceListStyle}" />
+                                </StackPanel>
+                            </Border>
+                        </GroupBox>
+
+                        <GroupBox Margin="0,26,0,0"
+                                  Header="{x:Static res:Strings.Settings_ControlDemoFeedbackSection}"
+                                  Style="{StaticResource LauncherContentSectionStyle}">
+                            <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="180" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{x:Static res:Strings.Settings_ControlDemoProgressLabel}"
+                                                   Style="{StaticResource SettingsOptionTextStyle}" />
+                                        <ProgressBar Grid.Column="1"
+                                                     Width="180"
+                                                     Value="{Binding ControlDemoProgress}"
+                                                     Maximum="100"
+                                                     VerticalAlignment="Center"
+                                                     Style="{StaticResource LauncherProgressBarStyle}" />
+                                    </Grid>
+
+                                    <Grid Margin="0,18,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="220" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{x:Static res:Strings.Settings_ControlDemoStatusLabel}"
+                                                   Style="{StaticResource SettingsOptionTextStyle}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding ControlDemoStatusText}"
+                                                   Style="{StaticResource SettingsReadOnlyTextStyle}" />
+                                    </Grid>
+                                </StackPanel>
                             </Border>
                         </GroupBox>
                     </StackPanel>
