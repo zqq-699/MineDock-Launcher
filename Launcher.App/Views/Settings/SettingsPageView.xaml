@@ -36,13 +36,6 @@
                                                 CommandParameter="{Binding}" />
         </DataTemplate>
 
-        <DataTemplate x:Key="MemoryOptionTemplate">
-            <TextBlock Text="{Binding Title}"
-                       Foreground="#F4F4F4"
-                       FontSize="13"
-                       VerticalAlignment="Center" />
-        </DataTemplate>
-
         <DataTemplate x:Key="JavaSelectionOptionTemplate">
             <TextBlock Text="{Binding Title}"
                        Foreground="#F4F4F4"
@@ -182,6 +175,18 @@
                                 Visibility="{Binding IsLaunchSection, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
                         <controls:LaunchSettingsEditor ShowModeSelector="False"
                                                       AreLaunchSettingsOverridesEnabled="True"
+                                                      ShowMemorySettings="True"
+                                                      MemorySettingsModeOptions="{Binding MemoryModeOptions}"
+                                                      SelectedMemorySettingsModeOption="{Binding SelectedMemoryModeOption, Mode=TwoWay}"
+                                                      MemoryMb="{Binding DefaultMemoryMb, Mode=TwoWay}"
+                                                      MemoryMinimumMb="{Binding MemorySliderMinimumMb}"
+                                                      MemoryMaximumMb="{Binding MemorySliderMaximumMb}"
+                                                      IsMemorySliderEnabled="{Binding IsMemorySliderEnabled}"
+                                                      IsMemorySliderVisible="{Binding IsMemorySliderVisible}"
+                                                      IsAutomaticMemorySummaryVisible="{Binding IsAutomaticMemorySummaryVisible}"
+                                                      AutomaticMemoryText="{Binding AutomaticMemoryText}"
+                                                      MemoryValueText="{Binding DefaultMemoryText}"
+                                                      SystemMemorySummaryText="{Binding SystemMemorySummaryText}"
                                                       CanEditAutoRepairMissingFiles="{Binding DefaultCheckFilesBeforeLaunch}"
                                                       LaunchCheckFilesBeforeLaunchEnabled="{Binding DefaultCheckFilesBeforeLaunch, Mode=TwoWay}"
                                                       LaunchAutoRepairMissingFilesEnabled="{Binding DefaultAutoRepairMissingFiles, Mode=TwoWay}"

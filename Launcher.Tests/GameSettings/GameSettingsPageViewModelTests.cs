@@ -658,11 +658,16 @@ public sealed class GameSettingsPageViewModelTests
         viewModel.Details.LaunchPostExitCommand = "echo after";
         viewModel.Details.LaunchJvmArguments = "-Dfoo=bar";
         viewModel.Details.LaunchGameArguments = "--demo";
+        viewModel.Details.SelectedMemoryModeOption = viewModel.Details.MemoryModeOptions
+            .Single(option => option.Mode == MemorySettingsMode.Manual);
+        viewModel.Details.MemoryMb = 5120;
 
         await TestAsync.WaitForAsync(() =>
-            instanceService.SaveCallCount >= 9
+            instanceService.SaveCallCount >= 11
             && instanceService.LastSavedInstance is not null
             && instanceService.LastSavedInstance.LaunchSettingsMode == LaunchSettingsMode.PerInstance
+            && instanceService.LastSavedInstance.MemorySettingsMode == MemorySettingsMode.Manual
+            && instanceService.LastSavedInstance.MemoryMb == 5120
             && !instanceService.LastSavedInstance.CheckFilesBeforeLaunch
             && !instanceService.LastSavedInstance.AutoRepairMissingFiles
             && instanceService.LastSavedInstance.MinimizeLauncherAfterLaunch
@@ -674,6 +679,8 @@ public sealed class GameSettingsPageViewModelTests
             && instanceService.LastSavedInstance.GameArguments == "--demo");
 
         Assert.Equal(LaunchSettingsMode.PerInstance, viewModel.SelectedInstance?.Instance.LaunchSettingsMode);
+        Assert.Equal(MemorySettingsMode.Manual, viewModel.SelectedInstance?.Instance.MemorySettingsMode);
+        Assert.Equal(5120, viewModel.SelectedInstance?.Instance.MemoryMb);
         Assert.False(viewModel.SelectedInstance?.Instance.CheckFilesBeforeLaunch);
         Assert.False(viewModel.SelectedInstance?.Instance.AutoRepairMissingFiles);
         Assert.True(viewModel.SelectedInstance?.Instance.MinimizeLauncherAfterLaunch);
@@ -737,7 +744,9 @@ public sealed class GameSettingsPageViewModelTests
             DefaultWaitForPreLaunchCommand = false,
             DefaultPostExitCommand = "echo global-after",
             DefaultJvmArguments = "-Dglobal=true",
-            DefaultGameArguments = "--global"
+            DefaultGameArguments = "--global",
+            DefaultMemorySettingsMode = MemorySettingsMode.Auto,
+            DefaultMemoryMb = 8192
         });
 
         await viewModel.EnsureInstancesLoadedAsync();
@@ -755,6 +764,11 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Equal("echo global-after", viewModel.Details.LaunchPostExitCommand);
         Assert.Equal("-Dglobal=true", viewModel.Details.LaunchJvmArguments);
         Assert.Equal("--global", viewModel.Details.LaunchGameArguments);
+        Assert.Equal(MemorySettingsMode.Auto, viewModel.Details.SelectedMemoryModeOption?.Mode);
+        Assert.Equal(8192, viewModel.Details.MemoryMb);
+        Assert.False(viewModel.Details.IsMemorySliderEnabled);
+        Assert.False(viewModel.Details.IsMemorySliderVisible);
+        Assert.True(viewModel.Details.IsAutomaticMemorySummaryVisible);
         Assert.False(viewModel.Details.AreLaunchSettingsOverridesEnabled);
 
         await TestAsync.WaitForAsync(() =>
@@ -768,7 +782,33 @@ public sealed class GameSettingsPageViewModelTests
             && !instanceService.LastSavedInstance.WaitForPreLaunchCommand
             && instanceService.LastSavedInstance.PostExitCommand == "echo global-after"
             && instanceService.LastSavedInstance.JvmArguments == "-Dglobal=true"
-            && instanceService.LastSavedInstance.GameArguments == "--global");
+            && instanceService.LastSavedInstance.GameArguments == "--global"
+            && instanceService.LastSavedInstance.MemorySettingsMode == MemorySettingsMode.Auto
+            && instanceService.LastSavedInstance.MemoryMb == 8192);
+    }
+
+    [Fact]
+    public async Task UseGlobalManualMemoryShowsReadOnlySlider()
+    {
+        var instanceService = new FakeGameInstanceService();
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.LaunchSettingsMode = LaunchSettingsMode.UseGlobal;
+        instanceService.CreatedInstances.Add(instance);
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+        viewModel.PrimeFromSettings(new LauncherSettings
+        {
+            DefaultMemorySettingsMode = MemorySettingsMode.Manual,
+            DefaultMemoryMb = 8192
+        });
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+
+        Assert.Equal(MemorySettingsMode.Manual, viewModel.Details.SelectedMemoryModeOption?.Mode);
+        Assert.Equal(8192, viewModel.Details.MemoryMb);
+        Assert.True(viewModel.Details.IsMemorySliderVisible);
+        Assert.False(viewModel.Details.IsMemorySliderEnabled);
+        Assert.False(viewModel.Details.IsAutomaticMemorySummaryVisible);
     }
 
     [Fact]
@@ -1089,6 +1129,8 @@ public sealed class GameSettingsPageViewModelTests
             gameVersionService,
             statusService,
             folderService,
+            new FakeSystemMemoryService(),
+            new FakeModService(),
             javaRuntimeDiscoveryService ?? new FakeJavaRuntimeDiscoveryService(),
             filePickerService ?? new FakeFilePickerService(),
             floatingMessageService ?? new FakeFloatingMessageService());
@@ -1207,6 +1249,39 @@ public sealed class GameSettingsPageViewModelTests
         {
             LastMessage = message;
             MessageRequested?.Invoke(message);
+        }
+    }
+
+    private sealed class FakeSystemMemoryService : ISystemMemoryService
+    {
+        public SystemMemorySnapshot GetSnapshot()
+        {
+            return new SystemMemorySnapshot(
+                TotalMemoryBytes: 16L * 1024L * 1024L * 1024L,
+                AvailableMemoryBytes: 8L * 1024L * 1024L * 1024L);
+        }
+    }
+
+    private sealed class FakeModService : IModService
+    {
+        public Task<IReadOnlyList<LocalMod>> GetModsAsync(GameInstance instance, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<LocalMod>>([]);
+        }
+
+        public Task<LocalMod> ImportAsync(GameInstance instance, string sourceJarPath, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task SetEnabledAsync(LocalMod mod, bool enabled, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task DeleteAsync(LocalMod mod, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
         }
     }
 

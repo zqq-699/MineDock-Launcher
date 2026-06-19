@@ -7,6 +7,7 @@ public sealed class LauncherSettings
     public string Theme { get; set; } = LauncherDefaults.DefaultTheme;
     public string DataDirectory { get; set; } = string.Empty;
     public string MinecraftDirectory { get; set; } = string.Empty;
+    public MemorySettingsMode DefaultMemorySettingsMode { get; set; } = MemorySettingsMode.Auto;
     public int DefaultMemoryMb { get; set; } = LauncherDefaults.DefaultMemoryMb;
     public JavaSelectionMode JavaSelectionMode { get; set; } = JavaSelectionMode.Auto;
     public string? SelectedJavaExecutablePath { get; set; }

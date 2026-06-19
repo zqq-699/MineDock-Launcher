@@ -30,6 +30,8 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
                 VersionName = "demo-pack",
                 Description = "stored beside the instance",
                 InstanceDirectory = versionDirectory,
+                MemorySettingsMode = MemorySettingsMode.Auto,
+                MemoryMb = 5120,
                 JavaSettingsMode = LaunchSettingsMode.PerInstance,
                 JavaSelectionMode = JavaSelectionMode.Manual,
                 SelectedJavaExecutablePath = @"C:\Java\jdk-21\bin\java.exe"
@@ -44,6 +46,8 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         using var document = JsonDocument.Parse(savedJson);
         Assert.Equal("Demo Pack", document.RootElement.GetProperty("Name").GetString());
         Assert.Equal("stored beside the instance", document.RootElement.GetProperty("Description").GetString());
+        Assert.Equal((int)MemorySettingsMode.Auto, document.RootElement.GetProperty("MemorySettingsMode").GetInt32());
+        Assert.Equal(5120, document.RootElement.GetProperty("MemoryMb").GetInt32());
         Assert.Equal((int)LaunchSettingsMode.PerInstance, document.RootElement.GetProperty("JavaSettingsMode").GetInt32());
         Assert.Equal((int)JavaSelectionMode.Manual, document.RootElement.GetProperty("JavaSelectionMode").GetInt32());
         Assert.Equal(@"C:\Java\jdk-21\bin\java.exe", document.RootElement.GetProperty("SelectedJavaExecutablePath").GetString());
@@ -114,5 +118,36 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         Assert.Equal(LaunchSettingsMode.UseGlobal, loaded.JavaSettingsMode);
         Assert.Equal(JavaSelectionMode.Auto, loaded.JavaSelectionMode);
         Assert.Null(loaded.SelectedJavaExecutablePath);
+    }
+
+    [Fact]
+    public async Task GetAllAsyncDefaultsMissingMemorySettingsToManual()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "legacy-memory-pack");
+        repository.CreateInstanceDirectories(versionDirectory);
+        var settingsPath = Path.Combine(versionDirectory, ".launcher", "instance-settings.json");
+
+        await File.WriteAllTextAsync(
+            settingsPath,
+            """
+            {
+              "Id": "legacy-memory-pack",
+              "Name": "Legacy Memory Pack",
+              "MinecraftVersion": "1.20.1",
+              "VersionName": "legacy-memory-pack"
+            }
+            """);
+
+        var loaded = Assert.Single(await repository.GetAllAsync());
+
+        Assert.Equal(MemorySettingsMode.Manual, loaded.MemorySettingsMode);
+        Assert.Equal(4096, loaded.MemoryMb);
     }
 }

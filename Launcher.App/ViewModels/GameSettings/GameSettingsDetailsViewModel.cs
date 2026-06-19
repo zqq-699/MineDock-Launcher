@@ -17,10 +17,13 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     private readonly IGameInstanceService instanceService;
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
+    private readonly ISystemMemoryService systemMemoryService;
+    private readonly IModService modService;
     private INotifyPropertyChanged? selectedInstanceNotifier;
     private LauncherSettings globalSettings = new();
     private CancellationTokenSource? descriptionSaveCancellationTokenSource;
     private bool suppressInstanceSettingsAutoSave;
+    private int enabledModCount;
 
     [ObservableProperty]
     private GameSettingsInstanceItem? selectedInstance;
@@ -59,6 +62,27 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     private string launchGameArguments = string.Empty;
 
     [ObservableProperty]
+    private SettingsMemoryModeOption? selectedMemoryModeOption;
+
+    [ObservableProperty]
+    private double memoryMb = LauncherDefaults.DefaultMemoryMb;
+
+    [ObservableProperty]
+    private int memorySliderMinimumMb = MemoryAllocationCalculator.MinimumMemoryMb;
+
+    [ObservableProperty]
+    private int memorySliderMaximumMb = MemoryAllocationCalculator.FallbackMaximumMemoryMb;
+
+    [ObservableProperty]
+    private string systemTotalMemoryText = string.Empty;
+
+    [ObservableProperty]
+    private string systemAvailableMemoryText = string.Empty;
+
+    [ObservableProperty]
+    private int automaticMemoryMb = LauncherDefaults.DefaultMemoryMb;
+
+    [ObservableProperty]
     private GameSettingsLaunchSettingsModeOption? selectedLaunchSettingsModeOption;
 
     [ObservableProperty]
@@ -69,6 +93,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         IGameInstanceService instanceService,
         IStatusService statusService,
         IInstanceFolderService instanceFolderService,
+        ISystemMemoryService systemMemoryService,
+        IModService modService,
         IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
         IFilePickerService filePickerService,
         IFloatingMessageService floatingMessageService)
@@ -77,6 +103,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         this.instanceService = instanceService;
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
+        this.systemMemoryService = systemMemoryService;
+        this.modService = modService;
         InstanceJavaSettings = new JavaSettingsEditorViewModel(
             javaRuntimeDiscoveryService,
             statusService,
@@ -86,6 +114,13 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         InstanceJavaSettings.IsEditorEnabled = false;
         InstanceJavaSettings.PropertyChanged += InstanceJavaSettings_PropertyChanged;
         InstanceJavaSettings.JavaSelectionChanged += InstanceJavaSettings_JavaSelectionChanged;
+        MemoryModeOptions.Add(new SettingsMemoryModeOption(
+            MemorySettingsMode.Auto,
+            Strings.Settings_MemoryModeAuto));
+        MemoryModeOptions.Add(new SettingsMemoryModeOption(
+            MemorySettingsMode.Manual,
+            Strings.Settings_MemoryModeManual));
+        SelectedMemoryModeOption = MemoryModeOptions[0];
         SelectedInstanceJavaSettingsModeOption = LaunchSettingsModeOptions[0];
     }
 
@@ -123,6 +158,21 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
 
     public bool CanEditAutoRepairMissingFiles => AreLaunchSettingsOverridesEnabled && LaunchCheckFilesBeforeLaunchEnabled;
 
+    public bool IsMemorySliderEnabled => AreLaunchSettingsOverridesEnabled && SelectedMemoryModeOption?.Mode is MemorySettingsMode.Manual;
+
+    public bool IsMemorySliderVisible => SelectedMemoryModeOption?.Mode is MemorySettingsMode.Manual;
+
+    public bool IsAutomaticMemorySummaryVisible => SelectedMemoryModeOption?.Mode is MemorySettingsMode.Auto;
+
+    public string MemoryText => FormatMemorySizeGb(MemoryMb);
+
+    public string AutomaticMemoryText => FormatMemorySizeGb(AutomaticMemoryMb);
+
+    public string SystemMemorySummaryText => string.Format(
+        Strings.Settings_SystemMemorySummaryFormat,
+        SystemAvailableMemoryText,
+        SystemTotalMemoryText);
+
     public string InstanceCreatedAtText => SelectedInstance?.Instance.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? string.Empty;
 
     public IReadOnlyList<GameSettingsLaunchSettingsModeOption> LaunchSettingsModeOptions { get; } =
@@ -130,6 +180,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         new(LaunchSettingsMode.UseGlobal, Strings.GameSettings_LaunchSettingsModeUseGlobal),
         new(LaunchSettingsMode.PerInstance, Strings.GameSettings_LaunchSettingsModePerInstance)
     ];
+
+    public ObservableCollection<SettingsMemoryModeOption> MemoryModeOptions { get; } = [];
 
     public JavaSettingsEditorViewModel InstanceJavaSettings { get; }
 
@@ -162,6 +214,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     public void PrimeFromSettings(LauncherSettings launcherSettings)
     {
         globalSettings = launcherSettings;
+        RefreshSystemMemorySnapshot();
 
         if (SelectedLaunchSettingsModeOption?.Mode is LaunchSettingsMode.UseGlobal)
             ApplyGlobalLaunchSettingsToEditor();
@@ -236,6 +289,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         if (selectedInstanceNotifier is not null)
             selectedInstanceNotifier.PropertyChanged += SelectedInstance_PropertyChanged;
 
+        enabledModCount = 0;
         OnPropertyChanged(nameof(HasSelectedInstance));
         OnPropertyChanged(nameof(InstanceName));
         OnPropertyChanged(nameof(InstanceIconSource));
@@ -251,6 +305,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             var javaSettingsMode = value?.Instance.JavaSettingsMode ?? LaunchSettingsMode.UseGlobal;
             SelectedInstanceJavaSettingsModeOption = ResolveLaunchSettingsModeOption(javaSettingsMode);
             ApplyJavaSettingsToEditor();
+            _ = RefreshEnabledModCountAsync(value?.Instance);
 
             if (mode is LaunchSettingsMode.UseGlobal)
             {
@@ -258,6 +313,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             }
             else
             {
+                SelectedMemoryModeOption = ResolveMemoryModeOption(value?.Instance.MemorySettingsMode ?? MemorySettingsMode.Manual);
+                MemoryMb = NormalizeMemoryValue(value?.Instance.MemoryMb ?? LauncherDefaults.DefaultMemoryMb);
                 LaunchCheckFilesBeforeLaunchEnabled = value?.Instance.CheckFilesBeforeLaunch ?? true;
                 LaunchAutoRepairMissingFilesEnabled = value?.Instance.AutoRepairMissingFiles ?? true;
                 LaunchMinimizeLauncherAfterLaunchEnabled = value?.Instance.MinimizeLauncherAfterLaunch ?? false;
@@ -274,6 +331,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             suppressInstanceSettingsAutoSave = false;
         }
 
+        RefreshSystemMemorySnapshot();
         if (IsJavaMemorySection || InstanceJavaRuntimes.Count == 0)
             _ = InstanceJavaSettings.RefreshJavaRuntimesForDisplayAsync();
     }
@@ -291,6 +349,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(AreLaunchSettingsOverridesEnabled));
         OnPropertyChanged(nameof(CanEditAutoRepairMissingFiles));
+        OnPropertyChanged(nameof(IsMemorySliderEnabled));
 
         if (suppressInstanceSettingsAutoSave)
             return;
@@ -409,6 +468,56 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         SaveLaunchSettings();
     }
 
+    partial void OnSelectedMemoryModeOptionChanged(SettingsMemoryModeOption? value)
+    {
+        OnPropertyChanged(nameof(IsMemorySliderEnabled));
+        OnPropertyChanged(nameof(IsMemorySliderVisible));
+        OnPropertyChanged(nameof(IsAutomaticMemorySummaryVisible));
+
+        if (suppressInstanceSettingsAutoSave)
+            return;
+
+        SaveLaunchSettings();
+    }
+
+    partial void OnMemoryMbChanged(double value)
+    {
+        var clamped = Math.Clamp(value, MemorySliderMinimumMb, MemorySliderMaximumMb);
+        if (Math.Abs(clamped - value) > double.Epsilon)
+        {
+            MemoryMb = clamped;
+            return;
+        }
+
+        OnPropertyChanged(nameof(MemoryText));
+
+        if (suppressInstanceSettingsAutoSave)
+            return;
+
+        SaveLaunchSettings();
+    }
+
+    partial void OnMemorySliderMaximumMbChanged(int value)
+    {
+        if (MemoryMb > value)
+            MemoryMb = value;
+    }
+
+    partial void OnSystemTotalMemoryTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(SystemMemorySummaryText));
+    }
+
+    partial void OnSystemAvailableMemoryTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(SystemMemorySummaryText));
+    }
+
+    partial void OnAutomaticMemoryMbChanged(int value)
+    {
+        OnPropertyChanged(nameof(AutomaticMemoryText));
+    }
+
     private void SelectedInstance_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         OnPropertyChanged(nameof(InstanceName));
@@ -471,6 +580,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             LaunchPostExitCommand = globalSettings.DefaultPostExitCommand;
             LaunchJvmArguments = globalSettings.DefaultJvmArguments;
             LaunchGameArguments = globalSettings.DefaultGameArguments;
+            SelectedMemoryModeOption = ResolveMemoryModeOption(globalSettings.DefaultMemorySettingsMode);
+            MemoryMb = NormalizeMemoryValue(globalSettings.DefaultMemoryMb);
         }
         finally
         {
@@ -514,6 +625,12 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         var postExitCommand = NormalizeSettingText(LaunchPostExitCommand);
         var jvmArguments = NormalizeSettingText(LaunchJvmArguments);
         var gameArguments = NormalizeSettingText(LaunchGameArguments);
+        var memorySettingsMode = mode is LaunchSettingsMode.UseGlobal
+            ? globalSettings.DefaultMemorySettingsMode
+            : SelectedMemoryModeOption?.Mode ?? MemorySettingsMode.Manual;
+        var memoryMb = mode is LaunchSettingsMode.UseGlobal
+            ? NormalizeMemoryValue(globalSettings.DefaultMemoryMb)
+            : NormalizeMemoryValue(MemoryMb);
         _ = SaveLaunchSettingsAsync(
             instanceId,
             mode,
@@ -525,7 +642,9 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             waitForPreLaunchCommand,
             postExitCommand,
             jvmArguments,
-            gameArguments);
+            gameArguments,
+            memorySettingsMode,
+            memoryMb);
     }
 
     private void SaveJavaSettings()
@@ -612,7 +731,9 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         bool waitForPreLaunchCommand,
         string postExitCommand,
         string jvmArguments,
-        string gameArguments)
+        string gameArguments,
+        MemorySettingsMode memorySettingsMode,
+        int memoryMb)
     {
         if (SelectedInstance is null
             || !string.Equals(SelectedInstance.Instance.Id, instanceId, StringComparison.OrdinalIgnoreCase))
@@ -631,6 +752,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         var originalPostExitCommand = instance.PostExitCommand;
         var originalJvmArguments = instance.JvmArguments;
         var originalGameArguments = instance.GameArguments;
+        var originalMemorySettingsMode = instance.MemorySettingsMode;
+        var originalMemoryMb = instance.MemoryMb;
 
         if (originalMode == mode
             && originalCheckFilesBeforeLaunch == checkFilesBeforeLaunch
@@ -641,7 +764,9 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             && originalWaitForPreLaunchCommand == waitForPreLaunchCommand
             && string.Equals(originalPostExitCommand, postExitCommand, StringComparison.Ordinal)
             && string.Equals(originalJvmArguments, jvmArguments, StringComparison.Ordinal)
-            && string.Equals(originalGameArguments, gameArguments, StringComparison.Ordinal))
+            && string.Equals(originalGameArguments, gameArguments, StringComparison.Ordinal)
+            && originalMemorySettingsMode == memorySettingsMode
+            && originalMemoryMb == memoryMb)
         {
             return;
         }
@@ -658,6 +783,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             instance.PostExitCommand = postExitCommand;
             instance.JvmArguments = jvmArguments;
             instance.GameArguments = gameArguments;
+            instance.MemorySettingsMode = memorySettingsMode;
+            instance.MemoryMb = memoryMb;
             await instanceService.SaveInstanceAsync(instance);
             InstanceSettingsSaved?.Invoke(instance);
         }
@@ -673,9 +800,13 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             instance.PostExitCommand = originalPostExitCommand;
             instance.JvmArguments = originalJvmArguments;
             instance.GameArguments = originalGameArguments;
+            instance.MemorySettingsMode = originalMemorySettingsMode;
+            instance.MemoryMb = originalMemoryMb;
 
             suppressInstanceSettingsAutoSave = true;
             SelectedLaunchSettingsModeOption = ResolveLaunchSettingsModeOption(originalMode);
+            SelectedMemoryModeOption = ResolveMemoryModeOption(originalMemorySettingsMode);
+            MemoryMb = NormalizeMemoryValue(originalMemoryMb);
             LaunchCheckFilesBeforeLaunchEnabled = originalCheckFilesBeforeLaunch;
             LaunchAutoRepairMissingFilesEnabled = originalAutoRepairMissingFiles;
             LaunchMinimizeLauncherAfterLaunchEnabled = originalMinimizeLauncherAfterLaunch;
@@ -766,10 +897,86 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         OnPropertyChanged(nameof(CanInteractWithInstanceJavaRuntimeList));
     }
 
+    public void RefreshSystemMemorySnapshot()
+    {
+        try
+        {
+            var snapshot = systemMemoryService.GetSnapshot();
+            var totalMemoryMb = MemoryAllocationCalculator.BytesToMegabytes(snapshot.TotalMemoryBytes);
+            var availableMemoryMb = MemoryAllocationCalculator.BytesToMegabytes(snapshot.AvailableMemoryBytes);
+            MemorySliderMaximumMb = MemoryAllocationCalculator.CalculateMaximumMemoryMb(totalMemoryMb);
+            AutomaticMemoryMb = MemoryAllocationCalculator.CalculateAutomaticMemoryMb(
+                snapshot,
+                SelectedInstance?.Instance.Loader ?? LoaderKind.Vanilla,
+                enabledModCount);
+            SystemTotalMemoryText = FormatMemorySize(totalMemoryMb);
+            SystemAvailableMemoryText = FormatMemorySizeGb(availableMemoryMb);
+        }
+        catch (Exception)
+        {
+            MemorySliderMaximumMb = MemoryAllocationCalculator.FallbackMaximumMemoryMb;
+            AutomaticMemoryMb = NormalizeMemoryValue(MemoryMb);
+            SystemTotalMemoryText = Strings.Settings_MemoryUnavailable;
+            SystemAvailableMemoryText = Strings.Settings_MemoryUnavailable;
+        }
+    }
+
+    private async Task RefreshEnabledModCountAsync(GameInstance? instance)
+    {
+        if (instance is null || instance.Loader is LoaderKind.Vanilla)
+        {
+            enabledModCount = 0;
+            RefreshSystemMemorySnapshot();
+            return;
+        }
+
+        try
+        {
+            var mods = await modService.GetModsAsync(instance);
+            if (SelectedInstance?.Instance.Id != instance.Id)
+                return;
+
+            enabledModCount = mods.Count(mod => mod.IsEnabled);
+            RefreshSystemMemorySnapshot();
+        }
+        catch (Exception)
+        {
+            if (SelectedInstance?.Instance.Id == instance.Id)
+            {
+                enabledModCount = 0;
+                RefreshSystemMemorySnapshot();
+            }
+        }
+    }
+
+    private SettingsMemoryModeOption ResolveMemoryModeOption(MemorySettingsMode mode)
+    {
+        return MemoryModeOptions.FirstOrDefault(option => option.Mode == mode)
+               ?? MemoryModeOptions[0];
+    }
+
     private GameSettingsLaunchSettingsModeOption ResolveLaunchSettingsModeOption(LaunchSettingsMode mode)
     {
         return LaunchSettingsModeOptions.FirstOrDefault(option => option.Mode == mode)
                ?? LaunchSettingsModeOptions[0];
+    }
+
+    private int NormalizeMemoryValue(double value)
+    {
+        return MemoryAllocationCalculator.NormalizeRecordedMemoryMb(value, MemorySliderMaximumMb);
+    }
+
+    private static string FormatMemorySize(int memoryMb)
+    {
+        if (memoryMb >= 1024)
+            return string.Format(Strings.Settings_MemorySizeGbFormat, memoryMb / 1024d);
+
+        return string.Format(Strings.Settings_MemorySizeMbFormat, memoryMb);
+    }
+
+    private static string FormatMemorySizeGb(double memoryMb)
+    {
+        return string.Format(Strings.Settings_MemorySizeGbFormat, memoryMb / 1024d);
     }
 
     private static string NormalizeSettingText(string? value)

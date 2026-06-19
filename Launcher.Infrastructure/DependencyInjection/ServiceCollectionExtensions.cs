@@ -6,6 +6,7 @@ using Launcher.Infrastructure.Accounts;
 using Launcher.Infrastructure.FileSystem;
 using Launcher.Infrastructure.Minecraft;
 using Launcher.Infrastructure.Modrinth;
+using Launcher.Infrastructure.Platform;
 using Launcher.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -26,6 +27,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILaunchService, LaunchService>();
         services.AddSingleton<IJavaRuntimeDiscoveryService, JavaRuntimeDiscoveryService>();
         services.AddSingleton<IJavaRuntimeSelectionService, JavaRuntimeSelectionService>();
+        services.AddSingleton<ISystemMemoryService, WindowsSystemMemoryService>();
         services.AddSingleton<IModService, ModService>();
         services.AddSingleton<IModrinthService, ModrinthService>();
         services.AddSingleton<ILauncherStateMonitor, LauncherStateMonitor>();

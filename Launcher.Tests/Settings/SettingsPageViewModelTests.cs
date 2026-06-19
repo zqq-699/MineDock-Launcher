@@ -15,6 +15,7 @@ public sealed class SettingsPageViewModelTests
         {
             DataDirectory = @"C:\Launcher\Data",
             MinecraftDirectory = @"C:\Launcher\.minecraft",
+            DefaultMemorySettingsMode = MemorySettingsMode.Manual,
             DefaultMemoryMb = 8192,
             DefaultCheckFilesBeforeLaunch = false,
             DefaultAutoRepairMissingFiles = false,
@@ -33,7 +34,14 @@ public sealed class SettingsPageViewModelTests
         Assert.True(viewModel.IsGeneralSection);
         Assert.Equal(@"C:\Launcher\Data", viewModel.DataDirectory);
         Assert.Equal(@"C:\Launcher\.minecraft", viewModel.MinecraftDirectory);
-        Assert.Equal(8192, viewModel.SelectedMemoryOption?.MemoryMb);
+        Assert.Equal(MemorySettingsMode.Manual, viewModel.SelectedMemoryModeOption?.Mode);
+        Assert.Equal(8192, viewModel.DefaultMemoryMb);
+        Assert.True(viewModel.IsMemorySliderEnabled);
+        Assert.Equal(1024, viewModel.MemorySliderMinimumMb);
+        Assert.Equal(12288, viewModel.MemorySliderMaximumMb);
+        Assert.Equal("16.0 GB", viewModel.SystemTotalMemoryText);
+        Assert.Equal("8.0 GB", viewModel.SystemAvailableMemoryText);
+        Assert.False(viewModel.IsAutomaticMemorySummaryVisible);
         Assert.False(viewModel.DefaultCheckFilesBeforeLaunch);
         Assert.False(viewModel.DefaultAutoRepairMissingFiles);
         Assert.True(viewModel.DefaultMinimizeLauncherAfterLaunch);
@@ -426,6 +434,7 @@ public sealed class SettingsPageViewModelTests
     {
         var settings = new LauncherSettings
         {
+            DefaultMemorySettingsMode = MemorySettingsMode.Auto,
             DefaultMemoryMb = 4096,
             DefaultCheckFilesBeforeLaunch = true,
             DefaultAutoRepairMissingFiles = true
@@ -433,7 +442,8 @@ public sealed class SettingsPageViewModelTests
         var viewModel = CreateViewModel(settings, out var settingsService, out var statusService);
         viewModel.PrimeFromSettings(settings);
 
-        viewModel.SelectedMemoryOption = new SettingsMemoryOption(12288);
+        viewModel.SelectedMemoryModeOption = viewModel.MemoryModeOptions.Single(option => option.Mode == MemorySettingsMode.Manual);
+        viewModel.DefaultMemoryMb = 12288;
         viewModel.DefaultCheckFilesBeforeLaunch = false;
         viewModel.DefaultAutoRepairMissingFiles = false;
         viewModel.DefaultMinimizeLauncherAfterLaunch = true;
@@ -446,6 +456,7 @@ public sealed class SettingsPageViewModelTests
 
         await TestAsync.WaitForAsync(() =>
             settingsService.SaveCount >= 1
+            && settings.DefaultMemorySettingsMode == MemorySettingsMode.Manual
             && settings.DefaultMemoryMb == 12288
             && settings.DefaultCheckFilesBeforeLaunch == false
             && settings.DefaultAutoRepairMissingFiles == false
@@ -458,6 +469,7 @@ public sealed class SettingsPageViewModelTests
             && settings.DefaultGameArguments == "--demo");
 
         Assert.True(settingsService.SaveCount >= 1);
+        Assert.Equal(MemorySettingsMode.Manual, settings.DefaultMemorySettingsMode);
         Assert.Equal(12288, settings.DefaultMemoryMb);
         Assert.False(settings.DefaultCheckFilesBeforeLaunch);
         Assert.False(settings.DefaultAutoRepairMissingFiles);
@@ -519,7 +531,9 @@ public sealed class SettingsPageViewModelTests
             DefaultCheckFilesBeforeLaunch = true,
             DefaultAutoRepairMissingFiles = true,
             DefaultMinimizeLauncherAfterLaunch = false,
-            DefaultLaunchFullScreen = false
+            DefaultLaunchFullScreen = false,
+            DefaultMemorySettingsMode = MemorySettingsMode.Auto,
+            DefaultMemoryMb = 4096
         };
         var viewModel = CreateViewModel(settings, out _, out _);
         viewModel.PrimeFromSettings(settings);
@@ -546,6 +560,16 @@ public sealed class SettingsPageViewModelTests
 
         Assert.Equal(4, changedCount);
         Assert.False(settings.DefaultWaitForPreLaunchCommand);
+
+        viewModel.SelectedMemoryModeOption = viewModel.MemoryModeOptions.Single(option => option.Mode == MemorySettingsMode.Manual);
+
+        Assert.Equal(5, changedCount);
+        Assert.Equal(MemorySettingsMode.Manual, settings.DefaultMemorySettingsMode);
+
+        viewModel.DefaultMemoryMb = 8192;
+
+        Assert.Equal(6, changedCount);
+        Assert.Equal(8192, settings.DefaultMemoryMb);
     }
 
     [Fact]
@@ -572,6 +596,59 @@ public sealed class SettingsPageViewModelTests
         out FakeStatusService statusService)
     {
         return CreateViewModel(settings, new FakeJavaRuntimeDiscoveryService(), out settingsService, out statusService);
+    }
+
+    [Fact]
+    public async Task ManualMemoryValueSavesWithTenthsOfGbPrecision()
+    {
+        var settings = new LauncherSettings
+        {
+            DefaultMemorySettingsMode = MemorySettingsMode.Manual,
+            DefaultMemoryMb = 4096
+        };
+        var viewModel = CreateViewModel(settings, out var settingsService, out _);
+        viewModel.PrimeFromSettings(settings);
+
+        viewModel.DefaultMemoryMb = 4250;
+
+        await TestAsync.WaitForAsync(() =>
+            settingsService.SaveCount >= 1
+            && settings.DefaultMemoryMb == 4301);
+
+        Assert.Equal("4.2 GB", viewModel.DefaultMemoryText);
+    }
+
+    [Fact]
+    public async Task AutomaticMemoryModeDisablesMemorySlider()
+    {
+        var settings = new LauncherSettings
+        {
+            DefaultMemorySettingsMode = MemorySettingsMode.Manual,
+            DefaultMemoryMb = 4096
+        };
+        var viewModel = CreateViewModel(settings, out var settingsService, out _);
+        viewModel.PrimeFromSettings(settings);
+
+        viewModel.SelectedMemoryModeOption = viewModel.MemoryModeOptions.Single(option => option.Mode == MemorySettingsMode.Auto);
+
+        Assert.False(viewModel.IsMemorySliderEnabled);
+        Assert.True(viewModel.IsAutomaticMemorySummaryVisible);
+        Assert.Equal("4.0 GB", viewModel.AutomaticMemoryText);
+        await TestAsync.WaitForAsync(() =>
+            settingsService.SaveCount >= 1
+            && settings.DefaultMemorySettingsMode == MemorySettingsMode.Auto
+            && settings.DefaultMemoryMb == 4096);
+    }
+
+    [Theory]
+    [InlineData(8192, 6144)]
+    [InlineData(16384, 12288)]
+    [InlineData(24576, 18432)]
+    [InlineData(4096, 2048)]
+    [InlineData(2048, 1024)]
+    public void MemorySliderMaximumUsesSystemMemoryRule(int totalMemoryMb, int expectedMaximumMb)
+    {
+        Assert.Equal(expectedMaximumMb, SettingsPageViewModel.CalculateMemorySliderMaximumMb(totalMemoryMb));
     }
 
     private static SettingsPageViewModel CreateViewModel(
@@ -613,6 +690,7 @@ public sealed class SettingsPageViewModelTests
         return new SettingsPageViewModel(
             settingsService,
             statusService,
+            new FakeSystemMemoryService(),
             javaRuntimeDiscoveryService,
             filePickerService,
             floatingMessageService);
@@ -687,6 +765,16 @@ public sealed class SettingsPageViewModelTests
                 throw ImportExceptionToThrow;
 
             return Task.FromResult(ImportedRuntime);
+        }
+    }
+
+    private sealed class FakeSystemMemoryService : ISystemMemoryService
+    {
+        public SystemMemorySnapshot GetSnapshot()
+        {
+            return new SystemMemorySnapshot(
+                TotalMemoryBytes: 16L * 1024L * 1024L * 1024L,
+                AvailableMemoryBytes: 8L * 1024L * 1024L * 1024L);
         }
     }
 

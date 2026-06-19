@@ -12,6 +12,7 @@ public sealed class GameInstance
     public string Description { get; set; } = string.Empty;
     public string? IconSource { get; set; }
     public string InstanceDirectory { get; set; } = string.Empty;
+    public MemorySettingsMode MemorySettingsMode { get; set; } = MemorySettingsMode.Manual;
     public int MemoryMb { get; set; } = 4096;
     public int WindowWidth { get; set; } = 1280;
     public int WindowHeight { get; set; } = 720;

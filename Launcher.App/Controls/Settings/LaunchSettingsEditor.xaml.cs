@@ -18,6 +18,51 @@ public partial class LaunchSettingsEditor : UserControl
     public static readonly DependencyProperty AreLaunchSettingsOverridesEnabledProperty =
         DependencyProperty.Register(nameof(AreLaunchSettingsOverridesEnabled), typeof(bool), typeof(LaunchSettingsEditor), new PropertyMetadata(true));
 
+    public static readonly DependencyProperty ShowMemorySettingsProperty =
+        DependencyProperty.Register(nameof(ShowMemorySettings), typeof(bool), typeof(LaunchSettingsEditor), new PropertyMetadata(false));
+
+    public static readonly DependencyProperty MemorySettingsModeOptionsProperty =
+        DependencyProperty.Register(nameof(MemorySettingsModeOptions), typeof(IEnumerable), typeof(LaunchSettingsEditor), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty SelectedMemorySettingsModeOptionProperty =
+        DependencyProperty.Register(nameof(SelectedMemorySettingsModeOption), typeof(object), typeof(LaunchSettingsEditor), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+    public static readonly DependencyProperty MemoryMbProperty =
+        DependencyProperty.Register(nameof(MemoryMb), typeof(double), typeof(LaunchSettingsEditor), new FrameworkPropertyMetadata(4096d, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+    public static readonly DependencyProperty MemoryMinimumMbProperty =
+        DependencyProperty.Register(nameof(MemoryMinimumMb), typeof(double), typeof(LaunchSettingsEditor), new PropertyMetadata(1024d));
+
+    public static readonly DependencyProperty MemoryMaximumMbProperty =
+        DependencyProperty.Register(nameof(MemoryMaximumMb), typeof(double), typeof(LaunchSettingsEditor), new PropertyMetadata(32768d));
+
+    public static readonly DependencyProperty MemoryStepMbProperty =
+        DependencyProperty.Register(nameof(MemoryStepMb), typeof(double), typeof(LaunchSettingsEditor), new PropertyMetadata(512d));
+
+    public static readonly DependencyProperty IsMemorySliderEnabledProperty =
+        DependencyProperty.Register(nameof(IsMemorySliderEnabled), typeof(bool), typeof(LaunchSettingsEditor), new PropertyMetadata(false));
+
+    public static readonly DependencyProperty IsMemorySliderVisibleProperty =
+        DependencyProperty.Register(nameof(IsMemorySliderVisible), typeof(bool), typeof(LaunchSettingsEditor), new PropertyMetadata(false));
+
+    public static readonly DependencyProperty IsAutomaticMemorySummaryVisibleProperty =
+        DependencyProperty.Register(nameof(IsAutomaticMemorySummaryVisible), typeof(bool), typeof(LaunchSettingsEditor), new PropertyMetadata(false));
+
+    public static readonly DependencyProperty AutomaticMemoryTextProperty =
+        DependencyProperty.Register(nameof(AutomaticMemoryText), typeof(string), typeof(LaunchSettingsEditor), new PropertyMetadata(string.Empty));
+
+    public static readonly DependencyProperty MemoryValueTextProperty =
+        DependencyProperty.Register(nameof(MemoryValueText), typeof(string), typeof(LaunchSettingsEditor), new PropertyMetadata(string.Empty));
+
+    public static readonly DependencyProperty SystemTotalMemoryTextProperty =
+        DependencyProperty.Register(nameof(SystemTotalMemoryText), typeof(string), typeof(LaunchSettingsEditor), new PropertyMetadata(string.Empty));
+
+    public static readonly DependencyProperty SystemAvailableMemoryTextProperty =
+        DependencyProperty.Register(nameof(SystemAvailableMemoryText), typeof(string), typeof(LaunchSettingsEditor), new PropertyMetadata(string.Empty));
+
+    public static readonly DependencyProperty SystemMemorySummaryTextProperty =
+        DependencyProperty.Register(nameof(SystemMemorySummaryText), typeof(string), typeof(LaunchSettingsEditor), new PropertyMetadata(string.Empty));
+
     public static readonly DependencyProperty CanEditAutoRepairMissingFilesProperty =
         DependencyProperty.Register(nameof(CanEditAutoRepairMissingFiles), typeof(bool), typeof(LaunchSettingsEditor), new PropertyMetadata(true));
 
@@ -75,6 +120,96 @@ public partial class LaunchSettingsEditor : UserControl
     {
         get => (bool)GetValue(AreLaunchSettingsOverridesEnabledProperty);
         set => SetValue(AreLaunchSettingsOverridesEnabledProperty, value);
+    }
+
+    public bool ShowMemorySettings
+    {
+        get => (bool)GetValue(ShowMemorySettingsProperty);
+        set => SetValue(ShowMemorySettingsProperty, value);
+    }
+
+    public IEnumerable? MemorySettingsModeOptions
+    {
+        get => (IEnumerable?)GetValue(MemorySettingsModeOptionsProperty);
+        set => SetValue(MemorySettingsModeOptionsProperty, value);
+    }
+
+    public object? SelectedMemorySettingsModeOption
+    {
+        get => GetValue(SelectedMemorySettingsModeOptionProperty);
+        set => SetValue(SelectedMemorySettingsModeOptionProperty, value);
+    }
+
+    public double MemoryMb
+    {
+        get => (double)GetValue(MemoryMbProperty);
+        set => SetValue(MemoryMbProperty, value);
+    }
+
+    public double MemoryMinimumMb
+    {
+        get => (double)GetValue(MemoryMinimumMbProperty);
+        set => SetValue(MemoryMinimumMbProperty, value);
+    }
+
+    public double MemoryMaximumMb
+    {
+        get => (double)GetValue(MemoryMaximumMbProperty);
+        set => SetValue(MemoryMaximumMbProperty, value);
+    }
+
+    public double MemoryStepMb
+    {
+        get => (double)GetValue(MemoryStepMbProperty);
+        set => SetValue(MemoryStepMbProperty, value);
+    }
+
+    public bool IsMemorySliderEnabled
+    {
+        get => (bool)GetValue(IsMemorySliderEnabledProperty);
+        set => SetValue(IsMemorySliderEnabledProperty, value);
+    }
+
+    public bool IsMemorySliderVisible
+    {
+        get => (bool)GetValue(IsMemorySliderVisibleProperty);
+        set => SetValue(IsMemorySliderVisibleProperty, value);
+    }
+
+    public bool IsAutomaticMemorySummaryVisible
+    {
+        get => (bool)GetValue(IsAutomaticMemorySummaryVisibleProperty);
+        set => SetValue(IsAutomaticMemorySummaryVisibleProperty, value);
+    }
+
+    public string AutomaticMemoryText
+    {
+        get => (string)GetValue(AutomaticMemoryTextProperty);
+        set => SetValue(AutomaticMemoryTextProperty, value);
+    }
+
+    public string MemoryValueText
+    {
+        get => (string)GetValue(MemoryValueTextProperty);
+        set => SetValue(MemoryValueTextProperty, value);
+    }
+
+    public string SystemTotalMemoryText
+    {
+        get => (string)GetValue(SystemTotalMemoryTextProperty);
+        set => SetValue(SystemTotalMemoryTextProperty, value);
+    }
+
+    public string SystemAvailableMemoryText
+    {
+        get => (string)GetValue(SystemAvailableMemoryTextProperty);
+        set => SetValue(SystemAvailableMemoryTextProperty, value);
+    }
+
+    public string SystemMemorySummaryText
+    {
+        get => (string)GetValue(SystemMemorySummaryTextProperty);
+        set => SetValue(SystemMemorySummaryTextProperty, value);
     }
 
     public bool CanEditAutoRepairMissingFiles

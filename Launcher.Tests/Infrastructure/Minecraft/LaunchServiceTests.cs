@@ -454,6 +454,130 @@ public sealed class LaunchServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task LaunchServiceAppliesManualGlobalMemoryFromSettings()
+    {
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            launcherFactory,
+            new NoOpLaunchCrashMonitor());
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultMemorySettingsMode = MemorySettingsMode.Manual,
+            DefaultMemoryMb = 5120
+        };
+        var instance = new GameInstance
+        {
+            Name = "Vanilla World",
+            VersionName = "1.21.4",
+            InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "1.21.4"),
+            LaunchSettingsMode = LaunchSettingsMode.UseGlobal,
+            MemoryMb = 2048
+        };
+
+        await service.LaunchAsync(instance, CreateAccount(), settings, progress: null);
+
+        Assert.Equal(5120, launcherFactory.Launcher.LastLaunchOption?.MaximumRamMb);
+    }
+
+    [Fact]
+    public async Task LaunchServiceAppliesAutomaticGlobalMemoryFromSystemMemory()
+    {
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            launcherFactory,
+            new NoOpLaunchCrashMonitor(),
+            systemMemoryService: new FakeSystemMemoryService(totalMemoryGb: 16, availableMemoryGb: 8),
+            modService: new FakeModService(enabledModCount: 81, disabledModCount: 12));
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultMemorySettingsMode = MemorySettingsMode.Auto,
+            DefaultMemoryMb = 4096
+        };
+        var instance = new GameInstance
+        {
+            Name = "Vanilla World",
+            VersionName = "1.21.4",
+            InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "1.21.4"),
+            LaunchSettingsMode = LaunchSettingsMode.UseGlobal,
+            Loader = LoaderKind.Forge,
+            MemoryMb = 2048
+        };
+
+        await service.LaunchAsync(instance, CreateAccount(), settings, progress: null);
+
+        Assert.Equal(5632, launcherFactory.Launcher.LastLaunchOption?.MaximumRamMb);
+    }
+
+    [Fact]
+    public async Task LaunchServiceUsesPerInstanceMemoryWhenLaunchSettingsArePerInstance()
+    {
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            launcherFactory,
+            new NoOpLaunchCrashMonitor(),
+            systemMemoryService: new FakeSystemMemoryService(totalMemoryGb: 16, availableMemoryGb: 8));
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultMemorySettingsMode = MemorySettingsMode.Auto,
+            DefaultMemoryMb = 4096
+        };
+        var instance = new GameInstance
+        {
+            Name = "Vanilla World",
+            VersionName = "1.21.4",
+            InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "1.21.4"),
+            LaunchSettingsMode = LaunchSettingsMode.PerInstance,
+            MemoryMb = 6144
+        };
+
+        await service.LaunchAsync(instance, CreateAccount(), settings, progress: null);
+
+        Assert.Equal(6144, launcherFactory.Launcher.LastLaunchOption?.MaximumRamMb);
+    }
+
+    [Fact]
+    public async Task LaunchServiceUsesAutomaticPerInstanceMemoryWhenInstanceMemoryModeIsAuto()
+    {
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            launcherFactory,
+            new NoOpLaunchCrashMonitor(),
+            systemMemoryService: new FakeSystemMemoryService(totalMemoryGb: 16, availableMemoryGb: 8),
+            modService: new FakeModService(enabledModCount: 151));
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultMemorySettingsMode = MemorySettingsMode.Manual,
+            DefaultMemoryMb = 2048
+        };
+        var instance = new GameInstance
+        {
+            Name = "Forge Pack",
+            VersionName = "Forge Pack",
+            InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Forge Pack"),
+            LaunchSettingsMode = LaunchSettingsMode.PerInstance,
+            MemorySettingsMode = MemorySettingsMode.Auto,
+            Loader = LoaderKind.Forge,
+            MemoryMb = 4096
+        };
+
+        await service.LaunchAsync(instance, CreateAccount(), settings, progress: null);
+
+        Assert.Equal(6144, launcherFactory.Launcher.LastLaunchOption?.MaximumRamMb);
+    }
+
+    [Fact]
     public async Task LaunchServiceAppliesSelectedJavaRuntimeToLaunchOption()
     {
         var launcherFactory = new FakeLaunchGameLauncherFactory();
@@ -1266,6 +1390,65 @@ public sealed class LaunchServiceTests : TestTempDirectory
         {
             LastSettings = settings;
             return Task.FromResult(runtime);
+        }
+    }
+
+    private sealed class FakeSystemMemoryService : ISystemMemoryService
+    {
+        private readonly int totalMemoryGb;
+        private readonly int availableMemoryGb;
+
+        public FakeSystemMemoryService(int totalMemoryGb, int availableMemoryGb)
+        {
+            this.totalMemoryGb = totalMemoryGb;
+            this.availableMemoryGb = availableMemoryGb;
+        }
+
+        public SystemMemorySnapshot GetSnapshot()
+        {
+            return new SystemMemorySnapshot(
+                TotalMemoryBytes: totalMemoryGb * 1024L * 1024L * 1024L,
+                AvailableMemoryBytes: availableMemoryGb * 1024L * 1024L * 1024L);
+        }
+    }
+
+    private sealed class FakeModService : IModService
+    {
+        private readonly int enabledModCount;
+        private readonly int disabledModCount;
+
+        public FakeModService(int enabledModCount, int disabledModCount = 0)
+        {
+            this.enabledModCount = enabledModCount;
+            this.disabledModCount = disabledModCount;
+        }
+
+        public Task<IReadOnlyList<LocalMod>> GetModsAsync(GameInstance instance, CancellationToken cancellationToken = default)
+        {
+            var mods = Enumerable
+                .Range(0, enabledModCount)
+                .Select(index => new LocalMod { Name = $"enabled-{index}", IsEnabled = true })
+                .Concat(Enumerable
+                    .Range(0, disabledModCount)
+                    .Select(index => new LocalMod { Name = $"disabled-{index}", IsEnabled = false }))
+                .ToList();
+
+            return Task.FromResult<IReadOnlyList<LocalMod>>(mods);
+        }
+
+        public Task<LocalMod> ImportAsync(GameInstance instance, string sourceJarPath, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task SetEnabledAsync(LocalMod mod, bool enabled, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task DeleteAsync(LocalMod mod, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
         }
     }
 

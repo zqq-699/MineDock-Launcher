@@ -12,9 +12,9 @@ namespace Launcher.App.ViewModels.Settings;
 public sealed partial class SettingsPageViewModel : ObservableObject
 {
     private const int AutoSaveDelayMilliseconds = 350;
-
     private readonly ISettingsService settingsService;
     private readonly IStatusService statusService;
+    private readonly ISystemMemoryService systemMemoryService;
     private readonly SemaphoreSlim saveLock = new(1, 1);
     private LauncherSettings settings = new();
     private CancellationTokenSource? autoSaveCancellationTokenSource;
@@ -31,7 +31,25 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private string minecraftDirectory = string.Empty;
 
     [ObservableProperty]
-    private SettingsMemoryOption? selectedMemoryOption;
+    private SettingsMemoryModeOption? selectedMemoryModeOption;
+
+    [ObservableProperty]
+    private double defaultMemoryMb = LauncherDefaults.DefaultMemoryMb;
+
+    [ObservableProperty]
+    private int memorySliderMinimumMb = MemoryAllocationCalculator.MinimumMemoryMb;
+
+    [ObservableProperty]
+    private int memorySliderMaximumMb = MemoryAllocationCalculator.FallbackMaximumMemoryMb;
+
+    [ObservableProperty]
+    private string systemTotalMemoryText = string.Empty;
+
+    [ObservableProperty]
+    private string systemAvailableMemoryText = string.Empty;
+
+    [ObservableProperty]
+    private int automaticMemoryMb = LauncherDefaults.DefaultMemoryMb;
 
     [ObservableProperty]
     private bool defaultCheckFilesBeforeLaunch = true;
@@ -90,12 +108,14 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public SettingsPageViewModel(
         ISettingsService settingsService,
         IStatusService statusService,
+        ISystemMemoryService systemMemoryService,
         IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
         IFilePickerService filePickerService,
         IFloatingMessageService floatingMessageService)
     {
         this.settingsService = settingsService;
         this.statusService = statusService;
+        this.systemMemoryService = systemMemoryService;
         JavaSettings = new JavaSettingsEditorViewModel(
             javaRuntimeDiscoveryService,
             statusService,
@@ -122,12 +142,17 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             Strings.Settings_SectionControlList,
             "general/general_all_application"));
 
-        foreach (var memoryMb in new[] { 2048, 4096, 6144, 8192, 12288, 16384 })
-            MemoryOptions.Add(new SettingsMemoryOption(memoryMb));
+        MemoryModeOptions.Add(new SettingsMemoryModeOption(
+            MemorySettingsMode.Auto,
+            Strings.Settings_MemoryModeAuto));
+        MemoryModeOptions.Add(new SettingsMemoryModeOption(
+            MemorySettingsMode.Manual,
+            Strings.Settings_MemoryModeManual));
 
         foreach (var control in SettingsInteractiveControlCatalog.Create())
             InteractiveControls.Add(control);
 
+        SelectedMemoryModeOption = MemoryModeOptions[0];
         SelectedControlDemoComboOption = InteractiveControls.FirstOrDefault();
         SelectedInteractiveControl = InteractiveControls.FirstOrDefault();
         SelectedSection = Sections[0];
@@ -135,7 +160,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     public ObservableCollection<SettingsSectionItem> Sections { get; } = [];
 
-    public ObservableCollection<SettingsMemoryOption> MemoryOptions { get; } = [];
+    public ObservableCollection<SettingsMemoryModeOption> MemoryModeOptions { get; } = [];
 
     public ObservableCollection<SettingsInteractiveControlItem> InteractiveControls { get; } = [];
 
@@ -181,14 +206,30 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     public bool IsJavaManualSelection => JavaSettings.IsJavaManualSelection;
 
+    public bool IsMemorySliderEnabled => SelectedMemoryModeOption?.Mode is MemorySettingsMode.Manual;
+
+    public bool IsMemorySliderVisible => SelectedMemoryModeOption?.Mode is MemorySettingsMode.Manual;
+
+    public string DefaultMemoryText => FormatMemorySizeGb(DefaultMemoryMb);
+
+    public string AutomaticMemoryText => FormatMemorySizeGb(AutomaticMemoryMb);
+
+    public string SystemMemorySummaryText => string.Format(
+        Strings.Settings_SystemMemorySummaryFormat,
+        SystemAvailableMemoryText,
+        SystemTotalMemoryText);
+
     public void PrimeFromSettings(LauncherSettings launcherSettings)
     {
         settings = launcherSettings;
+        RefreshSystemMemorySnapshot();
         suppressAutoSave = true;
         try
         {
             DataDirectory = launcherSettings.DataDirectory;
             MinecraftDirectory = launcherSettings.MinecraftDirectory;
+            SelectedMemoryModeOption = ResolveMemoryModeOption(launcherSettings.DefaultMemorySettingsMode);
+            DefaultMemoryMb = NormalizeMemoryValue(launcherSettings.DefaultMemoryMb);
             DefaultCheckFilesBeforeLaunch = launcherSettings.DefaultCheckFilesBeforeLaunch;
             DefaultAutoRepairMissingFiles = launcherSettings.DefaultAutoRepairMissingFiles;
             DefaultMinimizeLauncherAfterLaunch = launcherSettings.DefaultMinimizeLauncherAfterLaunch;
@@ -198,7 +239,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             DefaultPostExitCommand = launcherSettings.DefaultPostExitCommand;
             DefaultJvmArguments = launcherSettings.DefaultJvmArguments;
             DefaultGameArguments = launcherSettings.DefaultGameArguments;
-            SelectedMemoryOption = EnsureMemoryOption(launcherSettings.DefaultMemoryMb);
             JavaSettings.LoadSelection(launcherSettings.JavaSelectionMode, launcherSettings.SelectedJavaExecutablePath);
         }
         finally
@@ -249,9 +289,42 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(IsControlListSection));
     }
 
-    partial void OnSelectedMemoryOptionChanged(SettingsMemoryOption? value)
+    partial void OnSelectedMemoryModeOptionChanged(SettingsMemoryModeOption? value)
     {
+        OnPropertyChanged(nameof(IsMemorySliderEnabled));
+        OnPropertyChanged(nameof(IsMemorySliderVisible));
+        OnPropertyChanged(nameof(IsAutomaticMemorySummaryVisible));
         ScheduleAutoSave();
+        NotifyLaunchDefaultsChanged();
+    }
+
+    partial void OnDefaultMemoryMbChanged(double value)
+    {
+        var clamped = Math.Clamp(value, MemorySliderMinimumMb, MemorySliderMaximumMb);
+        if (Math.Abs(clamped - value) > double.Epsilon)
+        {
+            DefaultMemoryMb = clamped;
+            return;
+        }
+
+        OnPropertyChanged(nameof(DefaultMemoryText));
+        ScheduleAutoSave();
+        NotifyLaunchDefaultsChanged();
+    }
+
+    partial void OnSystemTotalMemoryTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(SystemMemorySummaryText));
+    }
+
+    partial void OnSystemAvailableMemoryTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(SystemMemorySummaryText));
+    }
+
+    partial void OnAutomaticMemoryMbChanged(int value)
+    {
+        OnPropertyChanged(nameof(AutomaticMemoryText));
     }
 
     partial void OnDefaultCheckFilesBeforeLaunchChanged(bool value)
@@ -327,7 +400,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     private void ApplySettings()
     {
-        settings.DefaultMemoryMb = SelectedMemoryOption?.MemoryMb ?? LauncherDefaults.DefaultMemoryMb;
+        settings.DefaultMemorySettingsMode = SelectedMemoryModeOption?.Mode ?? MemorySettingsMode.Auto;
+        settings.DefaultMemoryMb = NormalizeMemoryValue(DefaultMemoryMb);
         settings.DefaultCheckFilesBeforeLaunch = DefaultCheckFilesBeforeLaunch;
         settings.DefaultAutoRepairMissingFiles = DefaultAutoRepairMissingFiles;
         settings.DefaultMinimizeLauncherAfterLaunch = DefaultMinimizeLauncherAfterLaunch;
@@ -337,7 +411,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         suppressAutoSave = true;
         try
         {
-            SelectedMemoryOption = EnsureMemoryOption(settings.DefaultMemoryMb);
+            SelectedMemoryModeOption = ResolveMemoryModeOption(settings.DefaultMemorySettingsMode);
         }
         finally
         {
@@ -376,6 +450,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     private void ApplyLaunchDefaultsToSettings()
     {
+        settings.DefaultMemorySettingsMode = SelectedMemoryModeOption?.Mode ?? MemorySettingsMode.Auto;
+        settings.DefaultMemoryMb = NormalizeMemoryValue(DefaultMemoryMb);
         settings.DefaultCheckFilesBeforeLaunch = DefaultCheckFilesBeforeLaunch;
         settings.DefaultAutoRepairMissingFiles = DefaultAutoRepairMissingFiles;
         settings.DefaultMinimizeLauncherAfterLaunch = DefaultMinimizeLauncherAfterLaunch;
@@ -398,19 +474,56 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         return value?.Trim() ?? string.Empty;
     }
 
-    private SettingsMemoryOption EnsureMemoryOption(int memoryMb)
+    private SettingsMemoryModeOption ResolveMemoryModeOption(MemorySettingsMode mode)
     {
-        var existing = MemoryOptions.FirstOrDefault(option => option.MemoryMb == memoryMb);
-        if (existing is not null)
-            return existing;
+        return MemoryModeOptions.FirstOrDefault(option => option.Mode == mode)
+               ?? MemoryModeOptions[0];
+    }
 
-        var created = new SettingsMemoryOption(memoryMb);
-        var insertIndex = 0;
-        while (insertIndex < MemoryOptions.Count && MemoryOptions[insertIndex].MemoryMb < memoryMb)
-            insertIndex++;
+    public void RefreshSystemMemorySnapshot()
+    {
+        try
+        {
+            var snapshot = systemMemoryService.GetSnapshot();
+            var totalMemoryMb = MemoryAllocationCalculator.BytesToMegabytes(snapshot.TotalMemoryBytes);
+            var availableMemoryMb = MemoryAllocationCalculator.BytesToMegabytes(snapshot.AvailableMemoryBytes);
+            MemorySliderMaximumMb = CalculateMemorySliderMaximumMb(totalMemoryMb);
+            AutomaticMemoryMb = MemoryAllocationCalculator.CalculateAutomaticMemoryMb(snapshot);
+            SystemTotalMemoryText = FormatMemorySize(totalMemoryMb);
+            SystemAvailableMemoryText = FormatMemorySizeGb(availableMemoryMb);
+        }
+        catch (Exception)
+        {
+            MemorySliderMaximumMb = MemoryAllocationCalculator.FallbackMaximumMemoryMb;
+            AutomaticMemoryMb = NormalizeMemoryValue(settings.DefaultMemoryMb);
+            SystemTotalMemoryText = Strings.Settings_MemoryUnavailable;
+            SystemAvailableMemoryText = Strings.Settings_MemoryUnavailable;
+        }
+    }
 
-        MemoryOptions.Insert(insertIndex, created);
-        return created;
+    public static int CalculateMemorySliderMaximumMb(int totalMemoryMb)
+    {
+        return MemoryAllocationCalculator.CalculateMaximumMemoryMb(totalMemoryMb);
+    }
+
+    public bool IsAutomaticMemorySummaryVisible => SelectedMemoryModeOption?.Mode is MemorySettingsMode.Auto;
+
+    private int NormalizeMemoryValue(double memoryMb)
+    {
+        return MemoryAllocationCalculator.NormalizeRecordedMemoryMb(memoryMb, MemorySliderMaximumMb);
+    }
+
+    private static string FormatMemorySize(int memoryMb)
+    {
+        if (memoryMb >= 1024)
+            return string.Format(Strings.Settings_MemorySizeGbFormat, memoryMb / 1024d);
+
+        return string.Format(Strings.Settings_MemorySizeMbFormat, memoryMb);
+    }
+
+    private static string FormatMemorySizeGb(double memoryMb)
+    {
+        return string.Format(Strings.Settings_MemorySizeGbFormat, memoryMb / 1024d);
     }
 
     private void ScheduleAutoSave()

@@ -19,11 +19,15 @@ public sealed class LaunchService : ILaunchService
     private readonly ILaunchCrashMonitor crashMonitor;
     private readonly ILaunchCommandRunner commandRunner;
     private readonly IJavaRuntimeSelectionService? javaRuntimeSelectionService;
+    private readonly ISystemMemoryService? systemMemoryService;
+    private readonly IModService? modService;
     private readonly ILogger<LaunchService> logger;
 
     public LaunchService(
         ILaunchAccountSessionService accountSessionService,
         IJavaRuntimeSelectionService javaRuntimeSelectionService,
+        ISystemMemoryService? systemMemoryService = null,
+        IModService? modService = null,
         ILogger<LaunchService>? logger = null)
         : this(
             accountSessionService,
@@ -32,6 +36,8 @@ public sealed class LaunchService : ILaunchService
             new LaunchCrashMonitor(),
             new LaunchCommandRunner(),
             javaRuntimeSelectionService,
+            systemMemoryService,
+            modService,
             logger)
     {
     }
@@ -43,6 +49,8 @@ public sealed class LaunchService : ILaunchService
         ILaunchCrashMonitor crashMonitor,
         ILaunchCommandRunner? commandRunner = null,
         IJavaRuntimeSelectionService? javaRuntimeSelectionService = null,
+        ISystemMemoryService? systemMemoryService = null,
+        IModService? modService = null,
         ILogger<LaunchService>? logger = null)
     {
         this.accountSessionService = accountSessionService;
@@ -51,6 +59,8 @@ public sealed class LaunchService : ILaunchService
         this.crashMonitor = crashMonitor;
         this.commandRunner = commandRunner ?? new LaunchCommandRunner();
         this.javaRuntimeSelectionService = javaRuntimeSelectionService;
+        this.systemMemoryService = systemMemoryService;
+        this.modService = modService;
         this.logger = logger ?? NullLogger<LaunchService>.Instance;
     }
 
@@ -86,7 +96,7 @@ public sealed class LaunchService : ILaunchService
         var gameArguments = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
             ? settings.DefaultGameArguments
             : instance.GameArguments;
-        var memoryMb = instance.MemoryMb > 0 ? instance.MemoryMb : settings.DefaultMemoryMb;
+        var memoryMb = await ResolveMemoryMbAsync(instance, settings, cancellationToken);
         System.Diagnostics.Process? process = null;
         JavaRuntimeInfo? selectedJavaRuntime = null;
         LaunchDiagnosticContext diagnosticContext = CreateDiagnosticContext(
@@ -338,6 +348,84 @@ public sealed class LaunchService : ILaunchService
             exception,
             failureKind);
         return report;
+    }
+
+    private async Task<int> ResolveMemoryMbAsync(
+        GameInstance instance,
+        LauncherSettings settings,
+        CancellationToken cancellationToken)
+    {
+        if (instance.LaunchSettingsMode is LaunchSettingsMode.PerInstance && instance.MemoryMb > 0)
+        {
+            if (instance.MemorySettingsMode is MemorySettingsMode.Manual)
+                return instance.MemoryMb;
+
+            try
+            {
+                return await ResolveAutomaticMemoryMbAsync(instance, cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                logger.LogWarning(exception, "Failed to calculate automatic instance launch memory. Falling back to configured instance memory.");
+                return NormalizeConfiguredMemoryMb(instance.MemoryMb);
+            }
+        }
+
+        if (settings.DefaultMemorySettingsMode is MemorySettingsMode.Manual)
+            return NormalizeConfiguredMemoryMb(settings.DefaultMemoryMb);
+
+        if (systemMemoryService is null)
+            return NormalizeConfiguredMemoryMb(settings.DefaultMemoryMb);
+
+        try
+        {
+            return await ResolveAutomaticMemoryMbAsync(instance, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(exception, "Failed to calculate automatic launch memory. Falling back to configured memory.");
+            return NormalizeConfiguredMemoryMb(settings.DefaultMemoryMb);
+        }
+    }
+
+    private async Task<int> ResolveAutomaticMemoryMbAsync(GameInstance instance, CancellationToken cancellationToken)
+    {
+        if (systemMemoryService is null)
+            return NormalizeConfiguredMemoryMb(instance.MemoryMb);
+
+        var enabledModCount = await CountEnabledModsAsync(instance, cancellationToken);
+        return MemoryAllocationCalculator.CalculateAutomaticMemoryMb(
+            systemMemoryService.GetSnapshot(),
+            instance.Loader,
+            enabledModCount);
+    }
+
+    private async Task<int> CountEnabledModsAsync(GameInstance instance, CancellationToken cancellationToken)
+    {
+        if (modService is null || instance.Loader is LoaderKind.Vanilla)
+            return 0;
+
+        try
+        {
+            var mods = await modService.GetModsAsync(instance, cancellationToken);
+            return mods.Count(mod => mod.IsEnabled);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                exception,
+                "Failed to count enabled mods for automatic memory allocation. InstanceId={InstanceId}",
+                instance.Id);
+            return 0;
+        }
+    }
+
+    private static int NormalizeConfiguredMemoryMb(int memoryMb)
+    {
+        return Math.Clamp(
+            memoryMb,
+            MemoryAllocationCalculator.MinimumMemoryMb,
+            MemoryAllocationCalculator.FallbackMaximumMemoryMb);
     }
 
     private async Task<LaunchExitResult> LogGameExitAsync(

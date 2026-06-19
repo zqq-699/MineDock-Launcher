@@ -19,16 +19,36 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.Empty(settings.Accounts);
 
         settings.OfflineUsername = "Steve";
+        settings.DefaultMemorySettingsMode = MemorySettingsMode.Manual;
         settings.DefaultMemoryMb = 6144;
         await service.SaveAsync(settings);
 
         var loaded = await service.LoadAsync();
 
         Assert.Equal("Steve", loaded.OfflineUsername);
+        Assert.Equal(MemorySettingsMode.Manual, loaded.DefaultMemorySettingsMode);
         Assert.Equal(6144, loaded.DefaultMemoryMb);
         Assert.Equal(TempRoot, loaded.DataDirectory);
         Assert.Equal(DefaultMinecraftDirectory, loaded.MinecraftDirectory);
         Assert.Empty(loaded.Accounts);
+    }
+
+    [Fact]
+    public async Task SettingsServiceBackfillsInvalidMemoryMode()
+    {
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(TempRoot, "settings.json"),
+            """
+            {
+              "DefaultMemorySettingsMode": 999
+            }
+            """);
+        var service = new JsonSettingsService(TempRoot);
+
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(MemorySettingsMode.Auto, loaded.DefaultMemorySettingsMode);
     }
 
     [Fact]

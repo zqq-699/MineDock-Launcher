@@ -103,6 +103,12 @@ public sealed class JsonSettingsService : ISettingsService
         }
 
         settings.DefaultMemoryMb = Math.Clamp(settings.DefaultMemoryMb, 1024, 32768);
+        if (settings.DefaultMemorySettingsMode is not MemorySettingsMode.Auto
+            && settings.DefaultMemorySettingsMode is not MemorySettingsMode.Manual)
+        {
+            settings.DefaultMemorySettingsMode = MemorySettingsMode.Auto;
+        }
+
         if (settings.JavaSelectionMode is not JavaSelectionMode.Auto
             && settings.JavaSelectionMode is not JavaSelectionMode.Manual)
         {

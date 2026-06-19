@@ -304,7 +304,11 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         try
         {
             await using var stream = File.OpenRead(settingsPath);
-            return await JsonSerializer.DeserializeAsync<GameInstance>(stream, JsonOptions, cancellationToken);
+            var instance = await JsonSerializer.DeserializeAsync<GameInstance>(stream, JsonOptions, cancellationToken);
+            if (instance is not null)
+                NormalizeInstanceSettings(instance);
+
+            return instance;
         }
         catch (JsonException)
         {
@@ -318,6 +322,15 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         {
             return null;
         }
+    }
+
+    private static void NormalizeInstanceSettings(GameInstance instance)
+    {
+        if (!Enum.IsDefined(instance.MemorySettingsMode))
+            instance.MemorySettingsMode = MemorySettingsMode.Manual;
+
+        if (instance.MemoryMb <= 0)
+            instance.MemoryMb = LauncherDefaults.DefaultMemoryMb;
     }
 
     private static GameInstance CreateStorageSnapshot(GameInstance instance, string versionDirectory, string versionName)
@@ -334,6 +347,7 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             Description = instance.Description,
             IconSource = instance.IconSource,
             InstanceDirectory = versionDirectory,
+            MemorySettingsMode = instance.MemorySettingsMode,
             MemoryMb = instance.MemoryMb,
             WindowWidth = instance.WindowWidth,
             WindowHeight = instance.WindowHeight,

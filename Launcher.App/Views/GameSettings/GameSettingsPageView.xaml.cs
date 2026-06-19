@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using Launcher.App.Services;
 using Launcher.App.Utilities;
 
@@ -11,6 +12,7 @@ public partial class GameSettingsPageView : UserControl
     private readonly SlidingContentTransitionCoordinator stepTransition;
     private SlidingContentTransitionCoordinator? secondaryMenuTransition;
     private INotifyPropertyChanged? currentViewModelNotifier;
+    private readonly DispatcherTimer memoryRefreshTimer;
     private bool isWaitingForSecondaryMenuTransition;
 
     public GameSettingsPageView()
@@ -25,7 +27,13 @@ public partial class GameSettingsPageView : UserControl
             FindStepContent<FrameworkElement>(stepHost, "InstanceDetailsStep", "Instance details step was not found."));
 
         Loaded += GameSettingsPageView_Loaded;
+        Unloaded += GameSettingsPageView_Unloaded;
         DataContextChanged += GameSettingsPageView_DataContextChanged;
+        memoryRefreshTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        memoryRefreshTimer.Tick += MemoryRefreshTimer_Tick;
     }
 
     public FrameworkElement RootElement => PageRoot;
@@ -35,6 +43,24 @@ public partial class GameSettingsPageView : UserControl
         stepTransition.Sync(IsDetailsStep());
         EnsureSecondaryMenuTransition();
         secondaryMenuTransition?.Sync(IsDetailsStep());
+        RefreshMemorySnapshot();
+        memoryRefreshTimer.Start();
+    }
+
+    private void GameSettingsPageView_Unloaded(object sender, RoutedEventArgs e)
+    {
+        memoryRefreshTimer.Stop();
+    }
+
+    private void MemoryRefreshTimer_Tick(object? sender, EventArgs e)
+    {
+        RefreshMemorySnapshot();
+    }
+
+    private void RefreshMemorySnapshot()
+    {
+        if (DataContext is GameSettingsPageViewModel viewModel)
+            viewModel.Details.RefreshSystemMemorySnapshot();
     }
 
     private void GameSettingsPageView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

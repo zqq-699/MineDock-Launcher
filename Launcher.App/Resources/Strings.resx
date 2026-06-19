@@ -43,6 +43,18 @@
   <data name="Settings_MemorySection" xml:space="preserve"><value>内存</value></data>
   <data name="Settings_DefaultMemoryLabel" xml:space="preserve"><value>默认最大内存</value></data>
   <data name="Settings_MemoryOptionFormat" xml:space="preserve"><value>{0} MB</value></data>
+  <data name="Settings_MemoryModeLabel" xml:space="preserve"><value>内存设置模式</value></data>
+  <data name="Settings_MemoryModeAuto" xml:space="preserve"><value>自动设置</value></data>
+  <data name="Settings_MemoryModeManual" xml:space="preserve"><value>手动设置</value></data>
+  <data name="Settings_MaxMemoryLabel" xml:space="preserve"><value>设置最大内存</value></data>
+  <data name="Settings_AutomaticMemoryAllocationLabel" xml:space="preserve"><value>自动分配</value></data>
+  <data name="Settings_SystemTotalMemoryLabel" xml:space="preserve"><value>系统最大内存</value></data>
+  <data name="Settings_SystemAvailableMemoryLabel" xml:space="preserve"><value>当前可用内存</value></data>
+  <data name="Settings_SystemMemorySummaryLabel" xml:space="preserve"><value>当前可用内存/系统最大内存</value></data>
+  <data name="Settings_SystemMemorySummaryFormat" xml:space="preserve"><value>{0}/{1}</value></data>
+  <data name="Settings_MemorySizeMbFormat" xml:space="preserve"><value>{0} MB</value></data>
+  <data name="Settings_MemorySizeGbFormat" xml:space="preserve"><value>{0:F1} GB</value></data>
+  <data name="Settings_MemoryUnavailable" xml:space="preserve"><value>--</value></data>
   <data name="Settings_JavaSection" xml:space="preserve"><value>Java</value></data>
   <data name="Settings_JavaSelectionLabel" xml:space="preserve"><value>Java 选择</value></data>
   <data name="Settings_JavaSelectionAuto" xml:space="preserve"><value>自动选择</value></data>

@@ -132,6 +132,8 @@ public sealed class MainViewModelTests
             DefaultMinimizeLauncherAfterLaunch = false,
             DefaultLaunchFullScreen = false,
             DefaultWaitForPreLaunchCommand = true,
+            DefaultMemorySettingsMode = MemorySettingsMode.Auto,
+            DefaultMemoryMb = 4096,
             DefaultGameArguments = string.Empty
         };
         var instanceService = new FakeGameInstanceService();
@@ -149,12 +151,19 @@ public sealed class MainViewModelTests
         Assert.False(viewModel.GameSettingsPage.Details.LaunchMinimizeLauncherAfterLaunchEnabled);
         Assert.False(viewModel.GameSettingsPage.Details.LaunchFullScreenEnabled);
         Assert.True(viewModel.GameSettingsPage.Details.LaunchWaitForPreLaunchCommand);
+        Assert.Equal(MemorySettingsMode.Auto, viewModel.GameSettingsPage.Details.SelectedMemoryModeOption?.Mode);
+        Assert.Equal(4096, viewModel.GameSettingsPage.Details.MemoryMb);
+        Assert.False(viewModel.GameSettingsPage.Details.IsMemorySliderEnabled);
+        Assert.False(viewModel.GameSettingsPage.Details.IsMemorySliderVisible);
         Assert.Equal(string.Empty, viewModel.GameSettingsPage.Details.LaunchGameArguments);
 
         viewModel.SettingsPage.DefaultCheckFilesBeforeLaunch = true;
         viewModel.SettingsPage.DefaultMinimizeLauncherAfterLaunch = true;
         viewModel.SettingsPage.DefaultLaunchFullScreen = true;
         viewModel.SettingsPage.DefaultWaitForPreLaunchCommand = false;
+        viewModel.SettingsPage.SelectedMemoryModeOption = viewModel.SettingsPage.MemoryModeOptions
+            .Single(option => option.Mode == MemorySettingsMode.Manual);
+        viewModel.SettingsPage.DefaultMemoryMb = 8192;
         viewModel.SettingsPage.DefaultGameArguments = "--demo";
 
         Assert.True(viewModel.GameSettingsPage.Details.LaunchCheckFilesBeforeLaunchEnabled);
@@ -162,6 +171,10 @@ public sealed class MainViewModelTests
         Assert.True(viewModel.GameSettingsPage.Details.LaunchMinimizeLauncherAfterLaunchEnabled);
         Assert.True(viewModel.GameSettingsPage.Details.LaunchFullScreenEnabled);
         Assert.False(viewModel.GameSettingsPage.Details.LaunchWaitForPreLaunchCommand);
+        Assert.Equal(MemorySettingsMode.Manual, viewModel.GameSettingsPage.Details.SelectedMemoryModeOption?.Mode);
+        Assert.Equal(8192, viewModel.GameSettingsPage.Details.MemoryMb);
+        Assert.False(viewModel.GameSettingsPage.Details.IsMemorySliderEnabled);
+        Assert.True(viewModel.GameSettingsPage.Details.IsMemorySliderVisible);
         Assert.Equal("--demo", viewModel.GameSettingsPage.Details.LaunchGameArguments);
     }
 
@@ -458,6 +471,7 @@ public sealed class MainViewModelTests
         var settingsPage = new SettingsPageViewModel(
             settingsService,
             statusService,
+            new FakeSystemMemoryService(),
             new FakeJavaRuntimeDiscoveryService(),
             new FakeFilePickerService(),
             floatingMessageService);
@@ -478,6 +492,8 @@ public sealed class MainViewModelTests
                 gameVersionService,
                 statusService,
                 new FakeInstanceFolderService(),
+                new FakeSystemMemoryService(),
+                new FakeModService(),
                 new FakeJavaRuntimeDiscoveryService(),
                 new FakeFilePickerService(),
                 floatingMessageService),
@@ -873,6 +889,16 @@ public sealed class MainViewModelTests
             CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
+        }
+    }
+
+    private sealed class FakeSystemMemoryService : ISystemMemoryService
+    {
+        public SystemMemorySnapshot GetSnapshot()
+        {
+            return new SystemMemorySnapshot(
+                TotalMemoryBytes: 16L * 1024L * 1024L * 1024L,
+                AvailableMemoryBytes: 8L * 1024L * 1024L * 1024L);
         }
     }
 }
