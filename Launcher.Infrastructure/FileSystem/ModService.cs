@@ -1,11 +1,20 @@
-﻿using System.IO;
+using System.IO;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.FileSystem;
 
 public sealed class ModService : IModService
 {
+    private readonly ILogger<ModService> logger;
+
+    public ModService(ILogger<ModService>? logger = null)
+    {
+        this.logger = logger ?? NullLogger<ModService>.Instance;
+    }
+
     public Task<IReadOnlyList<LocalMod>> GetModsAsync(GameInstance instance, CancellationToken cancellationToken = default)
     {
         return Task.Run<IReadOnlyList<LocalMod>>(
@@ -29,10 +38,15 @@ public sealed class ModService : IModService
                     mods.Add(ToLocalMod(file, false));
                 }
 
-                return mods
+                var result = mods
                     .OrderByDescending(m => m.IsEnabled)
                     .ThenBy(m => m.Name)
                     .ToList();
+                logger.LogInformation(
+                    "Local mods loaded. InstanceId={InstanceId} Count={ModCount}",
+                    instance.Id,
+                    result.Count);
+                return result;
             },
             cancellationToken);
     }
@@ -55,6 +69,11 @@ public sealed class ModService : IModService
         await using var source = File.OpenRead(sourceJarPath);
         await using var target = File.Create(destination);
         await source.CopyToAsync(target, cancellationToken);
+        logger.LogInformation(
+            "Local mod imported. InstanceId={InstanceId} FileName={FileName} Destination={Destination}",
+            instance.Id,
+            Path.GetFileName(destination),
+            destination);
         return ToLocalMod(destination, true);
     }
 
@@ -75,13 +94,20 @@ public sealed class ModService : IModService
         Directory.CreateDirectory(targetDirectory);
         var targetPath = Path.Combine(targetDirectory, Path.GetFileName(current));
         File.Move(current, targetPath, overwrite: true);
+        logger.LogInformation(
+            "Local mod enabled state changed. FileName={FileName} Enabled={Enabled}",
+            mod.FileName,
+            enabled);
         return Task.CompletedTask;
     }
 
     public Task DeleteAsync(LocalMod mod, CancellationToken cancellationToken = default)
     {
         if (File.Exists(mod.FullPath))
+        {
             File.Delete(mod.FullPath);
+            logger.LogInformation("Local mod deleted. FileName={FileName}", mod.FileName);
+        }
 
         return Task.CompletedTask;
     }

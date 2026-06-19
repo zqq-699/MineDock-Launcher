@@ -8,6 +8,8 @@ using Launcher.App.Services;
 using Launcher.Application.Accounts;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.Home;
 
@@ -21,6 +23,7 @@ public sealed partial class HomePageViewModel : ObservableObject
     private readonly IUiDispatcher uiDispatcher;
     private readonly Action<double> reportProgressPercent;
     private readonly Func<GameInstance?, Task> openGameSettingsForInstance;
+    private readonly ILogger<HomePageViewModel> logger;
     private LauncherSettings settings = new();
     private CancellationTokenSource? launchCancellationTokenSource;
 
@@ -46,7 +49,8 @@ public sealed partial class HomePageViewModel : ObservableObject
         IUiDispatcher uiDispatcher,
         Action<double> reportProgressPercent,
         Func<GameInstance, Task<bool>> selectLaunchInstance,
-        Func<GameInstance?, Task> openGameSettingsForInstance)
+        Func<GameInstance?, Task> openGameSettingsForInstance,
+        ILogger<HomePageViewModel>? logger = null)
     {
         this.launchService = launchService;
         this.accountPage = accountPage;
@@ -56,6 +60,7 @@ public sealed partial class HomePageViewModel : ObservableObject
         this.uiDispatcher = uiDispatcher;
         this.reportProgressPercent = reportProgressPercent;
         this.openGameSettingsForInstance = openGameSettingsForInstance;
+        this.logger = logger ?? NullLogger<HomePageViewModel>.Instance;
 
         LaunchGames = new HomeLaunchGameListViewModel(gameVersionService, statusService, selectLaunchInstance);
         LaunchGames.PropertyChanged += LaunchGames_PropertyChanged;
@@ -189,8 +194,13 @@ public sealed partial class HomePageViewModel : ObservableObject
             if (ShouldMinimizeLauncherAfterLaunch(launchInstance))
                 windowService.Minimize();
         }
-        catch (OperationCanceledException) when (launchCancellationTokenSource?.IsCancellationRequested == true)
+        catch (OperationCanceledException exception) when (launchCancellationTokenSource?.IsCancellationRequested == true)
         {
+            logger.LogDebug(
+                exception,
+                "Launch cancellation completed. InstanceId={InstanceId} InstanceName={InstanceName}",
+                launchInstance.Id,
+                launchInstance.Name);
             statusService.Report(Strings.Status_LaunchCanceled);
             floatingMessageService.Show(Strings.Status_LaunchCanceled);
         }
@@ -238,7 +248,17 @@ public sealed partial class HomePageViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(IsLaunching))]
     private void CancelLaunch()
     {
-        launchCancellationTokenSource?.Cancel();
+        var cancellationTokenSource = launchCancellationTokenSource;
+        if (cancellationTokenSource is null || cancellationTokenSource.IsCancellationRequested)
+            return;
+
+        var instance = SelectedInstance;
+        logger.LogInformation(
+            "Launch cancellation requested. InstanceId={InstanceId} InstanceName={InstanceName} VersionName={VersionName}",
+            instance?.Id,
+            instance?.Name,
+            instance?.VersionName);
+        cancellationTokenSource.Cancel();
     }
 
     [RelayCommand(CanExecute = nameof(CanOpenSelectedInstanceSettings))]

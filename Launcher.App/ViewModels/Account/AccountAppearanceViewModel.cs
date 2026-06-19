@@ -6,6 +6,8 @@ using Launcher.Application.Accounts;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.Utilities;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.Account;
 
@@ -16,6 +18,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     private readonly IAccountDialogService dialogService;
     private readonly IFilePickerService filePickerService;
     private readonly IMinecraftSkinFileValidator skinFileValidator;
+    private readonly ILogger<AccountAppearanceViewModel> logger;
 
     [ObservableProperty]
     private AccountCapeOption? selectedAccountCapeOption;
@@ -35,7 +38,8 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         AccountSkinModelDialogViewModel skinModelDialog,
         IAccountDialogService dialogService,
         IFilePickerService filePickerService,
-        IMinecraftSkinFileValidator skinFileValidator)
+        IMinecraftSkinFileValidator skinFileValidator,
+        ILogger<AccountAppearanceViewModel>? logger = null)
     {
         this.accountList = accountList;
         this.microsoftAccountService = microsoftAccountService;
@@ -43,6 +47,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         this.dialogService = dialogService;
         this.filePickerService = filePickerService;
         this.skinFileValidator = skinFileValidator;
+        this.logger = logger ?? NullLogger<AccountAppearanceViewModel>.Instance;
         this.accountList.PropertyChanged += AccountList_PropertyChanged;
     }
 
@@ -104,6 +109,12 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            logger.LogWarning(
+                ex,
+                "Microsoft account skin change failed. AccountId={AccountId} SkinModel={SkinModel} ErrorCode={ErrorCode}",
+                account.Id,
+                skinModel,
+                AccountErrorCodeMessageFormatter.Format(ex));
             AccountProfileMessage = Strings.Status_SkinUpdateFailed;
             AccountProfileErrorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
         }
@@ -176,6 +187,11 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            logger.LogWarning(
+                ex,
+                "Microsoft account profile refresh failed. AccountId={AccountId} ErrorCode={ErrorCode}",
+                account.Id,
+                AccountErrorCodeMessageFormatter.Format(ex));
             AccountProfileMessage = Strings.Status_AccountProfileRefreshFailed;
             AccountProfileErrorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
         }
@@ -203,8 +219,9 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             {
                 return;
             }
-            catch
+            catch (Exception exception)
             {
+                logger.LogDebug(exception, "Silent Microsoft account refresh failed. AccountId={AccountId}", account.Id);
                 continue;
             }
 
@@ -228,8 +245,9 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         {
             await accountList.PersistAccountOrderAsync();
         }
-        catch
+        catch (Exception exception)
         {
+            logger.LogWarning(exception, "Persisting silently refreshed Microsoft accounts failed.");
         }
     }
 
@@ -267,8 +285,9 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             MarkSelectedCapeActive(cape);
             await StoreSelectedAccountCapeCacheAsync();
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            logger.LogWarning(exception, "Microsoft account cape change failed. AccountId={AccountId} HasCape={HasCape}", account.Id, !cape.IsNone);
             AccountProfileMessage = Strings.Status_CapeChangeFailed;
             AccountProfileErrorCodeMessage = string.Empty;
         }
@@ -329,6 +348,11 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         {
             if (IsSelectedAccount(account))
             {
+                logger.LogWarning(
+                    ex,
+                    "Microsoft account profile load failed. AccountId={AccountId} ErrorCode={ErrorCode}",
+                    account.Id,
+                    AccountErrorCodeMessageFormatter.Format(ex));
                 AccountProfileMessage = Strings.Status_LoadAccountProfileFailed;
                 AccountProfileErrorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
             }

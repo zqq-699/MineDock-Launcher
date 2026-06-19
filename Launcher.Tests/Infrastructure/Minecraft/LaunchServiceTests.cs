@@ -954,6 +954,76 @@ public sealed class LaunchServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task LaunchServiceDiagnosticIncludesRepairDownloadContext()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var instanceDirectory = Path.Combine(minecraftDirectory, "versions", "Forge Pack");
+        Directory.CreateDirectory(instanceDirectory);
+        await File.WriteAllTextAsync(Path.Combine(instanceDirectory, "Forge Pack.jar"), "jar");
+        const string libraryName = "net.minecraftforge:forge:1.21.11-61.1.8:client";
+        const string artifactPath = "net/minecraftforge/forge/1.21.11-61.1.8/forge-1.21.11-61.1.8-client.jar";
+        var downloadUrl = $"https://maven.minecraftforge.net/{artifactPath}";
+        var expectedDestinationPath = Path.Combine(
+            minecraftDirectory,
+            "libraries",
+            artifactPath.Replace('/', Path.DirectorySeparatorChar));
+        await File.WriteAllTextAsync(
+            Path.Combine(instanceDirectory, "Forge Pack.json"),
+            $$"""
+            {
+              "id": "Forge Pack",
+              "jar": "Forge Pack",
+              "libraries": [
+                {
+                  "name": "{{libraryName}}",
+                  "downloads": {
+                    "artifact": {
+                      "url": "{{downloadUrl}}",
+                      "path": "{{artifactPath}}"
+                    }
+                  }
+                }
+              ]
+            }
+            """);
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new ManagedVersionRepairService(new HttpClient(new NotFoundDownloadHandler(downloadUrl))),
+            new FakeLaunchGameLauncherFactory(),
+            new NoOpLaunchCrashMonitor());
+
+        var exception = await Assert.ThrowsAsync<LaunchFailedException>(() => service.LaunchAsync(
+            CreateInstance(instanceDirectory, "Forge Pack"),
+            CreateAccount(),
+            new LauncherSettings
+            {
+                MinecraftDirectory = minecraftDirectory,
+                DefaultCheckFilesBeforeLaunch = true,
+                DefaultAutoRepairMissingFiles = true
+            },
+            progress: null));
+
+        Assert.IsType<InstanceRepairException>(exception.InnerException);
+        var repairException = (InstanceRepairException)exception.InnerException!;
+        Assert.NotNull(repairException.DownloadDiagnostic);
+        Assert.Equal(downloadUrl, repairException.DownloadDiagnostic.Url);
+        Assert.Equal(expectedDestinationPath, repairException.DownloadDiagnostic.DestinationPath);
+        Assert.Equal(404, repairException.DownloadDiagnostic.HttpStatusCode);
+        Assert.Equal(libraryName, repairException.DownloadDiagnostic.LibraryName);
+        Assert.Equal(artifactPath, repairException.DownloadDiagnostic.ArtifactPath);
+        Assert.Equal("ForgeMaven", repairException.DownloadDiagnostic.SourceKind);
+
+        var diagnostic = await File.ReadAllTextAsync(exception.Report.DiagnosticPath!);
+        Assert.Contains("[Download]", diagnostic);
+        Assert.Contains($"Url: {downloadUrl}", diagnostic);
+        Assert.Contains($"DestinationPath: {expectedDestinationPath}", diagnostic);
+        Assert.Contains("HttpStatusCode: 404", diagnostic);
+        Assert.Contains($"LibraryName: {libraryName}", diagnostic);
+        Assert.Contains($"ArtifactPath: {artifactPath}", diagnostic);
+        Assert.Contains("SourceKind: ForgeMaven", diagnostic);
+    }
+
+    [Fact]
     public async Task LaunchServiceClassifiesZeroQuickExitWithoutNewCrashAsStartupProcessExited()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -1363,6 +1433,28 @@ public sealed class LaunchServiceTests : TestTempDirectory
                 RequestMessage = request,
                 Content = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes(content))
             };
+        }
+    }
+
+    private sealed class NotFoundDownloadHandler : HttpMessageHandler
+    {
+        private readonly string expectedUrl;
+
+        public NotFoundDownloadHandler(string expectedUrl)
+        {
+            this.expectedUrl = expectedUrl;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = request.RequestUri!.AbsoluteUri == expectedUrl
+                ? new HttpResponseMessage(System.Net.HttpStatusCode.NotFound)
+                : new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(System.Text.Encoding.UTF8.GetBytes("ok"))
+                };
+            response.RequestMessage = request;
+            return Task.FromResult(response);
         }
     }
 

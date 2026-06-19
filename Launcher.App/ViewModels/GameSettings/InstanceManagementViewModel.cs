@@ -4,6 +4,8 @@ using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.GameSettings;
 
@@ -12,6 +14,7 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
     private readonly ISettingsService settingsService;
     private readonly IGameInstanceService instanceService;
     private readonly IStatusService statusService;
+    private readonly ILogger<InstanceManagementViewModel> logger;
     private readonly object refreshInstancesSync = new();
     private LauncherSettings settings = new();
     private Task? refreshInstancesTask;
@@ -26,11 +29,13 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
     public InstanceManagementViewModel(
         ISettingsService settingsService,
         IGameInstanceService instanceService,
-        IStatusService statusService)
+        IStatusService statusService,
+        ILogger<InstanceManagementViewModel>? logger = null)
     {
         this.settingsService = settingsService;
         this.instanceService = instanceService;
         this.statusService = statusService;
+        this.logger = logger ?? NullLogger<InstanceManagementViewModel>.Instance;
     }
 
     public ObservableCollection<GameInstance> Instances { get; } = [];
@@ -168,6 +173,10 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
 
         SelectedInstance = selected;
         hasLoadedInstances = true;
+        logger.LogInformation(
+            "Game management instances refreshed. Count={InstanceCount} SelectedInstanceId={SelectedInstanceId}",
+            Instances.Count,
+            SelectedInstance?.Id);
     }
 
     private void ReportStatus(string message)

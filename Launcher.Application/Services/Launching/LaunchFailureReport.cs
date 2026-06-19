@@ -7,4 +7,5 @@ public sealed record LaunchFailureReport(
     int? ExitCode,
     string? DiagnosticPath,
     string? DiagnosticDirectory,
-    LaunchFailureAnalysis? Analysis = null);
+    LaunchFailureAnalysis? Analysis = null,
+    string? FailureSummary = null);

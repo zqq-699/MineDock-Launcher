@@ -1,5 +1,8 @@
-﻿using Launcher.Application.Services;
+using Launcher.App.ViewModels.Home;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.Services;
 
@@ -11,6 +14,7 @@ public sealed class HomePageViewModelFactory : IHomePageViewModelFactory
     private readonly IFloatingMessageService floatingMessageService;
     private readonly IWindowService windowService;
     private readonly IUiDispatcher uiDispatcher;
+    private readonly ILogger<HomePageViewModel> logger;
 
     public HomePageViewModelFactory(
         ILaunchService launchService,
@@ -18,7 +22,8 @@ public sealed class HomePageViewModelFactory : IHomePageViewModelFactory
         IStatusService statusService,
         IFloatingMessageService floatingMessageService,
         IWindowService windowService,
-        IUiDispatcher uiDispatcher)
+        IUiDispatcher uiDispatcher,
+        ILogger<HomePageViewModel>? logger = null)
     {
         this.launchService = launchService;
         this.gameVersionService = gameVersionService;
@@ -26,6 +31,7 @@ public sealed class HomePageViewModelFactory : IHomePageViewModelFactory
         this.floatingMessageService = floatingMessageService;
         this.windowService = windowService;
         this.uiDispatcher = uiDispatcher;
+        this.logger = logger ?? NullLogger<HomePageViewModel>.Instance;
     }
 
     public HomePageViewModel Create(
@@ -44,8 +50,7 @@ public sealed class HomePageViewModelFactory : IHomePageViewModelFactory
             uiDispatcher,
             reportProgressPercent,
             selectLaunchInstance,
-            openGameSettingsForInstance);
+            openGameSettingsForInstance,
+            logger);
     }
 }
-
-

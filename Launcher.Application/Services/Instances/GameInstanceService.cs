@@ -2,6 +2,8 @@ using System.Security.Cryptography;
 using System.Text;
 using Launcher.Application.Repositories;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Application.Services;
 
@@ -11,6 +13,7 @@ public sealed class GameInstanceService : IGameInstanceService
     private readonly IGameInstanceRepository repository;
     private readonly IReadOnlyDictionary<LoaderKind, ILoaderProvider> providers;
     private readonly IModrinthService? modrinthService;
+    private readonly ILogger<GameInstanceService> logger;
     private readonly SemaphoreSlim installExecutionLock = new(1, 1);
     private readonly HashSet<string> installingVersions = new(StringComparer.OrdinalIgnoreCase);
     private readonly object installingVersionsLock = new();
@@ -19,18 +22,25 @@ public sealed class GameInstanceService : IGameInstanceService
         ISettingsService settingsService,
         IGameInstanceRepository repository,
         IEnumerable<ILoaderProvider> providers,
-        IModrinthService? modrinthService = null)
+        IModrinthService? modrinthService = null,
+        ILogger<GameInstanceService>? logger = null)
     {
         this.settingsService = settingsService;
         this.repository = repository;
         this.providers = providers.ToDictionary(provider => provider.Kind);
         this.modrinthService = modrinthService;
+        this.logger = logger ?? NullLogger<GameInstanceService>.Instance;
     }
 
     public async Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default)
     {
         var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
-        return await GetInstancesCoreAsync(settings, cancellationToken).ConfigureAwait(false);
+        var instances = await GetInstancesCoreAsync(settings, cancellationToken).ConfigureAwait(false);
+        logger.LogDebug(
+            "Game instances refreshed. Count={InstanceCount} DefaultInstanceId={DefaultInstanceId}",
+            instances.Count,
+            settings.DefaultInstanceId);
+        return instances;
     }
 
     private async Task<IReadOnlyList<GameInstance>> GetInstancesCoreAsync(
@@ -58,10 +68,20 @@ public sealed class GameInstanceService : IGameInstanceService
         }
 
         if (instancesChanged)
+        {
+            logger.LogDebug(
+                "Persisting synchronized game instances. StoredCount={StoredCount} InstalledCount={InstalledCount} SyncedCount={SyncedCount}",
+                storedInstances.Count,
+                installedVersions.Count,
+                syncedInstances.Count);
             await repository.SaveAllAsync(syncedInstances, cancellationToken).ConfigureAwait(false);
+        }
 
         if (defaultChanged)
+        {
+            logger.LogDebug("Default game instance reset during synchronization. DefaultInstanceId={DefaultInstanceId}", settings.DefaultInstanceId);
             await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+        }
 
         return syncedInstances;
     }
@@ -85,9 +105,17 @@ public sealed class GameInstanceService : IGameInstanceService
         if (!providers.TryGetValue(loader, out var provider) || !provider.IsImplemented)
             throw new NotSupportedException($"{loader} is not implemented yet.");
 
+        logger.LogInformation(
+            "Creating game instance. MinecraftVersion={MinecraftVersion} Loader={Loader} LoaderVersion={LoaderVersion} RequestedName={RequestedName}",
+            minecraftVersion,
+            loader,
+            loaderVersion,
+            name);
+
         var lockAcquiredImmediately = installExecutionLock.Wait(0, cancellationToken);
         if (!lockAcquiredImmediately)
         {
+            logger.LogInformation("Game instance install queued because another install is running.");
             progress?.Report(new LauncherProgress(InstallProgressStages.Queue, string.Empty));
             await installExecutionLock.WaitAsync(cancellationToken);
         }
@@ -115,6 +143,11 @@ public sealed class GameInstanceService : IGameInstanceService
                     loaderVersion,
                     progress,
                     cancellationToken).ConfigureAwait(false);
+                logger.LogInformation(
+                    "Game version installed. VersionIdentity={VersionIdentity} VersionName={VersionName} Loader={Loader}",
+                    versionIdentity,
+                    versionName,
+                    loader);
 
                 var instanceDirectory = repository.GetVersionDirectory(settings.MinecraftDirectory, versionName);
                 repository.CreateInstanceDirectories(instanceDirectory);
@@ -144,13 +177,24 @@ public sealed class GameInstanceService : IGameInstanceService
                 {
                     settings.DefaultInstanceId = instance.Id;
                     await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+                    logger.LogInformation("Default game instance initialized. InstanceId={InstanceId}", instance.Id);
                 }
 
                 UntrackInstallingVersion(settings.MinecraftDirectory, versionIdentity);
+                logger.LogInformation(
+                    "Game instance created. InstanceId={InstanceId} VersionName={VersionName} InstanceDirectory={InstanceDirectory}",
+                    instance.Id,
+                    instance.VersionName,
+                    instance.InstanceDirectory);
                 return instance;
             }
-            catch
+            catch (Exception exception)
             {
+                logger.LogError(
+                    exception,
+                    "Game instance creation failed. VersionIdentity={VersionIdentity} Loader={Loader}",
+                    versionIdentity,
+                    loader);
                 UntrackInstallingVersion(settings.MinecraftDirectory, versionIdentity);
                 TryCleanupCreatedVersionDirectories(settings.MinecraftDirectory, cleanupCandidates);
                 throw;
@@ -174,6 +218,7 @@ public sealed class GameInstanceService : IGameInstanceService
             instances.Add(instance);
 
         await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
+        logger.LogInformation("Game instance saved. InstanceId={InstanceId} VersionName={VersionName}", instance.Id, instance.VersionName);
     }
 
     public async Task<GameInstance> RenameInstanceAsync(
@@ -232,6 +277,11 @@ public sealed class GameInstanceService : IGameInstanceService
             instances[index] = instance;
 
         await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
+        logger.LogInformation(
+            "Game instance renamed. InstanceId={InstanceId} VersionName={VersionName} IconChanged={IconChanged}",
+            instance.Id,
+            instance.VersionName,
+            iconChanged);
         return instance;
     }
 
@@ -253,6 +303,7 @@ public sealed class GameInstanceService : IGameInstanceService
 
         settings.DefaultInstanceId = instance.Id;
         await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+        logger.LogInformation("Default game instance changed. InstanceId={InstanceId}", instance.Id);
         return true;
     }
 
@@ -276,11 +327,13 @@ public sealed class GameInstanceService : IGameInstanceService
             repository.DeleteVersionDirectory(settings.MinecraftDirectory, versionName);
 
         await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
+        logger.LogInformation("Game instance deleted. InstanceId={InstanceId} VersionName={VersionName}", instance.Id, versionName);
 
         if (string.Equals(settings.DefaultInstanceId, instance.Id, StringComparison.OrdinalIgnoreCase))
         {
             settings.DefaultInstanceId = instances.FirstOrDefault()?.Id ?? string.Empty;
             await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+            logger.LogInformation("Default game instance changed after deletion. DefaultInstanceId={DefaultInstanceId}", settings.DefaultInstanceId);
         }
 
         return true;

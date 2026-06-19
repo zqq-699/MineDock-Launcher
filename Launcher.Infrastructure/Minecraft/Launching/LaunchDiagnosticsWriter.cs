@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
+using Launcher.Application.Services;
 
 namespace Launcher.Infrastructure.Minecraft;
 
@@ -57,7 +58,7 @@ internal static class LaunchDiagnosticsWriter
                 AppendTextSection(builder, "StdErr", RedactSensitiveText(LimitTail(stderr, 120), context.SensitiveValues));
             });
 
-        return new LaunchDiagnosticResult(diagnosticPath, analysis);
+        return new LaunchDiagnosticResult(diagnosticPath, analysis, failureSummary);
     }
 
     public static async Task<LaunchDiagnosticResult> WriteExceptionDiagnosticAsync(
@@ -94,6 +95,7 @@ internal static class LaunchDiagnosticsWriter
             builder =>
             {
                 AppendProcessSection(builder, startInfo, context.SensitiveValues);
+                AppendDownloadSection(builder, FindDownloadDiagnostic(exception), context.SensitiveValues);
                 AppendTextSection(builder, "ExceptionChain", RedactSensitiveText(exceptionText, context.SensitiveValues));
                 AppendFileSection(builder, "CrashFiles", crashFiles);
                 AppendCrashPreviewSection(builder, crashFiles, context.SensitiveValues);
@@ -101,7 +103,7 @@ internal static class LaunchDiagnosticsWriter
                 AppendTextSection(builder, "LatestLogTail", RedactSensitiveText(LimitTail(latestLogTail, 120), context.SensitiveValues));
             });
 
-        return new LaunchDiagnosticResult(diagnosticPath, analysis);
+        return new LaunchDiagnosticResult(diagnosticPath, analysis, failureSummary);
     }
 
     private static async Task<string?> WriteDiagnosticAsync(
@@ -129,6 +131,8 @@ internal static class LaunchDiagnosticsWriter
         builder.AppendLine($"Loader: {context.Loader}");
         builder.AppendLine($"LoaderVersion: {context.LoaderVersion ?? string.Empty}");
         builder.AppendLine($"JavaPath: {context.JavaPath ?? string.Empty}");
+        builder.AppendLine($"JavaVersion: {context.JavaVersion ?? string.Empty}");
+        builder.AppendLine($"JavaSource: {context.JavaSource ?? string.Empty}");
         builder.AppendLine($"MemoryMb: {context.MemoryMb}");
         builder.AppendLine($"InstanceDirectory: {Path.GetFullPath(context.InstanceDirectory)}");
         builder.AppendLine($"MinecraftDirectory: {Path.GetFullPath(context.MinecraftDirectory)}");
@@ -320,6 +324,38 @@ internal static class LaunchDiagnosticsWriter
         }
 
         return builder.ToString();
+    }
+
+    private static LaunchDownloadDiagnostic? FindDownloadDiagnostic(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is InstanceRepairException { DownloadDiagnostic: { } diagnostic })
+                return diagnostic;
+        }
+
+        return null;
+    }
+
+    private static void AppendDownloadSection(
+        StringBuilder builder,
+        LaunchDownloadDiagnostic? diagnostic,
+        IReadOnlyList<string> sensitiveValues)
+    {
+        builder.AppendLine();
+        builder.AppendLine("[Download]");
+        if (diagnostic is null)
+        {
+            builder.AppendLine("(none)");
+            return;
+        }
+
+        builder.AppendLine($"Url: {RedactSensitiveText(diagnostic.Url, sensitiveValues)}");
+        builder.AppendLine($"DestinationPath: {diagnostic.DestinationPath}");
+        builder.AppendLine($"HttpStatusCode: {diagnostic.HttpStatusCode?.ToString() ?? string.Empty}");
+        builder.AppendLine($"LibraryName: {diagnostic.LibraryName ?? string.Empty}");
+        builder.AppendLine($"ArtifactPath: {diagnostic.ArtifactPath ?? string.Empty}");
+        builder.AppendLine($"SourceKind: {diagnostic.SourceKind}");
     }
 
     private static void AppendProcessSection(

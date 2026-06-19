@@ -12,5 +12,7 @@ internal sealed record LaunchDiagnosticContext(
     LoaderKind Loader,
     string? LoaderVersion,
     string? JavaPath,
+    string? JavaVersion,
+    string? JavaSource,
     int MemoryMb,
     IReadOnlyList<string> SensitiveValues);

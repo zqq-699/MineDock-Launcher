@@ -3,6 +3,8 @@ using System.Text.Json;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Persistence;
 
@@ -11,13 +13,15 @@ public sealed class JsonSettingsService : ISettingsService
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private readonly string settingsPath;
     private readonly LauncherPathProvider pathProvider;
+    private readonly ILogger<JsonSettingsService> logger;
     private readonly SemaphoreSlim ioLock = new(1, 1);
 
-    public JsonSettingsService(string? dataDirectory = null)
+    public JsonSettingsService(string? dataDirectory = null, ILogger<JsonSettingsService>? logger = null)
     {
         pathProvider = new LauncherPathProvider();
         var root = dataDirectory ?? pathProvider.DefaultDataDirectory;
         settingsPath = Path.Combine(root, "settings.json");
+        this.logger = logger ?? NullLogger<JsonSettingsService>.Instance;
     }
 
     public async Task<LauncherSettings> LoadAsync(CancellationToken cancellationToken = default)
@@ -27,17 +31,20 @@ public sealed class JsonSettingsService : ISettingsService
         {
             if (!File.Exists(settingsPath))
             {
-                var settings = Normalize(new LauncherSettings
+                var defaultSettings = Normalize(new LauncherSettings
                 {
                     DataDirectory = Path.GetDirectoryName(settingsPath) ?? pathProvider.DefaultDataDirectory
                 });
-                await SaveCoreAsync(settings, cancellationToken);
-                return settings;
+                await SaveCoreAsync(defaultSettings, cancellationToken);
+                logger.LogInformation("Default launcher settings created. SettingsPath={SettingsPath}", settingsPath);
+                return defaultSettings;
             }
 
             await using var stream = File.OpenRead(settingsPath);
             var loaded = await JsonSerializer.DeserializeAsync<LauncherSettings>(stream, JsonOptions, cancellationToken);
-            return Normalize(loaded ?? new LauncherSettings());
+            var loadedSettings = Normalize(loaded ?? new LauncherSettings());
+            logger.LogDebug("Launcher settings loaded. SettingsPath={SettingsPath}", settingsPath);
+            return loadedSettings;
         }
         finally
         {
@@ -52,6 +59,7 @@ public sealed class JsonSettingsService : ISettingsService
         try
         {
             await SaveCoreAsync(normalized, cancellationToken);
+            logger.LogInformation("Launcher settings saved. SettingsPath={SettingsPath}", settingsPath);
         }
         finally
         {

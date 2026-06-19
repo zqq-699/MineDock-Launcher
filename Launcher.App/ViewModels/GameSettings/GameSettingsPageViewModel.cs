@@ -7,6 +7,8 @@ using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.GameSettings;
 
@@ -16,6 +18,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     private readonly IGameVersionService gameVersionService;
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
+    private readonly ILogger<GameSettingsPageViewModel> logger;
     private IReadOnlyDictionary<string, string> versionTypesByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private bool hasLoadedInstances;
     private INotifyPropertyChanged? selectedInstanceNotifier;
@@ -57,12 +60,14 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         IInstanceFolderService instanceFolderService,
         IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
         IFilePickerService filePickerService,
-        IFloatingMessageService floatingMessageService)
+        IFloatingMessageService floatingMessageService,
+        ILogger<GameSettingsPageViewModel>? logger = null)
     {
         this.instanceService = instanceService;
         this.gameVersionService = gameVersionService;
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
+        this.logger = logger ?? NullLogger<GameSettingsPageViewModel>.Instance;
         EditDialog = new GameSettingsEditDialogViewModel(instanceService, statusService);
         Details = new GameSettingsDetailsViewModel(
             EditDialog,
@@ -141,13 +146,13 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         if (hasLoadedInstances || IsLoadingInstances)
             return;
 
-        await RefreshInstancesCoreAsync(playEntranceAnimation: true, clearVisibleInstancesBeforeRefresh: true, cancellationToken);
+        await RefreshInstancesCoreAsync(playEntranceAnimation: true, clearVisibleInstancesBeforeRefresh: true, logRefreshResult: true, cancellationToken: cancellationToken);
     }
 
     [RelayCommand]
     public async Task RefreshInstancesAsync(CancellationToken cancellationToken = default)
     {
-        await RefreshInstancesCoreAsync(playEntranceAnimation: true, clearVisibleInstancesBeforeRefresh: true, cancellationToken);
+        await RefreshInstancesCoreAsync(playEntranceAnimation: true, clearVisibleInstancesBeforeRefresh: true, logRefreshResult: true, cancellationToken: cancellationToken);
     }
 
     public async Task RefreshInstancesForPageActivationAsync(CancellationToken cancellationToken = default)
@@ -155,12 +160,13 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         await RefreshInstancesCoreAsync(
             playEntranceAnimation: !hasLoadedInstances,
             clearVisibleInstancesBeforeRefresh: !hasLoadedInstances,
+            logRefreshResult: true,
             cancellationToken);
     }
 
     public async Task RefreshInstancesSilentlyAsync(CancellationToken cancellationToken = default)
     {
-        await RefreshInstancesCoreAsync(playEntranceAnimation: false, clearVisibleInstancesBeforeRefresh: false, cancellationToken);
+        await RefreshInstancesCoreAsync(playEntranceAnimation: false, clearVisibleInstancesBeforeRefresh: false, logRefreshResult: false, cancellationToken: cancellationToken);
     }
 
     public async Task OpenInstanceDetailsAsync(GameInstance? instance, CancellationToken cancellationToken = default)
@@ -168,6 +174,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         await RefreshInstancesCoreAsync(
             playEntranceAnimation: !hasLoadedInstances,
             clearVisibleInstancesBeforeRefresh: !hasLoadedInstances,
+            logRefreshResult: true,
             cancellationToken);
 
         if (instance is null)
@@ -192,6 +199,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     private async Task RefreshInstancesCoreAsync(
         bool playEntranceAnimation,
         bool clearVisibleInstancesBeforeRefresh,
+        bool logRefreshResult,
         CancellationToken cancellationToken = default)
     {
         if (IsLoadingInstances)
@@ -227,6 +235,14 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
                 ListEntranceAnimationToken++;
 
             RefreshVisibleInstances();
+            if (hasLoadedInstances && logRefreshResult)
+            {
+                logger.LogInformation(
+                    "Game settings instances refreshed. Count={InstanceCount} VisibleCount={VisibleCount} SelectedInstanceId={SelectedInstanceId}",
+                    AllInstances.Count,
+                    VisibleInstances.Count,
+                    SelectedInstance?.Instance.Id);
+            }
         }
     }
 
@@ -239,7 +255,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         SelectInstanceCategoryCore(category, refreshVisibleInstances: false);
         await RefreshInstancesCoreAsync(
             playEntranceAnimation: isCategorySwitch,
-            clearVisibleInstancesBeforeRefresh: isCategorySwitch);
+            clearVisibleInstancesBeforeRefresh: isCategorySwitch,
+            logRefreshResult: false);
     }
 
     [RelayCommand]

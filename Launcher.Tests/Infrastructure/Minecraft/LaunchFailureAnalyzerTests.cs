@@ -125,6 +125,8 @@ public sealed class LaunchFailureAnalyzerTests : TestTempDirectory
             LoaderKind.Fabric,
             "0.19.3",
             @"C:\Java\bin\java.exe",
+            "21.0.1",
+            "Test",
             4096,
             []);
     }

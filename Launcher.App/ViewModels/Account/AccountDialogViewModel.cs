@@ -5,6 +5,8 @@ using Launcher.App.Models;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.Account;
 
@@ -22,6 +24,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
     private readonly IMicrosoftAccountService microsoftAccountService;
     private readonly IOfflineAccountUuidService offlineUuidService;
     private readonly IStatusService statusService;
+    private readonly ILogger<AccountDialogViewModel> logger;
 
     [ObservableProperty]
     private bool isAddAccountDialogOpen;
@@ -93,12 +96,14 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         AccountListViewModel accountList,
         IMicrosoftAccountService microsoftAccountService,
         IOfflineAccountUuidService offlineUuidService,
-        IStatusService statusService)
+        IStatusService statusService,
+        ILogger<AccountDialogViewModel>? logger = null)
     {
         this.accountList = accountList;
         this.microsoftAccountService = microsoftAccountService;
         this.offlineUuidService = offlineUuidService;
         this.statusService = statusService;
+        this.logger = logger ?? NullLogger<AccountDialogViewModel>.Instance;
     }
 
     public ObservableCollection<AccountTypeOption> AccountTypeOptions { get; } = new(AccountTypeOptionFactory.Create());
@@ -216,12 +221,14 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
+            logger.LogInformation("Microsoft account login canceled.");
             var message = Strings.Status_LoginCanceled;
             ReportStatus(message);
             ShowMicrosoftLoginResult(false, message);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            logger.LogError(exception, "Microsoft account login failed.");
             var message = Strings.Status_LoginFailed;
             ReportStatus(message);
             ShowMicrosoftLoginResult(false, message);
@@ -318,8 +325,9 @@ public sealed partial class AccountDialogViewModel : ObservableObject
             if (!account.IsOffline)
                 await microsoftAccountService.DeleteAccountAsync(account);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            logger.LogWarning(exception, "Account delete cleanup failed. AccountId={AccountId} IsOffline={IsOffline}", account.Id, account.IsOffline);
             ReportStatus(string.Format(Strings.Status_AccountDeletedCacheCleanupFailedFormat, deletedName));
         }
     }
@@ -416,6 +424,12 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            logger.LogWarning(
+                ex,
+                "Account rename failed. AccountId={AccountId} IsOffline={IsOffline} ErrorCode={ErrorCode}",
+                account.Id,
+                account.IsOffline,
+                AccountErrorCodeMessageFormatter.Format(ex));
             var message = GetRenameFailureMessage(ex);
             var errorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
             ReportStatus(message);

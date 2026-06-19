@@ -8,7 +8,7 @@ namespace Launcher.App.Services;
 public sealed class NavigationMenuAnimationService
 {
     private const double CollapsedWidth = 62;
-    private const double ExpandedWidth = 210;
+    private const double ExpandedWidth = 176;
 
     private static readonly TimeSpan WidthAnimationDuration = TimeSpan.FromMilliseconds(360);
 

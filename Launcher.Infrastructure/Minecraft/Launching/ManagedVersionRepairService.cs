@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -241,7 +242,15 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
 
         if (!string.IsNullOrWhiteSpace(resolvedVersion.ClientJarUrl))
         {
-            await DownloadFileAsync(resolvedVersion.ClientJarUrl, jarPath, downloadSpeedReporter, cancellationToken);
+            await DownloadFileAsync(
+                new DownloadRequest(
+                    resolvedVersion.ClientJarUrl,
+                    jarPath,
+                    ClassifyDownloadSource(resolvedVersion.ClientJarUrl),
+                    LibraryName: null,
+                    ArtifactPath: $"{versionName}.jar"),
+                downloadSpeedReporter,
+                cancellationToken);
             return;
         }
 
@@ -277,7 +286,12 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
                         $"Required library {artifact.RelativePath} is missing and automatic repair is disabled.");
                 }
 
-                downloads.Add(new DownloadRequest(artifact.Url, destinationPath));
+                downloads.Add(new DownloadRequest(
+                    artifact.Url,
+                    destinationPath,
+                    artifact.SourceKind,
+                    artifact.LibraryName,
+                    artifact.RelativePath));
             }
         }
 
@@ -305,7 +319,15 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             if (!allowRepair)
                 throw new InstanceRepairException($"Asset index {assetIndexId} is missing and automatic repair is disabled.");
 
-            await DownloadFileAsync(assetIndexUrl, indexPath, downloadSpeedReporter, cancellationToken);
+            await DownloadFileAsync(
+                new DownloadRequest(
+                    assetIndexUrl,
+                    indexPath,
+                    ClassifyDownloadSource(assetIndexUrl),
+                    LibraryName: null,
+                    ArtifactPath: $"assets/indexes/{assetIndexId}.json"),
+                downloadSpeedReporter,
+                cancellationToken);
         }
 
         await using var indexStream = File.OpenRead(indexPath);
@@ -336,7 +358,12 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             }
 
             var assetUrl = $"https://resources.download.minecraft.net/{hash[..2]}/{hash}";
-            downloads.Add(new DownloadRequest(assetUrl, objectPath));
+            downloads.Add(new DownloadRequest(
+                assetUrl,
+                objectPath,
+                ClassifyDownloadSource(assetUrl),
+                LibraryName: null,
+                ArtifactPath: $"assets/objects/{hash[..2]}/{hash}"));
         }
 
         await DownloadFilesAsync(downloads, downloadSpeedReporter, cancellationToken);
@@ -367,7 +394,15 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         if (!allowRepair)
             throw new InstanceRepairException($"Logging configuration {id} is missing and automatic repair is disabled.");
 
-        await DownloadFileAsync(url, logConfigPath, downloadSpeedReporter, cancellationToken);
+        await DownloadFileAsync(
+            new DownloadRequest(
+                url,
+                logConfigPath,
+                ClassifyDownloadSource(url),
+                LibraryName: null,
+                ArtifactPath: id),
+            downloadSpeedReporter,
+            cancellationToken);
     }
 
     private static void EnsureJavaIsUsable()
@@ -444,6 +479,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
 
     private LibraryArtifact? TryCreateLibraryArtifact(JsonObject library, JsonObject artifact, string? classifier = null)
     {
+        var libraryName = GetStringProperty(library, "name");
         var url = GetStringProperty(artifact, "url");
         var relativePath = GetStringProperty(artifact, "path");
         if (string.IsNullOrWhiteSpace(relativePath))
@@ -462,7 +498,11 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         if (string.IsNullOrWhiteSpace(url))
             return null;
 
-        return new LibraryArtifact(url, relativePath);
+        return new LibraryArtifact(
+            url,
+            relativePath,
+            string.IsNullOrWhiteSpace(libraryName) ? null : libraryName,
+            ClassifyDownloadSource(url));
     }
 
     private LibraryArtifact? TryCreateLibraryArtifactFromName(JsonObject library, string? classifier)
@@ -478,7 +518,11 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         if (string.IsNullOrWhiteSpace(baseUrl))
             return null;
 
-        return new LibraryArtifact(new Uri(new Uri(baseUrl, UriKind.Absolute), relativePath).AbsoluteUri, relativePath);
+        return new LibraryArtifact(
+            new Uri(new Uri(baseUrl, UriKind.Absolute), relativePath).AbsoluteUri,
+            relativePath,
+            name,
+            ClassifyDownloadSource(baseUrl));
     }
 
     private static string? TryResolveLibraryUrl(JsonObject library, string relativePath)
@@ -550,6 +594,29 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         return baseUrl.EndsWith("/", StringComparison.Ordinal)
             ? baseUrl
             : $"{baseUrl}/";
+    }
+
+    private static string ClassifyDownloadSource(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return "UnknownSource";
+
+        var host = uri.Host;
+        if (host.Equals("maven.minecraftforge.net", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".minecraftforge.net", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ForgeMaven";
+        }
+
+        if (host.Equals("libraries.minecraft.net", StringComparison.OrdinalIgnoreCase)
+            || host.Equals("resources.download.minecraft.net", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".mojang.com", StringComparison.OrdinalIgnoreCase)
+            || host.EndsWith(".minecraft.net", StringComparison.OrdinalIgnoreCase))
+        {
+            return "MojangOfficial";
+        }
+
+        return "MirrorSource";
     }
 
     private static string? ResolveNativeClassifierKey(JsonObject library)
@@ -634,33 +701,62 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             },
             async (download, token) =>
             {
-                await DownloadFileAsync(download.Url, download.DestinationPath, downloadSpeedReporter, token);
+                await DownloadFileAsync(download, downloadSpeedReporter, token);
             });
     }
 
     private async Task DownloadFileAsync(
-        string url,
-        string destinationPath,
+        DownloadRequest download,
         RepairDownloadSpeedReporter downloadSpeedReporter,
         CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-        downloadSpeedReporter.ReportDownloadStarted();
-        using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var destination = File.Create(destinationPath);
-        var buffer = new byte[DownloadBufferSize];
-        while (true)
+        try
         {
-            var read = await source.ReadAsync(buffer, cancellationToken);
-            if (read <= 0)
-                break;
+            Directory.CreateDirectory(Path.GetDirectoryName(download.DestinationPath)!);
+            downloadSpeedReporter.ReportDownloadStarted();
+            using var response = await httpClient.GetAsync(download.Url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                throw CreateDownloadException(download, response.StatusCode, null);
 
-            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-            downloadSpeedReporter.ReportDownloadedBytes(read);
+            await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
+            await using var destination = File.Create(download.DestinationPath);
+            var buffer = new byte[DownloadBufferSize];
+            while (true)
+            {
+                var read = await source.ReadAsync(buffer, cancellationToken);
+                if (read <= 0)
+                    break;
+
+                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                downloadSpeedReporter.ReportDownloadedBytes(read);
+            }
         }
+        catch (Exception exception) when (exception is not OperationCanceledException and not InstanceRepairException)
+        {
+            throw CreateDownloadException(download, statusCode: null, exception);
+        }
+    }
+
+    private static InstanceRepairException CreateDownloadException(
+        DownloadRequest download,
+        HttpStatusCode? statusCode,
+        Exception? innerException)
+    {
+        var diagnostic = new LaunchDownloadDiagnostic(
+            download.Url,
+            download.DestinationPath,
+            statusCode is null ? null : (int)statusCode.Value,
+            download.LibraryName,
+            download.ArtifactPath,
+            download.SourceKind);
+        var statusText = statusCode is null
+            ? "without an HTTP response"
+            : $"with HTTP {(int)statusCode.Value} ({statusCode.Value})";
+        var message = $"Failed to download launch file {statusText}.";
+        if (innerException is null)
+            return new InstanceRepairException(message, diagnostic);
+
+        return new InstanceRepairException(message, innerException, diagnostic);
     }
 
     private static async Task<JsonObject> ReadVersionJsonAsync(
@@ -737,7 +833,12 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         string? ClientJarUrl,
         bool WasModified);
 
-    private sealed record DownloadRequest(string Url, string DestinationPath);
+    private sealed record DownloadRequest(
+        string Url,
+        string DestinationPath,
+        string SourceKind,
+        string? LibraryName,
+        string? ArtifactPath);
 
     private sealed class RepairDownloadSpeedReporter
     {
@@ -809,5 +910,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         }
     }
 
-    private sealed record LibraryArtifact(string Url, string RelativePath);
+    private sealed record LibraryArtifact(
+        string Url,
+        string RelativePath,
+        string? LibraryName,
+        string SourceKind);
 }

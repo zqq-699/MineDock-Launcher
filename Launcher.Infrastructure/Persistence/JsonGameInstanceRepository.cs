@@ -5,6 +5,8 @@ using Launcher.Application.Repositories;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Persistence;
 
@@ -14,11 +16,15 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
     private const string LauncherDirectoryName = ".launcher";
     private const string InstanceSettingsFileName = "instance-settings.json";
     private readonly ISettingsService settingsService;
+    private readonly ILogger<JsonGameInstanceRepository> logger;
     private readonly SemaphoreSlim ioLock = new(1, 1);
 
-    public JsonGameInstanceRepository(ISettingsService settingsService)
+    public JsonGameInstanceRepository(
+        ISettingsService settingsService,
+        ILogger<JsonGameInstanceRepository>? logger = null)
     {
         this.settingsService = settingsService;
+        this.logger = logger ?? NullLogger<JsonGameInstanceRepository>.Instance;
     }
 
     public async Task<IReadOnlyList<GameInstance>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -27,7 +33,12 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         await ioLock.WaitAsync(cancellationToken);
         try
         {
-            return await ReadPerInstanceSettingsAsync(settings.MinecraftDirectory, cancellationToken);
+            var instances = await ReadPerInstanceSettingsAsync(settings.MinecraftDirectory, cancellationToken);
+            logger.LogDebug(
+                "Game instances loaded. Count={InstanceCount} MinecraftDirectory={MinecraftDirectory}",
+                instances.Count,
+                settings.MinecraftDirectory);
+            return instances;
         }
         finally
         {
@@ -69,6 +80,11 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             }
 
             CleanupOrphanedInstanceSettingsFiles(settings.MinecraftDirectory, persistedSettingsPaths);
+            logger.LogDebug(
+                "Game instances saved. RequestedCount={RequestedCount} PersistedCount={PersistedCount} MinecraftDirectory={MinecraftDirectory}",
+                instances.Count,
+                persistedSettingsPaths.Count,
+                settings.MinecraftDirectory);
         }
         finally
         {
@@ -108,6 +124,10 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
                 ResolveDiscoveredAt(versionDirectory)));
         }
 
+        logger.LogDebug(
+            "Installed game versions discovered. Count={VersionCount} MinecraftDirectory={MinecraftDirectory}",
+            installedVersions.Count,
+            minecraftDirectory);
         return Task.FromResult<IReadOnlyList<InstalledGameVersion>>(installedVersions);
     }
 
@@ -150,13 +170,17 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         Directory.CreateDirectory(Path.Combine(directory, "resourcepacks"));
         Directory.CreateDirectory(Path.Combine(directory, "shaderpacks"));
         Directory.CreateDirectory(Path.Combine(directory, ".launcher", "disabled-mods"));
+        logger.LogDebug("Instance directories ensured. InstanceDirectory={InstanceDirectory}", directory);
     }
 
     public void DeleteVersionDirectory(string minecraftDirectory, string versionName)
     {
         var versionDirectory = GetVersionDirectory(minecraftDirectory, versionName);
         if (Directory.Exists(versionDirectory))
+        {
             Directory.Delete(versionDirectory, recursive: true);
+            logger.LogInformation("Version directory deleted. VersionName={VersionName} VersionDirectory={VersionDirectory}", versionName, versionDirectory);
+        }
     }
 
     public async Task RenameVersionAsync(
@@ -224,6 +248,11 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             if (Directory.Exists(stagingDirectory))
                 Directory.Delete(stagingDirectory, recursive: true);
         }
+
+        logger.LogInformation(
+            "Version directory renamed. OldVersionName={OldVersionName} NewVersionName={NewVersionName}",
+            oldVersionName,
+            newVersionName);
     }
 
     private static string GetInstanceSettingsPath(string versionDirectory)

@@ -1,6 +1,8 @@
 using Launcher.Application.Accounts;
 using Launcher.Domain.Models;
 using Launcher.Application.Services;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Application.Accounts;
 
@@ -9,15 +11,18 @@ public sealed class AccountStore : IAccountStore
     private readonly ISettingsService settingsService;
     private readonly IMicrosoftAccountService microsoftAccountService;
     private readonly IOfflineAccountUuidService offlineUuidService;
+    private readonly ILogger<AccountStore> logger;
 
     public AccountStore(
         ISettingsService settingsService,
         IMicrosoftAccountService microsoftAccountService,
-        IOfflineAccountUuidService offlineUuidService)
+        IOfflineAccountUuidService offlineUuidService,
+        ILogger<AccountStore>? logger = null)
     {
         this.settingsService = settingsService;
         this.microsoftAccountService = microsoftAccountService;
         this.offlineUuidService = offlineUuidService;
+        this.logger = logger ?? NullLogger<AccountStore>.Instance;
     }
 
     public async Task<IReadOnlyList<LauncherAccount>> LoadAsync(LauncherSettings settings)
@@ -64,8 +69,18 @@ public sealed class AccountStore : IAccountStore
         }
 
         if (shouldPersistOrder || shouldImportMicrosoftAccounts)
+        {
+            logger.LogInformation(
+                "Persisting account order after load. AccountCount={AccountCount} ImportedMicrosoftAccounts={ImportedMicrosoftAccounts}",
+                accounts.Count,
+                shouldImportMicrosoftAccounts);
             await SaveOrderAsync(settings, accounts);
+        }
 
+        logger.LogInformation(
+            "Accounts loaded. AccountCount={AccountCount} MicrosoftAccountCount={MicrosoftAccountCount}",
+            accounts.Count,
+            accounts.Count(account => !account.IsOffline));
         return accounts;
     }
 
@@ -92,6 +107,10 @@ public sealed class AccountStore : IAccountStore
             settings.OfflineUsername = firstOfflineAccount.DisplayName;
 
         await settingsService.SaveAsync(settings);
+        logger.LogInformation(
+            "Account order saved. AccountCount={AccountCount} SelectedAccountId={SelectedAccountId}",
+            settings.Accounts.Count,
+            settings.SelectedAccountId);
     }
 
     private bool EnsureOfflineUuid(LauncherAccountRecord account)

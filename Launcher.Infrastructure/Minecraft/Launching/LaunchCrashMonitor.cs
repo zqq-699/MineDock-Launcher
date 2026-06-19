@@ -110,7 +110,8 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
                 failureKind,
                 process.ExitCode,
                 diagnostic.DiagnosticPath,
-                diagnostic.Analysis));
+                diagnostic.Analysis,
+                diagnostic.FailureSummary));
         }
 
         public GameLaunchSession CreateGameLaunchSession(Process process, LaunchDiagnosticContext context)
@@ -126,15 +127,16 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
             var stdout = await stdoutTask!;
             var stderr = await stderrTask!;
             var newCrashFiles = FindNewCrashFiles().ToList();
+            var runtime = DateTimeOffset.UtcNow - createdAt;
 
             if (!IsAbnormalExit(process.ExitCode, newCrashFiles))
-                return LaunchExitResult.Success;
+                return new LaunchExitResult(null, process.ExitCode, runtime);
 
             var diagnostic = await LaunchDiagnosticsWriter.WriteQuickExitDiagnosticAsync(
                 context,
                 "runtime_abnormal_exit",
                 process.ExitCode,
-                DateTimeOffset.UtcNow - createdAt,
+                runtime,
                 createdAt,
                 process.StartInfo,
                 newCrashFiles,
@@ -147,8 +149,9 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
                 LaunchFailureKind.RuntimeAbnormalExit,
                 process.ExitCode,
                 diagnostic.DiagnosticPath,
-                diagnostic.Analysis);
-            return new LaunchExitResult(report);
+                diagnostic.Analysis,
+                diagnostic.FailureSummary);
+            return new LaunchExitResult(report, process.ExitCode, runtime);
         }
 
         private IEnumerable<string> FindNewCrashFiles()
@@ -225,7 +228,8 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
             LaunchFailureKind kind,
             int? exitCode,
             string? diagnosticPath,
-            LaunchFailureAnalysis? analysis)
+            LaunchFailureAnalysis? analysis,
+            string? failureSummary)
         {
             return new LaunchFailureReport(
                 kind,
@@ -234,7 +238,8 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
                 exitCode,
                 diagnosticPath,
                 ResolveDiagnosticDirectory(context, diagnosticPath),
-                analysis);
+                analysis,
+                failureSummary);
         }
 
         private static string ResolveDiagnosticDirectory(LaunchDiagnosticContext context, string? diagnosticPath)

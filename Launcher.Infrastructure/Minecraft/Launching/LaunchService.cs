@@ -1,10 +1,13 @@
 using System.IO;
+using System.Text.RegularExpressions;
 using CmlLib.Core;
 using CmlLib.Core.Auth;
 using CmlLib.Core.ProcessBuilder;
 using Launcher.Application.Accounts;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Minecraft;
 
@@ -16,17 +19,20 @@ public sealed class LaunchService : ILaunchService
     private readonly ILaunchCrashMonitor crashMonitor;
     private readonly ILaunchCommandRunner commandRunner;
     private readonly IJavaRuntimeSelectionService? javaRuntimeSelectionService;
+    private readonly ILogger<LaunchService> logger;
 
     public LaunchService(
         ILaunchAccountSessionService accountSessionService,
-        IJavaRuntimeSelectionService javaRuntimeSelectionService)
+        IJavaRuntimeSelectionService javaRuntimeSelectionService,
+        ILogger<LaunchService>? logger = null)
         : this(
             accountSessionService,
             new ManagedVersionRepairService(),
             new LaunchGameLauncherFactory(),
             new LaunchCrashMonitor(),
             new LaunchCommandRunner(),
-            javaRuntimeSelectionService)
+            javaRuntimeSelectionService,
+            logger)
     {
     }
 
@@ -36,7 +42,8 @@ public sealed class LaunchService : ILaunchService
         ILaunchGameLauncherFactory launcherFactory,
         ILaunchCrashMonitor crashMonitor,
         ILaunchCommandRunner? commandRunner = null,
-        IJavaRuntimeSelectionService? javaRuntimeSelectionService = null)
+        IJavaRuntimeSelectionService? javaRuntimeSelectionService = null,
+        ILogger<LaunchService>? logger = null)
     {
         this.accountSessionService = accountSessionService;
         this.versionRepairService = versionRepairService;
@@ -44,6 +51,7 @@ public sealed class LaunchService : ILaunchService
         this.crashMonitor = crashMonitor;
         this.commandRunner = commandRunner ?? new LaunchCommandRunner();
         this.javaRuntimeSelectionService = javaRuntimeSelectionService;
+        this.logger = logger ?? NullLogger<LaunchService>.Instance;
     }
 
     public async Task<GameLaunchSession> LaunchAsync(
@@ -80,18 +88,38 @@ public sealed class LaunchService : ILaunchService
             : instance.GameArguments;
         var memoryMb = instance.MemoryMb > 0 ? instance.MemoryMb : settings.DefaultMemoryMb;
         System.Diagnostics.Process? process = null;
+        JavaRuntimeInfo? selectedJavaRuntime = null;
         LaunchDiagnosticContext diagnosticContext = CreateDiagnosticContext(
             instance,
             settings,
             versionName,
-            javaPath: null,
+            javaRuntime: null,
             memoryMb,
             sensitiveValues: []);
+        logger.LogInformation(
+            "Game launch started. InstanceId={InstanceId} InstanceName={InstanceName} VersionName={VersionName} Loader={Loader} MemoryMb={MemoryMb}",
+            instance.Id,
+            instance.Name,
+            versionName,
+            instance.Loader,
+            memoryMb);
+        logger.LogInformation(
+            "Launch settings resolved. InstanceId={InstanceId} PreLaunchCommand={PreLaunchCommand} WaitForPreLaunchCommand={WaitForPreLaunchCommand} PostExitCommand={PostExitCommand} ExtraJvmArguments={ExtraJvmArguments} ExtraGameArguments={ExtraGameArguments}",
+            instance.Id,
+            RedactLaunchSettingText(preLaunchCommand),
+            shouldWaitForPreLaunchCommand,
+            RedactLaunchSettingText(postExitCommand),
+            RedactLaunchSettingText(jvmArguments),
+            RedactLaunchSettingText(gameArguments));
 
         try
         {
             if (!string.IsNullOrWhiteSpace(preLaunchCommand))
             {
+                logger.LogInformation(
+                    "Running pre-launch command. InstanceId={InstanceId} WaitForExit={WaitForExit}",
+                    instance.Id,
+                    shouldWaitForPreLaunchCommand);
                 progress?.Report(new LauncherProgress(
                     LaunchProgressStages.RunningPreLaunchCommand,
                     "Running pre-launch command",
@@ -105,6 +133,10 @@ public sealed class LaunchService : ILaunchService
 
             if (shouldCheckFilesBeforeLaunch)
             {
+                logger.LogInformation(
+                    "Checking game files before launch. VersionName={VersionName} AutoRepair={AutoRepair}",
+                    versionName,
+                    shouldAutoRepairMissingFiles);
                 await versionRepairService.RepairAsync(
                     settings.MinecraftDirectory,
                     versionName,
@@ -123,16 +155,23 @@ public sealed class LaunchService : ILaunchService
             var isolatedPath = CreateIsolatedLaunchPath(settings.MinecraftDirectory, versionName);
 
             var accountSession = await accountSessionService.CreateSessionAsync(account, cancellationToken);
-            var selectedJavaRuntime = javaRuntimeSelectionService is null
+            selectedJavaRuntime = javaRuntimeSelectionService is null
                 ? null
                 : await javaRuntimeSelectionService.SelectForLaunchAsync(instance, settings, cancellationToken);
             diagnosticContext = CreateDiagnosticContext(
                 instance,
                 settings,
                 versionName,
-                selectedJavaRuntime?.ExecutablePath,
+                selectedJavaRuntime,
                 memoryMb,
                 [accountSession.AccessToken]);
+            logger.LogInformation(
+                "Launch account session and Java runtime prepared. InstanceId={InstanceId} JavaSelected={JavaSelected} JavaPath={JavaPath} JavaVersion={JavaVersion} JavaSource={JavaSource}",
+                instance.Id,
+                selectedJavaRuntime is not null,
+                selectedJavaRuntime?.ExecutablePath,
+                selectedJavaRuntime?.Version,
+                selectedJavaRuntime?.Source);
             var launchOption = new MLaunchOption
             {
                 Path = isolatedPath,
@@ -168,18 +207,41 @@ public sealed class LaunchService : ILaunchService
                 100));
             if (!process.Start())
                 throw new InvalidOperationException("Minecraft process did not start.");
+            logger.LogInformation("Minecraft process started. VersionName={VersionName} ProcessId={ProcessId}", versionName, process.Id);
 
             var quickExitResult = await crashMonitorSession.WaitForQuickExitAsync(
                 process,
                 diagnosticContext,
                 cancellationToken);
             if (quickExitResult is not null)
+            {
+                LogLaunchFailureReport(
+                    LogLevel.Warning,
+                    "Minecraft process exited during startup.",
+                    quickExitResult.Report,
+                    diagnosticContext);
                 throw new LaunchProcessExitedException(quickExitResult.Report);
-
-            return crashMonitorSession.CreateGameLaunchSession(process, diagnosticContext);
+            }
+            var session = crashMonitorSession.CreateGameLaunchSession(process, diagnosticContext);
+            return new GameLaunchSession(
+                session.InstanceId,
+                session.InstanceName,
+                LogGameExitAsync(session.ExitTask, diagnosticContext));
         }
         catch (LaunchProcessExitedException)
         {
+            throw;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            logger.LogInformation(
+                "Game launch canceled. InstanceId={InstanceId} InstanceName={InstanceName} VersionName={VersionName} JavaPath={JavaPath} JavaVersion={JavaVersion} JavaSource={JavaSource}",
+                diagnosticContext.InstanceId,
+                diagnosticContext.InstanceName,
+                diagnosticContext.VersionName,
+                diagnosticContext.JavaPath,
+                diagnosticContext.JavaVersion,
+                diagnosticContext.JavaSource);
             throw;
         }
         catch (LaunchAccountSessionException exception)
@@ -228,7 +290,7 @@ public sealed class LaunchService : ILaunchService
         }
     }
 
-    private static async Task<LaunchFailureReport> WriteFailureDiagnosticAsync(
+    private async Task<LaunchFailureReport> WriteFailureDiagnosticAsync(
         LaunchDiagnosticContext context,
         string failureKind,
         string failureSummary,
@@ -250,25 +312,177 @@ public sealed class LaunchService : ILaunchService
             if (!string.IsNullOrWhiteSpace(diagnostic.DiagnosticPath))
                 exception.Data["DiagnosticPath"] = diagnostic.DiagnosticPath;
         }
-        catch
+        catch (Exception diagnosticException)
         {
+            logger.LogWarning(
+                diagnosticException,
+                "Failed to write launch diagnostic. FailureKind={FailureKind} InstanceId={InstanceId}",
+                failureKind,
+                context.InstanceId);
         }
 
-        return new LaunchFailureReport(
+        var report = new LaunchFailureReport(
             LaunchFailureKind.StartupFailed,
             context.InstanceName,
             context.VersionName,
             null,
             diagnostic?.DiagnosticPath,
             ResolveDiagnosticDirectory(context, diagnostic?.DiagnosticPath),
-            diagnostic?.Analysis);
+            diagnostic?.Analysis,
+            diagnostic?.FailureSummary ?? failureSummary);
+        LogLaunchFailureReport(
+            LogLevel.Error,
+            "Game launch failed.",
+            report,
+            context,
+            exception,
+            failureKind);
+        return report;
+    }
+
+    private async Task<LaunchExitResult> LogGameExitAsync(
+        Task<LaunchExitResult> exitTask,
+        LaunchDiagnosticContext context)
+    {
+        try
+        {
+            var result = await exitTask.ConfigureAwait(false);
+            if (result.FailureReport is null)
+            {
+                logger.LogInformation(
+                    "Minecraft process exited normally. InstanceId={InstanceId} VersionName={VersionName} ExitCode={ExitCode} Runtime={Runtime} JavaPath={JavaPath} JavaVersion={JavaVersion} JavaSource={JavaSource}",
+                    context.InstanceId,
+                    context.VersionName,
+                    result.ExitCode,
+                    FormatRuntime(result.Runtime),
+                    context.JavaPath,
+                    context.JavaVersion,
+                    context.JavaSource);
+                return result;
+            }
+
+            LogLaunchFailureReport(
+                LogLevel.Error,
+                "Minecraft process crashed after startup.",
+                result.FailureReport,
+                context);
+            return result;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Failed while monitoring Minecraft process exit. InstanceId={InstanceId} VersionName={VersionName} JavaPath={JavaPath} JavaVersion={JavaVersion} JavaSource={JavaSource}",
+                context.InstanceId,
+                context.VersionName,
+                context.JavaPath,
+                context.JavaVersion,
+                context.JavaSource);
+            throw;
+        }
+    }
+
+    private void LogLaunchFailureReport(
+        LogLevel level,
+        string message,
+        LaunchFailureReport report,
+        LaunchDiagnosticContext context,
+        Exception? exception = null,
+        string? failureKindText = null)
+    {
+        logger.Log(
+            level,
+            exception,
+            "{Message} FailureKind={FailureKind} ReportKind={ReportKind} InstanceName={InstanceName} VersionName={VersionName} ExitCode={ExitCode} FailureSummary={FailureSummary} AnalysisText={AnalysisText} DiagnosticPath={DiagnosticPath} AnalysisCategory={AnalysisCategory} JavaPath={JavaPath} JavaVersion={JavaVersion} JavaSource={JavaSource}",
+            message,
+            failureKindText ?? report.Kind.ToString(),
+            report.Kind,
+            report.InstanceName,
+            report.VersionName,
+            report.ExitCode,
+            report.FailureSummary,
+            FormatAnalysisText(report.Analysis),
+            report.DiagnosticPath,
+            report.Analysis?.Category,
+            context.JavaPath,
+            context.JavaVersion,
+            context.JavaSource);
+    }
+
+    private static string? FormatAnalysisText(LaunchFailureAnalysis? analysis)
+    {
+        if (analysis is null)
+            return null;
+
+        return analysis.Category switch
+        {
+            LaunchFailureCategory.JavaVersionMismatch => FormatJavaVersionMismatch(analysis),
+            LaunchFailureCategory.ModDependencyMissing => FormatModDependencyMissing(analysis),
+            LaunchFailureCategory.ModVersionIncompatible => "Mod versions appear to be incompatible. Check whether the installed mods match this Minecraft and loader version.",
+            LaunchFailureCategory.MissingGameFiles => FormatMissingGameFiles(analysis),
+            LaunchFailureCategory.OutOfMemory => "Minecraft ran out of memory. Increase the allocated memory or reduce loaded mods/resources.",
+            _ => $"{analysis.ReasonTitle}: {analysis.ReasonDetail}. {analysis.Recommendation}"
+        };
+    }
+
+    private static string FormatJavaVersionMismatch(LaunchFailureAnalysis analysis)
+    {
+        var required = analysis.RequiredJavaMajorVersion?.ToString() ?? "unknown";
+        var current = analysis.CurrentJavaMajorVersion?.ToString() ?? "unknown";
+        var modText = string.IsNullOrWhiteSpace(analysis.ModName)
+            ? string.Empty
+            : $" Mod: {analysis.ModName}.";
+        return $"Java version mismatch. Required Java: {required}; current Java: {current}.{modText} Select a compatible Java runtime.";
+    }
+
+    private static string FormatModDependencyMissing(LaunchFailureAnalysis analysis)
+    {
+        var modText = string.IsNullOrWhiteSpace(analysis.ModName)
+            ? "A mod"
+            : $"Mod '{analysis.ModName}'";
+        var dependencyText = string.IsNullOrWhiteSpace(analysis.DependencyName)
+            ? "a required dependency"
+            : $"required dependency '{analysis.DependencyName}'";
+        return $"{modText} is missing {dependencyText}. Install the missing dependency and try again.";
+    }
+
+    private static string FormatMissingGameFiles(LaunchFailureAnalysis analysis)
+    {
+        var pathText = string.IsNullOrWhiteSpace(analysis.MissingPath)
+            ? string.Empty
+            : $" Missing path: {analysis.MissingPath}.";
+        return $"Required game files are missing or damaged.{pathText} Repair or reinstall this instance.";
+    }
+
+    private static string? FormatRuntime(TimeSpan? runtime)
+    {
+        return runtime is null
+            ? null
+            : runtime.Value.ToString(@"hh\:mm\:ss\.fff");
+    }
+
+    private static string RedactLaunchSettingText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return string.Empty;
+
+        var redacted = text.Trim();
+        redacted = Regex.Replace(
+            redacted,
+            @"(?i)(--?(?:accessToken|session|token|password|secret)(?:=|\s+))(""[^""]+""|\S+)",
+            "$1<redacted>");
+        redacted = Regex.Replace(
+            redacted,
+            @"(?i)\b((?:access[_-]?token|session|token|password|secret)\s*=\s*)(""[^""]+""|\S+)",
+            "$1<redacted>");
+        return redacted;
     }
 
     private static LaunchDiagnosticContext CreateDiagnosticContext(
         GameInstance instance,
         LauncherSettings settings,
         string versionName,
-        string? javaPath,
+        JavaRuntimeInfo? javaRuntime,
         int memoryMb,
         IReadOnlyList<string> sensitiveValues)
     {
@@ -281,7 +495,9 @@ public sealed class LaunchService : ILaunchService
             instance.MinecraftVersion,
             instance.Loader,
             instance.LoaderVersion,
-            javaPath,
+            javaRuntime?.ExecutablePath,
+            javaRuntime?.Version,
+            javaRuntime?.Source,
             memoryMb,
             sensitiveValues);
     }
@@ -347,8 +563,9 @@ public sealed class LaunchService : ILaunchService
                         waitForExit: false,
                         CancellationToken.None);
                 }
-                catch
+                catch (Exception exception)
                 {
+                    logger.LogWarning(exception, "Post-exit command failed. WorkingDirectory={WorkingDirectory}", workingDirectory);
                 }
             });
         };

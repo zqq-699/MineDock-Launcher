@@ -4,4 +4,5 @@ namespace Launcher.Infrastructure.Minecraft;
 
 internal sealed record LaunchDiagnosticResult(
     string? DiagnosticPath,
-    LaunchFailureAnalysis? Analysis);
+    LaunchFailureAnalysis? Analysis,
+    string? FailureSummary = null);
