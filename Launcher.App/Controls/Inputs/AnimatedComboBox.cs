@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -6,15 +7,16 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using Launcher.App.Behaviors;
 
 namespace Launcher.App.Controls;
 
 public class AnimatedComboBox : ComboBox
 {
-    private const double PopupGap = 10;
+    private const double PopupGap = 6;
+    private const double PopupShadowPadding = 14;
     private const double DefaultDropDownItemHeightEstimate = 38;
     private const double PopupVerticalPaddingEstimate = 10;
-    private static readonly TimeSpan PopupRealtimeBlurInterval = TimeSpan.FromMilliseconds(33);
     private static readonly Duration OpenDuration = TimeSpan.FromMilliseconds(210);
     private static readonly Duration CloseDuration = TimeSpan.FromMilliseconds(180);
     private static readonly IEasingFunction OpenEasing = new CubicEase { EasingMode = EasingMode.EaseOut };
@@ -60,10 +62,12 @@ public class AnimatedComboBox : ComboBox
     private Popup? popup;
     private ListBox? popupListBox;
     private FrameworkElement? popupSurface;
+    private BackdropBlurBorder? popupBlurSurface;
     private TextBlock? selectionTextBlock;
     private ContentPresenter? selectionContentPresenter;
     private ScaleTransform? scaleTransform;
     private TranslateTransform? translateTransform;
+    private Window? popupWheelOwner;
     private bool opensAbove;
 
     public AnimatedComboBox()
@@ -75,6 +79,8 @@ public class AnimatedComboBox : ComboBox
         {
             closeTimer?.Stop();
             DetachPopupListBox();
+            DetachPopupSurface();
+            DetachPopupWheelOwner();
             DetachPopup();
             dropDownDescriptor.RemoveValueChanged(this, OnDropDownOpenChanged);
         };
@@ -113,14 +119,17 @@ public class AnimatedComboBox : ComboBox
     public override void OnApplyTemplate()
     {
         DetachPopupListBox();
+        DetachPopupSurface();
         DetachPopup();
         base.OnApplyTemplate();
         popup = GetTemplateChild("PART_Popup") as Popup;
         popupListBox = GetTemplateChild("PART_DropDownList") as ListBox;
         popupSurface = GetTemplateChild("PopupSurface") as FrameworkElement;
+        popupBlurSurface = GetTemplateChild("PopupBlurSurface") as BackdropBlurBorder;
         selectionTextBlock = GetTemplateChild("SelectionTextBlock") as TextBlock;
         selectionContentPresenter = GetTemplateChild("SelectionContentPresenter") as ContentPresenter;
         AttachPopup();
+        AttachPopupSurface();
         AttachPopupListBox();
         if (popupSurface is not null)
         {
@@ -159,8 +168,6 @@ public class AnimatedComboBox : ComboBox
             translateTransform?.BeginAnimation(TranslateTransform.YProperty, null);
             popupSurface.IsHitTestVisible = false;
             SetPopupVisualState(0, GetOpenTranslateOffset(), 0.92);
-            if (popupSurface is BackdropBlurBorder blurBorder)
-                blurBorder.StartRealtimeRefresh(PopupRealtimeBlurInterval);
         }
 
         IsPopupOpen = true;
@@ -181,11 +188,9 @@ public class AnimatedComboBox : ComboBox
             var opacityAnimation = new DoubleAnimation(0, 1, OpenDuration) { EasingFunction = OpenEasing };
             var scaleAnimation = new DoubleAnimation(0.92, 1, OpenDuration) { EasingFunction = OpenEasing };
             var translateAnimation = new DoubleAnimation(GetOpenTranslateOffset(), 0, OpenDuration) { EasingFunction = OpenEasing };
-
             translateAnimation.Completed += (_, _) =>
             {
-                StopRealtimeBackdropRefresh();
-                RequestBackdropRefreshAfterLayout();
+                Dispatcher.BeginInvoke(RefreshPopupBlur, DispatcherPriority.Render);
             };
 
             popupSurface.BeginAnimation(OpacityProperty, opacityAnimation);
@@ -206,8 +211,6 @@ public class AnimatedComboBox : ComboBox
         {
             EnsurePopupTransforms();
             popupSurface.IsHitTestVisible = false;
-            if (popupSurface is BackdropBlurBorder blurBorder)
-                blurBorder.StopRealtimeRefresh();
             popupSurface.BeginAnimation(
                 OpacityProperty,
                 new DoubleAnimation(popupSurface.Opacity, 0, CloseDuration) { EasingFunction = CloseEasing });
@@ -228,7 +231,6 @@ public class AnimatedComboBox : ComboBox
             IsDropDownClosing = false;
             if (popupSurface is not null)
             {
-                StopRealtimeBackdropRefresh();
                 SetPopupVisualState(0, GetCloseTranslateOffset(), 0.92);
             }
         };
@@ -240,7 +242,6 @@ public class AnimatedComboBox : ComboBox
         if (popupSurface is null)
             return;
 
-        UpdateBackdropSampleOffset();
         popupSurface.RenderTransformOrigin = opensAbove ? new Point(0.5, 1) : new Point(0.5, 0);
         if (popupSurface.RenderTransform is TransformGroup { Children.Count: 2 } group
             && group.Children[0] is ScaleTransform existingScale
@@ -280,7 +281,7 @@ public class AnimatedComboBox : ComboBox
         if (popup is null)
             return;
 
-        var popupHeight = GetPopupHeightEstimate();
+        var popupHeight = GetPopupHeightEstimate() + PopupShadowPadding * 2;
         var topLeft = PointToScreen(new Point(0, 0));
         var controlTop = topLeft.Y;
         var controlBottom = topLeft.Y + ActualHeight;
@@ -290,7 +291,10 @@ public class AnimatedComboBox : ComboBox
         opensAbove = belowSpace < popupHeight + PopupGap && aboveSpace > belowSpace;
 
         popup.Placement = opensAbove ? PlacementMode.Top : PlacementMode.Bottom;
-        popup.VerticalOffset = opensAbove ? -PopupGap : PopupGap;
+        popup.HorizontalOffset = 0;
+        popup.VerticalOffset = opensAbove
+            ? PopupShadowPadding - PopupGap
+            : PopupGap - PopupShadowPadding;
         EnsurePopupTransforms();
     }
 
@@ -326,6 +330,15 @@ public class AnimatedComboBox : ComboBox
 
         popupListBox.PreviewMouseLeftButtonUp += PopupListBox_PreviewMouseLeftButtonUp;
         popupListBox.PreviewKeyDown += PopupListBox_PreviewKeyDown;
+        popupListBox.PreviewMouseWheel += PopupDropDown_PreviewMouseWheel;
+    }
+
+    private void AttachPopupSurface()
+    {
+        if (popupSurface is null)
+            return;
+
+        popupSurface.PreviewMouseWheel += PopupDropDown_PreviewMouseWheel;
     }
 
     private void DetachPopupListBox()
@@ -335,7 +348,17 @@ public class AnimatedComboBox : ComboBox
 
         popupListBox.PreviewMouseLeftButtonUp -= PopupListBox_PreviewMouseLeftButtonUp;
         popupListBox.PreviewKeyDown -= PopupListBox_PreviewKeyDown;
+        popupListBox.PreviewMouseWheel -= PopupDropDown_PreviewMouseWheel;
         popupListBox = null;
+    }
+
+    private void DetachPopupSurface()
+    {
+        if (popupSurface is null)
+            return;
+
+        popupSurface.PreviewMouseWheel -= PopupDropDown_PreviewMouseWheel;
+        popupSurface = null;
     }
 
     private void AttachPopup()
@@ -354,7 +377,23 @@ public class AnimatedComboBox : ComboBox
 
         popup.Opened -= Popup_Opened;
         popup.Closed -= Popup_Closed;
+        DetachPopupWheelOwner();
         popup = null;
+    }
+
+    private void Popup_Opened(object? sender, EventArgs e)
+    {
+        AttachPopupWheelOwner();
+        popupListBox?.Focus();
+        RefreshPopupBlur();
+        Dispatcher.BeginInvoke(RefreshPopupBlur, DispatcherPriority.Render);
+        Dispatcher.BeginInvoke(RefreshPopupBlur, DispatcherPriority.ApplicationIdle);
+    }
+
+    private void Popup_Closed(object? sender, EventArgs e)
+    {
+        StopPopupScrollAnimation();
+        DetachPopupWheelOwner();
     }
 
     private void PopupListBox_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -378,47 +417,94 @@ public class AnimatedComboBox : ComboBox
         }
     }
 
-    private void Popup_Opened(object? sender, EventArgs e)
+    private void PopupDropDown_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        RequestBackdropRefreshAfterLayout();
-    }
-
-    private void Popup_Closed(object? sender, EventArgs e)
-    {
-        StopRealtimeBackdropRefresh();
-    }
-
-    private void RequestBackdropRefreshAfterLayout()
-    {
-        if (popupSurface is not BackdropBlurBorder blurBorder)
+        if (!IsPopupOpen || popupListBox is null)
             return;
 
-        Dispatcher.BeginInvoke(
-            () =>
-            {
-                blurBorder.RequestRefresh();
-                Dispatcher.BeginInvoke(blurBorder.RequestRefresh, DispatcherPriority.Loaded);
-            },
-            DispatcherPriority.Render);
+        ScrollPopupList(e);
     }
 
-    private void StopRealtimeBackdropRefresh()
+    private void Owner_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
-        if (popupSurface is BackdropBlurBorder blurBorder)
-            blurBorder.StopRealtimeRefresh();
-    }
-
-    private void UpdateBackdropSampleOffset()
-    {
-        if (popupSurface is not BackdropBlurBorder blurBorder)
+        if (!IsPopupOpen)
             return;
 
-        blurBorder.UseSourceElementAsSampleOrigin = true;
-        blurBorder.SampleOffsetX = 0;
-        var popupVerticalOffset = popup?.VerticalOffset ?? (opensAbove ? -PopupGap : PopupGap);
-        blurBorder.SampleOffsetY = opensAbove
-            ? -popupSurface.ActualHeight + popupVerticalOffset
-            : ActualHeight + popupVerticalOffset;
+        if (IsCursorOverPopupSurface())
+        {
+            ScrollPopupList(e);
+            return;
+        }
+
+        e.Handled = true;
+    }
+
+    private void ScrollPopupList(MouseWheelEventArgs e)
+    {
+        if (popupListBox is not { } listBox)
+            return;
+
+        listBox.ApplyTemplate();
+        listBox.UpdateLayout();
+        SmoothScrollBehavior.HandleMouseWheelFromDescendant(listBox, e, handleWhenUnavailable: true);
+    }
+
+    private void AttachPopupWheelOwner()
+    {
+        var owner = Window.GetWindow(this);
+        if (ReferenceEquals(popupWheelOwner, owner))
+            return;
+
+        DetachPopupWheelOwner();
+        popupWheelOwner = owner;
+        popupWheelOwner?.AddHandler(Mouse.PreviewMouseWheelEvent, new MouseWheelEventHandler(Owner_PreviewMouseWheel), true);
+    }
+
+    private void DetachPopupWheelOwner()
+    {
+        if (popupWheelOwner is null)
+            return;
+
+        popupWheelOwner.RemoveHandler(Mouse.PreviewMouseWheelEvent, new MouseWheelEventHandler(Owner_PreviewMouseWheel));
+        popupWheelOwner = null;
+    }
+
+    private bool IsCursorOverPopupSurface()
+    {
+        if (popupSurface is null || !GetCursorPos(out var cursor))
+            return false;
+
+        var point = popupSurface.PointFromScreen(new Point(cursor.X, cursor.Y));
+        return point.X >= 0
+            && point.Y >= 0
+            && point.X <= popupSurface.ActualWidth
+            && point.Y <= popupSurface.ActualHeight;
+    }
+
+    private void RefreshPopupBlur()
+    {
+        if (popupBlurSurface is null)
+            return;
+
+        var sourceRoot = Window.GetWindow(this)?.Content as FrameworkElement;
+        if (sourceRoot is null)
+            return;
+
+        var popupHeight = popupBlurSurface.ActualHeight > 0
+            ? popupBlurSurface.ActualHeight
+            : popupSurface?.ActualHeight ?? GetPopupHeightEstimate();
+        var controlTopLeft = PointToScreen(new Point(0, 0));
+        var sampleTop = opensAbove
+            ? controlTopLeft.Y - PopupGap - popupHeight
+            : controlTopLeft.Y + ActualHeight + PopupGap;
+        var sampleOrigin = sourceRoot.PointFromScreen(new Point(controlTopLeft.X, sampleTop));
+
+        popupBlurSurface.SourceElement = sourceRoot;
+        popupBlurSurface.UseSourceElementAsRenderRoot = true;
+        popupBlurSurface.UseSourceElementAsSampleOrigin = true;
+        popupBlurSurface.SampleOffsetX = sampleOrigin.X;
+        popupBlurSurface.SampleOffsetY = sampleOrigin.Y;
+        popupBlurSurface.RequestRefresh();
     }
 
     private void UpdateSelectionPresenterMode()
@@ -429,5 +515,25 @@ public class AnimatedComboBox : ComboBox
         var useSelectionTemplate = SelectionItemTemplate is not null || SelectionItemTemplateSelector is not null;
         selectionTextBlock.Visibility = useSelectionTemplate ? Visibility.Collapsed : Visibility.Visible;
         selectionContentPresenter.Visibility = useSelectionTemplate ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void StopPopupScrollAnimation()
+    {
+        if (popupListBox is null)
+            return;
+
+        popupListBox.ApplyTemplate();
+        popupListBox.UpdateLayout();
+        SmoothScrollBehavior.CancelAnimationFromDescendant(popupListBox);
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out CursorPoint point);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CursorPoint
+    {
+        public int X;
+        public int Y;
     }
 }

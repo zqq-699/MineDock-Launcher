@@ -1,6 +1,7 @@
 <UserControl x:Class="Launcher.App.Views.Account.Dialogs.SkinManagerDialogView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
              xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
              xmlns:accountControls="clr-namespace:Launcher.App.Controls.Account"
              xmlns:domainModels="clr-namespace:Launcher.Domain.Models;assembly=Launcher.Domain"
@@ -87,8 +88,12 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
             <Setter Property="ItemContainerStyle" Value="{StaticResource SkinManagerTileItemStyle}" />
+            <Setter Property="ScrollViewer.CanContentScroll" Value="False" />
             <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
             <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="behaviors:SmoothScrollBehavior.IsEnabled" Value="True" />
+            <Setter Property="behaviors:SmoothScrollBehavior.ScrollAmount" Value="92" />
+            <Setter Property="behaviors:SmoothScrollBehavior.WheelAnimationDurationMilliseconds" Value="130" />
             <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
             <Style.Resources>
                 <Style TargetType="ScrollBar" BasedOn="{StaticResource MainContentScrollBarStyle}" />

@@ -119,7 +119,6 @@ public partial class MainWindow : Window
 
     private void PrewarmTransientUi()
     {
-        BlurEffectWarmup.EnsureWarmed();
         accountDialogService.Prewarm();
 
         foreach (var comboBox in FindVisualChildren<AnimatedComboBox>(this))

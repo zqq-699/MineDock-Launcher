@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 
 namespace Launcher.App.Behaviors;
@@ -94,6 +95,15 @@ public static class SmoothScrollBehavior
         SetIsAnimating(scrollViewer, false);
     }
 
+    public static bool CancelAnimationFromDescendant(DependencyObject root)
+    {
+        if (FindDescendant<ScrollViewer>(root) is not { } scrollViewer)
+            return false;
+
+        CancelAnimation(scrollViewer);
+        return true;
+    }
+
     private static double GetAnimatedVerticalOffset(DependencyObject element) => (double)element.GetValue(AnimatedVerticalOffsetProperty);
 
     private static void SetAnimatedVerticalOffset(DependencyObject element, double value) => element.SetValue(AnimatedVerticalOffsetProperty, value);
@@ -117,7 +127,10 @@ public static class SmoothScrollBehavior
     private static void OnIsEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not ScrollViewer scrollViewer)
+        {
+            UpdateDescendantScrollHost(d, (bool)e.NewValue);
             return;
+        }
 
         if ((bool)e.NewValue)
         {
@@ -134,6 +147,35 @@ public static class SmoothScrollBehavior
         scrollViewer.Unloaded -= ScrollViewer_Unloaded;
         scrollViewer.BeginAnimation(AnimatedVerticalOffsetProperty, null);
         SetIsAnimating(scrollViewer, false);
+    }
+
+    private static void UpdateDescendantScrollHost(DependencyObject d, bool isEnabled)
+    {
+        if (d is not FrameworkElement element)
+            return;
+
+        if (isEnabled)
+        {
+            element.PreviewMouseWheel += DescendantScrollHost_PreviewMouseWheel;
+            element.Unloaded += DescendantScrollHost_Unloaded;
+            return;
+        }
+
+        element.PreviewMouseWheel -= DescendantScrollHost_PreviewMouseWheel;
+        element.Unloaded -= DescendantScrollHost_Unloaded;
+        CancelAnimationFromDescendant(element);
+    }
+
+    private static void DescendantScrollHost_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is DependencyObject root)
+            HandleMouseWheelFromDescendant(root, e);
+    }
+
+    private static void DescendantScrollHost_Unloaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is DependencyObject root)
+            CancelAnimationFromDescendant(root);
     }
 
     private static void ScrollViewer_Unloaded(object sender, RoutedEventArgs e)
@@ -161,10 +203,23 @@ public static class SmoothScrollBehavior
     private static void ScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
         if (sender is not ScrollViewer scrollViewer
-            || scrollViewer.ScrollableHeight <= 0
-            || (scrollViewer.CanContentScroll && !GetAllowContentScroll(scrollViewer)))
+            || !HandleMouseWheel(scrollViewer, e))
         {
             return;
+        }
+    }
+
+    public static bool HandleMouseWheel(ScrollViewer scrollViewer, MouseWheelEventArgs e)
+    {
+        return HandleMouseWheel(scrollViewer, e, scrollViewer);
+    }
+
+    private static bool HandleMouseWheel(ScrollViewer scrollViewer, MouseWheelEventArgs e, DependencyObject optionsSource)
+    {
+        if (scrollViewer.ScrollableHeight <= 0
+            || (scrollViewer.CanContentScroll && !GetAllowContentScroll(optionsSource)))
+        {
+            return false;
         }
 
         var currentOffset = GetAnimatedVerticalOffset(scrollViewer);
@@ -175,14 +230,14 @@ public static class SmoothScrollBehavior
         if (double.IsNaN(targetOffset) || double.IsInfinity(targetOffset))
             targetOffset = currentOffset;
 
-        var wheelStep = GetScrollAmount(scrollViewer) * Math.Max(1d, Math.Abs(e.Delta) / 120d);
+        var wheelStep = GetScrollAmount(optionsSource) * Math.Max(1d, Math.Abs(e.Delta) / 120d);
         var delta = e.Delta > 0 ? -wheelStep : wheelStep;
         var nextOffset = Math.Clamp(targetOffset + delta, 0d, scrollViewer.ScrollableHeight);
 
         if (Math.Abs(nextOffset - targetOffset) < 0.1d && Math.Abs(nextOffset - currentOffset) < 0.1d)
         {
             e.Handled = true;
-            return;
+            return true;
         }
 
         SetTargetVerticalOffset(scrollViewer, nextOffset);
@@ -191,8 +246,8 @@ public static class SmoothScrollBehavior
         var animationVersion = GetAnimationVersion(scrollViewer) + 1;
         SetAnimationVersion(scrollViewer, animationVersion);
 
-        var durationMilliseconds = GetWheelAnimationDurationMilliseconds(scrollViewer);
-        if (GetAllowContentScroll(scrollViewer))
+        var durationMilliseconds = GetWheelAnimationDurationMilliseconds(optionsSource);
+        if (GetAllowContentScroll(optionsSource))
             durationMilliseconds = Math.Clamp(durationMilliseconds, 100d, 160d);
 
         var animation = new DoubleAnimation
@@ -220,6 +275,25 @@ public static class SmoothScrollBehavior
 
         scrollViewer.BeginAnimation(AnimatedVerticalOffsetProperty, animation, HandoffBehavior.SnapshotAndReplace);
         e.Handled = true;
+        return true;
+    }
+
+    public static bool HandleMouseWheelFromDescendant(
+        DependencyObject root,
+        MouseWheelEventArgs e,
+        bool handleWhenUnavailable = false)
+    {
+        if (FindDescendant<ScrollViewer>(root) is not { } scrollViewer)
+        {
+            if (handleWhenUnavailable)
+                e.Handled = true;
+            return false;
+        }
+
+        var handled = HandleMouseWheel(scrollViewer, e, root);
+        if (!handled && handleWhenUnavailable)
+            e.Handled = true;
+        return handled;
     }
 
     private static void OnAnimatedVerticalOffsetChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -234,5 +308,22 @@ public static class SmoothScrollBehavior
         SetIsInternalScrollUpdate(scrollViewer, true);
         scrollViewer.ScrollToVerticalOffset(offset);
         SetIsInternalScrollUpdate(scrollViewer, false);
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root) where T : DependencyObject
+    {
+        var childCount = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < childCount; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T match)
+                return match;
+
+            var nested = FindDescendant<T>(child);
+            if (nested is not null)
+                return nested;
+        }
+
+        return null;
     }
 }

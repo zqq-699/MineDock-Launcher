@@ -271,49 +271,55 @@
                                IsOpen="{TemplateBinding IsPopupOpen}"
                                PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
                                Placement="Bottom"
-                               VerticalOffset="10"
+                               HorizontalOffset="0"
+                               VerticalOffset="-8"
                                PopupAnimation="None">
-                            <Grid MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                            <Grid x:Name="PopupSurface"
+                                  Opacity="0"
+                                  Margin="14"
+                                  Background="#01000000"
+                                  MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                   MaxHeight="{TemplateBinding MaxDropDownHeight}">
-                                <Border Background="#01000000"
+                                <Border Background="#FF252525"
                                         CornerRadius="9"
                                         IsHitTestVisible="False">
                                     <Border.Effect>
-                                        <DropShadowEffect BlurRadius="24"
+                                        <DropShadowEffect BlurRadius="22"
                                                           Color="#000000"
-                                                          Opacity="0.42"
+                                                          Opacity="0.36"
                                                           ShadowDepth="0" />
                                     </Border.Effect>
                                 </Border>
-
-                                <controls:BackdropBlurBorder x:Name="PopupSurface"
-                                                             Opacity="0"
-                                                             Padding="5"
-                                                             SourceElement="{Binding PlacementTarget, ElementName=PART_Popup}"
+                                <Border Background="#FF252525"
+                                        CornerRadius="9"
+                                        IsHitTestVisible="False" />
+                                <controls:BackdropBlurBorder x:Name="PopupBlurSurface"
                                                              BlurRadius="42"
-                                                             RenderScale="0.58"
-                                                             TintColor="#A0252525"
+                                                             TintColor="#00252525"
                                                              BorderBrush="#14FFFFFF"
                                                              BorderThickness="1"
                                                              CornerRadius="9"
                                                              ClipToBounds="True"
-                                                             behaviors:RoundedClip.Radius="9">
-                                    <ListBox x:Name="PART_DropDownList"
-                                             Style="{StaticResource LauncherComboBoxDropDownListStyle}"
-                                             ItemsSource="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Items}"
-                                             ItemTemplate="{TemplateBinding ItemTemplate}"
-                                             ItemTemplateSelector="{TemplateBinding ItemTemplateSelector}"
-                                             ItemStringFormat="{TemplateBinding ItemStringFormat}"
-                                             ItemContainerStyle="{TemplateBinding DropDownItemContainerStyle}"
-                                             ItemsPanel="{TemplateBinding ItemsPanel}"
-                                             DisplayMemberPath="{TemplateBinding DisplayMemberPath}"
-                                             SelectedValuePath="{TemplateBinding SelectedValuePath}"
-                                             HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                             VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                                             SelectedItem="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=SelectedItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             SelectedValue="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=SelectedValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
-                                </controls:BackdropBlurBorder>
+                                                             behaviors:RoundedClip.Radius="9" />
+                                <Border Background="#8A252525"
+                                        CornerRadius="9"
+                                        IsHitTestVisible="False" />
+                                <ListBox x:Name="PART_DropDownList"
+                                         Margin="5"
+                                         Style="{StaticResource LauncherComboBoxDropDownListStyle}"
+                                         ItemsSource="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=Items}"
+                                         ItemTemplate="{TemplateBinding ItemTemplate}"
+                                         ItemTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                         ItemStringFormat="{TemplateBinding ItemStringFormat}"
+                                         ItemContainerStyle="{TemplateBinding DropDownItemContainerStyle}"
+                                         ItemsPanel="{TemplateBinding ItemsPanel}"
+                                         DisplayMemberPath="{TemplateBinding DisplayMemberPath}"
+                                         SelectedValuePath="{TemplateBinding SelectedValuePath}"
+                                         HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                         VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                         SelectedItem="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=SelectedItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         SelectedValue="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=SelectedValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
                             </Grid>
                         </Popup>
                     </Grid>

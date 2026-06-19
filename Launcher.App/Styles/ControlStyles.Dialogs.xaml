@@ -44,14 +44,7 @@
     <Style x:Key="DialogBlurLayerStyle" TargetType="Border">
         <Setter Property="IsHitTestVisible" Value="False" />
         <Setter Property="CornerRadius" Value="16" />
-        <Setter Property="Background">
-            <Setter.Value>
-                <ImageBrush Stretch="Fill"
-                            AlignmentX="Left"
-                            AlignmentY="Top"
-                            ViewboxUnits="Absolute" />
-            </Setter.Value>
-        </Setter>
+        <Setter Property="Background" Value="Transparent" />
     </Style>
 
     <Style x:Key="DialogContentGridStyle" TargetType="Grid">
@@ -164,6 +157,16 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Margin" Value="0,22,0,18" />
+        <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+        <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+        <Setter Property="VirtualizingPanel.ScrollUnit" Value="Pixel" />
+        <Setter Property="behaviors:SmoothScrollBehavior.IsEnabled" Value="True" />
+        <Setter Property="behaviors:SmoothScrollBehavior.AllowContentScroll" Value="True" />
+        <Setter Property="behaviors:SmoothScrollBehavior.ScrollAmount" Value="92" />
+        <Setter Property="behaviors:SmoothScrollBehavior.WheelAnimationDurationMilliseconds" Value="130" />
         <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
     </Style>
 
