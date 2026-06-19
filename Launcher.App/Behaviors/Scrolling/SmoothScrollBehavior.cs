@@ -290,7 +290,8 @@ public static class SmoothScrollBehavior
             return false;
         }
 
-        var handled = HandleMouseWheel(scrollViewer, e, root);
+        var optionsSource = GetIsEnabled(root) ? root : scrollViewer;
+        var handled = HandleMouseWheel(scrollViewer, e, optionsSource);
         if (!handled && handleWhenUnavailable)
             e.Handled = true;
         return handled;

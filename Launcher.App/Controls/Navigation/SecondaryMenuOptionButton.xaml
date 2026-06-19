@@ -26,12 +26,7 @@
                 <Border>
                     <Border.Style>
                         <Style TargetType="Border" BasedOn="{StaticResource SecondaryMenuAvatarContainerStyle}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IconMode, ElementName=Root}" Value="Avatar">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
+                            <Setter Property="Visibility" Value="{Binding AvatarIconVisibility, ElementName=Root}" />
                         </Style>
                     </Border.Style>
                     <Image Source="{Binding AvatarSource, ElementName=Root}"
@@ -46,12 +41,7 @@
                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}">
                     <controls:SvgIcon.Style>
                         <Style TargetType="{x:Type controls:SvgIcon}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IconMode, ElementName=Root}" Value="Svg">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
+                            <Setter Property="Visibility" Value="{Binding SvgIconVisibility, ElementName=Root}" />
                         </Style>
                     </controls:SvgIcon.Style>
                 </controls:SvgIcon>
@@ -65,12 +55,7 @@
                            VerticalAlignment="Center">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IconMode, ElementName=Root}" Value="Glyph">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
+                            <Setter Property="Visibility" Value="{Binding GlyphIconVisibility, ElementName=Root}" />
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>

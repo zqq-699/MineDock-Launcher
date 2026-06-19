@@ -21,6 +21,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     private readonly IFilePickerService filePickerService;
     private readonly IMinecraftSkinFileValidator skinFileValidator;
     private readonly ILogger<AccountAppearanceViewModel> logger;
+    private readonly IFloatingMessageService floatingMessageService;
     private LauncherSkinRecord? skinPendingModelChange;
 
     [ObservableProperty]
@@ -49,7 +50,8 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         IAccountDialogService dialogService,
         IFilePickerService filePickerService,
         IMinecraftSkinFileValidator skinFileValidator,
-        ILogger<AccountAppearanceViewModel>? logger = null)
+        ILogger<AccountAppearanceViewModel>? logger = null,
+        IFloatingMessageService? floatingMessageService = null)
     {
         this.accountList = accountList;
         this.microsoftAccountService = microsoftAccountService;
@@ -59,6 +61,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         this.filePickerService = filePickerService;
         this.skinFileValidator = skinFileValidator;
         this.logger = logger ?? NullLogger<AccountAppearanceViewModel>.Instance;
+        this.floatingMessageService = floatingMessageService ?? NullFloatingMessageService.Instance;
         this.accountList.PropertyChanged += AccountList_PropertyChanged;
     }
 
@@ -223,6 +226,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             PopulateSelectedAccountSkins(updatedAccount, skin.Id);
             await accountList.PersistAccountOrderAsync();
             AccountProfileMessage = Strings.Status_SkinUpdated;
+            floatingMessageService.Show(AccountProfileMessage);
         }
         catch (Exception ex)
         {
@@ -235,6 +239,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
                 AccountErrorCodeMessageFormatter.Format(ex));
             AccountProfileMessage = Strings.Status_SkinUpdateFailed;
             AccountProfileErrorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
+            floatingMessageService.Show(AccountProfileMessage);
         }
         finally
         {
@@ -945,5 +950,19 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         DeleteAccountSkinCommand.NotifyCanExecuteChanged();
     }
 
+    private sealed class NullFloatingMessageService : IFloatingMessageService
+    {
+        public static NullFloatingMessageService Instance { get; } = new();
+
+        public event Action<string>? MessageRequested
+        {
+            add { }
+            remove { }
+        }
+
+        public void Show(string message)
+        {
+        }
+    }
 }
 

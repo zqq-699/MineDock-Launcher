@@ -16,7 +16,11 @@ public partial class SecondaryMenuOptionButton : UserControl
         DependencyProperty.Register(nameof(TextMargin), typeof(Thickness), typeof(SecondaryMenuOptionButton), new PropertyMetadata(new Thickness(4, 0, 8, 0)));
 
     public static readonly DependencyProperty IconModeProperty =
-        DependencyProperty.Register(nameof(IconMode), typeof(string), typeof(SecondaryMenuOptionButton), new PropertyMetadata("Svg"));
+        DependencyProperty.Register(
+            nameof(IconMode),
+            typeof(string),
+            typeof(SecondaryMenuOptionButton),
+            new PropertyMetadata("Svg", OnIconModeChanged));
 
     public static readonly DependencyProperty IconKeyProperty =
         DependencyProperty.Register(nameof(IconKey), typeof(string), typeof(SecondaryMenuOptionButton), new PropertyMetadata(null));
@@ -61,6 +65,27 @@ public partial class SecondaryMenuOptionButton : UserControl
     public static readonly DependencyProperty GlyphFontWeightProperty =
         DependencyProperty.Register(nameof(GlyphFontWeight), typeof(FontWeight), typeof(SecondaryMenuOptionButton), new PropertyMetadata(FontWeights.Medium));
 
+    public static readonly DependencyProperty SvgIconVisibilityProperty =
+        DependencyProperty.Register(
+            nameof(SvgIconVisibility),
+            typeof(Visibility),
+            typeof(SecondaryMenuOptionButton),
+            new PropertyMetadata(Visibility.Visible));
+
+    public static readonly DependencyProperty AvatarIconVisibilityProperty =
+        DependencyProperty.Register(
+            nameof(AvatarIconVisibility),
+            typeof(Visibility),
+            typeof(SecondaryMenuOptionButton),
+            new PropertyMetadata(Visibility.Collapsed));
+
+    public static readonly DependencyProperty GlyphIconVisibilityProperty =
+        DependencyProperty.Register(
+            nameof(GlyphIconVisibility),
+            typeof(Visibility),
+            typeof(SecondaryMenuOptionButton),
+            new PropertyMetadata(Visibility.Collapsed));
+
     public static readonly RoutedEvent RefreshRequestedEvent =
         EventManager.RegisterRoutedEvent(
             nameof(RefreshRequested),
@@ -71,6 +96,7 @@ public partial class SecondaryMenuOptionButton : UserControl
     public SecondaryMenuOptionButton()
     {
         InitializeComponent();
+        UpdateIconVisibility();
         MouseEnter += (_, _) => UpdatePointerOverOption();
         MouseLeave += (_, _) => UpdatePointerOverOption();
     }
@@ -177,6 +203,24 @@ public partial class SecondaryMenuOptionButton : UserControl
         set => SetValue(GlyphFontWeightProperty, value);
     }
 
+    public Visibility SvgIconVisibility
+    {
+        get => (Visibility)GetValue(SvgIconVisibilityProperty);
+        private set => SetValue(SvgIconVisibilityProperty, value);
+    }
+
+    public Visibility AvatarIconVisibility
+    {
+        get => (Visibility)GetValue(AvatarIconVisibilityProperty);
+        private set => SetValue(AvatarIconVisibilityProperty, value);
+    }
+
+    public Visibility GlyphIconVisibility
+    {
+        get => (Visibility)GetValue(GlyphIconVisibilityProperty);
+        private set => SetValue(GlyphIconVisibilityProperty, value);
+    }
+
     private void Button_OnClick(object sender, RoutedEventArgs e)
     {
         if (!IsSelected)
@@ -193,10 +237,29 @@ public partial class SecondaryMenuOptionButton : UserControl
             button.UpdatePointerOverOption();
     }
 
+    private static void OnIconModeChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
+    {
+        if (dependencyObject is SecondaryMenuOptionButton button)
+            button.UpdateIconVisibility();
+    }
+
     private void UpdatePointerOverOption()
     {
         var isActive = IsMouseOver || IsExternalMouseOver;
         IsPointerOverOption = isActive;
         OptionHoverBehavior.SetIsExternalActive(PART_Button, isActive);
+    }
+
+    private void UpdateIconVisibility()
+    {
+        SvgIconVisibility = string.Equals(IconMode, "Svg", StringComparison.OrdinalIgnoreCase)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        AvatarIconVisibility = string.Equals(IconMode, "Avatar", StringComparison.OrdinalIgnoreCase)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        GlyphIconVisibility = string.Equals(IconMode, "Glyph", StringComparison.OrdinalIgnoreCase)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 }

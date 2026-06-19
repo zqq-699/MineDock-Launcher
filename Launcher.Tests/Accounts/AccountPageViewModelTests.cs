@@ -558,10 +558,12 @@ public sealed class AccountPageViewModelTests
                 HasFreshProfile = true
             }
         };
+        var floatingMessageService = new FakeFloatingMessageService();
         var viewModel = CreateViewModel(
             accountStore,
             new FakeStatusService(),
-            microsoftAccountService);
+            microsoftAccountService,
+            floatingMessageService: floatingMessageService);
         var skin = new LauncherSkinRecord
         {
             Id = "skin-classic",
@@ -591,6 +593,7 @@ public sealed class AccountPageViewModelTests
         Assert.Equal(MinecraftSkinModel.Classic, viewModel.SelectedAccount?.SkinModel);
         var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
         Assert.Equal("skin-classic", savedAccount.ActiveSkinId);
+        Assert.Equal(Strings.Status_SkinUpdated, floatingMessageService.LastMessage);
     }
 
     [Fact]
@@ -1006,10 +1009,12 @@ public sealed class AccountPageViewModelTests
         {
             UploadSkinHandler = (_, _, _) => throw new MicrosoftAccountSkinUpdateException("HTTP 400 / INVALID_SKIN")
         };
+        var floatingMessageService = new FakeFloatingMessageService();
         var viewModel = CreateViewModel(
             new FakeAccountStore(),
             new FakeStatusService(),
-            microsoftAccountService);
+            microsoftAccountService,
+            floatingMessageService: floatingMessageService);
         var account = new LauncherAccount
         {
             Id = "microsoft-00000000000000000000000000000001",
@@ -1036,6 +1041,7 @@ public sealed class AccountPageViewModelTests
         await viewModel.Appearance.ApplySelectedAccountSkinCommand.ExecuteAsync(null);
 
         Assert.Equal(Strings.Status_SkinUpdateFailed, viewModel.Appearance.AccountProfileMessage);
+        Assert.Equal(Strings.Status_SkinUpdateFailed, floatingMessageService.LastMessage);
         Assert.Equal("返回代码：HTTP 400 / INVALID_SKIN", viewModel.Appearance.AccountProfileErrorCodeMessage);
         Assert.True(viewModel.Appearance.HasAccountProfileErrorCode);
     }
@@ -1316,7 +1322,8 @@ public sealed class AccountPageViewModelTests
         FakeAccountDialogService? dialogService = null,
         FakeFilePickerService? filePickerService = null,
         FakeSkinFileValidator? skinFileValidator = null,
-        FakeAccountSkinLibraryService? skinLibraryService = null)
+        FakeAccountSkinLibraryService? skinLibraryService = null,
+        FakeFloatingMessageService? floatingMessageService = null)
     {
         var accountList = new AccountListViewModel(accountStore);
         var microsoftService = microsoftAccountService ?? new FakeMicrosoftAccountService();
@@ -1333,7 +1340,8 @@ public sealed class AccountPageViewModelTests
                 accountSkinModelDialog,
                 accountDialogService,
                 filePickerService ?? new FakeFilePickerService(),
-                skinFileValidator ?? new FakeSkinFileValidator(true)),
+                skinFileValidator ?? new FakeSkinFileValidator(true),
+                floatingMessageService: floatingMessageService),
             new AccountOfflineUuidViewModel(
                 accountList,
                 offlineUuidService,
@@ -1477,6 +1485,19 @@ public sealed class AccountPageViewModelTests
         {
             LastMessage = message;
             MessageReported?.Invoke(message);
+        }
+    }
+
+    private sealed class FakeFloatingMessageService : IFloatingMessageService
+    {
+        public event Action<string>? MessageRequested;
+
+        public string? LastMessage { get; private set; }
+
+        public void Show(string message)
+        {
+            LastMessage = message;
+            MessageRequested?.Invoke(message);
         }
     }
 
