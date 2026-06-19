@@ -6,13 +6,16 @@ internal sealed class MinecraftCapeService
 {
     private readonly MicrosoftAuthProvider authProvider;
     private readonly MinecraftProfileClient profileClient;
+    private readonly AccountCapeCacheService capeCacheService;
 
     public MinecraftCapeService(
         MicrosoftAuthProvider authProvider,
-        MinecraftProfileClient profileClient)
+        MinecraftProfileClient profileClient,
+        AccountCapeCacheService capeCacheService)
     {
         this.authProvider = authProvider;
         this.profileClient = profileClient;
+        this.capeCacheService = capeCacheService;
     }
 
     public async Task<IReadOnlyList<AccountCapeOption>> GetCapesAsync(
@@ -36,14 +39,23 @@ internal sealed class MinecraftCapeService
             }
         };
 
-        options.AddRange(capes.Select(cape => new AccountCapeOption
+        foreach (var cape in capes)
         {
-            Id = cape.Id,
-            DisplayName = string.IsNullOrWhiteSpace(cape.Alias) ? cape.Id ?? string.Empty : cape.Alias,
-            ImageUrl = cape.Url,
-            IsActive = MinecraftAccountHelpers.IsActiveState(cape.State),
-            IsNone = false
-        }));
+            var cachedImageUrl = await capeCacheService.GetOrCreateCapeSourceAsync(
+                account.Uuid ?? account.Id,
+                cape.Id,
+                cape.Url,
+                forceRefresh: true,
+                cancellationToken);
+            options.Add(new AccountCapeOption
+            {
+                Id = cape.Id,
+                DisplayName = string.IsNullOrWhiteSpace(cape.Alias) ? cape.Id ?? string.Empty : cape.Alias,
+                ImageUrl = cachedImageUrl,
+                IsActive = MinecraftAccountHelpers.IsActiveState(cape.State),
+                IsNone = false
+            });
+        }
 
         return options;
     }

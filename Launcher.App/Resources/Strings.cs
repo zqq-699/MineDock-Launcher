@@ -393,6 +393,7 @@ public static class Strings
     public static string Status_RefreshingAccountProfile => Get(nameof(Status_RefreshingAccountProfile));
     public static string Status_AccountProfileRefreshed => Get(nameof(Status_AccountProfileRefreshed));
     public static string Status_AccountProfileRefreshFailed => Get(nameof(Status_AccountProfileRefreshFailed));
+    public static string Status_AccountProfileRefreshTooFrequent => Get(nameof(Status_AccountProfileRefreshTooFrequent));
     public static string Status_AccountProfileRefreshOfflineUnsupported => Get(nameof(Status_AccountProfileRefreshOfflineUnsupported));
     public static string Status_ErrorCodeFormat => Get(nameof(Status_ErrorCodeFormat));
     public static string Status_SkinOfflineUnsupported => Get(nameof(Status_SkinOfflineUnsupported));

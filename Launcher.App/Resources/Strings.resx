@@ -332,6 +332,7 @@
   <data name="Status_RefreshingAccountProfile" xml:space="preserve"><value>正在刷新正版账户资料...</value></data>
   <data name="Status_AccountProfileRefreshed" xml:space="preserve"><value>正版账户资料已刷新</value></data>
   <data name="Status_AccountProfileRefreshFailed" xml:space="preserve"><value>刷新正版账户资料失败，请稍后重试。</value></data>
+  <data name="Status_AccountProfileRefreshTooFrequent" xml:space="preserve"><value>刷新过于频繁，稍后再试</value></data>
   <data name="Status_AccountProfileRefreshOfflineUnsupported" xml:space="preserve"><value>只有正版账户可以刷新账户资料</value></data>
   <data name="Status_ErrorCodeFormat" xml:space="preserve"><value>返回代码：{0}</value></data>
   <data name="Status_SkinOfflineUnsupported" xml:space="preserve"><value>只有正版账户可以更换皮肤</value></data>

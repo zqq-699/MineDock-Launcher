@@ -1273,11 +1273,18 @@ public sealed class AccountPageViewModelTests
     }
 
     [Fact]
-    public async Task RefreshSelectedAccountProfileFailureShowsReturnedCode()
+    public async Task RefreshSelectedAccountProfileAddsNoneCapeFirstAndSupportsCarouselSelection()
     {
+        var cape = new AccountCapeOption
+        {
+            Id = "cape-1",
+            DisplayName = "Cape",
+            ImageUrl = "cape.png",
+            IsActive = true
+        };
         var microsoftAccountService = new FakeMicrosoftAccountService
         {
-            GetCapesHandler = _ => throw new MicrosoftAccountProfileRefreshException("HTTP 503")
+            GetCapesHandler = _ => [cape]
         };
         var viewModel = CreateViewModel(
             new FakeAccountStore(),
@@ -1295,9 +1302,214 @@ public sealed class AccountPageViewModelTests
 
         await viewModel.Appearance.RefreshSelectedAccountProfileCommand.ExecuteAsync(null);
 
+        Assert.Equal(2, viewModel.Appearance.SelectedAccountCapeOptions.Count);
+        Assert.True(viewModel.Appearance.SelectedAccountCapeOptions[0].IsNone);
+        Assert.Same(cape, viewModel.Appearance.SelectedAccountCapeOptions[1]);
+        Assert.Same(cape, viewModel.Appearance.SelectedAccountCapeOption);
+        Assert.True(viewModel.Appearance.HasPreviousAccountCape);
+        Assert.False(viewModel.Appearance.HasNextAccountCape);
+        Assert.False(viewModel.Appearance.CanApplySelectedCape);
+
+        viewModel.Appearance.SelectPreviousAccountCapeCommand.Execute(null);
+
+        Assert.True(viewModel.Appearance.SelectedAccountCapeOption?.IsNone);
+        Assert.False(viewModel.Appearance.HasPreviousAccountCape);
+        Assert.True(viewModel.Appearance.HasNextAccountCape);
+        Assert.True(viewModel.Appearance.CanApplySelectedCape);
+    }
+
+    [Fact]
+    public async Task RefreshSelectedAccountProfileShowsNoneCapeWhenNoCapesAreAvailable()
+    {
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            GetCapesHandler = _ => []
+        };
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(),
+            new FakeStatusService(),
+            microsoftAccountService);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        await viewModel.Appearance.RefreshSelectedAccountProfileCommand.ExecuteAsync(null);
+
+        var noneCape = Assert.Single(viewModel.Appearance.SelectedAccountCapeOptions);
+        Assert.True(noneCape.IsNone);
+        Assert.True(noneCape.IsActive);
+        Assert.Same(noneCape, viewModel.Appearance.SelectedAccountCapeOption);
+        Assert.False(viewModel.Appearance.CanApplySelectedCape);
+        Assert.Equal(Strings.Account_ProfileNoCapes, viewModel.Appearance.AccountProfileMessage);
+    }
+
+    [Fact]
+    public async Task ApplyNoneCapePassesNullCapeIdAndPersistsCache()
+    {
+        var accountStore = new FakeAccountStore();
+        var floatingMessageService = new FakeFloatingMessageService();
+        var noneCape = new AccountCapeOption
+        {
+            DisplayName = string.Empty,
+            IsNone = true
+        };
+        var activeCape = new AccountCapeOption
+        {
+            Id = "cape-1",
+            DisplayName = "Cape",
+            ImageUrl = "cape.png",
+            IsActive = true
+        };
+        var microsoftAccountService = new FakeMicrosoftAccountService();
+        var viewModel = CreateViewModel(
+            accountStore,
+            new FakeStatusService(),
+            microsoftAccountService,
+            floatingMessageService: floatingMessageService);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false,
+            CachedCapeOptions = [noneCape, activeCape]
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+        viewModel.Appearance.SelectPreviousAccountCapeCommand.Execute(null);
+
+        await viewModel.Appearance.ApplySelectedAccountCapeCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, microsoftAccountService.SetActiveCapeCount);
+        Assert.Null(microsoftAccountService.LastCapeId);
+        Assert.Equal(Strings.Status_CapeRemoved, viewModel.Appearance.AccountProfileMessage);
+        Assert.Equal(Strings.Status_CapeRemoved, floatingMessageService.LastMessage);
+        var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
+        Assert.True(savedAccount.CachedCapeOptions[0].IsNone);
+        Assert.True(savedAccount.CachedCapeOptions[0].IsActive);
+        Assert.False(savedAccount.CachedCapeOptions[1].IsActive);
+    }
+
+    [Fact]
+    public async Task ApplyCapeFailureShowsFloatingMessage()
+    {
+        var floatingMessageService = new FakeFloatingMessageService();
+        var noneCape = new AccountCapeOption
+        {
+            DisplayName = string.Empty,
+            IsNone = true
+        };
+        var activeCape = new AccountCapeOption
+        {
+            Id = "cape-1",
+            DisplayName = "Cape",
+            ImageUrl = "cape.png",
+            IsActive = true
+        };
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            SetActiveCapeHandler = (_, _) => throw new MicrosoftAccountProfileRefreshException("HTTP 500")
+        };
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(),
+            new FakeStatusService(),
+            microsoftAccountService,
+            floatingMessageService: floatingMessageService);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false,
+            CachedCapeOptions = [noneCape, activeCape]
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+        viewModel.Appearance.SelectPreviousAccountCapeCommand.Execute(null);
+
+        await viewModel.Appearance.ApplySelectedAccountCapeCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_CapeChangeFailed, viewModel.Appearance.AccountProfileMessage);
+        Assert.Equal(Strings.Status_CapeChangeFailed, floatingMessageService.LastMessage);
+    }
+
+    [Fact]
+    public async Task RefreshSelectedAccountProfileFailureShowsReturnedCode()
+    {
+        var floatingMessageService = new FakeFloatingMessageService();
+        var cachedCape = new AccountCapeOption
+        {
+            Id = "cached-cape",
+            DisplayName = "Cached Cape",
+            ImageUrl = "file:///cached-cape.png",
+            IsActive = true
+        };
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            GetCapesHandler = _ => throw new MicrosoftAccountProfileRefreshException("HTTP 503")
+        };
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(),
+            new FakeStatusService(),
+            microsoftAccountService,
+            floatingMessageService: floatingMessageService);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false,
+            CachedCapeOptions = [cachedCape]
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+        var selectedCapeBeforeRefresh = viewModel.Appearance.SelectedAccountCapeOption;
+        var capeOptionsBeforeRefresh = viewModel.Appearance.SelectedAccountCapeOptions.ToList();
+
+        await viewModel.Appearance.RefreshSelectedAccountProfileCommand.ExecuteAsync(null);
+
         Assert.Equal(Strings.Status_LoadAccountProfileFailed, viewModel.Appearance.AccountProfileMessage);
+        Assert.Equal(Strings.Status_LoadAccountProfileFailed, floatingMessageService.LastMessage);
         Assert.Equal("返回代码：HTTP 503", viewModel.Appearance.AccountProfileErrorCodeMessage);
         Assert.True(viewModel.Appearance.HasAccountProfileErrorCode);
+        Assert.Equal(capeOptionsBeforeRefresh, viewModel.Appearance.SelectedAccountCapeOptions);
+        Assert.Same(selectedCapeBeforeRefresh, viewModel.Appearance.SelectedAccountCapeOption);
+    }
+
+    [Fact]
+    public async Task RefreshSelectedAccountProfileTooManyRequestsShowsFriendlyFloatingMessage()
+    {
+        var floatingMessageService = new FakeFloatingMessageService();
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            GetCapesHandler = _ => throw new MicrosoftAccountProfileRefreshException("HTTP 429 / too many request")
+        };
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(),
+            new FakeStatusService(),
+            microsoftAccountService,
+            floatingMessageService: floatingMessageService);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        await viewModel.Appearance.RefreshSelectedAccountProfileCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_AccountProfileRefreshTooFrequent, viewModel.Appearance.AccountProfileMessage);
+        Assert.Equal(Strings.Status_AccountProfileRefreshTooFrequent, floatingMessageService.LastMessage);
+        Assert.Equal("返回代码：HTTP 429 / too many request", viewModel.Appearance.AccountProfileErrorCodeMessage);
     }
 
     private static LauncherSkinRecord CreateSkinRecord(
@@ -1400,15 +1612,21 @@ public sealed class AccountPageViewModelTests
 
         public Func<LauncherAccount, IReadOnlyList<AccountCapeOption>>? GetCapesHandler { get; init; }
 
+        public Func<LauncherAccount, string?, Task>? SetActiveCapeHandler { get; init; }
+
         public int UploadSkinCount { get; private set; }
 
         public int RefreshProfileCount { get; private set; }
 
         public int GetCapesCount { get; private set; }
 
+        public int SetActiveCapeCount { get; private set; }
+
         public string? LastSkinFilePath { get; private set; }
 
         public MinecraftSkinModel? LastSkinModel { get; private set; }
+
+        public string? LastCapeId { get; private set; }
 
         public Task<IReadOnlyList<LauncherAccount>> GetSavedAccountsAsync(CancellationToken cancellationToken = default)
         {
@@ -1464,7 +1682,11 @@ public sealed class AccountPageViewModelTests
 
         public Task SetActiveCapeAsync(LauncherAccount account, string? capeId, CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            SetActiveCapeCount++;
+            LastCapeId = capeId;
+            return SetActiveCapeHandler is null
+                ? Task.CompletedTask
+                : SetActiveCapeHandler(account, capeId);
         }
 
         public Task<LauncherAccount> ChangeNameAsync(LauncherAccount account, string newName, CancellationToken cancellationToken = default)

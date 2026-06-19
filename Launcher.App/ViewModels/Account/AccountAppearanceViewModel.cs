@@ -99,9 +99,16 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
     public bool CanApplySelectedCape => accountList.SelectedAccount is not null
         && !accountList.SelectedAccount.IsOffline
-        && SelectedAccountCapeOption is not null;
+        && !IsAccountProfileBusy
+        && SelectedAccountCapeOption is not null
+        && !SelectedAccountCapeOption.IsActive;
 
     public bool HasSelectedAccountCapes => SelectedAccountCapeOptions.Count > 0;
+
+    public bool HasSelectedAccountCapePreview => SelectedAccountCapeOption is not null;
+
+    public bool CanShowSelectedAccountCapePreviewEmptyState => accountList.SelectedAccount is not null
+        && !HasSelectedAccountCapePreview;
 
     public bool HasSelectedAccountSkins => SelectedAccountSkins.Count > 0;
 
@@ -119,6 +126,14 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     public bool HasPreviousAccountSkin => PreviousAccountSkin is not null;
 
     public bool HasNextAccountSkin => NextAccountSkin is not null;
+
+    public AccountCapeOption? PreviousAccountCape => GetAdjacentCape(-1);
+
+    public AccountCapeOption? NextAccountCape => GetAdjacentCape(1);
+
+    public bool HasPreviousAccountCape => PreviousAccountCape is not null;
+
+    public bool HasNextAccountCape => NextAccountCape is not null;
 
     public bool HasAccountProfileErrorCode => !string.IsNullOrWhiteSpace(AccountProfileErrorCodeMessage);
 
@@ -444,8 +459,9 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
                 "Microsoft account profile refresh failed. AccountId={AccountId} ErrorCode={ErrorCode}",
                 account.Id,
                 AccountErrorCodeMessageFormatter.Format(ex));
-            AccountProfileMessage = Strings.Status_AccountProfileRefreshFailed;
+            AccountProfileMessage = GetProfileRefreshFailedMessage(ex, Strings.Status_AccountProfileRefreshFailed);
             AccountProfileErrorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
+            floatingMessageService.Show(AccountProfileMessage);
         }
         finally
         {
@@ -516,7 +532,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     {
         var account = accountList.SelectedAccount;
         var cape = SelectedAccountCapeOption;
-        if (account is null || cape is null)
+        if (account is null || cape is null || !CanApplySelectedCape)
             return;
 
         if (account.IsOffline)
@@ -531,17 +547,20 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             AccountProfileErrorCodeMessage = string.Empty;
             AccountProfileMessage = Strings.Status_ChangingCape;
             await microsoftAccountService.SetActiveCapeAsync(account, cape.Id);
-            AccountProfileMessage = cape.IsNone
+            var successMessage = cape.IsNone
                 ? Strings.Status_CapeRemoved
                 : string.Format(Strings.Status_CapeChangedFormat, AccountCapeTextProvider.GetDisplayName(cape));
             MarkSelectedCapeActive(cape);
             await StoreSelectedAccountCapeCacheAsync();
+            AccountProfileMessage = successMessage;
+            floatingMessageService.Show(AccountProfileMessage);
         }
         catch (Exception exception)
         {
             logger.LogWarning(exception, "Microsoft account cape change failed. AccountId={AccountId} HasCape={HasCape}", account.Id, !cape.IsNone);
             AccountProfileMessage = Strings.Status_CapeChangeFailed;
             AccountProfileErrorCodeMessage = string.Empty;
+            floatingMessageService.Show(AccountProfileMessage);
         }
         finally
         {
@@ -551,7 +570,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
     partial void OnSelectedAccountCapeOptionChanged(AccountCapeOption? value)
     {
-        OnPropertyChanged(nameof(CanApplySelectedCape));
+        NotifySelectedAccountCapePropertiesChanged();
     }
 
     partial void OnSelectedAccountSkinChanged(LauncherSkinRecord? value)
@@ -571,11 +590,6 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
     private async Task LoadSelectedAccountProfileAsync(LauncherAccount account)
     {
-        SelectedAccountCapeOptions.Clear();
-        SelectedAccountCapeOption = null;
-        OnPropertyChanged(nameof(HasSelectedAccountCapes));
-        OnPropertyChanged(nameof(CanApplySelectedCape));
-
         if (!IsSelectedAccount(account))
             return;
 
@@ -594,12 +608,13 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             if (!IsSelectedAccount(account))
                 return;
 
+            var hasAvailableCapes = capes.Any(cape => !cape.IsNone);
             PopulateSelectedAccountCapeOptions(capes);
             await StoreSelectedAccountCapeCacheAsync();
             OnPropertyChanged(nameof(CanApplySelectedCape));
-            AccountProfileMessage = SelectedAccountCapeOptions.Count == 0
-                ? Strings.Account_ProfileNoCapes
-                : Strings.Account_ProfileLoaded;
+            AccountProfileMessage = hasAvailableCapes
+                ? Strings.Account_ProfileLoaded
+                : Strings.Account_ProfileNoCapes;
         }
         catch (Exception ex)
         {
@@ -610,8 +625,9 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
                     "Microsoft account profile load failed. AccountId={AccountId} ErrorCode={ErrorCode}",
                     account.Id,
                     AccountErrorCodeMessageFormatter.Format(ex));
-                AccountProfileMessage = Strings.Status_LoadAccountProfileFailed;
+                AccountProfileMessage = GetProfileRefreshFailedMessage(ex, Strings.Status_LoadAccountProfileFailed);
                 AccountProfileErrorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
+                floatingMessageService.Show(AccountProfileMessage);
             }
         }
         finally
@@ -627,6 +643,30 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         return ReferenceEquals(selectedAccount, account)
             || (selectedAccount is not null
                 && string.Equals(selectedAccount.Id, account.Id, StringComparison.Ordinal));
+    }
+
+    private static string GetProfileRefreshFailedMessage(Exception exception, string fallbackMessage)
+    {
+        return IsTooManyRequestsError(exception)
+            ? Strings.Status_AccountProfileRefreshTooFrequent
+            : fallbackMessage;
+    }
+
+    private static bool IsTooManyRequestsError(Exception exception)
+    {
+        var errorText = exception switch
+        {
+            MicrosoftAccountProfileRefreshException { ErrorCode: { Length: > 0 } code } => code,
+            _ => exception.Message
+        };
+
+        if (string.IsNullOrWhiteSpace(errorText))
+            return false;
+
+        return errorText.Contains("429", StringComparison.OrdinalIgnoreCase)
+            && (errorText.Contains("too many request", StringComparison.OrdinalIgnoreCase)
+                || errorText.Contains("too_many_request", StringComparison.OrdinalIgnoreCase)
+                || errorText.Contains("too_many_requests", StringComparison.OrdinalIgnoreCase));
     }
 
     private void ResetSelectedAccountProfileState(LauncherAccount? account)
@@ -645,12 +685,14 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             return;
         }
 
-        PopulateSelectedAccountCapeOptions(account.CachedCapeOptions);
+        if (!account.IsOffline)
+            PopulateSelectedAccountCapeOptions(account.CachedCapeOptions);
+
         PopulateSelectedAccountSkins(account, account.ActiveSkinId);
         AccountProfileErrorCodeMessage = string.Empty;
         AccountProfileMessage = account.IsOffline
             ? Strings.Account_ProfileOfflineUnsupported
-            : SelectedAccountCapeOptions.Count > 0
+            : account.CachedCapeOptions.Count > 0
                 ? Strings.Account_ProfileCacheLoaded
                 : Strings.Account_ProfileRefreshHint;
         NotifyAccountSelectionPropertiesChanged();
@@ -658,14 +700,14 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
     private void PopulateSelectedAccountCapeOptions(IEnumerable<AccountCapeOption> capes)
     {
+        var normalizedCapes = NormalizeCapeOptions(capes).ToList();
         SelectedAccountCapeOptions.Clear();
-        foreach (var cape in capes)
+        foreach (var cape in normalizedCapes)
             SelectedAccountCapeOptions.Add(cape);
 
         SelectedAccountCapeOption = SelectedAccountCapeOptions.FirstOrDefault(cape => cape.IsActive)
             ?? SelectedAccountCapeOptions.FirstOrDefault();
-        OnPropertyChanged(nameof(HasSelectedAccountCapes));
-        OnPropertyChanged(nameof(CanApplySelectedCape));
+        NotifySelectedAccountCapePropertiesChanged();
     }
 
     private void PopulateSelectedAccountSkins(LauncherAccount account, string? preferredSkinId)
@@ -751,6 +793,78 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             return null;
 
         return SelectedAccountSkins[adjacentIndex];
+    }
+
+    private AccountCapeOption? GetAdjacentCape(int offset)
+    {
+        if (SelectedAccountCapeOptions.Count < 2 || SelectedAccountCapeOption is null)
+            return null;
+
+        var index = SelectedAccountCapeOptions.IndexOf(SelectedAccountCapeOption);
+        if (index < 0)
+            return null;
+
+        var adjacentIndex = index + offset;
+        if (adjacentIndex < 0 || adjacentIndex >= SelectedAccountCapeOptions.Count)
+            return null;
+
+        return SelectedAccountCapeOptions[adjacentIndex];
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSelectPreviousAccountCape))]
+    public void SelectPreviousAccountCape()
+    {
+        if (PreviousAccountCape is not null)
+            SelectedAccountCapeOption = PreviousAccountCape;
+    }
+
+    public bool CanSelectPreviousAccountCape()
+    {
+        return PreviousAccountCape is not null;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSelectNextAccountCape))]
+    public void SelectNextAccountCape()
+    {
+        if (NextAccountCape is not null)
+            SelectedAccountCapeOption = NextAccountCape;
+    }
+
+    public bool CanSelectNextAccountCape()
+    {
+        return NextAccountCape is not null;
+    }
+
+    private static IEnumerable<AccountCapeOption> NormalizeCapeOptions(IEnumerable<AccountCapeOption> capes)
+    {
+        var source = capes.ToList();
+        var hasActiveCape = source.Any(cape => !cape.IsNone && cape.IsActive);
+        var noneCape = source.FirstOrDefault(cape => cape.IsNone);
+
+        yield return noneCape is null
+            ? CreateNoneCapeOption(!hasActiveCape)
+            : new AccountCapeOption
+            {
+                Id = null,
+                DisplayName = string.Empty,
+                ImageUrl = noneCape.ImageUrl,
+                IsActive = !hasActiveCape && noneCape.IsActive,
+                IsNone = true
+            };
+
+        foreach (var cape in source.Where(cape => !cape.IsNone))
+            yield return cape;
+    }
+
+    private static AccountCapeOption CreateNoneCapeOption(bool isActive)
+    {
+        return new AccountCapeOption
+        {
+            Id = null,
+            DisplayName = string.Empty,
+            IsActive = isActive,
+            IsNone = true
+        };
     }
 
     private static List<LauncherSkinRecord> AddOrReplaceSkin(
@@ -918,14 +1032,28 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     private void NotifySelectedAccountProfileActionPropertiesChanged()
     {
         OnPropertyChanged(nameof(CanEditSelectedMicrosoftAccount));
-        OnPropertyChanged(nameof(CanApplySelectedCape));
         OnPropertyChanged(nameof(CanApplySelectedAccountSkin));
         OnPropertyChanged(nameof(CanEditSelectedAccountSkinLibraryItem));
         OnPropertyChanged(nameof(CanDeleteSelectedAccountSkin));
+        NotifySelectedAccountCapePropertiesChanged();
         ChangeSelectedAccountSkinModelCommand.NotifyCanExecuteChanged();
         DeleteSelectedAccountSkinCommand.NotifyCanExecuteChanged();
         ChangeAccountSkinModelCommand.NotifyCanExecuteChanged();
         DeleteAccountSkinCommand.NotifyCanExecuteChanged();
+    }
+
+    private void NotifySelectedAccountCapePropertiesChanged()
+    {
+        OnPropertyChanged(nameof(CanApplySelectedCape));
+        OnPropertyChanged(nameof(HasSelectedAccountCapes));
+        OnPropertyChanged(nameof(HasSelectedAccountCapePreview));
+        OnPropertyChanged(nameof(CanShowSelectedAccountCapePreviewEmptyState));
+        OnPropertyChanged(nameof(PreviousAccountCape));
+        OnPropertyChanged(nameof(NextAccountCape));
+        OnPropertyChanged(nameof(HasPreviousAccountCape));
+        OnPropertyChanged(nameof(HasNextAccountCape));
+        SelectPreviousAccountCapeCommand.NotifyCanExecuteChanged();
+        SelectNextAccountCapeCommand.NotifyCanExecuteChanged();
     }
 
     private void NotifySelectedAccountSkinPropertiesChanged()

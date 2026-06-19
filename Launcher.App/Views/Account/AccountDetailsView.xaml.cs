@@ -12,6 +12,7 @@ public partial class AccountDetailsView : UserControl
 {
     private readonly PageTransitionService accountTransitionService;
     private INotifyPropertyChanged? currentViewModelNotifier;
+    private string? currentAccountToken;
 
     public AccountDetailsView()
     {
@@ -33,7 +34,8 @@ public partial class AccountDetailsView : UserControl
 
     private void AccountDetailsView_Loaded(object sender, RoutedEventArgs e)
     {
-        accountTransitionService.SyncTo(GetCurrentAccountToken());
+        currentAccountToken = GetCurrentAccountToken();
+        accountTransitionService.SyncTo(currentAccountToken);
         ResetContentPresentation();
     }
 
@@ -46,7 +48,8 @@ public partial class AccountDetailsView : UserControl
         if (currentViewModelNotifier is not null)
             currentViewModelNotifier.PropertyChanged += AccountPageViewModel_PropertyChanged;
 
-        accountTransitionService.SyncTo(GetCurrentAccountToken());
+        currentAccountToken = GetCurrentAccountToken();
+        accountTransitionService.SyncTo(currentAccountToken);
         ResetContentPresentation();
     }
 
@@ -58,11 +61,16 @@ public partial class AccountDetailsView : UserControl
         var accountToken = GetCurrentAccountToken();
         if (string.IsNullOrWhiteSpace(accountToken))
         {
+            currentAccountToken = null;
             accountTransitionService.SyncTo(null);
             ResetContentPresentation();
             return;
         }
 
+        if (string.Equals(currentAccountToken, accountToken, StringComparison.Ordinal))
+            return;
+
+        currentAccountToken = accountToken;
         ScrollToTop();
         Dispatcher.BeginInvoke(
             () => accountTransitionService.MoveTo(accountToken),

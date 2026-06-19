@@ -29,8 +29,6 @@ public partial class AccountPageView : UserControl
 
     private async void SecondaryMenuOptionButton_OnRefreshRequested(object sender, RoutedEventArgs e)
     {
-        AccountDetailsView.ScrollToTop();
-
         if (DataContext is AccountPageViewModel viewModel)
             await viewModel.Appearance.RefreshCurrentSecondaryContentAsync();
     }

@@ -3,7 +3,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
              xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-             xmlns:accountModels="clr-namespace:Launcher.Application.Accounts;assembly=Launcher.Application"
              xmlns:models="clr-namespace:Launcher.App.Models"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
              xmlns:accountControls="clr-namespace:Launcher.App.Controls.Account"
@@ -205,122 +204,60 @@
                 </GroupBox>
 
                 <GroupBox Margin="0,22,0,0"
-                          Header="{x:Static res:Strings.Account_CapeHeader}"
                           Style="{StaticResource LauncherContentSectionStyle}">
-                    <StackPanel>
-                        <Grid>
+                    <GroupBox.Header>
+                        <Grid Width="{Binding ActualWidth, ElementName=DetailsContentRoot}">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="220" />
-                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <controls:AnimatedComboBox ItemsSource="{Binding Appearance.SelectedAccountCapeOptions}"
-                                                       SelectedItem="{Binding Appearance.SelectedAccountCapeOption, Mode=TwoWay}"
-                                                       IsEnabled="{Binding Appearance.HasSelectedAccountCapes}"
-                                                       Style="{StaticResource LauncherComboBoxStyle}"
-                                                       shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                                <controls:AnimatedComboBox.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type accountModels:AccountCapeOption}">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="44" />
-                                                <ColumnDefinition Width="*" />
-                                            </Grid.ColumnDefinitions>
-
-                                            <Border Grid.Column="0"
-                                                    Width="24"
-                                                    Height="32"
-                                                    HorizontalAlignment="Left"
-                                                    VerticalAlignment="Center"
-                                                    Background="#12FFFFFF"
-                                                    BorderBrush="#18FFFFFF"
-                                                    BorderThickness="1"
-                                                    CornerRadius="4"
-                                                    ClipToBounds="True">
-                                                <Grid>
-                                                    <Border CornerRadius="3"
-                                                            RenderOptions.BitmapScalingMode="NearestNeighbor"
-                                                            SnapsToDevicePixels="True">
-                                                        <Border.Style>
-                                                            <Style TargetType="Border">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                                <Setter Property="Background">
-                                                                    <Setter.Value>
-                                                                        <ImageBrush ImageSource="{Binding ImageUrl}"
-                                                                                    Stretch="Fill"
-                                                                                    ViewboxUnits="RelativeToBoundingBox"
-                                                                                    Viewbox="0,0.03125,0.1875,0.5" />
-                                                                    </Setter.Value>
-                                                                </Setter>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsNone}" Value="True">
-                                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Border.Style>
-                                                    </Border>
-
-                                                    <TextBlock Text="&#xE7B8;"
-                                                               FontFamily="Segoe MDL2 Assets"
-                                                               FontSize="10"
-                                                               Foreground="#8FFFFFFF"
-                                                               HorizontalAlignment="Center"
-                                                               VerticalAlignment="Center">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsNone}" Value="True">
-                                                                        <Setter Property="Visibility" Value="Visible" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                </Grid>
-                                            </Border>
-
-                                            <StackPanel Grid.Column="1">
-                                                <TextBlock Text="{Binding Converter={StaticResource CapeDisplayNameConverter}}"
-                                                           Foreground="#F4F4F4"
-                                                           FontSize="13" />
-                                                <TextBlock Text="{Binding Converter={StaticResource CapeStateTextConverter}}"
-                                                           Margin="0,2,0,0"
-                                                           Foreground="#8FFFFFFF"
-                                                           FontSize="11" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </DataTemplate>
-                                </controls:AnimatedComboBox.ItemTemplate>
-                            </controls:AnimatedComboBox>
-
-                            <Button Grid.Column="1"
-                                    Margin="10,0,0,0"
-                                    Style="{StaticResource LauncherDialogButtonStyle}"
-                                    Content="{x:Static res:Strings.Refresh_Button}"
-                                    IsEnabled="{Binding Appearance.CanEditSelectedMicrosoftAccount}"
-                                    Command="{Binding Appearance.RefreshSelectedAccountProfileCommand}" />
-                            <Button Grid.Column="2"
-                                    Margin="10,0,0,0"
-                                    Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
-                                    Content="{x:Static res:Strings.Apply_Button}"
-                                    IsEnabled="{Binding Appearance.CanApplySelectedCape}"
-                                    Command="{Binding Appearance.ApplySelectedAccountCapeCommand}" />
+                            <TextBlock Text="{x:Static res:Strings.Account_CapeHeader}"
+                                       Foreground="#A8FFFFFF"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                        Content="{x:Static res:Strings.Refresh_Button}"
+                                        IsEnabled="{Binding Appearance.CanEditSelectedMicrosoftAccount}"
+                                        Command="{Binding Appearance.RefreshSelectedAccountProfileCommand}" />
+                                <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                        Margin="10,0,0,0"
+                                        Content="{x:Static res:Strings.Apply_Button}"
+                                        IsEnabled="{Binding Appearance.CanApplySelectedCape}"
+                                        Command="{Binding Appearance.ApplySelectedAccountCapeCommand}" />
+                            </StackPanel>
                         </Grid>
-
-                        <TextBlock Margin="0,14,0,0"
-                                   Text="{Binding Appearance.AccountProfileMessage}"
-                                   Foreground="#AFFFFFFF"
-                                   FontSize="13"
-                                   TextWrapping="Wrap" />
-                        <TextBlock Margin="0,6,0,0"
-                                   Text="{Binding Appearance.AccountProfileErrorCodeMessage}"
-                                   Foreground="#8FFFFFFF"
-                                   FontSize="12"
-                                   TextWrapping="Wrap"
-                                   Visibility="{Binding Appearance.HasAccountProfileErrorCode, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                    </GroupBox.Header>
+                    <StackPanel>
+                        <Grid Height="206">
+                            <accountControls:CapeCarousel3DControl Width="540"
+                                                                   Height="192"
+                                                                   HorizontalAlignment="Center"
+                                                                   PreviousCape="{Binding Appearance.PreviousAccountCape}"
+                                                                   SelectedCape="{Binding Appearance.SelectedAccountCapeOption}"
+                                                                   NextCape="{Binding Appearance.NextAccountCape}"
+                                                                   PreviousCommand="{Binding Appearance.SelectPreviousAccountCapeCommand}"
+                                                                   NextCommand="{Binding Appearance.SelectNextAccountCapeCommand}"
+                                                                   Visibility="{Binding Appearance.HasSelectedAccountCapePreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                        </Grid>
+                        <StackPanel HorizontalAlignment="Center"
+                                    Visibility="{Binding Appearance.HasSelectedAccountCapePreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                            <TextBlock Text="{Binding Appearance.SelectedAccountCapeOption, Converter={StaticResource CapeDisplayNameConverter}}"
+                                       Foreground="#F4F4F4"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       TextAlignment="Center" />
+                            <TextBlock Margin="0,4,0,0"
+                                       Text="{Binding Appearance.SelectedAccountCapeOption, Converter={StaticResource CapeStateTextConverter}}"
+                                       Foreground="#8FFFFFFF"
+                                       FontSize="12"
+                                       TextAlignment="Center" />
+                        </StackPanel>
                     </StackPanel>
                 </GroupBox>
             </StackPanel>

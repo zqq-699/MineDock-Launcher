@@ -17,6 +17,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
     private readonly MicrosoftAccountFactory accountFactory;
     private readonly MinecraftSkinService skinService;
     private readonly MinecraftCapeService capeService;
+    private readonly AccountCapeCacheService capeCacheService;
     private readonly ILogger<MicrosoftAccountService> logger;
 
     public MicrosoftAccountService(ILogger<MicrosoftAccountService>? logger = null)
@@ -26,10 +27,11 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
         authProvider = new MicrosoftAuthProvider(pathProvider);
         avatarService = new AccountAvatarService(HttpClient, pathProvider);
         skinCacheService = new AccountSkinCacheService(HttpClient, pathProvider);
+        capeCacheService = new AccountCapeCacheService(HttpClient, pathProvider);
         profileClient = new MinecraftProfileClient(HttpClient);
         accountFactory = new MicrosoftAccountFactory(avatarService, skinCacheService);
         skinService = new MinecraftSkinService(authProvider, profileClient, accountFactory, skinCacheService);
-        capeService = new MinecraftCapeService(authProvider, profileClient);
+        capeService = new MinecraftCapeService(authProvider, profileClient, capeCacheService);
     }
 
     public async Task<IReadOnlyList<LauncherAccount>> GetSavedAccountsAsync(CancellationToken cancellationToken = default)

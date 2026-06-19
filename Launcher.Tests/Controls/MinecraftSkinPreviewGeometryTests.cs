@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Launcher.App.Controls.Account;
+using Launcher.Application.Accounts;
 using Launcher.Domain.Models;
 
 namespace Launcher.Tests.Controls;
@@ -135,11 +136,123 @@ public sealed class MinecraftSkinPreviewGeometryTests
             null));
     }
 
+    [Fact]
+    public void CapeCarouselLayoutKeepsCenterLargerThanSideSlots()
+    {
+        var left = CapeCarousel3DLayout.GetPlacement(CapeCarouselSlot.Left);
+        var center = CapeCarousel3DLayout.GetPlacement(CapeCarouselSlot.Center);
+        var right = CapeCarousel3DLayout.GetPlacement(CapeCarouselSlot.Right);
+
+        Assert.True(left.X < center.X);
+        Assert.True(right.X > center.X);
+        Assert.True(left.Scale < center.Scale);
+        Assert.True(right.Scale < center.Scale);
+        Assert.Equal(left.Scale, right.Scale);
+    }
+
+    [Fact]
+    public void CapeCarouselAnimationAllowsOnlyAdjacentNextTransition()
+    {
+        var first = CreateCapeOption("cape-a");
+        var second = CreateCapeOption("cape-b");
+        var third = CreateCapeOption("cape-c");
+
+        Assert.True(CapeCarousel3DLayout.CanAnimateTransition(
+            CapeCarouselDirection.Next,
+            null,
+            first,
+            second,
+            first,
+            second,
+            third));
+        Assert.False(CapeCarousel3DLayout.CanAnimateTransition(
+            CapeCarouselDirection.Next,
+            null,
+            first,
+            second,
+            null,
+            third,
+            null));
+    }
+
+    [Fact]
+    public void NoneCapePreviewDoesNotRequireImageUrl()
+    {
+        var noneCape = new AccountCapeOption
+        {
+            DisplayName = string.Empty,
+            IsNone = true
+        };
+
+        var model = MinecraftCapePreviewModelBuilder.BuildCapeModel(noneCape);
+
+        Assert.NotEmpty(model.Children);
+    }
+
+    [Fact]
+    public void CapePreviewCreatesVisibleFallbackBeforeImageLoads()
+    {
+        var cape = new AccountCapeOption
+        {
+            Id = "cape-a",
+            DisplayName = "Cape",
+            ImageUrl = "missing-cape.png"
+        };
+
+        var model = MinecraftCapePreviewModelBuilder.BuildCapeModel(cape);
+
+        Assert.NotEmpty(model.Children);
+    }
+
+    [Fact]
+    public void CapePreviewUsesLoadedTextureWhenAvailable()
+    {
+        var cape = new AccountCapeOption
+        {
+            Id = "cape-a",
+            DisplayName = "Cape",
+            ImageUrl = "cape.png"
+        };
+        var texture = CreateCapeBitmap();
+
+        var model = MinecraftCapePreviewModelBuilder.BuildCapeModel(cape, texture: texture);
+
+        Assert.True(model.Children.Count > 2);
+    }
+
+    [Fact]
+    public void CapePreviewFaceBitmapUsesNearestNeighborPixelBlocks()
+    {
+        var cape = CreateCapeBitmap();
+        FillRect(cape, new Int32Rect(1, 1, 1, 1), Colors.Lime);
+        FillRect(cape, new Int32Rect(2, 1, 1, 1), Colors.SaddleBrown);
+
+        var face = MinecraftCapePreviewModelBuilder.CreatePixelSharpFaceBitmap(
+            cape,
+            new Int32Rect(1, 1, 2, 1),
+            1);
+
+        Assert.Equal(16, face.PixelWidth);
+        Assert.Equal(8, face.PixelHeight);
+        Assert.Equal(Colors.Lime, ReadPixel(face, 0, 0));
+        Assert.Equal(Colors.Lime, ReadPixel(face, 7, 7));
+        Assert.Equal(Colors.SaddleBrown, ReadPixel(face, 8, 0));
+        Assert.Equal(Colors.SaddleBrown, ReadPixel(face, 15, 7));
+    }
+
     private static WriteableBitmap CreateSkinBitmap(int height)
     {
         var bitmap = new WriteableBitmap(64, height, 96, 96, PixelFormats.Bgra32, null);
         var pixels = Enumerable.Repeat<byte>(255, 64 * height * 4).ToArray();
         bitmap.WritePixels(new Int32Rect(0, 0, 64, height), pixels, 64 * 4, 0);
+        return bitmap;
+    }
+
+    private static WriteableBitmap CreateCapeBitmap()
+    {
+        var bitmap = new WriteableBitmap(64, 32, 96, 96, PixelFormats.Bgra32, null);
+        var pixels = Enumerable.Repeat<byte>(255, 64 * 32 * 4).ToArray();
+        bitmap.WritePixels(new Int32Rect(0, 0, 64, 32), pixels, 64 * 4, 0);
         return bitmap;
     }
 
@@ -152,6 +265,16 @@ public sealed class MinecraftSkinPreviewGeometryTests
             SkinModel = MinecraftSkinModel.Classic,
             ContentHash = contentHash,
             AddedAtUtc = DateTimeOffset.UtcNow
+        };
+    }
+
+    private static AccountCapeOption CreateCapeOption(string id)
+    {
+        return new AccountCapeOption
+        {
+            Id = id,
+            DisplayName = id,
+            ImageUrl = $"{id}.png"
         };
     }
 
