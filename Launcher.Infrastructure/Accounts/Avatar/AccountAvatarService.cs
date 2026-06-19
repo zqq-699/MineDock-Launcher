@@ -10,6 +10,13 @@ namespace Launcher.Infrastructure.Accounts;
 internal sealed class AccountAvatarService
 {
     private const int AvatarSize = 576;
+    private const int SkinHeadSize = 8;
+    private const int AvatarFaceSize = AvatarSize * 8 / 9;
+    private const int AvatarFaceOffset = (AvatarSize - AvatarFaceSize) / 2;
+    private const int AvatarOverlayShadowOffset = AvatarSize / 48;
+    private const int AvatarOverlayShadowBlurRadius = AvatarSize / 24;
+    private const byte AvatarOverlayShadowAlpha = 96;
+    private const string AvatarCacheVersion = "v6";
 
     private readonly HttpClient httpClient;
     private readonly string avatarDirectory;
@@ -91,29 +98,22 @@ internal sealed class AccountAvatarService
     private static BitmapSource CreateAvatarBitmap(BitmapSource skin)
     {
         var source = EnsureBgra32(skin);
-        var face = ReadPixels(source, 8, 8, 8, 8);
+        var face = ReadPixels(source, 8, 8, SkinHeadSize, SkinHeadSize);
         var overlay = source.PixelWidth >= 48 && source.PixelHeight >= 16
-            ? ReadPixels(source, 40, 8, 8, 8)
+            ? ReadPixels(source, 40, 8, SkinHeadSize, SkinHeadSize)
             : null;
+        var hasOverlay = overlay is not null && HasVisiblePixels(overlay);
 
         var output = new byte[AvatarSize * AvatarSize * 4];
-        for (var y = 0; y < AvatarSize; y++)
+        if (hasOverlay)
         {
-            var sourceY = y * 8 / AvatarSize;
-            for (var x = 0; x < AvatarSize; x++)
-            {
-                var sourceX = x * 8 / AvatarSize;
-                var sourceIndex = (sourceY * 8 + sourceX) * 4;
-                var outputIndex = (y * AvatarSize + x) * 4;
-
-                output[outputIndex] = face[sourceIndex];
-                output[outputIndex + 1] = face[sourceIndex + 1];
-                output[outputIndex + 2] = face[sourceIndex + 2];
-                output[outputIndex + 3] = face[sourceIndex + 3];
-
-                if (overlay is not null)
-                    BlendPixel(output, outputIndex, overlay, sourceIndex);
-            }
+            DrawSkinPart(output, face, AvatarFaceOffset, AvatarFaceOffset, AvatarFaceSize, blend: false);
+            DrawOverlayShadow(output, overlay!);
+            DrawSkinPart(output, overlay!, 0, 0, AvatarSize, blend: true);
+        }
+        else
+        {
+            DrawSkinPart(output, face, 0, 0, AvatarSize, blend: false);
         }
 
         var avatar = BitmapSource.Create(
@@ -127,6 +127,129 @@ internal sealed class AccountAvatarService
             AvatarSize * 4);
         avatar.Freeze();
         return avatar;
+    }
+
+    private static void DrawOverlayShadow(byte[] target, byte[] overlay)
+    {
+        var mask = new int[AvatarSize * AvatarSize];
+        for (var y = 0; y < AvatarSize - AvatarOverlayShadowOffset; y++)
+        {
+            var sourceY = y * SkinHeadSize / AvatarSize;
+            var outputY = y + AvatarOverlayShadowOffset;
+            for (var x = 0; x < AvatarSize - AvatarOverlayShadowOffset; x++)
+            {
+                var sourceX = x * SkinHeadSize / AvatarSize;
+                var sourceIndex = GetPixelIndex(sourceX, sourceY);
+                var sourceAlpha = overlay[sourceIndex + 3];
+                if (sourceAlpha == 0)
+                    continue;
+
+                var outputX = x + AvatarOverlayShadowOffset;
+                mask[outputY * AvatarSize + outputX] = sourceAlpha * AvatarOverlayShadowAlpha / byte.MaxValue;
+            }
+        }
+
+        var blurredMask = BlurMask(mask, AvatarOverlayShadowBlurRadius);
+        for (var index = 0; index < blurredMask.Length; index++)
+        {
+            var shadowAlpha = blurredMask[index];
+            if (shadowAlpha == 0)
+                continue;
+
+            BlendPixel(target, index * 4, 0, 0, 0, shadowAlpha);
+        }
+    }
+
+    private static int[] BlurMask(int[] mask, int radius)
+    {
+        var horizontal = new int[mask.Length];
+        var blurred = new int[mask.Length];
+        var diameter = radius * 2 + 1;
+
+        for (var y = 0; y < AvatarSize; y++)
+        {
+            var rowStart = y * AvatarSize;
+            var sum = 0;
+            for (var x = -radius; x <= radius; x++)
+                sum += mask[rowStart + ClampToAvatar(x)];
+
+            for (var x = 0; x < AvatarSize; x++)
+            {
+                horizontal[rowStart + x] = sum / diameter;
+                sum -= mask[rowStart + ClampToAvatar(x - radius)];
+                sum += mask[rowStart + ClampToAvatar(x + radius + 1)];
+            }
+        }
+
+        for (var x = 0; x < AvatarSize; x++)
+        {
+            var sum = 0;
+            for (var y = -radius; y <= radius; y++)
+                sum += horizontal[ClampToAvatar(y) * AvatarSize + x];
+
+            for (var y = 0; y < AvatarSize; y++)
+            {
+                blurred[y * AvatarSize + x] = sum / diameter;
+                sum -= horizontal[ClampToAvatar(y - radius) * AvatarSize + x];
+                sum += horizontal[ClampToAvatar(y + radius + 1) * AvatarSize + x];
+            }
+        }
+
+        return blurred;
+    }
+
+    private static int ClampToAvatar(int value)
+    {
+        return Math.Clamp(value, 0, AvatarSize - 1);
+    }
+
+    private static void DrawSkinPart(
+        byte[] target,
+        byte[] source,
+        int outputOffsetX,
+        int outputOffsetY,
+        int outputSize,
+        bool blend)
+    {
+        for (var y = 0; y < outputSize; y++)
+        {
+            var sourceY = y * SkinHeadSize / outputSize;
+            var outputY = outputOffsetY + y;
+            for (var x = 0; x < outputSize; x++)
+            {
+                var sourceX = x * SkinHeadSize / outputSize;
+                var sourceIndex = GetPixelIndex(sourceX, sourceY);
+                var outputX = outputOffsetX + x;
+                var outputIndex = (outputY * AvatarSize + outputX) * 4;
+
+                if (blend)
+                {
+                    BlendPixel(target, outputIndex, source, sourceIndex);
+                    continue;
+                }
+
+                target[outputIndex] = source[sourceIndex];
+                target[outputIndex + 1] = source[sourceIndex + 1];
+                target[outputIndex + 2] = source[sourceIndex + 2];
+                target[outputIndex + 3] = source[sourceIndex + 3];
+            }
+        }
+    }
+
+    private static bool HasVisiblePixels(byte[] pixels)
+    {
+        for (var index = 3; index < pixels.Length; index += 4)
+        {
+            if (pixels[index] != 0)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static int GetPixelIndex(int x, int y)
+    {
+        return (y * SkinHeadSize + x) * 4;
     }
 
     private static BitmapSource EnsureBgra32(BitmapSource source)
@@ -149,23 +272,50 @@ internal sealed class AccountAvatarService
     private static void BlendPixel(byte[] target, int targetIndex, byte[] overlay, int overlayIndex)
     {
         var overlayAlpha = overlay[overlayIndex + 3];
-        if (overlayAlpha == 0)
+        BlendPixel(
+            target,
+            targetIndex,
+            overlay[overlayIndex],
+            overlay[overlayIndex + 1],
+            overlay[overlayIndex + 2],
+            overlayAlpha);
+    }
+
+    private static void BlendPixel(byte[] target, int targetIndex, byte blue, byte green, byte red, int alpha)
+    {
+        if (alpha == 0)
             return;
 
-        if (overlayAlpha == byte.MaxValue)
+        if (alpha == byte.MaxValue)
         {
-            target[targetIndex] = overlay[overlayIndex];
-            target[targetIndex + 1] = overlay[overlayIndex + 1];
-            target[targetIndex + 2] = overlay[overlayIndex + 2];
+            target[targetIndex] = blue;
+            target[targetIndex + 1] = green;
+            target[targetIndex + 2] = red;
             target[targetIndex + 3] = byte.MaxValue;
             return;
         }
 
-        var inverseAlpha = byte.MaxValue - overlayAlpha;
-        target[targetIndex] = (byte)((overlay[overlayIndex] * overlayAlpha + target[targetIndex] * inverseAlpha) / byte.MaxValue);
-        target[targetIndex + 1] = (byte)((overlay[overlayIndex + 1] * overlayAlpha + target[targetIndex + 1] * inverseAlpha) / byte.MaxValue);
-        target[targetIndex + 2] = (byte)((overlay[overlayIndex + 2] * overlayAlpha + target[targetIndex + 2] * inverseAlpha) / byte.MaxValue);
-        target[targetIndex + 3] = byte.MaxValue;
+        var inverseAlpha = byte.MaxValue - alpha;
+        var targetAlpha = target[targetIndex + 3];
+        var outputAlpha = alpha + targetAlpha * inverseAlpha / byte.MaxValue;
+        if (outputAlpha == 0)
+            return;
+
+        target[targetIndex] = BlendColor(blue, alpha, target[targetIndex], targetAlpha, inverseAlpha, outputAlpha);
+        target[targetIndex + 1] = BlendColor(green, alpha, target[targetIndex + 1], targetAlpha, inverseAlpha, outputAlpha);
+        target[targetIndex + 2] = BlendColor(red, alpha, target[targetIndex + 2], targetAlpha, inverseAlpha, outputAlpha);
+        target[targetIndex + 3] = (byte)outputAlpha;
+    }
+
+    private static byte BlendColor(
+        byte overlayColor,
+        int overlayAlpha,
+        byte targetColor,
+        byte targetAlpha,
+        int inverseAlpha,
+        int outputAlpha)
+    {
+        return (byte)((overlayColor * overlayAlpha + targetColor * targetAlpha * inverseAlpha / byte.MaxValue) / outputAlpha);
     }
 
     private static void SavePng(BitmapSource bitmap, string path)
@@ -180,16 +330,24 @@ internal sealed class AccountAvatarService
 
     private string CreateAvatarPath(string uuid)
     {
-        return Path.Combine(avatarDirectory, $"{uuid}-{AvatarSize}-{Guid.NewGuid():N}.png");
+        return Path.Combine(avatarDirectory, $"{uuid}-{AvatarSize}-{AvatarCacheVersion}-{Guid.NewGuid():N}.png");
     }
 
     private string? GetLatestCachedAvatarPath(string uuid)
     {
-        return EnumerateAvatarFiles(uuid)
+        return EnumerateCurrentAvatarFiles(uuid)
             .Select(path => new FileInfo(path))
             .OrderByDescending(file => file.LastWriteTimeUtc)
             .FirstOrDefault()
             ?.FullName;
+    }
+
+    private IEnumerable<string> EnumerateCurrentAvatarFiles(string uuid)
+    {
+        if (!Directory.Exists(avatarDirectory))
+            return [];
+
+        return Directory.EnumerateFiles(avatarDirectory, $"{uuid}-{AvatarSize}-{AvatarCacheVersion}-*.png");
     }
 
     private IEnumerable<string> EnumerateAvatarFiles(string uuid)
