@@ -24,6 +24,9 @@ internal sealed class MinecraftProfileSkin
 
     [JsonPropertyName("url")]
     public string? Url { get; set; }
+
+    [JsonPropertyName("variant")]
+    public string? Variant { get; set; }
 }
 
 internal sealed class MinecraftProfileCape

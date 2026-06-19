@@ -94,6 +94,8 @@ public sealed class AccountStoreTests
                 Id = "ms-1",
                 DisplayName = "Microsoft",
                 Uuid = "uuid",
+                SkinSource = "cached-skin.png",
+                SkinModel = MinecraftSkinModel.Slim,
                 IsOffline = false
             },
             new LauncherAccount
@@ -111,7 +113,12 @@ public sealed class AccountStoreTests
         Assert.Equal("Offline", settings.OfflineUsername);
         Assert.Collection(
             settings.Accounts,
-            account => Assert.Equal("ms-1", account.Id),
+            account =>
+            {
+                Assert.Equal("ms-1", account.Id);
+                Assert.Equal("cached-skin.png", account.SkinSource);
+                Assert.Equal(MinecraftSkinModel.Slim, account.SkinModel);
+            },
             account =>
             {
                 Assert.Equal("offline-1", account.Id);
@@ -178,6 +185,8 @@ public sealed class AccountStoreTests
                     DisplayName = "LiveName",
                     Uuid = "uuid",
                     AvatarSource = "cached-avatar.png",
+                    SkinSource = "cached-skin.png",
+                    SkinModel = MinecraftSkinModel.Slim,
                     HasFreshProfile = true,
                     IsOffline = false
                 }),
@@ -188,10 +197,52 @@ public sealed class AccountStoreTests
         var account = Assert.Single(accounts);
         Assert.Equal("LiveName", account.DisplayName);
         Assert.Equal("cached-avatar.png", account.AvatarSource);
+        Assert.Equal("cached-skin.png", account.SkinSource);
+        Assert.Equal(MinecraftSkinModel.Slim, account.SkinModel);
         Assert.Equal(1, settingsService.SaveCount);
         var savedAccount = Assert.Single(settings.Accounts);
         Assert.Equal("LiveName", savedAccount.DisplayName);
         Assert.Equal("cached-avatar.png", savedAccount.AvatarSource);
+        Assert.Equal("cached-skin.png", savedAccount.SkinSource);
+        Assert.Equal(MinecraftSkinModel.Slim, savedAccount.SkinModel);
+    }
+
+    [Fact]
+    public async Task LoadAsync_KeepsStoredMicrosoftSkinWhenRefreshHasNoSkin()
+    {
+        var settings = new LauncherSettings
+        {
+            MicrosoftAccountsImported = true,
+            Accounts =
+            [
+                new()
+                {
+                    Id = "ms-1",
+                    DisplayName = "StoredName",
+                    Uuid = "uuid",
+                    SkinSource = "stored-skin.png",
+                    SkinModel = MinecraftSkinModel.Classic,
+                    IsOffline = false
+                }
+            ]
+        };
+        var store = new AccountStore(
+            new FakeSettingsService(),
+            new FakeMicrosoftAccountService(
+                new LauncherAccount
+                {
+                    Id = "ms-1",
+                    DisplayName = "CachedName",
+                    Uuid = "uuid",
+                    IsOffline = false
+                }),
+            new FakeOfflineAccountUuidService());
+
+        var accounts = await store.LoadAsync(settings);
+
+        var account = Assert.Single(accounts);
+        Assert.Equal("stored-skin.png", account.SkinSource);
+        Assert.Equal(MinecraftSkinModel.Classic, account.SkinModel);
     }
 
     [Fact]

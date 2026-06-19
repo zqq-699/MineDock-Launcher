@@ -135,6 +135,8 @@ public sealed class AccountStore : IAccountStore
         return !string.Equals(storedAccount.DisplayName, mergedRecord.DisplayName, StringComparison.Ordinal)
             || !string.Equals(storedAccount.Uuid, mergedRecord.Uuid, StringComparison.Ordinal)
             || !string.Equals(storedAccount.AvatarSource, mergedRecord.AvatarSource, StringComparison.Ordinal)
+            || !string.Equals(storedAccount.SkinSource, mergedRecord.SkinSource, StringComparison.Ordinal)
+            || storedAccount.SkinModel != mergedRecord.SkinModel
             || !CapeRecordsEqual(storedAccount.Capes, mergedRecord.Capes);
     }
 

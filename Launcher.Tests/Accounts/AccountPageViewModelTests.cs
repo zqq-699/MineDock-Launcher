@@ -211,6 +211,8 @@ public sealed class AccountPageViewModelTests
             DisplayName = "OldName",
             Uuid = "00000000000000000000000000000001",
             AvatarSource = "cached-avatar.png",
+            SkinSource = "cached-skin.png",
+            SkinModel = MinecraftSkinModel.Slim,
             IsOffline = false
         };
         viewModel.AccountList.Accounts.Add(account);
@@ -222,8 +224,12 @@ public sealed class AccountPageViewModelTests
 
         Assert.Equal("NewName", viewModel.SelectedAccount?.DisplayName);
         Assert.Equal("cached-avatar.png", viewModel.SelectedAccount?.AvatarSource);
+        Assert.Equal("cached-skin.png", viewModel.SelectedAccount?.SkinSource);
+        Assert.Equal(MinecraftSkinModel.Slim, viewModel.SelectedAccount?.SkinModel);
         var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
         Assert.Equal("NewName", savedAccount.DisplayName);
+        Assert.Equal("cached-skin.png", savedAccount.SkinSource);
+        Assert.Equal(MinecraftSkinModel.Slim, savedAccount.SkinModel);
     }
 
     [Fact]
@@ -441,10 +447,20 @@ public sealed class AccountPageViewModelTests
     {
         var microsoftAccountService = new FakeMicrosoftAccountService
         {
-            UploadSkinHandler = (account, _, _) => account
+            UploadSkinHandler = (account, _, skinModel) => new LauncherAccount
+            {
+                Id = account.Id,
+                DisplayName = account.DisplayName,
+                Uuid = account.Uuid,
+                SkinSource = "uploaded-skin.png",
+                SkinModel = skinModel,
+                IsOffline = false,
+                HasFreshProfile = true
+            }
         };
+        var accountStore = new FakeAccountStore();
         var viewModel = CreateViewModel(
-            new FakeAccountStore(),
+            accountStore,
             new FakeStatusService(),
             microsoftAccountService);
         var account = new LauncherAccount
@@ -470,6 +486,13 @@ public sealed class AccountPageViewModelTests
         Assert.Equal(1, microsoftAccountService.UploadSkinCount);
         Assert.Equal("skin.png", microsoftAccountService.LastSkinFilePath);
         Assert.Equal(MinecraftSkinModel.Slim, microsoftAccountService.LastSkinModel);
+        Assert.Equal("uploaded-skin.png", viewModel.SelectedAccount?.SkinSource);
+        Assert.Equal(MinecraftSkinModel.Slim, viewModel.SelectedAccount?.SkinModel);
+        var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
+        Assert.Equal("uploaded-skin.png", savedAccount.SkinSource);
+        Assert.Equal(MinecraftSkinModel.Slim, savedAccount.SkinModel);
+        Assert.True(viewModel.Appearance.HasSelectedAccountSkinPreview);
+        Assert.False(viewModel.Appearance.CanShowSelectedAccountSkinPreviewEmptyState);
     }
 
     [Fact]
@@ -547,6 +570,8 @@ public sealed class AccountPageViewModelTests
                 DisplayName = "NewName",
                 Uuid = account.Uuid,
                 AvatarSource = "new-avatar.png",
+                SkinSource = "new-skin.png",
+                SkinModel = MinecraftSkinModel.Classic,
                 IsOffline = false,
                 HasFreshProfile = true
             }
@@ -571,12 +596,16 @@ public sealed class AccountPageViewModelTests
 
         Assert.Equal("NewName", viewModel.SelectedAccount?.DisplayName);
         Assert.Equal("new-avatar.png", viewModel.SelectedAccount?.AvatarSource);
+        Assert.Equal("new-skin.png", viewModel.SelectedAccount?.SkinSource);
+        Assert.Equal(MinecraftSkinModel.Classic, viewModel.SelectedAccount?.SkinModel);
         Assert.Same(cachedCape, Assert.Single(viewModel.SelectedAccount!.CachedCapeOptions));
         Assert.Equal(Strings.Status_AccountProfileRefreshed, viewModel.Appearance.AccountProfileMessage);
         Assert.Equal(1, microsoftAccountService.RefreshProfileCount);
         var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
         Assert.Equal("NewName", savedAccount.DisplayName);
         Assert.Equal("new-avatar.png", savedAccount.AvatarSource);
+        Assert.Equal("new-skin.png", savedAccount.SkinSource);
+        Assert.Equal(MinecraftSkinModel.Classic, savedAccount.SkinModel);
         Assert.True(viewModel.Appearance.CanEditSelectedMicrosoftAccount);
         Assert.True(viewModel.Appearance.RefreshSelectedAccountInfoCommand.CanExecute(null));
     }

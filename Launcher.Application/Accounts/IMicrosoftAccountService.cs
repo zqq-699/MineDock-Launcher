@@ -1,4 +1,4 @@
-using Launcher.Application.Accounts;
+using Launcher.Domain.Models;
 
 namespace Launcher.Application.Accounts;
 

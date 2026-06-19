@@ -6,6 +6,7 @@ using Launcher.Application.Accounts;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.Utilities;
+using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -67,6 +68,11 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         && SelectedAccountCapeOption is not null;
 
     public bool HasSelectedAccountCapes => SelectedAccountCapeOptions.Count > 0;
+
+    public bool HasSelectedAccountSkinPreview => !string.IsNullOrWhiteSpace(accountList.SelectedAccount?.SkinSource);
+
+    public bool CanShowSelectedAccountSkinPreviewEmptyState => accountList.SelectedAccount is not null
+        && !HasSelectedAccountSkinPreview;
 
     public bool HasAccountProfileErrorCode => !string.IsNullOrWhiteSpace(AccountProfileErrorCodeMessage);
 
@@ -445,6 +451,8 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     private void NotifyAccountSelectionPropertiesChanged()
     {
         OnPropertyChanged(nameof(CanChangeSelectedAccountSkin));
+        OnPropertyChanged(nameof(HasSelectedAccountSkinPreview));
+        OnPropertyChanged(nameof(CanShowSelectedAccountSkinPreviewEmptyState));
         NotifySelectedAccountProfileActionPropertiesChanged();
     }
 

@@ -13,6 +13,8 @@ public static class AccountMapper
             Uuid = record.Uuid,
             OfflineUuidGenerationMode = record.OfflineUuidGenerationMode,
             AvatarSource = record.AvatarSource,
+            SkinSource = record.SkinSource,
+            SkinModel = record.SkinModel,
             IsOffline = record.IsOffline,
             CachedCapeOptions = ToCapeOptions(record.Capes)
         };
@@ -35,6 +37,8 @@ public static class AccountMapper
             Uuid = account.Uuid,
             OfflineUuidGenerationMode = record.OfflineUuidGenerationMode,
             AvatarSource = string.IsNullOrWhiteSpace(account.AvatarSource) ? record.AvatarSource : account.AvatarSource,
+            SkinSource = string.IsNullOrWhiteSpace(account.SkinSource) ? record.SkinSource : account.SkinSource,
+            SkinModel = account.SkinModel ?? record.SkinModel,
             IsOffline = account.IsOffline,
             HasFreshProfile = account.HasFreshProfile,
             CachedCapeOptions = account.HasFreshProfile && account.CachedCapeOptions.Count > 0
@@ -54,6 +58,8 @@ public static class AccountMapper
             Uuid = account.Uuid,
             OfflineUuidGenerationMode = account.OfflineUuidGenerationMode,
             AvatarSource = account.AvatarSource,
+            SkinSource = account.SkinSource,
+            SkinModel = account.SkinModel,
             IsOffline = account.IsOffline,
             HasFreshProfile = account.HasFreshProfile,
             CachedCapeOptions = capeOptions
@@ -69,6 +75,25 @@ public static class AccountMapper
             Uuid = account.Uuid,
             OfflineUuidGenerationMode = account.OfflineUuidGenerationMode,
             AvatarSource = string.IsNullOrWhiteSpace(account.AvatarSource) ? avatarSource : account.AvatarSource,
+            SkinSource = account.SkinSource,
+            SkinModel = account.SkinModel,
+            IsOffline = account.IsOffline,
+            HasFreshProfile = account.HasFreshProfile,
+            CachedCapeOptions = account.CachedCapeOptions
+        };
+    }
+
+    public static LauncherAccount WithAppearanceFallback(LauncherAccount account, LauncherAccount fallback)
+    {
+        return new LauncherAccount
+        {
+            Id = account.Id,
+            DisplayName = account.DisplayName,
+            Uuid = account.Uuid,
+            OfflineUuidGenerationMode = account.OfflineUuidGenerationMode,
+            AvatarSource = string.IsNullOrWhiteSpace(account.AvatarSource) ? fallback.AvatarSource : account.AvatarSource,
+            SkinSource = string.IsNullOrWhiteSpace(account.SkinSource) ? fallback.SkinSource : account.SkinSource,
+            SkinModel = account.SkinModel ?? fallback.SkinModel,
             IsOffline = account.IsOffline,
             HasFreshProfile = account.HasFreshProfile,
             CachedCapeOptions = account.CachedCapeOptions
@@ -84,6 +109,8 @@ public static class AccountMapper
             Uuid = account.Uuid,
             OfflineUuidGenerationMode = account.OfflineUuidGenerationMode,
             AvatarSource = account.AvatarSource,
+            SkinSource = account.SkinSource,
+            SkinModel = account.SkinModel,
             IsOffline = account.IsOffline,
             HasFreshProfile = account.HasFreshProfile,
             CachedCapeOptions = account.CachedCapeOptions
@@ -102,6 +129,8 @@ public static class AccountMapper
             Uuid = uuid,
             OfflineUuidGenerationMode = mode,
             AvatarSource = account.AvatarSource,
+            SkinSource = account.SkinSource,
+            SkinModel = account.SkinModel,
             IsOffline = account.IsOffline,
             HasFreshProfile = account.HasFreshProfile,
             CachedCapeOptions = account.CachedCapeOptions
@@ -121,6 +150,8 @@ public static class AccountMapper
             Uuid = uuid,
             OfflineUuidGenerationMode = mode,
             AvatarSource = account.AvatarSource,
+            SkinSource = account.SkinSource,
+            SkinModel = account.SkinModel,
             IsOffline = account.IsOffline,
             HasFreshProfile = account.HasFreshProfile,
             CachedCapeOptions = account.CachedCapeOptions
@@ -136,6 +167,8 @@ public static class AccountMapper
             Uuid = account.Uuid,
             OfflineUuidGenerationMode = account.OfflineUuidGenerationMode,
             AvatarSource = account.AvatarSource,
+            SkinSource = account.SkinSource,
+            SkinModel = account.SkinModel,
             IsOffline = account.IsOffline,
             Capes = account.CachedCapeOptions.Select(ToCapeRecord).ToList()
         };

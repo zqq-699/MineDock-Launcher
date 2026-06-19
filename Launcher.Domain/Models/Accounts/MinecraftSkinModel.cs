@@ -1,4 +1,4 @@
-namespace Launcher.Application.Accounts;
+namespace Launcher.Domain.Models;
 
 public enum MinecraftSkinModel
 {

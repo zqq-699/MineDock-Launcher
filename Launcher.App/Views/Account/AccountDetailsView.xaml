@@ -6,6 +6,7 @@
              xmlns:accountModels="clr-namespace:Launcher.Application.Accounts;assembly=Launcher.Application"
              xmlns:models="clr-namespace:Launcher.App.Models"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
+             xmlns:accountControls="clr-namespace:Launcher.App.Controls.Account"
              xmlns:res="clr-namespace:Launcher.App.Resources"
              Focusable="False">
     <ScrollViewer x:Name="AccountDetailsScrollViewer"
@@ -143,19 +144,55 @@
                 </GroupBox>
 
                 <GroupBox Margin="0,22,0,0"
-                          Header="{x:Static res:Strings.Account_SkinHeader}"
                           Style="{StaticResource LauncherContentSectionStyle}">
-                    <StackPanel Orientation="Horizontal">
-                        <Button Style="{StaticResource LauncherDialogButtonStyle}"
-                                Content="{x:Static res:Strings.Refresh_Button}"
-                                IsEnabled="{Binding Appearance.CanEditSelectedMicrosoftAccount}"
-                                Command="{Binding Appearance.RefreshSelectedAccountInfoCommand}" />
-                        <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
-                                Margin="10,0,0,0"
-                                Content="{x:Static res:Strings.Account_ChangeSkinButton}"
-                                IsEnabled="{Binding Appearance.CanChangeSelectedAccountSkin}"
-                                Command="{Binding Appearance.PickAndChangeSelectedAccountSkinCommand}" />
-                    </StackPanel>
+                    <GroupBox.Header>
+                        <Grid Width="{Binding ActualWidth, ElementName=DetailsContentRoot}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Text="{x:Static res:Strings.Account_SkinHeader}"
+                                       Foreground="#A8FFFFFF"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                        Content="{x:Static res:Strings.Refresh_Button}"
+                                        IsEnabled="{Binding Appearance.CanEditSelectedMicrosoftAccount}"
+                                        Command="{Binding Appearance.RefreshSelectedAccountInfoCommand}" />
+                                <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                        Margin="10,0,0,0"
+                                        Content="{x:Static res:Strings.Account_ChangeSkinButton}"
+                                        IsEnabled="{Binding Appearance.CanChangeSelectedAccountSkin}"
+                                        Command="{Binding Appearance.PickAndChangeSelectedAccountSkinCommand}" />
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox.Header>
+                    <Grid>
+                        <Grid Width="160"
+                              Height="236"
+                              HorizontalAlignment="Center">
+                            <Grid>
+                                <accountControls:SkinPreview3DControl SkinSource="{Binding AccountList.SelectedAccount.SkinSource}"
+                                                                      SkinModel="{Binding AccountList.SelectedAccount.SkinModel}"
+                                                                      RenderOptions.BitmapScalingMode="NearestNeighbor"
+                                                                      Visibility="{Binding Appearance.HasSelectedAccountSkinPreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                                <TextBlock Margin="14"
+                                           Text="{x:Static res:Strings.Account_SkinPreviewEmpty}"
+                                           Foreground="#8FFFFFFF"
+                                           FontSize="12"
+                                           TextAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"
+                                           Visibility="{Binding Appearance.CanShowSelectedAccountSkinPreviewEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                            </Grid>
+                        </Grid>
+                    </Grid>
                 </GroupBox>
 
                 <GroupBox Margin="0,22,0,0"

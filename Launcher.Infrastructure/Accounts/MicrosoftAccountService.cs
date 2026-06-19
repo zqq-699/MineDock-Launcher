@@ -1,4 +1,5 @@
 using Launcher.Application.Accounts;
+using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Net.Http;
@@ -11,6 +12,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
 
     private readonly MicrosoftAuthProvider authProvider;
     private readonly AccountAvatarService avatarService;
+    private readonly AccountSkinCacheService skinCacheService;
     private readonly MinecraftProfileClient profileClient;
     private readonly MicrosoftAccountFactory accountFactory;
     private readonly MinecraftSkinService skinService;
@@ -23,9 +25,10 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
         var pathProvider = new LauncherPathProvider();
         authProvider = new MicrosoftAuthProvider(pathProvider);
         avatarService = new AccountAvatarService(HttpClient, pathProvider);
+        skinCacheService = new AccountSkinCacheService(HttpClient, pathProvider);
         profileClient = new MinecraftProfileClient(HttpClient);
-        accountFactory = new MicrosoftAccountFactory(avatarService);
-        skinService = new MinecraftSkinService(authProvider, profileClient, accountFactory);
+        accountFactory = new MicrosoftAccountFactory(avatarService, skinCacheService);
+        skinService = new MinecraftSkinService(authProvider, profileClient, accountFactory, skinCacheService);
         capeService = new MinecraftCapeService(authProvider, profileClient);
     }
 

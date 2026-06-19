@@ -411,7 +411,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
             {
                 var renamedAccount = await microsoftAccountService.ChangeNameAsync(account, newName);
                 updatedAccount = AccountMapper.WithCapeCache(
-                    AccountMapper.WithAvatarFallback(renamedAccount, account.AvatarSource),
+                    AccountMapper.WithAppearanceFallback(renamedAccount, account),
                     account.CachedCapeOptions);
             }
 

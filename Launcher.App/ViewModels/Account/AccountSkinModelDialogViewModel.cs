@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Launcher.Application.Accounts;
 using Launcher.App.Models;
 using Launcher.App.Resources;
+using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.Account;
 

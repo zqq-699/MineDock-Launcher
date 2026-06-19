@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Launcher.Application.Accounts;
+using Launcher.Domain.Models;
 
 namespace Launcher.Infrastructure.Accounts;
 

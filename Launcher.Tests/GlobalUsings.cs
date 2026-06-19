@@ -5,5 +5,6 @@ global using Launcher.App.ViewModels.Home;
 global using Launcher.App.ViewModels.Settings;
 global using Launcher.App.ViewModels.Shared;
 global using Launcher.App.ViewModels.Shell;
+global using Launcher.Domain.Models;
 global using Launcher.Tests.Fakes;
 global using Launcher.Tests.Helpers;

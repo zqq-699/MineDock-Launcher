@@ -6,10 +6,14 @@ namespace Launcher.Infrastructure.Accounts;
 internal sealed class MicrosoftAccountFactory
 {
     private readonly AccountAvatarService avatarService;
+    private readonly AccountSkinCacheService skinCacheService;
 
-    public MicrosoftAccountFactory(AccountAvatarService avatarService)
+    public MicrosoftAccountFactory(
+        AccountAvatarService avatarService,
+        AccountSkinCacheService skinCacheService)
     {
         this.avatarService = avatarService;
+        this.skinCacheService = skinCacheService;
     }
 
     public async Task<LauncherAccount> CreateAccountFromProfileAsync(
@@ -23,6 +27,11 @@ internal sealed class MicrosoftAccountFactory
             MinecraftAccountHelpers.GetActiveSkinUrl(profile),
             forceRefreshAvatar,
             cancellationToken);
+        var skinSource = await skinCacheService.GetOrCreateSkinSourceAsync(
+            uuid,
+            MinecraftAccountHelpers.GetActiveSkinUrl(profile),
+            forceRefreshAvatar,
+            cancellationToken);
 
         return new LauncherAccount
         {
@@ -30,6 +39,7 @@ internal sealed class MicrosoftAccountFactory
             DisplayName = profile.Username ?? string.Empty,
             Uuid = uuid,
             AvatarSource = avatarSource,
+            SkinSource = skinSource,
             IsOffline = false
         };
     }
@@ -45,6 +55,11 @@ internal sealed class MicrosoftAccountFactory
             MinecraftAccountHelpers.GetActiveSkinUrl(profile),
             forceRefreshAvatar,
             cancellationToken);
+        var skinSource = await skinCacheService.GetOrCreateSkinSourceAsync(
+            uuid,
+            MinecraftAccountHelpers.GetActiveSkinUrl(profile),
+            forceRefreshAvatar,
+            cancellationToken);
 
         return new LauncherAccount
         {
@@ -52,6 +67,8 @@ internal sealed class MicrosoftAccountFactory
             DisplayName = profile.Name ?? string.Empty,
             Uuid = uuid,
             AvatarSource = avatarSource,
+            SkinSource = skinSource,
+            SkinModel = MinecraftAccountHelpers.GetActiveSkinModel(profile),
             IsOffline = false,
             HasFreshProfile = true
         };

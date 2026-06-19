@@ -33,6 +33,45 @@ public sealed class MinecraftProfileClientTests : IDisposable
         Assert.Contains("filename=skin.png", handler.Content);
     }
 
+    [Fact]
+    public async Task GetProfileAsyncReadsActiveSkinVariant()
+    {
+        var handler = new ProfileResponseHandler(
+            """
+            {
+              "id": "00000000000000000000000000000001",
+              "name": "Player",
+              "skins": [
+                { "state": "INACTIVE", "url": "https://example.com/old.png", "variant": "classic" },
+                { "state": "ACTIVE", "url": "https://example.com/current.png", "variant": "slim" }
+              ]
+            }
+            """);
+        var client = new MinecraftProfileClient(new HttpClient(handler));
+
+        var profile = await client.GetProfileAsync("access-token", CancellationToken.None);
+
+        Assert.Equal(MinecraftSkinModel.Slim, MinecraftAccountHelpers.GetActiveSkinModel(profile));
+    }
+
+    [Fact]
+    public async Task AccountSkinCacheServiceStoresUploadedSkinAsLocalUri()
+    {
+        Directory.CreateDirectory(tempRoot);
+        var skinPath = Path.Combine(tempRoot, "skin.png");
+        await File.WriteAllBytesAsync(skinPath, [0x89, 0x50, 0x4E, 0x47]);
+        var cacheDirectory = Path.Combine(tempRoot, "cache");
+        var cache = new AccountSkinCacheService(new HttpClient(new ThrowingHandler()), cacheDirectory);
+
+        var source = await cache.StoreUploadedSkinAsync("uuid", skinPath, CancellationToken.None);
+
+        Assert.NotNull(source);
+        var cachedPath = new Uri(source).LocalPath;
+        Assert.True(File.Exists(cachedPath));
+        Assert.StartsWith(cacheDirectory, cachedPath, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(await File.ReadAllBytesAsync(skinPath), await File.ReadAllBytesAsync(cachedPath));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(tempRoot))
@@ -61,6 +100,29 @@ public sealed class MinecraftProfileClientTests : IDisposable
                 : await request.Content.ReadAsStringAsync(cancellationToken);
 
             return new HttpResponseMessage(HttpStatusCode.OK);
+        }
+    }
+
+    private sealed class ProfileResponseHandler(string json) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json)
+            });
+        }
+    }
+
+    private sealed class ThrowingHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            throw new InvalidOperationException("HTTP should not be used for uploaded skin cache.");
         }
     }
 }

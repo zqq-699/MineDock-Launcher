@@ -1,4 +1,5 @@
 using Launcher.Application.Accounts;
+using Launcher.Domain.Models;
 
 namespace Launcher.Infrastructure.Accounts;
 
@@ -7,15 +8,18 @@ internal sealed class MinecraftSkinService
     private readonly MicrosoftAuthProvider authProvider;
     private readonly MinecraftProfileClient profileClient;
     private readonly MicrosoftAccountFactory accountFactory;
+    private readonly AccountSkinCacheService skinCacheService;
 
     public MinecraftSkinService(
         MicrosoftAuthProvider authProvider,
         MinecraftProfileClient profileClient,
-        MicrosoftAccountFactory accountFactory)
+        MicrosoftAccountFactory accountFactory,
+        AccountSkinCacheService skinCacheService)
     {
         this.authProvider = authProvider;
         this.profileClient = profileClient;
         this.accountFactory = accountFactory;
+        this.skinCacheService = skinCacheService;
     }
 
     public async Task<LauncherAccount> UploadSkinAsync(
@@ -28,6 +32,24 @@ internal sealed class MinecraftSkinService
         await profileClient.UploadSkinAsync(accessToken, skinFilePath, skinModel, cancellationToken);
 
         var profile = await profileClient.GetProfileAsync(accessToken, cancellationToken);
-        return await accountFactory.CreateAccountFromProfileAsync(profile, forceRefreshAvatar: true, cancellationToken);
+        var updatedAccount = await accountFactory.CreateAccountFromProfileAsync(profile, forceRefreshAvatar: true, cancellationToken);
+        var skinSource = await skinCacheService.StoreUploadedSkinAsync(
+            updatedAccount.Uuid ?? account.Uuid ?? string.Empty,
+            skinFilePath,
+            cancellationToken);
+
+        return new LauncherAccount
+        {
+            Id = updatedAccount.Id,
+            DisplayName = updatedAccount.DisplayName,
+            Uuid = updatedAccount.Uuid,
+            OfflineUuidGenerationMode = updatedAccount.OfflineUuidGenerationMode,
+            AvatarSource = updatedAccount.AvatarSource,
+            SkinSource = skinSource ?? updatedAccount.SkinSource,
+            SkinModel = skinModel,
+            IsOffline = updatedAccount.IsOffline,
+            HasFreshProfile = updatedAccount.HasFreshProfile,
+            CachedCapeOptions = updatedAccount.CachedCapeOptions
+        };
     }
 }
