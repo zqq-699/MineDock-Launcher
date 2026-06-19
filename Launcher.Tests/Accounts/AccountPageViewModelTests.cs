@@ -443,7 +443,7 @@ public sealed class AccountPageViewModelTests
     }
 
     [Fact]
-    public async Task ConfirmSkinModelDialogUploadsSelectedSlimModel()
+    public async Task ConfirmSkinModelDialogAddsAndSelectsSlimModelWithoutUploading()
     {
         var microsoftAccountService = new FakeMicrosoftAccountService
         {
@@ -458,11 +458,23 @@ public sealed class AccountPageViewModelTests
                 HasFreshProfile = true
             }
         };
+        var skinLibraryService = new FakeAccountSkinLibraryService
+        {
+            ImportSkinHandler = (_, _, skinModel) => new LauncherSkinRecord
+            {
+                Id = "skin-slim",
+                Source = "cached-skin.png",
+                SkinModel = skinModel,
+                ContentHash = "hash-slim",
+                AddedAtUtc = DateTimeOffset.UtcNow
+            }
+        };
         var accountStore = new FakeAccountStore();
         var viewModel = CreateViewModel(
             accountStore,
             new FakeStatusService(),
-            microsoftAccountService);
+            microsoftAccountService,
+            skinLibraryService: skinLibraryService);
         var account = new LauncherAccount
         {
             Id = "microsoft-00000000000000000000000000000001",
@@ -483,16 +495,20 @@ public sealed class AccountPageViewModelTests
         await viewModel.Appearance.ConfirmSkinModelDialogAsync();
 
         Assert.False(viewModel.Appearance.SkinModelDialog.IsSkinModelDialogOpen);
-        Assert.Equal(1, microsoftAccountService.UploadSkinCount);
-        Assert.Equal("skin.png", microsoftAccountService.LastSkinFilePath);
-        Assert.Equal(MinecraftSkinModel.Slim, microsoftAccountService.LastSkinModel);
-        Assert.Equal("uploaded-skin.png", viewModel.SelectedAccount?.SkinSource);
-        Assert.Equal(MinecraftSkinModel.Slim, viewModel.SelectedAccount?.SkinModel);
+        Assert.Equal(0, microsoftAccountService.UploadSkinCount);
+        Assert.Equal(1, skinLibraryService.ImportSkinCount);
+        Assert.Equal("skin.png", skinLibraryService.LastSkinFilePath);
+        Assert.Equal(MinecraftSkinModel.Slim, skinLibraryService.LastSkinModel);
+        Assert.Equal("cached-skin.png", viewModel.Appearance.SelectedAccountSkin?.Source);
+        Assert.Equal(MinecraftSkinModel.Slim, viewModel.Appearance.SelectedAccountSkin?.SkinModel);
+        Assert.Null(viewModel.SelectedAccount?.SkinSource);
+        Assert.Null(viewModel.SelectedAccount?.SkinModel);
         var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
-        Assert.Equal("uploaded-skin.png", savedAccount.SkinSource);
-        Assert.Equal(MinecraftSkinModel.Slim, savedAccount.SkinModel);
+        var savedSkin = Assert.Single(savedAccount.SkinLibrary);
+        Assert.Equal("skin-slim", savedSkin.Id);
+        Assert.Null(savedAccount.ActiveSkinId);
         Assert.True(viewModel.Appearance.HasSelectedAccountSkinPreview);
-        Assert.False(viewModel.Appearance.CanShowSelectedAccountSkinPreviewEmptyState);
+        Assert.True(viewModel.Appearance.CanApplySelectedAccountSkin);
     }
 
     [Fact]
@@ -525,6 +541,372 @@ public sealed class AccountPageViewModelTests
     }
 
     [Fact]
+    public async Task ApplySelectedSkinUploadsAndMarksActive()
+    {
+        var accountStore = new FakeAccountStore();
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            UploadSkinHandler = (account, _, skinModel) => new LauncherAccount
+            {
+                Id = account.Id,
+                DisplayName = account.DisplayName,
+                Uuid = account.Uuid,
+                AvatarSource = account.AvatarSource,
+                SkinSource = "uploaded-skin.png",
+                SkinModel = skinModel,
+                IsOffline = false,
+                HasFreshProfile = true
+            }
+        };
+        var viewModel = CreateViewModel(
+            accountStore,
+            new FakeStatusService(),
+            microsoftAccountService);
+        var skin = new LauncherSkinRecord
+        {
+            Id = "skin-classic",
+            Source = "C:\\tmp\\skin.png",
+            SkinModel = MinecraftSkinModel.Classic,
+            ContentHash = "hash-classic",
+            AddedAtUtc = DateTimeOffset.UnixEpoch
+        };
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false,
+            SkinLibrary = [skin]
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+        viewModel.Appearance.SelectedAccountSkin = skin;
+
+        await viewModel.Appearance.ApplySelectedAccountSkinCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, microsoftAccountService.UploadSkinCount);
+        Assert.Equal("C:\\tmp\\skin.png", microsoftAccountService.LastSkinFilePath);
+        Assert.Equal("skin-classic", viewModel.SelectedAccount?.ActiveSkinId);
+        Assert.Equal("C:\\tmp\\skin.png", viewModel.SelectedAccount?.SkinSource);
+        Assert.Equal(MinecraftSkinModel.Classic, viewModel.SelectedAccount?.SkinModel);
+        var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
+        Assert.Equal("skin-classic", savedAccount.ActiveSkinId);
+    }
+
+    [Fact]
+    public async Task ChangeSelectedSkinModelUpdatesLocalRecordWithoutUploading()
+    {
+        var accountStore = new FakeAccountStore();
+        var dialogService = new FakeAccountDialogService();
+        var microsoftAccountService = new FakeMicrosoftAccountService
+        {
+            UploadSkinHandler = (account, _, _) => account
+        };
+        var viewModel = CreateViewModel(
+            accountStore,
+            new FakeStatusService(),
+            microsoftAccountService,
+            dialogService: dialogService);
+        var skin = CreateSkinRecord("skin-active", "hash-active", MinecraftSkinModel.Classic);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            SkinSource = skin.Source,
+            SkinModel = skin.SkinModel,
+            ActiveSkinId = skin.Id,
+            SkinLibrary = [skin],
+            IsOffline = false
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        viewModel.Appearance.ChangeSelectedAccountSkinModelCommand.Execute(null);
+        viewModel.Appearance.SkinModelDialog.OpenForExistingSkin(MinecraftSkinModel.Classic);
+        viewModel.Appearance.SkinModelDialog.SelectedSkinModelOption = viewModel.Appearance.SkinModelDialog.SkinModelOptions
+            .First(option => option.Model == MinecraftSkinModel.Slim);
+        await viewModel.Appearance.ConfirmSkinModelDialogAsync();
+
+        Assert.Equal(MinecraftSkinModel.Classic, dialogService.LastExistingSkinModel);
+        Assert.Equal(0, microsoftAccountService.UploadSkinCount);
+        Assert.Equal(MinecraftSkinModel.Slim, viewModel.Appearance.SelectedAccountSkin?.SkinModel);
+        Assert.True(viewModel.Appearance.CanApplySelectedAccountSkin);
+        var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
+        var savedSkin = Assert.Single(savedAccount.SkinLibrary);
+        Assert.Equal(MinecraftSkinModel.Slim, savedSkin.SkinModel);
+        Assert.Equal("skin-active", savedAccount.ActiveSkinId);
+    }
+
+    [Fact]
+    public async Task DeleteSelectedSkinRemovesOnlyNonActiveSkin()
+    {
+        var accountStore = new FakeAccountStore();
+        var skinLibraryService = new FakeAccountSkinLibraryService();
+        var viewModel = CreateViewModel(
+            accountStore,
+            new FakeStatusService(),
+            skinLibraryService: skinLibraryService);
+        var activeSkin = CreateSkinRecord("skin-active", "hash-active", MinecraftSkinModel.Classic);
+        var nextSkin = CreateSkinRecord("skin-next", "hash-next", MinecraftSkinModel.Slim);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            SkinSource = activeSkin.Source,
+            SkinModel = activeSkin.SkinModel,
+            ActiveSkinId = activeSkin.Id,
+            SkinLibrary = [activeSkin, nextSkin],
+            IsOffline = false
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+        viewModel.Appearance.SelectedAccountSkin = nextSkin;
+
+        Assert.True(viewModel.Appearance.DeleteSelectedAccountSkinCommand.CanExecute(null));
+        await viewModel.Appearance.DeleteSelectedAccountSkinCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, skinLibraryService.DeleteSkinCount);
+        Assert.Same(nextSkin, skinLibraryService.LastDeletedSkin);
+        var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
+        var savedSkin = Assert.Single(savedAccount.SkinLibrary);
+        Assert.Equal(activeSkin.Id, savedSkin.Id);
+        Assert.Equal(activeSkin.Id, savedAccount.ActiveSkinId);
+        Assert.Equal(activeSkin.Id, viewModel.Appearance.SelectedAccountSkin?.Id);
+        Assert.False(viewModel.Appearance.DeleteSelectedAccountSkinCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task ActiveSkinCannotBeDeleted()
+    {
+        var accountStore = new FakeAccountStore();
+        var skinLibraryService = new FakeAccountSkinLibraryService();
+        var viewModel = CreateViewModel(
+            accountStore,
+            new FakeStatusService(),
+            skinLibraryService: skinLibraryService);
+        var activeSkin = CreateSkinRecord("skin-active", "hash-active", MinecraftSkinModel.Classic);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            SkinSource = activeSkin.Source,
+            SkinModel = activeSkin.SkinModel,
+            ActiveSkinId = activeSkin.Id,
+            SkinLibrary = [activeSkin],
+            IsOffline = false
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+        var saveCountBeforeDelete = accountStore.SaveCount;
+
+        Assert.False(viewModel.Appearance.CanDeleteSelectedAccountSkin);
+        Assert.False(viewModel.Appearance.DeleteSelectedAccountSkinCommand.CanExecute(null));
+        await viewModel.Appearance.DeleteSelectedAccountSkinCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, skinLibraryService.DeleteSkinCount);
+        Assert.Equal(saveCountBeforeDelete, accountStore.SaveCount);
+    }
+
+    [Fact]
+    public void SingleAppliedSkinHasNoAdjacentSelectionAndCannotApply()
+    {
+        var viewModel = CreateViewModel(new FakeAccountStore(), new FakeStatusService());
+        var skin = new LauncherSkinRecord
+        {
+            Id = "skin-active",
+            Source = "cached-skin.png",
+            SkinModel = MinecraftSkinModel.Classic,
+            ContentHash = "hash-active",
+            AddedAtUtc = DateTimeOffset.UnixEpoch
+        };
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            SkinSource = skin.Source,
+            SkinModel = skin.SkinModel,
+            ActiveSkinId = skin.Id,
+            SkinLibrary = [skin],
+            IsOffline = false
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        Assert.Same(skin, viewModel.Appearance.SelectedAccountSkin);
+        Assert.Null(viewModel.Appearance.PreviousAccountSkin);
+        Assert.Null(viewModel.Appearance.NextAccountSkin);
+        Assert.False(viewModel.Appearance.SelectNextAccountSkinCommand.CanExecute(null));
+        Assert.False(viewModel.Appearance.CanApplySelectedAccountSkin);
+
+        viewModel.Appearance.SelectNextAccountSkinCommand.Execute(null);
+
+        Assert.Same(skin, viewModel.Appearance.SelectedAccountSkin);
+        Assert.False(viewModel.Appearance.CanApplySelectedAccountSkin);
+    }
+
+    [Fact]
+    public void TwoSkinsExposeOnlyNextSelection()
+    {
+        var viewModel = CreateViewModel(new FakeAccountStore(), new FakeStatusService());
+        var activeSkin = CreateSkinRecord("skin-active", "hash-active", MinecraftSkinModel.Classic);
+        var nextSkin = CreateSkinRecord("skin-next", "hash-next", MinecraftSkinModel.Slim);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            SkinSource = activeSkin.Source,
+            SkinModel = activeSkin.SkinModel,
+            ActiveSkinId = activeSkin.Id,
+            SkinLibrary = [activeSkin, nextSkin],
+            IsOffline = false
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        Assert.Null(viewModel.Appearance.PreviousAccountSkin);
+        Assert.Same(nextSkin, viewModel.Appearance.NextAccountSkin);
+        Assert.False(viewModel.Appearance.SelectPreviousAccountSkinCommand.CanExecute(null));
+        Assert.True(viewModel.Appearance.SelectNextAccountSkinCommand.CanExecute(null));
+
+        viewModel.Appearance.SelectNextAccountSkinCommand.Execute(null);
+
+        Assert.Same(nextSkin, viewModel.Appearance.SelectedAccountSkin);
+        Assert.Same(activeSkin, viewModel.Appearance.PreviousAccountSkin);
+        Assert.Null(viewModel.Appearance.NextAccountSkin);
+        Assert.True(viewModel.Appearance.SelectPreviousAccountSkinCommand.CanExecute(null));
+        Assert.False(viewModel.Appearance.SelectNextAccountSkinCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void ThreeSkinsExposeLinearPreviousAndNextSelection()
+    {
+        var viewModel = CreateViewModel(new FakeAccountStore(), new FakeStatusService());
+        var firstSkin = CreateSkinRecord("skin-first", "hash-first", MinecraftSkinModel.Classic);
+        var activeSkin = CreateSkinRecord("skin-active", "hash-active", MinecraftSkinModel.Slim);
+        var nextSkin = CreateSkinRecord("skin-next", "hash-next", MinecraftSkinModel.Classic);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            SkinSource = activeSkin.Source,
+            SkinModel = activeSkin.SkinModel,
+            ActiveSkinId = activeSkin.Id,
+            SkinLibrary = [firstSkin, activeSkin, nextSkin],
+            IsOffline = false
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        Assert.Same(firstSkin, viewModel.Appearance.PreviousAccountSkin);
+        Assert.Same(nextSkin, viewModel.Appearance.NextAccountSkin);
+
+        viewModel.Appearance.SelectNextAccountSkinCommand.Execute(null);
+
+        Assert.Same(nextSkin, viewModel.Appearance.SelectedAccountSkin);
+        Assert.Same(activeSkin, viewModel.Appearance.PreviousAccountSkin);
+        Assert.Null(viewModel.Appearance.NextAccountSkin);
+        Assert.False(viewModel.Appearance.SelectNextAccountSkinCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void DuplicateAppliedSkinRecordsBehaveAsSingleSkin()
+    {
+        var viewModel = CreateViewModel(new FakeAccountStore(), new FakeStatusService());
+        var activeSkin = new LauncherSkinRecord
+        {
+            Id = "skin-active",
+            Source = "cached-skin.png",
+            SkinModel = MinecraftSkinModel.Classic,
+            ContentHash = "hash-active",
+            AddedAtUtc = DateTimeOffset.UnixEpoch
+        };
+        var duplicateSkin = new LauncherSkinRecord
+        {
+            Id = "skin-duplicate",
+            Source = "cached-skin.png",
+            SkinModel = MinecraftSkinModel.Classic,
+            ContentHash = "hash-active",
+            AddedAtUtc = DateTimeOffset.UnixEpoch.AddSeconds(1)
+        };
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            SkinSource = activeSkin.Source,
+            SkinModel = activeSkin.SkinModel,
+            ActiveSkinId = activeSkin.Id,
+            SkinLibrary = [activeSkin, duplicateSkin],
+            IsOffline = false
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        Assert.Single(viewModel.Appearance.SelectedAccountSkins);
+        Assert.Null(viewModel.Appearance.NextAccountSkin);
+        Assert.False(viewModel.Appearance.SelectNextAccountSkinCommand.CanExecute(null));
+        Assert.False(viewModel.Appearance.CanApplySelectedAccountSkin);
+    }
+
+    [Fact]
+    public void MissingLocalSkinRecordsAreNotSelectable()
+    {
+        var skinLibraryService = new FakeAccountSkinLibraryService
+        {
+            GetAvailableSkinsHandler = account => account.SkinLibrary
+                .Where(skin => !string.Equals(skin.Id, "skin-missing", StringComparison.Ordinal))
+                .ToList()
+        };
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(),
+            new FakeStatusService(),
+            skinLibraryService: skinLibraryService);
+        var activeSkin = new LauncherSkinRecord
+        {
+            Id = "skin-active",
+            Source = "cached-skin.png",
+            SkinModel = MinecraftSkinModel.Classic,
+            ContentHash = "hash-active",
+            AddedAtUtc = DateTimeOffset.UnixEpoch
+        };
+        var missingSkin = new LauncherSkinRecord
+        {
+            Id = "skin-missing",
+            Source = "deleted-skin.png",
+            SkinModel = MinecraftSkinModel.Slim,
+            ContentHash = "hash-missing",
+            AddedAtUtc = DateTimeOffset.UnixEpoch.AddSeconds(1)
+        };
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            SkinSource = activeSkin.Source,
+            SkinModel = activeSkin.SkinModel,
+            ActiveSkinId = activeSkin.Id,
+            SkinLibrary = [activeSkin, missingSkin],
+            IsOffline = false
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        var skin = Assert.Single(viewModel.Appearance.SelectedAccountSkins);
+        Assert.Same(activeSkin, skin);
+        Assert.Null(viewModel.Appearance.PreviousAccountSkin);
+        Assert.Null(viewModel.Appearance.NextAccountSkin);
+        Assert.False(viewModel.Appearance.SelectPreviousAccountSkinCommand.CanExecute(null));
+        Assert.False(viewModel.Appearance.SelectNextAccountSkinCommand.CanExecute(null));
+        Assert.False(viewModel.Appearance.CanApplySelectedAccountSkin);
+    }
+
+    [Fact]
     public async Task ChangeSkinFailureShowsReturnedCode()
     {
         var microsoftAccountService = new FakeMicrosoftAccountService
@@ -545,7 +927,20 @@ public sealed class AccountPageViewModelTests
         viewModel.AccountList.Accounts.Add(account);
         viewModel.SelectAccount(account);
 
-        await viewModel.Appearance.ChangeSelectedAccountSkinAsync("skin.png", MinecraftSkinModel.Classic);
+        var skin = new LauncherSkinRecord
+        {
+            Id = "skin-classic",
+            Source = "skin.png",
+            SkinModel = MinecraftSkinModel.Classic,
+            ContentHash = "hash-classic",
+            AddedAtUtc = DateTimeOffset.UtcNow
+        };
+        var accountWithSkin = AccountMapper.WithSkinLibrary(account, [skin], null, null, null);
+        viewModel.AccountList.ReplaceSelectedAccount(account, accountWithSkin);
+        viewModel.SelectAccount(accountWithSkin);
+        viewModel.Appearance.SelectedAccountSkin = skin;
+
+        await viewModel.Appearance.ApplySelectedAccountSkinCommand.ExecuteAsync(null);
 
         Assert.Equal(Strings.Status_SkinUpdateFailed, viewModel.Appearance.AccountProfileMessage);
         Assert.Equal("返回代码：HTTP 400 / INVALID_SKIN", viewModel.Appearance.AccountProfileErrorCodeMessage);
@@ -806,13 +1201,29 @@ public sealed class AccountPageViewModelTests
         Assert.True(viewModel.Appearance.HasAccountProfileErrorCode);
     }
 
+    private static LauncherSkinRecord CreateSkinRecord(
+        string id,
+        string contentHash,
+        MinecraftSkinModel skinModel)
+    {
+        return new LauncherSkinRecord
+        {
+            Id = id,
+            Source = $"{id}.png",
+            SkinModel = skinModel,
+            ContentHash = contentHash,
+            AddedAtUtc = DateTimeOffset.UnixEpoch
+        };
+    }
+
     private static AccountPageViewModel CreateViewModel(
         FakeAccountStore accountStore,
         FakeStatusService statusService,
         FakeMicrosoftAccountService? microsoftAccountService = null,
         FakeAccountDialogService? dialogService = null,
         FakeFilePickerService? filePickerService = null,
-        FakeSkinFileValidator? skinFileValidator = null)
+        FakeSkinFileValidator? skinFileValidator = null,
+        FakeAccountSkinLibraryService? skinLibraryService = null)
     {
         var accountList = new AccountListViewModel(accountStore);
         var microsoftService = microsoftAccountService ?? new FakeMicrosoftAccountService();
@@ -825,6 +1236,7 @@ public sealed class AccountPageViewModelTests
             new AccountAppearanceViewModel(
                 accountList,
                 microsoftService,
+                skinLibraryService ?? new FakeAccountSkinLibraryService(),
                 accountSkinModelDialog,
                 accountDialogService,
                 filePickerService ?? new FakeFilePickerService(),
@@ -988,6 +1400,8 @@ public sealed class AccountPageViewModelTests
 
         public string? LastSkinModelFilePath { get; private set; }
 
+        public MinecraftSkinModel? LastExistingSkinModel { get; private set; }
+
         public bool WasSkinFormatErrorShown { get; private set; }
 
         public void ShowAddAccountDialog()
@@ -1005,6 +1419,11 @@ public sealed class AccountPageViewModelTests
         public void ShowSkinModelDialog(string skinFilePath)
         {
             LastSkinModelFilePath = skinFilePath;
+        }
+
+        public void ShowSkinModelDialog(MinecraftSkinModel skinModel)
+        {
+            LastExistingSkinModel = skinModel;
         }
 
         public void ShowSkinFormatErrorDialog()

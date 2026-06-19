@@ -93,4 +93,5 @@ public partial class AccountDetailsView : UserControl
         DetailsContentRoot.RenderTransform = transform;
         return transform;
     }
+
 }

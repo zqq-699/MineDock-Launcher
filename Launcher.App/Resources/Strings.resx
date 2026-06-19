@@ -145,6 +145,8 @@
   <data name="Account_SkinHeader" xml:space="preserve"><value>皮肤</value></data>
   <data name="Account_CapeHeader" xml:space="preserve"><value>披风</value></data>
   <data name="Account_ChangeSkinButton" xml:space="preserve"><value>更换皮肤</value></data>
+  <data name="Account_AddSkinButton" xml:space="preserve"><value>添加皮肤</value></data>
+  <data name="Account_ChangeSkinModelButton" xml:space="preserve"><value>更改模型</value></data>
   <data name="Account_SkinPreviewEmpty" xml:space="preserve"><value>暂无皮肤预览，刷新资料或上传皮肤后显示。</value></data>
   <data name="Account_SkinModelClassicTitle" xml:space="preserve"><value>默认</value></data>
   <data name="Account_SkinModelClassicDescription" xml:space="preserve"><value>Steve 模型，手臂宽度为 4 像素。</value></data>
@@ -329,8 +331,13 @@
   <data name="Status_AccountProfileRefreshOfflineUnsupported" xml:space="preserve"><value>只有正版账户可以刷新账户资料</value></data>
   <data name="Status_ErrorCodeFormat" xml:space="preserve"><value>返回代码：{0}</value></data>
   <data name="Status_SkinOfflineUnsupported" xml:space="preserve"><value>只有正版账户可以更换皮肤</value></data>
+  <data name="Status_AddingSkin" xml:space="preserve"><value>正在添加皮肤...</value></data>
+  <data name="Status_SkinAdded" xml:space="preserve"><value>皮肤已添加，点击应用后同步到官网。</value></data>
   <data name="Status_UploadingSkin" xml:space="preserve"><value>正在上传皮肤...</value></data>
   <data name="Status_SkinUpdated" xml:space="preserve"><value>皮肤已更新</value></data>
+  <data name="Status_SkinModelChanged" xml:space="preserve"><value>皮肤模型已更改，点击应用后同步到官网。</value></data>
+  <data name="Status_SkinDeleted" xml:space="preserve"><value>皮肤已删除</value></data>
+  <data name="Status_SkinDeleteFailed" xml:space="preserve"><value>删除皮肤失败，请稍后重试。</value></data>
   <data name="Status_SkinUpdateFailed" xml:space="preserve"><value>更换皮肤失败，请稍后重试。</value></data>
   <data name="Status_CapeOfflineUnsupported" xml:space="preserve"><value>只有正版账户可以更换披风</value></data>
   <data name="Status_ChangingCape" xml:space="preserve"><value>正在更换披风...</value></data>

@@ -9,6 +9,8 @@ public sealed class LauncherAccountRecord
     public string? AvatarSource { get; set; }
     public string? SkinSource { get; set; }
     public MinecraftSkinModel? SkinModel { get; set; }
+    public List<LauncherSkinRecord> Skins { get; set; } = [];
+    public string? ActiveSkinId { get; set; }
     public bool IsOffline { get; set; } = true;
     public List<LauncherCapeRecord> Capes { get; set; } = [];
 }

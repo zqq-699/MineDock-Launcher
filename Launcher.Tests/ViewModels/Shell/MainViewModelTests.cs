@@ -534,6 +534,7 @@ public sealed class MainViewModelTests
             new AccountAppearanceViewModel(
                 accountList,
                 microsoftAccountService,
+                new FakeAccountSkinLibraryService(),
                 accountSkinModelDialog,
                 accountDialogService,
                 new FakeFilePickerService(),
@@ -788,6 +789,10 @@ public sealed class MainViewModelTests
         }
 
         public void ShowSkinModelDialog(string skinFilePath)
+        {
+        }
+
+        public void ShowSkinModelDialog(MinecraftSkinModel skinModel)
         {
         }
 

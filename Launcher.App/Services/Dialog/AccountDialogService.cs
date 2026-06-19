@@ -1,6 +1,7 @@
 using System.Windows;
 using Launcher.App.Controls;
 using Launcher.Application.Accounts;
+using Launcher.Domain.Models;
 
 namespace Launcher.App.Services;
 
@@ -62,6 +63,15 @@ public sealed class AccountDialogService : IAccountDialogService
             return;
 
         accountPage.Appearance.SkinModelDialog.Open(skinFilePath);
+        skinModelDialogHost.Show();
+    }
+
+    public void ShowSkinModelDialog(MinecraftSkinModel skinModel)
+    {
+        if (accountPage is null || skinModelDialogHost is null)
+            return;
+
+        accountPage.Appearance.SkinModelDialog.OpenForExistingSkin(skinModel);
         skinModelDialogHost.Show();
     }
 

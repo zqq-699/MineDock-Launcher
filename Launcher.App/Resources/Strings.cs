@@ -182,6 +182,8 @@ public static class Strings
     public static string Account_SkinHeader => Get(nameof(Account_SkinHeader));
     public static string Account_CapeHeader => Get(nameof(Account_CapeHeader));
     public static string Account_ChangeSkinButton => Get(nameof(Account_ChangeSkinButton));
+    public static string Account_AddSkinButton => Get(nameof(Account_AddSkinButton));
+    public static string Account_ChangeSkinModelButton => Get(nameof(Account_ChangeSkinModelButton));
     public static string Account_SkinPreviewEmpty => Get(nameof(Account_SkinPreviewEmpty));
     public static string Account_SkinModelClassicTitle => Get(nameof(Account_SkinModelClassicTitle));
     public static string Account_SkinModelClassicDescription => Get(nameof(Account_SkinModelClassicDescription));
@@ -390,8 +392,13 @@ public static class Strings
     public static string Status_AccountProfileRefreshOfflineUnsupported => Get(nameof(Status_AccountProfileRefreshOfflineUnsupported));
     public static string Status_ErrorCodeFormat => Get(nameof(Status_ErrorCodeFormat));
     public static string Status_SkinOfflineUnsupported => Get(nameof(Status_SkinOfflineUnsupported));
+    public static string Status_AddingSkin => Get(nameof(Status_AddingSkin));
+    public static string Status_SkinAdded => Get(nameof(Status_SkinAdded));
     public static string Status_UploadingSkin => Get(nameof(Status_UploadingSkin));
     public static string Status_SkinUpdated => Get(nameof(Status_SkinUpdated));
+    public static string Status_SkinModelChanged => Get(nameof(Status_SkinModelChanged));
+    public static string Status_SkinDeleted => Get(nameof(Status_SkinDeleted));
+    public static string Status_SkinDeleteFailed => Get(nameof(Status_SkinDeleteFailed));
     public static string Status_SkinUpdateFailed => Get(nameof(Status_SkinUpdateFailed));
     public static string Status_CapeOfflineUnsupported => Get(nameof(Status_CapeOfflineUnsupported));
     public static string Status_ChangingCape => Get(nameof(Status_ChangingCape));

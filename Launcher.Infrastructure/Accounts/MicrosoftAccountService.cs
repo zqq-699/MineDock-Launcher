@@ -205,7 +205,8 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
             var updatedAccount = await accountFactory.CreateAccountFromProfileAsync(
                 profile,
                 forceRefreshAvatar: true,
-                cancellationToken);
+                cancellationToken,
+                account.SkinLibrary);
             logger.LogInformation("Microsoft account name changed. AccountId={AccountId}", updatedAccount.Id);
             return updatedAccount;
         }
@@ -261,7 +262,8 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
         var refreshedAccount = await accountFactory.CreateAccountFromProfileAsync(
             profile,
             forceRefreshAvatar: true,
-            cancellationToken);
+            cancellationToken,
+            account.SkinLibrary);
         authProvider.UpdateSavedProfile(
             refreshedAccount,
             refreshedAccount.DisplayName,

@@ -32,6 +32,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IModrinthService, ModrinthService>();
         services.AddSingleton<ILauncherStateMonitor, LauncherStateMonitor>();
         services.AddSingleton<IMicrosoftAccountService, MicrosoftAccountService>();
+        services.AddSingleton<IAccountSkinLibraryService, AccountSkinLibraryService>();
         services.AddSingleton<IMinecraftSkinFileValidator, MinecraftSkinFileValidator>();
         services.AddSingleton<IOfflineAccountUuidService, OfflineAccountUuidService>();
         services.AddSingleton(_ => new MicrosoftAuthProvider(new LauncherPathProvider()));

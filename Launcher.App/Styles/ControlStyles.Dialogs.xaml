@@ -328,7 +328,8 @@
                     <Border x:Name="Root"
                             CornerRadius="8">
                         <Grid>
-                            <Border Background="{TemplateBinding Background}"
+                            <Border x:Name="BaseBackground"
+                                    Background="{TemplateBinding Background}"
                                     CornerRadius="8" />
                             <Border x:Name="HoverBackground"
                                     Background="#B83232"
@@ -374,6 +375,12 @@
                         </EventTrigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="#BFFFFFFF" />
+                            <Setter TargetName="BaseBackground" Property="Background" Value="#5A5A5A" />
+                            <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

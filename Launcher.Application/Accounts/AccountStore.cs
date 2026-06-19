@@ -137,7 +137,25 @@ public sealed class AccountStore : IAccountStore
             || !string.Equals(storedAccount.AvatarSource, mergedRecord.AvatarSource, StringComparison.Ordinal)
             || !string.Equals(storedAccount.SkinSource, mergedRecord.SkinSource, StringComparison.Ordinal)
             || storedAccount.SkinModel != mergedRecord.SkinModel
+            || !string.Equals(storedAccount.ActiveSkinId, mergedRecord.ActiveSkinId, StringComparison.Ordinal)
+            || !SkinRecordsEqual(storedAccount.Skins, mergedRecord.Skins)
             || !CapeRecordsEqual(storedAccount.Capes, mergedRecord.Capes);
+    }
+
+    private static bool SkinRecordsEqual(
+        IReadOnlyList<LauncherSkinRecord> left,
+        IReadOnlyList<LauncherSkinRecord> right)
+    {
+        if (left.Count != right.Count)
+            return false;
+
+        return left
+            .Zip(right)
+            .All(pair => string.Equals(pair.First.Id, pair.Second.Id, StringComparison.Ordinal)
+                && string.Equals(pair.First.Source, pair.Second.Source, StringComparison.Ordinal)
+                && pair.First.SkinModel == pair.Second.SkinModel
+                && string.Equals(pair.First.ContentHash, pair.Second.ContentHash, StringComparison.Ordinal)
+                && pair.First.AddedAtUtc == pair.Second.AddedAtUtc);
     }
 
     private static bool CapeRecordsEqual(

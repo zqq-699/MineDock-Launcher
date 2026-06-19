@@ -91,6 +91,15 @@ public sealed class JsonSettingsService : ISettingsService
         {
             account.Capes ??= [];
             account.Capes.RemoveAll(cape => !cape.IsNone && string.IsNullOrWhiteSpace(cape.DisplayName));
+            account.Skins ??= [];
+            account.Skins.RemoveAll(skin => string.IsNullOrWhiteSpace(skin.Id)
+                || string.IsNullOrWhiteSpace(skin.Source)
+                || string.IsNullOrWhiteSpace(skin.ContentHash));
+            if (!string.IsNullOrWhiteSpace(account.ActiveSkinId)
+                && account.Skins.All(skin => !string.Equals(skin.Id, account.ActiveSkinId, StringComparison.Ordinal)))
+            {
+                account.ActiveSkinId = null;
+            }
         }
 
         if (!settings.AccountsInitialized)

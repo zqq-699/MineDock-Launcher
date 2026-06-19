@@ -14,6 +14,8 @@ public sealed partial class LauncherAccount : ObservableObject
     public string? AvatarSource { get; init; }
     public string? SkinSource { get; init; }
     public MinecraftSkinModel? SkinModel { get; init; }
+    public IReadOnlyList<LauncherSkinRecord> SkinLibrary { get; init; } = [];
+    public string? ActiveSkinId { get; init; }
     public bool IsOffline { get; init; }
     public bool HasFreshProfile { get; init; }
     public IReadOnlyList<AccountCapeOption> CachedCapeOptions { get; init; } = [];

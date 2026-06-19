@@ -96,6 +96,18 @@ public sealed class AccountStoreTests
                 Uuid = "uuid",
                 SkinSource = "cached-skin.png",
                 SkinModel = MinecraftSkinModel.Slim,
+                ActiveSkinId = "skin-1",
+                SkinLibrary =
+                [
+                    new LauncherSkinRecord
+                    {
+                        Id = "skin-1",
+                        Source = "cached-skin.png",
+                        SkinModel = MinecraftSkinModel.Slim,
+                        ContentHash = "hash-1",
+                        AddedAtUtc = DateTimeOffset.UnixEpoch
+                    }
+                ],
                 IsOffline = false
             },
             new LauncherAccount
@@ -118,6 +130,10 @@ public sealed class AccountStoreTests
                 Assert.Equal("ms-1", account.Id);
                 Assert.Equal("cached-skin.png", account.SkinSource);
                 Assert.Equal(MinecraftSkinModel.Slim, account.SkinModel);
+                Assert.Equal("skin-1", account.ActiveSkinId);
+                var skin = Assert.Single(account.Skins);
+                Assert.Equal("cached-skin.png", skin.Source);
+                Assert.Equal("hash-1", skin.ContentHash);
             },
             account =>
             {
@@ -187,6 +203,18 @@ public sealed class AccountStoreTests
                     AvatarSource = "cached-avatar.png",
                     SkinSource = "cached-skin.png",
                     SkinModel = MinecraftSkinModel.Slim,
+                    ActiveSkinId = "skin-1",
+                    SkinLibrary =
+                    [
+                        new LauncherSkinRecord
+                        {
+                            Id = "skin-1",
+                            Source = "cached-skin.png",
+                            SkinModel = MinecraftSkinModel.Slim,
+                            ContentHash = "hash-1",
+                            AddedAtUtc = DateTimeOffset.UnixEpoch
+                        }
+                    ],
                     HasFreshProfile = true,
                     IsOffline = false
                 }),
@@ -199,12 +227,16 @@ public sealed class AccountStoreTests
         Assert.Equal("cached-avatar.png", account.AvatarSource);
         Assert.Equal("cached-skin.png", account.SkinSource);
         Assert.Equal(MinecraftSkinModel.Slim, account.SkinModel);
+        Assert.Equal("skin-1", account.ActiveSkinId);
+        Assert.Single(account.SkinLibrary);
         Assert.Equal(1, settingsService.SaveCount);
         var savedAccount = Assert.Single(settings.Accounts);
         Assert.Equal("LiveName", savedAccount.DisplayName);
         Assert.Equal("cached-avatar.png", savedAccount.AvatarSource);
         Assert.Equal("cached-skin.png", savedAccount.SkinSource);
         Assert.Equal(MinecraftSkinModel.Slim, savedAccount.SkinModel);
+        Assert.Equal("skin-1", savedAccount.ActiveSkinId);
+        Assert.Single(savedAccount.Skins);
     }
 
     [Fact]

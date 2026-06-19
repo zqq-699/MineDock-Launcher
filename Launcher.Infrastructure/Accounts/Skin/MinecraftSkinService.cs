@@ -32,11 +32,17 @@ internal sealed class MinecraftSkinService
         await profileClient.UploadSkinAsync(accessToken, skinFilePath, skinModel, cancellationToken);
 
         var profile = await profileClient.GetProfileAsync(accessToken, cancellationToken);
-        var updatedAccount = await accountFactory.CreateAccountFromProfileAsync(profile, forceRefreshAvatar: true, cancellationToken);
+        var uuid = MinecraftAccountHelpers.NormalizeUuid(profile.Id);
         var skinSource = await skinCacheService.StoreUploadedSkinAsync(
-            updatedAccount.Uuid ?? account.Uuid ?? string.Empty,
+            uuid,
             skinFilePath,
+            skinModel,
             cancellationToken);
+        var updatedAccount = await accountFactory.CreateAccountFromProfileAsync(
+            profile,
+            forceRefreshAvatar: true,
+            cancellationToken,
+            account.SkinLibrary);
 
         return new LauncherAccount
         {

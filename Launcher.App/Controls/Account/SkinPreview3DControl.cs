@@ -60,7 +60,7 @@ public sealed class SkinPreview3DControl : Viewport3D
         BitmapImage skin;
         try
         {
-            skin = LoadSkinBitmap(SkinSource);
+            skin = MinecraftSkinPreviewModelBuilder.LoadSkinBitmap(SkinSource);
         }
         catch
         {
@@ -73,15 +73,28 @@ public sealed class SkinPreview3DControl : Viewport3D
             {
                 Children =
                 {
-                    new AmbientLight(Color.FromRgb(160, 160, 160)),
-                    new DirectionalLight(Color.FromRgb(130, 130, 130), new Vector3D(-0.2, -0.35, -0.9)),
-                    BuildPlayerModel(skin, SkinModel)
+                    MinecraftSkinPreviewModelBuilder.CreateAmbientLight(),
+                    MinecraftSkinPreviewModelBuilder.CreateDirectionalLight(),
+                    MinecraftSkinPreviewModelBuilder.BuildPlayerModel(skin, SkinModel)
                 }
             }
         });
     }
+}
 
-    private static BitmapImage LoadSkinBitmap(string source)
+internal static class MinecraftSkinPreviewModelBuilder
+{
+    public static AmbientLight CreateAmbientLight()
+    {
+        return new AmbientLight(Color.FromRgb(160, 160, 160));
+    }
+
+    public static DirectionalLight CreateDirectionalLight()
+    {
+        return new DirectionalLight(Color.FromRgb(130, 130, 130), new Vector3D(-0.2, -0.35, -0.9));
+    }
+
+    public static BitmapImage LoadSkinBitmap(string source)
     {
         var bitmap = new BitmapImage();
         bitmap.BeginInit();
@@ -93,7 +106,10 @@ public sealed class SkinPreview3DControl : Viewport3D
         return bitmap;
     }
 
-    private static Model3DGroup BuildPlayerModel(BitmapSource skin, MinecraftSkinModel? skinModel)
+    public static Model3DGroup BuildPlayerModel(
+        BitmapSource skin,
+        MinecraftSkinModel? skinModel,
+        double brightness = 1)
     {
         var model = new Model3DGroup();
         var height = Math.Max(skin.PixelHeight, 32);
@@ -103,21 +119,21 @@ public sealed class SkinPreview3DControl : Viewport3D
         transform.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0, 0), 2)));
         model.Transform = transform;
 
-        AddCuboid(model, skin, new Rect3D(-4, 12, -4, 8, 8, 8), height, SkinPart.Head);
-        AddCuboid(model, skin, new Rect3D(-4, 0, -2, 8, 12, 4), height, SkinPart.Body);
-        AddCuboid(model, skin, new Rect3D(-4, -12, -2, 4, 12, 4), height, SkinPart.RightLeg);
-        AddCuboid(model, skin, new Rect3D(0, -12, -2, 4, 12, 4), height, hasSecondLayer ? SkinPart.LeftLeg : SkinPart.RightLeg);
-        AddCuboid(model, skin, new Rect3D(-4 - armWidth, 0, -2, armWidth, 12, 4), height, SkinPart.RightArm, armWidth);
-        AddCuboid(model, skin, new Rect3D(4, 0, -2, armWidth, 12, 4), height, hasSecondLayer ? SkinPart.LeftArm : SkinPart.RightArm, armWidth);
+        AddCuboid(model, skin, new Rect3D(-4, 12, -4, 8, 8, 8), height, SkinPart.Head, brightness: brightness);
+        AddCuboid(model, skin, new Rect3D(-4, 0, -2, 8, 12, 4), height, SkinPart.Body, brightness: brightness);
+        AddCuboid(model, skin, new Rect3D(-4, -12, -2, 4, 12, 4), height, SkinPart.RightLeg, brightness: brightness);
+        AddCuboid(model, skin, new Rect3D(0, -12, -2, 4, 12, 4), height, hasSecondLayer ? SkinPart.LeftLeg : SkinPart.RightLeg, brightness: brightness);
+        AddCuboid(model, skin, new Rect3D(-4 - armWidth, 0, -2, armWidth, 12, 4), height, SkinPart.RightArm, armWidth, brightness);
+        AddCuboid(model, skin, new Rect3D(4, 0, -2, armWidth, 12, 4), height, hasSecondLayer ? SkinPart.LeftArm : SkinPart.RightArm, armWidth, brightness);
 
         if (hasSecondLayer)
         {
-            AddCuboid(model, skin, new Rect3D(-4.35, 11.65, -4.35, 8.7, 8.7, 8.7), height, SkinPart.HeadOverlay);
-            AddCuboid(model, skin, new Rect3D(-4.25, -0.25, -2.25, 8.5, 12.5, 4.5), height, SkinPart.BodyOverlay);
-            AddCuboid(model, skin, new Rect3D(-4.25, -12.25, -2.25, 4.5, 12.5, 4.5), height, SkinPart.RightLegOverlay);
-            AddCuboid(model, skin, new Rect3D(-0.25, -12.25, -2.25, 4.5, 12.5, 4.5), height, SkinPart.LeftLegOverlay);
-            AddCuboid(model, skin, new Rect3D(-4.25 - armWidth, -0.25, -2.25, armWidth + 0.5, 12.5, 4.5), height, SkinPart.RightArmOverlay, armWidth);
-            AddCuboid(model, skin, new Rect3D(3.75, -0.25, -2.25, armWidth + 0.5, 12.5, 4.5), height, SkinPart.LeftArmOverlay, armWidth);
+            AddCuboid(model, skin, new Rect3D(-4.35, 11.65, -4.35, 8.7, 8.7, 8.7), height, SkinPart.HeadOverlay, brightness: brightness);
+            AddCuboid(model, skin, new Rect3D(-4.25, -0.25, -2.25, 8.5, 12.5, 4.5), height, SkinPart.BodyOverlay, brightness: brightness);
+            AddCuboid(model, skin, new Rect3D(-4.25, -12.25, -2.25, 4.5, 12.5, 4.5), height, SkinPart.RightLegOverlay, brightness: brightness);
+            AddCuboid(model, skin, new Rect3D(-0.25, -12.25, -2.25, 4.5, 12.5, 4.5), height, SkinPart.LeftLegOverlay, brightness: brightness);
+            AddCuboid(model, skin, new Rect3D(-4.25 - armWidth, -0.25, -2.25, armWidth + 0.5, 12.5, 4.5), height, SkinPart.RightArmOverlay, armWidth, brightness);
+            AddCuboid(model, skin, new Rect3D(3.75, -0.25, -2.25, armWidth + 0.5, 12.5, 4.5), height, SkinPart.LeftArmOverlay, armWidth, brightness);
         }
 
         return model;
@@ -129,15 +145,16 @@ public sealed class SkinPreview3DControl : Viewport3D
         Rect3D bounds,
         int skinHeight,
         SkinPart part,
-        int armWidth = 4)
+        int armWidth = 4,
+        double brightness = 1)
     {
         var faces = MinecraftSkinPreviewGeometry.GetFaces(part, armWidth);
-        AddFace(group, skin, skinHeight, bounds, CubeFace.Front, faces.Front);
-        AddFace(group, skin, skinHeight, bounds, CubeFace.Back, faces.Back);
-        AddFace(group, skin, skinHeight, bounds, CubeFace.Left, faces.Left);
-        AddFace(group, skin, skinHeight, bounds, CubeFace.Right, faces.Right);
-        AddFace(group, skin, skinHeight, bounds, CubeFace.Top, faces.Top);
-        AddFace(group, skin, skinHeight, bounds, CubeFace.Bottom, faces.Bottom);
+        AddFace(group, skin, skinHeight, bounds, CubeFace.Front, faces.Front, brightness);
+        AddFace(group, skin, skinHeight, bounds, CubeFace.Back, faces.Back, brightness);
+        AddFace(group, skin, skinHeight, bounds, CubeFace.Left, faces.Left, brightness);
+        AddFace(group, skin, skinHeight, bounds, CubeFace.Right, faces.Right, brightness);
+        AddFace(group, skin, skinHeight, bounds, CubeFace.Top, faces.Top, brightness);
+        AddFace(group, skin, skinHeight, bounds, CubeFace.Bottom, faces.Bottom, brightness);
     }
 
     private static void AddFace(
@@ -146,10 +163,11 @@ public sealed class SkinPreview3DControl : Viewport3D
         int skinHeight,
         Rect3D bounds,
         CubeFace face,
-        Int32Rect textureRect)
+        Int32Rect textureRect,
+        double brightness)
     {
         var mesh = CreateFaceMesh(bounds, face);
-        var faceBitmap = CreatePixelSharpFaceBitmap(skin, textureRect);
+        var faceBitmap = CreatePixelSharpFaceBitmap(skin, textureRect, brightness);
         var brush = new ImageBrush(faceBitmap)
         {
             Stretch = Stretch.Fill,
@@ -237,9 +255,13 @@ public sealed class SkinPreview3DControl : Viewport3D
         return mesh;
     }
 
-    private static BitmapSource CreatePixelSharpFaceBitmap(ImageSource skin, Int32Rect textureRect)
+    private static BitmapSource CreatePixelSharpFaceBitmap(
+        ImageSource skin,
+        Int32Rect textureRect,
+        double brightness)
     {
         const int scale = 16;
+        brightness = Math.Clamp(brightness, 0, 1);
         var source = EnsureBgra32((BitmapSource)skin);
         var clampedX = Math.Clamp(textureRect.X, 0, source.PixelWidth - 1);
         var clampedY = Math.Clamp(textureRect.Y, 0, source.PixelHeight - 1);
@@ -264,9 +286,9 @@ public sealed class SkinPreview3DControl : Viewport3D
                 var sourceX = x / scale;
                 var sourceIndex = sourceY * stride + sourceX * 4;
                 var outputIndex = y * outputStride + x * 4;
-                output[outputIndex] = pixels[sourceIndex];
-                output[outputIndex + 1] = pixels[sourceIndex + 1];
-                output[outputIndex + 2] = pixels[sourceIndex + 2];
+                output[outputIndex] = ApplyBrightness(pixels[sourceIndex], brightness);
+                output[outputIndex + 1] = ApplyBrightness(pixels[sourceIndex + 1], brightness);
+                output[outputIndex + 2] = ApplyBrightness(pixels[sourceIndex + 2], brightness);
                 output[outputIndex + 3] = pixels[sourceIndex + 3];
             }
         }
@@ -282,6 +304,11 @@ public sealed class SkinPreview3DControl : Viewport3D
             outputStride);
         bitmap.Freeze();
         return bitmap;
+    }
+
+    private static byte ApplyBrightness(byte value, double brightness)
+    {
+        return (byte)Math.Round(value * brightness);
     }
 
     private static BitmapSource EnsureBgra32(BitmapSource source)

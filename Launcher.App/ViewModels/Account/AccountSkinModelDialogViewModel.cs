@@ -10,6 +10,7 @@ namespace Launcher.App.ViewModels.Account;
 public sealed partial class AccountSkinModelDialogViewModel : ObservableObject
 {
     private string pendingSkinFilePath = string.Empty;
+    private bool isChangingExistingSkinModel;
 
     [ObservableProperty]
     private bool isSkinModelDialogOpen;
@@ -24,7 +25,8 @@ public sealed partial class AccountSkinModelDialogViewModel : ObservableObject
 
     public bool CanConfirmSkinModelDialog => IsSkinModelDialogOpen
         && (IsSkinFormatError
-            || (!string.IsNullOrWhiteSpace(pendingSkinFilePath) && SelectedSkinModelOption is not null));
+            || ((isChangingExistingSkinModel || !string.IsNullOrWhiteSpace(pendingSkinFilePath))
+                && SelectedSkinModelOption is not null));
 
     public bool IsSkinModelSelectionStep => IsSkinModelDialogOpen && !IsSkinFormatError;
 
@@ -41,8 +43,19 @@ public sealed partial class AccountSkinModelDialogViewModel : ObservableObject
     public void Open(string skinFilePath)
     {
         pendingSkinFilePath = skinFilePath;
+        isChangingExistingSkinModel = false;
         IsSkinFormatError = false;
         SelectedSkinModelOption = null;
+        IsSkinModelDialogOpen = true;
+        NotifyDialogStateChanged();
+    }
+
+    public void OpenForExistingSkin(MinecraftSkinModel skinModel)
+    {
+        pendingSkinFilePath = string.Empty;
+        isChangingExistingSkinModel = true;
+        IsSkinFormatError = false;
+        SelectedSkinModelOption = SkinModelOptions.FirstOrDefault(option => option.Model == skinModel);
         IsSkinModelDialogOpen = true;
         NotifyDialogStateChanged();
     }
@@ -50,6 +63,7 @@ public sealed partial class AccountSkinModelDialogViewModel : ObservableObject
     public void OpenFormatError()
     {
         pendingSkinFilePath = string.Empty;
+        isChangingExistingSkinModel = false;
         SelectedSkinModelOption = null;
         IsSkinFormatError = true;
         IsSkinModelDialogOpen = true;
@@ -65,6 +79,7 @@ public sealed partial class AccountSkinModelDialogViewModel : ObservableObject
     public void Reset()
     {
         pendingSkinFilePath = string.Empty;
+        isChangingExistingSkinModel = false;
         IsSkinFormatError = false;
         SelectedSkinModelOption = null;
         NotifyDialogStateChanged();

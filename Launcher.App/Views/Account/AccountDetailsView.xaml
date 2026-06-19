@@ -162,37 +162,55 @@
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center">
                                 <Button Style="{StaticResource LauncherDialogButtonStyle}"
-                                        Content="{x:Static res:Strings.Refresh_Button}"
-                                        IsEnabled="{Binding Appearance.CanEditSelectedMicrosoftAccount}"
-                                        Command="{Binding Appearance.RefreshSelectedAccountInfoCommand}" />
-                                <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
-                                        Margin="10,0,0,0"
-                                        Content="{x:Static res:Strings.Account_ChangeSkinButton}"
+                                        Content="{x:Static res:Strings.Account_AddSkinButton}"
                                         IsEnabled="{Binding Appearance.CanChangeSelectedAccountSkin}"
                                         Command="{Binding Appearance.PickAndChangeSelectedAccountSkinCommand}" />
+                                <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                        Margin="10,0,0,0"
+                                        Content="{x:Static res:Strings.Apply_Button}"
+                                        IsEnabled="{Binding Appearance.CanApplySelectedAccountSkin}"
+                                        Command="{Binding Appearance.ApplySelectedAccountSkinCommand}" />
                             </StackPanel>
                         </Grid>
                     </GroupBox.Header>
-                    <Grid>
-                        <Grid Width="160"
-                              Height="236"
-                              HorizontalAlignment="Center">
-                            <Grid>
-                                <accountControls:SkinPreview3DControl SkinSource="{Binding AccountList.SelectedAccount.SkinSource}"
-                                                                      SkinModel="{Binding AccountList.SelectedAccount.SkinModel}"
-                                                                      RenderOptions.BitmapScalingMode="NearestNeighbor"
-                                                                      Visibility="{Binding Appearance.HasSelectedAccountSkinPreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
-                                <TextBlock Margin="14"
-                                           Text="{x:Static res:Strings.Account_SkinPreviewEmpty}"
-                                           Foreground="#8FFFFFFF"
-                                           FontSize="12"
-                                           TextAlignment="Center"
-                                           TextWrapping="Wrap"
-                                           VerticalAlignment="Center"
-                                           Visibility="{Binding Appearance.CanShowSelectedAccountSkinPreviewEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
-                            </Grid>
+                    <StackPanel>
+                        <Grid Height="220">
+                            <accountControls:SkinCarousel3DControl x:Name="SkinCarouselRoot"
+                                                                   Width="540"
+                                                                   Height="206"
+                                                                   HorizontalAlignment="Center"
+                                                                   PreviousSkin="{Binding Appearance.PreviousAccountSkin}"
+                                                                   SelectedSkin="{Binding Appearance.SelectedAccountSkin}"
+                                                                   NextSkin="{Binding Appearance.NextAccountSkin}"
+                                                                   PreviousCommand="{Binding Appearance.SelectPreviousAccountSkinCommand}"
+                                                                   NextCommand="{Binding Appearance.SelectNextAccountSkinCommand}"
+                                                                   Visibility="{Binding Appearance.HasSelectedAccountSkinPreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                            <TextBlock Width="240"
+                                       Margin="14"
+                                       Text="{x:Static res:Strings.Account_SkinPreviewEmpty}"
+                                       Foreground="#8FFFFFFF"
+                                       FontSize="12"
+                                       TextAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding Appearance.CanShowSelectedAccountSkinPreviewEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                         </Grid>
-                    </Grid>
+                        <StackPanel Margin="0,8,0,0"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Visibility="{Binding Appearance.HasSelectedAccountSkinPreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                            <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                    Content="{x:Static res:Strings.Account_ChangeSkinModelButton}"
+                                    IsEnabled="{Binding Appearance.CanEditSelectedAccountSkinLibraryItem}"
+                                    Command="{Binding Appearance.ChangeSelectedAccountSkinModelCommand}" />
+                            <Button Style="{StaticResource LauncherDangerDialogButtonStyle}"
+                                    Margin="10,0,0,0"
+                                    Content="{x:Static res:Strings.Delete_Button}"
+                                    IsEnabled="{Binding Appearance.CanDeleteSelectedAccountSkin}"
+                                    Command="{Binding Appearance.DeleteSelectedAccountSkinCommand}" />
+                        </StackPanel>
+                    </StackPanel>
                 </GroupBox>
 
                 <GroupBox Margin="0,22,0,0"
