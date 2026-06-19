@@ -47,7 +47,8 @@ public partial class MainWindow : Window
             AddAccountDialogHost,
             DeleteAccountDialogHost,
             RenameAccountDialogHost,
-            SkinModelDialogHost);
+            SkinModelDialogHost,
+            SkinManagerDialogHost);
 
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
         launcherStateMonitor.StateChanged += LauncherStateMonitor_StateChanged;

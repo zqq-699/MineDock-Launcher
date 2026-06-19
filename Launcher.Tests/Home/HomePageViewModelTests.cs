@@ -792,7 +792,8 @@ public sealed class HomePageViewModelTests
             DialogHost addAccountHost,
             DialogHost deleteAccountHost,
             DialogHost renameAccountHost,
-            DialogHost skinModelDialogHost)
+            DialogHost skinModelDialogHost,
+            DialogHost skinManagerDialogHost)
         {
         }
 
@@ -817,6 +818,10 @@ public sealed class HomePageViewModelTests
         }
 
         public void ShowSkinFormatErrorDialog()
+        {
+        }
+
+        public void ShowSkinManagerDialog()
         {
         }
 
@@ -858,6 +863,10 @@ public sealed class HomePageViewModelTests
         public Task ConfirmSkinModelDialogAsync()
         {
             throw new NotSupportedException();
+        }
+
+        public void CancelSkinManagerDialog()
+        {
         }
 
         public void QueueOpenDialogBlurRefresh()

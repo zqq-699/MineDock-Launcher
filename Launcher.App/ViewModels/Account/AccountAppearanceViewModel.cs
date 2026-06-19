@@ -33,6 +33,9 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     private bool isAccountProfileBusy;
 
     [ObservableProperty]
+    private bool isSkinManagerDialogOpen;
+
+    [ObservableProperty]
     private string accountProfileMessage = string.Empty;
 
     [ObservableProperty]
@@ -68,6 +71,9 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     public bool CanChangeSelectedAccountSkin => accountList.SelectedAccount is not null
         && !accountList.SelectedAccount.IsOffline;
 
+    public bool CanManageSelectedAccountSkins => accountList.SelectedAccount is not null
+        && !accountList.SelectedAccount.IsOffline;
+
     public bool CanApplySelectedAccountSkin => accountList.SelectedAccount is not null
         && !accountList.SelectedAccount.IsOffline
         && !IsAccountProfileBusy
@@ -94,6 +100,10 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
     public bool HasSelectedAccountCapes => SelectedAccountCapeOptions.Count > 0;
 
+    public bool HasSelectedAccountSkins => SelectedAccountSkins.Count > 0;
+
+    public bool CanShowSkinManagerEmptyState => !HasSelectedAccountSkins;
+
     public bool HasSelectedAccountSkinPreview => SelectedAccountSkin is not null;
 
     public bool CanShowSelectedAccountSkinPreviewEmptyState => accountList.SelectedAccount is not null
@@ -108,6 +118,8 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     public bool HasNextAccountSkin => NextAccountSkin is not null;
 
     public bool HasAccountProfileErrorCode => !string.IsNullOrWhiteSpace(AccountProfileErrorCodeMessage);
+
+    public string? ActiveSkinId => accountList.SelectedAccount?.ActiveSkinId;
 
     public async Task ConfirmSkinModelDialogAsync()
     {
@@ -247,6 +259,43 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             dialogService.ShowSkinFormatErrorDialog();
     }
 
+    [RelayCommand(CanExecute = nameof(CanManageSelectedAccountSkins))]
+    public void RequestOpenSkinManagerDialog()
+    {
+        dialogService.ShowSkinManagerDialog();
+    }
+
+    [RelayCommand]
+    public void RequestCancelSkinManagerDialog()
+    {
+        dialogService.CancelSkinManagerDialog();
+    }
+
+    public void OpenSkinManagerDialog()
+    {
+        if (!CanManageSelectedAccountSkins)
+            return;
+
+        IsSkinManagerDialogOpen = true;
+    }
+
+    public void CloseSkinManagerDialog()
+    {
+        IsSkinManagerDialogOpen = false;
+    }
+
+    [RelayCommand]
+    public void SelectAccountSkin(LauncherSkinRecord? skin)
+    {
+        if (skin is null || !SelectedAccountSkins.Any(candidate =>
+            string.Equals(candidate.Id, skin.Id, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        SelectedAccountSkin = skin;
+    }
+
     [RelayCommand(CanExecute = nameof(CanEditSelectedAccountSkinLibraryItem))]
     public void ChangeSelectedAccountSkinModel()
     {
@@ -256,6 +305,24 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
         skinPendingModelChange = skin;
         dialogService.ShowSkinModelDialog(skin.SkinModel);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanChangeAccountSkinModel))]
+    public void ChangeAccountSkinModel(LauncherSkinRecord? skin)
+    {
+        if (!CanChangeAccountSkinModel(skin))
+            return;
+
+        SelectedAccountSkin = skin;
+        ChangeSelectedAccountSkinModel();
+    }
+
+    public bool CanChangeAccountSkinModel(LauncherSkinRecord? skin)
+    {
+        return accountList.SelectedAccount is not null
+            && !accountList.SelectedAccount.IsOffline
+            && !IsAccountProfileBusy
+            && skin is not null;
     }
 
     [RelayCommand(CanExecute = nameof(CanDeleteSelectedAccountSkin))]
@@ -299,6 +366,25 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         {
             IsAccountProfileBusy = false;
         }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDeleteAccountSkin))]
+    public async Task DeleteAccountSkinAsync(LauncherSkinRecord? skin)
+    {
+        if (!CanDeleteAccountSkin(skin))
+            return;
+
+        SelectedAccountSkin = skin;
+        await DeleteSelectedAccountSkinAsync();
+    }
+
+    public bool CanDeleteAccountSkin(LauncherSkinRecord? skin)
+    {
+        return accountList.SelectedAccount is not null
+            && !accountList.SelectedAccount.IsOffline
+            && !IsAccountProfileBusy
+            && skin is not null
+            && !string.Equals(accountList.SelectedAccount.ActiveSkinId, skin.Id, StringComparison.Ordinal);
     }
 
     [RelayCommand]
@@ -549,6 +635,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         {
             AccountProfileMessage = string.Empty;
             AccountProfileErrorCodeMessage = string.Empty;
+            CloseSkinManagerDialog();
             NotifyAccountSelectionPropertiesChanged();
             return;
         }
@@ -587,6 +674,8 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             ?? SelectedAccountSkins.FirstOrDefault(skin =>
                 string.Equals(skin.Id, account.ActiveSkinId, StringComparison.Ordinal))
             ?? SelectedAccountSkins.FirstOrDefault();
+        OnPropertyChanged(nameof(HasSelectedAccountSkins));
+        OnPropertyChanged(nameof(ActiveSkinId));
         NotifySelectedAccountSkinPropertiesChanged();
     }
 
@@ -812,6 +901,11 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     private void NotifyAccountSelectionPropertiesChanged()
     {
         OnPropertyChanged(nameof(CanChangeSelectedAccountSkin));
+        OnPropertyChanged(nameof(CanManageSelectedAccountSkins));
+        OnPropertyChanged(nameof(HasSelectedAccountSkins));
+        OnPropertyChanged(nameof(CanShowSkinManagerEmptyState));
+        OnPropertyChanged(nameof(ActiveSkinId));
+        RequestOpenSkinManagerDialogCommand.NotifyCanExecuteChanged();
         NotifySelectedAccountSkinPropertiesChanged();
         NotifySelectedAccountProfileActionPropertiesChanged();
     }
@@ -825,6 +919,8 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         OnPropertyChanged(nameof(CanDeleteSelectedAccountSkin));
         ChangeSelectedAccountSkinModelCommand.NotifyCanExecuteChanged();
         DeleteSelectedAccountSkinCommand.NotifyCanExecuteChanged();
+        ChangeAccountSkinModelCommand.NotifyCanExecuteChanged();
+        DeleteAccountSkinCommand.NotifyCanExecuteChanged();
     }
 
     private void NotifySelectedAccountSkinPropertiesChanged()
@@ -832,6 +928,8 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         OnPropertyChanged(nameof(CanApplySelectedAccountSkin));
         OnPropertyChanged(nameof(CanEditSelectedAccountSkinLibraryItem));
         OnPropertyChanged(nameof(CanDeleteSelectedAccountSkin));
+        OnPropertyChanged(nameof(HasSelectedAccountSkins));
+        OnPropertyChanged(nameof(CanShowSkinManagerEmptyState));
         OnPropertyChanged(nameof(HasSelectedAccountSkinPreview));
         OnPropertyChanged(nameof(CanShowSelectedAccountSkinPreviewEmptyState));
         OnPropertyChanged(nameof(PreviousAccountSkin));
@@ -843,6 +941,8 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         ApplySelectedAccountSkinCommand.NotifyCanExecuteChanged();
         ChangeSelectedAccountSkinModelCommand.NotifyCanExecuteChanged();
         DeleteSelectedAccountSkinCommand.NotifyCanExecuteChanged();
+        ChangeAccountSkinModelCommand.NotifyCanExecuteChanged();
+        DeleteAccountSkinCommand.NotifyCanExecuteChanged();
     }
 
 }

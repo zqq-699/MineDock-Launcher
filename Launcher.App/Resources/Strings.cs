@@ -183,7 +183,9 @@ public static class Strings
     public static string Account_CapeHeader => Get(nameof(Account_CapeHeader));
     public static string Account_ChangeSkinButton => Get(nameof(Account_ChangeSkinButton));
     public static string Account_AddSkinButton => Get(nameof(Account_AddSkinButton));
+    public static string Account_ManageSkinButton => Get(nameof(Account_ManageSkinButton));
     public static string Account_ChangeSkinModelButton => Get(nameof(Account_ChangeSkinModelButton));
+    public static string Account_SkinActiveState => Get(nameof(Account_SkinActiveState));
     public static string Account_SkinPreviewEmpty => Get(nameof(Account_SkinPreviewEmpty));
     public static string Account_SkinModelClassicTitle => Get(nameof(Account_SkinModelClassicTitle));
     public static string Account_SkinModelClassicDescription => Get(nameof(Account_SkinModelClassicDescription));
@@ -250,6 +252,8 @@ public static class Strings
     public static string Dialog_RenameOfflineAccountSubtitle => Get(nameof(Dialog_RenameOfflineAccountSubtitle));
     public static string Dialog_SkinModelTitle => Get(nameof(Dialog_SkinModelTitle));
     public static string Dialog_SkinModelSubtitle => Get(nameof(Dialog_SkinModelSubtitle));
+    public static string Dialog_SkinManagerTitle => Get(nameof(Dialog_SkinManagerTitle));
+    public static string Dialog_SkinManagerEmpty => Get(nameof(Dialog_SkinManagerEmpty));
     public static string Dialog_SkinFormatErrorTitle => Get(nameof(Dialog_SkinFormatErrorTitle));
     public static string Dialog_SkinFormatErrorSubtitle => Get(nameof(Dialog_SkinFormatErrorSubtitle));
     public static string Download_VersionListTitle => Get(nameof(Download_VersionListTitle));

@@ -133,9 +133,9 @@ public sealed class SkinCarousel3DControl : Grid
         var newSkin = e.NewValue as LauncherSkinRecord;
         if (newSkin is not null)
         {
-            if (SkinsMatch(newSkin, control.nextRenderedSkin))
+            if (SkinCarousel3DLayout.SkinsRepresentSameVisualItem(newSkin, control.nextRenderedSkin))
                 control.pendingDirection = SkinCarouselDirection.Next;
-            else if (SkinsMatch(newSkin, control.previousRenderedSkin))
+            else if (SkinCarousel3DLayout.SkinsRepresentSameVisualItem(newSkin, control.previousRenderedSkin))
                 control.pendingDirection = SkinCarouselDirection.Previous;
         }
 
@@ -161,7 +161,16 @@ public sealed class SkinCarousel3DControl : Grid
         rebuildRequestedWhileQueued = false;
 
         var oldSlotVisuals = currentSlotVisuals.Values.ToList();
-        var direction = pendingDirection;
+        var direction = SkinCarousel3DLayout.CanAnimateTransition(
+            pendingDirection,
+            previousRenderedSkin,
+            selectedRenderedSkin,
+            nextRenderedSkin,
+            PreviousSkin,
+            SelectedSkin,
+            NextSkin)
+            ? pendingDirection
+            : null;
         pendingDirection = null;
 
         viewport.Children.Clear();
@@ -246,6 +255,9 @@ public sealed class SkinCarousel3DControl : Grid
         IReadOnlyList<SlotVisual> oldSlotVisuals,
         SkinCarouselDirection? direction)
     {
+        if (direction is null)
+            return SkinCarousel3DLayout.GetPlacement(targetSlot);
+
         var oldVisual = oldSlotVisuals.FirstOrDefault(visual => SkinsMatch(visual.Skin, skin));
         if (oldVisual is not null)
             return oldVisual.GetCurrentPlacement();
@@ -387,14 +399,7 @@ public sealed class SkinCarousel3DControl : Grid
 
     private static bool SkinsMatch(LauncherSkinRecord? left, LauncherSkinRecord? right)
     {
-        if (left is null || right is null)
-            return false;
-
-        if (string.Equals(left.Id, right.Id, StringComparison.Ordinal))
-            return true;
-
-        return !string.IsNullOrWhiteSpace(left.ContentHash)
-            && string.Equals(left.ContentHash, right.ContentHash, StringComparison.OrdinalIgnoreCase);
+        return SkinCarousel3DLayout.SkinsRepresentSameVisualItem(left, right);
     }
 
     private sealed record SlotVisual(
@@ -449,5 +454,45 @@ public static class SkinCarousel3DLayout
         return direction is SkinCarouselDirection.Previous
             ? LeftEntryPlacement
             : RightEntryPlacement;
+    }
+
+    public static bool CanAnimateTransition(
+        SkinCarouselDirection? direction,
+        LauncherSkinRecord? oldPreviousSkin,
+        LauncherSkinRecord? oldSelectedSkin,
+        LauncherSkinRecord? oldNextSkin,
+        LauncherSkinRecord? newPreviousSkin,
+        LauncherSkinRecord? newSelectedSkin,
+        LauncherSkinRecord? newNextSkin)
+    {
+        return direction switch
+        {
+            SkinCarouselDirection.Next =>
+                SkinsRepresentSameVisualItem(newPreviousSkin, oldSelectedSkin)
+                && SkinsRepresentSameVisualItem(newSelectedSkin, oldNextSkin),
+            SkinCarouselDirection.Previous =>
+                SkinsRepresentSameVisualItem(newSelectedSkin, oldPreviousSkin)
+                && SkinsRepresentSameVisualItem(newNextSkin, oldSelectedSkin),
+            _ => false
+        };
+    }
+
+    public static bool SkinsRepresentSameVisualItem(LauncherSkinRecord? left, LauncherSkinRecord? right)
+    {
+        if (left is null || right is null)
+            return false;
+
+        if (!string.IsNullOrWhiteSpace(left.Id) && !string.IsNullOrWhiteSpace(right.Id))
+            return string.Equals(left.Id, right.Id, StringComparison.Ordinal);
+
+        if (!string.IsNullOrWhiteSpace(left.ContentHash) && !string.IsNullOrWhiteSpace(right.ContentHash))
+        {
+            return left.SkinModel == right.SkinModel
+                && string.Equals(left.ContentHash, right.ContentHash, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return left.SkinModel == right.SkinModel
+            && !string.IsNullOrWhiteSpace(left.Source)
+            && string.Equals(left.Source, right.Source, StringComparison.Ordinal);
     }
 }

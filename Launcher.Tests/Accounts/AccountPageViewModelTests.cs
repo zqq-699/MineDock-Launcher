@@ -594,6 +594,99 @@ public sealed class AccountPageViewModelTests
     }
 
     [Fact]
+    public void SkinManagerCanOpenForMicrosoftAccountsOnly()
+    {
+        var dialogService = new FakeAccountDialogService();
+        var viewModel = CreateViewModel(
+            new FakeAccountStore(),
+            new FakeStatusService(),
+            dialogService: dialogService);
+        var offline = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "Local",
+            IsOffline = true
+        };
+        var microsoft = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            IsOffline = false
+        };
+        viewModel.AccountList.Accounts.Add(offline);
+        viewModel.AccountList.Accounts.Add(microsoft);
+
+        viewModel.SelectAccount(offline);
+
+        Assert.False(viewModel.Appearance.CanManageSelectedAccountSkins);
+        Assert.False(viewModel.Appearance.RequestOpenSkinManagerDialogCommand.CanExecute(null));
+
+        viewModel.SelectAccount(microsoft);
+        viewModel.Appearance.RequestOpenSkinManagerDialogCommand.Execute(null);
+
+        Assert.True(viewModel.Appearance.CanManageSelectedAccountSkins);
+        Assert.True(dialogService.WasSkinManagerShown);
+    }
+
+    [Fact]
+    public void SkinManagerCanSelectSkinFromTile()
+    {
+        var viewModel = CreateViewModel(new FakeAccountStore(), new FakeStatusService());
+        var activeSkin = CreateSkinRecord("skin-active", "hash-active", MinecraftSkinModel.Classic);
+        var nextSkin = CreateSkinRecord("skin-next", "hash-next", MinecraftSkinModel.Slim);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            ActiveSkinId = activeSkin.Id,
+            SkinLibrary = [activeSkin, nextSkin],
+            IsOffline = false
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        viewModel.Appearance.SelectAccountSkinCommand.Execute(nextSkin);
+
+        Assert.Same(nextSkin, viewModel.Appearance.SelectedAccountSkin);
+    }
+
+    [Fact]
+    public async Task SkinManagerDeleteCommandUsesTileSkin()
+    {
+        var accountStore = new FakeAccountStore();
+        var skinLibraryService = new FakeAccountSkinLibraryService();
+        var viewModel = CreateViewModel(
+            accountStore,
+            new FakeStatusService(),
+            skinLibraryService: skinLibraryService);
+        var activeSkin = CreateSkinRecord("skin-active", "hash-active", MinecraftSkinModel.Classic);
+        var nextSkin = CreateSkinRecord("skin-next", "hash-next", MinecraftSkinModel.Slim);
+        var account = new LauncherAccount
+        {
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "Player",
+            Uuid = "00000000000000000000000000000001",
+            ActiveSkinId = activeSkin.Id,
+            SkinLibrary = [activeSkin, nextSkin],
+            IsOffline = false
+        };
+        viewModel.AccountList.Accounts.Add(account);
+        viewModel.SelectAccount(account);
+
+        Assert.False(viewModel.Appearance.DeleteAccountSkinCommand.CanExecute(activeSkin));
+        Assert.True(viewModel.Appearance.DeleteAccountSkinCommand.CanExecute(nextSkin));
+        await viewModel.Appearance.DeleteAccountSkinCommand.ExecuteAsync(nextSkin);
+
+        Assert.Equal(1, skinLibraryService.DeleteSkinCount);
+        Assert.Same(nextSkin, skinLibraryService.LastDeletedSkin);
+        var savedAccount = Assert.Single(accountStore.LastSavedAccounts);
+        var savedSkin = Assert.Single(savedAccount.SkinLibrary);
+        Assert.Equal(activeSkin.Id, savedSkin.Id);
+    }
+
+    [Fact]
     public async Task ChangeSelectedSkinModelUpdatesLocalRecordWithoutUploading()
     {
         var accountStore = new FakeAccountStore();
@@ -1394,13 +1487,18 @@ public sealed class AccountPageViewModelTests
             DialogHost addAccountHost,
             DialogHost deleteAccountHost,
             DialogHost renameAccountHost,
-            DialogHost skinModelDialogHost)
+            DialogHost skinModelDialogHost,
+            DialogHost skinManagerDialogHost)
         {
         }
 
         public string? LastSkinModelFilePath { get; private set; }
 
         public MinecraftSkinModel? LastExistingSkinModel { get; private set; }
+
+        public bool WasSkinManagerShown { get; private set; }
+
+        public bool WasSkinManagerCanceled { get; private set; }
 
         public bool WasSkinFormatErrorShown { get; private set; }
 
@@ -1429,6 +1527,11 @@ public sealed class AccountPageViewModelTests
         public void ShowSkinFormatErrorDialog()
         {
             WasSkinFormatErrorShown = true;
+        }
+
+        public void ShowSkinManagerDialog()
+        {
+            WasSkinManagerShown = true;
         }
 
         public void CancelAddAccountDialog()
@@ -1469,6 +1572,11 @@ public sealed class AccountPageViewModelTests
         public Task ConfirmSkinModelDialogAsync()
         {
             throw new NotSupportedException();
+        }
+
+        public void CancelSkinManagerDialog()
+        {
+            WasSkinManagerCanceled = true;
         }
 
         public void QueueOpenDialogBlurRefresh()

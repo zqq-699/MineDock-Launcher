@@ -1,0 +1,187 @@
+<UserControl x:Class="Launcher.App.Views.Account.Dialogs.SkinManagerDialogView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+             xmlns:accountControls="clr-namespace:Launcher.App.Controls.Account"
+             xmlns:domainModels="clr-namespace:Launcher.Domain.Models;assembly=Launcher.Domain"
+             xmlns:res="clr-namespace:Launcher.App.Resources"
+             MinHeight="300"
+             Focusable="False">
+    <UserControl.Resources>
+        <Style x:Key="SkinManagerTileItemStyle"
+               TargetType="ListBoxItem">
+            <Setter Property="Width" Value="100" />
+            <Setter Property="Height" Value="200" />
+            <Setter Property="Margin" Value="2,4" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Foreground" Value="#F4F4F4" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Root"
+                                CornerRadius="10">
+                            <Grid>
+                                <Border Background="#12FFFFFF"
+                                        CornerRadius="10" />
+                                <Border x:Name="SelectedBackground"
+                                        Background="#80686868"
+                                        CornerRadius="10"
+                                        Opacity="0" />
+                                <Border x:Name="SelectedOutline"
+                                        BorderBrush="#887ABEFF"
+                                        BorderThickness="2"
+                                        CornerRadius="10"
+                                        Opacity="0" />
+                                <Border x:Name="HoverBackground"
+                                        Background="#20FFFFFF"
+                                        CornerRadius="10"
+                                        Opacity="0" />
+                                <ContentPresenter Margin="8"
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="Mouse.MouseEnter">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.16">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <EventTrigger RoutedEvent="Mouse.MouseLeave">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.22">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut" />
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
+                                <Setter TargetName="SelectedOutline" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SkinManagerTileListStyle"
+               TargetType="ListBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource SkinManagerTileItemStyle}" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+            <Style.Resources>
+                <Style TargetType="ScrollBar" BasedOn="{StaticResource MainContentScrollBarStyle}" />
+            </Style.Resources>
+        </Style>
+
+        <Style x:Key="SkinManagerTileButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource LauncherDialogButtonStyle}">
+            <Setter Property="MinWidth" Value="66" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
+        <Style x:Key="SkinManagerTileDangerButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource LauncherDangerDialogButtonStyle}">
+            <Setter Property="MinWidth" Value="66" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Style="{StaticResource DialogContentGridStyle}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="{x:Static res:Strings.Dialog_SkinManagerTitle}"
+                   Style="{StaticResource DialogTitleTextStyle}" />
+
+        <Grid Grid.Row="1"
+              Margin="0,18,0,18"
+              MinHeight="220">
+            <ListBox MaxHeight="420"
+                     ItemsSource="{Binding Appearance.SelectedAccountSkins}"
+                     SelectedItem="{Binding Appearance.SelectedAccountSkin, Mode=TwoWay}"
+                     Style="{StaticResource SkinManagerTileListStyle}"
+                     Visibility="{Binding Appearance.HasSelectedAccountSkins, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="4" />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type domainModels:LauncherSkinRecord}">
+                        <StackPanel Margin="0,-7,0,0"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <accountControls:SkinFrontPreviewControl Width="42"
+                                                                     Height="126"
+                                                                     HorizontalAlignment="Center"
+                                                                     SkinSource="{Binding Source}"
+                                                                     SkinModel="{Binding SkinModel}" />
+
+                            <StackPanel Margin="0,0,0,0"
+                                        Orientation="Vertical"
+                                        HorizontalAlignment="Center">
+                                <Button Style="{StaticResource SkinManagerTileButtonStyle}"
+                                        Content="{x:Static res:Strings.Account_ChangeSkinModelButton}"
+                                        Command="{Binding DataContext.Appearance.ChangeAccountSkinModelCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                        CommandParameter="{Binding}" />
+                                <Button Style="{StaticResource SkinManagerTileDangerButtonStyle}"
+                                        Margin="0,5,0,0"
+                                        Content="{x:Static res:Strings.Delete_Button}"
+                                        Command="{Binding DataContext.Appearance.DeleteAccountSkinCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                        CommandParameter="{Binding}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <TextBlock Width="260"
+                       Text="{x:Static res:Strings.Dialog_SkinManagerEmpty}"
+                       Foreground="#8FFFFFFF"
+                       FontSize="13"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Visibility="{Binding Appearance.CanShowSkinManagerEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+        </Grid>
+
+        <StackPanel Grid.Row="2"
+                    Style="{StaticResource DialogFooterStyle}">
+            <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                    Content="{x:Static res:Strings.Confirm_Button}"
+                    Command="{Binding Appearance.RequestCancelSkinManagerDialogCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

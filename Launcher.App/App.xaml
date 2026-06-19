@@ -16,6 +16,7 @@
             <converters:UuidTextConverter x:Key="UuidTextConverter" />
             <converters:CapeDisplayNameConverter x:Key="CapeDisplayNameConverter" />
             <converters:CapeStateTextConverter x:Key="CapeStateTextConverter" />
+            <converters:SkinActiveStateVisibilityConverter x:Key="SkinActiveStateVisibilityConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

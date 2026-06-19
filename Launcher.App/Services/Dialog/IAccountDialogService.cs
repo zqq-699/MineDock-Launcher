@@ -12,7 +12,8 @@ public interface IAccountDialogService
         DialogHost addAccountHost,
         DialogHost deleteAccountHost,
         DialogHost renameAccountHost,
-        DialogHost skinModelDialogHost);
+        DialogHost skinModelDialogHost,
+        DialogHost skinManagerDialogHost);
 
     void ShowAddAccountDialog();
 
@@ -25,6 +26,8 @@ public interface IAccountDialogService
     void ShowSkinModelDialog(MinecraftSkinModel skinModel);
 
     void ShowSkinFormatErrorDialog();
+
+    void ShowSkinManagerDialog();
 
     void CancelAddAccountDialog();
 
@@ -43,6 +46,8 @@ public interface IAccountDialogService
     void CancelSkinModelDialog();
 
     Task ConfirmSkinModelDialogAsync();
+
+    void CancelSkinManagerDialog();
 
     void QueueOpenDialogBlurRefresh();
 

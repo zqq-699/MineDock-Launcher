@@ -146,7 +146,9 @@
   <data name="Account_CapeHeader" xml:space="preserve"><value>披风</value></data>
   <data name="Account_ChangeSkinButton" xml:space="preserve"><value>更换皮肤</value></data>
   <data name="Account_AddSkinButton" xml:space="preserve"><value>添加皮肤</value></data>
+  <data name="Account_ManageSkinButton" xml:space="preserve"><value>管理皮肤</value></data>
   <data name="Account_ChangeSkinModelButton" xml:space="preserve"><value>更改模型</value></data>
+  <data name="Account_SkinActiveState" xml:space="preserve"><value>当前应用</value></data>
   <data name="Account_SkinPreviewEmpty" xml:space="preserve"><value>暂无皮肤预览，刷新资料或上传皮肤后显示。</value></data>
   <data name="Account_SkinModelClassicTitle" xml:space="preserve"><value>默认</value></data>
   <data name="Account_SkinModelClassicDescription" xml:space="preserve"><value>Steve 模型，手臂宽度为 4 像素。</value></data>
@@ -200,6 +202,8 @@
   <data name="Dialog_RenameOfflineAccountSubtitle" xml:space="preserve"><value>输入新的离线账户名。</value></data>
   <data name="Dialog_SkinModelTitle" xml:space="preserve"><value>选择皮肤模型</value></data>
   <data name="Dialog_SkinModelSubtitle" xml:space="preserve"><value>请选择当前皮肤使用的模型。</value></data>
+  <data name="Dialog_SkinManagerTitle" xml:space="preserve"><value>管理皮肤</value></data>
+  <data name="Dialog_SkinManagerEmpty" xml:space="preserve"><value>暂无已添加的皮肤</value></data>
   <data name="Dialog_SkinFormatErrorTitle" xml:space="preserve"><value>皮肤格式错误</value></data>
   <data name="Dialog_SkinFormatErrorSubtitle" xml:space="preserve"><value>皮肤图片需要是 64x64 或 64x32。</value></data>
   <data name="Download_VersionListTitle" xml:space="preserve"><value>游戏下载</value></data>

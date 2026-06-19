@@ -14,19 +14,22 @@ public sealed class AccountDialogService : IAccountDialogService
     private DialogHost? deleteAccountHost;
     private DialogHost? renameAccountHost;
     private DialogHost? skinModelDialogHost;
+    private DialogHost? skinManagerDialogHost;
 
     public void Attach(
         AccountPageViewModel accountPage,
         DialogHost addAccountHost,
         DialogHost deleteAccountHost,
         DialogHost renameAccountHost,
-        DialogHost skinModelDialogHost)
+        DialogHost skinModelDialogHost,
+        DialogHost skinManagerDialogHost)
     {
         this.accountPage = accountPage;
         this.addAccountHost = addAccountHost;
         this.deleteAccountHost = deleteAccountHost;
         this.renameAccountHost = renameAccountHost;
         this.skinModelDialogHost = skinModelDialogHost;
+        this.skinManagerDialogHost = skinManagerDialogHost;
     }
 
     public void ShowAddAccountDialog()
@@ -82,6 +85,16 @@ public sealed class AccountDialogService : IAccountDialogService
 
         accountPage.Appearance.SkinModelDialog.OpenFormatError();
         skinModelDialogHost.Show();
+    }
+
+    public void ShowSkinManagerDialog()
+    {
+        if (accountPage is null || skinManagerDialogHost is null)
+            return;
+
+        accountPage.Appearance.OpenSkinManagerDialog();
+        if (accountPage.Appearance.IsSkinManagerDialogOpen)
+            skinManagerDialogHost.Show();
     }
 
     public void CancelAddAccountDialog()
@@ -208,6 +221,15 @@ public sealed class AccountDialogService : IAccountDialogService
             skinModelDialogHost.Hide(accountPage.Appearance.SkinModelDialog.Reset);
     }
 
+    public void CancelSkinManagerDialog()
+    {
+        if (accountPage is null || skinManagerDialogHost is null)
+            return;
+
+        accountPage.Appearance.CloseSkinManagerDialog();
+        skinManagerDialogHost.Hide();
+    }
+
     public void QueueOpenDialogBlurRefresh()
     {
         if (accountPage is null)
@@ -224,6 +246,9 @@ public sealed class AccountDialogService : IAccountDialogService
 
         if (accountPage.Appearance.SkinModelDialog.IsSkinModelDialogOpen)
             skinModelDialogHost?.QueueRefresh(BlurRefreshAttempts);
+
+        if (accountPage.Appearance.IsSkinManagerDialogOpen)
+            skinManagerDialogHost?.QueueRefresh(BlurRefreshAttempts);
     }
 
     public void Prewarm()
@@ -232,5 +257,6 @@ public sealed class AccountDialogService : IAccountDialogService
         deleteAccountHost?.Prewarm();
         renameAccountHost?.Prewarm();
         skinModelDialogHost?.Prewarm();
+        skinManagerDialogHost?.Prewarm();
     }
 }
