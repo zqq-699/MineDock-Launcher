@@ -13,36 +13,6 @@
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
-        <Style x:Key="GeneralDescriptionTextBoxStyle"
-               TargetType="TextBox"
-               BasedOn="{StaticResource LauncherDialogTextBoxStyle}">
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Padding" Value="10,0,10,0" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TextBox">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8">
-                            <Grid Margin="{TemplateBinding Padding}">
-                                <ScrollViewer x:Name="PART_ContentHost"
-                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#667ABEFF" />
-                                <Setter TargetName="Root" Property="Background" Value="#2AFFFFFF" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
         <DataTemplate x:Key="InstanceJavaSelectionOptionTemplate">
             <TextBlock Text="{Binding Title}"
                        Foreground="#F4F4F4"
@@ -179,13 +149,8 @@
                                  Loaded="DescriptionTextBox_OnLoaded"
                                  TextChanged="DescriptionTextBox_OnTextChanged"
                                  SizeChanged="DescriptionTextBox_OnSizeChanged"
-                                 Height="Auto"
-                                 MinHeight="40"
                                  MinLines="1"
-                                 AcceptsReturn="True"
-                                 TextWrapping="Wrap"
-                                 VerticalScrollBarVisibility="Disabled"
-                                 Style="{StaticResource GeneralDescriptionTextBoxStyle}"
+                                 Style="{StaticResource LauncherDialogWrappingTextBoxStyle}"
                                  Text="{Binding DescriptionText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
                 </GroupBox>
@@ -204,9 +169,7 @@
                           Style="{StaticResource LauncherContentSectionStyle}">
                     <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
                         <TextBlock Text="{Binding InstanceCreatedAtText}"
-                                   Foreground="#CFFFFFFF"
-                                   VerticalAlignment="Center"
-                                   FontSize="13" />
+                                   Style="{StaticResource ReadOnlyFieldTextStyle}" />
                     </Border>
                 </GroupBox>
 

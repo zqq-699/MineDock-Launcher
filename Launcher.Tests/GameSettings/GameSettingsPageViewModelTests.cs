@@ -1227,6 +1227,7 @@ public sealed class GameSettingsPageViewModelTests
     private sealed class FakeFilePickerService : IFilePickerService
     {
         public string? JavaExecutablePath { get; init; }
+        public string? FolderPath { get; init; }
 
         public string? PickMinecraftSkin()
         {
@@ -1236,6 +1237,11 @@ public sealed class GameSettingsPageViewModelTests
         public string? PickJavaExecutable()
         {
             return JavaExecutablePath;
+        }
+
+        public string? PickFolder(string title, string? initialDirectory = null)
+        {
+            return FolderPath;
         }
     }
 

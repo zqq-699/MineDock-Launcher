@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Windows.Threading;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -96,6 +97,46 @@ public partial class LaunchSettingsEditor : UserControl
     public LaunchSettingsEditor()
     {
         InitializeComponent();
+    }
+
+    private void AdvancedLaunchTextBox_OnLoaded(object sender, RoutedEventArgs e)
+    {
+        QueueAdvancedLaunchTextBoxHeightUpdate(sender as TextBox);
+    }
+
+    private void AdvancedLaunchTextBox_OnTextChanged(object sender, TextChangedEventArgs e)
+    {
+        QueueAdvancedLaunchTextBoxHeightUpdate(sender as TextBox);
+    }
+
+    private void AdvancedLaunchTextBox_OnSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (e.WidthChanged)
+            QueueAdvancedLaunchTextBoxHeightUpdate(sender as TextBox);
+    }
+
+    private void QueueAdvancedLaunchTextBoxHeightUpdate(TextBox? textBox)
+    {
+        if (textBox is null)
+            return;
+
+        Dispatcher.BeginInvoke(() => UpdateAdvancedLaunchTextBoxHeight(textBox), DispatcherPriority.Background);
+    }
+
+    private static void UpdateAdvancedLaunchTextBoxHeight(TextBox textBox)
+    {
+        textBox.UpdateLayout();
+        var lineCount = Math.Max(1, textBox.LineCount);
+        textBox.VerticalContentAlignment = lineCount > 1 ? VerticalAlignment.Top : VerticalAlignment.Center;
+        var lineHeight = TextBlock.GetLineHeight(textBox);
+        if (double.IsNaN(lineHeight) || lineHeight <= 0)
+        {
+            lineHeight = Math.Max(
+                textBox.FontFamily.LineSpacing * textBox.FontSize,
+                textBox.FontSize * 1.35);
+        }
+        var chromeAllowance = 16d;
+        textBox.Height = Math.Max(34, Math.Ceiling((lineCount * lineHeight) + chromeAllowance));
     }
 
     public bool ShowModeSelector

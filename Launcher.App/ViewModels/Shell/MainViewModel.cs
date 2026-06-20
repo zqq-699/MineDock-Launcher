@@ -93,6 +93,7 @@ public sealed partial class MainViewModel : ObservableObject
         GameSettingsPage.LaunchInstanceRequested += GameSettingsPage_LaunchInstanceRequested;
         GameSettingsPage.InstancesChanged += GameSettingsPage_InstancesChanged;
         SettingsPage.LaunchDefaultsChanged += SettingsPage_LaunchDefaultsChanged;
+        SettingsPage.MinecraftDirectoryChanged += SettingsPage_MinecraftDirectoryChanged;
 
         UpdateNavigationSelection();
     }
@@ -342,6 +343,14 @@ public sealed partial class MainViewModel : ObservableObject
         GameSettingsPage.PrimeFromSettings(Settings);
     }
 
+    private void SettingsPage_MinecraftDirectoryChanged(object? sender, SettingsMinecraftDirectoryChangedEventArgs e)
+    {
+        Settings.MinecraftDirectory = e.MinecraftDirectory;
+        HomePage.SetSettings(Settings);
+        GameSettingsPage.PrimeFromSettings(Settings);
+        _ = RefreshMinecraftDirectoryInstancesAsync();
+    }
+
     private void HomePage_JavaRequirementNotMet(object? sender, JavaRequirementNotMetEventArgs e)
     {
         JavaRequirementDialogMessage = e.RequiredMajorVersion is int requiredMajorVersion
@@ -393,6 +402,21 @@ public sealed partial class MainViewModel : ObservableObject
             await GameManagement.RefreshInstancesAsync();
             HomePage.SetLaunchInstances(GameManagement.Instances);
             HomePage.SetSelectedInstance(GameManagement.SelectedInstance);
+        }
+        catch (Exception)
+        {
+            statusService.Report(Strings.Status_LoadInstancesFailed);
+        }
+    }
+
+    private async Task RefreshMinecraftDirectoryInstancesAsync()
+    {
+        try
+        {
+            await GameManagement.RefreshInstancesAsync();
+            await HomePage.EnsureVersionTypesLoadedAsync();
+            SyncHomeLaunchInstances();
+            await GameSettingsPage.RefreshInstancesSilentlyAsync();
         }
         catch (Exception)
         {

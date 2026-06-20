@@ -1,3 +1,4 @@
+using Launcher.Application;
 using Launcher.App.Logging;
 
 namespace Launcher.Tests.Logging;
@@ -5,22 +6,15 @@ namespace Launcher.Tests.Logging;
 public sealed class LauncherLogConfigurationTests
 {
     [Fact]
-    public void ResolveLogDirectoryUsesExecutableNameBesideExecutable()
+    public void ResolveLogDirectoryUsesApplicationDataFolder()
     {
-        var logDirectory = LauncherLogConfiguration.ResolveLogDirectory(@"C:\Apps\Launcher.App.exe");
+        var logDirectory = LauncherLogConfiguration.ResolveLogDirectory();
+        var expectedDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "log");
 
-        Assert.Equal(@"C:\Apps\Launcher.App\log", logDirectory);
-    }
-
-    [Fact]
-    public void SanitizeLauncherNameReplacesInvalidFileNameCharacters()
-    {
-        var sanitized = LauncherLogConfiguration.SanitizeLauncherName("Mine:Launcher*?");
-
-        Assert.DoesNotContain(':', sanitized);
-        Assert.DoesNotContain('*', sanitized);
-        Assert.DoesNotContain('?', sanitized);
-        Assert.Equal("Mine-Launcher--", sanitized);
+        Assert.Equal(expectedDirectory, logDirectory);
     }
 
     [Fact]

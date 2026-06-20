@@ -67,11 +67,16 @@ public partial class GameSettingsDetailsView : UserControl
 
         DescriptionTextBox.UpdateLayout();
         var lineCount = Math.Max(1, DescriptionTextBox.LineCount);
-        var lineHeight = Math.Max(
-            DescriptionTextBox.FontFamily.LineSpacing * DescriptionTextBox.FontSize,
-            DescriptionTextBox.FontSize * 1.35);
-        var chromeAllowance = 18d;
-        DescriptionTextBox.Height = Math.Max(40, Math.Ceiling((lineCount * lineHeight) + chromeAllowance));
+        DescriptionTextBox.VerticalContentAlignment = lineCount > 1 ? VerticalAlignment.Top : VerticalAlignment.Center;
+        var lineHeight = TextBlock.GetLineHeight(DescriptionTextBox);
+        if (double.IsNaN(lineHeight) || lineHeight <= 0)
+        {
+            lineHeight = Math.Max(
+                DescriptionTextBox.FontFamily.LineSpacing * DescriptionTextBox.FontSize,
+                DescriptionTextBox.FontSize * 1.35);
+        }
+        var chromeAllowance = 16d;
+        DescriptionTextBox.Height = Math.Max(34, Math.Ceiling((lineCount * lineHeight) + chromeAllowance));
     }
 
     private void GameSettingsDetailsView_Loaded(object sender, System.Windows.RoutedEventArgs e)

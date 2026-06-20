@@ -122,8 +122,7 @@
                        Text="{x:Static res:Strings.Download_InstanceNameLabel}"
                        Style="{StaticResource DownloadInstanceOptionLabelTextStyle}" />
 
-            <TextBox Height="42"
-                     Text="{Binding InstanceName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+            <TextBox Text="{Binding InstanceName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                      Style="{StaticResource LauncherDialogTextBoxStyle}" />
 
             <TextBlock Margin="0,8,0,0"

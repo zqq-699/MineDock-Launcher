@@ -11,15 +11,17 @@
     </ResourceDictionary.MergedDictionaries>
 
     <Style x:Key="DialogTextBoxStyle" TargetType="TextBox">
-        <Setter Property="Height" Value="40" />
+        <Setter Property="Height" Value="34" />
         <Setter Property="Padding" Value="8,0" />
-        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="#F4F4F4" />
         <Setter Property="Background" Value="#22FFFFFF" />
         <Setter Property="BorderBrush" Value="#20FFFFFF" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CaretBrush" Value="#F4F4F4" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="AcceptsReturn" Value="False" />
         <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
@@ -29,8 +31,10 @@
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="8">
-                        <ScrollViewer x:Name="PART_ContentHost"
-                                      Margin="{TemplateBinding Padding}" />
+                        <Grid Margin="{TemplateBinding Padding}">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsKeyboardFocused" Value="True">
@@ -147,6 +151,21 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <Style x:Key="DialogWrappingTextBoxStyle"
+           TargetType="TextBox"
+           BasedOn="{StaticResource DialogTextBoxStyle}">
+        <Setter Property="Height" Value="Auto" />
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="AcceptsReturn" Value="True" />
+        <Setter Property="TextBlock.LineStackingStrategy" Value="BlockLineHeight" />
+        <Setter Property="TextBlock.LineHeight" Value="18" />
+        <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
     </Style>
 
     <Style x:Key="LauncherComboBoxDropDownScrollBarStyle"
@@ -797,5 +816,6 @@
     <Style x:Key="LauncherPrimaryDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryDialogButtonStyle}" />
     <Style x:Key="LauncherDangerDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource DangerDialogButtonStyle}" />
     <Style x:Key="LauncherDialogTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource DialogTextBoxStyle}" />
+    <Style x:Key="LauncherDialogWrappingTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource DialogWrappingTextBoxStyle}" />
 </ResourceDictionary>
 

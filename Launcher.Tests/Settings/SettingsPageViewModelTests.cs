@@ -54,6 +54,125 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
+    public void OpenMinecraftDirectoryCommandUsesFolderService()
+    {
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var statusService = new FakeStatusService();
+        var folderService = new FakeInstanceFolderService();
+        var viewModel = new SettingsPageViewModel(
+            settingsService,
+            statusService,
+            new FakeSystemMemoryService(),
+            new FakeJavaRuntimeDiscoveryService(),
+            new FakeFilePickerService(),
+            folderService,
+            new FakeFloatingMessageService());
+        viewModel.PrimeFromSettings(settings);
+
+        viewModel.OpenMinecraftDirectoryCommand.Execute(null);
+
+        Assert.Equal(Path.GetFullPath(settings.MinecraftDirectory), folderService.LastOpenedPath);
+        Assert.True(Directory.Exists(settings.MinecraftDirectory));
+        Assert.Null(statusService.LastMessage);
+    }
+
+    [Fact]
+    public void OpenLauncherLogDirectoryCommandUsesFolderService()
+    {
+        var settings = new LauncherSettings();
+        var settingsService = new TestSettingsService(settings);
+        var statusService = new FakeStatusService();
+        var folderService = new FakeInstanceFolderService();
+        var viewModel = new SettingsPageViewModel(
+            settingsService,
+            statusService,
+            new FakeSystemMemoryService(),
+            new FakeJavaRuntimeDiscoveryService(),
+            new FakeFilePickerService(),
+            folderService,
+            new FakeFloatingMessageService());
+        viewModel.PrimeFromSettings(settings);
+
+        viewModel.OpenLauncherLogDirectoryCommand.Execute(null);
+
+        Assert.Equal(viewModel.LauncherLogDirectory, folderService.LastOpenedPath);
+        Assert.EndsWith("log", viewModel.LauncherLogDirectory, StringComparison.OrdinalIgnoreCase);
+        Assert.True(Directory.Exists(viewModel.LauncherLogDirectory));
+        Assert.Null(statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task ChangeMinecraftDirectoryCommandSavesAndRaisesRefreshEvent()
+    {
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), ".minecraft")
+        };
+        var targetDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "custom-minecraft");
+        var settingsService = new TestSettingsService(settings);
+        var statusService = new FakeStatusService();
+        var filePickerService = new FakeFilePickerService { FolderPath = targetDirectory };
+        var viewModel = new SettingsPageViewModel(
+            settingsService,
+            statusService,
+            new FakeSystemMemoryService(),
+            new FakeJavaRuntimeDiscoveryService(),
+            filePickerService,
+            new FakeInstanceFolderService(),
+            new FakeFloatingMessageService());
+        viewModel.PrimeFromSettings(settings);
+        var changedDirectory = string.Empty;
+        var changedCount = 0;
+        viewModel.MinecraftDirectoryChanged += (_, e) =>
+        {
+            changedCount++;
+            changedDirectory = e.MinecraftDirectory;
+        };
+
+        await viewModel.ChangeMinecraftDirectoryCommand.ExecuteAsync(null);
+
+        var normalizedDirectory = Path.GetFullPath(targetDirectory);
+        Assert.Equal(normalizedDirectory, viewModel.MinecraftDirectory);
+        Assert.Equal(normalizedDirectory, settings.MinecraftDirectory);
+        Assert.Equal(normalizedDirectory, changedDirectory);
+        Assert.Equal(1, changedCount);
+        Assert.Equal(1, settingsService.SaveCount);
+        Assert.True(Directory.Exists(normalizedDirectory));
+        Assert.Equal(Strings.Status_MinecraftDirectoryChanged, statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task ChangeMinecraftDirectoryCommandDoesNothingWhenPickerIsCanceled()
+    {
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var viewModel = new SettingsPageViewModel(
+            settingsService,
+            new FakeStatusService(),
+            new FakeSystemMemoryService(),
+            new FakeJavaRuntimeDiscoveryService(),
+            new FakeFilePickerService(),
+            new FakeInstanceFolderService(),
+            new FakeFloatingMessageService());
+        viewModel.PrimeFromSettings(settings);
+        var changedCount = 0;
+        viewModel.MinecraftDirectoryChanged += (_, _) => changedCount++;
+
+        await viewModel.ChangeMinecraftDirectoryCommand.ExecuteAsync(null);
+
+        Assert.Equal(Path.GetFullPath(settings.MinecraftDirectory), viewModel.MinecraftDirectory);
+        Assert.Equal(0, settingsService.SaveCount);
+        Assert.Equal(0, changedCount);
+    }
+
+    [Fact]
     public void SelectSectionCommandUpdatesCurrentSection()
     {
         var viewModel = CreateViewModel(out _, out _);
@@ -693,6 +812,7 @@ public sealed class SettingsPageViewModelTests
             new FakeSystemMemoryService(),
             javaRuntimeDiscoveryService,
             filePickerService,
+            new FakeInstanceFolderService(),
             floatingMessageService);
     }
 
@@ -781,6 +901,7 @@ public sealed class SettingsPageViewModelTests
     private sealed class FakeFilePickerService : IFilePickerService
     {
         public string? JavaExecutablePath { get; init; }
+        public string? FolderPath { get; init; }
 
         public string? PickMinecraftSkin()
         {
@@ -790,6 +911,22 @@ public sealed class SettingsPageViewModelTests
         public string? PickJavaExecutable()
         {
             return JavaExecutablePath;
+        }
+
+        public string? PickFolder(string title, string? initialDirectory = null)
+        {
+            return FolderPath;
+        }
+    }
+
+    private sealed class FakeInstanceFolderService : IInstanceFolderService
+    {
+        public string? LastOpenedPath { get; private set; }
+
+        public bool TryOpen(string folderPath)
+        {
+            LastOpenedPath = folderPath;
+            return true;
         }
     }
 

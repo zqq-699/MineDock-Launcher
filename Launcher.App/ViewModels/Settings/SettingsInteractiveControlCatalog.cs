@@ -18,6 +18,7 @@ public static class SettingsInteractiveControlCatalog
             new(Strings.Settings_ControlSlider, Strings.Settings_ControlCategoryInput),
             new(Strings.Settings_ControlComboBox, Strings.Settings_ControlCategorySelection),
             new(Strings.Settings_ControlTextBox, Strings.Settings_ControlCategoryInput),
+            new(Strings.Settings_ControlMultilineTextBox, Strings.Settings_ControlCategoryInput),
             new(Strings.Settings_ControlSearchBox, Strings.Settings_ControlCategoryInput),
             new(Strings.Settings_ControlChoiceList, Strings.Settings_ControlCategorySelection),
             new(Strings.Settings_ControlVirtualizedList, Strings.Settings_ControlCategorySelection)

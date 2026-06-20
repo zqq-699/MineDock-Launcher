@@ -64,7 +64,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task SettingsServiceUsesCurrentExecutableMinecraftDirectory()
+    public async Task SettingsServicePreservesCustomMinecraftDirectory()
     {
         Directory.CreateDirectory(TempRoot);
         var staleMinecraftDirectory = Path.Combine(TempRoot, "old-debug", ".minecraft");
@@ -79,7 +79,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
 
         var loaded = await service.LoadAsync();
 
-        Assert.Equal(DefaultMinecraftDirectory, loaded.MinecraftDirectory);
+        Assert.Equal(Path.GetFullPath(staleMinecraftDirectory), loaded.MinecraftDirectory);
     }
 
     [Fact]

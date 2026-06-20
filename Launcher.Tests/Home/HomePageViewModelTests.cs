@@ -919,6 +919,11 @@ public sealed class HomePageViewModelTests
             return null;
         }
 
+        public string? PickFolder(string title, string? initialDirectory = null)
+        {
+            return null;
+        }
+
     }
 
     private sealed class FakeSkinFileValidator : IMinecraftSkinFileValidator

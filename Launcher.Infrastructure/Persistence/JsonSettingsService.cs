@@ -82,7 +82,9 @@ public sealed class JsonSettingsService : ISettingsService
         if (string.IsNullOrWhiteSpace(settings.DataDirectory))
             settings.DataDirectory = pathProvider.DefaultDataDirectory;
 
-        settings.MinecraftDirectory = Path.GetFullPath(pathProvider.DefaultMinecraftDirectory);
+        settings.MinecraftDirectory = string.IsNullOrWhiteSpace(settings.MinecraftDirectory)
+            ? Path.GetFullPath(pathProvider.DefaultMinecraftDirectory)
+            : Path.GetFullPath(settings.MinecraftDirectory);
 
         settings.Accounts ??= [];
         settings.Accounts.RemoveAll(account => string.IsNullOrWhiteSpace(account.Id)

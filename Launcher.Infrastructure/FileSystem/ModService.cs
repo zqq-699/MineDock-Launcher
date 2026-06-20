@@ -1,4 +1,5 @@
 using System.IO;
+using Launcher.Application;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -8,6 +9,7 @@ namespace Launcher.Infrastructure.FileSystem;
 
 public sealed class ModService : IModService
 {
+    private const string DisabledModsDirectoryName = "disabled-mods";
     private readonly ILogger<ModService> logger;
 
     public ModService(ILogger<ModService>? logger = null)
@@ -89,7 +91,7 @@ public sealed class ModService : IModService
 
         var targetDirectory = enabled
             ? Path.Combine(instanceDirectory, "mods")
-            : Path.Combine(instanceDirectory, ".launcher", "disabled-mods");
+            : Path.Combine(instanceDirectory, LauncherApplicationIdentity.StorageDirectoryName, DisabledModsDirectoryName);
 
         Directory.CreateDirectory(targetDirectory);
         var targetPath = Path.Combine(targetDirectory, Path.GetFileName(current));
@@ -127,5 +129,6 @@ public sealed class ModService : IModService
     }
 
     private static string GetModsDirectory(GameInstance instance) => Path.Combine(instance.InstanceDirectory, "mods");
-    private static string GetDisabledDirectory(GameInstance instance) => Path.Combine(instance.InstanceDirectory, ".launcher", "disabled-mods");
+    private static string GetDisabledDirectory(GameInstance instance) =>
+        Path.Combine(instance.InstanceDirectory, LauncherApplicationIdentity.StorageDirectoryName, DisabledModsDirectoryName);
 }

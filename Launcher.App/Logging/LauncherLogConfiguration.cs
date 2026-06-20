@@ -1,4 +1,5 @@
 using System.IO;
+using Launcher.Application;
 using Serilog;
 using Serilog.Events;
 
@@ -11,7 +12,6 @@ internal static class LauncherLogConfiguration
     public const bool RollOnFileSizeLimit = true;
     public const string LogFileNamePattern = "launcher-.log";
 
-    private const string FallbackLauncherName = "Launcher";
     private const string LogDirectoryName = "log";
     private const string LogFileSearchPattern = "launcher*.log";
 
@@ -37,31 +37,10 @@ internal static class LauncherLogConfiguration
             .CreateLogger();
     }
 
-    public static string ResolveLogDirectory(string? processPath = null)
+    public static string ResolveLogDirectory()
     {
-        var resolvedProcessPath = string.IsNullOrWhiteSpace(processPath)
-            ? Environment.ProcessPath
-            : processPath;
-        var executableDirectory = Path.GetDirectoryName(resolvedProcessPath);
-        if (string.IsNullOrWhiteSpace(executableDirectory))
-            executableDirectory = AppContext.BaseDirectory;
-
-        var launcherName = SanitizeLauncherName(Path.GetFileNameWithoutExtension(resolvedProcessPath));
-        return Path.Combine(executableDirectory, launcherName, LogDirectoryName);
-    }
-
-    public static string SanitizeLauncherName(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return FallbackLauncherName;
-
-        var invalidCharacters = Path.GetInvalidFileNameChars();
-        var sanitized = new string(value
-            .Select(character => invalidCharacters.Contains(character) ? '-' : character)
-            .ToArray())
-            .Trim();
-
-        return string.IsNullOrWhiteSpace(sanitized) ? FallbackLauncherName : sanitized;
+        var applicationDataDirectory = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        return Path.Combine(applicationDataDirectory, LauncherApplicationIdentity.StorageDirectoryName, LogDirectoryName);
     }
 
     public static void PruneOldLogFiles(string logDirectory, DateTimeOffset now)

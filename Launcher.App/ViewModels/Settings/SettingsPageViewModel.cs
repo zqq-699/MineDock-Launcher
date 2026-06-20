@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Launcher.App.Logging;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application.Services;
@@ -15,6 +17,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private readonly ISettingsService settingsService;
     private readonly IStatusService statusService;
     private readonly ISystemMemoryService systemMemoryService;
+    private readonly IFilePickerService filePickerService;
+    private readonly IInstanceFolderService instanceFolderService;
     private readonly SemaphoreSlim saveLock = new(1, 1);
     private LauncherSettings settings = new();
     private CancellationTokenSource? autoSaveCancellationTokenSource;
@@ -29,6 +33,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     [ObservableProperty]
     private string minecraftDirectory = string.Empty;
+
+    [ObservableProperty]
+    private string launcherLogDirectory = string.Empty;
 
     [ObservableProperty]
     private SettingsMemoryModeOption? selectedMemoryModeOption;
@@ -82,6 +89,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private string controlDemoInputText = Strings.Settings_ControlDemoDefaultInput;
 
     [ObservableProperty]
+    private string controlDemoMultilineText = Strings.Settings_ControlDemoDefaultMultilineInput;
+
+    [ObservableProperty]
     private string controlDemoSearchText = string.Empty;
 
     [ObservableProperty]
@@ -111,11 +121,14 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         ISystemMemoryService systemMemoryService,
         IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
         IFilePickerService filePickerService,
+        IInstanceFolderService instanceFolderService,
         IFloatingMessageService floatingMessageService)
     {
         this.settingsService = settingsService;
         this.statusService = statusService;
         this.systemMemoryService = systemMemoryService;
+        this.filePickerService = filePickerService;
+        this.instanceFolderService = instanceFolderService;
         JavaSettings = new JavaSettingsEditorViewModel(
             javaRuntimeDiscoveryService,
             statusService,
@@ -167,6 +180,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public JavaSettingsEditorViewModel JavaSettings { get; }
 
     public event EventHandler? LaunchDefaultsChanged;
+
+    public event EventHandler<SettingsMinecraftDirectoryChangedEventArgs>? MinecraftDirectoryChanged;
 
     public ObservableCollection<SettingsJavaSelectionOption> JavaSelectionOptions => JavaSettings.JavaSelectionOptions;
 
@@ -228,6 +243,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         {
             DataDirectory = launcherSettings.DataDirectory;
             MinecraftDirectory = launcherSettings.MinecraftDirectory;
+            LauncherLogDirectory = ResolveLauncherLogDirectory();
             SelectedMemoryModeOption = ResolveMemoryModeOption(launcherSettings.DefaultMemorySettingsMode);
             DefaultMemoryMb = NormalizeMemoryValue(launcherSettings.DefaultMemoryMb);
             DefaultCheckFilesBeforeLaunch = launcherSettings.DefaultCheckFilesBeforeLaunch;
@@ -267,6 +283,92 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         ControlDemoProgress = ControlDemoProgress >= 100 ? 20 : ControlDemoProgress + 20;
         ControlDemoStatusText = Strings.Settings_ControlDemoStatusClicked;
         ControlDemoSecondaryMenuSelected = !ControlDemoSecondaryMenuSelected;
+    }
+
+    [RelayCommand]
+    private void OpenMinecraftDirectory()
+    {
+        try
+        {
+            var directory = EnsureMinecraftDirectoryExists(MinecraftDirectory);
+            if (!instanceFolderService.TryOpen(directory))
+                statusService.Report(Strings.Status_OpenMinecraftDirectoryFailed);
+        }
+        catch (Exception)
+        {
+            statusService.Report(Strings.Status_OpenMinecraftDirectoryFailed);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenLauncherLogDirectory()
+    {
+        try
+        {
+            var directory = ResolveLauncherLogDirectory();
+            Directory.CreateDirectory(directory);
+            LauncherLogDirectory = directory;
+            if (!instanceFolderService.TryOpen(directory))
+                statusService.Report(Strings.Status_OpenLaunchLogFolderFailed);
+        }
+        catch (Exception)
+        {
+            statusService.Report(Strings.Status_OpenLaunchLogFolderFailed);
+        }
+    }
+
+    [RelayCommand]
+    private async Task ChangeMinecraftDirectoryAsync()
+    {
+        var selectedDirectory = filePickerService.PickFolder(
+            Strings.FilePicker_MinecraftDirectoryTitle,
+            MinecraftDirectory);
+        if (string.IsNullOrWhiteSpace(selectedDirectory))
+            return;
+
+        string normalizedDirectory;
+        try
+        {
+            normalizedDirectory = EnsureMinecraftDirectoryExists(selectedDirectory);
+        }
+        catch (Exception)
+        {
+            statusService.Report(Strings.Status_MinecraftDirectoryChangeFailed);
+            return;
+        }
+
+        if (string.Equals(MinecraftDirectory, normalizedDirectory, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        CancelPendingAutoSave();
+
+        var previousDirectory = settings.MinecraftDirectory;
+        var lockTaken = false;
+        try
+        {
+            await saveLock.WaitAsync();
+            lockTaken = true;
+
+            ApplySettings();
+            settings.MinecraftDirectory = normalizedDirectory;
+            await settingsService.SaveAsync(settings);
+            MinecraftDirectory = normalizedDirectory;
+        }
+        catch (Exception)
+        {
+            settings.MinecraftDirectory = previousDirectory;
+            MinecraftDirectory = previousDirectory;
+            statusService.Report(Strings.Status_MinecraftDirectoryChangeFailed);
+            return;
+        }
+        finally
+        {
+            if (lockTaken)
+                saveLock.Release();
+        }
+
+        statusService.Report(Strings.Status_MinecraftDirectoryChanged);
+        MinecraftDirectoryChanged?.Invoke(this, new SettingsMinecraftDirectoryChangedEventArgs(normalizedDirectory));
     }
 
     private void SelectSectionCore(SettingsSectionItem? section)
@@ -400,6 +502,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     private void ApplySettings()
     {
+        settings.MinecraftDirectory = NormalizeDirectoryPath(MinecraftDirectory, settings.MinecraftDirectory);
         settings.DefaultMemorySettingsMode = SelectedMemoryModeOption?.Mode ?? MemorySettingsMode.Auto;
         settings.DefaultMemoryMb = NormalizeMemoryValue(DefaultMemoryMb);
         settings.DefaultCheckFilesBeforeLaunch = DefaultCheckFilesBeforeLaunch;
@@ -474,6 +577,13 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         return value?.Trim() ?? string.Empty;
     }
 
+    private static string NormalizeDirectoryPath(string? value, string fallback)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? fallback
+            : Path.GetFullPath(value);
+    }
+
     private SettingsMemoryModeOption ResolveMemoryModeOption(MemorySettingsMode mode)
     {
         return MemoryModeOptions.FirstOrDefault(option => option.Mode == mode)
@@ -531,12 +641,18 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         if (suppressAutoSave || !hasPrimedSettings)
             return;
 
-        autoSaveCancellationTokenSource?.Cancel();
-        autoSaveCancellationTokenSource?.Dispose();
+        CancelPendingAutoSave();
 
         var cancellationTokenSource = new CancellationTokenSource();
         autoSaveCancellationTokenSource = cancellationTokenSource;
         _ = SaveAfterDelayAsync(cancellationTokenSource.Token);
+    }
+
+    private void CancelPendingAutoSave()
+    {
+        autoSaveCancellationTokenSource?.Cancel();
+        autoSaveCancellationTokenSource?.Dispose();
+        autoSaveCancellationTokenSource = null;
     }
 
     private async Task SaveAfterDelayAsync(CancellationToken cancellationToken)
@@ -576,4 +692,15 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         }
     }
 
+    private static string EnsureMinecraftDirectoryExists(string directory)
+    {
+        var normalizedDirectory = Path.GetFullPath(directory);
+        Directory.CreateDirectory(normalizedDirectory);
+        return normalizedDirectory;
+    }
+
+    private static string ResolveLauncherLogDirectory()
+    {
+        return Path.GetFullPath(LauncherLogConfiguration.ResolveLogDirectory());
+    }
 }

@@ -58,6 +58,41 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task ChangingMinecraftDirectoryRefreshesHomeAndGameSettingsInstances()
+    {
+        var originalDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), ".minecraft");
+        var newDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "custom-minecraft");
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = originalDirectory
+        };
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4"));
+        var filePickerService = new FakeFilePickerService
+        {
+            FolderPath = newDirectory
+        };
+        var viewModel = CreateViewModel(instanceService, settings: settings, filePickerService: filePickerService);
+
+        await viewModel.InitializeAsync();
+        await viewModel.GameSettingsPage.EnsureInstancesLoadedAsync();
+        Assert.Equal(["Vanilla World"], viewModel.HomePage.LaunchInstances.Select(instance => instance.Name));
+        Assert.Equal(["Vanilla World"], viewModel.GameSettingsPage.VisibleInstances.Select(instance => instance.Name));
+
+        instanceService.CreatedInstances.Clear();
+        instanceService.CreatedInstances.Add(CreateInstance("Fabric Pack", "1.20.1"));
+
+        await viewModel.SettingsPage.ChangeMinecraftDirectoryCommand.ExecuteAsync(null);
+
+        await TestAsync.WaitForAsync(() =>
+            instanceService.GetInstancesCallCount >= 4
+            && viewModel.HomePage.LaunchInstances.Select(instance => instance.Name).SequenceEqual(["Fabric Pack"])
+            && viewModel.GameSettingsPage.VisibleInstances.Select(instance => instance.Name).SequenceEqual(["Fabric Pack"]));
+
+        Assert.Equal(Path.GetFullPath(newDirectory), viewModel.Settings.MinecraftDirectory);
+    }
+
+    [Fact]
     public async Task GameSettingsLaunchRequestNavigatesHomeAndSelectsInstance()
     {
         var instanceService = new FakeGameInstanceService();
@@ -460,11 +495,13 @@ public sealed class MainViewModelTests
         FakeFloatingMessageService? floatingMessageService = null,
         FakeLaunchService? launchService = null,
         LauncherAccount? selectedAccount = null,
-        FakeWindowService? windowService = null)
+        FakeWindowService? windowService = null,
+        FakeFilePickerService? filePickerService = null)
     {
         var settingsService = new TestSettingsService(settings ?? new LauncherSettings());
         statusService ??= new FakeStatusService();
         floatingMessageService ??= new FakeFloatingMessageService();
+        filePickerService ??= new FakeFilePickerService();
         var gameVersionService = new FakeGameVersionService([]);
         var downloadTasksPage = new DownloadTasksPageViewModel();
         var accountPage = CreateAccountPage(statusService, selectedAccount);
@@ -473,7 +510,8 @@ public sealed class MainViewModelTests
             statusService,
             new FakeSystemMemoryService(),
             new FakeJavaRuntimeDiscoveryService(),
-            new FakeFilePickerService(),
+            filePickerService,
+            new FakeInstanceFolderService(),
             floatingMessageService);
         var gameManagement = new GameManagementViewModel(
             new InstanceManagementViewModel(settingsService, instanceService, statusService),
@@ -495,7 +533,7 @@ public sealed class MainViewModelTests
                 new FakeSystemMemoryService(),
                 new FakeModService(),
                 new FakeJavaRuntimeDiscoveryService(),
-                new FakeFilePickerService(),
+                filePickerService,
                 floatingMessageService),
             settingsPage,
             gameManagement,
@@ -867,6 +905,8 @@ public sealed class MainViewModelTests
 
     private sealed class FakeFilePickerService : IFilePickerService
     {
+        public string? FolderPath { get; init; }
+
         public string? PickMinecraftSkin()
         {
             return null;
@@ -875,6 +915,11 @@ public sealed class MainViewModelTests
         public string? PickJavaExecutable()
         {
             return null;
+        }
+
+        public string? PickFolder(string title, string? initialDirectory = null)
+        {
+            return FolderPath;
         }
 
     }

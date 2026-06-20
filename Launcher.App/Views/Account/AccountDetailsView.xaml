@@ -65,10 +65,7 @@
                                 </Grid.ColumnDefinitions>
 
                                 <TextBlock Text="{Binding OfflineUuid.SelectedAccountUuidText}"
-                                           Foreground="#CFFFFFFF"
-                                           FontSize="13"
-                                           TextWrapping="Wrap"
-                                           VerticalAlignment="Center" />
+                                           Style="{StaticResource ReadOnlyFieldTextStyle}" />
                                 <Button Grid.Column="1"
                                         Margin="10,-4,-6,-4"
                                         Style="{StaticResource InlineIconButtonStyle}"

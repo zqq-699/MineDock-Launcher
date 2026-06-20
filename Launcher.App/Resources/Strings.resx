@@ -78,12 +78,16 @@
   <data name="Settings_ControlDemoSwitchLabel" xml:space="preserve"><value>切换开关</value></data>
   <data name="Settings_ControlDemoSliderLabel" xml:space="preserve"><value>滑动条</value></data>
   <data name="Settings_ControlDemoTextBoxLabel" xml:space="preserve"><value>文本输入框</value></data>
+  <data name="Settings_ControlDemoMultilineTextBoxLabel" xml:space="preserve"><value>多行文本框</value></data>
   <data name="Settings_ControlDemoSearchBoxLabel" xml:space="preserve"><value>搜索框</value></data>
+  <data name="Settings_ControlDemoReadOnlyFieldLabel" xml:space="preserve"><value>展示框</value></data>
   <data name="Settings_ControlDemoComboBoxLabel" xml:space="preserve"><value>下拉选择框</value></data>
   <data name="Settings_ControlDemoListBoxLabel" xml:space="preserve"><value>选择列表</value></data>
   <data name="Settings_ControlDemoProgressLabel" xml:space="preserve"><value>进度条</value></data>
   <data name="Settings_ControlDemoStatusLabel" xml:space="preserve"><value>状态文本</value></data>
   <data name="Settings_ControlDemoDefaultInput" xml:space="preserve"><value>可以在这里输入文字</value></data>
+  <data name="Settings_ControlDemoDefaultMultilineInput" xml:space="preserve"><value>这是多行文本框示例。
+输入更长的内容后会自动换行。</value></data>
   <data name="Settings_ControlDemoStatusReady" xml:space="preserve"><value>等待交互</value></data>
   <data name="Settings_ControlDemoStatusClicked" xml:space="preserve"><value>已触发示例交互</value></data>
   <data name="Settings_ControlCategoryNavigation" xml:space="preserve"><value>导航</value></data>
@@ -101,6 +105,7 @@
   <data name="Settings_ControlSlider" xml:space="preserve"><value>滑动条</value></data>
   <data name="Settings_ControlComboBox" xml:space="preserve"><value>下拉选择框</value></data>
   <data name="Settings_ControlTextBox" xml:space="preserve"><value>文本输入框</value></data>
+  <data name="Settings_ControlMultilineTextBox" xml:space="preserve"><value>多行文本框</value></data>
   <data name="Settings_ControlSearchBox" xml:space="preserve"><value>搜索框</value></data>
   <data name="Settings_ControlChoiceList" xml:space="preserve"><value>选择列表</value></data>
   <data name="Settings_ControlVirtualizedList" xml:space="preserve"><value>虚拟化列表</value></data>
@@ -454,4 +459,16 @@
   <data name="Dialog_LaunchAnalysisOutOfMemoryTitle" xml:space="preserve"><value>内存不足</value></data>
   <data name="Dialog_LaunchAnalysisOutOfMemoryDetail" xml:space="preserve"><value>Java 虚拟机在启动或运行时内存不足。</value></data>
   <data name="Dialog_LaunchAnalysisOutOfMemoryRecommendation" xml:space="preserve"><value>请在启动设置中适当增加内存，或减少资源包、光影和大型 Mod。</value></data>
+  <data name="Settings_GeneralFilesAndDirectoriesSection" xml:space="preserve"><value>文件与目录</value></data>
+  <data name="Settings_MinecraftDirectoryItemTitle" xml:space="preserve"><value>.minecraft 目录</value></data>
+  <data name="Settings_MinecraftDirectoryDescription" xml:space="preserve"><value>这里决定启动器扫描实例、版本和相关游戏文件的位置。</value></data>
+  <data name="Settings_OpenMinecraftDirectoryButton" xml:space="preserve"><value>打开目录</value></data>
+  <data name="Settings_ChangeMinecraftDirectoryButton" xml:space="preserve"><value>更改目录</value></data>
+  <data name="Status_OpenMinecraftDirectoryFailed" xml:space="preserve"><value>打开 .minecraft 目录失败，请稍后重试。</value></data>
+  <data name="Status_MinecraftDirectoryChanged" xml:space="preserve"><value>.minecraft 目录已更新。</value></data>
+  <data name="Status_MinecraftDirectoryChangeFailed" xml:space="preserve"><value>更改 .minecraft 目录失败，请稍后重试。</value></data>
+  <data name="FilePicker_MinecraftDirectoryTitle" xml:space="preserve"><value>选择 .minecraft 目录</value></data>
+  <data name="Settings_LauncherLogDirectoryLabel" xml:space="preserve"><value>启动器日志目录</value></data>
+  <data name="Settings_LauncherLogDirectoryDescription" xml:space="preserve"><value>这里存放启动器运行日志和诊断日志文件。</value></data>
+  <data name="Settings_OpenLauncherLogDirectoryButton" xml:space="preserve"><value>打开目录</value></data>
 </root>

@@ -20,10 +20,10 @@
 
         <Style x:Key="AdvancedLaunchTextBoxStyle"
                TargetType="TextBox"
-               BasedOn="{StaticResource LauncherDialogTextBoxStyle}">
-            <Setter Property="Height" Value="34" />
-            <Setter Property="Padding" Value="8,0" />
-            <Setter Property="FontSize" Value="13" />
+               BasedOn="{StaticResource LauncherDialogWrappingTextBoxStyle}">
+            <EventSetter Event="Loaded" Handler="AdvancedLaunchTextBox_OnLoaded" />
+            <EventSetter Event="TextChanged" Handler="AdvancedLaunchTextBox_OnTextChanged" />
+            <EventSetter Event="SizeChanged" Handler="AdvancedLaunchTextBox_OnSizeChanged" />
         </Style>
 
         <Style x:Key="AdvancedLaunchEditableTextBoxStyle"

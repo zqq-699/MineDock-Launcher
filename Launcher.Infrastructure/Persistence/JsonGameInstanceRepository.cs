@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Launcher.Application;
 using Launcher.Application.Repositories;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
@@ -13,8 +14,9 @@ namespace Launcher.Infrastructure.Persistence;
 public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-    private const string LauncherDirectoryName = ".launcher";
+    private const string LauncherDirectoryName = LauncherApplicationIdentity.StorageDirectoryName;
     private const string InstanceSettingsFileName = "instance-settings.json";
+    private const string DisabledModsDirectoryName = "disabled-mods";
     private readonly ISettingsService settingsService;
     private readonly ILogger<JsonGameInstanceRepository> logger;
     private readonly SemaphoreSlim ioLock = new(1, 1);
@@ -169,7 +171,7 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         Directory.CreateDirectory(Path.Combine(directory, "saves"));
         Directory.CreateDirectory(Path.Combine(directory, "resourcepacks"));
         Directory.CreateDirectory(Path.Combine(directory, "shaderpacks"));
-        Directory.CreateDirectory(Path.Combine(directory, ".launcher", "disabled-mods"));
+        Directory.CreateDirectory(Path.Combine(directory, LauncherDirectoryName, DisabledModsDirectoryName));
         logger.LogDebug("Instance directories ensured. InstanceDirectory={InstanceDirectory}", directory);
     }
 
@@ -199,8 +201,8 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
         var sourceDirectory = Path.Combine(versionsDirectory, oldVersionName);
         var destinationDirectory = Path.Combine(versionsDirectory, newVersionName);
-        var stagingDirectory = Path.Combine(versionsDirectory, $".launcher-rename-{Guid.NewGuid():N}");
-        var backupDirectory = Path.Combine(versionsDirectory, $".launcher-backup-{Guid.NewGuid():N}");
+        var stagingDirectory = Path.Combine(versionsDirectory, $"{LauncherDirectoryName}-rename-{Guid.NewGuid():N}");
+        var backupDirectory = Path.Combine(versionsDirectory, $"{LauncherDirectoryName}-backup-{Guid.NewGuid():N}");
         var sourceJsonPath = Path.Combine(sourceDirectory, $"{oldVersionName}.json");
 
         if (!Directory.Exists(sourceDirectory))

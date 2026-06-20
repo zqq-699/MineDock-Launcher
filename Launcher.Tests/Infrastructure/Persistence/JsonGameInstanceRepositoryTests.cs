@@ -1,3 +1,4 @@
+using Launcher.Application;
 using System.Text.Json;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Persistence;
@@ -7,6 +8,8 @@ namespace Launcher.Tests.Infrastructure.Persistence;
 
 public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
 {
+    private static readonly string InstanceMetadataDirectoryName = LauncherApplicationIdentity.StorageDirectoryName;
+
     [Fact]
     public async Task SaveAllAsyncWritesInstanceSettingsIntoVersionLauncherDirectory()
     {
@@ -38,7 +41,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
             }
         ]);
 
-        var settingsPath = Path.Combine(versionDirectory, ".launcher", "instance-settings.json");
+        var settingsPath = Path.Combine(versionDirectory, InstanceMetadataDirectoryName, "instance-settings.json");
         Assert.True(File.Exists(settingsPath));
         Assert.False(File.Exists(Path.Combine(settings.DataDirectory, "instances.json")));
 
@@ -65,7 +68,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         var repository = new JsonGameInstanceRepository(settingsService);
         var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "demo-pack");
         repository.CreateInstanceDirectories(versionDirectory);
-        var settingsPath = Path.Combine(versionDirectory, ".launcher", "instance-settings.json");
+        var settingsPath = Path.Combine(versionDirectory, InstanceMetadataDirectoryName, "instance-settings.json");
 
         var storedInstance = new GameInstance
         {
@@ -100,7 +103,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         var repository = new JsonGameInstanceRepository(settingsService);
         var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "legacy-pack");
         repository.CreateInstanceDirectories(versionDirectory);
-        var settingsPath = Path.Combine(versionDirectory, ".launcher", "instance-settings.json");
+        var settingsPath = Path.Combine(versionDirectory, InstanceMetadataDirectoryName, "instance-settings.json");
 
         await File.WriteAllTextAsync(
             settingsPath,
@@ -132,7 +135,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         var repository = new JsonGameInstanceRepository(settingsService);
         var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "legacy-memory-pack");
         repository.CreateInstanceDirectories(versionDirectory);
-        var settingsPath = Path.Combine(versionDirectory, ".launcher", "instance-settings.json");
+        var settingsPath = Path.Combine(versionDirectory, InstanceMetadataDirectoryName, "instance-settings.json");
 
         await File.WriteAllTextAsync(
             settingsPath,
