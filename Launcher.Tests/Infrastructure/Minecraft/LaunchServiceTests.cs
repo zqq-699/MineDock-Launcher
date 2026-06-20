@@ -411,6 +411,45 @@ public sealed class LaunchServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task LaunchServicePassesDownloadSourceAndSpeedLimitToRepairAndLauncher()
+    {
+        var repairService = new FakeManagedVersionRepairService();
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            repairService,
+            launcherFactory,
+            new NoOpLaunchCrashMonitor());
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultCheckFilesBeforeLaunch = true,
+            DefaultAutoRepairMissingFiles = true,
+            DownloadSourcePreference = DownloadSourcePreference.BmclApi,
+            DownloadSpeedLimitMbPerSecond = 20
+        };
+        var instance = new GameInstance
+        {
+            Name = "Fabric Pack",
+            VersionName = "Fabric Pack",
+            InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Fabric Pack")
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline",
+            DisplayName = "Player",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+
+        await service.LaunchAsync(instance, account, settings, progress: null);
+
+        Assert.Equal(DownloadSourcePreference.BmclApi, repairService.LastDownloadSourcePreference);
+        Assert.Equal(20, repairService.LastDownloadSpeedLimitMbPerSecond);
+        Assert.Equal(20, launcherFactory.LastDownloadSpeedLimitMbPerSecond);
+    }
+
+    [Fact]
     public async Task LaunchServiceAppliesFullscreenLaunchOptionFromEffectiveSettings()
     {
         var launcherFactory = new FakeLaunchGameLauncherFactory();
@@ -1123,28 +1162,35 @@ public sealed class LaunchServiceTests : TestTempDirectory
             {
                 MinecraftDirectory = minecraftDirectory,
                 DefaultCheckFilesBeforeLaunch = true,
-                DefaultAutoRepairMissingFiles = true
+                DefaultAutoRepairMissingFiles = true,
+                DownloadSourcePreference = DownloadSourcePreference.Official
             },
             progress: null));
 
         Assert.IsType<InstanceRepairException>(exception.InnerException);
         var repairException = (InstanceRepairException)exception.InnerException!;
         Assert.NotNull(repairException.DownloadDiagnostic);
-        Assert.Equal(downloadUrl, repairException.DownloadDiagnostic.Url);
+        Assert.Equal(downloadUrl, repairException.DownloadDiagnostic.OriginalUrl);
+        Assert.Equal(downloadUrl, repairException.DownloadDiagnostic.ActualUrl);
         Assert.Equal(expectedDestinationPath, repairException.DownloadDiagnostic.DestinationPath);
         Assert.Equal(404, repairException.DownloadDiagnostic.HttpStatusCode);
         Assert.Equal(libraryName, repairException.DownloadDiagnostic.LibraryName);
         Assert.Equal(artifactPath, repairException.DownloadDiagnostic.ArtifactPath);
-        Assert.Equal("ForgeMaven", repairException.DownloadDiagnostic.SourceKind);
+        Assert.Equal(DownloadSourcePreference.Official.ToString(), repairException.DownloadDiagnostic.RequestedSourcePreference);
+        Assert.Equal("ForgeOfficial", repairException.DownloadDiagnostic.ResolvedSourceKind);
+        Assert.Equal("Forge", repairException.DownloadDiagnostic.ResourceCategory);
 
         var diagnostic = await File.ReadAllTextAsync(exception.Report.DiagnosticPath!);
         Assert.Contains("[Download]", diagnostic);
-        Assert.Contains($"Url: {downloadUrl}", diagnostic);
+        Assert.Contains($"OriginalUrl: {downloadUrl}", diagnostic);
+        Assert.Contains($"ActualUrl: {downloadUrl}", diagnostic);
         Assert.Contains($"DestinationPath: {expectedDestinationPath}", diagnostic);
         Assert.Contains("HttpStatusCode: 404", diagnostic);
         Assert.Contains($"LibraryName: {libraryName}", diagnostic);
         Assert.Contains($"ArtifactPath: {artifactPath}", diagnostic);
-        Assert.Contains("SourceKind: ForgeMaven", diagnostic);
+        Assert.Contains($"RequestedSourcePreference: {DownloadSourcePreference.Official}", diagnostic);
+        Assert.Contains("ResolvedSourceKind: ForgeOfficial", diagnostic);
+        Assert.Contains("ResourceCategory: Forge", diagnostic);
     }
 
     [Fact]
@@ -1352,6 +1398,8 @@ public sealed class LaunchServiceTests : TestTempDirectory
         public string? LastVersionName { get; private set; }
         public string? LastInstanceDirectory { get; private set; }
         public bool LastAllowRepair { get; private set; }
+        public DownloadSourcePreference LastDownloadSourcePreference { get; private set; } = DownloadSourcePreference.Auto;
+        public int LastDownloadSpeedLimitMbPerSecond { get; private set; }
         public Func<IProgress<LauncherProgress>?, Task>? OnRepairAsync { get; init; }
 
         public Task RepairAsync(
@@ -1360,11 +1408,15 @@ public sealed class LaunchServiceTests : TestTempDirectory
             string instanceDirectory,
             IProgress<LauncherProgress>? progress,
             bool allowRepair,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken = default,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            int downloadSpeedLimitMbPerSecond = 0)
         {
             LastVersionName = versionName;
             LastInstanceDirectory = instanceDirectory;
             LastAllowRepair = allowRepair;
+            LastDownloadSourcePreference = downloadSourcePreference;
+            LastDownloadSpeedLimitMbPerSecond = downloadSpeedLimitMbPerSecond;
             if (OnRepairAsync is not null)
                 return OnRepairAsync(progress);
 
@@ -1456,9 +1508,14 @@ public sealed class LaunchServiceTests : TestTempDirectory
     {
         public FakeLaunchGameLauncher Launcher { get; } = new();
         public Func<string, MLaunchOption, Process>? BuildProcess { get; init; }
+        public int LastDownloadSpeedLimitMbPerSecond { get; private set; }
 
-        public ILaunchGameLauncher Create(string minecraftDirectory, IProgress<LauncherProgress>? progress)
+        public ILaunchGameLauncher Create(
+            string minecraftDirectory,
+            IProgress<LauncherProgress>? progress,
+            int downloadSpeedLimitMbPerSecond = 0)
         {
+            LastDownloadSpeedLimitMbPerSecond = downloadSpeedLimitMbPerSecond;
             if (BuildProcess is not null)
                 Launcher.BuildProcess = BuildProcess;
 

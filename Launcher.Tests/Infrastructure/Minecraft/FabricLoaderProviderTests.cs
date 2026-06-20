@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
+using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
 using Launcher.Tests.Helpers;
 
@@ -16,7 +17,8 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
             new HttpClient(new VanillaInstallHandler()),
             "1.20.2",
             "1.20.2",
-            minecraftDirectory);
+            minecraftDirectory,
+            DownloadSourcePreference.Auto);
 
         var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
         var versionDirectories = Directory.GetDirectories(versionsDirectory)
@@ -100,7 +102,8 @@ public sealed class FabricLoaderProviderTests : TestTempDirectory
             "1.20.2",
             "0.19.3",
             "1.20.2-fabric-0.19.3",
-            minecraftDirectory);
+            minecraftDirectory,
+            DownloadSourcePreference.Auto);
 
         var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
         var versionDirectories = Directory.GetDirectories(versionsDirectory)

@@ -33,6 +33,7 @@
   <data name="Settings_SectionGeneral" xml:space="preserve"><value>通用</value></data>
   <data name="Settings_SectionLaunch" xml:space="preserve"><value>启动与内存</value></data>
   <data name="Settings_SectionJavaMemory" xml:space="preserve"><value>Java</value></data>
+  <data name="Settings_SectionTheme" xml:space="preserve"><value>主题</value></data>
   <data name="Settings_SectionControlList" xml:space="preserve"><value>控件列表</value></data>
   <data name="Settings_GeneralAccountSection" xml:space="preserve"><value>离线玩家</value></data>
   <data name="Settings_OfflineUsernameLabel" xml:space="preserve"><value>默认离线玩家名称</value></data>
@@ -63,6 +64,11 @@
   <data name="Settings_JavaListLoading" xml:space="preserve"><value>正在扫描本机 Java...</value></data>
   <data name="Settings_JavaListEmpty" xml:space="preserve"><value>没有找到本机 Java。</value></data>
   <data name="Settings_JavaVersionUnknown" xml:space="preserve"><value>未知版本</value></data>
+  <data name="Settings_LauncherAppearanceSection" xml:space="preserve"><value>启动器外观</value></data>
+  <data name="Settings_ThemeFollowSystemLabel" xml:space="preserve"><value>跟随系统设置</value></data>
+  <data name="Settings_ThemeModeLabel" xml:space="preserve"><value>外观设置</value></data>
+  <data name="Settings_ThemeModeDark" xml:space="preserve"><value>深色</value></data>
+  <data name="Settings_ThemeModeLight" xml:space="preserve"><value>浅色</value></data>
   <data name="Settings_ControlDemoButtonsSection" xml:space="preserve"><value>按钮与导航</value></data>
   <data name="Settings_ControlDemoInputsSection" xml:space="preserve"><value>输入与开关</value></data>
   <data name="Settings_ControlDemoSelectionSection" xml:space="preserve"><value>选择控件</value></data>
@@ -471,4 +477,11 @@
   <data name="Settings_LauncherLogDirectoryLabel" xml:space="preserve"><value>启动器日志目录</value></data>
   <data name="Settings_LauncherLogDirectoryDescription" xml:space="preserve"><value>这里存放启动器运行日志和诊断日志文件。</value></data>
   <data name="Settings_OpenLauncherLogDirectoryButton" xml:space="preserve"><value>打开目录</value></data>
+  <data name="Settings_DownloadSection" xml:space="preserve"><value>下载设置</value></data>
+  <data name="Settings_DownloadSourceLabel" xml:space="preserve"><value>游戏下载源</value></data>
+  <data name="Settings_DownloadSpeedLimitLabel" xml:space="preserve"><value>限制下载速度</value></data>
+  <data name="Settings_DownloadSpeedLimitUnit" xml:space="preserve"><value>MB/s</value></data>
+  <data name="Settings_DownloadSourceAuto" xml:space="preserve"><value>自动选择</value></data>
+  <data name="Settings_DownloadSourceOfficial" xml:space="preserve"><value>官方下载源</value></data>
+  <data name="Settings_DownloadSourceBmclApi" xml:space="preserve"><value>BMCLAPI</value></data>
 </root>

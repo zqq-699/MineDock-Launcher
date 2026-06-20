@@ -5,6 +5,7 @@ using Launcher.App.Services;
 using Launcher.Application.Accounts;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Minecraft;
 
 namespace Launcher.Tests.ViewModels.Shell;
 
@@ -521,6 +522,7 @@ public sealed class MainViewModelTests
             statusService);
 
         return new MainViewModel(
+            new DownloadSpeedLimitState(),
             settingsService,
             accountPage,
             new DownloadPageViewModel(gameVersionService, instanceService, downloadTasksPage, []),

@@ -619,7 +619,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     {
         try
         {
-            var versions = await gameVersionService.GetVersionsAsync(cancellationToken);
+            var versions = await gameVersionService.GetVersionsAsync(cancellationToken: cancellationToken);
             return versions
                 .GroupBy(version => version.Name, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(

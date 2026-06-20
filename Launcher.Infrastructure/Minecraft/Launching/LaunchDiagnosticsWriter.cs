@@ -350,12 +350,15 @@ internal static class LaunchDiagnosticsWriter
             return;
         }
 
-        builder.AppendLine($"Url: {RedactSensitiveText(diagnostic.Url, sensitiveValues)}");
+        builder.AppendLine($"OriginalUrl: {RedactSensitiveText(diagnostic.OriginalUrl, sensitiveValues)}");
+        builder.AppendLine($"ActualUrl: {RedactSensitiveText(diagnostic.ActualUrl, sensitiveValues)}");
         builder.AppendLine($"DestinationPath: {diagnostic.DestinationPath}");
         builder.AppendLine($"HttpStatusCode: {diagnostic.HttpStatusCode?.ToString() ?? string.Empty}");
         builder.AppendLine($"LibraryName: {diagnostic.LibraryName ?? string.Empty}");
         builder.AppendLine($"ArtifactPath: {diagnostic.ArtifactPath ?? string.Empty}");
-        builder.AppendLine($"SourceKind: {diagnostic.SourceKind}");
+        builder.AppendLine($"RequestedSourcePreference: {diagnostic.RequestedSourcePreference}");
+        builder.AppendLine($"ResolvedSourceKind: {diagnostic.ResolvedSourceKind}");
+        builder.AppendLine($"ResourceCategory: {diagnostic.ResourceCategory}");
     }
 
     private static void AppendProcessSection(

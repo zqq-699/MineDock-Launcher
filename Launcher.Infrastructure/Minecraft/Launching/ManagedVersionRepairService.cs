@@ -5,6 +5,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Minecraft;
 
@@ -16,7 +18,9 @@ internal interface IManagedVersionRepairService
         string instanceDirectory,
         IProgress<LauncherProgress>? progress,
         bool allowRepair,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken = default,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        int downloadSpeedLimitMbPerSecond = 0);
 }
 
 internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
@@ -28,10 +32,17 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         ? StringComparer.OrdinalIgnoreCase
         : StringComparer.Ordinal;
     private readonly HttpClient httpClient;
+    private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
+    private readonly ILogger logger;
 
-    public ManagedVersionRepairService(HttpClient? httpClient = null)
+    public ManagedVersionRepairService(
+        HttpClient? httpClient = null,
+        IDownloadSpeedLimitState? downloadSpeedLimitState = null,
+        ILogger? logger = null)
     {
         this.httpClient = httpClient ?? new HttpClient();
+        this.downloadSpeedLimitState = downloadSpeedLimitState;
+        this.logger = logger ?? NullLogger.Instance;
     }
 
     public async Task RepairAsync(
@@ -40,12 +51,15 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         string instanceDirectory,
         IProgress<LauncherProgress>? progress,
         bool allowRepair,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        int downloadSpeedLimitMbPerSecond = 0)
     {
         var versionDirectory = ResolveVersionDirectory(minecraftDirectory, versionName, instanceDirectory);
         if (!Directory.Exists(versionDirectory))
             throw new InstanceRepairException($"Version directory is missing for {versionName}.");
 
+        var bandwidthLimiter = DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
         var downloadSpeedReporter = new RepairDownloadSpeedReporter(progress);
         ReportProgress(progress, LaunchProgressStages.CheckingInstance, "Checking instance files", 6);
         ReportProgress(
@@ -57,36 +71,71 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             minecraftDirectory,
             versionName,
             versionDirectory,
+            downloadSourcePreference,
             cancellationToken,
-            allowRepair);
+            allowRepair,
+            downloadSpeedLimitMbPerSecond);
 
         ReportProgress(
             progress,
             allowRepair ? LaunchProgressStages.RepairingJar : LaunchProgressStages.CheckingFiles,
             allowRepair ? "Repairing instance jar" : "Checking launch files",
             32);
-        await EnsureVersionJarAsync(versionDirectory, versionName, resolvedVersion, allowRepair, downloadSpeedReporter, cancellationToken);
+        await EnsureVersionJarAsync(
+            versionDirectory,
+            versionName,
+            resolvedVersion,
+            downloadSourcePreference,
+            allowRepair,
+            downloadSpeedReporter,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond,
+            bandwidthLimiter);
 
         ReportProgress(
             progress,
             allowRepair ? LaunchProgressStages.RepairingLibraries : LaunchProgressStages.CheckingFiles,
             allowRepair ? "Repairing shared libraries" : "Checking launch files",
             48);
-        await EnsureLibrariesAsync(minecraftDirectory, resolvedVersion.VersionJson, allowRepair, downloadSpeedReporter, cancellationToken);
+        await EnsureLibrariesAsync(
+            minecraftDirectory,
+            resolvedVersion.VersionJson,
+            downloadSourcePreference,
+            allowRepair,
+            downloadSpeedReporter,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond,
+            bandwidthLimiter);
 
         ReportProgress(
             progress,
             allowRepair ? LaunchProgressStages.RepairingAssets : LaunchProgressStages.CheckingFiles,
             allowRepair ? "Repairing shared assets" : "Checking launch files",
             64);
-        await EnsureAssetsAsync(minecraftDirectory, resolvedVersion.VersionJson, allowRepair, downloadSpeedReporter, cancellationToken);
+        await EnsureAssetsAsync(
+            minecraftDirectory,
+            resolvedVersion.VersionJson,
+            downloadSourcePreference,
+            allowRepair,
+            downloadSpeedReporter,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond,
+            bandwidthLimiter);
 
         ReportProgress(
             progress,
             allowRepair ? LaunchProgressStages.RepairingLogging : LaunchProgressStages.CheckingFiles,
             allowRepair ? "Repairing logging configuration" : "Checking launch files",
             80);
-        await EnsureLoggingAsync(minecraftDirectory, resolvedVersion.VersionJson, allowRepair, downloadSpeedReporter, cancellationToken);
+        await EnsureLoggingAsync(
+            minecraftDirectory,
+            resolvedVersion.VersionJson,
+            downloadSourcePreference,
+            allowRepair,
+            downloadSpeedReporter,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond,
+            bandwidthLimiter);
 
         ReportProgress(progress, LaunchProgressStages.CheckingJava, "Checking Java runtime", 90);
         EnsureJavaIsUsable();
@@ -96,8 +145,10 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         string minecraftDirectory,
         string versionName,
         string versionDirectory,
+        DownloadSourcePreference downloadSourcePreference,
         CancellationToken cancellationToken,
-        bool allowRepair = true)
+        bool allowRepair = true,
+        int downloadSpeedLimitMbPerSecond = 0)
     {
         if (!allowRepair)
         {
@@ -121,7 +172,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             minecraftDirectory,
             versionName,
             versionDirectory,
-            cancellationToken);
+            downloadSourcePreference,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
 
         if (!string.IsNullOrWhiteSpace(GetStringProperty(result.VersionJson, "inheritsFrom")))
             throw new InstanceRepairException($"Version {versionName} still depends on another version after repair.");
@@ -140,7 +193,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         string minecraftDirectory,
         string versionName,
         string versionDirectory,
-        CancellationToken cancellationToken)
+        DownloadSourcePreference downloadSourcePreference,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond)
     {
         var versionJson = await ReadVersionJsonAsync(versionDirectory, versionName, cancellationToken);
         var currentJarPath = Path.Combine(versionDirectory, $"{versionName}.jar");
@@ -156,7 +211,12 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
                 WasModified: false);
         }
 
-        var parent = await ResolveParentVersionAsync(minecraftDirectory, inheritsFrom, cancellationToken);
+        var parent = await ResolveParentVersionAsync(
+            minecraftDirectory,
+            inheritsFrom,
+            downloadSourcePreference,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
         var mergedVersion = VersionJsonMergeHelper.MergeFlattenedVersion(parent.VersionJson, versionJson, versionName);
 
         return new ResolvedVersionMetadata(
@@ -170,7 +230,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
     private async Task<ResolvedVersionMetadata> ResolveParentVersionAsync(
         string minecraftDirectory,
         string parentVersionName,
-        CancellationToken cancellationToken)
+        DownloadSourcePreference downloadSourcePreference,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond)
     {
         var parentDirectory = Path.Combine(minecraftDirectory, "versions", parentVersionName);
         if (Directory.Exists(parentDirectory)
@@ -180,7 +242,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
                 minecraftDirectory,
                 parentVersionName,
                 parentDirectory,
-                cancellationToken);
+                downloadSourcePreference,
+                cancellationToken,
+                downloadSpeedLimitMbPerSecond);
         }
 
         JsonObject remoteVersionJson;
@@ -189,6 +253,10 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             remoteVersionJson = await VanillaVersionMetadataClient.DownloadVersionJsonAsync(
                 httpClient,
                 parentVersionName,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond,
+                downloadSpeedLimitState,
+                logger,
                 cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -219,9 +287,12 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         string versionDirectory,
         string versionName,
         ResolvedVersionMetadata resolvedVersion,
+        DownloadSourcePreference downloadSourcePreference,
         bool allowRepair,
         RepairDownloadSpeedReporter downloadSpeedReporter,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond,
+        DownloadBandwidthLimiter? bandwidthLimiter)
     {
         var jarPath = Path.Combine(versionDirectory, $"{versionName}.jar");
         if (File.Exists(jarPath))
@@ -244,13 +315,16 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         {
             await DownloadFileAsync(
                 new DownloadRequest(
-                    resolvedVersion.ClientJarUrl,
+                    OriginalUrl: resolvedVersion.ClientJarUrl,
                     jarPath,
-                    ClassifyDownloadSource(resolvedVersion.ClientJarUrl),
+                    ResourceCategory: "Mojang",
                     LibraryName: null,
                     ArtifactPath: $"{versionName}.jar"),
+                downloadSourcePreference,
                 downloadSpeedReporter,
-                cancellationToken);
+                cancellationToken,
+                downloadSpeedLimitMbPerSecond,
+                bandwidthLimiter);
             return;
         }
 
@@ -260,9 +334,12 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
     private async Task EnsureLibrariesAsync(
         string minecraftDirectory,
         JsonObject versionJson,
+        DownloadSourcePreference downloadSourcePreference,
         bool allowRepair,
         RepairDownloadSpeedReporter downloadSpeedReporter,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond,
+        DownloadBandwidthLimiter? bandwidthLimiter)
     {
         if (versionJson["libraries"] is not JsonArray libraries)
             return;
@@ -287,23 +364,32 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
                 }
 
                 downloads.Add(new DownloadRequest(
-                    artifact.Url,
+                    OriginalUrl: artifact.Url,
                     destinationPath,
-                    artifact.SourceKind,
+                    artifact.ResourceCategory,
                     artifact.LibraryName,
                     artifact.RelativePath));
             }
         }
 
-        await DownloadFilesAsync(downloads, downloadSpeedReporter, cancellationToken);
+        await DownloadFilesAsync(
+            downloads,
+            downloadSourcePreference,
+            downloadSpeedReporter,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond,
+            bandwidthLimiter);
     }
 
     private async Task EnsureAssetsAsync(
         string minecraftDirectory,
         JsonObject versionJson,
+        DownloadSourcePreference downloadSourcePreference,
         bool allowRepair,
         RepairDownloadSpeedReporter downloadSpeedReporter,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond,
+        DownloadBandwidthLimiter? bandwidthLimiter)
     {
         if (versionJson["assetIndex"] is not JsonObject assetIndex)
             return;
@@ -321,13 +407,16 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
 
             await DownloadFileAsync(
                 new DownloadRequest(
-                    assetIndexUrl,
+                    OriginalUrl: assetIndexUrl,
                     indexPath,
-                    ClassifyDownloadSource(assetIndexUrl),
+                    ResourceCategory: "Mojang",
                     LibraryName: null,
                     ArtifactPath: $"assets/indexes/{assetIndexId}.json"),
+                downloadSourcePreference,
                 downloadSpeedReporter,
-                cancellationToken);
+                cancellationToken,
+                downloadSpeedLimitMbPerSecond,
+                bandwidthLimiter);
         }
 
         await using var indexStream = File.OpenRead(indexPath);
@@ -359,22 +448,31 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
 
             var assetUrl = $"https://resources.download.minecraft.net/{hash[..2]}/{hash}";
             downloads.Add(new DownloadRequest(
-                assetUrl,
+                OriginalUrl: assetUrl,
                 objectPath,
-                ClassifyDownloadSource(assetUrl),
+                ResourceCategory: "Mojang",
                 LibraryName: null,
                 ArtifactPath: $"assets/objects/{hash[..2]}/{hash}"));
         }
 
-        await DownloadFilesAsync(downloads, downloadSpeedReporter, cancellationToken);
+        await DownloadFilesAsync(
+            downloads,
+            downloadSourcePreference,
+            downloadSpeedReporter,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond,
+            bandwidthLimiter);
     }
 
     private async Task EnsureLoggingAsync(
         string minecraftDirectory,
         JsonObject versionJson,
+        DownloadSourcePreference downloadSourcePreference,
         bool allowRepair,
         RepairDownloadSpeedReporter downloadSpeedReporter,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond,
+        DownloadBandwidthLimiter? bandwidthLimiter)
     {
         if (versionJson["logging"]?["client"] is not JsonObject clientLogging)
             return;
@@ -396,13 +494,16 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
 
         await DownloadFileAsync(
             new DownloadRequest(
-                url,
+                OriginalUrl: url,
                 logConfigPath,
-                ClassifyDownloadSource(url),
+                ResourceCategory: "Mojang",
                 LibraryName: null,
                 ArtifactPath: id),
+            downloadSourcePreference,
             downloadSpeedReporter,
-            cancellationToken);
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond,
+            bandwidthLimiter);
     }
 
     private static void EnsureJavaIsUsable()
@@ -502,7 +603,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             url,
             relativePath,
             string.IsNullOrWhiteSpace(libraryName) ? null : libraryName,
-            ClassifyDownloadSource(url));
+            ResolveResourceCategory(url));
     }
 
     private LibraryArtifact? TryCreateLibraryArtifactFromName(JsonObject library, string? classifier)
@@ -522,7 +623,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             new Uri(new Uri(baseUrl, UriKind.Absolute), relativePath).AbsoluteUri,
             relativePath,
             name,
-            ClassifyDownloadSource(baseUrl));
+            ResolveResourceCategory(baseUrl));
     }
 
     private static string? TryResolveLibraryUrl(JsonObject library, string relativePath)
@@ -596,27 +697,13 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             : $"{baseUrl}/";
     }
 
-    private static string ClassifyDownloadSource(string url)
+    private static string ResolveResourceCategory(string url, string? categoryHint = null)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
-            return "UnknownSource";
-
-        var host = uri.Host;
-        if (host.Equals("maven.minecraftforge.net", StringComparison.OrdinalIgnoreCase)
-            || host.EndsWith(".minecraftforge.net", StringComparison.OrdinalIgnoreCase))
-        {
-            return "ForgeMaven";
-        }
-
-        if (host.Equals("libraries.minecraft.net", StringComparison.OrdinalIgnoreCase)
-            || host.Equals("resources.download.minecraft.net", StringComparison.OrdinalIgnoreCase)
-            || host.EndsWith(".mojang.com", StringComparison.OrdinalIgnoreCase)
-            || host.EndsWith(".minecraft.net", StringComparison.OrdinalIgnoreCase))
-        {
-            return "MojangOfficial";
-        }
-
-        return "MirrorSource";
+        return MinecraftDownloadSourceResolver.ResolveRequest(
+            url,
+            DownloadSourcePreference.Official,
+            useBmclApi: false,
+            categoryHint).ResourceCategory;
     }
 
     private static string? ResolveNativeClassifierKey(JsonObject library)
@@ -680,11 +767,14 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
 
     private async Task DownloadFilesAsync(
         IEnumerable<DownloadRequest> downloads,
+        DownloadSourcePreference downloadSourcePreference,
         RepairDownloadSpeedReporter downloadSpeedReporter,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond,
+        DownloadBandwidthLimiter? bandwidthLimiter)
     {
         var uniqueDownloads = downloads
-            .Where(download => !string.IsNullOrWhiteSpace(download.Url)
+            .Where(download => !string.IsNullOrWhiteSpace(download.OriginalUrl)
                 && !string.IsNullOrWhiteSpace(download.DestinationPath))
             .GroupBy(download => Path.GetFullPath(download.DestinationPath), PathComparer)
             .Select(group => group.First())
@@ -701,24 +791,47 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             },
             async (download, token) =>
             {
-                await DownloadFileAsync(download, downloadSpeedReporter, token);
+                await DownloadFileAsync(
+                    download,
+                    downloadSourcePreference,
+                    downloadSpeedReporter,
+                    token,
+                    downloadSpeedLimitMbPerSecond,
+                    bandwidthLimiter);
             });
     }
 
     private async Task DownloadFileAsync(
         DownloadRequest download,
+        DownloadSourcePreference downloadSourcePreference,
         RepairDownloadSpeedReporter downloadSpeedReporter,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond,
+        DownloadBandwidthLimiter? bandwidthLimiter)
     {
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(download.DestinationPath)!);
             downloadSpeedReporter.ReportDownloadStarted();
-            using var response = await httpClient.GetAsync(download.Url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            if (!response.IsSuccessStatusCode)
-                throw CreateDownloadException(download, response.StatusCode, null);
+            var executor = new MinecraftDownloadRequestExecutor(
+                httpClient,
+                logger,
+                bandwidthLimiter ?? DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState));
+            using var resolvedResponse = await executor.GetAsync(
+                download.OriginalUrl,
+                downloadSourcePreference,
+                download.ResourceCategory,
+                cancellationToken);
+            if (!resolvedResponse.Response.IsSuccessStatusCode)
+            {
+                throw CreateDownloadException(
+                    download,
+                    resolvedResponse.Resolution,
+                    resolvedResponse.Response.StatusCode,
+                    null);
+            }
 
-            await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
+            await using var source = await resolvedResponse.Response.Content.ReadAsStreamAsync(cancellationToken);
             await using var destination = File.Create(download.DestinationPath);
             var buffer = new byte[DownloadBufferSize];
             while (true)
@@ -731,24 +844,37 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
                 downloadSpeedReporter.ReportDownloadedBytes(read);
             }
         }
+        catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)
+        {
+            throw CreateDownloadException(download, exception.Resolution, statusCode: null, exception);
+        }
         catch (Exception exception) when (exception is not OperationCanceledException and not InstanceRepairException)
         {
-            throw CreateDownloadException(download, statusCode: null, exception);
+            var resolution = MinecraftDownloadSourceResolver.ResolveRequest(
+                download.OriginalUrl,
+                downloadSourcePreference,
+                useBmclApi: downloadSourcePreference is DownloadSourcePreference.BmclApi,
+                download.ResourceCategory);
+            throw CreateDownloadException(download, resolution, statusCode: null, exception);
         }
     }
 
     private static InstanceRepairException CreateDownloadException(
         DownloadRequest download,
+        ResolvedDownloadRequest resolution,
         HttpStatusCode? statusCode,
         Exception? innerException)
     {
         var diagnostic = new LaunchDownloadDiagnostic(
-            download.Url,
+            resolution.OriginalUrl,
+            resolution.ActualUrl,
             download.DestinationPath,
             statusCode is null ? null : (int)statusCode.Value,
             download.LibraryName,
             download.ArtifactPath,
-            download.SourceKind);
+            resolution.RequestedSourcePreference.ToString(),
+            resolution.ResolvedSourceKind,
+            resolution.ResourceCategory);
         var statusText = statusCode is null
             ? "without an HTTP response"
             : $"with HTTP {(int)statusCode.Value} ({statusCode.Value})";
@@ -834,9 +960,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         bool WasModified);
 
     private sealed record DownloadRequest(
-        string Url,
+        string OriginalUrl,
         string DestinationPath,
-        string SourceKind,
+        string ResourceCategory,
         string? LibraryName,
         string? ArtifactPath);
 
@@ -914,5 +1040,5 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         string Url,
         string RelativePath,
         string? LibraryName,
-        string SourceKind);
+        string ResourceCategory);
 }

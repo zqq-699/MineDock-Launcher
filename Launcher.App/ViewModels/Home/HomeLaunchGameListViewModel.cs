@@ -62,7 +62,7 @@ public sealed partial class HomeLaunchGameListViewModel : ObservableObject
 
         try
         {
-            var versions = await gameVersionService.GetVersionsAsync(cancellationToken);
+            var versions = await gameVersionService.GetVersionsAsync(cancellationToken: cancellationToken);
             versionTypesByName = versions
                 .GroupBy(version => version.Name, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(

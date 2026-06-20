@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using CmlLib.Core.ProcessBuilder;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
 namespace Launcher.Infrastructure.Minecraft;
@@ -11,14 +12,31 @@ internal interface ILaunchGameLauncher
 
 internal interface ILaunchGameLauncherFactory
 {
-    ILaunchGameLauncher Create(string minecraftDirectory, IProgress<LauncherProgress>? progress);
+    ILaunchGameLauncher Create(
+        string minecraftDirectory,
+        IProgress<LauncherProgress>? progress,
+        int downloadSpeedLimitMbPerSecond = 0);
 }
 
 internal sealed class LaunchGameLauncherFactory : ILaunchGameLauncherFactory
 {
-    public ILaunchGameLauncher Create(string minecraftDirectory, IProgress<LauncherProgress>? progress)
+    private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
+
+    public LaunchGameLauncherFactory(IDownloadSpeedLimitState? downloadSpeedLimitState = null)
     {
-        var launcher = VanillaLoaderProvider.CreateLauncher(minecraftDirectory, progress);
+        this.downloadSpeedLimitState = downloadSpeedLimitState;
+    }
+
+    public ILaunchGameLauncher Create(
+        string minecraftDirectory,
+        IProgress<LauncherProgress>? progress,
+        int downloadSpeedLimitMbPerSecond = 0)
+    {
+        var launcher = VanillaLoaderProvider.CreateLauncher(
+            minecraftDirectory,
+            progress,
+            downloadSpeedLimitMbPerSecond: downloadSpeedLimitMbPerSecond,
+            downloadSpeedLimitState: downloadSpeedLimitState);
         VanillaLoaderProvider.AttachProgress(launcher, progress);
         return new CmlLaunchGameLauncher(launcher);
     }

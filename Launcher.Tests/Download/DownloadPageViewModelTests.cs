@@ -42,6 +42,63 @@ public sealed class DownloadPageViewModelTests
     }
 
     [Fact]
+    public async Task DownloadPageLoadsVersionsUsingPrimedDownloadSourcePreference()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.21.4", "Release", false)
+        ]);
+        var viewModel = CreateDownloadPageViewModel(service);
+        viewModel.PrimeFromSettings(new LauncherSettings
+        {
+            DownloadSourcePreference = DownloadSourcePreference.BmclApi
+        });
+
+        await viewModel.EnsureVersionsLoadedAsync();
+
+        Assert.Equal(DownloadSourcePreference.BmclApi, service.LastDownloadSourcePreference);
+    }
+
+    [Fact]
+    public async Task DownloadPageLoadsVersionsUsingPrimedDownloadSpeedLimit()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.21.4", "Release", false)
+        ]);
+        var viewModel = CreateDownloadPageViewModel(service);
+        viewModel.PrimeFromSettings(new LauncherSettings
+        {
+            DownloadSpeedLimitMbPerSecond = 32
+        });
+
+        await viewModel.EnsureVersionsLoadedAsync();
+
+        Assert.Equal(32, service.LastDownloadSpeedLimitMbPerSecond);
+    }
+
+    [Fact]
+    public async Task DownloadPageReloadsVersionsAfterDownloadSourcePreferenceChanges()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.21.4", "Release", false)
+        ]);
+        var viewModel = CreateDownloadPageViewModel(service);
+        viewModel.PrimeFromSettings(new LauncherSettings
+        {
+            DownloadSourcePreference = DownloadSourcePreference.Auto
+        });
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        viewModel.ApplyDownloadSourcePreference(DownloadSourcePreference.Official);
+        await viewModel.EnsureVersionsLoadedAsync();
+
+        Assert.Equal(2, service.CallCount);
+        Assert.Equal(DownloadSourcePreference.Official, service.LastDownloadSourcePreference);
+    }
+
+    [Fact]
     public async Task DownloadPageRefreshesInstanceNamesWhenEnteringInstanceOptions()
     {
         var service = new FakeGameVersionService(
@@ -382,6 +439,36 @@ public sealed class DownloadPageViewModelTests
         Assert.True(viewModel.ShouldShowLoaderVersionSelector);
         Assert.Null(viewModel.SelectedLoaderVersion);
         Assert.Equal("1.20.1-fabric", viewModel.InstanceName);
+    }
+
+    [Fact]
+    public async Task DownloadPageLoadsLoaderVersionsUsingDownloadSourcePreference()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.1", "Release", false)
+        ]);
+        var fabricProvider = new FakeLoaderProvider
+        {
+            Kind = LoaderKind.Fabric,
+            LoaderVersions = [new LoaderVersionInfo("0.16.10")]
+        };
+        var viewModel = CreateDownloadPageViewModel(
+            service,
+            loaderProviders: CreateLoaderProviders(fabricProvider));
+        viewModel.PrimeFromSettings(new LauncherSettings
+        {
+            DownloadSourcePreference = DownloadSourcePreference.BmclApi,
+            DownloadSpeedLimitMbPerSecond = 16
+        });
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Fabric));
+        await TestAsync.WaitForAsync(() => viewModel.HasLoaderVersions);
+
+        Assert.Equal(DownloadSourcePreference.BmclApi, fabricProvider.LastDownloadSourcePreference);
+        Assert.Equal(16, fabricProvider.LastDownloadSpeedLimitMbPerSecond);
     }
 
     [Fact]
@@ -732,6 +819,48 @@ public sealed class DownloadPageViewModelTests
         Assert.Equal(100, task.ProgressPercent);
         Assert.Contains("1.20.1", task.Title);
         Assert.Equal(DownloadPageStep.VersionList, viewModel.CurrentStep);
+    }
+
+    [Fact]
+    public async Task DownloadPageInstallPassesDownloadSourcePreferenceToInstanceService()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.1", "Release", false)
+        ]);
+        var instanceService = new FakeGameInstanceService();
+        var viewModel = CreateDownloadPageViewModel(service, instanceService);
+        viewModel.PrimeFromSettings(new LauncherSettings
+        {
+            DownloadSourcePreference = DownloadSourcePreference.Official
+        });
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        await viewModel.InstallCommand.ExecuteAsync(null);
+
+        Assert.Equal(DownloadSourcePreference.Official, instanceService.LastDownloadSourcePreference);
+    }
+
+    [Fact]
+    public async Task DownloadPageInstallPassesDownloadSpeedLimitToInstanceService()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.1", "Release", false)
+        ]);
+        var instanceService = new FakeGameInstanceService();
+        var viewModel = CreateDownloadPageViewModel(service, instanceService);
+        viewModel.PrimeFromSettings(new LauncherSettings
+        {
+            DownloadSpeedLimitMbPerSecond = 64
+        });
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        await viewModel.InstallCommand.ExecuteAsync(null);
+
+        Assert.Equal(64, instanceService.LastDownloadSpeedLimitMbPerSecond);
     }
 
     [Fact]

@@ -15,6 +15,7 @@ public sealed partial class MainViewModel : ObservableObject
 {
     private static readonly TimeSpan FloatingMessageDuration = TimeSpan.FromSeconds(2.2);
 
+    private readonly IDownloadSpeedLimitState downloadSpeedLimitState;
     private readonly ISettingsService settingsService;
     private readonly IWindowService windowService;
     private readonly IStatusService statusService;
@@ -52,6 +53,7 @@ public sealed partial class MainViewModel : ObservableObject
     private string javaRequirementDialogMessage = string.Empty;
 
     public MainViewModel(
+        IDownloadSpeedLimitState downloadSpeedLimitState,
         ISettingsService settingsService,
         AccountPageViewModel accountPage,
         DownloadPageViewModel downloadPage,
@@ -66,6 +68,7 @@ public sealed partial class MainViewModel : ObservableObject
         IHomePageViewModelFactory homePageFactory,
         LaunchStatusDialogViewModel launchStatusDialog)
     {
+        this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.settingsService = settingsService;
         this.windowService = windowService;
         this.statusService = statusService;
@@ -93,6 +96,8 @@ public sealed partial class MainViewModel : ObservableObject
         GameSettingsPage.LaunchInstanceRequested += GameSettingsPage_LaunchInstanceRequested;
         GameSettingsPage.InstancesChanged += GameSettingsPage_InstancesChanged;
         SettingsPage.LaunchDefaultsChanged += SettingsPage_LaunchDefaultsChanged;
+        SettingsPage.DownloadSourceChanged += SettingsPage_DownloadSourceChanged;
+        SettingsPage.DownloadSpeedLimitChanged += SettingsPage_DownloadSpeedLimitChanged;
         SettingsPage.MinecraftDirectoryChanged += SettingsPage_MinecraftDirectoryChanged;
 
         UpdateNavigationSelection();
@@ -126,9 +131,11 @@ public sealed partial class MainViewModel : ObservableObject
             return;
 
         Settings = await settingsService.LoadAsync();
+        downloadSpeedLimitState.SetDownloadSpeedLimitMbPerSecond(Settings.DownloadSpeedLimitMbPerSecond);
         IsMenuExpanded = Settings.IsMenuExpanded;
         AccountPage.PrimeFromSettings(Settings);
         HomePage.SetSettings(Settings);
+        DownloadPage.PrimeFromSettings(Settings);
         GameSettingsPage.PrimeFromSettings(Settings);
         SettingsPage.PrimeFromSettings(Settings);
         UpdateNavigationSelection();
@@ -341,6 +348,21 @@ public sealed partial class MainViewModel : ObservableObject
     {
         HomePage.SetSettings(Settings);
         GameSettingsPage.PrimeFromSettings(Settings);
+    }
+
+    private void SettingsPage_DownloadSourceChanged(object? sender, SettingsDownloadSourceChangedEventArgs e)
+    {
+        Settings.DownloadSourcePreference = e.Preference;
+        DownloadPage.ApplyDownloadSourcePreference(e.Preference);
+        GameManagement.ApplyDownloadSourcePreference(e.Preference);
+    }
+
+    private void SettingsPage_DownloadSpeedLimitChanged(object? sender, SettingsDownloadSpeedLimitChangedEventArgs e)
+    {
+        Settings.DownloadSpeedLimitMbPerSecond = e.DownloadSpeedLimitMbPerSecond;
+        downloadSpeedLimitState.SetDownloadSpeedLimitMbPerSecond(e.DownloadSpeedLimitMbPerSecond);
+        DownloadPage.ApplyDownloadSpeedLimit(e.DownloadSpeedLimitMbPerSecond);
+        GameManagement.ApplyDownloadSpeedLimit(e.DownloadSpeedLimitMbPerSecond);
     }
 
     private void SettingsPage_MinecraftDirectoryChanged(object? sender, SettingsMinecraftDirectoryChangedEventArgs e)

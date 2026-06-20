@@ -1,4 +1,4 @@
-﻿using Launcher.Application.Services;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
 namespace Launcher.Tests.Fakes;
@@ -12,9 +12,19 @@ internal sealed class FakeGameVersionService : IGameVersionService
         this.versions = versions;
     }
 
-    public Task<IReadOnlyList<MinecraftVersionInfo>> GetVersionsAsync(CancellationToken cancellationToken = default)
+    public int CallCount { get; private set; }
+
+    public DownloadSourcePreference LastDownloadSourcePreference { get; private set; } = DownloadSourcePreference.Auto;
+    public int LastDownloadSpeedLimitMbPerSecond { get; private set; }
+
+    public Task<IReadOnlyList<MinecraftVersionInfo>> GetVersionsAsync(
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        CancellationToken cancellationToken = default,
+        int downloadSpeedLimitMbPerSecond = 0)
     {
+        CallCount++;
+        LastDownloadSourcePreference = downloadSourcePreference;
+        LastDownloadSpeedLimitMbPerSecond = downloadSpeedLimitMbPerSecond;
         return Task.FromResult(versions);
     }
 }
-

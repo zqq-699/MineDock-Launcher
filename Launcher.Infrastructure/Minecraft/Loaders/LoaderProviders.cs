@@ -5,28 +5,49 @@ using System.Text.Json;
 using CmlLib.Core;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Minecraft;
 
 public sealed class VanillaLoaderProvider : ILoaderProvider
 {
     private readonly HttpClient httpClient;
+    private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
+    private readonly ILogger logger;
 
-    public VanillaLoaderProvider(HttpClient? httpClient = null)
+    public VanillaLoaderProvider(
+        HttpClient? httpClient = null,
+        IDownloadSpeedLimitState? downloadSpeedLimitState = null,
+        ILogger<VanillaLoaderProvider>? logger = null)
     {
         this.httpClient = httpClient ?? new HttpClient();
+        this.downloadSpeedLimitState = downloadSpeedLimitState;
+        this.logger = logger ?? NullLogger<VanillaLoaderProvider>.Instance;
     }
 
     public LoaderKind Kind => LoaderKind.Vanilla;
     public bool IsImplemented => true;
 
-    public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(string minecraftVersion, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
+        string minecraftVersion,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        CancellationToken cancellationToken = default,
+        int downloadSpeedLimitMbPerSecond = 0)
     {
         IReadOnlyList<LoaderVersionInfo> versions = [new LoaderVersionInfo(nameof(LoaderKind.Vanilla))];
         return Task.FromResult(versions);
     }
 
-    public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
+    public async Task<string> InstallAsync(
+        string minecraftVersion,
+        string gameDirectory,
+        string isolatedVersionName,
+        string? loaderVersion,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        CancellationToken cancellationToken = default,
+        int downloadSpeedLimitMbPerSecond = 0)
     {
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
 
@@ -35,9 +56,19 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             minecraftVersion,
             isolatedVersionName,
             gameDirectory,
+            downloadSourcePreference,
+            downloadSpeedLimitMbPerSecond,
+            downloadSpeedLimitState,
+            logger,
             cancellationToken);
 
-        var launcher = CreateLauncher(gameDirectory, progress);
+        var launcher = CreateLauncher(
+            gameDirectory,
+            progress,
+            downloadSourcePreference,
+            logger,
+            downloadSpeedLimitMbPerSecond,
+            downloadSpeedLimitState);
         AttachProgress(launcher, progress);
         await launcher.InstallAsync(finalVersionName, cancellationToken);
         return finalVersionName;
@@ -129,14 +160,38 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         }
     }
 
-    internal static MinecraftLauncher CreateLauncher(string gameDirectory, IProgress<LauncherProgress>? progress)
+    internal static MinecraftLauncher CreateLauncher(
+        string gameDirectory,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        ILogger? logger = null,
+        int downloadSpeedLimitMbPerSecond = 0,
+        IDownloadSpeedLimitState? downloadSpeedLimitState = null)
     {
-        return CreateLauncher(new MinecraftPath(gameDirectory), progress);
+        return CreateLauncher(
+            new MinecraftPath(gameDirectory),
+            progress,
+            downloadSourcePreference,
+            logger,
+            downloadSpeedLimitMbPerSecond,
+            downloadSpeedLimitState);
     }
 
-    internal static MinecraftLauncher CreateLauncher(MinecraftPath path, IProgress<LauncherProgress>? progress)
+    internal static MinecraftLauncher CreateLauncher(
+        MinecraftPath path,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        ILogger? logger = null,
+        int downloadSpeedLimitMbPerSecond = 0,
+        IDownloadSpeedLimitState? downloadSpeedLimitState = null)
     {
         var parameters = MinecraftLauncherParameters.CreateDefault(path);
+        var bandwidthLimiter = DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
+        parameters.HttpClient = new HttpClient(new DownloadSourceRoutingHttpMessageHandler(
+            downloadSourcePreference,
+            new HttpClientHandler(),
+            logger,
+            bandwidthLimiter));
         parameters.GameInstaller = DownloadSpeedTrackingGameInstaller.CreateAsCoreCount(parameters.HttpClient, progress);
         return new MinecraftLauncher(parameters);
     }
@@ -146,29 +201,46 @@ public sealed class FabricLoaderProvider : ILoaderProvider
 {
     private const string NoLoaderMessagePrefix = "Cannot find any loader for";
     private readonly HttpClient httpClient;
+    private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
+    private readonly ILogger logger;
 
-    public FabricLoaderProvider(HttpClient? httpClient = null)
+    public FabricLoaderProvider(
+        HttpClient? httpClient = null,
+        IDownloadSpeedLimitState? downloadSpeedLimitState = null,
+        ILogger<FabricLoaderProvider>? logger = null)
     {
         this.httpClient = httpClient ?? new HttpClient();
+        this.downloadSpeedLimitState = downloadSpeedLimitState;
+        this.logger = logger ?? NullLogger<FabricLoaderProvider>.Instance;
     }
 
     public LoaderKind Kind => LoaderKind.Fabric;
     public bool IsImplemented => true;
 
-    public async Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(string minecraftVersion, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
+        string minecraftVersion,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        CancellationToken cancellationToken = default,
+        int downloadSpeedLimitMbPerSecond = 0)
     {
         try
         {
-            using var response = await httpClient.GetAsync(
+            var executor = new MinecraftDownloadRequestExecutor(
+                httpClient,
+                logger,
+                DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState));
+            using var response = await executor.GetAsync(
                 $"https://meta.fabricmc.net/v2/versions/loader/{minecraftVersion}",
+                downloadSourcePreference,
+                categoryHint: "Fabric",
                 cancellationToken);
 
-            if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
+            if (response.Response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
                 return [];
 
-            response.EnsureSuccessStatusCode();
+            response.Response.EnsureSuccessStatusCode();
 
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            await using var stream = await response.Response.Content.ReadAsStreamAsync(cancellationToken);
             using var json = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
             if (json.RootElement.ValueKind is not JsonValueKind.Array)
                 return [];
@@ -190,7 +262,15 @@ public sealed class FabricLoaderProvider : ILoaderProvider
         }
     }
 
-    public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
+    public async Task<string> InstallAsync(
+        string minecraftVersion,
+        string gameDirectory,
+        string isolatedVersionName,
+        string? loaderVersion,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        CancellationToken cancellationToken = default,
+        int downloadSpeedLimitMbPerSecond = 0)
     {
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
         var path = new MinecraftPath(gameDirectory);
@@ -198,7 +278,11 @@ public sealed class FabricLoaderProvider : ILoaderProvider
 
         if (string.IsNullOrWhiteSpace(selectedLoaderVersion))
         {
-            var availableLoaders = await GetLoaderVersionsAsync(minecraftVersion, cancellationToken);
+            var availableLoaders = await GetLoaderVersionsAsync(
+                minecraftVersion,
+                downloadSourcePreference,
+                cancellationToken,
+                downloadSpeedLimitMbPerSecond);
             selectedLoaderVersion = availableLoaders.FirstOrDefault()?.Version;
         }
 
@@ -211,9 +295,19 @@ public sealed class FabricLoaderProvider : ILoaderProvider
             selectedLoaderVersion,
             isolatedVersionName,
             gameDirectory,
+            downloadSourcePreference,
+            downloadSpeedLimitMbPerSecond,
+            downloadSpeedLimitState,
+            logger,
             cancellationToken);
 
-        var launcher = VanillaLoaderProvider.CreateLauncher(path, progress);
+        var launcher = VanillaLoaderProvider.CreateLauncher(
+            path,
+            progress,
+            downloadSourcePreference,
+            logger,
+            downloadSpeedLimitMbPerSecond,
+            downloadSpeedLimitState);
         VanillaLoaderProvider.AttachProgress(launcher, progress);
         await launcher.InstallAsync(finalVersionName, cancellationToken);
         return finalVersionName;
@@ -297,13 +391,25 @@ public sealed class PlaceholderLoaderProvider : ILoaderProvider
     public LoaderKind Kind { get; }
     public bool IsImplemented => false;
 
-    public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(string minecraftVersion, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
+        string minecraftVersion,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        CancellationToken cancellationToken = default,
+        int downloadSpeedLimitMbPerSecond = 0)
     {
         IReadOnlyList<LoaderVersionInfo> versions = [];
         return Task.FromResult(versions);
     }
 
-    public Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
+    public Task<string> InstallAsync(
+        string minecraftVersion,
+        string gameDirectory,
+        string isolatedVersionName,
+        string? loaderVersion,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        CancellationToken cancellationToken = default,
+        int downloadSpeedLimitMbPerSecond = 0)
     {
         throw new NotSupportedException($"{Kind} is not implemented yet.");
     }

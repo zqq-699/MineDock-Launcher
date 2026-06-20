@@ -99,7 +99,9 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
                 loader,
                 resolvedLoaderVersion,
                 NewInstanceName,
-                progress);
+                progress,
+                downloadSourcePreference: settings.DownloadSourcePreference,
+                downloadSpeedLimitMbPerSecond: settings.DownloadSpeedLimitMbPerSecond);
         }
         catch (DuplicateGameInstanceNameException)
         {

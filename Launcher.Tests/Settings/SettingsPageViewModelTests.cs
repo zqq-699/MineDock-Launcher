@@ -15,6 +15,8 @@ public sealed class SettingsPageViewModelTests
         {
             DataDirectory = @"C:\Launcher\Data",
             MinecraftDirectory = @"C:\Launcher\.minecraft",
+            DownloadSourcePreference = DownloadSourcePreference.BmclApi,
+            DownloadSpeedLimitMbPerSecond = 24,
             DefaultMemorySettingsMode = MemorySettingsMode.Manual,
             DefaultMemoryMb = 8192,
             DefaultCheckFilesBeforeLaunch = false,
@@ -34,6 +36,8 @@ public sealed class SettingsPageViewModelTests
         Assert.True(viewModel.IsGeneralSection);
         Assert.Equal(@"C:\Launcher\Data", viewModel.DataDirectory);
         Assert.Equal(@"C:\Launcher\.minecraft", viewModel.MinecraftDirectory);
+        Assert.Equal(DownloadSourcePreference.BmclApi, viewModel.SelectedDownloadSourceOption?.Preference);
+        Assert.Equal("24", viewModel.DownloadSpeedLimitMbPerSecondText);
         Assert.Equal(MemorySettingsMode.Manual, viewModel.SelectedMemoryModeOption?.Mode);
         Assert.Equal(8192, viewModel.DefaultMemoryMb);
         Assert.True(viewModel.IsMemorySliderEnabled);
@@ -202,6 +206,7 @@ public sealed class SettingsPageViewModelTests
         Assert.False(viewModel.IsGeneralSection);
         Assert.False(viewModel.IsLaunchSection);
         Assert.False(viewModel.IsJavaMemorySection);
+        Assert.False(viewModel.IsThemeSection);
         Assert.Contains(
             viewModel.InteractiveControls,
             control => control.Title == Strings.Settings_ControlComboBox);
@@ -211,6 +216,65 @@ public sealed class SettingsPageViewModelTests
         Assert.Contains(
             viewModel.InteractiveControls,
             control => control.Title == Strings.Settings_ControlSlider);
+    }
+
+    [Fact]
+    public void ThemeSectionIsInsertedAfterJavaSection()
+    {
+        var viewModel = CreateViewModel(out _, out _);
+
+        Assert.Equal(
+            [
+                SettingsPageSection.General,
+                SettingsPageSection.Launch,
+                SettingsPageSection.JavaMemory,
+                SettingsPageSection.Theme,
+                SettingsPageSection.ControlList
+            ],
+            viewModel.Sections.Select(section => section.Section));
+
+        var themeSection = viewModel.Sections.Single(section => section.Section is SettingsPageSection.Theme);
+        viewModel.SelectSectionCommand.Execute(themeSection);
+
+        Assert.Same(themeSection, viewModel.SelectedSection);
+        Assert.Equal(Strings.Settings_SectionTheme, viewModel.SectionTitle);
+        Assert.True(viewModel.IsThemeSection);
+        Assert.False(viewModel.IsGeneralSection);
+        Assert.False(viewModel.IsLaunchSection);
+        Assert.False(viewModel.IsJavaMemorySection);
+        Assert.False(viewModel.IsControlListSection);
+    }
+
+    [Fact]
+    public void ThemeSectionShowsAppearanceControlsWithoutSaving()
+    {
+        var viewModel = CreateViewModel(out var settingsService, out _);
+
+        Assert.False(viewModel.ThemeFollowSystemEnabled);
+        Assert.True(viewModel.IsThemeModeSelectionVisible);
+        Assert.Equal(Strings.Settings_ThemeModeDark, viewModel.SelectedThemeOption?.Title);
+
+        viewModel.ThemeFollowSystemEnabled = true;
+
+        Assert.True(viewModel.ThemeFollowSystemEnabled);
+        Assert.False(viewModel.IsThemeModeSelectionVisible);
+        Assert.Equal(0, settingsService.SaveCount);
+    }
+
+    [Fact]
+    public void PrimeFromSettingsMapsStoredThemeToAppearanceSelection()
+    {
+        var settings = new LauncherSettings
+        {
+            Theme = "Light"
+        };
+        var viewModel = CreateViewModel(settings, out _, out _);
+
+        viewModel.PrimeFromSettings(settings);
+
+        Assert.False(viewModel.ThemeFollowSystemEnabled);
+        Assert.True(viewModel.IsThemeModeSelectionVisible);
+        Assert.Equal(Strings.Settings_ThemeModeLight, viewModel.SelectedThemeOption?.Title);
     }
 
     [Fact]
@@ -603,6 +667,42 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task EditingDownloadSpeedLimitAutoSavesNormalizedValue()
+    {
+        var settings = new LauncherSettings
+        {
+            DownloadSpeedLimitMbPerSecond = 0
+        };
+        var viewModel = CreateViewModel(settings, out var settingsService, out _);
+        viewModel.PrimeFromSettings(settings);
+
+        viewModel.DownloadSpeedLimitMbPerSecondText = "48";
+
+        await TestAsync.WaitForAsync(() =>
+            settingsService.SaveCount >= 1
+            && settings.DownloadSpeedLimitMbPerSecond == 48
+            && viewModel.DownloadSpeedLimitMbPerSecondText == "48");
+    }
+
+    [Fact]
+    public async Task InvalidDownloadSpeedLimitFallsBackToUnlimited()
+    {
+        var settings = new LauncherSettings
+        {
+            DownloadSpeedLimitMbPerSecond = 12
+        };
+        var viewModel = CreateViewModel(settings, out var settingsService, out _);
+        viewModel.PrimeFromSettings(settings);
+
+        viewModel.DownloadSpeedLimitMbPerSecondText = "abc";
+
+        await TestAsync.WaitForAsync(() =>
+            settingsService.SaveCount >= 1
+            && settings.DownloadSpeedLimitMbPerSecond == 0
+            && viewModel.DownloadSpeedLimitMbPerSecondText == string.Empty);
+    }
+
+    [Fact]
     public async Task DisablingLaunchCheckAlsoDisablesAutoRepair()
     {
         var settings = new LauncherSettings
@@ -689,6 +789,73 @@ public sealed class SettingsPageViewModelTests
 
         Assert.Equal(6, changedCount);
         Assert.Equal(8192, settings.DefaultMemoryMb);
+    }
+
+    [Fact]
+    public async Task ChangingDownloadSourceAutoSavesPreference()
+    {
+        var settings = new LauncherSettings
+        {
+            DownloadSourcePreference = DownloadSourcePreference.Auto
+        };
+        var viewModel = CreateViewModel(settings, out var settingsService, out _);
+        viewModel.PrimeFromSettings(settings);
+
+        viewModel.SelectedDownloadSourceOption = viewModel.DownloadSourceOptions.Single(option =>
+            option.Preference is DownloadSourcePreference.Official);
+
+        await TestAsync.WaitForAsync(() =>
+            settingsService.SaveCount >= 1
+            && settings.DownloadSourcePreference is DownloadSourcePreference.Official);
+    }
+
+    [Fact]
+    public void ChangingDownloadSourceRaisesChangedEvent()
+    {
+        var settings = new LauncherSettings
+        {
+            DownloadSourcePreference = DownloadSourcePreference.Auto
+        };
+        var viewModel = CreateViewModel(settings, out _, out _);
+        viewModel.PrimeFromSettings(settings);
+        var changedPreference = DownloadSourcePreference.Auto;
+        var changedCount = 0;
+        viewModel.DownloadSourceChanged += (_, e) =>
+        {
+            changedCount++;
+            changedPreference = e.Preference;
+        };
+
+        viewModel.SelectedDownloadSourceOption = viewModel.DownloadSourceOptions.Single(option =>
+            option.Preference is DownloadSourcePreference.BmclApi);
+
+        Assert.Equal(1, changedCount);
+        Assert.Equal(DownloadSourcePreference.BmclApi, changedPreference);
+        Assert.Equal(DownloadSourcePreference.BmclApi, settings.DownloadSourcePreference);
+    }
+
+    [Fact]
+    public void ChangingDownloadSpeedLimitRaisesChangedEvent()
+    {
+        var settings = new LauncherSettings
+        {
+            DownloadSpeedLimitMbPerSecond = 0
+        };
+        var viewModel = CreateViewModel(settings, out _, out _);
+        viewModel.PrimeFromSettings(settings);
+        var changedSpeedLimit = 0;
+        var changedCount = 0;
+        viewModel.DownloadSpeedLimitChanged += (_, e) =>
+        {
+            changedCount++;
+            changedSpeedLimit = e.DownloadSpeedLimitMbPerSecond;
+        };
+
+        viewModel.DownloadSpeedLimitMbPerSecondText = "12";
+
+        Assert.Equal(1, changedCount);
+        Assert.Equal(12, changedSpeedLimit);
+        Assert.Equal(12, settings.DownloadSpeedLimitMbPerSecond);
     }
 
     [Fact]

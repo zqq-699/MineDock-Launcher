@@ -1,6 +1,9 @@
 using System.IO;
 using System.Net.Http;
 using System.Text.Json.Nodes;
+using Launcher.Application.Services;
+using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Minecraft;
 
@@ -11,9 +14,24 @@ internal static class VanillaVersionMetadataClient
     public static async Task<JsonObject> DownloadVersionJsonAsync(
         HttpClient httpClient,
         string minecraftVersion,
+        DownloadSourcePreference downloadSourcePreference,
+        int downloadSpeedLimitMbPerSecond = 0,
+        IDownloadSpeedLimitState? downloadSpeedLimitState = null,
+        ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
-        using var manifestStream = await httpClient.GetStreamAsync(VersionManifestUrl, cancellationToken);
+        var executor = new MinecraftDownloadRequestExecutor(
+            httpClient,
+            logger,
+            DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState));
+        using var manifestResponse = await executor.GetAsync(
+            VersionManifestUrl,
+            downloadSourcePreference,
+            categoryHint: "Mojang",
+            cancellationToken);
+        manifestResponse.Response.EnsureSuccessStatusCode();
+
+        await using var manifestStream = await manifestResponse.Response.Content.ReadAsStreamAsync(cancellationToken);
         var manifestNode = await JsonNode.ParseAsync(manifestStream, cancellationToken: cancellationToken)
             ?? throw new InvalidDataException("Minecraft version manifest is empty.");
 
@@ -27,7 +45,14 @@ internal static class VanillaVersionMetadataClient
         if (string.IsNullOrWhiteSpace(versionUrl))
             throw new InvalidOperationException($"Minecraft version metadata not found: {minecraftVersion}");
 
-        using var versionStream = await httpClient.GetStreamAsync(versionUrl, cancellationToken);
+        using var versionResponse = await executor.GetAsync(
+            versionUrl,
+            downloadSourcePreference,
+            categoryHint: "Mojang",
+            cancellationToken);
+        versionResponse.Response.EnsureSuccessStatusCode();
+
+        await using var versionStream = await versionResponse.Response.Content.ReadAsStreamAsync(cancellationToken);
         var versionNode = await JsonNode.ParseAsync(versionStream, cancellationToken: cancellationToken)
             ?? throw new InvalidDataException($"Minecraft version metadata is empty: {minecraftVersion}");
         return versionNode.AsObject();

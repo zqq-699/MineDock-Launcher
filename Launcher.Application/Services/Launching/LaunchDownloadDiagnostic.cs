@@ -1,9 +1,12 @@
 namespace Launcher.Application.Services;
 
 public sealed record LaunchDownloadDiagnostic(
-    string Url,
+    string OriginalUrl,
+    string ActualUrl,
     string DestinationPath,
     int? HttpStatusCode,
     string? LibraryName,
     string? ArtifactPath,
-    string SourceKind);
+    string RequestedSourcePreference,
+    string ResolvedSourceKind,
+    string ResourceCategory);

@@ -281,7 +281,13 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
 
     private sealed class NoOpFinalVersionInstaller : IFinalVersionInstaller
     {
-        public Task InstallAsync(string gameDirectory, string versionName, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken)
+        public Task InstallAsync(
+            string gameDirectory,
+            string versionName,
+            DownloadSourcePreference downloadSourcePreference,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken,
+            int downloadSpeedLimitMbPerSecond = 0)
         {
             return Task.CompletedTask;
         }
@@ -291,7 +297,13 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
     {
         public string? LastVersionName { get; private set; }
 
-        public Task InstallAsync(string gameDirectory, string versionName, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken)
+        public Task InstallAsync(
+            string gameDirectory,
+            string versionName,
+            DownloadSourcePreference downloadSourcePreference,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken,
+            int downloadSpeedLimitMbPerSecond = 0)
         {
             LastVersionName = versionName;
             return Task.CompletedTask;

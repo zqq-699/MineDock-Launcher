@@ -1293,7 +1293,10 @@ public sealed class GameSettingsPageViewModelTests
 
     private sealed class ThrowingGameVersionService : IGameVersionService
     {
-        public Task<IReadOnlyList<MinecraftVersionInfo>> GetVersionsAsync(CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<MinecraftVersionInfo>> GetVersionsAsync(
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            CancellationToken cancellationToken = default,
+            int downloadSpeedLimitMbPerSecond = 0)
         {
             throw new InvalidOperationException("version index unavailable");
         }
@@ -1324,7 +1327,9 @@ public sealed class GameSettingsPageViewModelTests
             string? loaderVersion,
             string? name,
             IProgress<LauncherProgress>? progress,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            int downloadSpeedLimitMbPerSecond = 0)
         {
             throw exception;
         }

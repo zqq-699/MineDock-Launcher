@@ -94,7 +94,18 @@ public sealed partial class GameManagementViewModel : ObservableObject
 
     public async Task InitializeAsync(LauncherSettings launcherSettings)
     {
+        LoaderSelection.PrimeFromSettings(launcherSettings);
         await RunInstanceRefreshWithModSyncAsync(() => InstancesViewModel.InitializeAsync(launcherSettings));
+    }
+
+    public void ApplyDownloadSourcePreference(DownloadSourcePreference preference)
+    {
+        LoaderSelection.ApplyDownloadSourcePreference(preference);
+    }
+
+    public void ApplyDownloadSpeedLimit(int downloadSpeedLimitMbPerSecond)
+    {
+        LoaderSelection.ApplyDownloadSpeedLimit(downloadSpeedLimitMbPerSecond);
     }
 
     public async Task EnsureInstancesLoadedAsync()

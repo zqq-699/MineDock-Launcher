@@ -5,5 +5,6 @@ public enum SettingsPageSection
     General,
     Launch,
     JavaMemory,
+    Theme,
     ControlList
 }

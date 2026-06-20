@@ -26,13 +26,14 @@ public sealed class LaunchService : ILaunchService
     public LaunchService(
         ILaunchAccountSessionService accountSessionService,
         IJavaRuntimeSelectionService javaRuntimeSelectionService,
+        IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ISystemMemoryService? systemMemoryService = null,
         IModService? modService = null,
         ILogger<LaunchService>? logger = null)
         : this(
             accountSessionService,
-            new ManagedVersionRepairService(),
-            new LaunchGameLauncherFactory(),
+            new ManagedVersionRepairService(downloadSpeedLimitState: downloadSpeedLimitState),
+            new LaunchGameLauncherFactory(downloadSpeedLimitState),
             new LaunchCrashMonitor(),
             new LaunchCommandRunner(),
             javaRuntimeSelectionService,
@@ -153,7 +154,9 @@ public sealed class LaunchService : ILaunchService
                     instance.InstanceDirectory,
                     progress,
                     shouldAutoRepairMissingFiles,
-                    cancellationToken);
+                    cancellationToken,
+                    downloadSourcePreference: settings.DownloadSourcePreference,
+                    downloadSpeedLimitMbPerSecond: settings.DownloadSpeedLimitMbPerSecond);
             }
 
             progress?.Report(new LauncherProgress(
@@ -161,7 +164,10 @@ public sealed class LaunchService : ILaunchService
                 "Preparing launch process",
                 94));
 
-            var launcher = launcherFactory.Create(settings.MinecraftDirectory, progress);
+            var launcher = launcherFactory.Create(
+                settings.MinecraftDirectory,
+                progress,
+                settings.DownloadSpeedLimitMbPerSecond);
             var isolatedPath = CreateIsolatedLaunchPath(settings.MinecraftDirectory, versionName);
 
             var accountSession = await accountSessionService.CreateSessionAsync(account, cancellationToken);

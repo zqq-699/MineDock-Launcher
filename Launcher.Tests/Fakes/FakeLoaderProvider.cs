@@ -14,14 +14,22 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
     public Task? WaitBeforeGetLoaderVersions { get; init; }
     public string? LastGameDirectory { get; private set; }
     public string? LastIsolatedVersionName { get; private set; }
+    public DownloadSourcePreference LastDownloadSourcePreference { get; private set; } = DownloadSourcePreference.Auto;
+    public int LastDownloadSpeedLimitMbPerSecond { get; private set; }
     public TaskCompletionSource<bool> InstallStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Task? WaitBeforeInstall { get; init; }
     public bool WriteJsonBeforeWaiting { get; init; }
     public string? PartialVersionName { get; init; }
     public int InstallCallCount => installCallCount;
 
-    public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(string minecraftVersion, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
+        string minecraftVersion,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        CancellationToken cancellationToken = default,
+        int downloadSpeedLimitMbPerSecond = 0)
     {
+        LastDownloadSourcePreference = downloadSourcePreference;
+        LastDownloadSpeedLimitMbPerSecond = downloadSpeedLimitMbPerSecond;
         if (GetLoaderVersionsException is not null)
             return Task.FromException<IReadOnlyList<LoaderVersionInfo>>(GetLoaderVersionsException);
 
@@ -36,10 +44,20 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
         return LoaderVersions;
     }
 
-    public async Task<string> InstallAsync(string minecraftVersion, string gameDirectory, string isolatedVersionName, string? loaderVersion, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
+    public async Task<string> InstallAsync(
+        string minecraftVersion,
+        string gameDirectory,
+        string isolatedVersionName,
+        string? loaderVersion,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        CancellationToken cancellationToken = default,
+        int downloadSpeedLimitMbPerSecond = 0)
     {
         LastGameDirectory = gameDirectory;
         LastIsolatedVersionName = isolatedVersionName;
+        LastDownloadSourcePreference = downloadSourcePreference;
+        LastDownloadSpeedLimitMbPerSecond = downloadSpeedLimitMbPerSecond;
         Interlocked.Increment(ref installCallCount);
         InstallStarted.TrySetResult(true);
 

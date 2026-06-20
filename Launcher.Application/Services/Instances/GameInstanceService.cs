@@ -100,7 +100,9 @@ public sealed class GameInstanceService : IGameInstanceService
         string? loaderVersion,
         string? name,
         IProgress<LauncherProgress>? progress,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        int downloadSpeedLimitMbPerSecond = 0)
     {
         if (!providers.TryGetValue(loader, out var provider) || !provider.IsImplemented)
             throw new NotSupportedException($"{loader} is not implemented yet.");
@@ -142,7 +144,9 @@ public sealed class GameInstanceService : IGameInstanceService
                     versionIdentity,
                     loaderVersion,
                     progress,
-                    cancellationToken).ConfigureAwait(false);
+                    downloadSourcePreference,
+                    cancellationToken,
+                    downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
                 logger.LogInformation(
                     "Game version installed. VersionIdentity={VersionIdentity} VersionName={VersionName} Loader={Loader}",
                     versionIdentity,

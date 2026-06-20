@@ -131,7 +131,7 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         var service = new GameInstanceService(settingsService, repository, [provider]);
         using var cancellation = new CancellationTokenSource();
 
-        var createTask = service.CreateInstanceAsync("1.20.1", LoaderKind.Vanilla, null, "Custom Name", null, cancellation.Token);
+        var createTask = service.CreateInstanceAsync("1.20.1", LoaderKind.Vanilla, null, "Custom Name", null, cancellationToken: cancellation.Token);
         await provider.InstallStarted.Task;
         var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "1.20.1");
         await TestAsync.WaitForAsync(() => File.Exists(Path.Combine(versionDirectory, "1.20.1.json")));
@@ -166,7 +166,7 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         var service = new GameInstanceService(settingsService, repository, [provider]);
         using var cancellation = new CancellationTokenSource();
 
-        var createTask = service.CreateInstanceAsync("1.20.1", LoaderKind.Vanilla, null, "Custom Name", null, cancellation.Token);
+        var createTask = service.CreateInstanceAsync("1.20.1", LoaderKind.Vanilla, null, "Custom Name", null, cancellationToken: cancellation.Token);
         await provider.InstallStarted.Task;
         cancellation.Cancel();
 

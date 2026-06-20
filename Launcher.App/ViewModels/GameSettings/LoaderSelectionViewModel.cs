@@ -14,6 +14,8 @@ public sealed partial class LoaderSelectionViewModel : ObservableObject
     private readonly IGameVersionService gameVersionService;
     private readonly IStatusService statusService;
     private readonly IReadOnlyDictionary<LoaderKind, ILoaderProvider> loaderProviders;
+    private DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto;
+    private int downloadSpeedLimitMbPerSecond;
 
     [ObservableProperty]
     private MinecraftVersionInfo? selectedMinecraftVersion;
@@ -41,6 +43,22 @@ public sealed partial class LoaderSelectionViewModel : ObservableObject
     public ObservableCollection<NavigationItem> LoaderItems { get; } = [];
     public ObservableCollection<LoaderVersionInfo> LoaderVersions { get; } = [];
 
+    public void PrimeFromSettings(LauncherSettings settings)
+    {
+        downloadSourcePreference = settings.DownloadSourcePreference;
+        downloadSpeedLimitMbPerSecond = settings.DownloadSpeedLimitMbPerSecond;
+    }
+
+    public void ApplyDownloadSourcePreference(DownloadSourcePreference preference)
+    {
+        downloadSourcePreference = preference;
+    }
+
+    public void ApplyDownloadSpeedLimit(int downloadSpeedLimitMbPerSecond)
+    {
+        this.downloadSpeedLimitMbPerSecond = Math.Max(downloadSpeedLimitMbPerSecond, 0);
+    }
+
     public void SelectLoader(LoaderKind loader)
     {
         SelectedLoader = loader;
@@ -49,7 +67,9 @@ public sealed partial class LoaderSelectionViewModel : ObservableObject
     public async Task LoadMinecraftVersionsAsync()
     {
         ReportStatus(Strings.Status_LoadingVersions);
-        var versions = await gameVersionService.GetVersionsAsync();
+        var versions = await gameVersionService.GetVersionsAsync(
+            downloadSourcePreference,
+            downloadSpeedLimitMbPerSecond: downloadSpeedLimitMbPerSecond);
         MinecraftVersions.ReplaceWith(versions.Where(IsSelectableMinecraftVersion));
 
         SelectedMinecraftVersion ??= MinecraftVersions.FirstOrDefault();
@@ -71,7 +91,10 @@ public sealed partial class LoaderSelectionViewModel : ObservableObject
         }
 
         ReportStatus(string.Format(Strings.Status_LoadingLoaderVersionsFormat, LoaderDisplayNameProvider.GetDisplayName(provider.Kind)));
-        LoaderVersions.ReplaceWith(await provider.GetLoaderVersionsAsync(SelectedMinecraftVersion.Name));
+        LoaderVersions.ReplaceWith(await provider.GetLoaderVersionsAsync(
+            SelectedMinecraftVersion.Name,
+            downloadSourcePreference,
+            downloadSpeedLimitMbPerSecond: downloadSpeedLimitMbPerSecond));
 
         SelectedLoaderVersion = LoaderVersions.FirstOrDefault(v => v.IsStable) ?? LoaderVersions.FirstOrDefault();
         ReportStatus(string.Format(Strings.Status_LoaderVersionsLoadedFormat, LoaderDisplayNameProvider.GetDisplayName(provider.Kind)));

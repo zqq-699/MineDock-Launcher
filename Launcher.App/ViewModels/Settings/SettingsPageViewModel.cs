@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -36,6 +37,12 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     [ObservableProperty]
     private string launcherLogDirectory = string.Empty;
+
+    [ObservableProperty]
+    private SettingsDownloadSourceOption? selectedDownloadSourceOption;
+
+    [ObservableProperty]
+    private string downloadSpeedLimitMbPerSecondText = string.Empty;
 
     [ObservableProperty]
     private SettingsMemoryModeOption? selectedMemoryModeOption;
@@ -115,6 +122,12 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     [ObservableProperty]
     private SettingsInteractiveControlItem? selectedInteractiveControl;
 
+    [ObservableProperty]
+    private bool themeFollowSystemEnabled;
+
+    [ObservableProperty]
+    private SettingsThemeOption? selectedThemeOption;
+
     public SettingsPageViewModel(
         ISettingsService settingsService,
         IStatusService statusService,
@@ -151,6 +164,10 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             Strings.Settings_SectionJavaMemory,
             "instance_setting_page/java"));
         Sections.Add(new SettingsSectionItem(
+            SettingsPageSection.Theme,
+            Strings.Settings_SectionTheme,
+            "setting_page/theme"));
+        Sections.Add(new SettingsSectionItem(
             SettingsPageSection.ControlList,
             Strings.Settings_SectionControlList,
             "general/general_all_application"));
@@ -162,10 +179,25 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             MemorySettingsMode.Manual,
             Strings.Settings_MemoryModeManual));
 
+        DownloadSourceOptions.Add(new SettingsDownloadSourceOption(
+            DownloadSourcePreference.Auto,
+            Strings.Settings_DownloadSourceAuto));
+        DownloadSourceOptions.Add(new SettingsDownloadSourceOption(
+            DownloadSourcePreference.Official,
+            Strings.Settings_DownloadSourceOfficial));
+        DownloadSourceOptions.Add(new SettingsDownloadSourceOption(
+            DownloadSourcePreference.BmclApi,
+            Strings.Settings_DownloadSourceBmclApi));
+
+        ThemeOptions.Add(new SettingsThemeOption("dark", Strings.Settings_ThemeModeDark));
+        ThemeOptions.Add(new SettingsThemeOption("light", Strings.Settings_ThemeModeLight));
+
         foreach (var control in SettingsInteractiveControlCatalog.Create())
             InteractiveControls.Add(control);
 
+        SelectedDownloadSourceOption = DownloadSourceOptions[0];
         SelectedMemoryModeOption = MemoryModeOptions[0];
+        SelectedThemeOption = ThemeOptions[0];
         SelectedControlDemoComboOption = InteractiveControls.FirstOrDefault();
         SelectedInteractiveControl = InteractiveControls.FirstOrDefault();
         SelectedSection = Sections[0];
@@ -173,13 +205,21 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     public ObservableCollection<SettingsSectionItem> Sections { get; } = [];
 
+    public ObservableCollection<SettingsDownloadSourceOption> DownloadSourceOptions { get; } = [];
+
     public ObservableCollection<SettingsMemoryModeOption> MemoryModeOptions { get; } = [];
+
+    public ObservableCollection<SettingsThemeOption> ThemeOptions { get; } = [];
 
     public ObservableCollection<SettingsInteractiveControlItem> InteractiveControls { get; } = [];
 
     public JavaSettingsEditorViewModel JavaSettings { get; }
 
     public event EventHandler? LaunchDefaultsChanged;
+
+    public event EventHandler<SettingsDownloadSourceChangedEventArgs>? DownloadSourceChanged;
+
+    public event EventHandler<SettingsDownloadSpeedLimitChangedEventArgs>? DownloadSpeedLimitChanged;
 
     public event EventHandler<SettingsMinecraftDirectoryChangedEventArgs>? MinecraftDirectoryChanged;
 
@@ -215,6 +255,10 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     public bool IsJavaMemorySection => SelectedSection?.Section is SettingsPageSection.JavaMemory;
 
+    public bool IsThemeSection => SelectedSection?.Section is SettingsPageSection.Theme;
+
+    public bool IsThemeModeSelectionVisible => !ThemeFollowSystemEnabled;
+
     public bool IsControlListSection => SelectedSection?.Section is SettingsPageSection.ControlList;
 
     public bool HasJavaRuntimeListMessage => JavaSettings.HasJavaRuntimeListMessage;
@@ -244,7 +288,11 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             DataDirectory = launcherSettings.DataDirectory;
             MinecraftDirectory = launcherSettings.MinecraftDirectory;
             LauncherLogDirectory = ResolveLauncherLogDirectory();
+            SelectedDownloadSourceOption = ResolveDownloadSourceOption(launcherSettings.DownloadSourcePreference);
+            DownloadSpeedLimitMbPerSecondText = FormatDownloadSpeedLimit(launcherSettings.DownloadSpeedLimitMbPerSecond);
             SelectedMemoryModeOption = ResolveMemoryModeOption(launcherSettings.DefaultMemorySettingsMode);
+            ThemeFollowSystemEnabled = false;
+            SelectedThemeOption = ResolveThemeOption(launcherSettings.Theme);
             DefaultMemoryMb = NormalizeMemoryValue(launcherSettings.DefaultMemoryMb);
             DefaultCheckFilesBeforeLaunch = launcherSettings.DefaultCheckFilesBeforeLaunch;
             DefaultAutoRepairMissingFiles = launcherSettings.DefaultAutoRepairMissingFiles;
@@ -388,7 +436,25 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(IsGeneralSection));
         OnPropertyChanged(nameof(IsLaunchSection));
         OnPropertyChanged(nameof(IsJavaMemorySection));
+        OnPropertyChanged(nameof(IsThemeSection));
         OnPropertyChanged(nameof(IsControlListSection));
+    }
+
+    partial void OnSelectedDownloadSourceOptionChanged(SettingsDownloadSourceOption? value)
+    {
+        ScheduleAutoSave();
+        NotifyDownloadSourceChanged();
+    }
+
+    partial void OnThemeFollowSystemEnabledChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsThemeModeSelectionVisible));
+    }
+
+    partial void OnDownloadSpeedLimitMbPerSecondTextChanged(string value)
+    {
+        NotifyDownloadSpeedLimitChanged();
+        ScheduleAutoSave();
     }
 
     partial void OnSelectedMemoryModeOptionChanged(SettingsMemoryModeOption? value)
@@ -503,6 +569,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private void ApplySettings()
     {
         settings.MinecraftDirectory = NormalizeDirectoryPath(MinecraftDirectory, settings.MinecraftDirectory);
+        settings.DownloadSourcePreference = SelectedDownloadSourceOption?.Preference ?? DownloadSourcePreference.Auto;
+        settings.DownloadSpeedLimitMbPerSecond = NormalizeDownloadSpeedLimit(DownloadSpeedLimitMbPerSecondText);
         settings.DefaultMemorySettingsMode = SelectedMemoryModeOption?.Mode ?? MemorySettingsMode.Auto;
         settings.DefaultMemoryMb = NormalizeMemoryValue(DefaultMemoryMb);
         settings.DefaultCheckFilesBeforeLaunch = DefaultCheckFilesBeforeLaunch;
@@ -514,6 +582,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         suppressAutoSave = true;
         try
         {
+            DownloadSpeedLimitMbPerSecondText = FormatDownloadSpeedLimit(settings.DownloadSpeedLimitMbPerSecond);
             SelectedMemoryModeOption = ResolveMemoryModeOption(settings.DefaultMemorySettingsMode);
         }
         finally
@@ -551,6 +620,26 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         LaunchDefaultsChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    private void NotifyDownloadSourceChanged()
+    {
+        if (suppressAutoSave || !hasPrimedSettings)
+            return;
+
+        settings.DownloadSourcePreference = SelectedDownloadSourceOption?.Preference ?? DownloadSourcePreference.Auto;
+        DownloadSourceChanged?.Invoke(this, new SettingsDownloadSourceChangedEventArgs(settings.DownloadSourcePreference));
+    }
+
+    private void NotifyDownloadSpeedLimitChanged()
+    {
+        if (suppressAutoSave || !hasPrimedSettings)
+            return;
+
+        settings.DownloadSpeedLimitMbPerSecond = NormalizeDownloadSpeedLimit(DownloadSpeedLimitMbPerSecondText);
+        DownloadSpeedLimitChanged?.Invoke(
+            this,
+            new SettingsDownloadSpeedLimitChangedEventArgs(settings.DownloadSpeedLimitMbPerSecond));
+    }
+
     private void ApplyLaunchDefaultsToSettings()
     {
         settings.DefaultMemorySettingsMode = SelectedMemoryModeOption?.Mode ?? MemorySettingsMode.Auto;
@@ -577,6 +666,23 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         return value?.Trim() ?? string.Empty;
     }
 
+    private static int NormalizeDownloadSpeedLimit(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return 0;
+
+        return int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? Math.Max(parsed, 0)
+            : 0;
+    }
+
+    private static string FormatDownloadSpeedLimit(int value)
+    {
+        return value > 0
+            ? value.ToString(CultureInfo.InvariantCulture)
+            : string.Empty;
+    }
+
     private static string NormalizeDirectoryPath(string? value, string fallback)
     {
         return string.IsNullOrWhiteSpace(value)
@@ -588,6 +694,20 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     {
         return MemoryModeOptions.FirstOrDefault(option => option.Mode == mode)
                ?? MemoryModeOptions[0];
+    }
+
+    private SettingsDownloadSourceOption ResolveDownloadSourceOption(DownloadSourcePreference preference)
+    {
+        return DownloadSourceOptions.FirstOrDefault(option => option.Preference == preference)
+               ?? DownloadSourceOptions[0];
+    }
+
+    private SettingsThemeOption ResolveThemeOption(string? theme)
+    {
+        if (string.Equals(theme, "Light", StringComparison.OrdinalIgnoreCase))
+            return ThemeOptions.Single(option => option.Id == "light");
+
+        return ThemeOptions.Single(option => option.Id == "dark");
     }
 
     public void RefreshSystemMemorySnapshot()

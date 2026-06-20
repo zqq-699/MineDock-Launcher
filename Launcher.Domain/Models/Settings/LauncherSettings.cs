@@ -7,6 +7,8 @@ public sealed class LauncherSettings
     public string Theme { get; set; } = LauncherDefaults.DefaultTheme;
     public string DataDirectory { get; set; } = string.Empty;
     public string MinecraftDirectory { get; set; } = string.Empty;
+    public DownloadSourcePreference DownloadSourcePreference { get; set; } = DownloadSourcePreference.Auto;
+    public int DownloadSpeedLimitMbPerSecond { get; set; }
     public MemorySettingsMode DefaultMemorySettingsMode { get; set; } = MemorySettingsMode.Auto;
     public int DefaultMemoryMb { get; set; } = LauncherDefaults.DefaultMemoryMb;
     public JavaSelectionMode JavaSelectionMode { get; set; } = JavaSelectionMode.Auto;

@@ -14,6 +14,8 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public LoaderKind LastLoader { get; private set; }
     public string? LastLoaderVersion { get; private set; }
     public string? LastName { get; private set; }
+    public DownloadSourcePreference LastDownloadSourcePreference { get; private set; } = DownloadSourcePreference.Auto;
+    public int LastDownloadSpeedLimitMbPerSecond { get; private set; }
     public string? LastDefaultInstanceId { get; private set; }
     public string? LastDeletedInstanceId { get; private set; }
     public string? LastRenamedInstanceId { get; private set; }
@@ -49,12 +51,16 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
         string? loaderVersion,
         string? name,
         IProgress<LauncherProgress>? progress,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        int downloadSpeedLimitMbPerSecond = 0)
     {
         LastMinecraftVersion = minecraftVersion;
         LastLoader = loader;
         LastLoaderVersion = loaderVersion;
         LastName = name;
+        LastDownloadSourcePreference = downloadSourcePreference;
+        LastDownloadSpeedLimitMbPerSecond = downloadSpeedLimitMbPerSecond;
         progress?.Report(InitialProgress ?? new LauncherProgress(InstallProgressStages.Preparing, string.Empty, 25));
         CreateStarted.TrySetResult(true);
         lock (syncRoot)

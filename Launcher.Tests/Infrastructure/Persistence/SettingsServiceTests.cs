@@ -64,6 +64,83 @@ public sealed class SettingsServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task SettingsServiceDefaultsDownloadSourcePreferenceToAutoWhenMissing()
+    {
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(Path.Combine(TempRoot, "settings.json"), "{}");
+        var service = new JsonSettingsService(TempRoot);
+
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(DownloadSourcePreference.Auto, loaded.DownloadSourcePreference);
+    }
+
+    [Fact]
+    public async Task SettingsServiceBackfillsInvalidDownloadSourcePreference()
+    {
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(TempRoot, "settings.json"),
+            """
+            {
+              "DownloadSourcePreference": 999
+            }
+            """);
+        var service = new JsonSettingsService(TempRoot);
+
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(DownloadSourcePreference.Auto, loaded.DownloadSourcePreference);
+    }
+
+    [Fact]
+    public async Task SettingsServiceBackfillsNegativeDownloadSpeedLimit()
+    {
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(TempRoot, "settings.json"),
+            """
+            {
+              "DownloadSpeedLimitMbPerSecond": -5
+            }
+            """);
+        var service = new JsonSettingsService(TempRoot);
+
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(0, loaded.DownloadSpeedLimitMbPerSecond);
+    }
+
+    [Theory]
+    [InlineData(DownloadSourcePreference.Auto)]
+    [InlineData(DownloadSourcePreference.Official)]
+    [InlineData(DownloadSourcePreference.BmclApi)]
+    public async Task SettingsServiceRoundTripsDownloadSourcePreference(DownloadSourcePreference preference)
+    {
+        var service = new JsonSettingsService(TempRoot);
+        var settings = await service.LoadAsync();
+        settings.DownloadSourcePreference = preference;
+
+        await service.SaveAsync(settings);
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(preference, loaded.DownloadSourcePreference);
+    }
+
+    [Fact]
+    public async Task SettingsServiceRoundTripsDownloadSpeedLimit()
+    {
+        var service = new JsonSettingsService(TempRoot);
+        var settings = await service.LoadAsync();
+        settings.DownloadSpeedLimitMbPerSecond = 32;
+
+        await service.SaveAsync(settings);
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(32, loaded.DownloadSpeedLimitMbPerSecond);
+    }
+
+    [Fact]
     public async Task SettingsServicePreservesCustomMinecraftDirectory()
     {
         Directory.CreateDirectory(TempRoot);
