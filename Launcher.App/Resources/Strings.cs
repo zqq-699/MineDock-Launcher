@@ -76,11 +76,11 @@ public static class Strings
     public static string Settings_JavaListLoading => Get(nameof(Settings_JavaListLoading));
     public static string Settings_JavaListEmpty => Get(nameof(Settings_JavaListEmpty));
     public static string Settings_JavaVersionUnknown => Get(nameof(Settings_JavaVersionUnknown));
-    public static string Settings_LauncherAppearanceSection => Get(nameof(Settings_LauncherAppearanceSection));
+    public static string Settings_ThemeSection => Get(nameof(Settings_ThemeSection));
     public static string Settings_ThemeFollowSystemLabel => Get(nameof(Settings_ThemeFollowSystemLabel));
-    public static string Settings_ThemeModeLabel => Get(nameof(Settings_ThemeModeLabel));
-    public static string Settings_ThemeModeDark => Get(nameof(Settings_ThemeModeDark));
-    public static string Settings_ThemeModeLight => Get(nameof(Settings_ThemeModeLight));
+    public static string Settings_ThemeSelectionLabel => Get(nameof(Settings_ThemeSelectionLabel));
+    public static string Settings_ThemeDarkTitle => Get(nameof(Settings_ThemeDarkTitle));
+    public static string Settings_ThemeLightTitle => Get(nameof(Settings_ThemeLightTitle));
     public static string Settings_ControlDemoButtonsSection => Get(nameof(Settings_ControlDemoButtonsSection));
     public static string Settings_ControlDemoInputsSection => Get(nameof(Settings_ControlDemoInputsSection));
     public static string Settings_ControlDemoSelectionSection => Get(nameof(Settings_ControlDemoSelectionSection));

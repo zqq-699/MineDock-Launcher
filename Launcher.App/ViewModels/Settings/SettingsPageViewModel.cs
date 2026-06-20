@@ -48,6 +48,12 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private SettingsMemoryModeOption? selectedMemoryModeOption;
 
     [ObservableProperty]
+    private SettingsThemeOption? selectedThemeOption;
+
+    [ObservableProperty]
+    private bool followSystemTheme = true;
+
+    [ObservableProperty]
     private double defaultMemoryMb = LauncherDefaults.DefaultMemoryMb;
 
     [ObservableProperty]
@@ -122,12 +128,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     [ObservableProperty]
     private SettingsInteractiveControlItem? selectedInteractiveControl;
 
-    [ObservableProperty]
-    private bool themeFollowSystemEnabled;
-
-    [ObservableProperty]
-    private SettingsThemeOption? selectedThemeOption;
-
     public SettingsPageViewModel(
         ISettingsService settingsService,
         IStatusService statusService,
@@ -189,8 +189,12 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             DownloadSourcePreference.BmclApi,
             Strings.Settings_DownloadSourceBmclApi));
 
-        ThemeOptions.Add(new SettingsThemeOption("dark", Strings.Settings_ThemeModeDark));
-        ThemeOptions.Add(new SettingsThemeOption("light", Strings.Settings_ThemeModeLight));
+        ThemeOptions.Add(new SettingsThemeOption(
+            LauncherDefaults.DefaultTheme,
+            Strings.Settings_ThemeDarkTitle));
+        ThemeOptions.Add(new SettingsThemeOption(
+            "Light",
+            Strings.Settings_ThemeLightTitle));
 
         foreach (var control in SettingsInteractiveControlCatalog.Create())
             InteractiveControls.Add(control);
@@ -257,9 +261,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     public bool IsThemeSection => SelectedSection?.Section is SettingsPageSection.Theme;
 
-    public bool IsThemeModeSelectionVisible => !ThemeFollowSystemEnabled;
-
     public bool IsControlListSection => SelectedSection?.Section is SettingsPageSection.ControlList;
+
+    public bool IsThemeSelectionVisible => !FollowSystemTheme;
 
     public bool HasJavaRuntimeListMessage => JavaSettings.HasJavaRuntimeListMessage;
 
@@ -291,8 +295,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             SelectedDownloadSourceOption = ResolveDownloadSourceOption(launcherSettings.DownloadSourcePreference);
             DownloadSpeedLimitMbPerSecondText = FormatDownloadSpeedLimit(launcherSettings.DownloadSpeedLimitMbPerSecond);
             SelectedMemoryModeOption = ResolveMemoryModeOption(launcherSettings.DefaultMemorySettingsMode);
-            ThemeFollowSystemEnabled = false;
-            SelectedThemeOption = ResolveThemeOption(launcherSettings.Theme);
             DefaultMemoryMb = NormalizeMemoryValue(launcherSettings.DefaultMemoryMb);
             DefaultCheckFilesBeforeLaunch = launcherSettings.DefaultCheckFilesBeforeLaunch;
             DefaultAutoRepairMissingFiles = launcherSettings.DefaultAutoRepairMissingFiles;
@@ -303,6 +305,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             DefaultPostExitCommand = launcherSettings.DefaultPostExitCommand;
             DefaultJvmArguments = launcherSettings.DefaultJvmArguments;
             DefaultGameArguments = launcherSettings.DefaultGameArguments;
+            FollowSystemTheme = true;
+            SelectedThemeOption = ThemeOptions[0];
             JavaSettings.LoadSelection(launcherSettings.JavaSelectionMode, launcherSettings.SelectedJavaExecutablePath);
         }
         finally
@@ -446,11 +450,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         NotifyDownloadSourceChanged();
     }
 
-    partial void OnThemeFollowSystemEnabledChanged(bool value)
-    {
-        OnPropertyChanged(nameof(IsThemeModeSelectionVisible));
-    }
-
     partial void OnDownloadSpeedLimitMbPerSecondTextChanged(string value)
     {
         NotifyDownloadSpeedLimitChanged();
@@ -464,6 +463,11 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(IsAutomaticMemorySummaryVisible));
         ScheduleAutoSave();
         NotifyLaunchDefaultsChanged();
+    }
+
+    partial void OnFollowSystemThemeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsThemeSelectionVisible));
     }
 
     partial void OnDefaultMemoryMbChanged(double value)
@@ -700,14 +704,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     {
         return DownloadSourceOptions.FirstOrDefault(option => option.Preference == preference)
                ?? DownloadSourceOptions[0];
-    }
-
-    private SettingsThemeOption ResolveThemeOption(string? theme)
-    {
-        if (string.Equals(theme, "Light", StringComparison.OrdinalIgnoreCase))
-            return ThemeOptions.Single(option => option.Id == "light");
-
-        return ThemeOptions.Single(option => option.Id == "dark");
     }
 
     public void RefreshSystemMemorySnapshot()

@@ -27,7 +27,8 @@ public sealed class SettingsPageViewModelTests
             DefaultWaitForPreLaunchCommand = false,
             DefaultPostExitCommand = "echo after",
             DefaultJvmArguments = "-Dfoo=bar",
-            DefaultGameArguments = "--demo"
+            DefaultGameArguments = "--demo",
+            Theme = "Light"
         };
 
         viewModel.PrimeFromSettings(settings);
@@ -55,6 +56,25 @@ public sealed class SettingsPageViewModelTests
         Assert.Equal("echo after", viewModel.DefaultPostExitCommand);
         Assert.Equal("-Dfoo=bar", viewModel.DefaultJvmArguments);
         Assert.Equal("--demo", viewModel.DefaultGameArguments);
+        Assert.True(viewModel.FollowSystemTheme);
+        Assert.False(viewModel.IsThemeSelectionVisible);
+        Assert.Equal(LauncherDefaults.DefaultTheme, viewModel.SelectedThemeOption?.Id);
+    }
+
+    [Fact]
+    public void ThemeSectionIsPlacedAfterJavaSection()
+    {
+        var viewModel = CreateViewModel(out _, out _);
+
+        Assert.Equal(
+            [
+                SettingsPageSection.General,
+                SettingsPageSection.Launch,
+                SettingsPageSection.JavaMemory,
+                SettingsPageSection.Theme,
+                SettingsPageSection.ControlList
+            ],
+            viewModel.Sections.Select(section => section.Section));
     }
 
     [Fact]
@@ -219,19 +239,9 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
-    public void ThemeSectionIsInsertedAfterJavaSection()
+    public void ThemeSectionShowsThemeOptions()
     {
         var viewModel = CreateViewModel(out _, out _);
-
-        Assert.Equal(
-            [
-                SettingsPageSection.General,
-                SettingsPageSection.Launch,
-                SettingsPageSection.JavaMemory,
-                SettingsPageSection.Theme,
-                SettingsPageSection.ControlList
-            ],
-            viewModel.Sections.Select(section => section.Section));
 
         var themeSection = viewModel.Sections.Single(section => section.Section is SettingsPageSection.Theme);
         viewModel.SelectSectionCommand.Execute(themeSection);
@@ -243,38 +253,38 @@ public sealed class SettingsPageViewModelTests
         Assert.False(viewModel.IsLaunchSection);
         Assert.False(viewModel.IsJavaMemorySection);
         Assert.False(viewModel.IsControlListSection);
+        Assert.Equal(2, viewModel.ThemeOptions.Count);
+        Assert.True(viewModel.FollowSystemTheme);
+        Assert.False(viewModel.IsThemeSelectionVisible);
+        Assert.Equal(LauncherDefaults.DefaultTheme, viewModel.SelectedThemeOption?.Id);
     }
 
     [Fact]
-    public void ThemeSectionShowsAppearanceControlsWithoutSaving()
+    public void ThemeSelectionAppearsAfterDisablingFollowSystem()
     {
-        var viewModel = CreateViewModel(out var settingsService, out _);
+        var viewModel = CreateViewModel(out _, out _);
 
-        Assert.False(viewModel.ThemeFollowSystemEnabled);
-        Assert.True(viewModel.IsThemeModeSelectionVisible);
-        Assert.Equal(Strings.Settings_ThemeModeDark, viewModel.SelectedThemeOption?.Title);
+        viewModel.FollowSystemTheme = false;
+        viewModel.SelectedThemeOption = viewModel.ThemeOptions.Single(option => option.Id == "Light");
 
-        viewModel.ThemeFollowSystemEnabled = true;
-
-        Assert.True(viewModel.ThemeFollowSystemEnabled);
-        Assert.False(viewModel.IsThemeModeSelectionVisible);
-        Assert.Equal(0, settingsService.SaveCount);
+        Assert.True(viewModel.IsThemeSelectionVisible);
+        Assert.Equal("Light", viewModel.SelectedThemeOption?.Id);
     }
 
     [Fact]
-    public void PrimeFromSettingsMapsStoredThemeToAppearanceSelection()
+    public async Task ThemeControlsDoNotPersistSettingsYet()
     {
-        var settings = new LauncherSettings
-        {
-            Theme = "Light"
-        };
-        var viewModel = CreateViewModel(settings, out _, out _);
-
+        var settings = new LauncherSettings { Theme = LauncherDefaults.DefaultTheme };
+        var viewModel = CreateViewModel(settings, out var settingsService, out _);
         viewModel.PrimeFromSettings(settings);
 
-        Assert.False(viewModel.ThemeFollowSystemEnabled);
-        Assert.True(viewModel.IsThemeModeSelectionVisible);
-        Assert.Equal(Strings.Settings_ThemeModeLight, viewModel.SelectedThemeOption?.Title);
+        viewModel.FollowSystemTheme = false;
+        viewModel.SelectedThemeOption = viewModel.ThemeOptions.Single(option => option.Id == "Light");
+
+        await Task.Delay(500);
+
+        Assert.Equal(0, settingsService.SaveCount);
+        Assert.Equal(LauncherDefaults.DefaultTheme, settings.Theme);
     }
 
     [Fact]

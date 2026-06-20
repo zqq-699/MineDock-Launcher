@@ -45,14 +45,16 @@
                        VerticalAlignment="Center" />
         </DataTemplate>
 
-        <DataTemplate x:Key="DownloadSourceOptionTemplate">
+        <DataTemplate x:Key="DownloadSourceOptionTemplate"
+                      DataType="{x:Type settings:SettingsDownloadSourceOption}">
             <TextBlock Text="{Binding Title}"
                        Foreground="#F4F4F4"
                        FontSize="13"
                        VerticalAlignment="Center" />
         </DataTemplate>
 
-        <DataTemplate x:Key="ThemeOptionTemplate">
+        <DataTemplate x:Key="ThemeOptionTemplate"
+                      DataType="{x:Type settings:SettingsThemeOption}">
             <TextBlock Text="{Binding Title}"
                        Foreground="#F4F4F4"
                        FontSize="13"
@@ -374,7 +376,7 @@
 
                     <StackPanel Margin="0"
                                 Visibility="{Binding IsThemeSection, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
-                        <GroupBox Header="{x:Static res:Strings.Settings_LauncherAppearanceSection}"
+                        <GroupBox Header="{x:Static res:Strings.Settings_ThemeSection}"
                                   Style="{StaticResource LauncherContentSectionStyle}">
                             <Border Style="{StaticResource SectionFieldSurfaceStyle}">
                                 <StackPanel>
@@ -387,19 +389,20 @@
                                         <TextBlock Text="{x:Static res:Strings.Settings_ThemeFollowSystemLabel}"
                                                    Style="{StaticResource SettingsOptionTextStyle}" />
                                         <CheckBox Grid.Column="1"
-                                                  IsChecked="{Binding ThemeFollowSystemEnabled, Mode=TwoWay}"
+                                                  Margin="16,0,0,0"
+                                                  IsChecked="{Binding FollowSystemTheme, Mode=TwoWay}"
                                                   Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
                                     </Grid>
 
                                     <Grid Margin="0,18,0,0"
-                                          animation:AnimatedCollapse.IsExpanded="{Binding IsThemeModeSelectionVisible}"
+                                          animation:AnimatedCollapse.IsExpanded="{Binding IsThemeSelectionVisible}"
                                           animation:AnimatedCollapse.Duration="0:0:0.18">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="220" />
                                         </Grid.ColumnDefinitions>
 
-                                        <TextBlock Text="{x:Static res:Strings.Settings_ThemeModeLabel}"
+                                        <TextBlock Text="{x:Static res:Strings.Settings_ThemeSelectionLabel}"
                                                    Style="{StaticResource SettingsOptionTextStyle}" />
 
                                         <controls:AnimatedComboBox Grid.Column="1"
