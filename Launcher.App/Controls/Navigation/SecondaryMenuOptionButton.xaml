@@ -1,4 +1,4 @@
-<UserControl x:Class="Launcher.App.Controls.SecondaryMenuOptionButton"
+﻿<UserControl x:Class="Launcher.App.Controls.SecondaryMenuOptionButton"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
@@ -70,3 +70,4 @@
         </Grid>
     </Button>
 </UserControl>
+

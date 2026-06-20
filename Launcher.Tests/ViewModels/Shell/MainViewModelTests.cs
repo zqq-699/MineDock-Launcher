@@ -513,7 +513,8 @@ public sealed class MainViewModelTests
             new FakeJavaRuntimeDiscoveryService(),
             filePickerService,
             new FakeInstanceFolderService(),
-            floatingMessageService);
+            floatingMessageService,
+            new FakeThemeService());
         var gameManagement = new GameManagementViewModel(
             new InstanceManagementViewModel(settingsService, instanceService, statusService),
             new LoaderSelectionViewModel(gameVersionService, [], statusService),
@@ -963,5 +964,6 @@ public sealed class MainViewModelTests
         }
     }
 }
+
 
 

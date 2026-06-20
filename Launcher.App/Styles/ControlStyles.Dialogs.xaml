@@ -8,7 +8,7 @@
     <Style x:Key="DialogOverlayStyle" TargetType="Grid">
         <Setter Property="Grid.ColumnSpan" Value="2" />
         <Setter Property="Grid.RowSpan" Value="2" />
-        <Setter Property="Background" Value="#99000000" />
+        <Setter Property="Background" Value="{DynamicResource Brush.99000000}" />
         <Setter Property="Opacity" Value="0" />
         <Setter Property="Visibility" Value="Collapsed" />
         <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
@@ -17,13 +17,13 @@
     <Style x:Key="DialogShadowStyle" TargetType="Border">
         <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="VerticalAlignment" Value="Center" />
-        <Setter Property="Background" Value="#01000000" />
+        <Setter Property="Background" Value="{DynamicResource Brush.01000000}" />
         <Setter Property="CornerRadius" Value="16" />
         <Setter Property="IsHitTestVisible" Value="False" />
         <Setter Property="Effect">
             <Setter.Value>
                 <DropShadowEffect BlurRadius="28"
-                                  Color="#000000"
+                                  Color="{DynamicResource Color.000000}"
                                   Opacity="0.34"
                                   ShadowDepth="0" />
             </Setter.Value>
@@ -34,7 +34,7 @@
         <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderBrush" Value="#24FFFFFF" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.24FFFFFF}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="16" />
         <Setter Property="ClipToBounds" Value="True" />
@@ -52,39 +52,39 @@
     </Style>
 
     <Style x:Key="DialogTitleTextStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
         <Setter Property="FontSize" Value="22" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
     <Style x:Key="DialogSubtitleTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,8,0,0" />
-        <Setter Property="Foreground" Value="#AFFFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.AFFFFFFF}" />
         <Setter Property="FontSize" Value="13" />
     </Style>
 
     <Style x:Key="DialogBodyTextStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="#CFFFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.CFFFFFFF}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
     <Style x:Key="DialogFieldLabelTextStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Margin" Value="0,0,0,8" />
     </Style>
 
     <Style x:Key="DialogValidationTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="2,8,0,0" />
-        <Setter Property="Foreground" Value="#FFFF8A8A" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.FFFF8A8A}" />
         <Setter Property="FontSize" Value="12" />
     </Style>
 
     <Style x:Key="DialogChoiceItemStyle" TargetType="ListBoxItem">
         <Setter Property="Margin" Value="0,0,0,10" />
         <Setter Property="Padding" Value="0" />
-        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
@@ -94,19 +94,19 @@
                     <Border x:Name="Root"
                             CornerRadius="10">
                         <Grid>
-                            <Border Background="#12FFFFFF"
+                            <Border Background="{DynamicResource Brush.12FFFFFF}"
                                     CornerRadius="10" />
                             <Border x:Name="SelectedBackground"
-                                    Background="#80686868"
+                                    Background="{DynamicResource Brush.80686868}"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <Border x:Name="SelectedOutline"
-                                    BorderBrush="#887ABEFF"
+                                    BorderBrush="{DynamicResource Brush.887ABEFF}"
                                     BorderThickness="2"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <Border x:Name="HoverBackground"
-                                    Background="#20FFFFFF"
+                                    Background="{DynamicResource Brush.20FFFFFF}"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <ContentPresenter Margin="14"
@@ -186,8 +186,8 @@
         <Setter Property="MinWidth" Value="86" />
         <Setter Property="Height" Value="34" />
         <Setter Property="Padding" Value="18,0" />
-        <Setter Property="Foreground" Value="#F4F4F4" />
-        <Setter Property="Background" Value="#20FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.20FFFFFF}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -203,11 +203,11 @@
                                     Background="{TemplateBinding Background}"
                                     CornerRadius="8" />
                             <Border x:Name="HoverBackground"
-                                    Background="#32FFFFFF"
+                                    Background="{DynamicResource Brush.32FFFFFF}"
                                     CornerRadius="8"
                                     Opacity="0" />
                             <Border x:Name="PressedBackground"
-                                    Background="#50808080"
+                                    Background="{DynamicResource Brush.50808080}"
                                     CornerRadius="8"
                                     Opacity="0" />
                             <ContentPresenter Margin="{TemplateBinding Padding}"
@@ -254,8 +254,8 @@
     </Style>
 
     <Style x:Key="PrimaryDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogButtonStyle}">
-        <Setter Property="Foreground" Value="#FFFFFF" />
-        <Setter Property="Background" Value="#0891FE" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.FFFFFF}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.0891FE}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -266,11 +266,11 @@
                                     Background="{TemplateBinding Background}"
                                     CornerRadius="8" />
                             <Border x:Name="HoverBackground"
-                                    Background="#047EDC"
+                                    Background="{DynamicResource Brush.047EDC}"
                                     CornerRadius="8"
                                     Opacity="0" />
                             <Border x:Name="PressedBackground"
-                                    Background="#036FC2"
+                                    Background="{DynamicResource Brush.036FC2}"
                                     CornerRadius="8"
                                     Opacity="0" />
                             <ContentPresenter Margin="{TemplateBinding Padding}"
@@ -311,8 +311,8 @@
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Foreground" Value="#BFFFFFFF" />
-                            <Setter TargetName="BaseBackground" Property="Background" Value="#5A5A5A" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.BFFFFFFF}" />
+                            <Setter TargetName="BaseBackground" Property="Background" Value="{DynamicResource Brush.5A5A5A}" />
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
                         </Trigger>
@@ -323,8 +323,8 @@
     </Style>
 
     <Style x:Key="DangerDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource DialogButtonStyle}">
-        <Setter Property="Foreground" Value="#FFFFFF" />
-        <Setter Property="Background" Value="#D94343" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.FFFFFF}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.D94343}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -335,11 +335,11 @@
                                     Background="{TemplateBinding Background}"
                                     CornerRadius="8" />
                             <Border x:Name="HoverBackground"
-                                    Background="#B83232"
+                                    Background="{DynamicResource Brush.B83232}"
                                     CornerRadius="8"
                                     Opacity="0" />
                             <Border x:Name="PressedBackground"
-                                    Background="#982828"
+                                    Background="{DynamicResource Brush.982828}"
                                     CornerRadius="8"
                                     Opacity="0" />
                             <ContentPresenter Margin="{TemplateBinding Padding}"
@@ -380,8 +380,8 @@
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Foreground" Value="#BFFFFFFF" />
-                            <Setter TargetName="BaseBackground" Property="Background" Value="#5A5A5A" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.BFFFFFFF}" />
+                            <Setter TargetName="BaseBackground" Property="Background" Value="{DynamicResource Brush.5A5A5A}" />
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
                         </Trigger>
@@ -392,3 +392,4 @@
     </Style>
 
 </ResourceDictionary>
+

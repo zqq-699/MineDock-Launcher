@@ -27,12 +27,12 @@
                 <DataTemplate DataType="{x:Type models:AccountSkinModelOption}">
                     <StackPanel>
                         <TextBlock Text="{Binding Title}"
-                                   Foreground="#F4F4F4"
+                                   Foreground="{DynamicResource Brush.F4F4F4}"
                                    FontSize="16"
                                    FontWeight="SemiBold" />
                         <TextBlock Text="{Binding Description}"
                                    Margin="0,5,0,0"
-                                   Foreground="#AFFFFFFF"
+                                   Foreground="{DynamicResource Brush.AFFFFFFF}"
                                    FontSize="12"
                                    TextWrapping="Wrap" />
                     </StackPanel>
@@ -54,4 +54,5 @@
         </StackPanel>
     </Grid>
 </UserControl>
+
 

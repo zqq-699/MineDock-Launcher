@@ -37,7 +37,7 @@
                             <controls:SvgIcon Width="24"
                                               Height="24"
                                               IconKey="{Binding IconKey}"
-                                              Foreground="#F4F4F4"
+                                              Foreground="{DynamicResource Brush.F4F4F4}"
                                               HorizontalAlignment="Center"
                                               VerticalAlignment="Center">
                                 <controls:SvgIcon.Style>
@@ -53,9 +53,9 @@
                             </controls:SvgIcon>
 
                             <TextBlock Text="{Binding Icon}"
-                                       FontFamily="Segoe MDL2 Assets"
+                                       FontFamily="{DynamicResource LauncherIconFontFamily}"
                                        FontSize="22"
-                                       Foreground="#F4F4F4"
+                                       Foreground="{DynamicResource Brush.F4F4F4}"
                                        TextAlignment="Center"
                                        VerticalAlignment="Center">
                                 <TextBlock.Style>
@@ -74,12 +74,12 @@
                         <StackPanel Grid.Column="1"
                                     Margin="6,0,0,0">
                             <TextBlock Text="{Binding Title}"
-                                       Foreground="#F4F4F4"
+                                       Foreground="{DynamicResource Brush.F4F4F4}"
                                        FontSize="16"
                                        FontWeight="SemiBold" />
                             <TextBlock Text="{Binding Description}"
                                        Margin="0,5,0,0"
-                                       Foreground="#AFFFFFFF"
+                                       Foreground="{DynamicResource Brush.AFFFFFFF}"
                                        FontSize="12"
                                        TextWrapping="Wrap" />
                         </StackPanel>
@@ -113,17 +113,17 @@
                                   VerticalAlignment="Center">
                     <controls:SvgIcon.Style>
                         <Style TargetType="{x:Type controls:SvgIcon}">
-                            <Setter Property="Foreground" Value="#F4F4F4" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
                             <Setter Property="Visibility" Value="Visible" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding Dialog.MicrosoftLoginIconKey}" Value="{x:Null}">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding Dialog.IsMicrosoftLoginResultStep}" Value="True">
-                                    <Setter Property="Foreground" Value="#FF8A8A" />
+                                    <Setter Property="Foreground" Value="{DynamicResource Brush.FF8A8A}" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding Dialog.IsMicrosoftLoginSuccessful}" Value="True">
-                                    <Setter Property="Foreground" Value="#7DFFB2" />
+                                    <Setter Property="Foreground" Value="{DynamicResource Brush.7DFFB2}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -131,7 +131,7 @@
                 </controls:SvgIcon>
 
                 <TextBlock Text="{Binding Dialog.MicrosoftLoginIcon}"
-                           FontFamily="Segoe MDL2 Assets"
+                           FontFamily="{DynamicResource LauncherIconFontFamily}"
                            FontSize="30"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"
@@ -139,7 +139,7 @@
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
                             <Setter Property="Visibility" Value="Collapsed" />
-                            <Setter Property="Foreground" Value="#F4F4F4" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding Dialog.MicrosoftLoginIconKey}" Value="{x:Null}">
                                     <Setter Property="Visibility" Value="Visible" />
@@ -177,4 +177,5 @@
         </Grid>
     </Grid>
 </UserControl>
+
 

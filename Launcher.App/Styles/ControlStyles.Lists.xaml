@@ -39,7 +39,7 @@
         <Setter Property="Margin" Value="0,6,0,0" />
         <Setter Property="HorizontalAlignment" Value="Left" />
         <Setter Property="VerticalAlignment" Value="Top" />
-        <Setter Property="Foreground" Value="#F4FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4FFFFFF}" />
         <Setter Property="FontSize" Value="24" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
@@ -55,7 +55,7 @@
         <Setter Property="Margin" Value="0,0,8,0" />
         <Setter Property="HorizontalAlignment" Value="Left" />
         <Setter Property="VerticalAlignment" Value="Top" />
-        <Setter Property="Foreground" Value="#EFFFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.EFFFFFFF}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
@@ -117,7 +117,7 @@
                                           Width="28"
                                           Height="28"
                                           IconKey="general/general_arrow_left"
-                                          Foreground="#B8FFFFFF"
+                                          Foreground="{DynamicResource Brush.B8FFFFFF}"
                                           HorizontalAlignment="Center"
                                           VerticalAlignment="Center"
                                           Opacity="0"
@@ -126,7 +126,7 @@
                                           Width="28"
                                           Height="28"
                                           IconKey="general/general_arrow_left"
-                                          Foreground="#90FFFFFF"
+                                          Foreground="{DynamicResource Brush.90FFFFFF}"
                                           HorizontalAlignment="Center"
                                           VerticalAlignment="Center"
                                           Opacity="0"
@@ -135,7 +135,7 @@
                                           Width="28"
                                           Height="28"
                                           IconKey="general/general_arrow_left"
-                                          Foreground="#70FFFFFF"
+                                          Foreground="{DynamicResource Brush.70FFFFFF}"
                                           HorizontalAlignment="Center"
                                           VerticalAlignment="Center"
                                           Opacity="0"
@@ -166,14 +166,14 @@
         <Setter Property="Padding" Value="14,0,7,0" />
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="VerticalAlignment" Value="Top" />
-        <Setter Property="Foreground" Value="#F2FFFFFF" />
-        <Setter Property="CaretBrush" Value="#F2FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F2FFFFFF}" />
+        <Setter Property="CaretBrush" Value="{DynamicResource Brush.F2FFFFFF}" />
         <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderBrush" Value="#18FFFFFF" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.18FFFFFF}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="SelectionBrush" Value="#660891FE" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource Brush.660891FE}" />
         <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
@@ -183,7 +183,7 @@
                             CornerRadius="10">
                         <Border.Effect>
                             <DropShadowEffect BlurRadius="12"
-                                              Color="#000000"
+                                              Color="{DynamicResource Color.000000}"
                                               Opacity="0.16"
                                               ShadowDepth="0" />
                         </Border.Effect>
@@ -193,28 +193,28 @@
                                                          UseSourceElementAsRenderRoot="True"
                                                          Opacity="1"
                                                          BlurRadius="24"
-                                                         TintColor="#80252525"
+                                                         TintBrush="{DynamicResource Brush.80252525}"
                                                          BorderBrush="{TemplateBinding BorderBrush}"
                                                          BorderThickness="{TemplateBinding BorderThickness}"
                                                          CornerRadius="10"
                                                          ClipToBounds="True"
                                                          behaviors:RoundedClip.Radius="10" />
                             <Border x:Name="HoverLayer"
-                                    Background="#10FFFFFF"
+                                    Background="{DynamicResource Brush.10FFFFFF}"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <controls:SvgIcon Width="15"
                                               Height="15"
                                               Margin="8,0,0,0"
                                               IconKey="general/general_search"
-                                              Foreground="#70FFFFFF"
+                                              Foreground="{DynamicResource Brush.70FFFFFF}"
                                               HorizontalAlignment="Left"
                                               VerticalAlignment="Center"
                                               IsHitTestVisible="False" />
                             <TextBlock x:Name="SearchPlaceholderText"
                                        Margin="25,0,0,0"
                                            Text="{x:Static res:Strings.Search_Placeholder}"
-                                           Foreground="#70FFFFFF"
+                                           Foreground="{DynamicResource Brush.70FFFFFF}"
                                            FontSize="13"
                                        HorizontalAlignment="Left"
                                        VerticalAlignment="Center"
@@ -239,11 +239,11 @@
                         </MultiTrigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="HoverLayer" Property="Opacity" Value="1" />
-                            <Setter TargetName="SearchBlurSurface" Property="BorderBrush" Value="#20FFFFFF" />
+                            <Setter TargetName="SearchBlurSurface" Property="BorderBrush" Value="{DynamicResource Brush.20FFFFFF}" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
                             <Setter TargetName="HoverLayer" Property="Opacity" Value="1" />
-                            <Setter TargetName="SearchBlurSurface" Property="BorderBrush" Value="#42FFFFFF" />
+                            <Setter TargetName="SearchBlurSurface" Property="BorderBrush" Value="{DynamicResource Brush.42FFFFFF}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -375,15 +375,15 @@
         <Setter Property="Margin" Value="0,0,12,12" />
         <Setter Property="Height" Value="144" />
         <Setter Property="Padding" Value="18" />
-        <Setter Property="Background" Value="#1CFFFFFF" />
-        <Setter Property="BorderBrush" Value="#18FFFFFF" />
+        <Setter Property="Background" Value="{DynamicResource Brush.1CFFFFFF}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.18FFFFFF}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />
         <Setter Property="ClipToBounds" Value="True" />
     </Style>
 
     <Style x:Key="InstallTaskTitleTextStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
         <Setter Property="FontSize" Value="16" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
@@ -391,13 +391,13 @@
 
     <Style x:Key="InstallTaskSubtitleTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,5,0,0" />
-        <Setter Property="Foreground" Value="#AFFFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.AFFFFFFF}" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
 
     <Style x:Key="InstallTaskStateTextStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="#DFFFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.DFFFFFFF}" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="TextAlignment" Value="Right" />
         <Setter Property="Height" Value="16" />
@@ -406,7 +406,7 @@
 
     <Style x:Key="InstallTaskSpeedTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,5,0,0" />
-        <Setter Property="Foreground" Value="#9FFFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.9FFFFFFF}" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="TextAlignment" Value="Right" />
         <Setter Property="Height" Value="16" />
@@ -421,7 +421,7 @@
 
     <Style x:Key="InstallTaskStatusTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,4,0,0" />
-        <Setter Property="Foreground" Value="#CFFFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.CFFFFFFF}" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="TextWrapping" Value="NoWrap" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
@@ -429,7 +429,7 @@
     </Style>
 
     <Style x:Key="InstallTaskProgressTextStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="#AFFFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.AFFFFFFF}" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="TextAlignment" Value="Right" />
         <Setter Property="VerticalAlignment" Value="Center" />
@@ -500,3 +500,4 @@
     </Style>
 
 </ResourceDictionary>
+

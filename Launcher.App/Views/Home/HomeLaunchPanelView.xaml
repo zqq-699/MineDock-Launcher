@@ -123,7 +123,7 @@
                                 Height="64"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
-                                Background="#000000"
+                                Background="{DynamicResource Brush.000000}"
                                 IsHitTestVisible="False"
                                 Opacity="0.46">
                             <Border.RenderTransform>
@@ -147,9 +147,9 @@
                         </Border>
 
                         <TextBlock Text="&#xE77B;"
-                                   FontFamily="Segoe MDL2 Assets"
+                                   FontFamily="{DynamicResource LauncherIconFontFamily}"
                                    FontSize="42"
-                                   Foreground="#E8FFFFFF"
+                                   Foreground="{DynamicResource Brush.E8FFFFFF}"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center">
                             <TextBlock.Style>
@@ -245,7 +245,7 @@
                     <TextBlock Text="{Binding LaunchStatusMessage}"
                                Margin="0,0,0,8"
                                HorizontalAlignment="Center"
-                               Foreground="#CCFFFFFF"
+                               Foreground="{DynamicResource Brush.CCFFFFFF}"
                                FontSize="13"
                                TextAlignment="Center" />
 
@@ -267,7 +267,7 @@
                                 Command="{Binding CancelLaunchCommand}"
                                 Width="28"
                                 Height="28"
-                                Foreground="#8F96A3"
+                                Foreground="{DynamicResource Brush.8F96A3}"
                                 Style="{StaticResource InlineIconButtonStyle}"
                                 ToolTip="{x:Static res:Strings.Cancel_Button}">
                             <controls:SvgIcon Width="16"
@@ -281,7 +281,7 @@
                                Width="260"
                                Margin="0,7,0,0"
                                HorizontalAlignment="Center"
-                               Foreground="#8FB8C7D9"
+                               Foreground="{DynamicResource Brush.8FB8C7D9}"
                                FontSize="11"
                                TextAlignment="Center"
                                Visibility="{Binding HasLaunchDownloadSpeedText, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
@@ -290,4 +290,5 @@
         </Grid>
     </Grid>
 </UserControl>
+
 

@@ -93,17 +93,19 @@ public partial class ListPageItemButton : UserControl
         DependencyProperty.Register(nameof(SubtitleFontSize), typeof(double), typeof(ListPageItemButton), new PropertyMetadata(12d));
 
     public static readonly DependencyProperty SubtitleForegroundProperty =
-        DependencyProperty.Register(nameof(SubtitleForeground), typeof(Brush), typeof(ListPageItemButton), new PropertyMetadata(new SolidColorBrush(Color.FromArgb(0x96, 0xFF, 0xFF, 0xFF))));
+        DependencyProperty.Register(nameof(SubtitleForeground), typeof(Brush), typeof(ListPageItemButton), new PropertyMetadata(null));
 
     public static readonly DependencyProperty TrailingFontSizeProperty =
         DependencyProperty.Register(nameof(TrailingFontSize), typeof(double), typeof(ListPageItemButton), new PropertyMetadata(13d));
 
     public static readonly DependencyProperty TrailingForegroundProperty =
-        DependencyProperty.Register(nameof(TrailingForeground), typeof(Brush), typeof(ListPageItemButton), new PropertyMetadata(new SolidColorBrush(Color.FromArgb(0x82, 0xFF, 0xFF, 0xFF))));
+        DependencyProperty.Register(nameof(TrailingForeground), typeof(Brush), typeof(ListPageItemButton), new PropertyMetadata(null));
 
     public ListPageItemButton()
     {
         InitializeComponent();
+        SetResourceReference(SubtitleForegroundProperty, "Brush.Text.Muted");
+        SetResourceReference(TrailingForegroundProperty, "Brush.Text.Subtle");
         Loaded += (_, _) => PlayEnterAnimationIfNeeded();
     }
 

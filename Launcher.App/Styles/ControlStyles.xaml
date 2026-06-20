@@ -11,3 +11,4 @@
         <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Messages.xaml" />
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>
+

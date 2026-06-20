@@ -14,11 +14,11 @@
         <Setter Property="Height" Value="34" />
         <Setter Property="Padding" Value="8,0" />
         <Setter Property="FontSize" Value="13" />
-        <Setter Property="Foreground" Value="#F4F4F4" />
-        <Setter Property="Background" Value="#22FFFFFF" />
-        <Setter Property="BorderBrush" Value="#20FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Input.TextBox.Background}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Input.TextBox.Border}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CaretBrush" Value="#F4F4F4" />
+        <Setter Property="CaretBrush" Value="{DynamicResource Brush.F4F4F4}" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="TextWrapping" Value="NoWrap" />
         <Setter Property="AcceptsReturn" Value="False" />
@@ -38,8 +38,8 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Root" Property="BorderBrush" Value="#667ABEFF" />
-                            <Setter TargetName="Root" Property="Background" Value="#2AFFFFFF" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Brush.Input.TextBox.BorderFocused}" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.Input.TextBox.BackgroundFocused}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -50,7 +50,7 @@
     <Style x:Key="LauncherComboBoxItemStyle" TargetType="ComboBoxItem">
         <Setter Property="MinHeight" Value="38" />
         <Setter Property="Padding" Value="10,6" />
-        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Template">
             <Setter.Value>
@@ -63,10 +63,10 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#26FFFFFF" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.26FFFFFF}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#993D3D3D" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.993D3D3D}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45" />
@@ -90,7 +90,7 @@
                             CornerRadius="8">
                         <Grid>
                             <Border x:Name="HoverBackground"
-                                    Background="#22FFFFFF"
+                                    Background="{DynamicResource Brush.22FFFFFF}"
                                     CornerRadius="8"
                                     Opacity="0" />
                             <ContentPresenter Margin="{Binding Padding, RelativeSource={RelativeSource AncestorType=ComboBox}}"
@@ -99,9 +99,9 @@
                             <TextBlock Margin="0,0,12,0"
                                        HorizontalAlignment="Right"
                                        VerticalAlignment="Center"
-                                       FontFamily="Segoe MDL2 Assets"
+                                       FontFamily="{DynamicResource LauncherIconFontFamily}"
                                        FontSize="11"
-                                       Foreground="#CFFFFFFF"
+                                       Foreground="{DynamicResource Brush.CFFFFFFF}"
                                        Text="&#xE70D;" />
                         </Grid>
                     </Border>
@@ -110,11 +110,11 @@
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="1" />
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Root" Property="BorderBrush" Value="#3AFFFFFF" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Brush.3AFFFFFF}" />
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="1" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Root" Property="Background" Value="#165A5A5A" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.165A5A5A}" />
                             <Setter Property="Opacity" Value="0.58" />
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -126,7 +126,7 @@
     <Style x:Key="LauncherComboBoxDropDownItemStyle" TargetType="ListBoxItem">
         <Setter Property="MinHeight" Value="38" />
         <Setter Property="Padding" Value="10,6" />
-        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Template">
             <Setter.Value>
@@ -139,10 +139,10 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#26FFFFFF" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.26FFFFFF}" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#993D3D3D" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.993D3D3D}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45" />
@@ -243,9 +243,9 @@
         <Setter Property="MinWidth" Value="160" />
         <Setter Property="Padding" Value="12,0,34,0" />
         <Setter Property="FontSize" Value="13" />
-        <Setter Property="Foreground" Value="#F4F4F4" />
-        <Setter Property="Background" Value="#24FFFFFF" />
-        <Setter Property="BorderBrush" Value="#20FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.24FFFFFF}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.20FFFFFF}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="MaxDropDownHeight" Value="260" />
         <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
@@ -296,31 +296,31 @@
                             <Grid x:Name="PopupSurface"
                                   Opacity="0"
                                   Margin="14"
-                                  Background="#01000000"
+                                  Background="{DynamicResource Brush.01000000}"
                                   MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                   MaxHeight="{TemplateBinding MaxDropDownHeight}">
-                                <Border Background="#FF252525"
+                                <Border Background="{DynamicResource Brush.FF252525}"
                                         CornerRadius="9"
                                         IsHitTestVisible="False">
                                     <Border.Effect>
                                         <DropShadowEffect BlurRadius="22"
-                                                          Color="#000000"
+                                                          Color="{DynamicResource Color.000000}"
                                                           Opacity="0.36"
                                                           ShadowDepth="0" />
                                     </Border.Effect>
                                 </Border>
-                                <Border Background="#FF252525"
+                                <Border Background="{DynamicResource Brush.FF252525}"
                                         CornerRadius="9"
                                         IsHitTestVisible="False" />
                                 <controls:BackdropBlurBorder x:Name="PopupBlurSurface"
                                                              BlurRadius="42"
-                                                             TintColor="#00252525"
-                                                             BorderBrush="#14FFFFFF"
+                                                             TintBrush="{DynamicResource Brush.00252525}"
+                                                             BorderBrush="{DynamicResource Brush.14FFFFFF}"
                                                              BorderThickness="1"
                                                              CornerRadius="9"
                                                              ClipToBounds="True"
                                                              behaviors:RoundedClip.Radius="9" />
-                                <Border Background="#8A252525"
+                                <Border Background="{DynamicResource Brush.8A252525}"
                                         CornerRadius="9"
                                         IsHitTestVisible="False" />
                                 <ListBox x:Name="PART_DropDownList"
@@ -347,7 +347,7 @@
                             <Setter TargetName="PART_Popup" Property="MinHeight" Value="0" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Foreground" Value="#A8FFFFFF" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.A8FFFFFF}" />
                         </Trigger>
                         <Trigger Property="SelectionItemTemplate" Value="{x:Null}">
                             <Setter TargetName="SelectionTextBlock" Property="Visibility" Value="Visible" />
@@ -738,11 +738,11 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
                     <Border x:Name="Root"
-                            Background="#FFFFFF"
+                            Background="{DynamicResource Brush.FFFFFF}"
                             CornerRadius="3.375">
                         <Border.Effect>
                             <DropShadowEffect BlurRadius="11.25"
-                                              Color="#20000000"
+                                              Color="{DynamicResource Color.20000000}"
                                               Opacity="0.2"
                                               ShadowDepth="0" />
                         </Border.Effect>
@@ -755,7 +755,7 @@
                             <Setter TargetName="Root" Property="Opacity" Value="0.94" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Root" Property="Background" Value="#C8D0D9" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.C8D0D9}" />
                             <Setter TargetName="Root" Property="Opacity" Value="0.62" />
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -778,7 +778,7 @@
                           Background="Transparent">
                         <Border Height="4"
                                 VerticalAlignment="Center"
-                                Background="#24FFFFFF"
+                                Background="{DynamicResource Brush.24FFFFFF}"
                                 CornerRadius="2" />
                         <Track x:Name="PART_Track"
                                Height="20"
@@ -788,7 +788,7 @@
                                Value="{Binding Value, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
                                IsDirectionReversed="{TemplateBinding IsDirectionReversed}">
                             <Track.DecreaseRepeatButton>
-                                <RepeatButton Background="{StaticResource LauncherAccentBrush}"
+                                <RepeatButton Background="{DynamicResource LauncherAccentBrush}"
                                               Command="Slider.DecreaseLarge"
                                               Style="{StaticResource LauncherSliderTrackButtonStyle}" />
                             </Track.DecreaseRepeatButton>
@@ -818,4 +818,5 @@
     <Style x:Key="LauncherDialogTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource DialogTextBoxStyle}" />
     <Style x:Key="LauncherDialogWrappingTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource DialogWrappingTextBoxStyle}" />
 </ResourceDictionary>
+
 

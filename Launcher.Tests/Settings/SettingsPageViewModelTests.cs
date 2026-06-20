@@ -1,4 +1,4 @@
-using Launcher.App.Resources;
+﻿using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
@@ -58,7 +58,7 @@ public sealed class SettingsPageViewModelTests
         Assert.Equal("--demo", viewModel.DefaultGameArguments);
         Assert.True(viewModel.FollowSystemTheme);
         Assert.False(viewModel.IsThemeSelectionVisible);
-        Assert.Equal(LauncherDefaults.DefaultTheme, viewModel.SelectedThemeOption?.Id);
+        Assert.Equal("Light", viewModel.SelectedThemeOption?.Id);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public sealed class SettingsPageViewModelTests
             new FakeJavaRuntimeDiscoveryService(),
             new FakeFilePickerService(),
             folderService,
-            new FakeFloatingMessageService());
+            new FakeFloatingMessageService(), new FakeThemeService());
         viewModel.PrimeFromSettings(settings);
 
         viewModel.OpenMinecraftDirectoryCommand.Execute(null);
@@ -118,7 +118,7 @@ public sealed class SettingsPageViewModelTests
             new FakeJavaRuntimeDiscoveryService(),
             new FakeFilePickerService(),
             folderService,
-            new FakeFloatingMessageService());
+            new FakeFloatingMessageService(), new FakeThemeService());
         viewModel.PrimeFromSettings(settings);
 
         viewModel.OpenLauncherLogDirectoryCommand.Execute(null);
@@ -147,7 +147,7 @@ public sealed class SettingsPageViewModelTests
             new FakeJavaRuntimeDiscoveryService(),
             filePickerService,
             new FakeInstanceFolderService(),
-            new FakeFloatingMessageService());
+            new FakeFloatingMessageService(), new FakeThemeService());
         viewModel.PrimeFromSettings(settings);
         var changedDirectory = string.Empty;
         var changedCount = 0;
@@ -184,7 +184,7 @@ public sealed class SettingsPageViewModelTests
             new FakeJavaRuntimeDiscoveryService(),
             new FakeFilePickerService(),
             new FakeInstanceFolderService(),
-            new FakeFloatingMessageService());
+            new FakeFloatingMessageService(), new FakeThemeService());
         viewModel.PrimeFromSettings(settings);
         var changedCount = 0;
         viewModel.MinecraftDirectoryChanged += (_, _) => changedCount++;
@@ -272,19 +272,22 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
-    public async Task ThemeControlsDoNotPersistSettingsYet()
+    public async Task ThemeControlsApplyAndPersistSettings()
     {
         var settings = new LauncherSettings { Theme = LauncherDefaults.DefaultTheme };
-        var viewModel = CreateViewModel(settings, out var settingsService, out _);
+        var viewModel = CreateViewModel(settings, out var settingsService, out _, out var themeService);
         viewModel.PrimeFromSettings(settings);
 
         viewModel.FollowSystemTheme = false;
         viewModel.SelectedThemeOption = viewModel.ThemeOptions.Single(option => option.Id == "Light");
 
-        await Task.Delay(500);
+        await TestAsync.WaitForAsync(() =>
+            settingsService.SaveCount >= 1
+            && settings.Theme == "Light"
+            && settings.ThemeFollowSystem == false);
 
-        Assert.Equal(0, settingsService.SaveCount);
-        Assert.Equal(LauncherDefaults.DefaultTheme, settings.Theme);
+        Assert.Equal("Light", themeService.LastTheme);
+        Assert.False(themeService.LastFollowSystem);
     }
 
     [Fact]
@@ -891,7 +894,16 @@ public sealed class SettingsPageViewModelTests
         out TestSettingsService settingsService,
         out FakeStatusService statusService)
     {
-        return CreateViewModel(settings, new FakeJavaRuntimeDiscoveryService(), out settingsService, out statusService);
+        return CreateViewModel(settings, out settingsService, out statusService, out _);
+    }
+
+    private static SettingsPageViewModel CreateViewModel(
+        LauncherSettings settings,
+        out TestSettingsService settingsService,
+        out FakeStatusService statusService,
+        out FakeThemeService themeService)
+    {
+        return CreateViewModel(settings, new FakeJavaRuntimeDiscoveryService(), new FakeFilePickerService(), out settingsService, out statusService, out _, out themeService);
     }
 
     [Fact]
@@ -969,6 +981,7 @@ public sealed class SettingsPageViewModelTests
             filePickerService,
             out settingsService,
             out statusService,
+            out _,
             out _);
     }
 
@@ -980,9 +993,29 @@ public sealed class SettingsPageViewModelTests
         out FakeStatusService statusService,
         out FakeFloatingMessageService floatingMessageService)
     {
+        return CreateViewModel(
+            settings,
+            javaRuntimeDiscoveryService,
+            filePickerService,
+            out settingsService,
+            out statusService,
+            out floatingMessageService,
+            out _);
+    }
+
+    private static SettingsPageViewModel CreateViewModel(
+        LauncherSettings settings,
+        FakeJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
+        FakeFilePickerService filePickerService,
+        out TestSettingsService settingsService,
+        out FakeStatusService statusService,
+        out FakeFloatingMessageService floatingMessageService,
+        out FakeThemeService themeService)
+    {
         settingsService = new TestSettingsService(settings);
         statusService = new FakeStatusService();
         floatingMessageService = new FakeFloatingMessageService();
+        themeService = new FakeThemeService();
         return new SettingsPageViewModel(
             settingsService,
             statusService,
@@ -990,7 +1023,8 @@ public sealed class SettingsPageViewModelTests
             javaRuntimeDiscoveryService,
             filePickerService,
             new FakeInstanceFolderService(),
-            floatingMessageService);
+            floatingMessageService,
+            themeService);
     }
 
     private static JavaRuntimeInfo CreateJavaRuntime(string executablePath, int majorVersion)
@@ -1121,3 +1155,4 @@ public sealed class SettingsPageViewModelTests
     }
 
 }
+

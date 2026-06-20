@@ -26,7 +26,8 @@ public partial class MainWindow : Window
         MainViewModel viewModel,
         IWindowService windowService,
         IAccountDialogService accountDialogService,
-        ILauncherStateMonitor launcherStateMonitor)
+        ILauncherStateMonitor launcherStateMonitor,
+        IThemeService themeService)
     {
         InitializeComponent();
         this.viewModel = viewModel;
@@ -52,7 +53,7 @@ public partial class MainWindow : Window
 
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
         launcherStateMonitor.StateChanged += LauncherStateMonitor_StateChanged;
-        AcrylicWindow.Enable(this);
+        AcrylicWindow.Enable(this, themeService);
         SizeChanged += (_, _) => accountDialogService.QueueOpenDialogBlurRefresh();
         Loaded += async (_, _) =>
         {

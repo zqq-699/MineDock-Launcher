@@ -39,6 +39,7 @@ public partial class App : System.Windows.Application
             services.AddSingleton<IInstanceFolderService, InstanceFolderService>();
             services.AddSingleton<IAccountDialogService, AccountDialogService>();
             services.AddSingleton<IUiDispatcher, WpfUiDispatcher>();
+            services.AddSingleton<IThemeService, ThemeService>();
             services.AddSingleton<IHomePageViewModelFactory, HomePageViewModelFactory>();
             services.AddSingleton<LaunchStatusDialogViewModel>();
             services.AddSingleton<AccountListViewModel>();
@@ -62,8 +63,12 @@ public partial class App : System.Windows.Application
             serviceProvider = services.BuildServiceProvider();
             Log.Information("Service provider built.");
 
+            var mainViewModel = serviceProvider.GetRequiredService<MainViewModel>();
+            await mainViewModel.PrimeAsync();
+            serviceProvider.GetRequiredService<IThemeService>().ApplyPreference(
+                mainViewModel.Settings.Theme,
+                mainViewModel.Settings.ThemeFollowSystem);
             var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
-            await serviceProvider.GetRequiredService<MainViewModel>().PrimeAsync();
             mainWindow.Show();
             Log.Information("Main window shown.");
         }

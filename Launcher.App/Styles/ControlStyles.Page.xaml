@@ -9,19 +9,19 @@
     <sys:Double x:Key="DetailPageContentMaxWidth">520</sys:Double>
 
     <Style x:Key="PageTitleTextStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
         <Setter Property="FontSize" Value="24" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
     <Style x:Key="PageStatusTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,12,0,0" />
-        <Setter Property="Foreground" Value="#B8FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.B8FFFFFF}" />
         <Setter Property="FontSize" Value="13" />
     </Style>
 
     <Style x:Key="PageEmptyStateTextStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="#B8FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.B8FFFFFF}" />
         <Setter Property="FontSize" Value="18" />
         <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="VerticalAlignment" Value="Center" />
@@ -38,17 +38,17 @@
     <Style x:Key="DownloadOverlayErrorTextStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource DownloadOverlayEmptyStateTextStyle}">
-        <Setter Property="Foreground" Value="#FFFF8D8D" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.FFFF8D8D}" />
     </Style>
 
     <Style x:Key="DownloadInstanceOptionLabelTextStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="#AFFFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.AFFFFFFF}" />
         <Setter Property="FontSize" Value="13" />
     </Style>
 
     <Style x:Key="DownloadInstanceOptionWarningTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,8,0,0" />
-        <Setter Property="Foreground" Value="#FFFFC56D" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.FFFFC56D}" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Visibility" Value="Collapsed" />
         <Style.Triggers>
@@ -59,14 +59,14 @@
     </Style>
 
     <Style x:Key="DownloadLoaderOptionTitleTextStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="#F4F4F4" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
         <Setter Property="FontSize" Value="16" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
     <Style x:Key="DownloadLoaderOptionSubtitleTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,5,0,0" />
-        <Setter Property="Foreground" Value="#AFFFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.AFFFFFFF}" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
@@ -90,7 +90,7 @@
         <Setter Property="Effect">
             <Setter.Value>
                 <DropShadowEffect BlurRadius="20"
-                                  Color="#000000"
+                                  Color="{DynamicResource Color.000000}"
                                   Direction="270"
                                   Opacity="0.62"
                                   ShadowDepth="8" />
@@ -101,7 +101,7 @@
     <Style x:Key="HomeAccountHintTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,4,0,0" />
         <Setter Property="HorizontalAlignment" Value="Center" />
-        <Setter Property="Foreground" Value="#A8FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.A8FFFFFF}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="TextAlignment" Value="Center" />
     </Style>
@@ -109,7 +109,7 @@
     <Style x:Key="HomeAccountNameTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,14,0,0" />
         <Setter Property="HorizontalAlignment" Value="Center" />
-        <Setter Property="Foreground" Value="#F4FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4FFFFFF}" />
         <Setter Property="FontSize" Value="18" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="TextAlignment" Value="Center" />
@@ -120,14 +120,14 @@
     <Style x:Key="HomeVersionNameTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,12,0,0" />
         <Setter Property="HorizontalAlignment" Value="Center" />
-        <Setter Property="Foreground" Value="#F4FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4FFFFFF}" />
         <Setter Property="FontSize" Value="17" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="TextAlignment" Value="Center" />
     </Style>
 
     <Style x:Key="HomeLaunchInstanceNameTextStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="#F4FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4FFFFFF}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="LineHeight" Value="18" />
@@ -135,14 +135,14 @@
 
     <Style x:Key="HomeLaunchInstanceSubtitleTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,2,0,0" />
-        <Setter Property="Foreground" Value="#9FFFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.9FFFFFFF}" />
         <Setter Property="FontSize" Value="11" />
         <Setter Property="LineHeight" Value="14" />
     </Style>
 
     <Style x:Key="HomeLaunchInstanceEmptyTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="24,0,24,0" />
-        <Setter Property="Foreground" Value="#A8FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.A8FFFFFF}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="TextAlignment" Value="Center" />
@@ -158,7 +158,7 @@
         <Setter Property="Margin" Value="0,2,0,0" />
         <Setter Property="Height" Value="28" />
         <Setter Property="Padding" Value="8,0" />
-        <Setter Property="Foreground" Value="#9FFFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.9FFFFFFF}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="FontSize" Value="13" />
@@ -174,10 +174,10 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Foreground" Value="#F0FFFFFF" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.F0FFFFFF}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter Property="Foreground" Value="#FFFFFF" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.FFFFFF}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -189,8 +189,8 @@
         <Setter Property="Width" Value="190" />
         <Setter Property="Height" Value="50" />
         <Setter Property="Margin" Value="0,22,0,0" />
-        <Setter Property="Foreground" Value="#FFFFFF" />
-        <Setter Property="Background" Value="#0891FE" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.FFFFFF}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.0891FE}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="FontSize" Value="18" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -204,7 +204,7 @@
                         <Border.Effect>
                             <DropShadowEffect x:Name="RootGlow"
                                               BlurRadius="18"
-                                              Color="#0891FE"
+                                              Color="{DynamicResource Color.0891FE}"
                                               Opacity="0.28"
                                               ShadowDepth="0" />
                         </Border.Effect>
@@ -219,11 +219,11 @@
                                         Background="{TemplateBinding Background}"
                                         CornerRadius="9" />
                                 <Border x:Name="HoverBackground"
-                                        Background="#047EDC"
+                                        Background="{DynamicResource Brush.047EDC}"
                                         CornerRadius="9"
                                         Opacity="0" />
                                 <Border x:Name="PressedBackground"
-                                        Background="#036FC2"
+                                        Background="{DynamicResource Brush.036FC2}"
                                         CornerRadius="9"
                                         Opacity="0" />
                             </Grid>
@@ -370,10 +370,10 @@
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Foreground" Value="#BFFFFFFF" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.BFFFFFFF}" />
                             <Setter Property="Cursor" Value="Arrow" />
                             <Setter TargetName="Root" Property="Effect" Value="{x:Null}" />
-                            <Setter TargetName="BaseBackground" Property="Background" Value="#5A5A5A" />
+                            <Setter TargetName="BaseBackground" Property="Background" Value="{DynamicResource Brush.5A5A5A}" />
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
                         </Trigger>
@@ -385,8 +385,8 @@
 
     <Style x:Key="SectionFieldSurfaceStyle" TargetType="Border">
         <Setter Property="Padding" Value="14,10" />
-        <Setter Property="Background" Value="#18FFFFFF" />
-        <Setter Property="BorderBrush" Value="#16FFFFFF" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Card.Surface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Card.Border}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="8" />
     </Style>
@@ -396,13 +396,16 @@
            BasedOn="{StaticResource SectionFieldSurfaceStyle}">
         <Setter Property="MinHeight" Value="34" />
         <Setter Property="Padding" Value="14,7" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Field.ReadOnly.Surface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Field.ReadOnly.Border}" />
     </Style>
 
     <Style x:Key="ReadOnlyFieldTextStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="#CFFFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.CFFFFFFF}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="TextWrapping" Value="Wrap" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
 </ResourceDictionary>
+

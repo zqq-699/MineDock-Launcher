@@ -1,4 +1,4 @@
-<UserControl x:Class="Launcher.App.Views.Download.DownloadInstanceOptionsView"
+﻿<UserControl x:Class="Launcher.App.Views.Download.DownloadInstanceOptionsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
@@ -25,10 +25,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#26FFFFFF" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.26FFFFFF}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#993D3D3D" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.993D3D3D}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.45" />
@@ -58,10 +58,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#26FFFFFF" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.26FFFFFF}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#993D3D3D" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.993D3D3D}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.45" />
@@ -92,7 +92,7 @@
 
                 <TextBlock Text="{Binding Version}"
                            FontSize="15"
-                           Foreground="#F4F4F4"
+                           Foreground="{DynamicResource Brush.F4F4F4}"
                            VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" />
 
@@ -100,7 +100,7 @@
                            Grid.Column="1"
                            Margin="10,0,0,0"
                            FontSize="12"
-                           Foreground="#E8F4F4F4"
+                           Foreground="{DynamicResource Brush.E8F4F4F4}"
                            VerticalAlignment="Center"
                            Text="{x:Static res:Strings.Download_LoaderVersionStableTag}" />
             </Grid>
@@ -175,9 +175,9 @@
                                 </Image>
 
                                 <TextBlock Text="{Binding Icon}"
-                                           FontFamily="Segoe MDL2 Assets"
+                                           FontFamily="{DynamicResource LauncherIconFontFamily}"
                                            FontSize="26"
-                                           Foreground="#F4F4F4"
+                                           Foreground="{DynamicResource Brush.F4F4F4}"
                                            TextAlignment="Center"
                                            VerticalAlignment="Center">
                                     <TextBlock.Style>
@@ -232,7 +232,7 @@
 
                                     <TextBlock Margin="12,0,34,0"
                                                Text="{Binding DataContext.LoaderVersionPlaceholderText, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                               Foreground="#F4F4F4"
+                                               Foreground="{DynamicResource Brush.F4F4F4}"
                                                FontSize="13"
                                                TextTrimming="CharacterEllipsis"
                                                VerticalAlignment="Center"
@@ -257,3 +257,4 @@
         </StackPanel>
     </ScrollViewer>
 </UserControl>
+

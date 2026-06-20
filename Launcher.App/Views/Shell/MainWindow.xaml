@@ -39,7 +39,7 @@
     </shell:WindowChrome.WindowChrome>
 
     <Border CornerRadius="8"
-            BorderBrush="#344e4e4e"
+            BorderBrush="{DynamicResource Brush.344E4E4E}"
             BorderThickness="1"
             Background="Transparent"
             SnapsToDevicePixels="True">
@@ -59,7 +59,7 @@
 
                 <Border Grid.Column="1"
                         Grid.RowSpan="2"
-                        Background="#E0151515" />
+                        Background="{DynamicResource Brush.Page.Background}" />
 
                 <Grid x:Name="PageTransitionHost"
                       Grid.Column="1"
@@ -94,14 +94,14 @@
                             Margin="0,8,12,0">
                     <Button Style="{StaticResource WindowCaptionButtonStyle}"
                             Command="{Binding MinimizeWindowCommand}">
-                        <TextBlock FontFamily="Segoe MDL2 Assets"
+                        <TextBlock FontFamily="{DynamicResource LauncherIconFontFamily}"
                                    FontSize="10"
                                    Text="&#xE921;" />
                     </Button>
                     <Button Style="{StaticResource WindowCaptionButtonStyle}"
                             Margin="4,0,0,0"
                             Command="{Binding CloseWindowCommand}">
-                        <TextBlock FontFamily="Segoe MDL2 Assets"
+                        <TextBlock FontFamily="{DynamicResource LauncherIconFontFamily}"
                                    FontSize="12"
                                    Text="&#xE8BB;" />
                     </Button>
@@ -262,7 +262,7 @@
                         <TextBlock Text="{Binding AnalysisReasonTitle}"
                                    Style="{StaticResource DialogSubtitleTextStyle}"
                                    FontWeight="SemiBold"
-                                   Foreground="#F4F4F4" />
+                                   Foreground="{DynamicResource Brush.F4F4F4}" />
                         <TextBlock Margin="0,8,0,0"
                                    Text="{Binding AnalysisRecommendation}"
                                    Style="{StaticResource DialogSubtitleTextStyle}"
@@ -296,4 +296,5 @@
         </Grid>
     </Border>
 </Window>
+
 

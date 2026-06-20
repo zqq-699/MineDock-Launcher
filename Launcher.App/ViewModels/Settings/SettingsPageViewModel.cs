@@ -20,6 +20,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private readonly ISystemMemoryService systemMemoryService;
     private readonly IFilePickerService filePickerService;
     private readonly IInstanceFolderService instanceFolderService;
+    private readonly IThemeService themeService;
     private readonly SemaphoreSlim saveLock = new(1, 1);
     private LauncherSettings settings = new();
     private CancellationTokenSource? autoSaveCancellationTokenSource;
@@ -135,13 +136,15 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
         IFilePickerService filePickerService,
         IInstanceFolderService instanceFolderService,
-        IFloatingMessageService floatingMessageService)
+        IFloatingMessageService floatingMessageService,
+        IThemeService themeService)
     {
         this.settingsService = settingsService;
         this.statusService = statusService;
         this.systemMemoryService = systemMemoryService;
         this.filePickerService = filePickerService;
         this.instanceFolderService = instanceFolderService;
+        this.themeService = themeService;
         JavaSettings = new JavaSettingsEditorViewModel(
             javaRuntimeDiscoveryService,
             statusService,
@@ -305,8 +308,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             DefaultPostExitCommand = launcherSettings.DefaultPostExitCommand;
             DefaultJvmArguments = launcherSettings.DefaultJvmArguments;
             DefaultGameArguments = launcherSettings.DefaultGameArguments;
-            FollowSystemTheme = true;
-            SelectedThemeOption = ThemeOptions[0];
+            FollowSystemTheme = launcherSettings.ThemeFollowSystem;
+            SelectedThemeOption = ResolveThemeOption(launcherSettings.Theme);
             JavaSettings.LoadSelection(launcherSettings.JavaSelectionMode, launcherSettings.SelectedJavaExecutablePath);
         }
         finally
@@ -468,6 +471,14 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     partial void OnFollowSystemThemeChanged(bool value)
     {
         OnPropertyChanged(nameof(IsThemeSelectionVisible));
+        ApplyThemePreference();
+        ScheduleAutoSave();
+    }
+
+    partial void OnSelectedThemeOptionChanged(SettingsThemeOption? value)
+    {
+        ApplyThemePreference();
+        ScheduleAutoSave();
     }
 
     partial void OnDefaultMemoryMbChanged(double value)
@@ -573,6 +584,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private void ApplySettings()
     {
         settings.MinecraftDirectory = NormalizeDirectoryPath(MinecraftDirectory, settings.MinecraftDirectory);
+        settings.Theme = SelectedThemeOption?.Id ?? LauncherDefaults.DefaultTheme;
+        settings.ThemeFollowSystem = FollowSystemTheme;
         settings.DownloadSourcePreference = SelectedDownloadSourceOption?.Preference ?? DownloadSourcePreference.Auto;
         settings.DownloadSpeedLimitMbPerSecond = NormalizeDownloadSpeedLimit(DownloadSpeedLimitMbPerSecondText);
         settings.DefaultMemorySettingsMode = SelectedMemoryModeOption?.Mode ?? MemorySettingsMode.Auto;
@@ -588,6 +601,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         {
             DownloadSpeedLimitMbPerSecondText = FormatDownloadSpeedLimit(settings.DownloadSpeedLimitMbPerSecond);
             SelectedMemoryModeOption = ResolveMemoryModeOption(settings.DefaultMemorySettingsMode);
+            SelectedThemeOption = ResolveThemeOption(settings.Theme);
         }
         finally
         {
@@ -704,6 +718,22 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     {
         return DownloadSourceOptions.FirstOrDefault(option => option.Preference == preference)
                ?? DownloadSourceOptions[0];
+    }
+
+    private SettingsThemeOption ResolveThemeOption(string? theme)
+    {
+        return ThemeOptions.FirstOrDefault(option => string.Equals(option.Id, theme, StringComparison.OrdinalIgnoreCase))
+               ?? ThemeOptions[0];
+    }
+
+    private void ApplyThemePreference()
+    {
+        if (suppressAutoSave || !hasPrimedSettings)
+            return;
+
+        settings.Theme = SelectedThemeOption?.Id ?? LauncherDefaults.DefaultTheme;
+        settings.ThemeFollowSystem = FollowSystemTheme;
+        themeService.ApplyPreference(settings.Theme, settings.ThemeFollowSystem);
     }
 
     public void RefreshSystemMemorySnapshot()

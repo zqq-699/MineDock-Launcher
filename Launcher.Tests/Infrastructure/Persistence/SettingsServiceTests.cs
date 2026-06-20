@@ -30,7 +30,43 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.Equal(6144, loaded.DefaultMemoryMb);
         Assert.Equal(TempRoot, loaded.DataDirectory);
         Assert.Equal(DefaultMinecraftDirectory, loaded.MinecraftDirectory);
+        Assert.Equal(LauncherDefaults.DefaultTheme, loaded.Theme);
+        Assert.True(loaded.ThemeFollowSystem);
         Assert.Empty(loaded.Accounts);
+    }
+
+    [Fact]
+    public async Task SettingsServiceBackfillsInvalidTheme()
+    {
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(TempRoot, "settings.json"),
+            """
+            {
+              "Theme": "Blue"
+            }
+            """);
+        var service = new JsonSettingsService(TempRoot);
+
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(LauncherDefaults.DefaultTheme, loaded.Theme);
+        Assert.True(loaded.ThemeFollowSystem);
+    }
+
+    [Fact]
+    public async Task SettingsServiceRoundTripsThemePreference()
+    {
+        var service = new JsonSettingsService(TempRoot);
+        var settings = await service.LoadAsync();
+        settings.Theme = "Light";
+        settings.ThemeFollowSystem = false;
+
+        await service.SaveAsync(settings);
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal("Light", loaded.Theme);
+        Assert.False(loaded.ThemeFollowSystem);
     }
 
     [Fact]

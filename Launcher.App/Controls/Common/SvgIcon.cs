@@ -9,6 +9,13 @@ namespace Launcher.App.Controls;
 
 public sealed class SvgIcon : Control
 {
+    static SvgIcon()
+    {
+        ForegroundProperty.OverrideMetadata(
+            typeof(SvgIcon),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+    }
+
     public static readonly DependencyProperty IconKeyProperty =
         DependencyProperty.Register(
             nameof(IconKey),
@@ -16,12 +23,31 @@ public sealed class SvgIcon : Control
             typeof(SvgIcon),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty StrokeProperty =
+        DependencyProperty.Register(
+            nameof(Stroke),
+            typeof(Brush),
+            typeof(SvgIcon),
+            new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
     private static readonly Dictionary<string, SvgIconData?> IconCache = new(StringComparer.OrdinalIgnoreCase);
+
+    public SvgIcon()
+    {
+        SetResourceReference(ForegroundProperty, "Brush.Icon.Primary");
+        SetResourceReference(StrokeProperty, "Brush.Icon.Primary");
+    }
 
     public string? IconKey
     {
         get => (string?)GetValue(IconKeyProperty);
         set => SetValue(IconKeyProperty, value);
+    }
+
+    public Brush? Stroke
+    {
+        get => (Brush?)GetValue(StrokeProperty);
+        set => SetValue(StrokeProperty, value);
     }
 
     protected override void OnRender(DrawingContext drawingContext)
@@ -51,18 +77,19 @@ public sealed class SvgIcon : Control
                 drawingContext.PushTransform(new ScaleTransform(scale, scale));
                 pushedTransforms++;
 
-                var brush = Foreground;
+                var fillBrush = Foreground;
+                var strokeBrush = Stroke ?? fillBrush;
                 foreach (var shape in icon.Shapes)
                 {
-                    var pen = shape.HasStroke
-                        ? new Pen(brush, shape.StrokeThickness)
+                    var pen = shape.HasStroke && strokeBrush is not null
+                        ? new Pen(strokeBrush, shape.StrokeThickness)
                         {
                             StartLineCap = shape.LineCap,
                             EndLineCap = shape.LineCap,
                             LineJoin = shape.LineJoin
                         }
                         : null;
-                    drawingContext.DrawGeometry(shape.HasFill ? brush : null, pen, shape.Geometry);
+                    drawingContext.DrawGeometry(shape.HasFill ? fillBrush : null, pen, shape.Geometry);
                 }
             }
             finally

@@ -8,25 +8,30 @@ namespace Launcher.App.Services;
 
 internal static class NativeBackdrop
 {
-    public static void Enable(Window window, DwmSystemBackdropType backdropType)
+    public static void Enable(Window window, DwmSystemBackdropType backdropType, EffectiveTheme theme)
     {
         window.SourceInitialized += (_, _) =>
         {
-            var handle = new WindowInteropHelper(window).Handle;
-            if (handle == IntPtr.Zero)
-                return;
-
-            window.Background = Brushes.Transparent;
-
-            var source = HwndSource.FromHwnd(handle);
-            if (source?.CompositionTarget is not null)
-                source.CompositionTarget.BackgroundColor = Colors.Transparent;
-
-            TryApply(handle, backdropType);
+            ApplyToWindow(window, backdropType, theme);
         };
     }
 
-    public static bool TryApplyToPopup(Popup popup, DwmSystemBackdropType backdropType)
+    public static bool ApplyToWindow(Window window, DwmSystemBackdropType backdropType, EffectiveTheme theme)
+    {
+        var handle = new WindowInteropHelper(window).Handle;
+        if (handle == IntPtr.Zero)
+            return false;
+
+        window.Background = Brushes.Transparent;
+
+        var source = HwndSource.FromHwnd(handle);
+        if (source?.CompositionTarget is not null)
+            source.CompositionTarget.BackgroundColor = Colors.Transparent;
+
+        return TryApply(handle, backdropType, theme);
+    }
+
+    public static bool TryApplyToPopup(Popup popup, DwmSystemBackdropType backdropType, EffectiveTheme theme)
     {
         if (popup.Child is null)
             return false;
@@ -37,10 +42,10 @@ internal static class NativeBackdrop
         if (source.CompositionTarget is not null)
             source.CompositionTarget.BackgroundColor = Colors.Transparent;
 
-        return TryApply(source.Handle, backdropType);
+        return TryApply(source.Handle, backdropType, theme);
     }
 
-    public static bool TryApply(IntPtr handle, DwmSystemBackdropType backdropType)
+    public static bool TryApply(IntPtr handle, DwmSystemBackdropType backdropType, EffectiveTheme theme)
     {
         if (handle == IntPtr.Zero)
             return false;
@@ -56,7 +61,7 @@ internal static class NativeBackdrop
             };
             _ = DwmExtendFrameIntoClientArea(handle, ref margins);
 
-            var darkMode = 1;
+            var darkMode = theme is EffectiveTheme.Dark ? 1 : 0;
             _ = DwmSetWindowAttribute(handle, DwmWindowAttribute.UseImmersiveDarkMode, ref darkMode, sizeof(int));
 
             var cornerPreference = (int)DwmWindowCornerPreference.Round;

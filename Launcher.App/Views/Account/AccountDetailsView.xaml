@@ -50,7 +50,7 @@
             </Grid>
             <TextBlock Margin="0,8,0,0"
                        Text="{Binding AccountList.SelectedAccount.IsOffline, Converter={StaticResource AccountKindTextConverter}}"
-                       Foreground="#AFFFFFFF"
+                       Foreground="{DynamicResource Brush.AFFFFFFF}"
                        FontSize="13" />
 
             <StackPanel Margin="0,26,0,0">
@@ -86,7 +86,7 @@
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Text="{x:Static res:Strings.Account_OfflineUuidModeLabel}"
-                                       Foreground="#CFFFFFFF"
+                                       Foreground="{DynamicResource Brush.CFFFFFFF}"
                                        FontSize="13"
                                        VerticalAlignment="Center" />
                             <controls:AnimatedComboBox Grid.Column="1"
@@ -97,7 +97,7 @@
                                 <controls:AnimatedComboBox.ItemTemplate>
                                     <DataTemplate DataType="{x:Type models:OfflineUuidModeOption}">
                                         <TextBlock Text="{Binding Title}"
-                                                   Foreground="#F4F4F4"
+                                                   Foreground="{DynamicResource Brush.F4F4F4}"
                                                    FontSize="13"
                                                    VerticalAlignment="Center" />
                                     </DataTemplate>
@@ -132,7 +132,7 @@
                                        Grid.ColumnSpan="2"
                                        Margin="2,8,0,0"
                                        Text="{x:Static res:Strings.Account_OfflineUuidInvalid}"
-                                       Foreground="#FFFF8A8A"
+                                       Foreground="{DynamicResource Brush.FFFF8A8A}"
                                        FontSize="12"
                                        Visibility="{Binding OfflineUuid.IsManualUuidInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                         </Grid>
@@ -149,7 +149,7 @@
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Text="{x:Static res:Strings.Account_SkinHeader}"
-                                       Foreground="#A8FFFFFF"
+                                       Foreground="{DynamicResource Brush.A8FFFFFF}"
                                        FontSize="16"
                                        FontWeight="SemiBold"
                                        VerticalAlignment="Center" />
@@ -189,7 +189,7 @@
                             <TextBlock Width="240"
                                        Margin="14"
                                        Text="{x:Static res:Strings.Account_SkinPreviewEmpty}"
-                                       Foreground="#8FFFFFFF"
+                                       Foreground="{DynamicResource Brush.8FFFFFFF}"
                                        FontSize="12"
                                        TextAlignment="Center"
                                        TextWrapping="Wrap"
@@ -199,7 +199,7 @@
                             <TextBlock Width="260"
                                        Margin="14"
                                        Text="{x:Static res:Strings.Account_AppearanceOfflineUnsupported}"
-                                       Foreground="#8FFFFFFF"
+                                       Foreground="{DynamicResource Brush.8FFFFFFF}"
                                        FontSize="13"
                                        TextAlignment="Center"
                                        TextWrapping="Wrap"
@@ -220,7 +220,7 @@
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Text="{x:Static res:Strings.Account_CapeHeader}"
-                                       Foreground="#A8FFFFFF"
+                                       Foreground="{DynamicResource Brush.A8FFFFFF}"
                                        FontSize="16"
                                        FontWeight="SemiBold"
                                        VerticalAlignment="Center" />
@@ -254,7 +254,7 @@
                             <TextBlock Width="260"
                                        Margin="14"
                                        Text="{x:Static res:Strings.Account_AppearanceOfflineUnsupported}"
-                                       Foreground="#8FFFFFFF"
+                                       Foreground="{DynamicResource Brush.8FFFFFFF}"
                                        FontSize="13"
                                        TextAlignment="Center"
                                        TextWrapping="Wrap"
@@ -265,13 +265,13 @@
                         <StackPanel HorizontalAlignment="Center"
                                     Visibility="{Binding Appearance.HasSelectedAccountCapePreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
                             <TextBlock Text="{Binding Appearance.SelectedAccountCapeOption, Converter={StaticResource CapeDisplayNameConverter}}"
-                                       Foreground="#F4F4F4"
+                                       Foreground="{DynamicResource Brush.F4F4F4}"
                                        FontSize="13"
                                        FontWeight="SemiBold"
                                        TextAlignment="Center" />
                             <TextBlock Margin="0,4,0,0"
                                        Text="{Binding Appearance.SelectedAccountCapeOption, Converter={StaticResource CapeStateTextConverter}}"
-                                       Foreground="#8FFFFFFF"
+                                       Foreground="{DynamicResource Brush.8FFFFFFF}"
                                        FontSize="12"
                                        TextAlignment="Center" />
                         </StackPanel>
@@ -281,4 +281,5 @@
         </StackPanel>
     </ScrollViewer>
 </UserControl>
+
 

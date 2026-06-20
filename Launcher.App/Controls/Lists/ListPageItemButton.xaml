@@ -1,4 +1,4 @@
-<UserControl x:Class="Launcher.App.Controls.ListPageItemButton"
+﻿<UserControl x:Class="Launcher.App.Controls.ListPageItemButton"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
@@ -47,7 +47,7 @@
                                   HorizontalAlignment="Left"
                                   VerticalAlignment="Center"
                                   IconKey="{Binding IconKey, ElementName=Root}"
-                                  Foreground="#DFFFFFFF"
+                                  Foreground="{DynamicResource Brush.DFFFFFFF}"
                                   IsHitTestVisible="False">
                     <controls:SvgIcon.Style>
                         <Style TargetType="{x:Type controls:SvgIcon}">
@@ -136,3 +136,4 @@
     </Grid>
 
 </UserControl>
+

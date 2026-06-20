@@ -5,6 +5,7 @@ public sealed class LauncherSettings
     public string OfflineUsername { get; set; } = LauncherDefaults.DefaultOfflineUsername;
     public bool IsMenuExpanded { get; set; }
     public string Theme { get; set; } = LauncherDefaults.DefaultTheme;
+    public bool ThemeFollowSystem { get; set; } = true;
     public string DataDirectory { get; set; } = string.Empty;
     public string MinecraftDirectory { get; set; } = string.Empty;
     public DownloadSourcePreference DownloadSourcePreference { get; set; } = DownloadSourcePreference.Auto;

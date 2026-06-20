@@ -22,19 +22,19 @@ public sealed class BackdropBlurBorder : Border
             typeof(BackdropBlurBorder),
             new PropertyMetadata(42d, OnBackdropPropertyChanged));
 
-    public static readonly DependencyProperty TintColorProperty =
+    public static readonly DependencyProperty TintBrushProperty =
         DependencyProperty.Register(
-            nameof(TintColor),
-            typeof(Color),
+            nameof(TintBrush),
+            typeof(Brush),
             typeof(BackdropBlurBorder),
-            new PropertyMetadata(Color.FromArgb(0x8A, 0x25, 0x25, 0x25), OnBackdropPropertyChanged));
+            new PropertyMetadata(null, OnBackdropPropertyChanged));
 
-    public static readonly DependencyProperty BaseColorProperty =
+    public static readonly DependencyProperty BaseBrushProperty =
         DependencyProperty.Register(
-            nameof(BaseColor),
-            typeof(Color),
+            nameof(BaseBrush),
+            typeof(Brush),
             typeof(BackdropBlurBorder),
-            new PropertyMetadata(Color.FromRgb(0x25, 0x25, 0x25), OnBackdropPropertyChanged));
+            new PropertyMetadata(null, OnBackdropPropertyChanged));
 
     public static readonly DependencyProperty RenderScaleProperty =
         DependencyProperty.Register(
@@ -113,16 +113,16 @@ public sealed class BackdropBlurBorder : Border
         set => SetValue(BlurRadiusProperty, value);
     }
 
-    public Color TintColor
+    public Brush? TintBrush
     {
-        get => (Color)GetValue(TintColorProperty);
-        set => SetValue(TintColorProperty, value);
+        get => (Brush?)GetValue(TintBrushProperty);
+        set => SetValue(TintBrushProperty, value);
     }
 
-    public Color BaseColor
+    public Brush? BaseBrush
     {
-        get => (Color)GetValue(BaseColorProperty);
-        set => SetValue(BaseColorProperty, value);
+        get => (Brush?)GetValue(BaseBrushProperty);
+        set => SetValue(BaseBrushProperty, value);
     }
 
     public double RenderScale
@@ -175,6 +175,9 @@ public sealed class BackdropBlurBorder : Border
 
     public BackdropBlurBorder()
     {
+        SetResourceReference(BaseBrushProperty, "Brush.Backdrop.Base");
+        SetResourceReference(TintBrushProperty, "Brush.Backdrop.Tint");
+
         baseLayer = CreateLayer();
         blurLayer = CreateLayer();
         tintLayer = CreateLayer();
@@ -333,14 +336,14 @@ public sealed class BackdropBlurBorder : Border
         };
 
         ApplyLayerCornerRadius();
-        baseLayer.Background = new SolidColorBrush(BaseColor);
+        baseLayer.Background = BaseBrush;
         blurLayer.Background = sourceBrush;
         blurLayer.Effect = new BlurEffect
         {
             Radius = BlurRadius,
             RenderingBias = BlurRenderingBias
         };
-        tintLayer.Background = new SolidColorBrush(TintColor);
+        tintLayer.Background = TintBrush;
     }
 
     private FrameworkElement? ResolveSourceRoot()
@@ -364,10 +367,10 @@ public sealed class BackdropBlurBorder : Border
     private void ApplyFallbackBackground()
     {
         ApplyLayerCornerRadius();
-        baseLayer.Background = new SolidColorBrush(BaseColor);
+        baseLayer.Background = BaseBrush;
         blurLayer.Background = null;
         blurLayer.Effect = null;
-        tintLayer.Background = new SolidColorBrush(TintColor);
+        tintLayer.Background = TintBrush;
     }
 
     private void ApplyLayerCornerRadius()

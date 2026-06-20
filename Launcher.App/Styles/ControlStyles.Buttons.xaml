@@ -8,7 +8,7 @@
     <Style x:Key="LauncherContentSectionStyle" TargetType="GroupBox">
         <Setter Property="Padding" Value="0" />
         <Setter Property="Margin" Value="0" />
-        <Setter Property="Foreground" Value="#A8FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.A8FFFFFF}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Template">
@@ -31,7 +31,7 @@
     <Style x:Key="ListPageItemButtonStyle" TargetType="Button">
         <Setter Property="MinHeight" Value="58" />
         <Setter Property="Padding" Value="16,10" />
-        <Setter Property="Foreground" Value="#F2F2F2" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F2F2F2}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
@@ -45,27 +45,27 @@
                             CornerRadius="10">
                         <Grid>
                             <Border x:Name="SelectedBackground"
-                                    Background="#3D3D3D"
+                                    Background="{DynamicResource Brush.3D3D3D}"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <Border x:Name="HoverBackground"
-                                    Background="#20FFFFFF"
+                                    Background="{DynamicResource Brush.20FFFFFF}"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <Border x:Name="PressedBackground"
-                                    Background="#2EFFFFFF"
+                                    Background="{DynamicResource Brush.2EFFFFFF}"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <Border x:Name="TopSeparator"
                                     Height="1"
                                     Margin="44,0,30,0"
                                     VerticalAlignment="Top"
-                                    Background="#14FFFFFF" />
+                                    Background="{DynamicResource Brush.14FFFFFF}" />
                             <Border x:Name="BottomSeparator"
                                     Height="1"
                                     Margin="44,0,30,0"
                                     VerticalAlignment="Bottom"
-                                    Background="#14FFFFFF"
+                                    Background="{DynamicResource Brush.14FFFFFF}"
                                     Opacity="0" />
                             <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                               VerticalAlignment="Center" />
@@ -136,8 +136,8 @@
         <Setter Property="Margin" Value="0,0,30,28" />
         <Setter Property="HorizontalAlignment" Value="Right" />
         <Setter Property="VerticalAlignment" Value="Bottom" />
-        <Setter Property="Foreground" Value="#FFFFFF" />
-        <Setter Property="Background" Value="#0891FE" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.FFFFFF}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.0891FE}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="FontSize" Value="15" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -151,7 +151,7 @@
                             CornerRadius="9">
                         <Border.Effect>
                             <DropShadowEffect BlurRadius="18"
-                                              Color="#0891FE"
+                                              Color="{DynamicResource Color.0891FE}"
                                               Opacity="0.32"
                                               ShadowDepth="0" />
                         </Border.Effect>
@@ -160,11 +160,11 @@
                                     Background="{TemplateBinding Background}"
                                     CornerRadius="9" />
                             <Border x:Name="HoverBackground"
-                                    Background="#047EDC"
+                                    Background="{DynamicResource Brush.047EDC}"
                                     CornerRadius="9"
                                     Opacity="0" />
                             <Border x:Name="PressedBackground"
-                                    Background="#036FC2"
+                                    Background="{DynamicResource Brush.036FC2}"
                                     CornerRadius="9"
                                     Opacity="0" />
                             <ContentPresenter HorizontalAlignment="Center"
@@ -204,10 +204,10 @@
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Foreground" Value="#BFFFFFFF" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.BFFFFFFF}" />
                             <Setter Property="Cursor" Value="Arrow" />
                             <Setter TargetName="Root" Property="Effect" Value="{x:Null}" />
-                            <Setter TargetName="BaseBackground" Property="Background" Value="#5A5A5A" />
+                            <Setter TargetName="BaseBackground" Property="Background" Value="{DynamicResource Brush.5A5A5A}" />
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
                         </Trigger>
@@ -231,9 +231,9 @@
         <Setter Property="Margin" Value="0,0,0,32" />
         <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="VerticalAlignment" Value="Bottom" />
-        <Setter Property="Foreground" Value="#F4FFFFFF" />
-        <Setter Property="Background" Value="#B03D3D3D" />
-        <Setter Property="BorderBrush" Value="#22FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4FFFFFF}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.B03D3D3D}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.22FFFFFF}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -251,7 +251,7 @@
                             CornerRadius="17">
                         <Border.Effect>
                             <DropShadowEffect BlurRadius="18"
-                                              Color="#000000"
+                                              Color="{DynamicResource Color.000000}"
                                               Opacity="0.28"
                                               ShadowDepth="0" />
                         </Border.Effect>
@@ -260,11 +260,11 @@
                                     Background="{TemplateBinding Background}"
                                     CornerRadius="17" />
                             <Border x:Name="HoverBackground"
-                                    Background="#D04A4A4A"
+                                    Background="{DynamicResource Brush.D04A4A4A}"
                                     CornerRadius="17"
                                     Opacity="0" />
                             <Border x:Name="PressedBackground"
-                                    Background="#E05A5A5A"
+                                    Background="{DynamicResource Brush.E05A5A5A}"
                                     CornerRadius="17"
                                     Opacity="0" />
                             <ContentPresenter HorizontalAlignment="Center"
@@ -311,8 +311,8 @@
 
     <Style x:Key="LauncherProgressBarStyle" TargetType="ProgressBar">
         <Setter Property="Height" Value="5" />
-        <Setter Property="Foreground" Value="{StaticResource LauncherAccentBrush}" />
-        <Setter Property="Background" Value="#24FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource LauncherAccentBrush}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.24FFFFFF}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="behaviors:ProgressBarAnimation.IsEnabled" Value="True" />
@@ -334,7 +334,7 @@
                                     CornerRadius="3">
                                 <Border.Effect>
                                     <DropShadowEffect BlurRadius="8"
-                                                      Color="#0891FE"
+                                                      Color="{DynamicResource Color.0891FE}"
                                                       Opacity="0.26"
                                                       ShadowDepth="0" />
                                 </Border.Effect>
@@ -355,7 +355,7 @@
         <Setter Property="Height" Value="36" />
         <Setter Property="Margin" Value="0" />
         <Setter Property="Padding" Value="12,3" />
-        <Setter Property="Foreground" Value="#F2F2F2" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F2F2F2}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
@@ -371,15 +371,15 @@
                             <Border Background="{TemplateBinding Background}"
                                     CornerRadius="10" />
                             <Border x:Name="SelectedBackground"
-                                    Background="#3D3D3D"
+                                    Background="{DynamicResource Brush.3D3D3D}"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <Border x:Name="HoverBackground"
-                                    Background="#22FFFFFF"
+                                    Background="{DynamicResource Brush.22FFFFFF}"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <Border x:Name="PressedBackground"
-                                    Background="#34FFFFFF"
+                                    Background="{DynamicResource Brush.34FFFFFF}"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
@@ -435,7 +435,7 @@
     <Style x:Key="SecondaryMenuDeleteButtonStyle" TargetType="Button">
         <Setter Property="Width" Value="30" />
         <Setter Property="Height" Value="30" />
-        <Setter Property="Foreground" Value="#FF2F2F" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.FF2F2F}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
@@ -451,7 +451,7 @@
                             <Border Background="{TemplateBinding Background}"
                                     CornerRadius="7" />
                             <Border x:Name="HoverBackground"
-                                    Background="#18FF4A4A"
+                                    Background="{DynamicResource Brush.18FF4A4A}"
                                     CornerRadius="7"
                                     Opacity="0" />
                             <ContentPresenter HorizontalAlignment="Center"
@@ -488,10 +488,10 @@
                             </BeginStoryboard>
                         </EventTrigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Foreground" Value="#FF4A4A" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.FF4A4A}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter Property="Foreground" Value="#E00000" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.E00000}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -502,7 +502,7 @@
     <Style x:Key="InlineIconButtonStyle" TargetType="Button">
         <Setter Property="Width" Value="32" />
         <Setter Property="Height" Value="32" />
-        <Setter Property="Foreground" Value="#DFFFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.DFFFFFFF}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
@@ -514,11 +514,11 @@
                             CornerRadius="8">
                         <Grid>
                             <Border x:Name="HoverBackground"
-                                    Background="#22FFFFFF"
+                                    Background="{DynamicResource Brush.22FFFFFF}"
                                     CornerRadius="8"
                                     Opacity="0" />
                             <Border x:Name="PressedBackground"
-                                    Background="#34FFFFFF"
+                                    Background="{DynamicResource Brush.34FFFFFF}"
                                     CornerRadius="8"
                                     Opacity="0" />
                             <ContentPresenter HorizontalAlignment="Center"
@@ -559,7 +559,7 @@
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Cursor" Value="Arrow" />
-                            <Setter Property="Foreground" Value="#7DFFB2" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.7DFFB2}" />
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
                         </Trigger>
@@ -573,7 +573,7 @@
         <Setter Property="Width" Value="36" />
         <Setter Property="Height" Value="18" />
         <Setter Property="Cursor" Value="Hand" />
-        <Setter Property="Background" Value="#6E6E6E" />
+        <Setter Property="Background" Value="{DynamicResource Brush.6E6E6E}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Focusable" Value="False" />
         <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
@@ -588,11 +588,11 @@
                                 CornerRadius="5.625" />
                         <Border x:Name="TrackOutline"
                                 Background="Transparent"
-                                BorderBrush="#1AFFFFFF"
+                                BorderBrush="{DynamicResource Brush.1AFFFFFF}"
                                 BorderThickness="1"
                                 CornerRadius="5.625" />
                         <Border x:Name="ActiveTrack"
-                                Background="#0891FE"
+                                Background="{DynamicResource Brush.0891FE}"
                                 CornerRadius="5.625"
                                 Opacity="0" />
                         <Border x:Name="Thumb"
@@ -601,14 +601,14 @@
                                 Margin="3.375,0"
                                 HorizontalAlignment="Left"
                                 VerticalAlignment="Center"
-                                Background="#FFFFFF"
+                                Background="{DynamicResource Brush.FFFFFF}"
                                 CornerRadius="3.375">
                             <Border.RenderTransform>
                                 <TranslateTransform x:Name="ThumbTranslateTransform" X="0" />
                             </Border.RenderTransform>
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="11.25"
-                                                  Color="#20000000"
+                                                  Color="{DynamicResource Color.20000000}"
                                                   Opacity="0.2"
                                                   ShadowDepth="0" />
                             </Border.Effect>
@@ -673,11 +673,11 @@
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="1" />
                             <Setter Property="Cursor" Value="Arrow" />
-                            <Setter TargetName="Track" Property="Background" Value="#434343" />
-                            <Setter TargetName="TrackOutline" Property="BorderBrush" Value="#18FFFFFF" />
-                            <Setter TargetName="ActiveTrack" Property="Background" Value="#434343" />
+                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource Brush.434343}" />
+                            <Setter TargetName="TrackOutline" Property="BorderBrush" Value="{DynamicResource Brush.18FFFFFF}" />
+                            <Setter TargetName="ActiveTrack" Property="Background" Value="{DynamicResource Brush.434343}" />
                             <Setter TargetName="ActiveTrack" Property="Opacity" Value="0" />
-                            <Setter TargetName="Thumb" Property="Background" Value="#C8D0D9" />
+                            <Setter TargetName="Thumb" Property="Background" Value="{DynamicResource Brush.C8D0D9}" />
                             <Setter TargetName="Thumb" Property="Opacity" Value="0.62" />
                         </Trigger>
                         <MultiTrigger>
@@ -685,11 +685,11 @@
                                 <Condition Property="IsEnabled" Value="False" />
                                 <Condition Property="IsChecked" Value="True" />
                             </MultiTrigger.Conditions>
-                            <Setter TargetName="Track" Property="Background" Value="#1F4F7D" />
-                            <Setter TargetName="TrackOutline" Property="BorderBrush" Value="#2A89D8FF" />
-                            <Setter TargetName="ActiveTrack" Property="Background" Value="#1F4F7D" />
+                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource Brush.1F4F7D}" />
+                            <Setter TargetName="TrackOutline" Property="BorderBrush" Value="{DynamicResource Brush.2A89D8FF}" />
+                            <Setter TargetName="ActiveTrack" Property="Background" Value="{DynamicResource Brush.1F4F7D}" />
                             <Setter TargetName="ActiveTrack" Property="Opacity" Value="1" />
-                            <Setter TargetName="Thumb" Property="Background" Value="#E5F4FF" />
+                            <Setter TargetName="Thumb" Property="Background" Value="{DynamicResource Brush.E5F4FF}" />
                             <Setter TargetName="Thumb" Property="Opacity" Value="0.82" />
                         </MultiTrigger>
                     </ControlTemplate.Triggers>
@@ -714,3 +714,4 @@
     </Style>
 
 </ResourceDictionary>
+

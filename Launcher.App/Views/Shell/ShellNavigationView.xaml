@@ -1,11 +1,11 @@
-<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+﻿<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
              xmlns:models="clr-namespace:Launcher.App.Models"
              xmlns:res="clr-namespace:Launcher.App.Resources"
              x:Class="Launcher.App.Views.Shell.ShellNavigationView"
              x:Name="Root">
-    <Border BorderBrush="#284e4e4e"
+    <Border BorderBrush="{DynamicResource Brush.284E4E4E}"
             BorderThickness="0,0,1,0"
             Background="Transparent"
             ClipToBounds="True">
@@ -75,7 +75,7 @@
                         <Ellipse x:Name="DownloadTaskPulseCircle"
                                  Width="40"
                                  Height="40"
-                                 Fill="#66808080"
+                                 Fill="{DynamicResource Brush.66808080}"
                                  Opacity="0"
                                  CacheMode="BitmapCache"
                                  IsHitTestVisible="False"
@@ -134,7 +134,7 @@
                                     </controls:SvgIcon>
 
                                     <TextBlock Text="{Binding Icon}"
-                                               FontFamily="Segoe MDL2 Assets"
+                                               FontFamily="{DynamicResource LauncherIconFontFamily}"
                                                FontSize="22"
                                                TextAlignment="Center"
                                                VerticalAlignment="Center">
@@ -180,3 +180,4 @@
         </DockPanel>
     </Border>
 </UserControl>
+

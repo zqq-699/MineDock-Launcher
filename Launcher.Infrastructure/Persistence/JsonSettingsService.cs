@@ -79,6 +79,8 @@ public sealed class JsonSettingsService : ISettingsService
         if (string.IsNullOrWhiteSpace(settings.OfflineUsername))
             settings.OfflineUsername = LauncherDefaults.DefaultOfflineUsername;
 
+        settings.Theme = NormalizeTheme(settings.Theme);
+
         if (string.IsNullOrWhiteSpace(settings.DataDirectory))
             settings.DataDirectory = pathProvider.DefaultDataDirectory;
 
@@ -140,5 +142,16 @@ public sealed class JsonSettingsService : ISettingsService
             settings.SelectedJavaExecutablePath = null;
 
         return settings;
+    }
+
+    private static string NormalizeTheme(string? theme)
+    {
+        if (string.Equals(theme, "Light", StringComparison.OrdinalIgnoreCase))
+            return "Light";
+
+        if (string.Equals(theme, LauncherDefaults.DefaultTheme, StringComparison.OrdinalIgnoreCase))
+            return LauncherDefaults.DefaultTheme;
+
+        return LauncherDefaults.DefaultTheme;
     }
 }

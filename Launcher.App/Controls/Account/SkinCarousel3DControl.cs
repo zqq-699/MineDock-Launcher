@@ -363,16 +363,17 @@ public sealed class SkinCarousel3DControl : Grid
 
     private static Border CreateHoverHint()
     {
-        return new Border
+        var hint = new Border
         {
             Width = 96,
             Height = 148,
             CornerRadius = new CornerRadius(10),
-            Background = new SolidColorBrush(Color.FromArgb(34, 255, 255, 255)),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             Visibility = Visibility.Collapsed
         };
+        hint.SetResourceReference(Border.BackgroundProperty, "Brush.Control.Hover");
+        return hint;
     }
 
     private static void PositionHoverHint(Border hint, SkinCarouselSlot slot)

@@ -6,29 +6,32 @@
                     xmlns:converters="clr-namespace:Launcher.App.Converters"
                     xmlns:res="clr-namespace:Launcher.App.Resources">
     <converters:MinimumScrollThumbViewportConverter x:Key="MinimumScrollThumbViewportConverter" />
-    <Style x:Key="SecondaryMenuPanelStyle" TargetType="Border">
+    <Style x:Key="SecondaryMenuPanelShadowStyle" TargetType="Border">
         <Setter Property="Width" Value="224" />
         <Setter Property="Margin" Value="24,24,0,24" />
         <Setter Property="HorizontalAlignment" Value="Left" />
-        <Setter Property="Background" Value="#5A4A4A4A" />
-        <Setter Property="BorderBrush" Value="#24FFFFFF" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="14" />
-        <Setter Property="ClipToBounds" Value="True" />
-        <Setter Property="behaviors:RoundedClip.Radius" Value="14" />
         <Setter Property="Effect">
             <Setter.Value>
-                <DropShadowEffect BlurRadius="18"
-                                  Color="#000000"
-                                  Opacity="0.26"
+                <DropShadowEffect BlurRadius="34"
+                                  Color="{DynamicResource Color.SecondaryMenu.Shadow}"
+                                  Opacity="0.1"
                                   ShadowDepth="0" />
             </Setter.Value>
         </Setter>
     </Style>
 
+    <Style x:Key="SecondaryMenuPanelStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource Brush.SecondaryMenu.Panel}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.SecondaryMenu.Border}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="ClipToBounds" Value="True" />
+        <Setter Property="behaviors:RoundedClip.Radius" Value="14" />
+    </Style>
+
     <Style x:Key="SecondaryMenuHeaderTextStyle" TargetType="TextBlock">
         <Setter Property="Margin" Value="22,18,22,8" />
-        <Setter Property="Foreground" Value="#E8FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.E8FFFFFF}" />
         <Setter Property="FontSize" Value="20" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
@@ -43,9 +46,9 @@
         <Setter Property="Background">
             <Setter.Value>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                    <GradientStop Color="#D8282828" Offset="0" />
-                    <GradientStop Color="#C2282828" Offset="0.72" />
-                    <GradientStop Color="#00282828" Offset="1" />
+                    <GradientStop Color="{DynamicResource Color.SecondaryMenu.Header.Start}" Offset="0" />
+                    <GradientStop Color="{DynamicResource Color.SecondaryMenu.Header.Middle}" Offset="0.72" />
+                    <GradientStop Color="{DynamicResource Color.SecondaryMenu.Header.End}" Offset="1" />
                 </LinearGradientBrush>
             </Setter.Value>
         </Setter>
@@ -70,7 +73,7 @@
 
     <Style x:Key="SlimScrollThumbStyle" TargetType="Thumb">
         <Setter Property="MinHeight" Value="34" />
-        <Setter Property="Background" Value="#5CFFFFFF" />
+        <Setter Property="Background" Value="{DynamicResource Brush.5CFFFFFF}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
@@ -82,10 +85,10 @@
                             CornerRadius="2.5" />
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#84FFFFFF" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.84FFFFFF}" />
                         </Trigger>
                         <Trigger Property="IsDragging" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#A8FFFFFF" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.A8FFFFFF}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -221,3 +224,4 @@
     </Style>
 
 </ResourceDictionary>
+
