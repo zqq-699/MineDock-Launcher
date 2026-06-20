@@ -512,6 +512,39 @@ public sealed class AccountPageViewModelTests
     }
 
     [Fact]
+    public void SelectingOfflineAccountShowsAppearanceUnsupportedStateInsteadOfPreviews()
+    {
+        var viewModel = CreateViewModel(new FakeAccountStore(), new FakeStatusService());
+        var account = new LauncherAccount
+        {
+            Id = "offline-player",
+            DisplayName = "OfflinePlayer",
+            Uuid = "offline-player",
+            IsOffline = true,
+            SkinLibrary =
+            [
+                new LauncherSkinRecord
+                {
+                    Id = "skin-local",
+                    Source = "local-skin.png",
+                    SkinModel = MinecraftSkinModel.Classic,
+                    ContentHash = "hash-local",
+                    AddedAtUtc = DateTimeOffset.UtcNow
+                }
+            ]
+        };
+        viewModel.AccountList.Accounts.Add(account);
+
+        viewModel.SelectAccount(account);
+
+        Assert.True(viewModel.Appearance.CanShowSelectedAccountAppearanceOfflineState);
+        Assert.False(viewModel.Appearance.HasSelectedAccountSkinPreview);
+        Assert.False(viewModel.Appearance.CanShowSelectedAccountSkinPreviewEmptyState);
+        Assert.False(viewModel.Appearance.HasSelectedAccountCapePreview);
+        Assert.False(viewModel.Appearance.CanShowSelectedAccountCapePreviewEmptyState);
+    }
+
+    [Fact]
     public async Task CancelSkinModelDialogClearsPendingSkinUpload()
     {
         var microsoftAccountService = new FakeMicrosoftAccountService

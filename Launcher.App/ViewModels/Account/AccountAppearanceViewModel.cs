@@ -97,6 +97,8 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         && !accountList.SelectedAccount.IsOffline
         && !IsAccountProfileBusy;
 
+    public bool CanShowSelectedAccountAppearanceOfflineState => accountList.SelectedAccount?.IsOffline == true;
+
     public bool CanApplySelectedCape => accountList.SelectedAccount is not null
         && !accountList.SelectedAccount.IsOffline
         && !IsAccountProfileBusy
@@ -105,18 +107,22 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
     public bool HasSelectedAccountCapes => SelectedAccountCapeOptions.Count > 0;
 
-    public bool HasSelectedAccountCapePreview => SelectedAccountCapeOption is not null;
+    public bool HasSelectedAccountCapePreview => !CanShowSelectedAccountAppearanceOfflineState
+        && SelectedAccountCapeOption is not null;
 
     public bool CanShowSelectedAccountCapePreviewEmptyState => accountList.SelectedAccount is not null
+        && !CanShowSelectedAccountAppearanceOfflineState
         && !HasSelectedAccountCapePreview;
 
     public bool HasSelectedAccountSkins => SelectedAccountSkins.Count > 0;
 
     public bool CanShowSkinManagerEmptyState => !HasSelectedAccountSkins;
 
-    public bool HasSelectedAccountSkinPreview => SelectedAccountSkin is not null;
+    public bool HasSelectedAccountSkinPreview => !CanShowSelectedAccountAppearanceOfflineState
+        && SelectedAccountSkin is not null;
 
     public bool CanShowSelectedAccountSkinPreviewEmptyState => accountList.SelectedAccount is not null
+        && !CanShowSelectedAccountAppearanceOfflineState
         && !HasSelectedAccountSkinPreview;
 
     public LauncherSkinRecord? PreviousAccountSkin => GetAdjacentSkin(-1);
@@ -1021,6 +1027,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanChangeSelectedAccountSkin));
         OnPropertyChanged(nameof(CanManageSelectedAccountSkins));
+        OnPropertyChanged(nameof(CanShowSelectedAccountAppearanceOfflineState));
         OnPropertyChanged(nameof(HasSelectedAccountSkins));
         OnPropertyChanged(nameof(CanShowSkinManagerEmptyState));
         OnPropertyChanged(nameof(ActiveSkinId));

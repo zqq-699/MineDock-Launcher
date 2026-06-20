@@ -187,6 +187,7 @@ public static class Strings
     public static string Account_ChangeSkinModelButton => Get(nameof(Account_ChangeSkinModelButton));
     public static string Account_SkinActiveState => Get(nameof(Account_SkinActiveState));
     public static string Account_SkinPreviewEmpty => Get(nameof(Account_SkinPreviewEmpty));
+    public static string Account_AppearanceOfflineUnsupported => Get(nameof(Account_AppearanceOfflineUnsupported));
     public static string Account_SkinModelClassicTitle => Get(nameof(Account_SkinModelClassicTitle));
     public static string Account_SkinModelClassicDescription => Get(nameof(Account_SkinModelClassicDescription));
     public static string Account_SkinModelSlimTitle => Get(nameof(Account_SkinModelSlimTitle));

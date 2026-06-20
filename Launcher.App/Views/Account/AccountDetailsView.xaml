@@ -199,6 +199,16 @@
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
                                        Visibility="{Binding Appearance.CanShowSelectedAccountSkinPreviewEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                            <TextBlock Width="260"
+                                       Margin="14"
+                                       Text="{x:Static res:Strings.Account_AppearanceOfflineUnsupported}"
+                                       Foreground="#8FFFFFFF"
+                                       FontSize="13"
+                                       TextAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding Appearance.CanShowSelectedAccountAppearanceOfflineState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                         </Grid>
                     </StackPanel>
                 </GroupBox>
@@ -244,6 +254,16 @@
                                                                    PreviousCommand="{Binding Appearance.SelectPreviousAccountCapeCommand}"
                                                                    NextCommand="{Binding Appearance.SelectNextAccountCapeCommand}"
                                                                    Visibility="{Binding Appearance.HasSelectedAccountCapePreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                            <TextBlock Width="260"
+                                       Margin="14"
+                                       Text="{x:Static res:Strings.Account_AppearanceOfflineUnsupported}"
+                                       Foreground="#8FFFFFFF"
+                                       FontSize="13"
+                                       TextAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding Appearance.CanShowSelectedAccountAppearanceOfflineState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                         </Grid>
                         <StackPanel HorizontalAlignment="Center"
                                     Visibility="{Binding Appearance.HasSelectedAccountCapePreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">

@@ -150,6 +150,7 @@
   <data name="Account_ChangeSkinModelButton" xml:space="preserve"><value>更改模型</value></data>
   <data name="Account_SkinActiveState" xml:space="preserve"><value>当前应用</value></data>
   <data name="Account_SkinPreviewEmpty" xml:space="preserve"><value>暂无皮肤预览，刷新资料或上传皮肤后显示。</value></data>
+  <data name="Account_AppearanceOfflineUnsupported" xml:space="preserve"><value>离线账号不支持皮肤/披风管理</value></data>
   <data name="Account_SkinModelClassicTitle" xml:space="preserve"><value>默认</value></data>
   <data name="Account_SkinModelClassicDescription" xml:space="preserve"><value>Steve 模型，手臂宽度为 4 像素。</value></data>
   <data name="Account_SkinModelSlimTitle" xml:space="preserve"><value>瘦</value></data>
