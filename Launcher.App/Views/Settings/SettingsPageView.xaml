@@ -46,13 +46,21 @@
             </controls:SecondaryMenuFrame.MenuContent>
         </controls:SecondaryMenuFrame>
 
-        <controls:ListPageFrame Margin="284,36,24,8"
+        <controls:ListPageFrame x:Name="SettingsListFrame"
+                                Margin="284,36,24,8"
                                 Title="{Binding SectionTitle}"
                                 IsSearchVisible="False"
                                 IsListVisible="True"
                                 UseFrameScrollViewer="True">
             <controls:ListPageFrame.ListContent>
-                <ContentControl Content="{Binding CurrentSectionViewModel}" />
+                <StackPanel Loaded="SectionContentRoot_OnLoaded"
+                            Unloaded="SectionContentRoot_OnUnloaded">
+                    <StackPanel.RenderTransform>
+                        <TranslateTransform />
+                    </StackPanel.RenderTransform>
+
+                    <ContentControl Content="{Binding CurrentSectionViewModel}" />
+                </StackPanel>
             </controls:ListPageFrame.ListContent>
         </controls:ListPageFrame>
     </Grid>

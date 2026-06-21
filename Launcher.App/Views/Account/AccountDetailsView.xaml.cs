@@ -42,20 +42,20 @@ public partial class AccountDetailsView : UserControl
     private void AccountDetailsView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (currentViewModelNotifier is not null)
-            currentViewModelNotifier.PropertyChanged -= AccountPageViewModel_PropertyChanged;
+            currentViewModelNotifier.PropertyChanged -= AccountDetailsViewModel_PropertyChanged;
 
         currentViewModelNotifier = e.NewValue as INotifyPropertyChanged;
         if (currentViewModelNotifier is not null)
-            currentViewModelNotifier.PropertyChanged += AccountPageViewModel_PropertyChanged;
+            currentViewModelNotifier.PropertyChanged += AccountDetailsViewModel_PropertyChanged;
 
         currentAccountToken = GetCurrentAccountToken();
         accountTransitionService.SyncTo(currentAccountToken);
         ResetContentPresentation();
     }
 
-    private void AccountPageViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    private void AccountDetailsViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is not nameof(AccountPageViewModel.SelectedAccount))
+        if (e.PropertyName is not nameof(AccountDetailsViewModel.SelectedAccount))
             return;
 
         var accountToken = GetCurrentAccountToken();
@@ -79,7 +79,7 @@ public partial class AccountDetailsView : UserControl
 
     private string? GetCurrentAccountToken()
     {
-        return (DataContext as AccountPageViewModel)?.SelectedAccount?.Id;
+        return (DataContext as AccountDetailsViewModel)?.SelectedAccount?.Id;
     }
 
     private void ResetContentPresentation()

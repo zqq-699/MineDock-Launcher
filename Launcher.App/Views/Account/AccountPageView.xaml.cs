@@ -10,6 +10,7 @@ public partial class AccountPageView : UserControl
 {
     private readonly SlidingContentTransitionCoordinator selectionTransition;
     private INotifyPropertyChanged? currentViewModelNotifier;
+    private bool? hasSelectedAccountState;
 
     public AccountPageView()
     {
@@ -35,7 +36,8 @@ public partial class AccountPageView : UserControl
 
     private void AccountPageView_Loaded(object sender, RoutedEventArgs e)
     {
-        selectionTransition.Sync(HasSelectedAccount());
+        hasSelectedAccountState = HasSelectedAccount();
+        selectionTransition.Sync(hasSelectedAccountState.Value);
     }
 
     private void AccountPageView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -47,13 +49,20 @@ public partial class AccountPageView : UserControl
         if (currentViewModelNotifier is not null)
             currentViewModelNotifier.PropertyChanged += AccountPageViewModel_PropertyChanged;
 
-        selectionTransition.Sync(HasSelectedAccount());
+        hasSelectedAccountState = HasSelectedAccount();
+        selectionTransition.Sync(hasSelectedAccountState.Value);
     }
 
     private void AccountPageViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(AccountPageViewModel.SelectedAccount))
-            selectionTransition.AnimateTo(HasSelectedAccount());
+        {
+            var hasSelectedAccount = HasSelectedAccount();
+            if (hasSelectedAccountState != hasSelectedAccount)
+                selectionTransition.AnimateTo(hasSelectedAccount);
+
+            hasSelectedAccountState = hasSelectedAccount;
+        }
     }
 
     private bool HasSelectedAccount()
