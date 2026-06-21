@@ -28,7 +28,9 @@ public sealed class SettingsPageViewModelTests
             DefaultPostExitCommand = "echo after",
             DefaultJvmArguments = "-Dfoo=bar",
             DefaultGameArguments = "--demo",
-            Theme = "Light"
+            Theme = "Light",
+            DisableBackgroundBlur = true,
+            LauncherBackgroundOpacityPercent = 72
         };
 
         viewModel.PrimeFromSettings(settings);
@@ -59,6 +61,9 @@ public sealed class SettingsPageViewModelTests
         Assert.True(viewModel.FollowSystemTheme);
         Assert.False(viewModel.IsThemeSelectionVisible);
         Assert.Equal("Light", viewModel.SelectedThemeOption?.Id);
+        Assert.True(viewModel.DisableBackgroundBlur);
+        Assert.Equal(72, viewModel.LauncherBackgroundOpacityPercent);
+        Assert.Equal("72%", viewModel.LauncherBackgroundOpacityText);
     }
 
     [Fact]
@@ -257,6 +262,8 @@ public sealed class SettingsPageViewModelTests
         Assert.True(viewModel.FollowSystemTheme);
         Assert.False(viewModel.IsThemeSelectionVisible);
         Assert.Equal(LauncherDefaults.DefaultTheme, viewModel.SelectedThemeOption?.Id);
+        Assert.Equal(LauncherDefaults.DefaultLauncherBackgroundOpacityPercent, viewModel.LauncherBackgroundOpacityPercent);
+        Assert.Equal("85%", viewModel.LauncherBackgroundOpacityText);
     }
 
     [Fact]
@@ -288,6 +295,47 @@ public sealed class SettingsPageViewModelTests
 
         Assert.Equal("Light", themeService.LastTheme);
         Assert.False(themeService.LastFollowSystem);
+        Assert.Equal(LauncherDefaults.DefaultLauncherBackgroundOpacityPercent, themeService.LastBackgroundOpacityPercent);
+    }
+
+    [Fact]
+    public async Task BackgroundOpacitySliderAppliesAndPersistsSettings()
+    {
+        var settings = new LauncherSettings
+        {
+            LauncherBackgroundOpacityPercent = LauncherDefaults.DefaultLauncherBackgroundOpacityPercent
+        };
+        var viewModel = CreateViewModel(settings, out var settingsService, out _, out var themeService);
+        viewModel.PrimeFromSettings(settings);
+
+        viewModel.LauncherBackgroundOpacityPercent = 42;
+
+        await TestAsync.WaitForAsync(() =>
+            settingsService.SaveCount >= 1
+            && settings.LauncherBackgroundOpacityPercent == 42);
+
+        Assert.Equal(42, viewModel.LauncherBackgroundOpacityPercent);
+        Assert.Equal("42%", viewModel.LauncherBackgroundOpacityText);
+        Assert.Equal(1, themeService.ApplyBackgroundOpacityCount);
+        Assert.Equal(42, themeService.LastBackgroundOpacityPercent);
+    }
+
+    [Fact]
+    public async Task DisableBackgroundBlurToggleAppliesAndPersistsSettings()
+    {
+        var settings = new LauncherSettings();
+        var viewModel = CreateViewModel(settings, out var settingsService, out _, out var themeService);
+        viewModel.PrimeFromSettings(settings);
+
+        viewModel.DisableBackgroundBlur = true;
+
+        await TestAsync.WaitForAsync(() =>
+            settingsService.SaveCount >= 1
+            && settings.DisableBackgroundBlur);
+
+        Assert.True(viewModel.DisableBackgroundBlur);
+        Assert.Equal(1, themeService.ApplyBackgroundBlurDisabledCount);
+        Assert.True(themeService.LastDisableBackgroundBlur);
     }
 
     [Fact]

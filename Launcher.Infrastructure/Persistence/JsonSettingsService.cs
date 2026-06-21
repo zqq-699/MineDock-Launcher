@@ -80,6 +80,10 @@ public sealed class JsonSettingsService : ISettingsService
             settings.OfflineUsername = LauncherDefaults.DefaultOfflineUsername;
 
         settings.Theme = NormalizeTheme(settings.Theme);
+        settings.LauncherBackgroundOpacityPercent = Math.Clamp(
+            settings.LauncherBackgroundOpacityPercent,
+            0,
+            100);
 
         if (string.IsNullOrWhiteSpace(settings.DataDirectory))
             settings.DataDirectory = pathProvider.DefaultDataDirectory;

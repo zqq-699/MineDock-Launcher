@@ -193,12 +193,14 @@
                                                          UseSourceElementAsRenderRoot="True"
                                                          Opacity="1"
                                                          BlurRadius="24"
-                                                         TintBrush="{DynamicResource Brush.80252525}"
+                                                         TintBrush="{DynamicResource Brush.Surface.PopupBlurTint}"
                                                          BorderBrush="{TemplateBinding BorderBrush}"
                                                          BorderThickness="{TemplateBinding BorderThickness}"
                                                          CornerRadius="10"
                                                          ClipToBounds="True"
                                                          behaviors:RoundedClip.Radius="10" />
+                            <Border Background="{DynamicResource Brush.Surface.PopupTint}"
+                                    CornerRadius="10" />
                             <Border x:Name="HoverLayer"
                                     Background="{DynamicResource Brush.10FFFFFF}"
                                     CornerRadius="10"

@@ -22,6 +22,13 @@ public sealed class BackdropBlurBorder : Border
             typeof(BackdropBlurBorder),
             new PropertyMetadata(42d, OnBackdropPropertyChanged));
 
+    public static readonly DependencyProperty IsBlurEnabledProperty =
+        DependencyProperty.Register(
+            nameof(IsBlurEnabled),
+            typeof(bool),
+            typeof(BackdropBlurBorder),
+            new PropertyMetadata(true, OnBackdropPropertyChanged));
+
     public static readonly DependencyProperty TintBrushProperty =
         DependencyProperty.Register(
             nameof(TintBrush),
@@ -113,6 +120,12 @@ public sealed class BackdropBlurBorder : Border
         set => SetValue(BlurRadiusProperty, value);
     }
 
+    public bool IsBlurEnabled
+    {
+        get => (bool)GetValue(IsBlurEnabledProperty);
+        set => SetValue(IsBlurEnabledProperty, value);
+    }
+
     public Brush? TintBrush
     {
         get => (Brush?)GetValue(TintBrushProperty);
@@ -177,6 +190,7 @@ public sealed class BackdropBlurBorder : Border
     {
         SetResourceReference(BaseBrushProperty, "Brush.Backdrop.Base");
         SetResourceReference(TintBrushProperty, "Brush.Backdrop.Tint");
+        SetResourceReference(IsBlurEnabledProperty, "Is.BackdropBlur.Enabled");
 
         baseLayer = CreateLayer();
         blurLayer = CreateLayer();
@@ -313,7 +327,7 @@ public sealed class BackdropBlurBorder : Border
 
     private void Refresh()
     {
-        if (!IsVisible || ActualWidth <= 0 || ActualHeight <= 0 || SourceElement is null)
+        if (!IsBlurEnabled || !IsVisible || ActualWidth <= 0 || ActualHeight <= 0 || SourceElement is null)
         {
             ApplyFallbackBackground();
             return;

@@ -55,6 +55,12 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private bool followSystemTheme = true;
 
     [ObservableProperty]
+    private int launcherBackgroundOpacityPercent = LauncherDefaults.DefaultLauncherBackgroundOpacityPercent;
+
+    [ObservableProperty]
+    private bool disableBackgroundBlur;
+
+    [ObservableProperty]
     private double defaultMemoryMb = LauncherDefaults.DefaultMemoryMb;
 
     [ObservableProperty]
@@ -268,6 +274,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     public bool IsThemeSelectionVisible => !FollowSystemTheme;
 
+    public string LauncherBackgroundOpacityText => $"{LauncherBackgroundOpacityPercent}%";
+
     public bool HasJavaRuntimeListMessage => JavaSettings.HasJavaRuntimeListMessage;
 
     public bool IsJavaManualSelection => JavaSettings.IsJavaManualSelection;
@@ -310,6 +318,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             DefaultGameArguments = launcherSettings.DefaultGameArguments;
             FollowSystemTheme = launcherSettings.ThemeFollowSystem;
             SelectedThemeOption = ResolveThemeOption(launcherSettings.Theme);
+            DisableBackgroundBlur = launcherSettings.DisableBackgroundBlur;
+            LauncherBackgroundOpacityPercent = NormalizeLauncherBackgroundOpacity(launcherSettings.LauncherBackgroundOpacityPercent);
             JavaSettings.LoadSelection(launcherSettings.JavaSelectionMode, launcherSettings.SelectedJavaExecutablePath);
         }
         finally
@@ -481,6 +491,34 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         ScheduleAutoSave();
     }
 
+    partial void OnLauncherBackgroundOpacityPercentChanged(int value)
+    {
+        var normalized = NormalizeLauncherBackgroundOpacity(value);
+        if (normalized != value)
+        {
+            LauncherBackgroundOpacityPercent = normalized;
+            return;
+        }
+
+        OnPropertyChanged(nameof(LauncherBackgroundOpacityText));
+        if (suppressAutoSave || !hasPrimedSettings)
+            return;
+
+        settings.LauncherBackgroundOpacityPercent = normalized;
+        themeService.ApplyBackgroundOpacity(normalized);
+        ScheduleAutoSave();
+    }
+
+    partial void OnDisableBackgroundBlurChanged(bool value)
+    {
+        if (suppressAutoSave || !hasPrimedSettings)
+            return;
+
+        settings.DisableBackgroundBlur = value;
+        themeService.ApplyBackgroundBlurDisabled(value);
+        ScheduleAutoSave();
+    }
+
     partial void OnDefaultMemoryMbChanged(double value)
     {
         var clamped = Math.Clamp(value, MemorySliderMinimumMb, MemorySliderMaximumMb);
@@ -586,6 +624,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         settings.MinecraftDirectory = NormalizeDirectoryPath(MinecraftDirectory, settings.MinecraftDirectory);
         settings.Theme = SelectedThemeOption?.Id ?? LauncherDefaults.DefaultTheme;
         settings.ThemeFollowSystem = FollowSystemTheme;
+        settings.DisableBackgroundBlur = DisableBackgroundBlur;
+        settings.LauncherBackgroundOpacityPercent = NormalizeLauncherBackgroundOpacity(LauncherBackgroundOpacityPercent);
         settings.DownloadSourcePreference = SelectedDownloadSourceOption?.Preference ?? DownloadSourcePreference.Auto;
         settings.DownloadSpeedLimitMbPerSecond = NormalizeDownloadSpeedLimit(DownloadSpeedLimitMbPerSecondText);
         settings.DefaultMemorySettingsMode = SelectedMemoryModeOption?.Mode ?? MemorySettingsMode.Auto;
@@ -602,6 +642,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             DownloadSpeedLimitMbPerSecondText = FormatDownloadSpeedLimit(settings.DownloadSpeedLimitMbPerSecond);
             SelectedMemoryModeOption = ResolveMemoryModeOption(settings.DefaultMemorySettingsMode);
             SelectedThemeOption = ResolveThemeOption(settings.Theme);
+            DisableBackgroundBlur = settings.DisableBackgroundBlur;
+            LauncherBackgroundOpacityPercent = settings.LauncherBackgroundOpacityPercent;
         }
         finally
         {
@@ -726,6 +768,11 @@ public sealed partial class SettingsPageViewModel : ObservableObject
                ?? ThemeOptions[0];
     }
 
+    private static int NormalizeLauncherBackgroundOpacity(int value)
+    {
+        return Math.Clamp(value, 0, 100);
+    }
+
     private void ApplyThemePreference()
     {
         if (suppressAutoSave || !hasPrimedSettings)
@@ -733,7 +780,13 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
         settings.Theme = SelectedThemeOption?.Id ?? LauncherDefaults.DefaultTheme;
         settings.ThemeFollowSystem = FollowSystemTheme;
-        themeService.ApplyPreference(settings.Theme, settings.ThemeFollowSystem);
+        settings.DisableBackgroundBlur = DisableBackgroundBlur;
+        settings.LauncherBackgroundOpacityPercent = NormalizeLauncherBackgroundOpacity(LauncherBackgroundOpacityPercent);
+        themeService.ApplyPreference(
+            settings.Theme,
+            settings.ThemeFollowSystem,
+            settings.LauncherBackgroundOpacityPercent,
+            settings.DisableBackgroundBlur);
     }
 
     public void RefreshSystemMemorySnapshot()

@@ -67,6 +67,9 @@
   <data name="Settings_ThemeSection" xml:space="preserve"><value>启动器外观</value></data>
   <data name="Settings_ThemeFollowSystemLabel" xml:space="preserve"><value>跟随系统设置</value></data>
   <data name="Settings_ThemeSelectionLabel" xml:space="preserve"><value>外观设置</value></data>
+  <data name="Settings_BackgroundSection" xml:space="preserve"><value>启动器背景</value></data>
+  <data name="Settings_DisableBackgroundBlurLabel" xml:space="preserve"><value>禁用背景模糊效果</value></data>
+  <data name="Settings_BackgroundOpacityLabel" xml:space="preserve"><value>启动器背景不透明度</value></data>
   <data name="Settings_ThemeDarkTitle" xml:space="preserve"><value>深色</value></data>
   <data name="Settings_ThemeLightTitle" xml:space="preserve"><value>浅色</value></data>
   <data name="Settings_ControlDemoButtonsSection" xml:space="preserve"><value>按钮与导航</value></data>

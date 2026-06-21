@@ -16,19 +16,25 @@ internal static class NativeBackdrop
         };
     }
 
-    public static bool ApplyToWindow(Window window, DwmSystemBackdropType backdropType, EffectiveTheme theme)
+    public static bool ApplyToWindow(
+        Window window,
+        DwmSystemBackdropType backdropType,
+        EffectiveTheme theme,
+        bool extendIntoClientArea = true)
     {
         var handle = new WindowInteropHelper(window).Handle;
         if (handle == IntPtr.Zero)
             return false;
 
-        window.Background = Brushes.Transparent;
-
         var source = HwndSource.FromHwnd(handle);
         if (source?.CompositionTarget is not null)
-            source.CompositionTarget.BackgroundColor = Colors.Transparent;
+        {
+            source.CompositionTarget.BackgroundColor = extendIntoClientArea
+                ? Colors.Transparent
+                : GetOpaqueWindowBackgroundColor(theme);
+        }
 
-        return TryApply(handle, backdropType, theme);
+        return TryApply(handle, backdropType, theme, extendIntoClientArea);
     }
 
     public static bool TryApplyToPopup(Popup popup, DwmSystemBackdropType backdropType, EffectiveTheme theme)
@@ -45,7 +51,11 @@ internal static class NativeBackdrop
         return TryApply(source.Handle, backdropType, theme);
     }
 
-    public static bool TryApply(IntPtr handle, DwmSystemBackdropType backdropType, EffectiveTheme theme)
+    public static bool TryApply(
+        IntPtr handle,
+        DwmSystemBackdropType backdropType,
+        EffectiveTheme theme,
+        bool extendIntoClientArea = true)
     {
         if (handle == IntPtr.Zero)
             return false;
@@ -54,10 +64,10 @@ internal static class NativeBackdrop
         {
             var margins = new Margins
             {
-                Left = -1,
-                Right = -1,
-                Top = -1,
-                Bottom = -1
+                Left = extendIntoClientArea ? -1 : 0,
+                Right = extendIntoClientArea ? -1 : 0,
+                Top = extendIntoClientArea ? -1 : 0,
+                Bottom = extendIntoClientArea ? -1 : 0
             };
             _ = DwmExtendFrameIntoClientArea(handle, ref margins);
 
@@ -85,6 +95,13 @@ internal static class NativeBackdrop
         {
             return false;
         }
+    }
+
+    public static Color GetOpaqueWindowBackgroundColor(EffectiveTheme theme)
+    {
+        return theme is EffectiveTheme.Light
+            ? Colors.White
+            : Color.FromRgb(0x15, 0x15, 0x15);
     }
 
     [DllImport("dwmapi.dll")]

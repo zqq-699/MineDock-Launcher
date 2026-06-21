@@ -1,5 +1,6 @@
 ﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
     <Color x:Key="Color.000000">#000000</Color>
     <SolidColorBrush x:Key="Brush.000000" Color="{StaticResource Color.000000}" />
     <Color x:Key="Color.00252525">#00252525</Color>
@@ -236,14 +237,19 @@
     <SolidColorBrush x:Key="Brush.Control.Separator" Color="{StaticResource Color.14FFFFFF}" />
     <SolidColorBrush x:Key="Brush.Control.Disabled" Color="{StaticResource Color.5A5A5A}" />
     <SolidColorBrush x:Key="Brush.Surface.Window" Color="{StaticResource Color.E0151515}" />
-    <SolidColorBrush x:Key="Brush.Surface.Popup" Color="{StaticResource Color.FF252525}" />
-    <SolidColorBrush x:Key="Brush.Surface.PopupTint" Color="{StaticResource Color.8A252525}" />
+    <Color x:Key="Color.Surface.Popup">#CC252525</Color>
+    <Color x:Key="Color.Surface.PopupTint">#66252525</Color>
+    <Color x:Key="Color.Surface.PopupBlurTint">#33252525</Color>
+    <SolidColorBrush x:Key="Brush.Surface.Popup" Color="{StaticResource Color.Surface.Popup}" />
+    <SolidColorBrush x:Key="Brush.Surface.PopupTint" Color="{StaticResource Color.Surface.PopupTint}" />
+    <SolidColorBrush x:Key="Brush.Surface.PopupBlurTint" Color="{StaticResource Color.Surface.PopupBlurTint}" />
     <SolidColorBrush x:Key="Brush.Surface.Message" Color="{StaticResource Color.EA252A30}" />
     <SolidColorBrush x:Key="Brush.Surface.TransparentHit" Color="{StaticResource Color.01000000}" />
     <SolidColorBrush x:Key="Brush.Surface.NavigationBorder" Color="{StaticResource Color.284E4E4E}" />
     <SolidColorBrush x:Key="Brush.Surface.WindowBorder" Color="{StaticResource Color.344E4E4E}" />
     <SolidColorBrush x:Key="Brush.Surface.DialogOverlay" Color="{StaticResource Color.99000000}" />
-    <Color x:Key="Color.Page.Background">#B3181818</Color>
+    <Color x:Key="Color.Page.Background">#181818</Color>
+    <sys:Double x:Key="Opacity.Page.Background">0.85</sys:Double>
     <Color x:Key="Color.Card.Surface">#18FFFFFF</Color>
     <Color x:Key="Color.Card.Border">#16FFFFFF</Color>
     <Color x:Key="Color.Field.ReadOnly.Surface">#18FFFFFF</Color>

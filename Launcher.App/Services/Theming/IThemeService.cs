@@ -6,9 +6,21 @@ public interface IThemeService
 {
     EffectiveTheme EffectiveTheme { get; }
 
+    bool BackgroundBlurDisabled { get; }
+
     event EventHandler<EffectiveThemeChangedEventArgs>? EffectiveThemeChanged;
 
-    void ApplyPreference(string? theme, bool followSystem);
+    event EventHandler<BackgroundBlurDisabledChangedEventArgs>? BackgroundBlurDisabledChanged;
+
+    void ApplyPreference(
+        string? theme,
+        bool followSystem,
+        int backgroundOpacityPercent,
+        bool disableBackgroundBlur);
+
+    void ApplyBackgroundOpacity(int opacityPercent);
+
+    void ApplyBackgroundBlurDisabled(bool disabled);
 
     object? GetResource(object key);
 

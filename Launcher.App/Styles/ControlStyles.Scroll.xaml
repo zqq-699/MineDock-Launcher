@@ -43,15 +43,7 @@
         <Setter Property="Panel.ZIndex" Value="2" />
         <Setter Property="IsHitTestVisible" Value="False" />
         <Setter Property="CornerRadius" Value="14,14,0,0" />
-        <Setter Property="Background">
-            <Setter.Value>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                    <GradientStop Color="{DynamicResource Color.SecondaryMenu.Header.Start}" Offset="0" />
-                    <GradientStop Color="{DynamicResource Color.SecondaryMenu.Header.Middle}" Offset="0.72" />
-                    <GradientStop Color="{DynamicResource Color.SecondaryMenu.Header.End}" Offset="1" />
-                </LinearGradientBrush>
-            </Setter.Value>
-        </Setter>
+        <Setter Property="Background" Value="Transparent" />
     </Style>
 
     <Style x:Key="SecondaryMenuHeaderSpacerStyle" TargetType="Border">

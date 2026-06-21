@@ -299,7 +299,7 @@
                                   Background="{DynamicResource Brush.01000000}"
                                   MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                   MaxHeight="{TemplateBinding MaxDropDownHeight}">
-                                <Border Background="{DynamicResource Brush.FF252525}"
+                                <Border Background="{DynamicResource Brush.Surface.Popup}"
                                         CornerRadius="9"
                                         IsHitTestVisible="False">
                                     <Border.Effect>
@@ -309,18 +309,18 @@
                                                           ShadowDepth="0" />
                                     </Border.Effect>
                                 </Border>
-                                <Border Background="{DynamicResource Brush.FF252525}"
+                                <Border Background="{DynamicResource Brush.Surface.Popup}"
                                         CornerRadius="9"
                                         IsHitTestVisible="False" />
                                 <controls:BackdropBlurBorder x:Name="PopupBlurSurface"
                                                              BlurRadius="42"
-                                                             TintBrush="{DynamicResource Brush.00252525}"
+                                                             TintBrush="{DynamicResource Brush.Surface.PopupBlurTint}"
                                                              BorderBrush="{DynamicResource Brush.14FFFFFF}"
                                                              BorderThickness="1"
                                                              CornerRadius="9"
                                                              ClipToBounds="True"
                                                              behaviors:RoundedClip.Radius="9" />
-                                <Border Background="{DynamicResource Brush.8A252525}"
+                                <Border Background="{DynamicResource Brush.Surface.PopupTint}"
                                         CornerRadius="9"
                                         IsHitTestVisible="False" />
                                 <ListBox x:Name="PART_DropDownList"

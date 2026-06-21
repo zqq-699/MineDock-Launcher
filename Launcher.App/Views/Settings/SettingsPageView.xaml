@@ -415,6 +415,54 @@
                                 </StackPanel>
                             </Border>
                         </GroupBox>
+
+                        <GroupBox Margin="0,18,0,0"
+                                  Header="{x:Static res:Strings.Settings_BackgroundSection}"
+                                  Style="{StaticResource LauncherContentSectionStyle}">
+                            <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{x:Static res:Strings.Settings_DisableBackgroundBlurLabel}"
+                                                   Style="{StaticResource SettingsOptionTextStyle}" />
+                                        <CheckBox Grid.Column="1"
+                                                  Margin="16,0,0,0"
+                                                  IsChecked="{Binding DisableBackgroundBlur, Mode=TwoWay}"
+                                                  Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
+                                    </Grid>
+
+                                    <Grid Margin="0,18,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="162" />
+                                            <ColumnDefinition Width="46" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Text="{x:Static res:Strings.Settings_BackgroundOpacityLabel}"
+                                                   Style="{StaticResource SettingsOptionTextStyle}" />
+
+                                        <Slider Grid.Column="1"
+                                                Minimum="0"
+                                                Maximum="100"
+                                                TickFrequency="1"
+                                                SmallChange="1"
+                                                LargeChange="10"
+                                                IsSnapToTickEnabled="True"
+                                                Value="{Binding LauncherBackgroundOpacityPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                Style="{StaticResource LauncherSliderStyle}" />
+                                        <TextBlock Grid.Column="2"
+                                                   Margin="12,0,0,0"
+                                                   Text="{Binding LauncherBackgroundOpacityText}"
+                                                   Style="{StaticResource ReadOnlyFieldTextStyle}"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </GroupBox>
                     </StackPanel>
 
                     <StackPanel Margin="0"

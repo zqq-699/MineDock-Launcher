@@ -12,12 +12,12 @@
                 Width="{Binding DialogWidth, ElementName=Host}"
                 Style="{StaticResource DialogSurfaceStyle}">
             <Grid ClipToBounds="True">
-                <Border Background="{DynamicResource Brush.FF252525}" />
+                <Border Background="{DynamicResource Brush.Surface.Popup}" />
                 <controls:BackdropBlurBorder x:Name="BlurLayer"
                                              BlurRadius="42"
-                                             TintBrush="{DynamicResource Brush.00252525}"
+                                             TintBrush="{DynamicResource Brush.Surface.PopupBlurTint}"
                                              Style="{StaticResource DialogBlurLayerStyle}" />
-                <Border Background="{DynamicResource Brush.8A252525}" />
+                <Border Background="{DynamicResource Brush.Surface.PopupTint}" />
                 <ContentPresenter Content="{Binding DialogContent, ElementName=Host}" />
             </Grid>
         </Border>

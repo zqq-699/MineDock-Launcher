@@ -79,6 +79,9 @@ public static class Strings
     public static string Settings_ThemeSection => Get(nameof(Settings_ThemeSection));
     public static string Settings_ThemeFollowSystemLabel => Get(nameof(Settings_ThemeFollowSystemLabel));
     public static string Settings_ThemeSelectionLabel => Get(nameof(Settings_ThemeSelectionLabel));
+    public static string Settings_BackgroundSection => Get(nameof(Settings_BackgroundSection));
+    public static string Settings_DisableBackgroundBlurLabel => Get(nameof(Settings_DisableBackgroundBlurLabel));
+    public static string Settings_BackgroundOpacityLabel => Get(nameof(Settings_BackgroundOpacityLabel));
     public static string Settings_ThemeDarkTitle => Get(nameof(Settings_ThemeDarkTitle));
     public static string Settings_ThemeLightTitle => Get(nameof(Settings_ThemeLightTitle));
     public static string Settings_ControlDemoButtonsSection => Get(nameof(Settings_ControlDemoButtonsSection));

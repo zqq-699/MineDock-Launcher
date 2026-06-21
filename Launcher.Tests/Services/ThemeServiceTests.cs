@@ -19,22 +19,55 @@ public sealed class ThemeServiceTests
 
                 using var themeService = new ThemeService(ImmediateUiDispatcher.Instance);
                 var changedCount = 0;
+                var backgroundBlurDisabledChangedCount = 0;
                 themeService.EffectiveThemeChanged += (_, _) => changedCount++;
+                themeService.BackgroundBlurDisabledChanged += (_, _) => backgroundBlurDisabledChangedCount++;
 
-                themeService.ApplyPreference("Dark", followSystem: false);
+                themeService.ApplyPreference(
+                    "Dark",
+                    followSystem: false,
+                    backgroundOpacityPercent: 85,
+                    disableBackgroundBlur: false);
                 Assert.Single(application.Resources.MergedDictionaries, IsDarkThemeDictionary);
                 Assert.DoesNotContain(application.Resources.MergedDictionaries, IsLightThemeDictionary);
+                Assert.Equal(0.85d, Assert.IsType<double>(application.Resources["Opacity.Page.Background"]), 3);
+                Assert.True(Assert.IsType<bool>(application.Resources["Is.BackdropBlur.Enabled"]));
                 Assert.Equal(0, changedCount);
+                Assert.Equal(0, backgroundBlurDisabledChangedCount);
 
-                themeService.ApplyPreference("Light", followSystem: false);
+                themeService.ApplyPreference(
+                    "Light",
+                    followSystem: false,
+                    backgroundOpacityPercent: 65,
+                    disableBackgroundBlur: true);
                 Assert.Single(application.Resources.MergedDictionaries, IsLightThemeDictionary);
                 Assert.DoesNotContain(application.Resources.MergedDictionaries, IsDarkThemeDictionary);
                 Assert.Equal(EffectiveTheme.Light, themeService.EffectiveTheme);
+                Assert.Equal(0.65d, Assert.IsType<double>(application.Resources["Opacity.Page.Background"]), 3);
+                Assert.False(Assert.IsType<bool>(application.Resources["Is.BackdropBlur.Enabled"]));
                 Assert.Equal(1, changedCount);
+                Assert.Equal(1, backgroundBlurDisabledChangedCount);
 
-                themeService.ApplyPreference("Light", followSystem: false);
+                themeService.ApplyPreference(
+                    "Light",
+                    followSystem: false,
+                    backgroundOpacityPercent: 65,
+                    disableBackgroundBlur: true);
                 Assert.Single(application.Resources.MergedDictionaries, IsLightThemeDictionary);
                 Assert.Equal(1, changedCount);
+
+                themeService.ApplyBackgroundOpacity(42);
+                Assert.Equal(0.42d, Assert.IsType<double>(application.Resources["Opacity.Page.Background"]), 3);
+                Assert.Equal(1, changedCount);
+
+                themeService.ApplyBackgroundBlurDisabled(false);
+                Assert.True(Assert.IsType<bool>(application.Resources["Is.BackdropBlur.Enabled"]));
+                Assert.Equal(1, changedCount);
+                Assert.Equal(2, backgroundBlurDisabledChangedCount);
+
+                themeService.ApplyBackgroundBlurDisabled(false);
+                Assert.Equal(1, changedCount);
+                Assert.Equal(2, backgroundBlurDisabledChangedCount);
             }
             catch (Exception ex)
             {

@@ -59,7 +59,8 @@
 
                 <Border Grid.Column="1"
                         Grid.RowSpan="2"
-                        Background="{DynamicResource Brush.Page.Background}" />
+                        Background="{DynamicResource Brush.Page.Background}"
+                        Opacity="{DynamicResource Opacity.Page.Background}" />
 
                 <Grid x:Name="PageTransitionHost"
                       Grid.Column="1"

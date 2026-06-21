@@ -32,6 +32,8 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.Equal(DefaultMinecraftDirectory, loaded.MinecraftDirectory);
         Assert.Equal(LauncherDefaults.DefaultTheme, loaded.Theme);
         Assert.True(loaded.ThemeFollowSystem);
+        Assert.False(loaded.DisableBackgroundBlur);
+        Assert.Equal(LauncherDefaults.DefaultLauncherBackgroundOpacityPercent, loaded.LauncherBackgroundOpacityPercent);
         Assert.Empty(loaded.Accounts);
     }
 
@@ -54,6 +56,26 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.True(loaded.ThemeFollowSystem);
     }
 
+    [Theory]
+    [InlineData(-10, 0)]
+    [InlineData(120, 100)]
+    public async Task SettingsServiceClampsLauncherBackgroundOpacity(int storedValue, int expectedValue)
+    {
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(TempRoot, "settings.json"),
+            $$"""
+            {
+              "LauncherBackgroundOpacityPercent": {{storedValue}}
+            }
+            """);
+        var service = new JsonSettingsService(TempRoot);
+
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(expectedValue, loaded.LauncherBackgroundOpacityPercent);
+    }
+
     [Fact]
     public async Task SettingsServiceRoundTripsThemePreference()
     {
@@ -61,12 +83,16 @@ public sealed class SettingsServiceTests : TestTempDirectory
         var settings = await service.LoadAsync();
         settings.Theme = "Light";
         settings.ThemeFollowSystem = false;
+        settings.DisableBackgroundBlur = true;
+        settings.LauncherBackgroundOpacityPercent = 42;
 
         await service.SaveAsync(settings);
         var loaded = await service.LoadAsync();
 
         Assert.Equal("Light", loaded.Theme);
         Assert.False(loaded.ThemeFollowSystem);
+        Assert.True(loaded.DisableBackgroundBlur);
+        Assert.Equal(42, loaded.LauncherBackgroundOpacityPercent);
     }
 
     [Fact]

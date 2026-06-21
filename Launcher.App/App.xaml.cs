@@ -67,7 +67,9 @@ public partial class App : System.Windows.Application
             await mainViewModel.PrimeAsync();
             serviceProvider.GetRequiredService<IThemeService>().ApplyPreference(
                 mainViewModel.Settings.Theme,
-                mainViewModel.Settings.ThemeFollowSystem);
+                mainViewModel.Settings.ThemeFollowSystem,
+                mainViewModel.Settings.LauncherBackgroundOpacityPercent,
+                mainViewModel.Settings.DisableBackgroundBlur);
             var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
             mainWindow.Show();
             Log.Information("Main window shown.");

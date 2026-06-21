@@ -1,5 +1,6 @@
 ﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
     <Color x:Key="Color.000000">#000000</Color>
     <SolidColorBrush x:Key="Brush.000000" Color="{StaticResource Color.000000}" />
     <Color x:Key="Color.00252525">#00FFFFFF</Color>
@@ -236,33 +237,38 @@
     <SolidColorBrush x:Key="Brush.Control.Separator" Color="{StaticResource Color.14FFFFFF}" />
     <SolidColorBrush x:Key="Brush.Control.Disabled" Color="{StaticResource Color.5A5A5A}" />
     <SolidColorBrush x:Key="Brush.Surface.Window" Color="{StaticResource Color.E0151515}" />
-    <SolidColorBrush x:Key="Brush.Surface.Popup" Color="{StaticResource Color.FF252525}" />
-    <SolidColorBrush x:Key="Brush.Surface.PopupTint" Color="{StaticResource Color.8A252525}" />
+    <Color x:Key="Color.Surface.Popup">#80FFFFFF</Color>
+    <Color x:Key="Color.Surface.PopupTint">#40FFFFFF</Color>
+    <Color x:Key="Color.Surface.PopupBlurTint">#33FFFFFF</Color>
+    <SolidColorBrush x:Key="Brush.Surface.Popup" Color="{StaticResource Color.Surface.Popup}" />
+    <SolidColorBrush x:Key="Brush.Surface.PopupTint" Color="{StaticResource Color.Surface.PopupTint}" />
+    <SolidColorBrush x:Key="Brush.Surface.PopupBlurTint" Color="{StaticResource Color.Surface.PopupBlurTint}" />
     <SolidColorBrush x:Key="Brush.Surface.Message" Color="{StaticResource Color.EA252A30}" />
     <SolidColorBrush x:Key="Brush.Surface.TransparentHit" Color="{StaticResource Color.01000000}" />
     <SolidColorBrush x:Key="Brush.Surface.NavigationBorder" Color="{StaticResource Color.284E4E4E}" />
     <SolidColorBrush x:Key="Brush.Surface.WindowBorder" Color="{StaticResource Color.344E4E4E}" />
     <SolidColorBrush x:Key="Brush.Surface.DialogOverlay" Color="{StaticResource Color.99000000}" />
-    <Color x:Key="Color.Page.Background">#D9F3F4F6</Color>
-    <Color x:Key="Color.Card.Surface">#FFFFFFFF</Color>
+    <Color x:Key="Color.Page.Background">#ECEEF1</Color>
+    <sys:Double x:Key="Opacity.Page.Background">0.85</sys:Double>
+    <Color x:Key="Color.Card.Surface">#80FFFFFF</Color>
     <Color x:Key="Color.Card.Border">#08000000</Color>
-    <Color x:Key="Color.Field.ReadOnly.Surface">#FFF0F1F3</Color>
-    <Color x:Key="Color.Field.ReadOnly.Border">#06000000</Color>
-    <Color x:Key="Color.Input.TextBox.Background">#FFF5F6F8</Color>
-    <Color x:Key="Color.Input.TextBox.BackgroundFocused">#FFFFFFFF</Color>
-    <Color x:Key="Color.Input.TextBox.Border">#10000000</Color>
+    <Color x:Key="Color.Field.ReadOnly.Surface">#18F0F1F3</Color>
+    <Color x:Key="Color.Field.ReadOnly.Border">#16000000</Color>
+    <Color x:Key="Color.Input.TextBox.Background">#22F5F6F8</Color>
+    <Color x:Key="Color.Input.TextBox.BackgroundFocused">#2AFFFFFF</Color>
+    <Color x:Key="Color.Input.TextBox.Border">#20000000</Color>
     <Color x:Key="Color.Input.TextBox.BorderFocused">#667ABEFF</Color>
-    <Color x:Key="Color.Input.ComboBox.Background">#FFE9EAEC</Color>
-    <Color x:Key="Color.Input.ComboBox.Hover">#FFE1E4E8</Color>
-    <Color x:Key="Color.Input.ComboBox.Border">#08000000</Color>
-    <Color x:Key="Color.Input.ComboBox.BorderExpanded">#18000000</Color>
-    <Color x:Key="Color.Button.Secondary.Background">#FFE9EAEC</Color>
-    <Color x:Key="Color.Button.Secondary.Hover">#FFE1E4E8</Color>
-    <Color x:Key="Color.Button.Secondary.Pressed">#FFD4D8DE</Color>
-    <Color x:Key="Color.List.Item.Background">#08000000</Color>
-    <Color x:Key="Color.List.Item.Hover">#10000000</Color>
-    <Color x:Key="Color.List.Item.Selected">#FFE8EDF4</Color>
-    <Color x:Key="Color.List.Item.SelectedBorder">#667ABEFF</Color>
+    <Color x:Key="Color.Input.ComboBox.Background">#24E9EAEC</Color>
+    <Color x:Key="Color.Input.ComboBox.Hover">#22E1E4E8</Color>
+    <Color x:Key="Color.Input.ComboBox.Border">#20000000</Color>
+    <Color x:Key="Color.Input.ComboBox.BorderExpanded">#3A000000</Color>
+    <Color x:Key="Color.Button.Secondary.Background">#60D4D8DE</Color>
+    <Color x:Key="Color.Button.Secondary.Hover">#70C9CED6</Color>
+    <Color x:Key="Color.Button.Secondary.Pressed">#80BBC1CA</Color>
+    <Color x:Key="Color.List.Item.Background">#12000000</Color>
+    <Color x:Key="Color.List.Item.Hover">#20000000</Color>
+    <Color x:Key="Color.List.Item.Selected">#80E8EDF4</Color>
+    <Color x:Key="Color.List.Item.SelectedBorder">#887ABEFF</Color>
     <SolidColorBrush x:Key="Brush.Page.Background" Color="{StaticResource Color.Page.Background}" />
     <SolidColorBrush x:Key="Brush.Card.Surface" Color="{StaticResource Color.Card.Surface}" />
     <SolidColorBrush x:Key="Brush.Card.Border" Color="{StaticResource Color.Card.Border}" />
@@ -283,11 +289,11 @@
     <SolidColorBrush x:Key="Brush.List.Item.Hover" Color="{StaticResource Color.List.Item.Hover}" />
     <SolidColorBrush x:Key="Brush.List.Item.Selected" Color="{StaticResource Color.List.Item.Selected}" />
     <SolidColorBrush x:Key="Brush.List.Item.SelectedBorder" Color="{StaticResource Color.List.Item.SelectedBorder}" />
-    <Color x:Key="Color.SecondaryMenu.Panel">#E8FFFFFF</Color>
-    <Color x:Key="Color.SecondaryMenu.Border">#10000000</Color>
-    <Color x:Key="Color.SecondaryMenu.Shadow">#08000000</Color>
-    <Color x:Key="Color.SecondaryMenu.Header.Start">#F8FFFFFF</Color>
-    <Color x:Key="Color.SecondaryMenu.Header.Middle">#E0FFFFFF</Color>
+    <Color x:Key="Color.SecondaryMenu.Panel">#5AFFFFFF</Color>
+    <Color x:Key="Color.SecondaryMenu.Border">#24000000</Color>
+    <Color x:Key="Color.SecondaryMenu.Shadow">#52000000</Color>
+    <Color x:Key="Color.SecondaryMenu.Header.Start">#D8FFFFFF</Color>
+    <Color x:Key="Color.SecondaryMenu.Header.Middle">#C2FFFFFF</Color>
     <Color x:Key="Color.SecondaryMenu.Header.End">#00FFFFFF</Color>
     <SolidColorBrush x:Key="Brush.SecondaryMenu.Panel" Color="{StaticResource Color.SecondaryMenu.Panel}" />
     <SolidColorBrush x:Key="Brush.SecondaryMenu.Border" Color="{StaticResource Color.SecondaryMenu.Border}" />

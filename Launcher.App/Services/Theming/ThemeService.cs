@@ -16,6 +16,8 @@ public sealed class ThemeService : IThemeService, IDisposable
     private readonly IUiDispatcher uiDispatcher;
     private string preferredTheme = LauncherDefaults.DefaultTheme;
     private bool followSystem = true;
+    private int backgroundOpacityPercent = LauncherDefaults.DefaultLauncherBackgroundOpacityPercent;
+    private bool disableBackgroundBlur;
     private bool hasAppliedTheme;
     private bool isDisposed;
 
@@ -27,14 +29,42 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     public EffectiveTheme EffectiveTheme { get; private set; } = EffectiveTheme.Dark;
 
+    public bool BackgroundBlurDisabled => disableBackgroundBlur;
+
     public event EventHandler<EffectiveThemeChangedEventArgs>? EffectiveThemeChanged;
 
-    public void ApplyPreference(string? theme, bool followSystem)
+    public event EventHandler<BackgroundBlurDisabledChangedEventArgs>? BackgroundBlurDisabledChanged;
+
+    public void ApplyPreference(
+        string? theme,
+        bool followSystem,
+        int backgroundOpacityPercent,
+        bool disableBackgroundBlur)
     {
+        var backgroundBlurDisabledChanged = this.disableBackgroundBlur != disableBackgroundBlur;
         preferredTheme = NormalizeTheme(theme);
         this.followSystem = followSystem;
+        this.backgroundOpacityPercent = NormalizeBackgroundOpacity(backgroundOpacityPercent);
+        this.disableBackgroundBlur = disableBackgroundBlur;
         var nextTheme = ResolveEffectiveTheme(preferredTheme, followSystem);
         uiDispatcher.Invoke(() => ApplyEffectiveTheme(nextTheme));
+        if (backgroundBlurDisabledChanged)
+            BackgroundBlurDisabledChanged?.Invoke(this, new BackgroundBlurDisabledChangedEventArgs(this.disableBackgroundBlur));
+    }
+
+    public void ApplyBackgroundOpacity(int opacityPercent)
+    {
+        backgroundOpacityPercent = NormalizeBackgroundOpacity(opacityPercent);
+        uiDispatcher.Invoke(() => ApplyBackgroundOpacityCore(backgroundOpacityPercent));
+    }
+
+    public void ApplyBackgroundBlurDisabled(bool disabled)
+    {
+        var changed = disableBackgroundBlur != disabled;
+        disableBackgroundBlur = disabled;
+        uiDispatcher.Invoke(() => ApplyBackgroundBlurDisabledCore(disableBackgroundBlur));
+        if (changed)
+            BackgroundBlurDisabledChanged?.Invoke(this, new BackgroundBlurDisabledChangedEventArgs(disableBackgroundBlur));
     }
 
     public object? GetResource(object key)
@@ -83,6 +113,8 @@ public sealed class ThemeService : IThemeService, IDisposable
         {
             Source = new Uri(GetThemeSource(nextTheme), UriKind.Absolute)
         });
+        ApplyBackgroundOpacityCore(backgroundOpacityPercent);
+        ApplyBackgroundBlurDisabledCore(disableBackgroundBlur);
 
         var oldTheme = EffectiveTheme;
         EffectiveTheme = nextTheme;
@@ -131,6 +163,29 @@ public sealed class ThemeService : IThemeService, IDisposable
             : LauncherDefaults.DefaultTheme;
     }
 
+    private static int NormalizeBackgroundOpacity(int opacityPercent)
+    {
+        return Math.Clamp(opacityPercent, 0, 100);
+    }
+
+    private static void ApplyBackgroundOpacityCore(int opacityPercent)
+    {
+        var application = global::System.Windows.Application.Current;
+        if (application is null)
+            return;
+
+        application.Resources["Opacity.Page.Background"] = NormalizeBackgroundOpacity(opacityPercent) / 100d;
+    }
+
+    private static void ApplyBackgroundBlurDisabledCore(bool disabled)
+    {
+        var application = global::System.Windows.Application.Current;
+        if (application is null)
+            return;
+
+        application.Resources["Is.BackdropBlur.Enabled"] = !disabled;
+    }
+
     private static string GetThemeSource(EffectiveTheme theme)
     {
         return theme is EffectiveTheme.Light ? LightThemeSource : DarkThemeSource;
@@ -155,6 +210,10 @@ public sealed class ThemeService : IThemeService, IDisposable
             return;
         }
 
-        uiDispatcher.Post(() => ApplyPreference(preferredTheme, followSystem));
+        uiDispatcher.Post(() => ApplyPreference(
+            preferredTheme,
+            followSystem,
+            backgroundOpacityPercent,
+            disableBackgroundBlur));
     }
 }

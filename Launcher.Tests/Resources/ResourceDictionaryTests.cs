@@ -60,22 +60,32 @@ public sealed class ResourceDictionaryTests
                 var light = LoadDictionary("Resources/Themes/Light.xaml");
 
                 Assert.NotNull(shared["LauncherFontFamily"]);
+                Assert.True(Assert.IsType<bool>(shared["Is.BackdropBlur.Enabled"]));
                 Assert.NotNull(dark["Brush.Text.Primary"]);
                 Assert.NotNull(light["Brush.Text.Primary"]);
                 Assert.NotNull(dark["Brush.Icon.Primary"]);
                 Assert.NotNull(light["Brush.Icon.Primary"]);
                 Assert.Equal("#5A4A4A4A", ((SolidColorBrush)dark["Brush.SecondaryMenu.Panel"]).Color.ToString());
-                Assert.Equal("#B3181818", ((SolidColorBrush)dark["Brush.Page.Background"]).Color.ToString());
-                Assert.Equal("#E8FFFFFF", ((SolidColorBrush)light["Brush.SecondaryMenu.Panel"]).Color.ToString());
-                Assert.Equal("#10000000", ((SolidColorBrush)light["Brush.SecondaryMenu.Border"]).Color.ToString());
-                Assert.Equal("#08000000", ((Color)light["Color.SecondaryMenu.Shadow"]).ToString());
-                Assert.Equal("#D9F3F4F6", ((SolidColorBrush)light["Brush.Page.Background"]).Color.ToString());
-                Assert.Equal("#FFFFFFFF", ((SolidColorBrush)light["Brush.Card.Surface"]).Color.ToString());
-                Assert.Equal("#FFF5F6F8", ((SolidColorBrush)light["Brush.Input.TextBox.Background"]).Color.ToString());
-                Assert.Equal("#FFE9EAEC", ((SolidColorBrush)light["Brush.Input.ComboBox.Background"]).Color.ToString());
-                Assert.Equal("#FFE9EAEC", ((SolidColorBrush)light["Brush.Button.Secondary.Background"]).Color.ToString());
-                Assert.Equal("#FFF0F1F3", ((SolidColorBrush)light["Brush.Field.ReadOnly.Surface"]).Color.ToString());
-                Assert.Equal("#FFE8EDF4", ((SolidColorBrush)light["Brush.List.Item.Selected"]).Color.ToString());
+                Assert.Equal("#CC252525", ((SolidColorBrush)dark["Brush.Surface.Popup"]).Color.ToString());
+                Assert.Equal("#66252525", ((SolidColorBrush)dark["Brush.Surface.PopupTint"]).Color.ToString());
+                Assert.Equal("#33252525", ((SolidColorBrush)dark["Brush.Surface.PopupBlurTint"]).Color.ToString());
+                Assert.Equal("#FF181818", ((SolidColorBrush)dark["Brush.Page.Background"]).Color.ToString());
+                Assert.Equal(0.85d, Assert.IsType<double>(dark["Opacity.Page.Background"]), 3);
+                Assert.Equal("#80FFFFFF", ((SolidColorBrush)light["Brush.Surface.Popup"]).Color.ToString());
+                Assert.Equal("#40FFFFFF", ((SolidColorBrush)light["Brush.Surface.PopupTint"]).Color.ToString());
+                Assert.Equal("#33FFFFFF", ((SolidColorBrush)light["Brush.Surface.PopupBlurTint"]).Color.ToString());
+                Assert.Equal("#5AFFFFFF", ((SolidColorBrush)light["Brush.SecondaryMenu.Panel"]).Color.ToString());
+                Assert.Equal("#24000000", ((SolidColorBrush)light["Brush.SecondaryMenu.Border"]).Color.ToString());
+                Assert.Equal("#52000000", ((Color)light["Color.SecondaryMenu.Shadow"]).ToString());
+                Assert.Equal("#FFECEEF1", ((SolidColorBrush)light["Brush.Page.Background"]).Color.ToString());
+                Assert.Equal(0.85d, Assert.IsType<double>(light["Opacity.Page.Background"]), 3);
+                Assert.Equal("#80FFFFFF", ((SolidColorBrush)light["Brush.Card.Surface"]).Color.ToString());
+                Assert.Equal("#08000000", ((SolidColorBrush)light["Brush.Card.Border"]).Color.ToString());
+                Assert.Equal("#22F5F6F8", ((SolidColorBrush)light["Brush.Input.TextBox.Background"]).Color.ToString());
+                Assert.Equal("#24E9EAEC", ((SolidColorBrush)light["Brush.Input.ComboBox.Background"]).Color.ToString());
+                Assert.Equal("#60D4D8DE", ((SolidColorBrush)light["Brush.Button.Secondary.Background"]).Color.ToString());
+                Assert.Equal("#18F0F1F3", ((SolidColorBrush)light["Brush.Field.ReadOnly.Surface"]).Color.ToString());
+                Assert.Equal("#80E8EDF4", ((SolidColorBrush)light["Brush.List.Item.Selected"]).Color.ToString());
             }
             catch (Exception ex)
             {
