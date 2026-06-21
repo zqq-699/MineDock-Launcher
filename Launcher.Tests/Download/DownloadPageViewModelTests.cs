@@ -1,5 +1,6 @@
 ﻿using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Download;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
@@ -7,6 +8,18 @@ namespace Launcher.Tests.Download;
 
 public sealed class DownloadPageViewModelTests
 {
+    [Fact]
+    public void DownloadPageComposesStepViewModels()
+    {
+        var viewModel = CreateDownloadPageViewModel(new FakeGameVersionService([]));
+
+        Assert.IsType<DownloadVersionListViewModel>(viewModel.VersionList);
+        Assert.IsType<DownloadInstanceOptionsViewModel>(viewModel.InstanceOptions);
+        Assert.Same(viewModel.VisibleVersions, viewModel.VersionList.VisibleVersions);
+        Assert.Same(viewModel.LoaderOptions, viewModel.InstanceOptions.LoaderOptions);
+        Assert.Same(viewModel.LoaderVersions, viewModel.InstanceOptions.LoaderVersions);
+    }
+
     [Fact]
     public async Task DownloadPageShowsOnlyReleaseVersionsForReleaseCategory()
     {

@@ -32,6 +32,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private SettingsSectionItem? selectedSection;
 
     [ObservableProperty]
+    private SettingsSectionViewModelBase? currentSectionViewModel;
+
+    [ObservableProperty]
     private string dataDirectory = string.Empty;
 
     [ObservableProperty]
@@ -169,12 +172,12 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             Strings.Settings_SectionGeneral,
             "instance_setting_page/general_setting"));
         Sections.Add(new SettingsSectionItem(
-            SettingsPageSection.Launch,
-            Strings.Settings_SectionLaunch,
+            SettingsPageSection.LaunchMemory,
+            Strings.Settings_SectionLaunchMemory,
             "instance_setting_page/launch"));
         Sections.Add(new SettingsSectionItem(
-            SettingsPageSection.JavaMemory,
-            Strings.Settings_SectionJavaMemory,
+            SettingsPageSection.Java,
+            Strings.Settings_SectionJava,
             "instance_setting_page/java"));
         Sections.Add(new SettingsSectionItem(
             SettingsPageSection.Theme,
@@ -243,6 +246,11 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         SelectedAccentColorOption = AccentColorOptions[0];
         SelectedControlDemoComboOption = InteractiveControls.FirstOrDefault();
         SelectedInteractiveControl = InteractiveControls.FirstOrDefault();
+        General = new GeneralSettingsViewModel(this);
+        LaunchMemory = new LaunchMemorySettingsViewModel(this);
+        Java = new JavaSettingsViewModel(this);
+        Theme = new ThemeSettingsViewModel(this);
+        ControlList = new ControlListSettingsViewModel(this);
         SelectedSection = Sections[0];
     }
 
@@ -259,6 +267,16 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public ObservableCollection<SettingsInteractiveControlItem> InteractiveControls { get; } = [];
 
     public JavaSettingsEditorViewModel JavaSettings { get; }
+
+    public GeneralSettingsViewModel General { get; }
+
+    public LaunchMemorySettingsViewModel LaunchMemory { get; }
+
+    public JavaSettingsViewModel Java { get; }
+
+    public ThemeSettingsViewModel Theme { get; }
+
+    public ControlListSettingsViewModel ControlList { get; }
 
     public event EventHandler? LaunchDefaultsChanged;
 
@@ -296,9 +314,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     public bool IsGeneralSection => SelectedSection?.Section is SettingsPageSection.General;
 
-    public bool IsLaunchSection => SelectedSection?.Section is SettingsPageSection.Launch;
+    public bool IsLaunchMemorySection => SelectedSection?.Section is SettingsPageSection.LaunchMemory;
 
-    public bool IsJavaMemorySection => SelectedSection?.Section is SettingsPageSection.JavaMemory;
+    public bool IsJavaSection => SelectedSection?.Section is SettingsPageSection.Java;
 
     public bool IsThemeSection => SelectedSection?.Section is SettingsPageSection.Theme;
 
@@ -364,9 +382,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         _ = RefreshJavaRuntimesCommand.ExecuteAsync(null);
     }
 
-    public void ShowJavaMemorySection()
+    public void ShowJavaSection()
     {
-        SelectSectionCore(Sections.FirstOrDefault(section => section.Section is SettingsPageSection.JavaMemory));
+        SelectSectionCore(Sections.FirstOrDefault(section => section.Section is SettingsPageSection.Java));
     }
 
     [RelayCommand]
@@ -484,10 +502,19 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
         OnPropertyChanged(nameof(SectionTitle));
         OnPropertyChanged(nameof(IsGeneralSection));
-        OnPropertyChanged(nameof(IsLaunchSection));
-        OnPropertyChanged(nameof(IsJavaMemorySection));
+        OnPropertyChanged(nameof(IsLaunchMemorySection));
+        OnPropertyChanged(nameof(IsJavaSection));
         OnPropertyChanged(nameof(IsThemeSection));
         OnPropertyChanged(nameof(IsControlListSection));
+        CurrentSectionViewModel = value?.Section switch
+        {
+            SettingsPageSection.General => General,
+            SettingsPageSection.LaunchMemory => LaunchMemory,
+            SettingsPageSection.Java => Java,
+            SettingsPageSection.Theme => Theme,
+            SettingsPageSection.ControlList => ControlList,
+            _ => General
+        };
     }
 
     partial void OnSelectedDownloadSourceOptionChanged(SettingsDownloadSourceOption? value)

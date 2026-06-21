@@ -22,6 +22,7 @@ public sealed partial class AccountPageViewModel : ObservableObject
         Appearance = appearance;
         OfflineUuid = offlineUuid;
         this.dialogService = dialogService;
+        Details = new AccountDetailsViewModel(this);
 
         AccountList.PropertyChanged += (_, e) =>
         {
@@ -37,6 +38,8 @@ public sealed partial class AccountPageViewModel : ObservableObject
     public AccountAppearanceViewModel Appearance { get; }
 
     public AccountOfflineUuidViewModel OfflineUuid { get; }
+
+    public AccountDetailsViewModel Details { get; }
 
     public LauncherAccount? SelectedAccount
     {

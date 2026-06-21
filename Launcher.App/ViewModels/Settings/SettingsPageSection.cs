@@ -3,8 +3,8 @@ namespace Launcher.App.ViewModels.Settings;
 public enum SettingsPageSection
 {
     General,
-    Launch,
-    JavaMemory,
+    LaunchMemory,
+    Java,
     Theme,
     ControlList
 }

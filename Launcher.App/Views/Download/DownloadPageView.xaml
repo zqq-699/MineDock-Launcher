@@ -99,7 +99,8 @@
                             <TranslateTransform />
                         </Grid.RenderTransform>
 
-                        <views:DownloadVersionListView Tag="DownloadVersionList" />
+                        <views:DownloadVersionListView Tag="DownloadVersionList"
+                                                       DataContext="{Binding VersionList}" />
                     </Grid>
 
                     <Grid Tag="InstanceOptionsStep"
@@ -109,7 +110,7 @@
                             <TranslateTransform />
                         </Grid.RenderTransform>
 
-                        <views:DownloadInstanceOptionsView />
+                        <views:DownloadInstanceOptionsView DataContext="{Binding InstanceOptions}" />
                     </Grid>
                 </Grid>
             </controls:ListPageFrame.ListContent>

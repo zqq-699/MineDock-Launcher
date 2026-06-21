@@ -2,6 +2,7 @@
 using Launcher.App.Controls;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Account;
 using Launcher.Application.Accounts;
 using Launcher.Domain.Models;
 
@@ -10,6 +11,17 @@ namespace Launcher.Tests.Accounts;
 public sealed class AccountPageViewModelTests
 {
     private const string AccountNameValidationMessage = "\u7528\u6237\u540d\u9700\u4e3a 3-16 \u4f4d\u5b57\u6bcd\u3001\u6570\u5b57\u6216\u4e0b\u5212\u7ebf";
+
+    [Fact]
+    public void AccountPageComposesSingleDetailsViewModel()
+    {
+        var viewModel = CreateViewModel(new FakeAccountStore(), new FakeStatusService());
+
+        Assert.IsType<AccountDetailsViewModel>(viewModel.Details);
+        Assert.Same(viewModel.AccountList, viewModel.Details.AccountList);
+        Assert.Same(viewModel.Appearance, viewModel.Details.Appearance);
+        Assert.Same(viewModel.OfflineUuid, viewModel.Details.OfflineUuid);
+    }
 
     [Theory]
     [InlineData("ab")]

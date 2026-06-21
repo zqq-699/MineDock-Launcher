@@ -28,8 +28,8 @@ public static class Strings
     public static string Page_Resources => Get(nameof(Page_Resources));
     public static string Page_Settings => Get(nameof(Page_Settings));
     public static string Settings_SectionGeneral => Get(nameof(Settings_SectionGeneral));
-    public static string Settings_SectionLaunch => Get(nameof(Settings_SectionLaunch));
-    public static string Settings_SectionJavaMemory => Get(nameof(Settings_SectionJavaMemory));
+    public static string Settings_SectionLaunchMemory => Get(nameof(Settings_SectionLaunchMemory));
+    public static string Settings_SectionJava => Get(nameof(Settings_SectionJava));
     public static string Settings_SectionTheme => Get(nameof(Settings_SectionTheme));
     public static string Settings_SectionControlList => Get(nameof(Settings_SectionControlList));
     public static string Settings_GeneralAccountSection => Get(nameof(Settings_GeneralAccountSection));
@@ -147,7 +147,7 @@ public static class Strings
     public static string GameSettings_UnknownMinecraftVersion => Get(nameof(GameSettings_UnknownMinecraftVersion));
     public static string GameSettings_DetailGeneral => Get(nameof(GameSettings_DetailGeneral));
     public static string GameSettings_DetailLaunch => Get(nameof(GameSettings_DetailLaunch));
-    public static string GameSettings_DetailJavaMemory => Get(nameof(GameSettings_DetailJavaMemory));
+    public static string GameSettings_DetailJava => Get(nameof(GameSettings_DetailJava));
     public static string GameSettings_DetailModManagement => Get(nameof(GameSettings_DetailModManagement));
     public static string GameSettings_DetailSaves => Get(nameof(GameSettings_DetailSaves));
     public static string GameSettings_DetailShaders => Get(nameof(GameSettings_DetailShaders));

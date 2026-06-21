@@ -32,6 +32,9 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     private GameSettingsDetailSectionItem? selectedSection;
 
     [ObservableProperty]
+    private GameSettingsDetailsSectionViewModelBase? currentSectionViewModel;
+
+    [ObservableProperty]
     private string descriptionText = string.Empty;
 
     [ObservableProperty]
@@ -122,6 +125,11 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             Strings.Settings_MemoryModeManual));
         SelectedMemoryModeOption = MemoryModeOptions[0];
         SelectedInstanceJavaSettingsModeOption = LaunchSettingsModeOptions[0];
+        General = new InstanceGeneralSettingsViewModel(this);
+        Launch = new InstanceLaunchSettingsViewModel(this);
+        Java = new InstanceJavaSettingsViewModel(this);
+        Placeholder = new InstancePlaceholderSettingsViewModel(this);
+        CurrentSectionViewModel = General;
     }
 
     public event Action<GameInstance>? InstanceSettingsSaved;
@@ -146,7 +154,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
 
     public bool IsLaunchSection => string.Equals(SelectedSection?.Id, "launch", StringComparison.OrdinalIgnoreCase);
 
-    public bool IsJavaMemorySection => string.Equals(SelectedSection?.Id, "java_memory", StringComparison.OrdinalIgnoreCase);
+    public bool IsJavaSection => string.Equals(SelectedSection?.Id, "java", StringComparison.OrdinalIgnoreCase);
 
     public bool AreLaunchSettingsOverridesEnabled => SelectedLaunchSettingsModeOption?.Mode is LaunchSettingsMode.PerInstance;
 
@@ -184,6 +192,14 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     public ObservableCollection<SettingsMemoryModeOption> MemoryModeOptions { get; } = [];
 
     public JavaSettingsEditorViewModel InstanceJavaSettings { get; }
+
+    public InstanceGeneralSettingsViewModel General { get; }
+
+    public InstanceLaunchSettingsViewModel Launch { get; }
+
+    public InstanceJavaSettingsViewModel Java { get; }
+
+    public InstancePlaceholderSettingsViewModel Placeholder { get; }
 
     public ObservableCollection<SettingsJavaSelectionOption> InstanceJavaSelectionOptions => InstanceJavaSettings.JavaSelectionOptions;
 
@@ -332,7 +348,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         }
 
         RefreshSystemMemorySnapshot();
-        if (IsJavaMemorySection || InstanceJavaRuntimes.Count == 0)
+        if (IsJavaSection || InstanceJavaRuntimes.Count == 0)
             _ = InstanceJavaSettings.RefreshJavaRuntimesForDisplayAsync();
     }
 
@@ -340,9 +356,16 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsGeneralSection));
         OnPropertyChanged(nameof(IsLaunchSection));
-        OnPropertyChanged(nameof(IsJavaMemorySection));
+        OnPropertyChanged(nameof(IsJavaSection));
         OnPropertyChanged(nameof(SectionTitle));
         OnPropertyChanged(nameof(SectionPlaceholderBody));
+        CurrentSectionViewModel = value?.Id?.ToLowerInvariant() switch
+        {
+            "general" => General,
+            "launch" => Launch,
+            "java" => Java,
+            _ => Placeholder
+        };
     }
 
     partial void OnSelectedLaunchSettingsModeOptionChanged(GameSettingsLaunchSettingsModeOption? value)

@@ -1,0 +1,16 @@
+<UserControl x:Class="Launcher.App.Views.GameSettings.InstancePlaceholderSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             DataContext="{Binding Parent}"
+             Focusable="False">
+    <GroupBox Margin="0"
+              Header="{Binding SectionTitle}"
+              Style="{StaticResource LauncherContentSectionStyle}">
+        <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+            <TextBlock Text="{Binding SectionPlaceholderBody}"
+                       Foreground="{DynamicResource Brush.CFFFFFFF}"
+                       FontSize="13"
+                       TextWrapping="Wrap" />
+        </Border>
+    </GroupBox>
+</UserControl>

@@ -1,8 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Threading;
+using System.Windows.Controls;
 using Launcher.App.Services;
 using Launcher.App.ViewModels.GameSettings;
 
@@ -14,7 +13,7 @@ public partial class GameSettingsDetailsView : UserControl
     [
         "general",
         "launch",
-        "java_memory",
+        "java",
         "mod_management",
         "saves",
         "shaders",
@@ -37,46 +36,6 @@ public partial class GameSettingsDetailsView : UserControl
 
         Loaded += GameSettingsDetailsView_Loaded;
         DataContextChanged += GameSettingsDetailsView_DataContextChanged;
-    }
-
-    private void DescriptionTextBox_OnLoaded(object sender, System.Windows.RoutedEventArgs e)
-    {
-        QueueDescriptionTextBoxHeightUpdate();
-    }
-
-    private void DescriptionTextBox_OnTextChanged(object sender, TextChangedEventArgs e)
-    {
-        QueueDescriptionTextBoxHeightUpdate();
-    }
-
-    private void DescriptionTextBox_OnSizeChanged(object sender, System.Windows.SizeChangedEventArgs e)
-    {
-        if (e.WidthChanged)
-            QueueDescriptionTextBoxHeightUpdate();
-    }
-
-    private void QueueDescriptionTextBoxHeightUpdate()
-    {
-        Dispatcher.BeginInvoke(UpdateDescriptionTextBoxHeight, DispatcherPriority.Background);
-    }
-
-    private void UpdateDescriptionTextBoxHeight()
-    {
-        if (DescriptionTextBox is null)
-            return;
-
-        DescriptionTextBox.UpdateLayout();
-        var lineCount = Math.Max(1, DescriptionTextBox.LineCount);
-        DescriptionTextBox.VerticalContentAlignment = lineCount > 1 ? VerticalAlignment.Top : VerticalAlignment.Center;
-        var lineHeight = TextBlock.GetLineHeight(DescriptionTextBox);
-        if (double.IsNaN(lineHeight) || lineHeight <= 0)
-        {
-            lineHeight = Math.Max(
-                DescriptionTextBox.FontFamily.LineSpacing * DescriptionTextBox.FontSize,
-                DescriptionTextBox.FontSize * 1.35);
-        }
-        var chromeAllowance = 16d;
-        DescriptionTextBox.Height = Math.Max(34, Math.Ceiling((lineCount * lineHeight) + chromeAllowance));
     }
 
     private void GameSettingsDetailsView_Loaded(object sender, System.Windows.RoutedEventArgs e)

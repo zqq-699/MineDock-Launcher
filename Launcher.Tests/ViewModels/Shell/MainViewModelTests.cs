@@ -284,7 +284,7 @@ public sealed class MainViewModelTests
 
         Assert.False(viewModel.IsJavaRequirementDialogOpen);
         Assert.Equal("Settings", viewModel.CurrentPage);
-        Assert.True(viewModel.SettingsPage.IsJavaMemorySection);
+        Assert.True(viewModel.SettingsPage.IsJavaSection);
     }
 
     [Fact]
@@ -976,6 +976,5 @@ public sealed class MainViewModelTests
         }
     }
 }
-
 
 

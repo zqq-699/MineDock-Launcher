@@ -22,6 +22,7 @@
                        Style="{StaticResource PageEmptyStateTextStyle}" />
 
             <views:AccountDetailsView x:Name="AccountDetailsView"
+                                      DataContext="{Binding Details}"
                                       Opacity="0"
                                       Visibility="Collapsed">
                 <views:AccountDetailsView.RenderTransform>

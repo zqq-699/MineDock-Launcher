@@ -225,7 +225,7 @@ public sealed partial class MainViewModel : ObservableObject
     private void OpenJavaSettingsFromRequirementDialog()
     {
         IsJavaRequirementDialogOpen = false;
-        SettingsPage.ShowJavaMemorySection();
+        SettingsPage.ShowJavaSection();
         CurrentPage = NavigationCatalog.SettingsPage;
         UpdateSecondaryItems();
         UpdateNavigationSelection();
@@ -498,4 +498,3 @@ public sealed partial class MainViewModel : ObservableObject
         });
     }
 }
-

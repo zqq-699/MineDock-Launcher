@@ -128,6 +128,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         this.loaderProviders = loaderProviders.ToDictionary(provider => provider.Kind);
         this.uiDispatcher = uiDispatcher;
         this.floatingMessageService = floatingMessageService;
+        VersionList = new DownloadVersionListViewModel(this);
+        InstanceOptions = new DownloadInstanceOptionsViewModel(this);
 
         LoaderVersions.CollectionChanged += (_, _) =>
         {
@@ -158,6 +160,10 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     public ObservableCollection<LoaderVersionInfo> LoaderVersions { get; } = [];
 
     public List<DownloadMinecraftVersionItem> AllVersions { get; } = [];
+
+    public DownloadVersionListViewModel VersionList { get; }
+
+    public DownloadInstanceOptionsViewModel InstanceOptions { get; }
 
     public bool HasVisibleVersions => VisibleVersions.Count > 0;
 

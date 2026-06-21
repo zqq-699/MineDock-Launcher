@@ -1,5 +1,6 @@
 ﻿using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Settings;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
@@ -76,8 +77,8 @@ public sealed class SettingsPageViewModelTests
         Assert.Equal(
             [
                 SettingsPageSection.General,
-                SettingsPageSection.Launch,
-                SettingsPageSection.JavaMemory,
+                SettingsPageSection.LaunchMemory,
+                SettingsPageSection.Java,
                 SettingsPageSection.Theme,
                 SettingsPageSection.ControlList
             ],
@@ -208,12 +209,13 @@ public sealed class SettingsPageViewModelTests
     {
         var viewModel = CreateViewModel(out _, out _);
 
-        var launchSection = viewModel.Sections.Single(section => section.Section is SettingsPageSection.Launch);
+        var launchSection = viewModel.Sections.Single(section => section.Section is SettingsPageSection.LaunchMemory);
         viewModel.SelectSectionCommand.Execute(launchSection);
 
         Assert.Same(launchSection, viewModel.SelectedSection);
-        Assert.Equal(Strings.Settings_SectionLaunch, viewModel.SectionTitle);
-        Assert.True(viewModel.IsLaunchSection);
+        Assert.Equal(Strings.Settings_SectionLaunchMemory, viewModel.SectionTitle);
+        Assert.True(viewModel.IsLaunchMemorySection);
+        Assert.IsType<LaunchMemorySettingsViewModel>(viewModel.CurrentSectionViewModel);
         Assert.False(viewModel.IsGeneralSection);
         Assert.True(launchSection.IsSelected);
         Assert.False(viewModel.Sections.Single(section => section.Section is SettingsPageSection.General).IsSelected);
@@ -230,9 +232,10 @@ public sealed class SettingsPageViewModelTests
         Assert.Same(controlListSection, viewModel.SelectedSection);
         Assert.Equal(Strings.Settings_SectionControlList, viewModel.SectionTitle);
         Assert.True(viewModel.IsControlListSection);
+        Assert.IsType<ControlListSettingsViewModel>(viewModel.CurrentSectionViewModel);
         Assert.False(viewModel.IsGeneralSection);
-        Assert.False(viewModel.IsLaunchSection);
-        Assert.False(viewModel.IsJavaMemorySection);
+        Assert.False(viewModel.IsLaunchMemorySection);
+        Assert.False(viewModel.IsJavaSection);
         Assert.False(viewModel.IsThemeSection);
         Assert.Contains(
             viewModel.InteractiveControls,
@@ -256,9 +259,10 @@ public sealed class SettingsPageViewModelTests
         Assert.Same(themeSection, viewModel.SelectedSection);
         Assert.Equal(Strings.Settings_SectionTheme, viewModel.SectionTitle);
         Assert.True(viewModel.IsThemeSection);
+        Assert.IsType<ThemeSettingsViewModel>(viewModel.CurrentSectionViewModel);
         Assert.False(viewModel.IsGeneralSection);
-        Assert.False(viewModel.IsLaunchSection);
-        Assert.False(viewModel.IsJavaMemorySection);
+        Assert.False(viewModel.IsLaunchMemorySection);
+        Assert.False(viewModel.IsJavaSection);
         Assert.False(viewModel.IsControlListSection);
         Assert.Equal(2, viewModel.ThemeOptions.Count);
         Assert.Equal(8, viewModel.AccentColorOptions.Count);
@@ -1247,4 +1251,3 @@ public sealed class SettingsPageViewModelTests
     }
 
 }
-

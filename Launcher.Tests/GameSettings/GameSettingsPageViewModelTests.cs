@@ -1,5 +1,6 @@
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.GameSettings;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Persistence;
@@ -558,13 +559,14 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Equal(selected.IconSource, viewModel.PageTitleIconSource);
         Assert.Equal("Fabric Pack", viewModel.Details.InstanceName);
         Assert.Equal(Strings.GameSettings_DetailGeneral, viewModel.Details.SectionTitle);
+        Assert.IsType<InstanceGeneralSettingsViewModel>(viewModel.Details.CurrentSectionViewModel);
         Assert.True(viewModel.DetailSections.First(section => section.Id == "general").IsSelected);
         Assert.Equal(9, viewModel.DetailSections.Count);
         Assert.Equal(
             [
                 Strings.GameSettings_DetailGeneral,
                 Strings.GameSettings_DetailLaunch,
-                Strings.GameSettings_DetailJavaMemory,
+                Strings.GameSettings_DetailJava,
                 Strings.GameSettings_DetailModManagement,
                 Strings.GameSettings_DetailSaves,
                 Strings.GameSettings_DetailShaders,
@@ -576,21 +578,22 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
-    public async Task JavaMemoryDetailsSectionKeepsEntryAndShowsPlaceholder()
+    public async Task JavaDetailsSectionKeepsEntryAndShowsPlaceholder()
     {
         var viewModel = CreateViewModel([CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla)]);
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        var section = viewModel.DetailSections.Single(section => section.Id == "java_memory");
+        var section = viewModel.DetailSections.Single(section => section.Id == "java");
 
         viewModel.SelectDetailsSectionCommand.Execute(section);
 
         Assert.True(section.IsSelected);
-        Assert.True(viewModel.Details.IsJavaMemorySection);
-        Assert.Equal(Strings.GameSettings_DetailJavaMemory, viewModel.Details.SectionTitle);
+        Assert.True(viewModel.Details.IsJavaSection);
+        Assert.IsType<InstanceJavaSettingsViewModel>(viewModel.Details.CurrentSectionViewModel);
+        Assert.Equal(Strings.GameSettings_DetailJava, viewModel.Details.SectionTitle);
         Assert.Equal(
-            string.Format(Strings.GameSettings_DetailPlaceholderBodyFormat, Strings.GameSettings_DetailJavaMemory),
+            string.Format(Strings.GameSettings_DetailPlaceholderBodyFormat, Strings.GameSettings_DetailJava),
             viewModel.Details.SectionPlaceholderBody);
     }
 
@@ -1002,7 +1005,7 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
-    public async Task InstanceJavaSettingsSaveKeepsCurrentJavaMemorySection()
+    public async Task InstanceJavaSettingsSaveKeepsCurrentJavaSection()
     {
         var instanceService = new FakeGameInstanceService();
         instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla));
@@ -1010,8 +1013,8 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        var javaMemorySection = viewModel.DetailSections.Single(section => section.Id == "java_memory");
-        viewModel.SelectDetailsSectionCommand.Execute(javaMemorySection);
+        var javaSection = viewModel.DetailSections.Single(section => section.Id == "java");
+        viewModel.SelectDetailsSectionCommand.Execute(javaSection);
 
         viewModel.Details.SelectedInstanceJavaSettingsModeOption = viewModel.Details.LaunchSettingsModeOptions
             .Single(option => option.Mode == LaunchSettingsMode.PerInstance);
@@ -1020,9 +1023,9 @@ public sealed class GameSettingsPageViewModelTests
             instanceService.LastSavedInstance is not null
             && instanceService.LastSavedInstance.JavaSettingsMode == LaunchSettingsMode.PerInstance);
 
-        Assert.True(viewModel.Details.IsJavaMemorySection);
-        Assert.True(javaMemorySection.IsSelected);
-        Assert.Equal(Strings.GameSettings_DetailJavaMemory, viewModel.Details.SectionTitle);
+        Assert.True(viewModel.Details.IsJavaSection);
+        Assert.True(javaSection.IsSelected);
+        Assert.Equal(Strings.GameSettings_DetailJava, viewModel.Details.SectionTitle);
     }
 
     [Fact]
