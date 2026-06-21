@@ -537,4 +537,5 @@
   <data name="Dialog_ReplaceModImportTitle" xml:space="preserve"><value>替换Mod</value></data>
   <data name="Dialog_ReplaceModImportMessageFormat" xml:space="preserve"><value>已存在《{0}》，是否替换？</value></data>
   <data name="Dialog_Replace_Button" xml:space="preserve"><value>替换</value></data>
+  <data name="GameSettings_ModManagementUnavailableMessage" xml:space="preserve"><value>当前版本不可安装mod</value></data>
 </root>

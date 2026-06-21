@@ -1121,7 +1121,7 @@ public sealed class GameSettingsPageViewModelTests
     [Fact]
     public async Task ModManagementViewModelShowsEmptyStateWhenNoModsAvailable()
     {
-        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var instance = CreateInstance("Fabric Pack", "1.21.4", LoaderKind.Fabric);
         var modService = new FakeModService();
         modService.ModsByInstanceId[instance.Id] = [];
         var viewModel = CreateViewModel([instance], modService: modService);
@@ -1131,9 +1131,36 @@ public sealed class GameSettingsPageViewModelTests
         await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.InstalledModCount == 0);
 
         Assert.Empty(viewModel.Details.ModManagement.Mods);
+        Assert.True(viewModel.Details.ModManagement.IsModManagementSupported);
+        Assert.True(viewModel.Details.ModManagement.CanShowModInfoSection);
         Assert.False(viewModel.Details.ModManagement.HasMods);
-        Assert.True(viewModel.Details.ModManagement.CanShowModEmptyState);
+        Assert.False(viewModel.Details.ModManagement.HasInstalledMods);
+        Assert.False(viewModel.Details.ModManagement.CanShowModListSection);
+        Assert.True(viewModel.Details.ModManagement.CanShowNoModsEmptyState);
+        Assert.False(viewModel.Details.ModManagement.CanShowModEmptyState);
+        Assert.False(viewModel.Details.ModManagement.CanShowModUnavailableState);
         Assert.Equal(Strings.GameSettings_ModManagementEmptyMessage, viewModel.Details.ModManagement.ModEmptyMessage);
+    }
+
+    [Fact]
+    public async Task ModManagementViewModelShowsUnavailableStateForVanillaInstance()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var modService = new FakeModService();
+        modService.ModsByInstanceId[instance.Id] = [];
+        var viewModel = CreateViewModel([instance], modService: modService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.InstalledModCount == 0);
+
+        Assert.False(viewModel.Details.ModManagement.IsModManagementSupported);
+        Assert.False(viewModel.Details.ModManagement.CanShowModInfoSection);
+        Assert.False(viewModel.Details.ModManagement.CanShowModListSection);
+        Assert.False(viewModel.Details.ModManagement.CanShowNoModsEmptyState);
+        Assert.False(viewModel.Details.ModManagement.CanShowModEmptyState);
+        Assert.True(viewModel.Details.ModManagement.CanShowModUnavailableState);
+        Assert.Equal(Strings.GameSettings_ModManagementUnavailableMessage, viewModel.Details.ModManagement.ModUnavailableMessage);
     }
 
     [Fact]
@@ -1158,11 +1185,15 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Equal("sodium-fabric-0.5.13", viewModel.Details.ModManagement.Mods[0].Title);
         Assert.Equal(2, viewModel.Details.ModManagement.InstalledModCount);
         Assert.Equal(1, viewModel.Details.ModManagement.EnabledModCount);
+        Assert.True(viewModel.Details.ModManagement.CanShowModListSection);
+        Assert.False(viewModel.Details.ModManagement.CanShowNoModsEmptyState);
         Assert.False(viewModel.Details.ModManagement.CanShowModEmptyState);
 
         viewModel.Details.ModManagement.ModSearchQuery = "missing-mod";
 
         Assert.Empty(viewModel.Details.ModManagement.Mods);
+        Assert.True(viewModel.Details.ModManagement.CanShowModListSection);
+        Assert.False(viewModel.Details.ModManagement.CanShowNoModsEmptyState);
         Assert.True(viewModel.Details.ModManagement.CanShowModEmptyState);
         Assert.Equal(Strings.GameSettings_ModManagementSearchEmptyMessage, viewModel.Details.ModManagement.ModEmptyMessage);
         Assert.Equal(2, viewModel.Details.ModManagement.InstalledModCount);

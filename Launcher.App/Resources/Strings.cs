@@ -181,6 +181,7 @@ public static class Strings
     public static string GameSettings_ModManagementModListSection => Get(nameof(GameSettings_ModManagementModListSection));
     public static string GameSettings_ModManagementEmptyMessage => Get(nameof(GameSettings_ModManagementEmptyMessage));
     public static string GameSettings_ModManagementSearchEmptyMessage => Get(nameof(GameSettings_ModManagementSearchEmptyMessage));
+    public static string GameSettings_ModManagementUnavailableMessage => Get(nameof(GameSettings_ModManagementUnavailableMessage));
     public static string GameSettings_ModManagementEnabledState => Get(nameof(GameSettings_ModManagementEnabledState));
     public static string GameSettings_ModManagementDisabledState => Get(nameof(GameSettings_ModManagementDisabledState));
     public static string GameSettings_LaunchSettingsSection => Get(nameof(GameSettings_LaunchSettingsSection));

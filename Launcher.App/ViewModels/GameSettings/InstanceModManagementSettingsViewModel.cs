@@ -61,9 +61,21 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
 
     public ObservableCollection<ModManagementModItemViewModel> Mods { get; } = [];
 
+    public bool IsModManagementSupported => selectedInstance?.Loader is not LoaderKind.Vanilla;
+
+    public bool CanShowModInfoSection => IsModManagementSupported;
+
     public bool HasMods => Mods.Count > 0;
 
-    public bool CanShowModEmptyState => !HasMods;
+    public bool HasInstalledMods => InstalledModCount > 0;
+
+    public bool CanShowModListSection => IsModManagementSupported && HasInstalledMods;
+
+    public bool CanShowNoModsEmptyState => IsModManagementSupported && !HasInstalledMods;
+
+    public bool CanShowModEmptyState => IsModManagementSupported && HasInstalledMods && !HasMods;
+
+    public bool CanShowModUnavailableState => !IsModManagementSupported;
 
     public bool HasSelectedMods => SelectedModCount > 0;
 
@@ -78,14 +90,17 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         InstalledModCount,
         EnabledModCount);
 
-    public string ModEmptyMessage => string.IsNullOrWhiteSpace(ModSearchQuery)
+    public string ModEmptyMessage => !HasInstalledMods || string.IsNullOrWhiteSpace(ModSearchQuery)
         ? Strings.GameSettings_ModManagementEmptyMessage
         : Strings.GameSettings_ModManagementSearchEmptyMessage;
+
+    public string ModUnavailableMessage => Strings.GameSettings_ModManagementUnavailableMessage;
 
     public async Task SetSelectedInstanceAsync(GameInstance? instance)
     {
         selectedInstance = instance;
         ResetSelectionState();
+        RaiseAvailabilityPropertyChanges();
         try
         {
             await localModsViewModel.SetSelectedInstanceAsync(instance);
@@ -97,7 +112,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
             SelectedMod = null;
             RefreshSummary();
             OnPropertyChanged(nameof(HasMods));
-            OnPropertyChanged(nameof(CanShowModEmptyState));
+            RaiseAvailabilityPropertyChanges();
             statusService.Report(Strings.Status_LoadLocalModsFailed);
         }
     }
@@ -425,6 +440,8 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     partial void OnInstalledModCountChanged(int value)
     {
         OnPropertyChanged(nameof(InstalledSummaryText));
+        RaiseAvailabilityPropertyChanges();
+        OnPropertyChanged(nameof(ModEmptyMessage));
     }
 
     partial void OnEnabledModCountChanged(int value)
@@ -488,7 +505,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
 
         RefreshSummary();
         OnPropertyChanged(nameof(HasMods));
-        OnPropertyChanged(nameof(CanShowModEmptyState));
+        RaiseAvailabilityPropertyChanges();
         OnPropertyChanged(nameof(ModEmptyMessage));
         OnPropertyChanged(nameof(AreAllVisibleModsSelected));
         OnPropertyChanged(nameof(SelectAllButtonText));
@@ -528,6 +545,18 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     private bool CanToggleSelectAllMods()
     {
         return IsMultiSelectMode && HasMods;
+    }
+
+    private void RaiseAvailabilityPropertyChanges()
+    {
+        OnPropertyChanged(nameof(IsModManagementSupported));
+        OnPropertyChanged(nameof(CanShowModInfoSection));
+        OnPropertyChanged(nameof(HasInstalledMods));
+        OnPropertyChanged(nameof(CanShowModListSection));
+        OnPropertyChanged(nameof(CanShowNoModsEmptyState));
+        OnPropertyChanged(nameof(CanShowModEmptyState));
+        OnPropertyChanged(nameof(CanShowModUnavailableState));
+        OnPropertyChanged(nameof(ModUnavailableMessage));
     }
 
     private void EnterMultiSelectMode()

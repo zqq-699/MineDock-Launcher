@@ -103,12 +103,33 @@
                              Style="{StaticResource ListPageSearchBoxStyle}" />
                 </StackPanel>
             </DataTemplate>
+
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <StackPanel>
-        <GroupBox Header="{x:Static res:Strings.GameSettings_ModManagementInfoSection}"
-                  Style="{StaticResource LauncherContentSectionStyle}">
+    <Grid>
+        <StackPanel>
+            <StackPanel.Style>
+                <Style TargetType="StackPanel">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CanShowModUnavailableState}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </StackPanel.Style>
+        <GroupBox Header="{x:Static res:Strings.GameSettings_ModManagementInfoSection}">
+            <GroupBox.Style>
+                <Style TargetType="GroupBox" BasedOn="{StaticResource LauncherContentSectionStyle}">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CanShowModInfoSection}" Value="False">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </GroupBox.Style>
             <Border Style="{StaticResource SectionFieldSurfaceStyle}">
                 <StackPanel>
                     <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
@@ -139,8 +160,17 @@
         </GroupBox>
 
         <GroupBox x:Name="ModListSection"
-                  Margin="0,26,0,0"
-                  Style="{StaticResource LauncherContentSectionStyle}">
+                  Margin="0,26,0,0">
+            <GroupBox.Style>
+                <Style TargetType="GroupBox" BasedOn="{StaticResource LauncherContentSectionStyle}">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CanShowModListSection}" Value="False">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </GroupBox.Style>
             <GroupBox.Header>
                 <ContentControl x:Name="OriginalModListHeaderHost"
                                 Content="{Binding}"
@@ -255,5 +285,18 @@
                            Visibility="{Binding CanShowModEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
             </Grid>
         </GroupBox>
-    </StackPanel>
+
+        <TextBlock Margin="0,26,0,0"
+                   Text="{Binding ModEmptyMessage}"
+                   Style="{StaticResource PageEmptyStateTextStyle}"
+                   Visibility="{Binding CanShowNoModsEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+        </StackPanel>
+
+        <Grid Height="{Binding ViewportHeight, RelativeSource={RelativeSource AncestorType={x:Type ScrollViewer}}}"
+              Margin="0,-132,0,-72"
+              Visibility="{Binding CanShowModUnavailableState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+            <TextBlock Text="{Binding ModUnavailableMessage}"
+                       Style="{StaticResource PageEmptyStateTextStyle}" />
+        </Grid>
+    </Grid>
 </UserControl>
