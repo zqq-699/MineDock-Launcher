@@ -1909,6 +1909,11 @@ public sealed class AccountPageViewModelTests
             return null;
         }
 
+        public string? PickSaveArchive()
+        {
+            return null;
+        }
+
         public string? PickFolder(string title, string? initialDirectory = null)
         {
             return null;

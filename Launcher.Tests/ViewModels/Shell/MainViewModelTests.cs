@@ -747,6 +747,14 @@ public sealed class MainViewModelTests
             return Task.FromResult<IReadOnlyList<LocalSave>>([]);
         }
 
+        public Task<LocalSaveImportResult> ImportFromArchiveAsync(
+            GameInstance instance,
+            string archivePath,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(LocalSaveImportResult.Failure(LocalSaveImportFailureReason.UnsupportedArchive));
+        }
+
         public Task DeleteAsync(LocalSave save, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -964,6 +972,11 @@ public sealed class MainViewModelTests
         }
 
         public string? PickModFile()
+        {
+            return null;
+        }
+
+        public string? PickSaveArchive()
         {
             return null;
         }

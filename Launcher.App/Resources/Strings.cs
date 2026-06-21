@@ -197,6 +197,13 @@ public static class Strings
     public static string GameSettings_SaveManagementSaveListSection => Get(nameof(GameSettings_SaveManagementSaveListSection));
     public static string GameSettings_SaveManagementEmptyMessage => Get(nameof(GameSettings_SaveManagementEmptyMessage));
     public static string GameSettings_SaveManagementSearchEmptyMessage => Get(nameof(GameSettings_SaveManagementSearchEmptyMessage));
+    public static string GameSettings_DropImportModsMessage => Get(nameof(GameSettings_DropImportModsMessage));
+    public static string GameSettings_DropImportSavesMessage => Get(nameof(GameSettings_DropImportSavesMessage));
+    public static string GameSettings_DropReleaseToImportMessage => Get(nameof(GameSettings_DropReleaseToImportMessage));
+    public static string GameSettings_DropUnsupportedFileMessage => Get(nameof(GameSettings_DropUnsupportedFileMessage));
+    public static string GameSettings_DropModsOnlyMessage => Get(nameof(GameSettings_DropModsOnlyMessage));
+    public static string GameSettings_DropSaveArchivesOnlyMessage => Get(nameof(GameSettings_DropSaveArchivesOnlyMessage));
+    public static string GameSettings_DropFoldersUnsupportedMessage => Get(nameof(GameSettings_DropFoldersUnsupportedMessage));
     public static string GameSettings_LaunchSettingsSection => Get(nameof(GameSettings_LaunchSettingsSection));
     public static string GameSettings_LaunchSettingsModeLabel => Get(nameof(GameSettings_LaunchSettingsModeLabel));
     public static string GameSettings_LaunchSettingsModeUseGlobal => Get(nameof(GameSettings_LaunchSettingsModeUseGlobal));
@@ -308,6 +315,9 @@ public static class Strings
     public static string Dialog_DeleteSavesTitle => Get(nameof(Dialog_DeleteSavesTitle));
     public static string Dialog_DeleteSingleSaveMessageFormat => Get(nameof(Dialog_DeleteSingleSaveMessageFormat));
     public static string Dialog_DeleteMultipleSavesMessageFormat => Get(nameof(Dialog_DeleteMultipleSavesMessageFormat));
+    public static string Dialog_InvalidSaveImportTitle => Get(nameof(Dialog_InvalidSaveImportTitle));
+    public static string Dialog_InvalidSaveArchiveMessage => Get(nameof(Dialog_InvalidSaveArchiveMessage));
+    public static string Dialog_UnsupportedSaveArchiveMessage => Get(nameof(Dialog_UnsupportedSaveArchiveMessage));
     public static string Dialog_ReplaceModImportTitle => Get(nameof(Dialog_ReplaceModImportTitle));
     public static string Dialog_ReplaceModImportMessageFormat => Get(nameof(Dialog_ReplaceModImportMessageFormat));
     public static string Dialog_Replace_Button => Get(nameof(Dialog_Replace_Button));
@@ -401,6 +411,11 @@ public static class Strings
     public static string Status_LocalModImported => Get(nameof(Status_LocalModImported));
     public static string Status_LocalModImportFileNotFound => Get(nameof(Status_LocalModImportFileNotFound));
     public static string Status_LocalModImportFailed => Get(nameof(Status_LocalModImportFailed));
+    public static string Status_LocalModsImportedFormat => Get(nameof(Status_LocalModsImportedFormat));
+    public static string Status_LocalSaveImported => Get(nameof(Status_LocalSaveImported));
+    public static string Status_LocalSaveImportFileNotFound => Get(nameof(Status_LocalSaveImportFileNotFound));
+    public static string Status_LocalSaveImportFailed => Get(nameof(Status_LocalSaveImportFailed));
+    public static string Status_LocalSavesImportedFormat => Get(nameof(Status_LocalSavesImportedFormat));
     public static string Status_SelectedModsEnabledFormat => Get(nameof(Status_SelectedModsEnabledFormat));
     public static string Status_SelectedModsEnablePartialFailedFormat => Get(nameof(Status_SelectedModsEnablePartialFailedFormat));
     public static string Status_SelectedModsEnableFailed => Get(nameof(Status_SelectedModsEnableFailed));
@@ -520,6 +535,8 @@ public static class Strings
     public static string FilePicker_JavaExecutableFilter => Get(nameof(FilePicker_JavaExecutableFilter));
     public static string FilePicker_ModFileTitle => Get(nameof(FilePicker_ModFileTitle));
     public static string FilePicker_ModFileFilter => Get(nameof(FilePicker_ModFileFilter));
+    public static string FilePicker_SaveArchiveTitle => Get(nameof(FilePicker_SaveArchiveTitle));
+    public static string FilePicker_SaveArchiveFilter => Get(nameof(FilePicker_SaveArchiveFilter));
     public static string FilePicker_MinecraftDirectoryTitle => Get(nameof(FilePicker_MinecraftDirectoryTitle));
     public static string Dialog_LaunchStatusFailedTitle => Get(nameof(Dialog_LaunchStatusFailedTitle));
     public static string Dialog_LaunchStatusExitedTitle => Get(nameof(Dialog_LaunchStatusExitedTitle));

@@ -283,6 +283,8 @@
   <data name="Status_InstanceCreatedFormat" xml:space="preserve"><value>游戏 {0} 已创建</value></data>
   <data name="Status_LocalModImported" xml:space="preserve"><value>本地 Mod 已导入</value></data>
   <data name="Status_LocalModImportFileNotFound" xml:space="preserve"><value>找不到要导入的 Mod 文件。</value></data>
+  <data name="Status_LocalSaveImported" xml:space="preserve"><value>本地存档已导入</value></data>
+  <data name="Status_LocalSaveImportFileNotFound" xml:space="preserve"><value>找不到要导入的存档压缩包。</value></data>
   <data name="Status_SelectInstanceFirst" xml:space="preserve"><value>请先选择一个游戏</value></data>
   <data name="Status_SearchingModrinth" xml:space="preserve"><value>正在搜索 Modrinth...</value></data>
   <data name="Status_ModDownloading" xml:space="preserve"><value>正在下载 Mod...</value></data>
@@ -532,8 +534,11 @@
   <data name="Status_SelectedModsDeleteFailed" xml:space="preserve"><value>删除所选 mod 失败，请稍后重试。</value></data>
   <data name="Status_OpenModFileLocationFailed" xml:space="preserve"><value>打开 Mod 文件位置失败，请稍后重试。</value></data>
   <data name="Status_LocalModImportFailed" xml:space="preserve"><value>导入本地 Mod 失败，请确认选择的是有效的 Mod 文件。</value></data>
+  <data name="Status_LocalSaveImportFailed" xml:space="preserve"><value>导入本地存档失败，请稍后重试。</value></data>
   <data name="FilePicker_ModFileTitle" xml:space="preserve"><value>选择 Mod 文件</value></data>
   <data name="FilePicker_ModFileFilter" xml:space="preserve"><value>Mod 文件|*.jar|所有文件|*.*</value></data>
+  <data name="FilePicker_SaveArchiveTitle" xml:space="preserve"><value>选择存档压缩包</value></data>
+  <data name="FilePicker_SaveArchiveFilter" xml:space="preserve"><value>压缩包|*.zip;*.7z;*.rar;*.tar;*.gz;*.tgz;*.bz2;*.tar.gz;*.tar.bz2;*.tbz2|所有文件|*.*</value></data>
   <data name="Dialog_ReplaceModImportTitle" xml:space="preserve"><value>替换Mod</value></data>
   <data name="Dialog_ReplaceModImportMessageFormat" xml:space="preserve"><value>已存在《{0}》，是否替换？</value></data>
   <data name="Dialog_Replace_Button" xml:space="preserve"><value>替换</value></data>
@@ -554,9 +559,21 @@
   <data name="Dialog_DeleteSavesTitle" xml:space="preserve"><value>删除存档</value></data>
   <data name="Dialog_DeleteSingleSaveMessageFormat" xml:space="preserve"><value>确认删除存档“{0}”吗？此操作不可撤销。</value></data>
   <data name="Dialog_DeleteMultipleSavesMessageFormat" xml:space="preserve"><value>确认删除这 {0} 个存档吗？此操作不可撤销。</value></data>
+  <data name="Dialog_InvalidSaveImportTitle" xml:space="preserve"><value>无法导入存档</value></data>
+  <data name="Dialog_InvalidSaveArchiveMessage" xml:space="preserve"><value>选择的压缩包不是有效的 Minecraft 存档。</value></data>
+  <data name="Dialog_UnsupportedSaveArchiveMessage" xml:space="preserve"><value>暂不支持导入该压缩格式。</value></data>
   <data name="Status_SelectedSavesDeletedFormat" xml:space="preserve"><value>已删除 {0} 个存档</value></data>
   <data name="Status_SelectedSavesDeletePartialFailedFormat" xml:space="preserve"><value>已删除 {0} 个存档，{1} 个失败</value></data>
   <data name="Status_SelectedSavesDeleteFailed" xml:space="preserve"><value>删除所选存档失败，请稍后重试。</value></data>
   <data name="Status_OpenLocalSaveFolderFailed" xml:space="preserve"><value>打开存档目录失败，请稍后重试。</value></data>
   <data name="Status_LoadLocalSavesFailed" xml:space="preserve"><value>加载存档列表失败，请稍后重试。</value></data>
+  <data name="GameSettings_DropImportModsMessage" xml:space="preserve"><value>释放以导入 Mod</value></data>
+  <data name="GameSettings_DropImportSavesMessage" xml:space="preserve"><value>释放以导入存档</value></data>
+  <data name="GameSettings_DropReleaseToImportMessage" xml:space="preserve"><value>松手以导入文件</value></data>
+  <data name="GameSettings_DropUnsupportedFileMessage" xml:space="preserve"><value>该页面不支持导入此类文件。</value></data>
+  <data name="GameSettings_DropModsOnlyMessage" xml:space="preserve"><value>当前页面仅支持拖入 Mod 文件。</value></data>
+  <data name="GameSettings_DropSaveArchivesOnlyMessage" xml:space="preserve"><value>当前页面仅支持拖入存档压缩包。</value></data>
+  <data name="GameSettings_DropFoldersUnsupportedMessage" xml:space="preserve"><value>暂不支持拖入文件夹。</value></data>
+  <data name="Status_LocalModsImportedFormat" xml:space="preserve"><value>已导入 {0} 个 Mod</value></data>
+  <data name="Status_LocalSavesImportedFormat" xml:space="preserve"><value>已导入 {0} 个存档</value></data>
 </root>

@@ -46,6 +46,19 @@ public sealed class FilePickerService : IFilePickerService
         return dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) == true ? dialog.FileName : null;
     }
 
+    public string? PickSaveArchive()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = Strings.FilePicker_SaveArchiveTitle,
+            Filter = Strings.FilePicker_SaveArchiveFilter,
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        return dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) == true ? dialog.FileName : null;
+    }
+
     public string? PickFolder(string title, string? initialDirectory = null)
     {
         var dialog = new OpenFolderDialog

@@ -607,7 +607,7 @@
                                 BorderThickness="1"
                                 CornerRadius="5.625" />
                         <Border x:Name="ActiveTrack"
-                                Background="{DynamicResource Brush.0891FE}"
+                                Background="{DynamicResource Brush.Accent.Primary}"
                                 CornerRadius="5.625"
                                 Opacity="0" />
                         <Border x:Name="Thumb"
@@ -700,11 +700,10 @@
                                 <Condition Property="IsEnabled" Value="False" />
                                 <Condition Property="IsChecked" Value="True" />
                             </MultiTrigger.Conditions>
-                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource Brush.1F4F7D}" />
-                            <Setter TargetName="TrackOutline" Property="BorderBrush" Value="{DynamicResource Brush.2A89D8FF}" />
-                            <Setter TargetName="ActiveTrack" Property="Background" Value="{DynamicResource Brush.1F4F7D}" />
-                            <Setter TargetName="ActiveTrack" Property="Opacity" Value="1" />
-                            <Setter TargetName="Thumb" Property="Background" Value="{DynamicResource Brush.E5F4FF}" />
+                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource Brush.434343}" />
+                            <Setter TargetName="TrackOutline" Property="BorderBrush" Value="{DynamicResource Brush.Accent.Border}" />
+                            <Setter TargetName="ActiveTrack" Property="Background" Value="{DynamicResource Brush.Accent.Border}" />
+                            <Setter TargetName="Thumb" Property="Background" Value="{DynamicResource Brush.FFFFFF}" />
                             <Setter TargetName="Thumb" Property="Opacity" Value="0.82" />
                         </MultiTrigger>
                     </ControlTemplate.Triggers>

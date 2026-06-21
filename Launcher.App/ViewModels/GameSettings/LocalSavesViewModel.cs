@@ -125,6 +125,35 @@ public sealed class LocalSavesViewModel : IDisposable
         return failedCount;
     }
 
+    public async Task<LocalSaveImportResult> ImportSaveFromArchiveAsync(string archivePath, bool reportStatus = true)
+    {
+        if (selectedInstance is null || string.IsNullOrWhiteSpace(archivePath))
+            return LocalSaveImportResult.Failure(LocalSaveImportFailureReason.UnexpectedError);
+
+        var result = await localSaveService.ImportFromArchiveAsync(selectedInstance, archivePath);
+        if (!result.IsSuccess)
+        {
+            switch (result.FailureReason)
+            {
+                case LocalSaveImportFailureReason.FileNotFound:
+                    if (reportStatus)
+                        ReportStatus(Strings.Status_LocalSaveImportFileNotFound);
+                    break;
+                case LocalSaveImportFailureReason.UnexpectedError:
+                    if (reportStatus)
+                        ReportStatus(Strings.Status_LocalSaveImportFailed);
+                    break;
+            }
+
+            return result;
+        }
+
+        await RefreshSavesAsync();
+        if (reportStatus)
+            ReportStatus(Strings.Status_LocalSaveImported);
+        return result;
+    }
+
     public void Dispose()
     {
         savesWatcher?.Dispose();

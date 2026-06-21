@@ -471,6 +471,15 @@ public sealed partial class MainViewModel : ObservableObject
 
         floatingMessageHideCancellation?.Cancel();
         floatingMessageHideCancellation?.Dispose();
+        floatingMessageHideCancellation = null;
+
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            IsFloatingMessageOpen = false;
+            FloatingMessage = string.Empty;
+            return;
+        }
+
         floatingMessageHideCancellation = new CancellationTokenSource();
 
         FloatingMessage = message;

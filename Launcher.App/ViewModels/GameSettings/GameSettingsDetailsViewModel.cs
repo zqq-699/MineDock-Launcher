@@ -142,8 +142,10 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             this,
             localSavesViewModel,
             statusService,
-            instanceFolderService);
+            instanceFolderService,
+            filePickerService);
         SaveManagement.DeleteSavesRequested += SaveManagement_DeleteSavesRequested;
+        SaveManagement.SaveImportFailedRequested += SaveManagement_SaveImportFailedRequested;
         Placeholder = new InstancePlaceholderSettingsViewModel(this);
         CurrentSectionViewModel = General;
     }
@@ -155,6 +157,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     public event Action<ModDeleteRequest>? DeleteModsRequested;
     public event Action<SaveDeleteRequest>? DeleteSavesRequested;
     public event Action<ModImportConflictRequest>? ImportModConflictRequested;
+    public event Action<SaveImportFailureRequest>? SaveImportFailedRequested;
 
     public bool HasSelectedInstance => SelectedInstance is not null;
 
@@ -293,6 +296,40 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     public Task DeleteSavesAsync(IReadOnlyList<string> fullPaths)
     {
         return SaveManagement.DeleteSavesAsync(fullPaths);
+    }
+
+    public GameSettingsFileDropEvaluation EvaluateImportDrop(IReadOnlyList<string> paths)
+    {
+        if (SelectedInstance is null)
+            return GameSettingsFileDropEvaluation.Hidden;
+
+        return SelectedSection?.Id?.ToLowerInvariant() switch
+        {
+            "mod_management" => ModManagement.EvaluateDroppedFiles(paths),
+            "saves" => SaveManagement.EvaluateDroppedFiles(paths),
+            _ => GameSettingsFileDropEvaluation.Hidden
+        };
+    }
+
+    public Task HandleImportDropAsync(IReadOnlyList<string> paths)
+    {
+        if (SelectedInstance is null)
+            return Task.CompletedTask;
+
+        return SelectedSection?.Id?.ToLowerInvariant() switch
+        {
+            "mod_management" => ModManagement.ImportDroppedModFilesAsync(paths),
+            "saves" => SaveManagement.ImportDroppedSaveArchivesAsync(paths),
+            _ => Task.CompletedTask
+        };
+    }
+
+    public void ResolvePendingModImportConflict(bool shouldReplace)
+    {
+        if (shouldReplace)
+            ModManagement.ReplaceImportedModAsync(string.Empty);
+        else
+            ModManagement.SkipPendingImportedModReplacement();
     }
 
     [RelayCommand]
@@ -1047,6 +1084,11 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     private void SaveManagement_DeleteSavesRequested(SaveDeleteRequest request)
     {
         DeleteSavesRequested?.Invoke(request);
+    }
+
+    private void SaveManagement_SaveImportFailedRequested(SaveImportFailureRequest request)
+    {
+        SaveImportFailedRequested?.Invoke(request);
     }
 
     public Task ReplaceImportedModAsync(string sourcePath)

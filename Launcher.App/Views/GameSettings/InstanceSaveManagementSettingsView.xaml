@@ -3,6 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
              xmlns:res="clr-namespace:Launcher.App.Resources"
+             xmlns:views="clr-namespace:Launcher.App.Views.GameSettings"
+             x:Name="Root"
              Focusable="False">
     <UserControl.Resources>
         <ResourceDictionary>
@@ -189,13 +191,13 @@
                                                              IconKey="{Binding IconKey}"
                                                              ItemMargin="0"
                                                              IsSelected="{Binding IsSelected}"
-                                                             Command="{Binding DataContext.SelectSaveCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                                             Command="{Binding DataContext.SelectSaveCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceSaveManagementSettingsView}}}"
                                                              CommandParameter="{Binding}">
                                     <controls:ListPageItemButton.TrailingContent>
                                         <StackPanel Orientation="Horizontal">
                                             <Button Style="{StaticResource InlineIconButtonStyle}"
                                                     ToolTip="{x:Static res:Strings.GameSettings_OpenInstanceFolderTooltip}"
-                                                    Command="{Binding DataContext.OpenSaveLocationCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                                    Command="{Binding DataContext.OpenSaveLocationCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceSaveManagementSettingsView}}}"
                                                     CommandParameter="{Binding}">
                                                 <controls:SvgIcon Width="16"
                                                                   Height="16"
@@ -206,7 +208,7 @@
                                             <Button Margin="4,0,0,0"
                                                     Style="{StaticResource SecondaryMenuDeleteButtonStyle}"
                                                     ToolTip="{x:Static res:Strings.Delete_Button}"
-                                                    Command="{Binding DataContext.RequestDeleteSaveCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                                    Command="{Binding DataContext.RequestDeleteSaveCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceSaveManagementSettingsView}}}"
                                                     CommandParameter="{Binding}">
                                                 <controls:SvgIcon Width="16"
                                                                   Height="16"

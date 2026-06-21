@@ -18,6 +18,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     private readonly IFilePickerService filePickerService;
     private readonly ILogger<InstanceModManagementSettingsViewModel> logger;
     private readonly HashSet<string> selectedModPaths = new(StringComparer.OrdinalIgnoreCase);
+    private TaskCompletionSource<bool>? pendingImportConflictResolutionSource;
     private GameInstance? selectedInstance;
     private string? lastSingleSelectedModPath;
 
@@ -161,19 +162,33 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         if (string.IsNullOrWhiteSpace(modPath))
             return;
 
-        var fileName = Path.GetFileName(modPath);
-        if (localModsViewModel.Mods.Any(mod => string.Equals(mod.FileName, fileName, StringComparison.OrdinalIgnoreCase)))
-        {
-            ImportModConflictRequested?.Invoke(new ModImportConflictRequest(modPath, fileName));
-            return;
-        }
-
-        await ImportLocalModCoreAsync(modPath, overwriteExisting: false);
+        await ImportModFilesAsync([modPath], ImportTriggerSource.FilePicker);
     }
 
     public Task ReplaceImportedModAsync(string sourcePath)
     {
-        return ImportLocalModCoreAsync(sourcePath, overwriteExisting: true);
+        ResolvePendingImportConflict(true);
+        return Task.CompletedTask;
+    }
+
+    public void SkipPendingImportedModReplacement()
+    {
+        ResolvePendingImportConflict(false);
+    }
+
+    public GameSettingsFileDropEvaluation EvaluateDroppedFiles(IReadOnlyList<string> paths)
+    {
+        if (!IsModManagementSupported)
+            return GameSettingsFileDropEvaluation.Reject(ModUnavailableMessage);
+
+        return TryValidateImportPaths(paths, Strings.GameSettings_DropModsOnlyMessage, out var failureMessage)
+            ? GameSettingsFileDropEvaluation.Accept(Strings.GameSettings_DropImportModsMessage)
+            : GameSettingsFileDropEvaluation.Reject(failureMessage);
+    }
+
+    public Task ImportDroppedModFilesAsync(IReadOnlyList<string> paths)
+    {
+        return ImportModFilesAsync(paths, ImportTriggerSource.DragDrop);
     }
 
     private async Task ImportLocalModCoreAsync(string modPath, bool overwriteExisting)
@@ -200,6 +215,77 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
                 modPath,
                 overwriteExisting);
             statusService.Report(Strings.Status_LocalModImportFailed);
+        }
+    }
+
+    private async Task ImportModFilesAsync(IReadOnlyList<string> paths, ImportTriggerSource source)
+    {
+        if (selectedInstance is null)
+            return;
+
+        if (!TryValidateImportPaths(paths, Strings.GameSettings_DropModsOnlyMessage, out var validationMessage))
+        {
+            statusService.Report(source is ImportTriggerSource.DragDrop
+                ? validationMessage
+                : Strings.Status_LocalModImportFailed);
+            return;
+        }
+
+        logger.LogInformation(
+            "Starting local mod import batch. InstanceId={InstanceId} Source={Source} FileCount={FileCount}",
+            selectedInstance.Id,
+            source,
+            paths.Count);
+
+        var successCount = 0;
+        foreach (var modPath in paths)
+        {
+            var fileName = Path.GetFileName(modPath);
+            var overwriteExisting = false;
+            if (localModsViewModel.Mods.Any(mod => string.Equals(mod.FileName, fileName, StringComparison.OrdinalIgnoreCase)))
+            {
+                var replace = await RequestModImportConflictResolutionAsync(modPath, fileName);
+                if (!replace)
+                {
+                    logger.LogInformation(
+                        "Skipping local mod replacement after user canceled conflict dialog. InstanceId={InstanceId} SourcePath={SourcePath}",
+                        selectedInstance.Id,
+                        modPath);
+                    continue;
+                }
+
+                overwriteExisting = true;
+            }
+
+            try
+            {
+                var imported = await localModsViewModel.ImportModFromPathAsync(modPath, overwriteExisting, reportStatus: false);
+                if (!imported)
+                {
+                    statusService.Report(Strings.Status_LocalModImportFailed);
+                    return;
+                }
+
+                successCount++;
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(
+                    exception,
+                    "Failed to import local mod during batch import. InstanceId={InstanceId} SourcePath={SourcePath} OverwriteExisting={OverwriteExisting}",
+                    selectedInstance.Id,
+                    modPath,
+                    overwriteExisting);
+                statusService.Report(Strings.Status_LocalModImportFailed);
+                return;
+            }
+        }
+
+        if (successCount > 0)
+        {
+            statusService.Report(successCount == 1
+                ? Strings.Status_LocalModImported
+                : string.Format(Strings.Status_LocalModsImportedFormat, successCount));
         }
     }
 
@@ -684,6 +770,49 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     private void UpdateSelectedModState()
     {
         SelectedModCount = Mods.Count(mod => mod.IsSelected);
+    }
+
+    private async Task<bool> RequestModImportConflictResolutionAsync(string sourcePath, string fileName)
+    {
+        pendingImportConflictResolutionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ImportModConflictRequested?.Invoke(new ModImportConflictRequest(sourcePath, fileName));
+        return await pendingImportConflictResolutionSource.Task;
+    }
+
+    private void ResolvePendingImportConflict(bool shouldReplace)
+    {
+        pendingImportConflictResolutionSource?.TrySetResult(shouldReplace);
+        pendingImportConflictResolutionSource = null;
+    }
+
+    private bool TryValidateImportPaths(
+        IReadOnlyList<string> paths,
+        string invalidTypeMessage,
+        out string failureMessage)
+    {
+        failureMessage = string.Empty;
+        if (paths.Count == 0)
+        {
+            failureMessage = invalidTypeMessage;
+            return false;
+        }
+
+        foreach (var path in paths)
+        {
+            if (Directory.Exists(path))
+            {
+                failureMessage = Strings.GameSettings_DropFoldersUnsupportedMessage;
+                return false;
+            }
+
+            if (!File.Exists(path) || !path.EndsWith(".jar", StringComparison.OrdinalIgnoreCase))
+            {
+                failureMessage = invalidTypeMessage;
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static string GetPathForEnabledState(string path, bool enabled)

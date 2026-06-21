@@ -17,9 +17,11 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     private readonly IGameVersionService gameVersionService;
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
+    private readonly IFloatingMessageService floatingMessageService;
     private readonly ILogger<GameSettingsPageViewModel> logger;
     private IReadOnlyDictionary<string, string> versionTypesByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private bool hasLoadedInstances;
+    private string lastImportDropHintMessage = string.Empty;
     private INotifyPropertyChanged? selectedInstanceNotifier;
 
     [ObservableProperty]
@@ -67,6 +69,12 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     [ObservableProperty]
     private ModImportConflictRequest? pendingModImportConflict;
 
+    [ObservableProperty]
+    private bool isInvalidSaveImportDialogOpen;
+
+    [ObservableProperty]
+    private string invalidSaveImportDialogMessage = string.Empty;
+
     public GameSettingsPageViewModel(
         IGameInstanceService instanceService,
         IGameVersionService gameVersionService,
@@ -85,6 +93,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         this.gameVersionService = gameVersionService;
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
+        this.floatingMessageService = floatingMessageService;
         this.logger = logger ?? NullLogger<GameSettingsPageViewModel>.Instance;
         EditDialog = new GameSettingsEditDialogViewModel(instanceService, statusService);
         Details = new GameSettingsDetailsViewModel(
@@ -105,6 +114,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         Details.DeleteModsRequested += Details_DeleteModsRequested;
         Details.DeleteSavesRequested += Details_DeleteSavesRequested;
         Details.ImportModConflictRequested += Details_ImportModConflictRequested;
+        Details.SaveImportFailedRequested += Details_SaveImportFailedRequested;
 
         InstanceCategories.Add(new GameSettingsInstanceCategory("all", Strings.GameSettings_AllCategory, string.Empty, "general/general_all_application"));
         InstanceCategories.Add(new GameSettingsInstanceCategory("mod_loader", Strings.GameSettings_ModLoaderCategory, string.Empty, "general/general_extention"));
@@ -188,6 +198,49 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     public string ReplaceModImportDialogMessage => PendingModImportConflict is null
         ? string.Empty
         : string.Format(Strings.Dialog_ReplaceModImportMessageFormat, PendingModImportConflict.FileName);
+
+    public string InvalidSaveImportDialogTitle => Strings.Dialog_InvalidSaveImportTitle;
+
+    public bool UpdateImportDropState(IReadOnlyList<string> paths)
+    {
+        var evaluation = EvaluateImportDrop(paths);
+        ApplyImportDropHint(evaluation);
+        return evaluation.ShouldHandle && evaluation.CanAccept;
+    }
+
+    public void ClearImportDropState()
+    {
+        lastImportDropHintMessage = string.Empty;
+        floatingMessageService.Show(string.Empty);
+    }
+
+    public async Task HandleImportDropAsync(IReadOnlyList<string> paths)
+    {
+        var evaluation = EvaluateImportDrop(paths);
+        ApplyImportDropHint(evaluation);
+        if (!evaluation.ShouldHandle)
+        {
+            ClearImportDropState();
+            return;
+        }
+
+        ClearImportDropState();
+        if (!evaluation.CanAccept)
+            return;
+        try
+        {
+            logger.LogInformation(
+                "Handling game settings import drop. Section={SectionId} FileCount={FileCount} InstanceId={InstanceId}",
+                Details.SelectedSection?.Id ?? "<none>",
+                paths.Count,
+                SelectedInstance?.Instance.Id ?? "<none>");
+            await Details.HandleImportDropAsync(paths);
+        }
+        finally
+        {
+            ClearImportDropState();
+        }
+    }
 
     public void PrimeFromSettings(LauncherSettings launcherSettings)
     {
@@ -390,6 +443,12 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         IsReplaceModImportDialogOpen = true;
     }
 
+    private void Details_SaveImportFailedRequested(SaveImportFailureRequest request)
+    {
+        InvalidSaveImportDialogMessage = request.Message;
+        IsInvalidSaveImportDialogOpen = true;
+    }
+
     [RelayCommand]
     private void CancelDeleteInstanceDialog()
     {
@@ -463,18 +522,26 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     {
         IsReplaceModImportDialogOpen = false;
         PendingModImportConflict = null;
+        Details.ResolvePendingModImportConflict(false);
     }
 
     [RelayCommand]
-    private async Task ConfirmReplaceModImportDialogAsync()
+    private Task ConfirmReplaceModImportDialogAsync()
     {
         if (PendingModImportConflict is null)
-            return;
+            return Task.CompletedTask;
 
-        var request = PendingModImportConflict;
         IsReplaceModImportDialogOpen = false;
         PendingModImportConflict = null;
-        await Details.ReplaceImportedModAsync(request.SourcePath);
+        Details.ResolvePendingModImportConflict(true);
+        return Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private void CloseInvalidSaveImportDialog()
+    {
+        IsInvalidSaveImportDialogOpen = false;
+        InvalidSaveImportDialogMessage = string.Empty;
     }
 
     [RelayCommand]
@@ -594,6 +661,11 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(ReplaceModImportDialogMessage));
     }
 
+    partial void OnInvalidSaveImportDialogMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(InvalidSaveImportDialogTitle));
+    }
+
     partial void OnInstanceSearchQueryChanged(string value)
     {
         RefreshVisibleInstances();
@@ -630,6 +702,29 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     private void ClearSelectedInstance()
     {
         SelectInstanceCore(null);
+    }
+
+    private GameSettingsFileDropEvaluation EvaluateImportDrop(IReadOnlyList<string> paths)
+    {
+        if (!IsDetailsStep)
+            return GameSettingsFileDropEvaluation.Hidden;
+
+        return Details.EvaluateImportDrop(paths);
+    }
+
+    private void ApplyImportDropHint(GameSettingsFileDropEvaluation evaluation)
+    {
+        var message = evaluation.ShouldHandle
+            ? evaluation.CanAccept
+                ? Strings.GameSettings_DropReleaseToImportMessage
+                : Strings.GameSettings_DropUnsupportedFileMessage
+            : string.Empty;
+
+        if (string.Equals(lastImportDropHintMessage, message, StringComparison.Ordinal))
+            return;
+
+        lastImportDropHintMessage = message;
+        floatingMessageService.Show(message);
     }
 
     private void RemoveInstanceLocally(string instanceId)

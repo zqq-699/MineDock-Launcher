@@ -160,10 +160,10 @@ public sealed class LocalModsViewModel : IDisposable
         return failedCount;
     }
 
-    public async Task ImportModFromPathAsync(string path, bool overwriteExisting = false)
+    public async Task<bool> ImportModFromPathAsync(string path, bool overwriteExisting = false, bool reportStatus = true)
     {
         if (selectedInstance is null || string.IsNullOrWhiteSpace(path))
-            return;
+            return false;
 
         try
         {
@@ -171,12 +171,15 @@ public sealed class LocalModsViewModel : IDisposable
         }
         catch (ModFileImportNotFoundException)
         {
-            ReportStatus(Strings.Status_LocalModImportFileNotFound);
-            return;
+            if (reportStatus)
+                ReportStatus(Strings.Status_LocalModImportFileNotFound);
+            return false;
         }
 
         await RefreshModsAsync();
-        ReportStatus(Strings.Status_LocalModImported);
+        if (reportStatus)
+            ReportStatus(Strings.Status_LocalModImported);
+        return true;
     }
 
     public void Dispose()

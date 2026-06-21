@@ -924,6 +924,11 @@ public sealed class HomePageViewModelTests
             return null;
         }
 
+        public string? PickSaveArchive()
+        {
+            return null;
+        }
+
         public string? PickFolder(string title, string? initialDirectory = null)
         {
             return null;

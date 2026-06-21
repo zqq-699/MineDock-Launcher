@@ -639,6 +639,8 @@ public sealed class ResourceDictionaryTests
 
         public string? PickModFile() => null;
 
+        public string? PickSaveArchive() => null;
+
         public string? PickFolder(string title, string? initialDirectory = null) => null;
     }
 
@@ -734,6 +736,14 @@ public sealed class ResourceDictionaryTests
         public Task<IReadOnlyList<LocalSave>> GetSavesAsync(GameInstance instance, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<LocalSave>>([]);
+        }
+
+        public Task<LocalSaveImportResult> ImportFromArchiveAsync(
+            GameInstance instance,
+            string archivePath,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(LocalSaveImportResult.Failure(LocalSaveImportFailureReason.UnsupportedArchive));
         }
 
         public Task DeleteAsync(LocalSave save, CancellationToken cancellationToken = default)

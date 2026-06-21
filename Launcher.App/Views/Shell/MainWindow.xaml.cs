@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Launcher.App.Controls;
@@ -168,6 +169,65 @@ public partial class MainWindow : Window
             foreach (var descendant in FindVisualChildren<T>(child))
                 yield return descendant;
         }
+    }
+
+    private void Window_OnPreviewDragEnter(object sender, DragEventArgs e)
+    {
+        HandleFileDropPreview(e);
+    }
+
+    private void Window_OnPreviewDragOver(object sender, DragEventArgs e)
+    {
+        HandleFileDropPreview(e);
+    }
+
+    private void Window_OnPreviewDragLeave(object sender, DragEventArgs e)
+    {
+        if (IsPointWithinWindow(e.GetPosition(this)))
+            return;
+
+        viewModel.GameSettingsPage.ClearImportDropState();
+    }
+
+    private async void Window_OnPreviewDrop(object sender, DragEventArgs e)
+    {
+        var paths = TryGetDroppedPaths(e);
+        if (paths is null)
+            return;
+
+        e.Handled = true;
+        e.Effects = DragDropEffects.None;
+        await viewModel.GameSettingsPage.HandleImportDropAsync(paths);
+    }
+
+    private void HandleFileDropPreview(DragEventArgs e)
+    {
+        var paths = TryGetDroppedPaths(e);
+        if (paths is null)
+        {
+            viewModel.GameSettingsPage.ClearImportDropState();
+            return;
+        }
+
+        var canAccept = viewModel.GameSettingsPage.UpdateImportDropState(paths);
+        e.Effects = canAccept ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private static string[]? TryGetDroppedPaths(DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+            return null;
+
+        return e.Data.GetData(DataFormats.FileDrop) as string[];
+    }
+
+    private bool IsPointWithinWindow(Point point)
+    {
+        return point.X >= 0
+               && point.Y >= 0
+               && point.X <= ActualWidth
+               && point.Y <= ActualHeight;
     }
 }
 

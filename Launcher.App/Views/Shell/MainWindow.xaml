@@ -18,11 +18,16 @@
         Title="{x:Static res:Strings.App_Title}"
         Width="900"
         Height="600"
+        AllowDrop="True"
         MinWidth="900"
         MinHeight="600"
         WindowStyle="None"
         AllowsTransparency="False"
         Background="Transparent"
+        PreviewDragEnter="Window_OnPreviewDragEnter"
+        PreviewDragOver="Window_OnPreviewDragOver"
+        PreviewDragLeave="Window_OnPreviewDragLeave"
+        PreviewDrop="Window_OnPreviewDrop"
         FontFamily="Microsoft YaHei UI"
         ResizeMode="CanResize"
         UseLayoutRounding="True"
@@ -265,6 +270,37 @@
                                 Margin="{StaticResource DialogTrailingButtonMargin}"
                                 Content="{x:Static res:Strings.Dialog_Replace_Button}"
                                 Command="{Binding ConfirmReplaceModImportDialogCommand}" />
+                    </StackPanel>
+                </Grid>
+            </controls:DialogHost>
+
+            <controls:DialogHost x:Name="InvalidSaveImportDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="380"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsInvalidSaveImportDialogOpen}"
+                                 DataContext="{Binding GameSettingsPage}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{Binding InvalidSaveImportDialogTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,16,0,24"
+                               Text="{Binding InvalidSaveImportDialogMessage}"
+                               Style="{StaticResource DialogBodyTextStyle}" />
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                Content="{x:Static res:Strings.Confirm_Button}"
+                                Command="{Binding CloseInvalidSaveImportDialogCommand}" />
                     </StackPanel>
                 </Grid>
             </controls:DialogHost>

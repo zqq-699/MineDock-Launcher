@@ -1213,6 +1213,11 @@ public sealed class SettingsPageViewModelTests
             return null;
         }
 
+        public string? PickSaveArchive()
+        {
+            return null;
+        }
+
         public string? PickFolder(string title, string? initialDirectory = null)
         {
             return FolderPath;

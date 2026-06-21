@@ -15,8 +15,22 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     private readonly LocalSavesViewModel localSavesViewModel;
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
+    private readonly IFilePickerService filePickerService;
     private readonly ILogger<InstanceSaveManagementSettingsViewModel> logger;
     private readonly HashSet<string> selectedSavePaths = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly string[] SupportedSaveArchiveExtensions =
+    [
+        ".zip",
+        ".7z",
+        ".rar",
+        ".tar",
+        ".gz",
+        ".tgz",
+        ".bz2",
+        ".tar.gz",
+        ".tar.bz2",
+        ".tbz2"
+    ];
     private GameInstance? selectedInstance;
     private string? lastSingleSelectedSavePath;
 
@@ -40,17 +54,20 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         LocalSavesViewModel localSavesViewModel,
         IStatusService statusService,
         IInstanceFolderService instanceFolderService,
+        IFilePickerService filePickerService,
         ILogger<InstanceSaveManagementSettingsViewModel>? logger = null)
         : base(parent)
     {
         this.localSavesViewModel = localSavesViewModel;
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
+        this.filePickerService = filePickerService;
         this.logger = logger ?? NullLogger<InstanceSaveManagementSettingsViewModel>.Instance;
         this.localSavesViewModel.SavesChanged += LocalSavesViewModel_SavesChanged;
     }
 
     public event Action<SaveDeleteRequest>? DeleteSavesRequested;
+    public event Action<SaveImportFailureRequest>? SaveImportFailedRequested;
 
     public ObservableCollection<SaveManagementSaveItemViewModel> Saves { get; } = [];
 
@@ -70,7 +87,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
 
     public bool AreAllVisibleSavesSelected => HasSaves && SelectedSaveCount == Saves.Count;
 
-    public bool CanImportLocalSave => false;
+    public bool CanImportLocalSave => selectedInstance is not null;
 
     public string SelectAllButtonText => AreAllVisibleSavesSelected
         ? Strings.GameSettings_SaveManagementCancelSelectAllButton
@@ -89,6 +106,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         selectedInstance = instance;
         ResetSelectionState();
         RaiseAvailabilityPropertyChanges();
+        ImportLocalSaveCommand.NotifyCanExecuteChanged();
         try
         {
             await localSavesViewModel.SetSelectedInstanceAsync(instance);
@@ -140,8 +158,28 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     }
 
     [RelayCommand(CanExecute = nameof(CanImportLocalSave))]
-    private void ImportLocalSave()
+    private async Task ImportLocalSaveAsync()
     {
+        if (selectedInstance is null)
+            return;
+
+        var archivePath = filePickerService.PickSaveArchive();
+        if (string.IsNullOrWhiteSpace(archivePath))
+            return;
+
+        await ImportSaveArchivesAsync([archivePath], ImportTriggerSource.FilePicker);
+    }
+
+    public GameSettingsFileDropEvaluation EvaluateDroppedFiles(IReadOnlyList<string> paths)
+    {
+        return TryValidateImportPaths(paths, Strings.GameSettings_DropSaveArchivesOnlyMessage, out var failureMessage)
+            ? GameSettingsFileDropEvaluation.Accept(Strings.GameSettings_DropImportSavesMessage)
+            : GameSettingsFileDropEvaluation.Reject(failureMessage);
+    }
+
+    public Task ImportDroppedSaveArchivesAsync(IReadOnlyList<string> paths)
+    {
+        return ImportSaveArchivesAsync(paths, ImportTriggerSource.DragDrop);
     }
 
     [RelayCommand]
@@ -476,5 +514,107 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     private void UpdateSelectedSaveState()
     {
         SelectedSaveCount = Saves.Count(save => save.IsSelected);
+    }
+
+    private async Task ImportSaveArchivesAsync(IReadOnlyList<string> archivePaths, ImportTriggerSource source)
+    {
+        if (selectedInstance is null)
+            return;
+
+        if (!TryValidateImportPaths(archivePaths, Strings.GameSettings_DropSaveArchivesOnlyMessage, out var validationMessage))
+        {
+            if (source is ImportTriggerSource.DragDrop)
+            {
+                statusService.Report(validationMessage);
+            }
+            else
+            {
+                SaveImportFailedRequested?.Invoke(new SaveImportFailureRequest(Strings.Dialog_UnsupportedSaveArchiveMessage));
+            }
+
+            return;
+        }
+
+        logger.LogInformation(
+            "Starting local save import batch. InstanceId={InstanceId} Source={Source} FileCount={FileCount}",
+            selectedInstance.Id,
+            source,
+            archivePaths.Count);
+
+        var successCount = 0;
+        foreach (var archivePath in archivePaths)
+        {
+            logger.LogInformation(
+                "Importing local save archive. InstanceId={InstanceId} ArchivePath={ArchivePath}",
+                selectedInstance.Id,
+                archivePath);
+
+            var result = await localSavesViewModel.ImportSaveFromArchiveAsync(archivePath, reportStatus: false);
+            if (result.IsSuccess)
+            {
+                successCount++;
+                continue;
+            }
+
+            switch (result.FailureReason)
+            {
+                case LocalSaveImportFailureReason.InvalidMinecraftSaveArchive:
+                    SaveImportFailedRequested?.Invoke(new SaveImportFailureRequest(Strings.Dialog_InvalidSaveArchiveMessage));
+                    break;
+                case LocalSaveImportFailureReason.UnsupportedArchive:
+                    SaveImportFailedRequested?.Invoke(new SaveImportFailureRequest(Strings.Dialog_UnsupportedSaveArchiveMessage));
+                    break;
+                case LocalSaveImportFailureReason.FileNotFound:
+                    statusService.Report(Strings.Status_LocalSaveImportFileNotFound);
+                    break;
+                case LocalSaveImportFailureReason.UnexpectedError:
+                    logger.LogWarning(
+                        "Local save import failed unexpectedly after service call. InstanceId={InstanceId} ArchivePath={ArchivePath}",
+                        selectedInstance.Id,
+                        archivePath);
+                    statusService.Report(Strings.Status_LocalSaveImportFailed);
+                    break;
+            }
+
+            return;
+        }
+
+        if (successCount > 0)
+        {
+            statusService.Report(successCount == 1
+                ? Strings.Status_LocalSaveImported
+                : string.Format(Strings.Status_LocalSavesImportedFormat, successCount));
+        }
+    }
+
+    private bool TryValidateImportPaths(
+        IReadOnlyList<string> paths,
+        string invalidTypeMessage,
+        out string failureMessage)
+    {
+        failureMessage = string.Empty;
+        if (paths.Count == 0)
+        {
+            failureMessage = invalidTypeMessage;
+            return false;
+        }
+
+        foreach (var path in paths)
+        {
+            if (Directory.Exists(path))
+            {
+                failureMessage = Strings.GameSettings_DropFoldersUnsupportedMessage;
+                return false;
+            }
+
+            if (!File.Exists(path)
+                || !SupportedSaveArchiveExtensions.Any(extension => path.EndsWith(extension, StringComparison.OrdinalIgnoreCase)))
+            {
+                failureMessage = invalidTypeMessage;
+                return false;
+            }
+        }
+
+        return true;
     }
 }

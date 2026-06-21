@@ -7,6 +7,8 @@ using Launcher.Infrastructure;
 using Launcher.Infrastructure.FileSystem;
 using Launcher.Infrastructure.Persistence;
 using Launcher.Tests.Helpers;
+using System.Formats.Tar;
+using System.IO.Compression;
 
 namespace Launcher.Tests.GameSettings;
 
@@ -663,7 +665,7 @@ public sealed class GameSettingsPageViewModelTests
             saveManagement.Saves.Select(save => save.TrailingText));
         Assert.Equal(string.Empty, saveManagement.Saves[0].IconKey);
         Assert.Equal("instance_setting_page/saves", saveManagement.Saves[1].IconKey);
-        Assert.False(saveManagement.ImportLocalSaveCommand.CanExecute(null));
+        Assert.True(saveManagement.ImportLocalSaveCommand.CanExecute(null));
         Assert.True(saveManagement.HasSaves);
         Assert.False(saveManagement.CanShowSaveEmptyState);
         Assert.Same(saveManagement.Saves[0], saveManagement.SelectedSave);
@@ -739,6 +741,270 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Empty(saveService.SavesByInstanceId[instance.Id]);
         Assert.Empty(saveManagement.Saves);
         Assert.False(saveManagement.IsMultiSelectMode);
+    }
+
+    [Fact]
+    public async Task SaveManagementSingleDeleteUsesConfirmationDialogBeforeRemovingSave()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var saveService = new FakeSaveService();
+        saveService.SavesByInstanceId[instance.Id] =
+        [
+            CreateLocalSave("Alpha Base", instance.InstanceDirectory),
+            CreateLocalSave("Beta Base", instance.InstanceDirectory)
+        ];
+        var viewModel = CreateViewModel([instance], saveService: saveService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "saves"));
+        await TestAsync.WaitForAsync(() => viewModel.Details.SaveManagement.Saves.Count == 2);
+
+        var saveManagement = viewModel.Details.SaveManagement;
+        var targetSave = saveManagement.Saves.Single(save => save.Title == "Alpha Base");
+
+        saveManagement.RequestDeleteSaveCommand.Execute(targetSave);
+
+        Assert.True(viewModel.IsDeleteModsDialogOpen);
+        Assert.Equal(
+            string.Format(Strings.Dialog_DeleteSingleSaveMessageFormat, "Alpha Base"),
+            viewModel.DeleteModsDialogMessage);
+
+        await viewModel.ConfirmDeleteModsDialogCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsDeleteModsDialogOpen);
+        Assert.Single(saveService.SavesByInstanceId[instance.Id]);
+        Assert.DoesNotContain(saveService.SavesByInstanceId[instance.Id], save => save.Name == "Alpha Base");
+        Assert.Single(saveManagement.Saves);
+    }
+
+    [Fact]
+    public async Task SaveManagementImportLocalSaveCommandDoesNothingWhenPickerIsCanceled()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var saveService = new FakeSaveService();
+        var filePickerService = new FakeFilePickerService();
+        var viewModel = CreateViewModel([instance], filePickerService: filePickerService, saveService: saveService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "saves"));
+
+        await viewModel.Details.SaveManagement.ImportLocalSaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, saveService.ImportArchiveCallCount);
+        Assert.False(viewModel.IsInvalidSaveImportDialogOpen);
+    }
+
+    [Fact]
+    public async Task SaveManagementImportLocalSaveCommandImportsSelectedArchive()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var statusService = new FakeStatusService();
+        var saveService = new FakeSaveService();
+        var archivePath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "Cherry Grove.tar.gz");
+        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
+        await File.WriteAllTextAsync(archivePath, "fake archive");
+        var filePickerService = new FakeFilePickerService
+        {
+            SaveArchivePath = archivePath
+        };
+        var viewModel = CreateViewModel([instance], statusService: statusService, filePickerService: filePickerService, saveService: saveService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "saves"));
+
+        await viewModel.Details.SaveManagement.ImportLocalSaveCommand.ExecuteAsync(null);
+
+        Assert.Single(viewModel.Details.SaveManagement.Saves);
+        Assert.Equal("Cherry Grove", viewModel.Details.SaveManagement.Saves[0].Title);
+        Assert.Equal(1, viewModel.Details.SaveManagement.InstalledSaveCount);
+        Assert.Equal(Strings.Status_LocalSaveImported, statusService.LastMessage);
+        Assert.False(viewModel.IsInvalidSaveImportDialogOpen);
+    }
+
+    [Fact]
+    public async Task SaveManagementImportLocalSaveCommandShowsDialogForInvalidArchive()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var saveService = new FakeSaveService
+        {
+            NextImportResult = LocalSaveImportResult.Failure(LocalSaveImportFailureReason.InvalidMinecraftSaveArchive)
+        };
+        var archivePath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "bad-save.zip");
+        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
+        await File.WriteAllTextAsync(archivePath, "bad archive");
+        var filePickerService = new FakeFilePickerService
+        {
+            SaveArchivePath = archivePath
+        };
+        var viewModel = CreateViewModel([instance], filePickerService: filePickerService, saveService: saveService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "saves"));
+
+        await viewModel.Details.SaveManagement.ImportLocalSaveCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsInvalidSaveImportDialogOpen);
+        Assert.Equal(Strings.Dialog_InvalidSaveArchiveMessage, viewModel.InvalidSaveImportDialogMessage);
+
+        viewModel.CloseInvalidSaveImportDialogCommand.Execute(null);
+
+        Assert.False(viewModel.IsInvalidSaveImportDialogOpen);
+        Assert.Equal(string.Empty, viewModel.InvalidSaveImportDialogMessage);
+    }
+
+    [Fact]
+    public async Task SaveManagementImportLocalSaveCommandShowsDialogForUnsupportedArchive()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var saveService = new FakeSaveService
+        {
+            NextImportResult = LocalSaveImportResult.Failure(LocalSaveImportFailureReason.UnsupportedArchive)
+        };
+        var archivePath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "save.xyz");
+        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
+        await File.WriteAllTextAsync(archivePath, "bad archive");
+        var filePickerService = new FakeFilePickerService
+        {
+            SaveArchivePath = archivePath
+        };
+        var viewModel = CreateViewModel([instance], filePickerService: filePickerService, saveService: saveService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "saves"));
+
+        await viewModel.Details.SaveManagement.ImportLocalSaveCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsInvalidSaveImportDialogOpen);
+        Assert.Equal(Strings.Dialog_UnsupportedSaveArchiveMessage, viewModel.InvalidSaveImportDialogMessage);
+    }
+
+    [Fact]
+    public async Task SaveManagementImportLocalSaveCommandReportsStatusForUnexpectedFailureWithoutDialog()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var statusService = new FakeStatusService();
+        var saveService = new FakeSaveService
+        {
+            NextImportResult = LocalSaveImportResult.Failure(LocalSaveImportFailureReason.UnexpectedError)
+        };
+        var archivePath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "save.zip");
+        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
+        await File.WriteAllTextAsync(archivePath, "broken archive");
+        var filePickerService = new FakeFilePickerService
+        {
+            SaveArchivePath = archivePath
+        };
+        var viewModel = CreateViewModel([instance], statusService: statusService, filePickerService: filePickerService, saveService: saveService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "saves"));
+
+        await viewModel.Details.SaveManagement.ImportLocalSaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_LocalSaveImportFailed, statusService.LastMessage);
+        Assert.False(viewModel.IsInvalidSaveImportDialogOpen);
+    }
+
+    [Fact]
+    public async Task GameSettingsDragDropStateIsHiddenOutsideDetailsSections()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var archivePath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "save.zip");
+        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
+        await File.WriteAllTextAsync(archivePath, "fake archive");
+        var floatingMessageService = new FakeFloatingMessageService();
+        var viewModel = CreateViewModel([instance], floatingMessageService: floatingMessageService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+
+        var accepted = viewModel.UpdateImportDropState([archivePath]);
+
+        Assert.False(accepted);
+        Assert.Null(floatingMessageService.LastMessage);
+    }
+
+    [Fact]
+    public async Task SaveManagementDragDropImportsSupportedArchives()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var statusService = new FakeStatusService();
+        var floatingMessageService = new FakeFloatingMessageService();
+        var saveService = new FakeSaveService();
+        var firstArchive = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "Alpha.zip");
+        var secondArchive = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "Beta.tar.gz");
+        Directory.CreateDirectory(Path.GetDirectoryName(firstArchive)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(secondArchive)!);
+        await File.WriteAllTextAsync(firstArchive, "alpha");
+        await File.WriteAllTextAsync(secondArchive, "beta");
+        var viewModel = CreateViewModel([instance], statusService: statusService, saveService: saveService, floatingMessageService: floatingMessageService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "saves"));
+
+        var accepted = viewModel.UpdateImportDropState([firstArchive, secondArchive]);
+        Assert.Equal(Strings.GameSettings_DropReleaseToImportMessage, floatingMessageService.LastMessage);
+        await viewModel.HandleImportDropAsync([firstArchive, secondArchive]);
+
+        Assert.True(accepted);
+        Assert.Equal(2, saveService.ImportArchiveCallCount);
+        Assert.Equal(string.Format(Strings.Status_LocalSavesImportedFormat, 2), statusService.LastMessage);
+        Assert.Equal(2, viewModel.Details.SaveManagement.Saves.Count);
+        Assert.Equal(string.Empty, floatingMessageService.LastMessage);
+    }
+
+    [Fact]
+    public async Task SaveManagementDragDropRejectsFolders()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var statusService = new FakeStatusService();
+        var floatingMessageService = new FakeFloatingMessageService();
+        var folderPath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folderPath);
+        var viewModel = CreateViewModel([instance], statusService: statusService, floatingMessageService: floatingMessageService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "saves"));
+
+        var accepted = viewModel.UpdateImportDropState([folderPath]);
+        Assert.Equal(Strings.GameSettings_DropUnsupportedFileMessage, floatingMessageService.LastMessage);
+        await viewModel.HandleImportDropAsync([folderPath]);
+
+        Assert.False(accepted);
+        Assert.Null(statusService.LastMessage);
+        Assert.Equal(string.Empty, floatingMessageService.LastMessage);
+    }
+
+    [Fact]
+    public async Task SaveManagementImportLocalSaveCommandRejectsUnsupportedExtensionBeforeService()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var saveService = new FakeSaveService();
+        var archivePath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "save.txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
+        await File.WriteAllTextAsync(archivePath, "not an archive");
+        var filePickerService = new FakeFilePickerService
+        {
+            SaveArchivePath = archivePath
+        };
+        var viewModel = CreateViewModel([instance], filePickerService: filePickerService, saveService: saveService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "saves"));
+
+        await viewModel.Details.SaveManagement.ImportLocalSaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, saveService.ImportArchiveCallCount);
+        Assert.True(viewModel.IsInvalidSaveImportDialogOpen);
+        Assert.Equal(Strings.Dialog_UnsupportedSaveArchiveMessage, viewModel.InvalidSaveImportDialogMessage);
     }
 
     [Fact]
@@ -1080,7 +1346,8 @@ public sealed class GameSettingsPageViewModelTests
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
         await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 1);
 
-        await viewModel.Details.ModManagement.ImportLocalModCommand.ExecuteAsync(null);
+        var firstImportTask = viewModel.Details.ModManagement.ImportLocalModCommand.ExecuteAsync(null);
+        await TestAsync.WaitForAsync(() => viewModel.IsReplaceModImportDialogOpen);
 
         Assert.True(viewModel.IsReplaceModImportDialogOpen);
         Assert.Equal(
@@ -1089,16 +1356,107 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Single(viewModel.Details.ModManagement.Mods);
 
         viewModel.CancelReplaceModImportDialogCommand.Execute(null);
+        await firstImportTask;
 
         Assert.False(viewModel.IsReplaceModImportDialogOpen);
         Assert.Single(viewModel.Details.ModManagement.Mods);
 
-        await viewModel.Details.ModManagement.ImportLocalModCommand.ExecuteAsync(null);
+        var secondImportTask = viewModel.Details.ModManagement.ImportLocalModCommand.ExecuteAsync(null);
+        await TestAsync.WaitForAsync(() => viewModel.IsReplaceModImportDialogOpen);
         await viewModel.ConfirmReplaceModImportDialogCommand.ExecuteAsync(null);
+        await secondImportTask;
 
         Assert.False(viewModel.IsReplaceModImportDialogOpen);
         Assert.Single(viewModel.Details.ModManagement.Mods);
         Assert.Equal(Strings.Status_LocalModImported, statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task ModManagementImportLocalModCommandRejectsNonJarBeforeService()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var statusService = new FakeStatusService();
+        var modService = new FakeModService();
+        var tempModPath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "notes.txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(tempModPath)!);
+        await File.WriteAllTextAsync(tempModPath, "not a mod");
+        var filePickerService = new FakeFilePickerService
+        {
+            ModFilePath = tempModPath
+        };
+        var viewModel = CreateViewModel([instance], statusService: statusService, filePickerService: filePickerService, modService: modService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+
+        await viewModel.Details.ModManagement.ImportLocalModCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, modService.ImportCallCount);
+        Assert.Equal(Strings.Status_LocalModImportFailed, statusService.LastMessage);
+        Assert.Empty(viewModel.Details.ModManagement.Mods);
+    }
+
+    [Fact]
+    public async Task ModManagementDragDropRejectsMixedFileTypes()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var statusService = new FakeStatusService();
+        var floatingMessageService = new FakeFloatingMessageService();
+        var modService = new FakeModService();
+        var modPath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "alpha.jar");
+        var textPath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "readme.txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(modPath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(textPath)!);
+        await File.WriteAllTextAsync(modPath, "mod");
+        await File.WriteAllTextAsync(textPath, "text");
+        var viewModel = CreateViewModel([instance], statusService: statusService, modService: modService, floatingMessageService: floatingMessageService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "mod_management"));
+
+        var accepted = viewModel.UpdateImportDropState([modPath, textPath]);
+        Assert.Equal(Strings.GameSettings_DropUnsupportedFileMessage, floatingMessageService.LastMessage);
+        await viewModel.HandleImportDropAsync([modPath, textPath]);
+
+        Assert.False(accepted);
+        Assert.Equal(0, modService.ImportCallCount);
+        Assert.Null(statusService.LastMessage);
+        Assert.Equal(string.Empty, floatingMessageService.LastMessage);
+    }
+
+    [Fact]
+    public async Task ModManagementDragDropContinuesBatchAfterConflictIsCanceled()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var statusService = new FakeStatusService();
+        var modService = new FakeModService();
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            CreateLocalMod("sodium.jar", true, instance.InstanceDirectory, loader: "fabric", modId: "sodium", version: "1.0.0")
+        ];
+        var conflictingPath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "sodium.jar");
+        var newPath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "lithium.jar");
+        Directory.CreateDirectory(Path.GetDirectoryName(conflictingPath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(newPath)!);
+        await File.WriteAllTextAsync(conflictingPath, "replacement");
+        await File.WriteAllTextAsync(newPath, "new mod");
+        var viewModel = CreateViewModel([instance], statusService: statusService, modService: modService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "mod_management"));
+
+        var importTask = viewModel.HandleImportDropAsync([conflictingPath, newPath]);
+        await TestAsync.WaitForAsync(() => viewModel.IsReplaceModImportDialogOpen);
+
+        viewModel.CancelReplaceModImportDialogCommand.Execute(null);
+        await importTask;
+
+        Assert.False(viewModel.IsReplaceModImportDialogOpen);
+        Assert.Equal(1, modService.ImportCallCount);
+        Assert.Equal(Strings.Status_LocalModImported, statusService.LastMessage);
+        Assert.Contains(viewModel.Details.ModManagement.Mods, mod => mod.Title == "lithium");
     }
 
     [Fact]
@@ -2064,6 +2422,7 @@ public sealed class GameSettingsPageViewModelTests
     {
         public string? JavaExecutablePath { get; init; }
         public string? ModFilePath { get; init; }
+        public string? SaveArchivePath { get; init; }
         public string? FolderPath { get; init; }
 
         public string? PickMinecraftSkin()
@@ -2079,6 +2438,11 @@ public sealed class GameSettingsPageViewModelTests
         public string? PickModFile()
         {
             return ModFilePath;
+        }
+
+        public string? PickSaveArchive()
+        {
+            return SaveArchivePath;
         }
 
         public string? PickFolder(string title, string? initialDirectory = null)
@@ -2116,6 +2480,10 @@ public sealed class GameSettingsPageViewModelTests
 
         public Exception? GetModsException { get; init; }
 
+        public int ImportCallCount { get; private set; }
+
+        public List<string> ImportedPaths { get; } = [];
+
         public Task<IReadOnlyList<LocalMod>> GetModsAsync(GameInstance instance, CancellationToken cancellationToken = default)
         {
             if (GetModsException is not null)
@@ -2133,6 +2501,8 @@ public sealed class GameSettingsPageViewModelTests
             bool overwriteExisting = false,
             CancellationToken cancellationToken = default)
         {
+            ImportCallCount++;
+            ImportedPaths.Add(sourceJarPath);
             if (!File.Exists(sourceJarPath))
                 throw new ModFileImportNotFoundException(sourceJarPath);
 
@@ -2227,6 +2597,14 @@ public sealed class GameSettingsPageViewModelTests
 
         public Exception? GetSavesException { get; init; }
 
+        public LocalSaveImportResult? NextImportResult { get; init; }
+
+        public int ImportArchiveCallCount { get; private set; }
+
+        public string? LastImportedArchivePath { get; private set; }
+
+        public List<string> ImportedArchivePaths { get; } = [];
+
         public Task<IReadOnlyList<LocalSave>> GetSavesAsync(GameInstance instance, CancellationToken cancellationToken = default)
         {
             if (GetSavesException is not null)
@@ -2236,6 +2614,32 @@ public sealed class GameSettingsPageViewModelTests
                 SavesByInstanceId.TryGetValue(instance.Id, out var saves)
                     ? (IReadOnlyList<LocalSave>)saves.Select(CloneLocalSave).ToArray()
                     : (IReadOnlyList<LocalSave>)[]);
+        }
+
+        public Task<LocalSaveImportResult> ImportFromArchiveAsync(
+            GameInstance instance,
+            string archivePath,
+            CancellationToken cancellationToken = default)
+        {
+            ImportArchiveCallCount++;
+            LastImportedArchivePath = archivePath;
+            ImportedArchivePaths.Add(archivePath);
+
+            if (NextImportResult is not null)
+            {
+                if (NextImportResult.IsSuccess && NextImportResult.ImportedSave is not null)
+                    AddOrUpdateSave(instance.Id, NextImportResult.ImportedSave);
+
+                return Task.FromResult(CloneImportResult(NextImportResult));
+            }
+
+            if (!File.Exists(archivePath))
+                return Task.FromResult(LocalSaveImportResult.Failure(LocalSaveImportFailureReason.FileNotFound));
+
+            var importedSaveName = ResolveUniqueSaveName(instance.Id, RemoveAllExtensions(Path.GetFileName(archivePath)));
+            var importedSave = CreateLocalSave(importedSaveName, instance.InstanceDirectory);
+            AddOrUpdateSave(instance.Id, importedSave);
+            return Task.FromResult(LocalSaveImportResult.Success(CloneLocalSave(importedSave)));
         }
 
         public Task DeleteAsync(LocalSave save, CancellationToken cancellationToken = default)
@@ -2265,6 +2669,55 @@ public sealed class GameSettingsPageViewModelTests
                 IconSource = save.IconSource,
                 CreatedAt = save.CreatedAt
             };
+        }
+
+        private void AddOrUpdateSave(string instanceId, LocalSave save)
+        {
+            if (!SavesByInstanceId.TryGetValue(instanceId, out var saves))
+            {
+                saves = [];
+                SavesByInstanceId[instanceId] = saves;
+            }
+
+            saves.RemoveAll(candidate => string.Equals(candidate.FullPath, save.FullPath, StringComparison.OrdinalIgnoreCase));
+            saves.Add(CloneLocalSave(save));
+        }
+
+        private string ResolveUniqueSaveName(string instanceId, string baseName)
+        {
+            var normalizedBaseName = string.IsNullOrWhiteSpace(baseName) ? "Imported Save" : baseName;
+            if (!SavesByInstanceId.TryGetValue(instanceId, out var saves))
+                return normalizedBaseName;
+
+            var candidate = normalizedBaseName;
+            var index = 1;
+            while (saves.Any(save => string.Equals(save.DirectoryName, candidate, StringComparison.OrdinalIgnoreCase)))
+            {
+                candidate = $"{normalizedBaseName} ({index})";
+                index++;
+            }
+
+            return candidate;
+        }
+
+        private static LocalSaveImportResult CloneImportResult(LocalSaveImportResult result)
+        {
+            return result.IsSuccess && result.ImportedSave is not null
+                ? LocalSaveImportResult.Success(CloneLocalSave(result.ImportedSave))
+                : LocalSaveImportResult.Failure(result.FailureReason);
+        }
+
+        private static string RemoveAllExtensions(string fileName)
+        {
+            var candidate = fileName;
+            while (true)
+            {
+                var withoutExtension = Path.GetFileNameWithoutExtension(candidate);
+                if (string.Equals(candidate, withoutExtension, StringComparison.Ordinal))
+                    return withoutExtension;
+
+                candidate = withoutExtension;
+            }
         }
     }
 
