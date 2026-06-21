@@ -25,11 +25,53 @@ public sealed class ModServiceTests : TestTempDirectory
         var imported = await service.ImportAsync(instance, sourceJar);
         await service.SetEnabledAsync(imported, false);
         var disabled = (await service.GetModsAsync(instance)).Single();
+
+        Assert.False(disabled.IsEnabled);
+        Assert.Equal("example.jar.disabled", disabled.FileName);
+        Assert.True(File.Exists(Path.Combine(instanceDirectory, "mods", "example.jar.disabled")));
+
         await service.SetEnabledAsync(disabled, true);
         var enabled = (await service.GetModsAsync(instance)).Single();
 
         Assert.True(enabled.IsEnabled);
         Assert.Equal("example.jar", enabled.FileName);
+        Assert.True(File.Exists(Path.Combine(instanceDirectory, "mods", "example.jar")));
+    }
+
+    [Fact]
+    public async Task ModServiceImportAsyncOverwritesExistingJarWhenRequested()
+    {
+        var instanceDirectory = Path.Combine(TempRoot, "instances", "overwrite");
+        Directory.CreateDirectory(instanceDirectory);
+        var sourceJar = Path.Combine(TempRoot, "replace-me.jar");
+        await File.WriteAllTextAsync(sourceJar, "first");
+
+        var instance = new GameInstance { InstanceDirectory = instanceDirectory };
+        var service = CreateService();
+
+        await service.ImportAsync(instance, sourceJar);
+        await File.WriteAllTextAsync(sourceJar, "second");
+
+        await service.ImportAsync(instance, sourceJar, overwriteExisting: true);
+
+        var importedPath = Path.Combine(instanceDirectory, "mods", "replace-me.jar");
+        Assert.Equal("second", await File.ReadAllTextAsync(importedPath));
+        Assert.Single(await service.GetModsAsync(instance));
+    }
+
+    [Fact]
+    public async Task GetModsAsyncReadsJarDisabledFilesFromModsDirectory()
+    {
+        var instance = CreateInstance("disabled-in-mods-folder");
+        await File.WriteAllTextAsync(
+            Path.Combine(instance.InstanceDirectory, "mods", "disabled-example.jar.disabled"),
+            "fake jar");
+
+        var mod = Assert.Single(await CreateService().GetModsAsync(instance));
+
+        Assert.False(mod.IsEnabled);
+        Assert.Equal("disabled-example.jar.disabled", mod.FileName);
+        Assert.Equal("disabled-example", mod.Name);
     }
 
     [Fact]

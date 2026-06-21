@@ -129,7 +129,14 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         General = new InstanceGeneralSettingsViewModel(this);
         Launch = new InstanceLaunchSettingsViewModel(this);
         Java = new InstanceJavaSettingsViewModel(this);
-        ModManagement = new InstanceModManagementSettingsViewModel(this, localModsViewModel, statusService, instanceFolderService);
+        ModManagement = new InstanceModManagementSettingsViewModel(
+            this,
+            localModsViewModel,
+            statusService,
+            instanceFolderService,
+            filePickerService);
+        ModManagement.DeleteModsRequested += ModManagement_DeleteModsRequested;
+        ModManagement.ImportModConflictRequested += ModManagement_ImportModConflictRequested;
         Placeholder = new InstancePlaceholderSettingsViewModel(this);
         CurrentSectionViewModel = General;
     }
@@ -137,6 +144,9 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     public event Action<GameInstance>? InstanceSettingsSaved;
 
     public event Action<GameSettingsInstanceItem>? DeleteInstanceRequested;
+
+    public event Action<ModDeleteRequest>? DeleteModsRequested;
+    public event Action<ModImportConflictRequest>? ImportModConflictRequested;
 
     public bool HasSelectedInstance => SelectedInstance is not null;
 
@@ -263,6 +273,11 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     public void SetSelectedSection(GameSettingsDetailSectionItem? section)
     {
         SelectedSection = section;
+    }
+
+    public Task DeleteModsAsync(IReadOnlyList<string> fullPaths)
+    {
+        return ModManagement.DeleteModsAsync(fullPaths);
     }
 
     [RelayCommand]
@@ -1005,5 +1020,20 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         descriptionSaveCancellationTokenSource?.Cancel();
         descriptionSaveCancellationTokenSource?.Dispose();
         descriptionSaveCancellationTokenSource = null;
+    }
+
+    private void ModManagement_DeleteModsRequested(ModDeleteRequest request)
+    {
+        DeleteModsRequested?.Invoke(request);
+    }
+
+    public Task ReplaceImportedModAsync(string sourcePath)
+    {
+        return ModManagement.ReplaceImportedModAsync(sourcePath);
+    }
+
+    private void ModManagement_ImportModConflictRequested(ModImportConflictRequest request)
+    {
+        ImportModConflictRequested?.Invoke(request);
     }
 }

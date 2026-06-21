@@ -199,6 +199,76 @@
                 </Grid>
             </controls:DialogHost>
 
+            <controls:DialogHost x:Name="DeleteModsDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="380"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsDeleteModsDialogOpen}"
+                                 DataContext="{Binding GameSettingsPage}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Dialog_DeleteModsTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,16,0,24"
+                               Text="{Binding DeleteModsDialogMessage}"
+                               Style="{StaticResource DialogBodyTextStyle}" />
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                Content="{x:Static res:Strings.Cancel_Button}"
+                                Command="{Binding CancelDeleteModsDialogCommand}" />
+                        <Button Style="{StaticResource LauncherDangerDialogButtonStyle}"
+                                Margin="{StaticResource DialogTrailingButtonMargin}"
+                                Content="{x:Static res:Strings.Delete_Button}"
+                                Command="{Binding ConfirmDeleteModsDialogCommand}" />
+                    </StackPanel>
+                </Grid>
+            </controls:DialogHost>
+
+            <controls:DialogHost x:Name="ReplaceModImportDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="380"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsReplaceModImportDialogOpen}"
+                                 DataContext="{Binding GameSettingsPage}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Dialog_ReplaceModImportTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,16,0,24"
+                               Text="{Binding ReplaceModImportDialogMessage}"
+                               Style="{StaticResource DialogBodyTextStyle}" />
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                Content="{x:Static res:Strings.Cancel_Button}"
+                                Command="{Binding CancelReplaceModImportDialogCommand}" />
+                        <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                Margin="{StaticResource DialogTrailingButtonMargin}"
+                                Content="{x:Static res:Strings.Dialog_Replace_Button}"
+                                Command="{Binding ConfirmReplaceModImportDialogCommand}" />
+                    </StackPanel>
+                </Grid>
+            </controls:DialogHost>
+
             <controls:DialogHost x:Name="JavaRequirementDialogHost"
                                  Grid.ColumnSpan="2"
                                  Grid.RowSpan="2"

@@ -52,6 +52,18 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     [ObservableProperty]
     private GameSettingsInstanceItem? instancePendingDelete;
 
+    [ObservableProperty]
+    private bool isDeleteModsDialogOpen;
+
+    [ObservableProperty]
+    private ModDeleteRequest? pendingDeleteMods;
+
+    [ObservableProperty]
+    private bool isReplaceModImportDialogOpen;
+
+    [ObservableProperty]
+    private ModImportConflictRequest? pendingModImportConflict;
+
     public GameSettingsPageViewModel(
         IGameInstanceService instanceService,
         IGameVersionService gameVersionService,
@@ -85,6 +97,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         EditDialog.InstanceUpdated += EditDialog_InstanceUpdated;
         Details.InstanceSettingsSaved += Details_InstanceSettingsSaved;
         Details.DeleteInstanceRequested += Details_DeleteInstanceRequested;
+        Details.DeleteModsRequested += Details_DeleteModsRequested;
+        Details.ImportModConflictRequested += Details_ImportModConflictRequested;
 
         InstanceCategories.Add(new GameSettingsInstanceCategory("all", Strings.GameSettings_AllCategory, string.Empty, "general/general_all_application"));
         InstanceCategories.Add(new GameSettingsInstanceCategory("mod_loader", Strings.GameSettings_ModLoaderCategory, string.Empty, "general/general_extention"));
@@ -140,6 +154,23 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     public string DeleteInstanceDialogMessage => InstancePendingDelete is null
         ? string.Empty
         : string.Format(Strings.Dialog_DeleteInstanceMessageFormat, InstancePendingDelete.Name);
+
+    public string DeleteModsDialogMessage
+    {
+        get
+        {
+            if (PendingDeleteMods is null)
+                return string.Empty;
+
+            return PendingDeleteMods.Titles.Count == 1
+                ? string.Format(Strings.Dialog_DeleteSingleModMessageFormat, PendingDeleteMods.Titles[0])
+                : string.Format(Strings.Dialog_DeleteMultipleModsMessageFormat, PendingDeleteMods.Titles.Count);
+        }
+    }
+
+    public string ReplaceModImportDialogMessage => PendingModImportConflict is null
+        ? string.Empty
+        : string.Format(Strings.Dialog_ReplaceModImportMessageFormat, PendingModImportConflict.FileName);
 
     public void PrimeFromSettings(LauncherSettings launcherSettings)
     {
@@ -322,6 +353,18 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         OpenDeleteInstanceDialog(instance);
     }
 
+    private void Details_DeleteModsRequested(ModDeleteRequest request)
+    {
+        PendingDeleteMods = request;
+        IsDeleteModsDialogOpen = true;
+    }
+
+    private void Details_ImportModConflictRequested(ModImportConflictRequest request)
+    {
+        PendingModImportConflict = request;
+        IsReplaceModImportDialogOpen = true;
+    }
+
     [RelayCommand]
     private void CancelDeleteInstanceDialog()
     {
@@ -358,6 +401,44 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         {
             statusService.Report(Strings.Status_DeleteInstanceFailed);
         }
+    }
+
+    [RelayCommand]
+    private void CancelDeleteModsDialog()
+    {
+        IsDeleteModsDialogOpen = false;
+        PendingDeleteMods = null;
+    }
+
+    [RelayCommand]
+    private async Task ConfirmDeleteModsDialogAsync()
+    {
+        if (PendingDeleteMods is null)
+            return;
+
+        var request = PendingDeleteMods;
+        IsDeleteModsDialogOpen = false;
+        PendingDeleteMods = null;
+        await Details.DeleteModsAsync(request.FullPaths);
+    }
+
+    [RelayCommand]
+    private void CancelReplaceModImportDialog()
+    {
+        IsReplaceModImportDialogOpen = false;
+        PendingModImportConflict = null;
+    }
+
+    [RelayCommand]
+    private async Task ConfirmReplaceModImportDialogAsync()
+    {
+        if (PendingModImportConflict is null)
+            return;
+
+        var request = PendingModImportConflict;
+        IsReplaceModImportDialogOpen = false;
+        PendingModImportConflict = null;
+        await Details.ReplaceImportedModAsync(request.SourcePath);
     }
 
     [RelayCommand]
@@ -458,6 +539,16 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     partial void OnInstancePendingDeleteChanged(GameSettingsInstanceItem? value)
     {
         OnPropertyChanged(nameof(DeleteInstanceDialogMessage));
+    }
+
+    partial void OnPendingDeleteModsChanged(ModDeleteRequest? value)
+    {
+        OnPropertyChanged(nameof(DeleteModsDialogMessage));
+    }
+
+    partial void OnPendingModImportConflictChanged(ModImportConflictRequest? value)
+    {
+        OnPropertyChanged(nameof(ReplaceModImportDialogMessage));
     }
 
     partial void OnInstanceSearchQueryChanged(string value)

@@ -1208,6 +1208,11 @@ public sealed class SettingsPageViewModelTests
             return JavaExecutablePath;
         }
 
+        public string? PickModFile()
+        {
+            return null;
+        }
+
         public string? PickFolder(string title, string? initialDirectory = null)
         {
             return FolderPath;
@@ -1217,6 +1222,7 @@ public sealed class SettingsPageViewModelTests
     private sealed class FakeInstanceFolderService : IInstanceFolderService
     {
         public string? LastOpenedPath { get; private set; }
+        public string? LastRevealedFilePath { get; private set; }
 
         public bool DirectoryExists(string folderPath)
         {
@@ -1233,6 +1239,12 @@ public sealed class SettingsPageViewModelTests
         public bool TryOpen(string folderPath)
         {
             LastOpenedPath = folderPath;
+            return true;
+        }
+
+        public bool TryRevealFile(string filePath)
+        {
+            LastRevealedFilePath = filePath;
             return true;
         }
     }

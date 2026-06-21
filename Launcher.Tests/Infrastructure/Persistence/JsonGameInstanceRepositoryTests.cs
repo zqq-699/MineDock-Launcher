@@ -69,6 +69,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "demo-pack");
         repository.CreateInstanceDirectories(versionDirectory);
         var settingsPath = Path.Combine(versionDirectory, InstanceMetadataDirectoryName, "instance-settings.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
 
         var storedInstance = new GameInstance
         {
@@ -104,6 +105,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "legacy-pack");
         repository.CreateInstanceDirectories(versionDirectory);
         var settingsPath = Path.Combine(versionDirectory, InstanceMetadataDirectoryName, "instance-settings.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
 
         await File.WriteAllTextAsync(
             settingsPath,
@@ -136,6 +138,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "legacy-memory-pack");
         repository.CreateInstanceDirectories(versionDirectory);
         var settingsPath = Path.Combine(versionDirectory, InstanceMetadataDirectoryName, "instance-settings.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
 
         await File.WriteAllTextAsync(
             settingsPath,

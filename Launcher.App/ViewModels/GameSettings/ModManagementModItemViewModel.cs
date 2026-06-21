@@ -10,7 +10,7 @@ public sealed partial class ModManagementModItemViewModel : ObservableObject
     public ModManagementModItemViewModel(LocalMod mod)
     {
         Title = string.IsNullOrWhiteSpace(mod.Name)
-            ? Path.GetFileNameWithoutExtension(mod.FileName)
+            ? GetDisplayFileNameWithoutModExtensions(mod.FileName)
             : mod.Name;
         Loader = NormalizeSubtitlePart(mod.Loader);
         ModId = NormalizeSubtitlePart(mod.ModId);
@@ -35,7 +35,7 @@ public sealed partial class ModManagementModItemViewModel : ObservableObject
                 .Where(part => !string.IsNullOrWhiteSpace(part))
                 .ToArray();
             return parts.Length == 0
-                ? FileName
+                ? GetDisplayFileNameWithoutModExtensions(FileName)
                 : string.Join("-", parts);
         }
     }
@@ -72,5 +72,16 @@ public sealed partial class ModManagementModItemViewModel : ObservableObject
         return string.IsNullOrWhiteSpace(value)
             ? null
             : value.Trim();
+    }
+
+    private static string GetDisplayFileNameWithoutModExtensions(string fileName)
+    {
+        if (fileName.EndsWith(".jar.disabled", StringComparison.OrdinalIgnoreCase))
+            return fileName[..^".jar.disabled".Length];
+
+        if (fileName.EndsWith(".jar", StringComparison.OrdinalIgnoreCase))
+            return fileName[..^".jar".Length];
+
+        return Path.GetFileNameWithoutExtension(fileName);
     }
 }

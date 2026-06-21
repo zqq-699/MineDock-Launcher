@@ -641,6 +641,7 @@ public sealed class MainViewModelTests
     private sealed class FakeInstanceFolderService : IInstanceFolderService
     {
         public string? LastOpenedPath { get; private set; }
+        public string? LastRevealedFilePath { get; private set; }
 
         public bool DirectoryExists(string folderPath)
         {
@@ -657,6 +658,12 @@ public sealed class MainViewModelTests
         public bool TryOpen(string folderPath)
         {
             LastOpenedPath = folderPath;
+            return true;
+        }
+
+        public bool TryRevealFile(string filePath)
+        {
+            LastRevealedFilePath = filePath;
             return true;
         }
     }
@@ -712,7 +719,11 @@ public sealed class MainViewModelTests
             return Task.FromResult<IReadOnlyList<LocalMod>>([]);
         }
 
-        public Task<LocalMod> ImportAsync(GameInstance instance, string sourceJarPath, CancellationToken cancellationToken = default)
+        public Task<LocalMod> ImportAsync(
+            GameInstance instance,
+            string sourceJarPath,
+            bool overwriteExisting = false,
+            CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
@@ -929,6 +940,11 @@ public sealed class MainViewModelTests
         }
 
         public string? PickJavaExecutable()
+        {
+            return null;
+        }
+
+        public string? PickModFile()
         {
             return null;
         }

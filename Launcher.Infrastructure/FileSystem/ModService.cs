@@ -6,7 +6,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Windows.Media.Imaging;
-using Launcher.Application;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure;
@@ -17,7 +16,8 @@ namespace Launcher.Infrastructure.FileSystem;
 
 public sealed class ModService : IModService
 {
-    private const string DisabledModsDirectoryName = "disabled-mods";
+    private const string EnabledModExtension = ".jar";
+    private const string DisabledModExtension = ".jar.disabled";
     private static readonly Regex TomlLogoFileRegex = new(
         "^[\\t ]*logoFile[\\t ]*=[\\t ]*(?:\"(?<value>[^\"]+)\"|'(?<value>[^']+)')",
         RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.CultureInvariant);
@@ -49,25 +49,23 @@ public sealed class ModService : IModService
             {
                 var mods = new List<LocalMod>();
                 var modsDirectory = GetModsDirectory(instance);
-                var disabledDirectory = GetDisabledDirectory(instance);
                 Directory.CreateDirectory(modsDirectory);
-                Directory.CreateDirectory(disabledDirectory);
 
-                foreach (var file in Directory.EnumerateFiles(modsDirectory, "*.jar"))
+                foreach (var file in Directory.EnumerateFiles(modsDirectory, $"*{EnabledModExtension}"))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    mods.Add(ToLocalMod(file, true));
+                    mods.Add(ToLocalMod(file));
                 }
 
-                foreach (var file in Directory.EnumerateFiles(disabledDirectory, "*.jar"))
+                foreach (var file in Directory.EnumerateFiles(modsDirectory, $"*{DisabledModExtension}"))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    mods.Add(ToLocalMod(file, false));
+                    mods.Add(ToLocalMod(file));
                 }
 
                 var result = mods
-                    .OrderByDescending(m => m.IsEnabled)
-                    .ThenBy(m => m.Name)
+                    .OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(m => m.FileName, StringComparer.OrdinalIgnoreCase)
                     .ToList();
                 logger.LogInformation(
                     "Local mods loaded. InstanceId={InstanceId} Count={ModCount}",
@@ -78,7 +76,11 @@ public sealed class ModService : IModService
             cancellationToken);
     }
 
-    public async Task<LocalMod> ImportAsync(GameInstance instance, string sourceJarPath, CancellationToken cancellationToken = default)
+    public async Task<LocalMod> ImportAsync(
+        GameInstance instance,
+        string sourceJarPath,
+        bool overwriteExisting = false,
+        CancellationToken cancellationToken = default)
     {
         if (!File.Exists(sourceJarPath))
             throw new ModFileImportNotFoundException(sourceJarPath);
@@ -87,21 +89,26 @@ public sealed class ModService : IModService
         Directory.CreateDirectory(modsDirectory);
 
         var destination = Path.Combine(modsDirectory, Path.GetFileName(sourceJarPath));
-        if (File.Exists(destination))
+        if (File.Exists(destination) && !overwriteExisting)
         {
             var name = Path.GetFileNameWithoutExtension(sourceJarPath);
             destination = Path.Combine(modsDirectory, $"{name}-{DateTimeOffset.Now:yyyyMMddHHmmss}.jar");
         }
 
         await using var source = File.OpenRead(sourceJarPath);
-        await using var target = File.Create(destination);
+        await using var target = new FileStream(
+            destination,
+            overwriteExisting ? FileMode.Create : FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None);
         await source.CopyToAsync(target, cancellationToken);
         logger.LogInformation(
-            "Local mod imported. InstanceId={InstanceId} FileName={FileName} Destination={Destination}",
+            "Local mod imported. InstanceId={InstanceId} FileName={FileName} Destination={Destination} OverwriteExisting={OverwriteExisting}",
             instance.Id,
             Path.GetFileName(destination),
-            destination);
-        return ToLocalMod(destination, true);
+            destination,
+            overwriteExisting);
+        return ToLocalMod(destination);
     }
 
     public Task SetEnabledAsync(LocalMod mod, bool enabled, CancellationToken cancellationToken = default)
@@ -110,21 +117,16 @@ public sealed class ModService : IModService
             return Task.CompletedTask;
 
         var current = mod.FullPath;
-        var instanceDirectory = enabled
-            ? Directory.GetParent(Directory.GetParent(Path.GetDirectoryName(current)!)!.FullName)!.FullName
-            : Directory.GetParent(Path.GetDirectoryName(current)!)!.FullName;
+        var targetPath = enabled
+            ? GetEnabledModPath(current)
+            : GetDisabledModPath(current);
 
-        var targetDirectory = enabled
-            ? Path.Combine(instanceDirectory, "mods")
-            : Path.Combine(instanceDirectory, LauncherApplicationIdentity.StorageDirectoryName, DisabledModsDirectoryName);
-
-        Directory.CreateDirectory(targetDirectory);
-        var targetPath = Path.Combine(targetDirectory, Path.GetFileName(current));
         File.Move(current, targetPath, overwrite: true);
         logger.LogInformation(
-            "Local mod enabled state changed. FileName={FileName} Enabled={Enabled}",
+            "Local mod enabled state changed. FileName={FileName} Enabled={Enabled} TargetPath={TargetPath}",
             mod.FileName,
-            enabled);
+            enabled,
+            targetPath);
         return Task.CompletedTask;
     }
 
@@ -139,14 +141,15 @@ public sealed class ModService : IModService
         return Task.CompletedTask;
     }
 
-    private LocalMod ToLocalMod(string path, bool enabled)
+    private LocalMod ToLocalMod(string path)
     {
         var info = new FileInfo(path);
         var metadata = TryResolveMetadata(info);
+        var enabled = IsEnabledModPath(path);
         return new LocalMod
         {
             Name = string.IsNullOrWhiteSpace(metadata.DisplayName)
-                ? Path.GetFileNameWithoutExtension(path)
+                ? GetDisplayFileNameWithoutModExtensions(path)
                 : metadata.DisplayName,
             Loader = metadata.Loader,
             ModId = metadata.ModId,
@@ -534,8 +537,45 @@ public sealed class ModService : IModService
 
     private static string GetModsDirectory(GameInstance instance) => Path.Combine(instance.InstanceDirectory, "mods");
 
-    private static string GetDisabledDirectory(GameInstance instance) =>
-        Path.Combine(instance.InstanceDirectory, LauncherApplicationIdentity.StorageDirectoryName, DisabledModsDirectoryName);
+    private static bool IsEnabledModPath(string path)
+    {
+        return path.EndsWith(EnabledModExtension, StringComparison.OrdinalIgnoreCase)
+            && !path.EndsWith(DisabledModExtension, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetDisabledModPath(string path)
+    {
+        if (path.EndsWith(DisabledModExtension, StringComparison.OrdinalIgnoreCase))
+            return path;
+
+        if (!path.EndsWith(EnabledModExtension, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Unsupported mod path for disable: {path}");
+
+        return path + ".disabled";
+    }
+
+    private static string GetEnabledModPath(string path)
+    {
+        if (path.EndsWith(DisabledModExtension, StringComparison.OrdinalIgnoreCase))
+            return path[..^".disabled".Length];
+
+        if (!path.EndsWith(EnabledModExtension, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Unsupported mod path for enable: {path}");
+
+        return path;
+    }
+
+    private static string GetDisplayFileNameWithoutModExtensions(string path)
+    {
+        var fileName = Path.GetFileName(path);
+        if (fileName.EndsWith(DisabledModExtension, StringComparison.OrdinalIgnoreCase))
+            return fileName[..^DisabledModExtension.Length];
+
+        if (fileName.EndsWith(EnabledModExtension, StringComparison.OrdinalIgnoreCase))
+            return fileName[..^EnabledModExtension.Length];
+
+        return Path.GetFileNameWithoutExtension(fileName);
+    }
 
     private sealed record MetadataDeclaration(
         string MetadataEntryName,

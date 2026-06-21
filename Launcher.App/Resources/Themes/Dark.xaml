@@ -206,7 +206,7 @@
     <SolidColorBrush x:Key="Brush.Text.Secondary" Color="{StaticResource Color.AFFFFFFF}" />
     <SolidColorBrush x:Key="Brush.Text.Muted" Color="{StaticResource Color.8FFFFFFF}" />
     <SolidColorBrush x:Key="Brush.Text.Subtle" Color="{StaticResource Color.70FFFFFF}" />
-    <SolidColorBrush x:Key="Brush.Text.Disabled" Color="{StaticResource Color.BFFFFFFF}" />
+    <SolidColorBrush x:Key="Brush.Text.Disabled" Color="{StaticResource Color.8FFFFFFF}" />
     <SolidColorBrush x:Key="Brush.Text.Inverse" Color="{StaticResource Color.FFFFFF}" />
     <SolidColorBrush x:Key="Brush.Text.Warning" Color="{StaticResource Color.FFFFC56D}" />
     <SolidColorBrush x:Key="Brush.Text.Danger" Color="{StaticResource Color.FFFF8A8A}" />
@@ -263,6 +263,7 @@
     <Color x:Key="Color.Input.ComboBox.Border">#20FFFFFF</Color>
     <Color x:Key="Color.Input.ComboBox.BorderExpanded">#3AFFFFFF</Color>
     <Color x:Key="Color.Button.Secondary.Background">#20FFFFFF</Color>
+    <Color x:Key="Color.Button.Secondary.Disabled">#28FFFFFF</Color>
     <Color x:Key="Color.Button.Secondary.Hover">#32FFFFFF</Color>
     <Color x:Key="Color.Button.Secondary.Pressed">#50808080</Color>
     <Color x:Key="Color.List.Item.Background">#12FFFFFF</Color>
@@ -283,6 +284,7 @@
     <SolidColorBrush x:Key="Brush.Input.ComboBox.Border" Color="{StaticResource Color.Input.ComboBox.Border}" />
     <SolidColorBrush x:Key="Brush.Input.ComboBox.BorderExpanded" Color="{StaticResource Color.Input.ComboBox.BorderExpanded}" />
     <SolidColorBrush x:Key="Brush.Button.Secondary.Background" Color="{StaticResource Color.Button.Secondary.Background}" />
+    <SolidColorBrush x:Key="Brush.Button.Secondary.Disabled" Color="{StaticResource Color.Button.Secondary.Disabled}" />
     <SolidColorBrush x:Key="Brush.Button.Secondary.Hover" Color="{StaticResource Color.Button.Secondary.Hover}" />
     <SolidColorBrush x:Key="Brush.Button.Secondary.Pressed" Color="{StaticResource Color.Button.Secondary.Pressed}" />
     <SolidColorBrush x:Key="Brush.Button.DangerIcon.Foreground" Color="{StaticResource Color.FF2F2F}" />

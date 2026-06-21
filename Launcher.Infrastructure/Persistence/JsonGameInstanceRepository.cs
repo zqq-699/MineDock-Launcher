@@ -16,7 +16,6 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private const string LauncherDirectoryName = LauncherApplicationIdentity.StorageDirectoryName;
     private const string InstanceSettingsFileName = "instance-settings.json";
-    private const string DisabledModsDirectoryName = "disabled-mods";
     private readonly ISettingsService settingsService;
     private readonly ILogger<JsonGameInstanceRepository> logger;
     private readonly SemaphoreSlim ioLock = new(1, 1);
@@ -171,7 +170,6 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         Directory.CreateDirectory(Path.Combine(directory, "saves"));
         Directory.CreateDirectory(Path.Combine(directory, "resourcepacks"));
         Directory.CreateDirectory(Path.Combine(directory, "shaderpacks"));
-        Directory.CreateDirectory(Path.Combine(directory, LauncherDirectoryName, DisabledModsDirectoryName));
         logger.LogDebug("Instance directories ensured. InstanceDirectory={InstanceDirectory}", directory);
     }
 

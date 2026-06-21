@@ -7,6 +7,15 @@
              MouseEnter="Root_MouseEnter"
              MouseLeave="Root_MouseLeave"
              Focusable="False">
+    <UserControl.Style>
+        <Style TargetType="{x:Type controls:ListPageItemButton}">
+            <Setter Property="TitleForeground" Value="{DynamicResource Brush.F2F2F2}" />
+            <Setter Property="SubtitleForeground" Value="{DynamicResource Brush.Text.Muted}" />
+            <Setter Property="TrailingForeground" Value="{DynamicResource Brush.Text.Subtle}" />
+            <Setter Property="IconOverlayForeground" Value="{DynamicResource Brush.Text.Danger}" />
+        </Style>
+    </UserControl.Style>
+
     <Grid x:Name="AnimatedRoot">
         <Button x:Name="PART_Button"
                 Margin="{Binding ItemMargin, ElementName=Root}"
@@ -22,56 +31,79 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Border Width="{Binding IconWidth, ElementName=Root}"
-                        Height="{Binding IconHeight, ElementName=Root}"
-                        Margin="{Binding IconMargin, ElementName=Root}"
-                        HorizontalAlignment="Left"
-                        VerticalAlignment="Center"
-                        Background="Transparent"
-                        CornerRadius="{StaticResource LauncherCornerRadiusSmall}"
-                        ClipToBounds="True"
-                        behaviors:RoundedClip.Radius="6">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IconSource, ElementName=Root}" Value="{x:Null}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
+                <Grid Width="{Binding IconWidth, ElementName=Root}"
+                      Height="{Binding IconHeight, ElementName=Root}"
+                      Margin="{Binding IconMargin, ElementName=Root}"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Center"
+                      IsHitTestVisible="False">
+                    <Border Background="Transparent"
+                            CornerRadius="{StaticResource LauncherCornerRadiusSmall}"
+                            ClipToBounds="True"
+                            Opacity="{Binding IconOpacity, ElementName=Root}"
+                            behaviors:RoundedClip.Radius="6">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IconSource, ElementName=Root}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
 
-                    <Image HorizontalAlignment="Stretch"
-                           VerticalAlignment="Stretch"
-                           Stretch="UniformToFill"
-                           RenderOptions.BitmapScalingMode="{Binding IconScalingMode, ElementName=Root}"
-                           SnapsToDevicePixels="True"
-                           Source="{Binding IconSource, ElementName=Root}" />
-                </Border>
+                        <Image HorizontalAlignment="Stretch"
+                               VerticalAlignment="Stretch"
+                               Stretch="UniformToFill"
+                               RenderOptions.BitmapScalingMode="{Binding IconScalingMode, ElementName=Root}"
+                               SnapsToDevicePixels="True"
+                               Source="{Binding IconSource, ElementName=Root}" />
+                    </Border>
 
-                <controls:SvgIcon Width="{Binding IconWidth, ElementName=Root}"
-                                  Height="{Binding IconHeight, ElementName=Root}"
-                                  Margin="{Binding IconMargin, ElementName=Root}"
-                                  HorizontalAlignment="Left"
-                                  VerticalAlignment="Center"
-                                  IconKey="{Binding IconKey, ElementName=Root}"
-                                  Foreground="{DynamicResource Brush.DFFFFFFF}"
-                                  IsHitTestVisible="False">
-                    <controls:SvgIcon.Style>
-                        <Style TargetType="{x:Type controls:SvgIcon}">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IconKey, ElementName=Root}" Value="{x:Null}">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding IconKey, ElementName=Root}" Value="">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </controls:SvgIcon.Style>
-                </controls:SvgIcon>
+                    <controls:SvgIcon Width="{Binding IconWidth, ElementName=Root}"
+                                      Height="{Binding IconHeight, ElementName=Root}"
+                                      HorizontalAlignment="Left"
+                                      VerticalAlignment="Center"
+                                      IconKey="{Binding IconKey, ElementName=Root}"
+                                      Foreground="{DynamicResource Brush.DFFFFFFF}"
+                                      Opacity="{Binding IconOpacity, ElementName=Root}">
+                        <controls:SvgIcon.Style>
+                            <Style TargetType="{x:Type controls:SvgIcon}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IconKey, ElementName=Root}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IconKey, ElementName=Root}" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </controls:SvgIcon.Style>
+                    </controls:SvgIcon>
+
+                    <controls:SvgIcon Width="16"
+                                      Height="16"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      IconKey="{Binding IconOverlayKey, ElementName=Root}"
+                                      Foreground="{Binding IconOverlayForeground, ElementName=Root}">
+                        <controls:SvgIcon.Style>
+                            <Style TargetType="{x:Type controls:SvgIcon}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IconOverlayKey, ElementName=Root}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IconOverlayKey, ElementName=Root}" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </controls:SvgIcon.Style>
+                    </controls:SvgIcon>
+                </Grid>
 
                 <Grid Grid.Column="1"
                       Margin="{Binding TextMargin, ElementName=Root}"
@@ -82,7 +114,7 @@
                     </Grid.RowDefinitions>
 
                     <TextBlock Text="{Binding Title, ElementName=Root}"
-                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                               Foreground="{Binding TitleForeground, ElementName=Root}"
                                FontSize="{Binding TitleFontSize, ElementName=Root}"
                                FontWeight="{Binding TitleFontWeight, ElementName=Root}"
                                TextTrimming="CharacterEllipsis" />

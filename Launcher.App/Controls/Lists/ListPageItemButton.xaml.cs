@@ -89,11 +89,23 @@ public partial class ListPageItemButton : UserControl
     public static readonly DependencyProperty TitleFontWeightProperty =
         DependencyProperty.Register(nameof(TitleFontWeight), typeof(FontWeight), typeof(ListPageItemButton), new PropertyMetadata(FontWeights.SemiBold));
 
+    public static readonly DependencyProperty TitleForegroundProperty =
+        DependencyProperty.Register(nameof(TitleForeground), typeof(Brush), typeof(ListPageItemButton), new PropertyMetadata(null));
+
     public static readonly DependencyProperty SubtitleFontSizeProperty =
         DependencyProperty.Register(nameof(SubtitleFontSize), typeof(double), typeof(ListPageItemButton), new PropertyMetadata(11d));
 
     public static readonly DependencyProperty SubtitleForegroundProperty =
         DependencyProperty.Register(nameof(SubtitleForeground), typeof(Brush), typeof(ListPageItemButton), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty IconOpacityProperty =
+        DependencyProperty.Register(nameof(IconOpacity), typeof(double), typeof(ListPageItemButton), new PropertyMetadata(1d));
+
+    public static readonly DependencyProperty IconOverlayKeyProperty =
+        DependencyProperty.Register(nameof(IconOverlayKey), typeof(string), typeof(ListPageItemButton), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty IconOverlayForegroundProperty =
+        DependencyProperty.Register(nameof(IconOverlayForeground), typeof(Brush), typeof(ListPageItemButton), new PropertyMetadata(null));
 
     public static readonly DependencyProperty TrailingFontSizeProperty =
         DependencyProperty.Register(nameof(TrailingFontSize), typeof(double), typeof(ListPageItemButton), new PropertyMetadata(12d));
@@ -104,8 +116,6 @@ public partial class ListPageItemButton : UserControl
     public ListPageItemButton()
     {
         InitializeComponent();
-        SetResourceReference(SubtitleForegroundProperty, "Brush.Text.Muted");
-        SetResourceReference(TrailingForegroundProperty, "Brush.Text.Subtle");
         Loaded += (_, _) => PlayEnterAnimationIfNeeded();
     }
 
@@ -261,6 +271,12 @@ public partial class ListPageItemButton : UserControl
         set => SetValue(TitleFontWeightProperty, value);
     }
 
+    public Brush TitleForeground
+    {
+        get => (Brush)GetValue(TitleForegroundProperty);
+        set => SetValue(TitleForegroundProperty, value);
+    }
+
     public double SubtitleFontSize
     {
         get => (double)GetValue(SubtitleFontSizeProperty);
@@ -271,6 +287,24 @@ public partial class ListPageItemButton : UserControl
     {
         get => (Brush)GetValue(SubtitleForegroundProperty);
         set => SetValue(SubtitleForegroundProperty, value);
+    }
+
+    public double IconOpacity
+    {
+        get => (double)GetValue(IconOpacityProperty);
+        set => SetValue(IconOpacityProperty, value);
+    }
+
+    public string? IconOverlayKey
+    {
+        get => (string?)GetValue(IconOverlayKeyProperty);
+        set => SetValue(IconOverlayKeyProperty, value);
+    }
+
+    public Brush IconOverlayForeground
+    {
+        get => (Brush)GetValue(IconOverlayForegroundProperty);
+        set => SetValue(IconOverlayForegroundProperty, value);
     }
 
     public double TrailingFontSize

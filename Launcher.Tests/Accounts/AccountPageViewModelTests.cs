@@ -1904,6 +1904,11 @@ public sealed class AccountPageViewModelTests
             return null;
         }
 
+        public string? PickModFile()
+        {
+            return null;
+        }
+
         public string? PickFolder(string title, string? initialDirectory = null)
         {
             return null;

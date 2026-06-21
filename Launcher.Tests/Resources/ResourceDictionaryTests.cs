@@ -601,6 +601,8 @@ public sealed class ResourceDictionaryTests
         public string EnsureDirectoryExists(string folderPath) => folderPath;
 
         public bool TryOpen(string folderPath) => true;
+
+        public bool TryRevealFile(string filePath) => true;
     }
 
     private sealed class StubFilePickerService : IFilePickerService
@@ -608,6 +610,8 @@ public sealed class ResourceDictionaryTests
         public string? PickMinecraftSkin() => null;
 
         public string? PickJavaExecutable() => null;
+
+        public string? PickModFile() => null;
 
         public string? PickFolder(string title, string? initialDirectory = null) => null;
     }
@@ -679,7 +683,11 @@ public sealed class ResourceDictionaryTests
                     : (IReadOnlyList<LocalMod>)[]);
         }
 
-        public Task<LocalMod> ImportAsync(GameInstance instance, string sourceJarPath, CancellationToken cancellationToken = default)
+        public Task<LocalMod> ImportAsync(
+            GameInstance instance,
+            string sourceJarPath,
+            bool overwriteExisting = false,
+            CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }

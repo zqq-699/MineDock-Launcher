@@ -45,11 +45,11 @@
                             CornerRadius="10">
                         <Grid>
                             <Border x:Name="SelectedBackground"
-                                    Background="{DynamicResource Brush.3D3D3D}"
+                                    Background="{DynamicResource Brush.List.Item.Selected}"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <Border x:Name="HoverBackground"
-                                    Background="{DynamicResource Brush.20FFFFFF}"
+                                    Background="{DynamicResource Brush.List.Item.Hover}"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <Border x:Name="PressedBackground"
@@ -371,7 +371,7 @@
                             <Border Background="{TemplateBinding Background}"
                                     CornerRadius="10" />
                             <Border x:Name="SelectedBackground"
-                                    Background="{DynamicResource Brush.3D3D3D}"
+                                    Background="{DynamicResource Brush.22FFFFFF}"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <Border x:Name="HoverBackground"
@@ -493,6 +493,11 @@
                         <Trigger Property="IsPressed" Value="True">
                             <Setter Property="Foreground" Value="{DynamicResource Brush.Button.DangerIcon.ForegroundPressed}" />
                         </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Cursor" Value="Arrow" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Icon.Muted}" />
+                            <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -559,7 +564,7 @@
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Cursor" Value="Arrow" />
-                            <Setter Property="Foreground" Value="{DynamicResource Brush.7DFFB2}" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Icon.Muted}" />
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
                         </Trigger>

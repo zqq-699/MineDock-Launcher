@@ -247,6 +247,13 @@
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
                         </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Cursor" Value="Arrow" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Disabled}" />
+                            <Setter TargetName="BaseBackground" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
+                            <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -311,8 +318,9 @@
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Foreground" Value="{DynamicResource Brush.BFFFFFFF}" />
-                            <Setter TargetName="BaseBackground" Property="Background" Value="{DynamicResource Brush.5A5A5A}" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Disabled}" />
+                            <Setter TargetName="BaseBackground" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
                         </Trigger>
@@ -380,8 +388,9 @@
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Foreground" Value="{DynamicResource Brush.BFFFFFFF}" />
-                            <Setter TargetName="BaseBackground" Property="Background" Value="{DynamicResource Brush.5A5A5A}" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Disabled}" />
+                            <Setter TargetName="BaseBackground" Property="Background" Value="{DynamicResource Brush.Button.Secondary.Disabled}" />
                             <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
                         </Trigger>

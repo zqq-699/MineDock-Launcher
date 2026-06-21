@@ -18,6 +18,24 @@
                 <Setter Property="FontWeight" Value="SemiBold" />
             </Style>
 
+            <Style x:Key="ModListHeaderCompactButtonStyle"
+                   TargetType="Button"
+                   BasedOn="{StaticResource LauncherDialogButtonStyle}">
+                <Setter Property="MinWidth" Value="72" />
+                <Setter Property="Height" Value="30" />
+                <Setter Property="Padding" Value="14,0" />
+                <Setter Property="FontSize" Value="13" />
+            </Style>
+
+            <Style x:Key="ModListHeaderCompactDangerButtonStyle"
+                   TargetType="Button"
+                   BasedOn="{StaticResource LauncherDangerDialogButtonStyle}">
+                <Setter Property="MinWidth" Value="72" />
+                <Setter Property="Height" Value="30" />
+                <Setter Property="Padding" Value="14,0" />
+                <Setter Property="FontSize" Value="13" />
+            </Style>
+
             <DataTemplate x:Key="ModListSectionHeaderTemplate">
                 <StackPanel>
                     <Grid>
@@ -26,18 +44,56 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="{x:Static res:Strings.GameSettings_ModManagementModListSection}"
+                        <TextBlock Grid.Column="0"
+                                   Margin="0,0,12,0"
+                                   Text="{x:Static res:Strings.GameSettings_ModManagementModListSection}"
                                    Style="{StaticResource ModListSectionHeaderTextStyle}"
                                    VerticalAlignment="Center" />
 
-                        <WrapPanel Grid.Column="1">
-                            <Button Margin="0,0,10,0"
-                                    Content="{x:Static res:Strings.GameSettings_ModManagementEnableAllButton}"
-                                    Command="{Binding EnableAllModsCommand}"
-                                    Style="{StaticResource LauncherDialogButtonStyle}" />
-                            <Button Content="{x:Static res:Strings.GameSettings_ModManagementDisableAllButton}"
-                                    Command="{Binding DisableAllModsCommand}"
-                                    Style="{StaticResource LauncherDialogButtonStyle}" />
+                        <WrapPanel Grid.Column="1"
+                                   VerticalAlignment="Center">
+                            <WrapPanel Margin="0,0,10,0"
+                                       VerticalAlignment="Center">
+                                <WrapPanel.Style>
+                                    <Style TargetType="WrapPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMultiSelectMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </WrapPanel.Style>
+
+                                <Button Margin="0,0,10,0"
+                                        Content="{Binding SelectAllButtonText}"
+                                        Command="{Binding SelectAllModsCommand}"
+                                        Style="{StaticResource ModListHeaderCompactButtonStyle}" />
+                                <Button Margin="0,0,10,0"
+                                        Content="{x:Static res:Strings.GameSettings_ModManagementDisableButton}"
+                                        Command="{Binding DisableSelectedModsCommand}"
+                                        Style="{StaticResource ModListHeaderCompactButtonStyle}" />
+                                <Button Margin="0,0,10,0"
+                                        Content="{x:Static res:Strings.GameSettings_ModManagementEnableButton}"
+                                        Command="{Binding EnableSelectedModsCommand}"
+                                        Style="{StaticResource ModListHeaderCompactButtonStyle}" />
+                                <Button Content="{x:Static res:Strings.GameSettings_ModManagementDeleteButton}"
+                                        Command="{Binding RequestDeleteSelectedModsCommand}"
+                                        Style="{StaticResource ModListHeaderCompactDangerButtonStyle}" />
+                            </WrapPanel>
+
+                            <Button Command="{Binding ToggleMultiSelectModeCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ModListHeaderCompactButtonStyle}">
+                                        <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_ModManagementMultiSelectButton}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMultiSelectMode}" Value="True">
+                                                <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_ModManagementCancelMultiSelectButton}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
                         </WrapPanel>
                     </Grid>
 
@@ -119,7 +175,8 @@
 
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <controls:ListPageItemButton Title="{Binding Title}"
+                            <controls:ListPageItemButton x:Name="ModListItemButton"
+                                                         Title="{Binding Title}"
                                                          Subtitle="{Binding Subtitle}"
                                                          TrailingText="{Binding TrailingText}"
                                                          IconSource="{Binding IconSource}"
@@ -127,7 +184,68 @@
                                                          ItemMargin="0"
                                                          IsSelected="{Binding IsSelected}"
                                                          Command="{Binding DataContext.SelectModCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
-                                                         CommandParameter="{Binding}" />
+                                                         CommandParameter="{Binding}">
+                                <controls:ListPageItemButton.TrailingContent>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Command="{Binding DataContext.ToggleModEnabledCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                                CommandParameter="{Binding}">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource InlineIconButtonStyle}">
+                                                    <Setter Property="ToolTip" Value="{x:Static res:Strings.GameSettings_ModManagementDisableButton}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                            <Setter Property="ToolTip" Value="{x:Static res:Strings.GameSettings_ModManagementEnableButton}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                            <controls:SvgIcon Width="16"
+                                                              Height="16"
+                                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}">
+                                                <controls:SvgIcon.Style>
+                                                    <Style TargetType="{x:Type controls:SvgIcon}">
+                                                        <Setter Property="IconKey" Value="account_page/account_page_forbid" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                                                <Setter Property="IconKey" Value="general/general_passed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </controls:SvgIcon.Style>
+                                            </controls:SvgIcon>
+                                        </Button>
+
+                                        <Button Margin="4,0,0,0"
+                                                Style="{StaticResource InlineIconButtonStyle}"
+                                                ToolTip="{x:Static res:Strings.GameSettings_OpenInstanceFolderTooltip}"
+                                                Command="{Binding DataContext.OpenModFileLocationCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                                CommandParameter="{Binding}">
+                                            <controls:SvgIcon Width="16"
+                                                              Height="16"
+                                                              IconKey="general/general_folder"
+                                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                                        </Button>
+
+                                        <Button Margin="4,0,0,0"
+                                                Style="{StaticResource SecondaryMenuDeleteButtonStyle}"
+                                                ToolTip="{x:Static res:Strings.Delete_Button}"
+                                                Command="{Binding DataContext.RequestDeleteModCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                                CommandParameter="{Binding}">
+                                            <controls:SvgIcon Width="16"
+                                                              Height="16"
+                                                              IconKey="general/general_delete"
+                                                              Style="{StaticResource DangerActionSvgIconStyle}" />
+                                        </Button>
+                                    </StackPanel>
+                                </controls:ListPageItemButton.TrailingContent>
+                            </controls:ListPageItemButton>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                                    <Setter TargetName="ModListItemButton" Property="controls:ListPageItemButton.TitleForeground" Value="{DynamicResource Brush.Text.Subtle}" />
+                                    <Setter TargetName="ModListItemButton" Property="controls:ListPageItemButton.IconOpacity" Value="0.42" />
+                                    <Setter TargetName="ModListItemButton" Property="controls:ListPageItemButton.IconOverlayKey" Value="account_page/account_page_forbid" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>

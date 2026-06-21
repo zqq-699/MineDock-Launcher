@@ -1488,7 +1488,11 @@ public sealed class LaunchServiceTests : TestTempDirectory
             return Task.FromResult<IReadOnlyList<LocalMod>>(mods);
         }
 
-        public Task<LocalMod> ImportAsync(GameInstance instance, string sourceJarPath, CancellationToken cancellationToken = default)
+        public Task<LocalMod> ImportAsync(
+            GameInstance instance,
+            string sourceJarPath,
+            bool overwriteExisting = false,
+            CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }

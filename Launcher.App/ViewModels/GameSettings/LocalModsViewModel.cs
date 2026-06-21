@@ -11,6 +11,8 @@ namespace Launcher.App.ViewModels.GameSettings;
 
 public sealed class LocalModsViewModel : IDisposable
 {
+    private const string EnabledModExtension = ".jar";
+    private const string DisabledModExtension = ".jar.disabled";
     private readonly IModService modService;
     private readonly IStatusService statusService;
     private readonly IUiDispatcher uiDispatcher;
@@ -105,14 +107,67 @@ public sealed class LocalModsViewModel : IDisposable
         await RefreshModsAsync();
     }
 
-    public async Task ImportModFromPathAsync(string path)
+    public async Task<int> SetModsEnabledAsync(IEnumerable<LocalMod> mods, bool enabled)
+    {
+        ArgumentNullException.ThrowIfNull(mods);
+
+        var failedCount = 0;
+        foreach (var mod in mods
+                     .Where(mod => mod.IsEnabled != enabled)
+                     .DistinctBy(mod => mod.FullPath, StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                await modService.SetEnabledAsync(mod, enabled);
+            }
+            catch (Exception exception)
+            {
+                failedCount++;
+                logger.LogWarning(
+                    exception,
+                    "Failed to change local mod enabled state. Path={Path} Enabled={Enabled}",
+                    mod.FullPath,
+                    enabled);
+            }
+        }
+
+        await RefreshModsAsync();
+        return failedCount;
+    }
+
+    public async Task<int> DeleteModsAsync(IEnumerable<LocalMod> mods)
+    {
+        ArgumentNullException.ThrowIfNull(mods);
+
+        var failedCount = 0;
+        foreach (var mod in mods.DistinctBy(mod => mod.FullPath, StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                await modService.DeleteAsync(mod);
+            }
+            catch (Exception exception)
+            {
+                failedCount++;
+                logger.LogWarning(
+                    exception,
+                    "Failed to delete local mod. Path={Path}",
+                    mod.FullPath);
+            }
+        }
+
+        await RefreshModsAsync();
+        return failedCount;
+    }
+
+    public async Task ImportModFromPathAsync(string path, bool overwriteExisting = false)
     {
         if (selectedInstance is null || string.IsNullOrWhiteSpace(path))
             return;
 
         try
         {
-            await modService.ImportAsync(selectedInstance, path);
+            await modService.ImportAsync(selectedInstance, path, overwriteExisting);
         }
         catch (ModFileImportNotFoundException)
         {
@@ -144,14 +199,14 @@ public sealed class LocalModsViewModel : IDisposable
         if (instance is null || string.IsNullOrWhiteSpace(instance.InstanceDirectory))
             return;
 
-        if (!Directory.Exists(instance.InstanceDirectory))
-            return;
+        var modsDirectory = Path.Combine(instance.InstanceDirectory, "mods");
+        Directory.CreateDirectory(modsDirectory);
 
         try
         {
-            modsWatcher = new FileSystemWatcher(instance.InstanceDirectory, "*.jar")
+            modsWatcher = new FileSystemWatcher(modsDirectory, "*")
             {
-                IncludeSubdirectories = true,
+                IncludeSubdirectories = false,
                 NotifyFilter = NotifyFilters.DirectoryName
                     | NotifyFilters.FileName
                     | NotifyFilters.LastWrite
@@ -183,11 +238,17 @@ public sealed class LocalModsViewModel : IDisposable
 
     private void ModsWatcher_StateChanged(object sender, FileSystemEventArgs e)
     {
+        if (!IsTrackedModPath(e.FullPath))
+            return;
+
         QueueWatcherRefresh(e.ChangeType.ToString(), e.FullPath);
     }
 
     private void ModsWatcher_StateRenamed(object sender, RenamedEventArgs e)
     {
+        if (!IsTrackedModPath(e.FullPath) && !IsTrackedModPath(e.OldFullPath))
+            return;
+
         QueueWatcherRefresh("Renamed", e.FullPath);
     }
 
@@ -233,5 +294,12 @@ public sealed class LocalModsViewModel : IDisposable
     private void ReportStatus(string message)
     {
         statusService.Report(message);
+    }
+
+    private static bool IsTrackedModPath(string? fullPath)
+    {
+        return !string.IsNullOrWhiteSpace(fullPath)
+            && (fullPath.EndsWith(EnabledModExtension, StringComparison.OrdinalIgnoreCase)
+                || fullPath.EndsWith(DisabledModExtension, StringComparison.OrdinalIgnoreCase));
     }
 }

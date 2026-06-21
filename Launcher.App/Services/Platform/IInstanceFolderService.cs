@@ -7,4 +7,6 @@ public interface IInstanceFolderService
     string EnsureDirectoryExists(string folderPath);
 
     bool TryOpen(string folderPath);
+
+    bool TryRevealFile(string filePath);
 }
