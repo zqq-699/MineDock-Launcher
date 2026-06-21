@@ -1,5 +1,4 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using Launcher.App.Resources;
 using Launcher.App.Utilities;
 using Launcher.Domain.Models;
 
@@ -17,42 +16,17 @@ public sealed partial class HomeLaunchInstanceItem : ObservableObject
 
     public string VersionType { get; }
 
-    public string Name => string.IsNullOrWhiteSpace(Instance.Name)
-        ? VersionName
-        : Instance.Name;
+    public string Name => GameInstanceDisplayFormatter.GetName(Instance);
 
-    public string MinecraftVersion => string.IsNullOrWhiteSpace(Instance.MinecraftVersion)
-        ? Strings.GameSettings_UnknownMinecraftVersion
-        : Instance.MinecraftVersion;
+    public string MinecraftVersion => GameInstanceDisplayFormatter.GetMinecraftVersion(Instance);
 
-    public string VersionName => string.IsNullOrWhiteSpace(Instance.VersionName)
-        ? Instance.MinecraftVersion
-        : Instance.VersionName;
+    public string VersionName => GameInstanceDisplayFormatter.GetVersionName(Instance);
 
-    public string LoaderLabel => Instance.Loader switch
-    {
-        LoaderKind.Vanilla => Strings.Download_VanillaLoaderTitle,
-        LoaderKind.Fabric => Strings.Download_FabricLoaderTitle,
-        LoaderKind.Forge => Strings.Download_ForgeLoaderTitle,
-        _ => Instance.Loader.ToString()
-    };
+    public string LoaderLabel => GameInstanceDisplayFormatter.GetLoaderLabel(Instance.Loader);
 
     public string LoaderVersionDisplay => LoaderVersionDisplayFormatter.Format(Instance.Loader, Instance.LoaderVersion);
 
-    public string Subtitle => Instance.Loader switch
-    {
-        LoaderKind.Vanilla => string.Format(Strings.GameSettings_InstanceSubtitleVanillaFormat, MinecraftVersion),
-        _ when !string.IsNullOrWhiteSpace(LoaderVersionDisplay)
-            => string.Format(
-                Strings.GameSettings_InstanceSubtitleLoaderFormat,
-                MinecraftVersion,
-                LoaderLabel,
-                LoaderVersionDisplay),
-        _ => string.Format(
-            Strings.GameSettings_InstanceSubtitleLoaderWithoutVersionFormat,
-            MinecraftVersion,
-            LoaderLabel)
-    };
+    public string Subtitle => GameInstanceDisplayFormatter.GetSubtitle(Instance);
 
     public string IconSource => MinecraftVersionIconResolver.Resolve(Instance, VersionType, MinecraftVersion);
 

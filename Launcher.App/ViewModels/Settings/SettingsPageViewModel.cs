@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Logging;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.Utilities;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
@@ -315,9 +316,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
     public bool IsMemorySliderVisible => SelectedMemoryModeOption?.Mode is MemorySettingsMode.Manual;
 
-    public string DefaultMemoryText => FormatMemorySizeGb(DefaultMemoryMb);
+    public string DefaultMemoryText => MemorySizeTextFormatter.FormatGb(DefaultMemoryMb);
 
-    public string AutomaticMemoryText => FormatMemorySizeGb(AutomaticMemoryMb);
+    public string AutomaticMemoryText => MemorySizeTextFormatter.FormatGb(AutomaticMemoryMb);
 
     public string SystemMemorySummaryText => string.Format(
         Strings.Settings_SystemMemorySummaryFormat,
@@ -403,7 +404,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         try
         {
             var directory = ResolveLauncherLogDirectory();
-            Directory.CreateDirectory(directory);
+            directory = instanceFolderService.EnsureDirectoryExists(directory);
             LauncherLogDirectory = directory;
             if (!instanceFolderService.TryOpen(directory))
                 statusService.Report(Strings.Status_OpenLaunchLogFolderFailed);
@@ -853,8 +854,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             var availableMemoryMb = MemoryAllocationCalculator.BytesToMegabytes(snapshot.AvailableMemoryBytes);
             MemorySliderMaximumMb = CalculateMemorySliderMaximumMb(totalMemoryMb);
             AutomaticMemoryMb = MemoryAllocationCalculator.CalculateAutomaticMemoryMb(snapshot);
-            SystemTotalMemoryText = FormatMemorySize(totalMemoryMb);
-            SystemAvailableMemoryText = FormatMemorySizeGb(availableMemoryMb);
+            SystemTotalMemoryText = MemorySizeTextFormatter.Format(totalMemoryMb);
+            SystemAvailableMemoryText = MemorySizeTextFormatter.FormatGb(availableMemoryMb);
         }
         catch (Exception)
         {
@@ -875,19 +876,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private int NormalizeMemoryValue(double memoryMb)
     {
         return MemoryAllocationCalculator.NormalizeRecordedMemoryMb(memoryMb, MemorySliderMaximumMb);
-    }
-
-    private static string FormatMemorySize(int memoryMb)
-    {
-        if (memoryMb >= 1024)
-            return string.Format(Strings.Settings_MemorySizeGbFormat, memoryMb / 1024d);
-
-        return string.Format(Strings.Settings_MemorySizeMbFormat, memoryMb);
-    }
-
-    private static string FormatMemorySizeGb(double memoryMb)
-    {
-        return string.Format(Strings.Settings_MemorySizeGbFormat, memoryMb / 1024d);
     }
 
     private void ScheduleAutoSave()
@@ -946,11 +934,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         }
     }
 
-    private static string EnsureMinecraftDirectoryExists(string directory)
+    private string EnsureMinecraftDirectoryExists(string directory)
     {
-        var normalizedDirectory = Path.GetFullPath(directory);
-        Directory.CreateDirectory(normalizedDirectory);
-        return normalizedDirectory;
+        return instanceFolderService.EnsureDirectoryExists(directory);
     }
 
     private static string ResolveLauncherLogDirectory()

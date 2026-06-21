@@ -181,9 +181,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
         try
         {
-            IsAccountProfileBusy = true;
-            AccountProfileErrorCodeMessage = string.Empty;
-            AccountProfileMessage = Strings.Status_AddingSkin;
+            BeginAccountProfileOperation(Strings.Status_AddingSkin);
             var importedSkin = await skinLibraryService.ImportSkinAsync(account, skinFilePath, skinModel);
             var skins = AddOrReplaceSkin(account.SkinLibrary, importedSkin);
             var updatedAccount = AccountMapper.WithSkinLibrary(
@@ -195,18 +193,18 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             accountList.ReplaceSelectedAccount(account, updatedAccount);
             PopulateSelectedAccountSkins(updatedAccount, importedSkin.Id);
             await accountList.PersistAccountOrderAsync();
-            AccountProfileMessage = Strings.Status_SkinAdded;
+            SetAccountProfileMessage(Strings.Status_SkinAdded);
         }
         catch (Exception ex)
         {
+            var errorCodeMessage = FormatAccountProfileError(ex);
             logger.LogWarning(
                 ex,
                 "Microsoft account skin change failed. AccountId={AccountId} SkinModel={SkinModel} ErrorCode={ErrorCode}",
                 account.Id,
                 skinModel,
-                AccountErrorCodeMessageFormatter.Format(ex));
-            AccountProfileMessage = Strings.Status_SkinUpdateFailed;
-            AccountProfileErrorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
+                errorCodeMessage);
+            SetAccountProfileError(ex, Strings.Status_SkinUpdateFailed);
         }
         finally
         {
@@ -230,9 +228,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
         try
         {
-            IsAccountProfileBusy = true;
-            AccountProfileErrorCodeMessage = string.Empty;
-            AccountProfileMessage = Strings.Status_UploadingSkin;
+            BeginAccountProfileOperation(Strings.Status_UploadingSkin);
             var skinPath = ResolveLocalSkinPath(skin.Source);
             var uploadedAccount = await microsoftAccountService.UploadSkinAsync(account, skinPath, skin.SkinModel);
             var updatedAccount = AccountMapper.WithCapeCache(
@@ -246,21 +242,19 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             accountList.ReplaceSelectedAccount(account, updatedAccount);
             PopulateSelectedAccountSkins(updatedAccount, skin.Id);
             await accountList.PersistAccountOrderAsync();
-            AccountProfileMessage = Strings.Status_SkinUpdated;
-            floatingMessageService.Show(AccountProfileMessage);
+            SetAccountProfileMessage(Strings.Status_SkinUpdated, showFloating: true);
         }
         catch (Exception ex)
         {
+            var errorCodeMessage = FormatAccountProfileError(ex);
             logger.LogWarning(
                 ex,
                 "Microsoft account skin apply failed. AccountId={AccountId} SkinId={SkinId} SkinModel={SkinModel} ErrorCode={ErrorCode}",
                 account.Id,
                 skin.Id,
                 skin.SkinModel,
-                AccountErrorCodeMessageFormatter.Format(ex));
-            AccountProfileMessage = Strings.Status_SkinUpdateFailed;
-            AccountProfileErrorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
-            floatingMessageService.Show(AccountProfileMessage);
+                errorCodeMessage);
+            SetAccountProfileError(ex, Strings.Status_SkinUpdateFailed, showFloating: true);
         }
         finally
         {
@@ -361,8 +355,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
         try
         {
-            IsAccountProfileBusy = true;
-            AccountProfileErrorCodeMessage = string.Empty;
+            BeginAccountProfileOperation();
             await skinLibraryService.DeleteSkinAsync(account, skin);
 
             var updatedSkins = RemoveMatchingSkin(account.SkinLibrary, skin);
@@ -375,18 +368,18 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             accountList.ReplaceSelectedAccount(account, updatedAccount);
             PopulateSelectedAccountSkins(updatedAccount, GetPreferredSkinIdAfterDelete(skin));
             await accountList.PersistAccountOrderAsync();
-            AccountProfileMessage = Strings.Status_SkinDeleted;
+            SetAccountProfileMessage(Strings.Status_SkinDeleted);
         }
         catch (Exception ex)
         {
+            var errorCodeMessage = FormatAccountProfileError(ex);
             logger.LogWarning(
                 ex,
                 "Microsoft account skin delete failed. AccountId={AccountId} SkinId={SkinId} ErrorCode={ErrorCode}",
                 account.Id,
                 skin.Id,
-                AccountErrorCodeMessageFormatter.Format(ex));
-            AccountProfileMessage = Strings.Status_SkinDeleteFailed;
-            AccountProfileErrorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
+                errorCodeMessage);
+            SetAccountProfileError(ex, Strings.Status_SkinDeleteFailed);
         }
         finally
         {
@@ -448,26 +441,26 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
         try
         {
-            IsAccountProfileBusy = true;
-            AccountProfileErrorCodeMessage = string.Empty;
-            AccountProfileMessage = Strings.Status_RefreshingAccountProfile;
+            BeginAccountProfileOperation(Strings.Status_RefreshingAccountProfile);
             var refreshedAccount = await microsoftAccountService.RefreshAccountProfileAsync(account);
             var updatedAccount = AccountMapper.WithCapeCache(refreshedAccount, account.CachedCapeOptions);
             accountList.ReplaceSelectedAccount(account, updatedAccount);
             PopulateSelectedAccountSkins(updatedAccount, updatedAccount.ActiveSkinId);
             await accountList.PersistAccountOrderAsync();
-            AccountProfileMessage = Strings.Status_AccountProfileRefreshed;
+            SetAccountProfileMessage(Strings.Status_AccountProfileRefreshed);
         }
         catch (Exception ex)
         {
+            var errorCodeMessage = FormatAccountProfileError(ex);
             logger.LogWarning(
                 ex,
                 "Microsoft account profile refresh failed. AccountId={AccountId} ErrorCode={ErrorCode}",
                 account.Id,
-                AccountErrorCodeMessageFormatter.Format(ex));
-            AccountProfileMessage = GetProfileRefreshFailedMessage(ex, Strings.Status_AccountProfileRefreshFailed);
-            AccountProfileErrorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
-            floatingMessageService.Show(AccountProfileMessage);
+                errorCodeMessage);
+            SetAccountProfileError(
+                ex,
+                GetProfileRefreshFailedMessage(ex, Strings.Status_AccountProfileRefreshFailed),
+                showFloating: true);
         }
         finally
         {
@@ -549,24 +542,20 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
         try
         {
-            IsAccountProfileBusy = true;
-            AccountProfileErrorCodeMessage = string.Empty;
-            AccountProfileMessage = Strings.Status_ChangingCape;
+            BeginAccountProfileOperation(Strings.Status_ChangingCape);
             await microsoftAccountService.SetActiveCapeAsync(account, cape.Id);
             var successMessage = cape.IsNone
                 ? Strings.Status_CapeRemoved
                 : string.Format(Strings.Status_CapeChangedFormat, AccountCapeTextProvider.GetDisplayName(cape));
             MarkSelectedCapeActive(cape);
             await StoreSelectedAccountCapeCacheAsync();
-            AccountProfileMessage = successMessage;
-            floatingMessageService.Show(AccountProfileMessage);
+            SetAccountProfileMessage(successMessage, showFloating: true);
         }
         catch (Exception exception)
         {
             logger.LogWarning(exception, "Microsoft account cape change failed. AccountId={AccountId} HasCape={HasCape}", account.Id, !cape.IsNone);
-            AccountProfileMessage = Strings.Status_CapeChangeFailed;
+            SetAccountProfileMessage(Strings.Status_CapeChangeFailed, showFloating: true);
             AccountProfileErrorCodeMessage = string.Empty;
-            floatingMessageService.Show(AccountProfileMessage);
         }
         finally
         {
@@ -594,6 +583,36 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         OnPropertyChanged(nameof(HasAccountProfileErrorCode));
     }
 
+    private void BeginAccountProfileOperation()
+    {
+        IsAccountProfileBusy = true;
+        AccountProfileErrorCodeMessage = string.Empty;
+    }
+
+    private void BeginAccountProfileOperation(string message)
+    {
+        BeginAccountProfileOperation();
+        AccountProfileMessage = message;
+    }
+
+    private void SetAccountProfileMessage(string message, bool showFloating = false)
+    {
+        AccountProfileMessage = message;
+        if (showFloating)
+            floatingMessageService.Show(message);
+    }
+
+    private void SetAccountProfileError(Exception exception, string message, bool showFloating = false)
+    {
+        SetAccountProfileMessage(message, showFloating);
+        AccountProfileErrorCodeMessage = FormatAccountProfileError(exception);
+    }
+
+    private static string FormatAccountProfileError(Exception exception)
+    {
+        return AccountErrorCodeMessageFormatter.Format(exception);
+    }
+
     private async Task LoadSelectedAccountProfileAsync(LauncherAccount account)
     {
         if (!IsSelectedAccount(account))
@@ -607,9 +626,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
         try
         {
-            IsAccountProfileBusy = true;
-            AccountProfileErrorCodeMessage = string.Empty;
-            AccountProfileMessage = Strings.Status_LoadingAccountProfile;
+            BeginAccountProfileOperation(Strings.Status_LoadingAccountProfile);
             var capes = await microsoftAccountService.GetCapesAsync(account);
             if (!IsSelectedAccount(account))
                 return;
@@ -626,14 +643,16 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         {
             if (IsSelectedAccount(account))
             {
+                var errorCodeMessage = FormatAccountProfileError(ex);
                 logger.LogWarning(
                     ex,
                     "Microsoft account profile load failed. AccountId={AccountId} ErrorCode={ErrorCode}",
                     account.Id,
-                    AccountErrorCodeMessageFormatter.Format(ex));
-                AccountProfileMessage = GetProfileRefreshFailedMessage(ex, Strings.Status_LoadAccountProfileFailed);
-                AccountProfileErrorCodeMessage = AccountErrorCodeMessageFormatter.Format(ex);
-                floatingMessageService.Show(AccountProfileMessage);
+                    errorCodeMessage);
+                SetAccountProfileError(
+                    ex,
+                    GetProfileRefreshFailedMessage(ex, Strings.Status_LoadAccountProfileFailed),
+                    showFloating: true);
             }
         }
         finally

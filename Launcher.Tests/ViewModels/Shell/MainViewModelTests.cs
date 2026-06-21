@@ -641,6 +641,18 @@ public sealed class MainViewModelTests
     {
         public string? LastOpenedPath { get; private set; }
 
+        public bool DirectoryExists(string folderPath)
+        {
+            return !string.IsNullOrWhiteSpace(folderPath) && Directory.Exists(folderPath);
+        }
+
+        public string EnsureDirectoryExists(string folderPath)
+        {
+            var normalizedFolderPath = Path.GetFullPath(folderPath);
+            Directory.CreateDirectory(normalizedFolderPath);
+            return normalizedFolderPath;
+        }
+
         public bool TryOpen(string folderPath)
         {
             LastOpenedPath = folderPath;

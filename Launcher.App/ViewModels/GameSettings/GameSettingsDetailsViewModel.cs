@@ -1,10 +1,10 @@
 using System.ComponentModel;
 using System.Collections.ObjectModel;
-using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.Utilities;
 using Launcher.App.ViewModels.Settings;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
@@ -164,9 +164,9 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
 
     public bool IsAutomaticMemorySummaryVisible => SelectedMemoryModeOption?.Mode is MemorySettingsMode.Auto;
 
-    public string MemoryText => FormatMemorySizeGb(MemoryMb);
+    public string MemoryText => MemorySizeTextFormatter.FormatGb(MemoryMb);
 
-    public string AutomaticMemoryText => FormatMemorySizeGb(AutomaticMemoryMb);
+    public string AutomaticMemoryText => MemorySizeTextFormatter.FormatGb(AutomaticMemoryMb);
 
     public string SystemMemorySummaryText => string.Format(
         Strings.Settings_SystemMemorySummaryFormat,
@@ -261,7 +261,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             return;
 
         var folderPath = SelectedInstance.Instance.InstanceDirectory;
-        if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+        if (!instanceFolderService.DirectoryExists(folderPath))
         {
             statusService.Report(Strings.Status_InstanceFolderNotFound);
             return;
@@ -909,8 +909,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
                 snapshot,
                 SelectedInstance?.Instance.Loader ?? LoaderKind.Vanilla,
                 enabledModCount);
-            SystemTotalMemoryText = FormatMemorySize(totalMemoryMb);
-            SystemAvailableMemoryText = FormatMemorySizeGb(availableMemoryMb);
+            SystemTotalMemoryText = MemorySizeTextFormatter.Format(totalMemoryMb);
+            SystemAvailableMemoryText = MemorySizeTextFormatter.FormatGb(availableMemoryMb);
         }
         catch (Exception)
         {
@@ -964,19 +964,6 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     private int NormalizeMemoryValue(double value)
     {
         return MemoryAllocationCalculator.NormalizeRecordedMemoryMb(value, MemorySliderMaximumMb);
-    }
-
-    private static string FormatMemorySize(int memoryMb)
-    {
-        if (memoryMb >= 1024)
-            return string.Format(Strings.Settings_MemorySizeGbFormat, memoryMb / 1024d);
-
-        return string.Format(Strings.Settings_MemorySizeMbFormat, memoryMb);
-    }
-
-    private static string FormatMemorySizeGb(double memoryMb)
-    {
-        return string.Format(Strings.Settings_MemorySizeGbFormat, memoryMb / 1024d);
     }
 
     private static string NormalizeSettingText(string? value)

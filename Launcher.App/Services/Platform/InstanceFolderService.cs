@@ -5,9 +5,21 @@ namespace Launcher.App.Services;
 
 public sealed class InstanceFolderService : IInstanceFolderService
 {
+    public bool DirectoryExists(string folderPath)
+    {
+        return !string.IsNullOrWhiteSpace(folderPath) && Directory.Exists(folderPath);
+    }
+
+    public string EnsureDirectoryExists(string folderPath)
+    {
+        var normalizedFolderPath = Path.GetFullPath(folderPath);
+        Directory.CreateDirectory(normalizedFolderPath);
+        return normalizedFolderPath;
+    }
+
     public bool TryOpen(string folderPath)
     {
-        if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+        if (!DirectoryExists(folderPath))
             return false;
 
         try

@@ -1,5 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using Launcher.App.Resources;
+using Launcher.App.Utilities;
 using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.Download;
@@ -19,14 +19,7 @@ public sealed partial class DownloadMinecraftVersionItem : ObservableObject
 
     public string VersionType => MinecraftVersionIconResolver.NormalizeVersionType(Type);
 
-    public string TypeLabel => VersionType switch
-    {
-        "release" => Strings.Download_ReleaseCategory,
-        "snapshot" => Strings.Download_SnapshotCategory,
-        "old_beta" => Strings.Download_BetaCategory,
-        "old_alpha" => Strings.Download_AlphaCategory,
-        _ => Version.Type
-    };
+    public string TypeLabel => MinecraftVersionTypeDisplayProvider.GetLabel(VersionType, Version.Type);
 
     public string ReleaseDateText => Version.ReleaseTime is { } releaseTime
         ? releaseTime.ToLocalTime().ToString("yyyy-MM-dd")

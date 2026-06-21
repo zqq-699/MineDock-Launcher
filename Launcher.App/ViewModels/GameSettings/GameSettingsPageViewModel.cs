@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
@@ -363,7 +362,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     private void OpenInstanceFolder(GameSettingsInstanceItem instance)
     {
         var folderPath = instance.Instance.InstanceDirectory;
-        if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
+        if (!instanceFolderService.DirectoryExists(folderPath))
         {
             statusService.Report(Strings.Status_InstanceFolderNotFound);
             return;

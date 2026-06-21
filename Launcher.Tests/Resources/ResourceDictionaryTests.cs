@@ -82,10 +82,10 @@ public sealed class ResourceDictionaryTests
                 Assert.Equal(0.85d, Assert.IsType<double>(light["Opacity.Page.Background"]), 3);
                 Assert.Equal("#80FFFFFF", ((SolidColorBrush)light["Brush.Card.Surface"]).Color.ToString());
                 Assert.Equal("#08000000", ((SolidColorBrush)light["Brush.Card.Border"]).Color.ToString());
-                Assert.Equal("#22F5F6F8", ((SolidColorBrush)light["Brush.Input.TextBox.Background"]).Color.ToString());
-                Assert.Equal("#24E9EAEC", ((SolidColorBrush)light["Brush.Input.ComboBox.Background"]).Color.ToString());
-                Assert.Equal("#60D4D8DE", ((SolidColorBrush)light["Brush.Button.Secondary.Background"]).Color.ToString());
-                Assert.Equal("#18F0F1F3", ((SolidColorBrush)light["Brush.Field.ReadOnly.Surface"]).Color.ToString());
+                Assert.Equal("#12000000", ((SolidColorBrush)light["Brush.Input.TextBox.Background"]).Color.ToString());
+                Assert.Equal("#12000000", ((SolidColorBrush)light["Brush.Input.ComboBox.Background"]).Color.ToString());
+                Assert.Equal("#12000000", ((SolidColorBrush)light["Brush.Button.Secondary.Background"]).Color.ToString());
+                Assert.Equal("#12000000", ((SolidColorBrush)light["Brush.Field.ReadOnly.Surface"]).Color.ToString());
                 Assert.Equal("#80E8EDF4", ((SolidColorBrush)light["Brush.List.Item.Selected"]).Color.ToString());
                 Assert.Equal("#FF8B5CF6", ((SolidColorBrush)purpleAccent["LauncherAccentBrush"]).Color.ToString());
                 Assert.Equal("#888B5CF6", ((SolidColorBrush)purpleAccent["Brush.List.Item.SelectedBorder"]).Color.ToString());
