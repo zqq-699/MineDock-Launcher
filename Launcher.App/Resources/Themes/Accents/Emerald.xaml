@@ -1,0 +1,27 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Color x:Key="Color.036FC2">#0D9B6C</Color>
+    <Color x:Key="Color.047EDC">#0FAA77</Color>
+    <Color x:Key="Color.0891FE">#10B981</Color>
+    <Color x:Key="Color.660891FE">#6610B981</Color>
+    <Color x:Key="Color.667ABEFF">#6610B981</Color>
+    <Color x:Key="Color.887ABEFF">#8810B981</Color>
+    <Color x:Key="Color.Accent.Primary">#10B981</Color>
+    <Color x:Key="Color.Input.TextBox.BorderFocused">#6610B981</Color>
+    <Color x:Key="Color.List.Item.SelectedBorder">#8810B981</Color>
+    <SolidColorBrush x:Key="Brush.036FC2" Color="{StaticResource Color.036FC2}" />
+    <SolidColorBrush x:Key="Brush.047EDC" Color="{StaticResource Color.047EDC}" />
+    <SolidColorBrush x:Key="Brush.0891FE" Color="{StaticResource Color.0891FE}" />
+    <SolidColorBrush x:Key="Brush.660891FE" Color="{StaticResource Color.660891FE}" />
+    <SolidColorBrush x:Key="Brush.667ABEFF" Color="{StaticResource Color.667ABEFF}" />
+    <SolidColorBrush x:Key="Brush.887ABEFF" Color="{StaticResource Color.887ABEFF}" />
+    <SolidColorBrush x:Key="LauncherAccentBrush" Color="{StaticResource Color.0891FE}" />
+    <SolidColorBrush x:Key="Brush.Accent.Primary" Color="{StaticResource Color.0891FE}" />
+    <SolidColorBrush x:Key="Brush.Accent.Hover" Color="{StaticResource Color.047EDC}" />
+    <SolidColorBrush x:Key="Brush.Accent.Pressed" Color="{StaticResource Color.036FC2}" />
+    <SolidColorBrush x:Key="Brush.Accent.Selection" Color="{StaticResource Color.660891FE}" />
+    <SolidColorBrush x:Key="Brush.Accent.Border" Color="{StaticResource Color.667ABEFF}" />
+    <SolidColorBrush x:Key="Brush.Accent.Outline" Color="{StaticResource Color.887ABEFF}" />
+    <SolidColorBrush x:Key="Brush.Input.TextBox.BorderFocused" Color="{StaticResource Color.Input.TextBox.BorderFocused}" />
+    <SolidColorBrush x:Key="Brush.List.Item.SelectedBorder" Color="{StaticResource Color.List.Item.SelectedBorder}" />
+</ResourceDictionary>

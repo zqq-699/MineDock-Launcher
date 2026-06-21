@@ -52,6 +52,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private SettingsThemeOption? selectedThemeOption;
 
     [ObservableProperty]
+    private SettingsAccentColorOption? selectedAccentColorOption;
+
+    [ObservableProperty]
     private bool followSystemTheme = true;
 
     [ObservableProperty]
@@ -205,12 +208,38 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             "Light",
             Strings.Settings_ThemeLightTitle));
 
+        AccentColorOptions.Add(new SettingsAccentColorOption(
+            LauncherAccentColors.Blue,
+            Strings.Settings_AccentColorBlueTitle));
+        AccentColorOptions.Add(new SettingsAccentColorOption(
+            LauncherAccentColors.Cyan,
+            Strings.Settings_AccentColorCyanTitle));
+        AccentColorOptions.Add(new SettingsAccentColorOption(
+            LauncherAccentColors.Green,
+            Strings.Settings_AccentColorGreenTitle));
+        AccentColorOptions.Add(new SettingsAccentColorOption(
+            LauncherAccentColors.Emerald,
+            Strings.Settings_AccentColorEmeraldTitle));
+        AccentColorOptions.Add(new SettingsAccentColorOption(
+            LauncherAccentColors.Purple,
+            Strings.Settings_AccentColorPurpleTitle));
+        AccentColorOptions.Add(new SettingsAccentColorOption(
+            LauncherAccentColors.Pink,
+            Strings.Settings_AccentColorPinkTitle));
+        AccentColorOptions.Add(new SettingsAccentColorOption(
+            LauncherAccentColors.Orange,
+            Strings.Settings_AccentColorOrangeTitle));
+        AccentColorOptions.Add(new SettingsAccentColorOption(
+            LauncherAccentColors.Amber,
+            Strings.Settings_AccentColorAmberTitle));
+
         foreach (var control in SettingsInteractiveControlCatalog.Create())
             InteractiveControls.Add(control);
 
         SelectedDownloadSourceOption = DownloadSourceOptions[0];
         SelectedMemoryModeOption = MemoryModeOptions[0];
         SelectedThemeOption = ThemeOptions[0];
+        SelectedAccentColorOption = AccentColorOptions[0];
         SelectedControlDemoComboOption = InteractiveControls.FirstOrDefault();
         SelectedInteractiveControl = InteractiveControls.FirstOrDefault();
         SelectedSection = Sections[0];
@@ -223,6 +252,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public ObservableCollection<SettingsMemoryModeOption> MemoryModeOptions { get; } = [];
 
     public ObservableCollection<SettingsThemeOption> ThemeOptions { get; } = [];
+
+    public ObservableCollection<SettingsAccentColorOption> AccentColorOptions { get; } = [];
 
     public ObservableCollection<SettingsInteractiveControlItem> InteractiveControls { get; } = [];
 
@@ -318,6 +349,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             DefaultGameArguments = launcherSettings.DefaultGameArguments;
             FollowSystemTheme = launcherSettings.ThemeFollowSystem;
             SelectedThemeOption = ResolveThemeOption(launcherSettings.Theme);
+            SelectedAccentColorOption = ResolveAccentColorOption(launcherSettings.AccentColor);
             DisableBackgroundBlur = launcherSettings.DisableBackgroundBlur;
             LauncherBackgroundOpacityPercent = NormalizeLauncherBackgroundOpacity(launcherSettings.LauncherBackgroundOpacityPercent);
             JavaSettings.LoadSelection(launcherSettings.JavaSelectionMode, launcherSettings.SelectedJavaExecutablePath);
@@ -491,6 +523,12 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         ScheduleAutoSave();
     }
 
+    partial void OnSelectedAccentColorOptionChanged(SettingsAccentColorOption? value)
+    {
+        ApplyAccentPreference();
+        ScheduleAutoSave();
+    }
+
     partial void OnLauncherBackgroundOpacityPercentChanged(int value)
     {
         var normalized = NormalizeLauncherBackgroundOpacity(value);
@@ -623,6 +661,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     {
         settings.MinecraftDirectory = NormalizeDirectoryPath(MinecraftDirectory, settings.MinecraftDirectory);
         settings.Theme = SelectedThemeOption?.Id ?? LauncherDefaults.DefaultTheme;
+        settings.AccentColor = SelectedAccentColorOption?.Id ?? LauncherDefaults.DefaultAccentColor;
         settings.ThemeFollowSystem = FollowSystemTheme;
         settings.DisableBackgroundBlur = DisableBackgroundBlur;
         settings.LauncherBackgroundOpacityPercent = NormalizeLauncherBackgroundOpacity(LauncherBackgroundOpacityPercent);
@@ -642,6 +681,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             DownloadSpeedLimitMbPerSecondText = FormatDownloadSpeedLimit(settings.DownloadSpeedLimitMbPerSecond);
             SelectedMemoryModeOption = ResolveMemoryModeOption(settings.DefaultMemorySettingsMode);
             SelectedThemeOption = ResolveThemeOption(settings.Theme);
+            SelectedAccentColorOption = ResolveAccentColorOption(settings.AccentColor);
             DisableBackgroundBlur = settings.DisableBackgroundBlur;
             LauncherBackgroundOpacityPercent = settings.LauncherBackgroundOpacityPercent;
         }
@@ -768,6 +808,12 @@ public sealed partial class SettingsPageViewModel : ObservableObject
                ?? ThemeOptions[0];
     }
 
+    private SettingsAccentColorOption ResolveAccentColorOption(string? accentColor)
+    {
+        return AccentColorOptions.FirstOrDefault(option => string.Equals(option.Id, accentColor, StringComparison.OrdinalIgnoreCase))
+               ?? AccentColorOptions[0];
+    }
+
     private static int NormalizeLauncherBackgroundOpacity(int value)
     {
         return Math.Clamp(value, 0, 100);
@@ -787,6 +833,15 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             settings.ThemeFollowSystem,
             settings.LauncherBackgroundOpacityPercent,
             settings.DisableBackgroundBlur);
+    }
+
+    private void ApplyAccentPreference()
+    {
+        if (suppressAutoSave || !hasPrimedSettings)
+            return;
+
+        settings.AccentColor = SelectedAccentColorOption?.Id ?? LauncherDefaults.DefaultAccentColor;
+        themeService.ApplyAccent(settings.AccentColor);
     }
 
     public void RefreshSystemMemorySnapshot()

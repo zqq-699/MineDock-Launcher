@@ -31,6 +31,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.Equal(TempRoot, loaded.DataDirectory);
         Assert.Equal(DefaultMinecraftDirectory, loaded.MinecraftDirectory);
         Assert.Equal(LauncherDefaults.DefaultTheme, loaded.Theme);
+        Assert.Equal(LauncherDefaults.DefaultAccentColor, loaded.AccentColor);
         Assert.True(loaded.ThemeFollowSystem);
         Assert.False(loaded.DisableBackgroundBlur);
         Assert.Equal(LauncherDefaults.DefaultLauncherBackgroundOpacityPercent, loaded.LauncherBackgroundOpacityPercent);
@@ -91,8 +92,40 @@ public sealed class SettingsServiceTests : TestTempDirectory
 
         Assert.Equal("Light", loaded.Theme);
         Assert.False(loaded.ThemeFollowSystem);
+        Assert.Equal(LauncherDefaults.DefaultAccentColor, loaded.AccentColor);
         Assert.True(loaded.DisableBackgroundBlur);
         Assert.Equal(42, loaded.LauncherBackgroundOpacityPercent);
+    }
+
+    [Fact]
+    public async Task SettingsServiceRoundTripsAccentColor()
+    {
+        var service = new JsonSettingsService(TempRoot);
+        var settings = await service.LoadAsync();
+        settings.AccentColor = LauncherAccentColors.Purple;
+
+        await service.SaveAsync(settings);
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(LauncherAccentColors.Purple, loaded.AccentColor);
+    }
+
+    [Fact]
+    public async Task SettingsServiceBackfillsInvalidAccentColor()
+    {
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(TempRoot, "settings.json"),
+            """
+            {
+              "AccentColor": "InvalidAccent"
+            }
+            """);
+        var service = new JsonSettingsService(TempRoot);
+
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(LauncherDefaults.DefaultAccentColor, loaded.AccentColor);
     }
 
     [Fact]

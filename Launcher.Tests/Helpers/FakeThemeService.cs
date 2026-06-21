@@ -1,5 +1,6 @@
 using System.Windows.Media;
 using Launcher.App.Services;
+using Launcher.Domain.Models;
 
 namespace Launcher.Tests.Helpers;
 
@@ -13,6 +14,8 @@ internal sealed class FakeThemeService : IThemeService
 
     public bool LastFollowSystem { get; private set; }
 
+    public string? LastAccentColor { get; private set; }
+
     public int LastBackgroundOpacityPercent { get; private set; }
 
     public bool LastDisableBackgroundBlur { get; private set; }
@@ -22,6 +25,8 @@ internal sealed class FakeThemeService : IThemeService
     public int ApplyBackgroundOpacityCount { get; private set; }
 
     public int ApplyBackgroundBlurDisabledCount { get; private set; }
+
+    public int ApplyAccentCount { get; private set; }
 
     public event EventHandler<EffectiveThemeChangedEventArgs>? EffectiveThemeChanged;
 
@@ -47,6 +52,12 @@ internal sealed class FakeThemeService : IThemeService
             EffectiveThemeChanged?.Invoke(this, new EffectiveThemeChangedEventArgs(oldTheme, EffectiveTheme));
         if (backgroundBlurDisabledChanged)
             BackgroundBlurDisabledChanged?.Invoke(this, new BackgroundBlurDisabledChangedEventArgs(disableBackgroundBlur));
+    }
+
+    public void ApplyAccent(string? accentColor)
+    {
+        LastAccentColor = LauncherAccentColors.Normalize(accentColor);
+        ApplyAccentCount++;
     }
 
     public void ApplyBackgroundOpacity(int opacityPercent)

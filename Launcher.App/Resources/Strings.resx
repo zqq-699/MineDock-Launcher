@@ -487,4 +487,14 @@
   <data name="Settings_DownloadSourceAuto" xml:space="preserve"><value>自动选择</value></data>
   <data name="Settings_DownloadSourceOfficial" xml:space="preserve"><value>官方下载源</value></data>
   <data name="Settings_DownloadSourceBmclApi" xml:space="preserve"><value>BMCLAPI</value></data>
+  <data name="Settings_AccentSection" xml:space="preserve"><value>强调色</value></data>
+  <data name="Settings_AccentSelectionLabel" xml:space="preserve"><value>启动器强调色</value></data>
+  <data name="Settings_AccentColorBlueTitle" xml:space="preserve"><value>蓝色 Blue</value></data>
+  <data name="Settings_AccentColorCyanTitle" xml:space="preserve"><value>青色 Cyan</value></data>
+  <data name="Settings_AccentColorGreenTitle" xml:space="preserve"><value>绿色 Green</value></data>
+  <data name="Settings_AccentColorEmeraldTitle" xml:space="preserve"><value>翠绿 Emerald</value></data>
+  <data name="Settings_AccentColorPurpleTitle" xml:space="preserve"><value>紫色 Purple</value></data>
+  <data name="Settings_AccentColorPinkTitle" xml:space="preserve"><value>粉色 Pink</value></data>
+  <data name="Settings_AccentColorOrangeTitle" xml:space="preserve"><value>橙色 Orange</value></data>
+  <data name="Settings_AccentColorAmberTitle" xml:space="preserve"><value>黄色 Amber</value></data>
 </root>

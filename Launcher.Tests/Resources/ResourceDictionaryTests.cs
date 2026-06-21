@@ -58,6 +58,7 @@ public sealed class ResourceDictionaryTests
                 var shared = LoadDictionary("Resources/Themes/Shared.xaml");
                 var dark = LoadDictionary("Resources/Themes/Dark.xaml");
                 var light = LoadDictionary("Resources/Themes/Light.xaml");
+                var purpleAccent = LoadDictionary("Resources/Themes/Accents/Purple.xaml");
 
                 Assert.NotNull(shared["LauncherFontFamily"]);
                 Assert.True(Assert.IsType<bool>(shared["Is.BackdropBlur.Enabled"]));
@@ -86,6 +87,8 @@ public sealed class ResourceDictionaryTests
                 Assert.Equal("#60D4D8DE", ((SolidColorBrush)light["Brush.Button.Secondary.Background"]).Color.ToString());
                 Assert.Equal("#18F0F1F3", ((SolidColorBrush)light["Brush.Field.ReadOnly.Surface"]).Color.ToString());
                 Assert.Equal("#80E8EDF4", ((SolidColorBrush)light["Brush.List.Item.Selected"]).Color.ToString());
+                Assert.Equal("#FF8B5CF6", ((SolidColorBrush)purpleAccent["LauncherAccentBrush"]).Color.ToString());
+                Assert.Equal("#888B5CF6", ((SolidColorBrush)purpleAccent["Brush.List.Item.SelectedBorder"]).Color.ToString());
             }
             catch (Exception ex)
             {
@@ -187,6 +190,37 @@ public sealed class ResourceDictionaryTests
         });
         application.Resources["BooleanToMenuTextVisibilityConverter"] = new BooleanToMenuTextVisibilityConverter();
         application.Resources["SkinActiveStateVisibilityConverter"] = new SkinActiveStateVisibilityConverter();
+    }
+
+    [Fact]
+    public void AccentResourceDictionaryOverridesAccentWithoutChangingDangerResources()
+    {
+        Exception? exception = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var application = global::System.Windows.Application.Current ?? new global::System.Windows.Application();
+                application.Resources.MergedDictionaries.Clear();
+                application.Resources.MergedDictionaries.Add(LoadDictionary("Resources/Themes/Shared.xaml"));
+                application.Resources.MergedDictionaries.Add(LoadDictionary("Resources/Themes/Dark.xaml"));
+                application.Resources.MergedDictionaries.Add(LoadDictionary("Resources/Themes/Accents/Orange.xaml"));
+
+                Assert.Equal("#FFF97316", ((SolidColorBrush)application.TryFindResource("LauncherAccentBrush")!).Color.ToString());
+                Assert.Equal("#FFD94343", ((SolidColorBrush)application.TryFindResource("Brush.Danger.Primary")!).Color.ToString());
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (exception is not null)
+            throw exception;
     }
 
     private static ResourceDictionary LoadDictionary(string relativePath)

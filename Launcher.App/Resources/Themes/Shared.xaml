@@ -12,4 +12,21 @@
     <CornerRadius x:Key="LauncherCornerRadiusLarge">12</CornerRadius>
     <CornerRadius x:Key="LauncherDialogCornerRadius">14</CornerRadius>
     <sys:Boolean x:Key="Is.BackdropBlur.Enabled">True</sys:Boolean>
+
+    <Color x:Key="Color.AccentOption.Blue">#2196F3</Color>
+    <Color x:Key="Color.AccentOption.Cyan">#00BCD4</Color>
+    <Color x:Key="Color.AccentOption.Green">#22C55E</Color>
+    <Color x:Key="Color.AccentOption.Emerald">#10B981</Color>
+    <Color x:Key="Color.AccentOption.Purple">#8B5CF6</Color>
+    <Color x:Key="Color.AccentOption.Pink">#EC4899</Color>
+    <Color x:Key="Color.AccentOption.Orange">#F97316</Color>
+    <Color x:Key="Color.AccentOption.Amber">#F59E0B</Color>
+    <SolidColorBrush x:Key="Brush.AccentOption.Blue" Color="{StaticResource Color.AccentOption.Blue}" />
+    <SolidColorBrush x:Key="Brush.AccentOption.Cyan" Color="{StaticResource Color.AccentOption.Cyan}" />
+    <SolidColorBrush x:Key="Brush.AccentOption.Green" Color="{StaticResource Color.AccentOption.Green}" />
+    <SolidColorBrush x:Key="Brush.AccentOption.Emerald" Color="{StaticResource Color.AccentOption.Emerald}" />
+    <SolidColorBrush x:Key="Brush.AccentOption.Purple" Color="{StaticResource Color.AccentOption.Purple}" />
+    <SolidColorBrush x:Key="Brush.AccentOption.Pink" Color="{StaticResource Color.AccentOption.Pink}" />
+    <SolidColorBrush x:Key="Brush.AccentOption.Orange" Color="{StaticResource Color.AccentOption.Orange}" />
+    <SolidColorBrush x:Key="Brush.AccentOption.Amber" Color="{StaticResource Color.AccentOption.Amber}" />
 </ResourceDictionary>

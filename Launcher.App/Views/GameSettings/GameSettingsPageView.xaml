@@ -176,7 +176,7 @@
                                                     <controls:SvgIcon Width="16"
                                                                       Height="16"
                                                                       IconKey="general/general_delete"
-                                                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                                                                      Style="{StaticResource DangerActionSvgIconStyle}" />
                                                 </Button>
                                             </StackPanel>
                                         </controls:ListPageItemButton.TrailingContent>

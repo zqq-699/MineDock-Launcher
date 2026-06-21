@@ -29,6 +29,7 @@ public sealed class SettingsPageViewModelTests
             DefaultJvmArguments = "-Dfoo=bar",
             DefaultGameArguments = "--demo",
             Theme = "Light",
+            AccentColor = LauncherAccentColors.Emerald,
             DisableBackgroundBlur = true,
             LauncherBackgroundOpacityPercent = 72
         };
@@ -61,6 +62,7 @@ public sealed class SettingsPageViewModelTests
         Assert.True(viewModel.FollowSystemTheme);
         Assert.False(viewModel.IsThemeSelectionVisible);
         Assert.Equal("Light", viewModel.SelectedThemeOption?.Id);
+        Assert.Equal(LauncherAccentColors.Emerald, viewModel.SelectedAccentColorOption?.Id);
         Assert.True(viewModel.DisableBackgroundBlur);
         Assert.Equal(72, viewModel.LauncherBackgroundOpacityPercent);
         Assert.Equal("72%", viewModel.LauncherBackgroundOpacityText);
@@ -259,9 +261,11 @@ public sealed class SettingsPageViewModelTests
         Assert.False(viewModel.IsJavaMemorySection);
         Assert.False(viewModel.IsControlListSection);
         Assert.Equal(2, viewModel.ThemeOptions.Count);
+        Assert.Equal(8, viewModel.AccentColorOptions.Count);
         Assert.True(viewModel.FollowSystemTheme);
         Assert.False(viewModel.IsThemeSelectionVisible);
         Assert.Equal(LauncherDefaults.DefaultTheme, viewModel.SelectedThemeOption?.Id);
+        Assert.Equal(LauncherDefaults.DefaultAccentColor, viewModel.SelectedAccentColorOption?.Id);
         Assert.Equal(LauncherDefaults.DefaultLauncherBackgroundOpacityPercent, viewModel.LauncherBackgroundOpacityPercent);
         Assert.Equal("85%", viewModel.LauncherBackgroundOpacityText);
     }
@@ -276,6 +280,16 @@ public sealed class SettingsPageViewModelTests
 
         Assert.True(viewModel.IsThemeSelectionVisible);
         Assert.Equal("Light", viewModel.SelectedThemeOption?.Id);
+    }
+
+    [Fact]
+    public void AccentSelectionRemainsVisibleWhenFollowingSystemTheme()
+    {
+        var viewModel = CreateViewModel(out _, out _);
+
+        Assert.True(viewModel.FollowSystemTheme);
+        Assert.Equal(8, viewModel.AccentColorOptions.Count);
+        Assert.Equal(LauncherDefaults.DefaultAccentColor, viewModel.SelectedAccentColorOption?.Id);
     }
 
     [Fact]
@@ -296,6 +310,24 @@ public sealed class SettingsPageViewModelTests
         Assert.Equal("Light", themeService.LastTheme);
         Assert.False(themeService.LastFollowSystem);
         Assert.Equal(LauncherDefaults.DefaultLauncherBackgroundOpacityPercent, themeService.LastBackgroundOpacityPercent);
+    }
+
+    [Fact]
+    public async Task AccentColorSelectionAppliesAndPersistsSettings()
+    {
+        var settings = new LauncherSettings { AccentColor = LauncherDefaults.DefaultAccentColor };
+        var viewModel = CreateViewModel(settings, out var settingsService, out _, out var themeService);
+        viewModel.PrimeFromSettings(settings);
+
+        viewModel.SelectedAccentColorOption = viewModel.AccentColorOptions.Single(option => option.Id == LauncherAccentColors.Pink);
+
+        await TestAsync.WaitForAsync(() =>
+            settingsService.SaveCount >= 1
+            && settings.AccentColor == LauncherAccentColors.Pink);
+
+        Assert.Equal(LauncherAccentColors.Pink, viewModel.SelectedAccentColorOption?.Id);
+        Assert.Equal(LauncherAccentColors.Pink, themeService.LastAccentColor);
+        Assert.Equal(1, themeService.ApplyAccentCount);
     }
 
     [Fact]

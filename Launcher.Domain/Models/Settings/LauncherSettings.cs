@@ -5,6 +5,7 @@ public sealed class LauncherSettings
     public string OfflineUsername { get; set; } = LauncherDefaults.DefaultOfflineUsername;
     public bool IsMenuExpanded { get; set; }
     public string Theme { get; set; } = LauncherDefaults.DefaultTheme;
+    public string AccentColor { get; set; } = LauncherDefaults.DefaultAccentColor;
     public bool ThemeFollowSystem { get; set; } = true;
     public bool DisableBackgroundBlur { get; set; }
     public int LauncherBackgroundOpacityPercent { get; set; } = LauncherDefaults.DefaultLauncherBackgroundOpacityPercent;

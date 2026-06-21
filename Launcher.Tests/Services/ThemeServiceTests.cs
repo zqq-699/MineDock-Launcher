@@ -1,5 +1,7 @@
 using System.Windows;
 using Launcher.App.Services;
+using Launcher.Domain.Models;
+using System.Windows.Media;
 
 namespace Launcher.Tests.Services;
 
@@ -34,6 +36,12 @@ public sealed class ThemeServiceTests
                 Assert.True(Assert.IsType<bool>(application.Resources["Is.BackdropBlur.Enabled"]));
                 Assert.Equal(0, changedCount);
                 Assert.Equal(0, backgroundBlurDisabledChangedCount);
+                Assert.Equal("#FF2196F3", ((SolidColorBrush)application.TryFindResource("LauncherAccentBrush")!).Color.ToString());
+
+                themeService.ApplyAccent(LauncherAccentColors.Purple);
+                Assert.Equal("#FF8B5CF6", ((SolidColorBrush)application.TryFindResource("LauncherAccentBrush")!).Color.ToString());
+                Assert.Equal("#668B5CF6", ((SolidColorBrush)application.TryFindResource("Brush.Input.TextBox.BorderFocused")!).Color.ToString());
+                Assert.Equal("#888B5CF6", ((SolidColorBrush)application.TryFindResource("Brush.List.Item.SelectedBorder")!).Color.ToString());
 
                 themeService.ApplyPreference(
                     "Light",
@@ -47,6 +55,7 @@ public sealed class ThemeServiceTests
                 Assert.False(Assert.IsType<bool>(application.Resources["Is.BackdropBlur.Enabled"]));
                 Assert.Equal(1, changedCount);
                 Assert.Equal(1, backgroundBlurDisabledChangedCount);
+                Assert.Equal("#FF8B5CF6", ((SolidColorBrush)application.TryFindResource("LauncherAccentBrush")!).Color.ToString());
 
                 themeService.ApplyPreference(
                     "Light",

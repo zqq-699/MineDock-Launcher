@@ -61,6 +61,48 @@
                        VerticalAlignment="Center" />
         </DataTemplate>
 
+        <Style x:Key="AccentColorPreviewEllipseStyle" TargetType="Ellipse">
+            <Setter Property="Width" Value="10" />
+            <Setter Property="Height" Value="10" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Fill" Value="{DynamicResource Brush.AccentOption.Blue}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Id}" Value="Cyan">
+                    <Setter Property="Fill" Value="{DynamicResource Brush.AccentOption.Cyan}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Id}" Value="Green">
+                    <Setter Property="Fill" Value="{DynamicResource Brush.AccentOption.Green}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Id}" Value="Emerald">
+                    <Setter Property="Fill" Value="{DynamicResource Brush.AccentOption.Emerald}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Id}" Value="Purple">
+                    <Setter Property="Fill" Value="{DynamicResource Brush.AccentOption.Purple}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Id}" Value="Pink">
+                    <Setter Property="Fill" Value="{DynamicResource Brush.AccentOption.Pink}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Id}" Value="Orange">
+                    <Setter Property="Fill" Value="{DynamicResource Brush.AccentOption.Orange}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Id}" Value="Amber">
+                    <Setter Property="Fill" Value="{DynamicResource Brush.AccentOption.Amber}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <DataTemplate x:Key="AccentColorOptionTemplate"
+                      DataType="{x:Type settings:SettingsAccentColorOption}">
+            <StackPanel Orientation="Horizontal">
+                <Ellipse Style="{StaticResource AccentColorPreviewEllipseStyle}" />
+                <TextBlock Text="{Binding Title}"
+                           Foreground="{DynamicResource Brush.F4F4F4}"
+                           FontSize="13"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+        </DataTemplate>
+
         <Style x:Key="JavaRuntimeListBoxStyle" TargetType="ListBox">
             <Setter Property="Margin" Value="0,10,0,0" />
             <Setter Property="Background" Value="Transparent" />
@@ -413,6 +455,29 @@
                                                                    Style="{StaticResource LauncherComboBoxStyle}" />
                                     </Grid>
                                 </StackPanel>
+                            </Border>
+                        </GroupBox>
+
+                        <GroupBox Margin="0,18,0,0"
+                                  Header="{x:Static res:Strings.Settings_AccentSection}"
+                                  Style="{StaticResource LauncherContentSectionStyle}">
+                            <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="220" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Text="{x:Static res:Strings.Settings_AccentSelectionLabel}"
+                                               Style="{StaticResource SettingsOptionTextStyle}" />
+
+                                    <controls:AnimatedComboBox Grid.Column="1"
+                                                               ItemsSource="{Binding AccentColorOptions}"
+                                                               SelectedItem="{Binding SelectedAccentColorOption, Mode=TwoWay}"
+                                                               ItemTemplate="{StaticResource AccentColorOptionTemplate}"
+                                                               SelectionItemTemplate="{StaticResource AccentColorOptionTemplate}"
+                                                               Style="{StaticResource LauncherComboBoxStyle}" />
+                                </Grid>
                             </Border>
                         </GroupBox>
 

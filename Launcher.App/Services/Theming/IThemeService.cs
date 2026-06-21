@@ -18,6 +18,8 @@ public interface IThemeService
         int backgroundOpacityPercent,
         bool disableBackgroundBlur);
 
+    void ApplyAccent(string? accentColor);
+
     void ApplyBackgroundOpacity(int opacityPercent);
 
     void ApplyBackgroundBlurDisabled(bool disabled);

@@ -80,6 +80,17 @@ public sealed class JsonSettingsService : ISettingsService
             settings.OfflineUsername = LauncherDefaults.DefaultOfflineUsername;
 
         settings.Theme = NormalizeTheme(settings.Theme);
+        var normalizedAccentColor = LauncherAccentColors.Normalize(settings.AccentColor);
+        if (!string.IsNullOrWhiteSpace(settings.AccentColor)
+            && !string.Equals(settings.AccentColor, normalizedAccentColor, StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning(
+                "Invalid launcher accent color preference encountered in settings. AccentColor={AccentColor} FallingBackTo={FallbackAccentColor}",
+                settings.AccentColor,
+                normalizedAccentColor);
+        }
+
+        settings.AccentColor = normalizedAccentColor;
         settings.LauncherBackgroundOpacityPercent = Math.Clamp(
             settings.LauncherBackgroundOpacityPercent,
             0,

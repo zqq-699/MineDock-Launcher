@@ -32,12 +32,6 @@ public sealed class SvgIcon : Control
 
     private static readonly Dictionary<string, SvgIconData?> IconCache = new(StringComparer.OrdinalIgnoreCase);
 
-    public SvgIcon()
-    {
-        SetResourceReference(ForegroundProperty, "Brush.Icon.Primary");
-        SetResourceReference(StrokeProperty, "Brush.Icon.Primary");
-    }
-
     public string? IconKey
     {
         get => (string?)GetValue(IconKeyProperty);

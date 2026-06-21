@@ -70,6 +70,7 @@ public partial class App : System.Windows.Application
                 mainViewModel.Settings.ThemeFollowSystem,
                 mainViewModel.Settings.LauncherBackgroundOpacityPercent,
                 mainViewModel.Settings.DisableBackgroundBlur);
+            serviceProvider.GetRequiredService<IThemeService>().ApplyAccent(mainViewModel.Settings.AccentColor);
             var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
             mainWindow.Show();
             Log.Information("Main window shown.");

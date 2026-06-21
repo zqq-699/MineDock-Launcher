@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Media;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Win32;
 
 namespace Launcher.App.Services;
@@ -13,17 +15,23 @@ public sealed class ThemeService : IThemeService, IDisposable
     private const string LightThemeSource =
         "pack://application:,,,/Launcher.App;component/Resources/Themes/Light.xaml";
 
+    private const string AccentThemeSourcePrefix =
+        "pack://application:,,,/Launcher.App;component/Resources/Themes/Accents/";
+
     private readonly IUiDispatcher uiDispatcher;
+    private readonly ILogger<ThemeService> logger;
     private string preferredTheme = LauncherDefaults.DefaultTheme;
+    private string preferredAccentColor = LauncherDefaults.DefaultAccentColor;
     private bool followSystem = true;
     private int backgroundOpacityPercent = LauncherDefaults.DefaultLauncherBackgroundOpacityPercent;
     private bool disableBackgroundBlur;
     private bool hasAppliedTheme;
     private bool isDisposed;
 
-    public ThemeService(IUiDispatcher uiDispatcher)
+    public ThemeService(IUiDispatcher uiDispatcher, ILogger<ThemeService>? logger = null)
     {
         this.uiDispatcher = uiDispatcher;
+        this.logger = logger ?? NullLogger<ThemeService>.Instance;
         SystemEvents.UserPreferenceChanged += SystemEvents_UserPreferenceChanged;
     }
 
@@ -50,6 +58,22 @@ public sealed class ThemeService : IThemeService, IDisposable
         uiDispatcher.Invoke(() => ApplyEffectiveTheme(nextTheme));
         if (backgroundBlurDisabledChanged)
             BackgroundBlurDisabledChanged?.Invoke(this, new BackgroundBlurDisabledChangedEventArgs(this.disableBackgroundBlur));
+    }
+
+    public void ApplyAccent(string? accentColor)
+    {
+        var normalizedAccentColor = LauncherAccentColors.Normalize(accentColor);
+        if (!string.IsNullOrWhiteSpace(accentColor)
+            && !string.Equals(accentColor, normalizedAccentColor, StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning(
+                "Invalid launcher accent color preference encountered. AccentColor={AccentColor} FallingBackTo={FallbackAccentColor}",
+                accentColor,
+                normalizedAccentColor);
+        }
+
+        preferredAccentColor = normalizedAccentColor;
+        uiDispatcher.Invoke(() => ApplyAccentCore(preferredAccentColor));
     }
 
     public void ApplyBackgroundOpacity(int opacityPercent)
@@ -115,6 +139,7 @@ public sealed class ThemeService : IThemeService, IDisposable
         });
         ApplyBackgroundOpacityCore(backgroundOpacityPercent);
         ApplyBackgroundBlurDisabledCore(disableBackgroundBlur);
+        ApplyAccentCore(preferredAccentColor);
 
         var oldTheme = EffectiveTheme;
         EffectiveTheme = nextTheme;
@@ -186,9 +211,35 @@ public sealed class ThemeService : IThemeService, IDisposable
         application.Resources["Is.BackdropBlur.Enabled"] = !disabled;
     }
 
+    private void ApplyAccentCore(string accentColor)
+    {
+        var application = global::System.Windows.Application.Current;
+        if (application is null)
+            return;
+
+        var dictionaries = application.Resources.MergedDictionaries;
+        for (var index = dictionaries.Count - 1; index >= 0; index--)
+        {
+            if (IsAccentDictionary(dictionaries[index]))
+                dictionaries.RemoveAt(index);
+        }
+
+        dictionaries.Add(new ResourceDictionary
+        {
+            Source = new Uri(GetAccentThemeSource(accentColor), UriKind.Absolute)
+        });
+        logger.LogInformation("Launcher accent applied. AccentColor={AccentColor}", accentColor);
+    }
+
     private static string GetThemeSource(EffectiveTheme theme)
     {
         return theme is EffectiveTheme.Light ? LightThemeSource : DarkThemeSource;
+    }
+
+    private static string GetAccentThemeSource(string accentColor)
+    {
+        var normalizedAccentColor = LauncherAccentColors.Normalize(accentColor);
+        return $"{AccentThemeSourcePrefix}{normalizedAccentColor}.xaml";
     }
 
     private static bool IsThemeDictionary(ResourceDictionary dictionary)
@@ -196,6 +247,12 @@ public sealed class ThemeService : IThemeService, IDisposable
         var source = dictionary.Source?.ToString();
         return string.Equals(source, DarkThemeSource, StringComparison.OrdinalIgnoreCase)
             || string.Equals(source, LightThemeSource, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAccentDictionary(ResourceDictionary dictionary)
+    {
+        var source = dictionary.Source?.ToString();
+        return source?.StartsWith(AccentThemeSourcePrefix, StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private void SystemEvents_UserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
