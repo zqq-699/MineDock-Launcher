@@ -732,7 +732,9 @@ public sealed class GameSettingsPageViewModelTests
                 }
                 """);
 
-            await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 1);
+            await TestAsync.WaitForAsync(() =>
+                viewModel.Details.ModManagement.Mods.Count == 1
+                && viewModel.Details.ModManagement.Mods[0].Title == "Sodium");
 
             var mod = Assert.Single(viewModel.Details.ModManagement.Mods);
             Assert.Equal("Sodium", mod.Title);

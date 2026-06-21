@@ -116,4 +116,8 @@ public partial class ListPageFrame : UserControl
     }
 
     public ScrollViewer ScrollViewer => PART_ScrollViewer;
+
+    internal FrameworkElement ListLayerElement => PART_ListLayer;
+
+    internal FrameworkElement HeaderTitleRowElement => PART_HeaderTitleRow;
 }

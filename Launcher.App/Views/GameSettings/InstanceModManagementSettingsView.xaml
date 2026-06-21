@@ -9,6 +9,44 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/Launcher.App;component/Views/GameSettings/GameSettingsSectionResources.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="ModListSectionHeaderTextStyle"
+                   TargetType="TextBlock"
+                   BasedOn="{StaticResource SettingsOptionTextStyle}">
+                <Setter Property="Foreground" Value="{DynamicResource Brush.A8FFFFFF}" />
+                <Setter Property="FontSize" Value="16" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+
+            <DataTemplate x:Key="ModListSectionHeaderTemplate">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="{x:Static res:Strings.GameSettings_ModManagementModListSection}"
+                                   Style="{StaticResource ModListSectionHeaderTextStyle}"
+                                   VerticalAlignment="Center" />
+
+                        <WrapPanel Grid.Column="1">
+                            <Button Margin="0,0,10,0"
+                                    Content="{x:Static res:Strings.GameSettings_ModManagementEnableAllButton}"
+                                    Command="{Binding EnableAllModsCommand}"
+                                    Style="{StaticResource LauncherDialogButtonStyle}" />
+                            <Button Content="{x:Static res:Strings.GameSettings_ModManagementDisableAllButton}"
+                                    Command="{Binding DisableAllModsCommand}"
+                                    Style="{StaticResource LauncherDialogButtonStyle}" />
+                        </WrapPanel>
+                    </Grid>
+
+                    <TextBox Margin="0,10,0,0"
+                             Tag="{Binding RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                             Text="{Binding ModSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource ListPageSearchBoxStyle}" />
+                </StackPanel>
+            </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -44,87 +82,59 @@
             </Border>
         </GroupBox>
 
-        <GroupBox Margin="0,26,0,0"
+        <GroupBox x:Name="ModListSection"
+                  Margin="0,26,0,0"
                   Style="{StaticResource LauncherContentSectionStyle}">
             <GroupBox.Header>
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Text="{x:Static res:Strings.GameSettings_ModManagementModListSection}"
-                               VerticalAlignment="Center" />
-
-                    <WrapPanel Grid.Column="1">
-                        <Button Margin="0,0,10,0"
-                                Content="{x:Static res:Strings.GameSettings_ModManagementEnableAllButton}"
-                                Command="{Binding EnableAllModsCommand}"
-                                Style="{StaticResource LauncherDialogButtonStyle}" />
-                        <Button Content="{x:Static res:Strings.GameSettings_ModManagementDisableAllButton}"
-                                Command="{Binding DisableAllModsCommand}"
-                                Style="{StaticResource LauncherDialogButtonStyle}" />
-                    </WrapPanel>
-                </Grid>
+                <ContentControl x:Name="OriginalModListHeaderHost"
+                                Content="{Binding}"
+                                ContentTemplate="{StaticResource ModListSectionHeaderTemplate}" />
             </GroupBox.Header>
-            <Grid x:Name="ModListContentGrid"
-                  MinHeight="140">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
 
-                <TextBox Grid.Row="0"
-                         Margin="0,0,0,12"
-                         Tag="{Binding ElementName=ModListContentGrid}"
-                         Text="{Binding ModSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                         Style="{StaticResource ListPageSearchBoxStyle}" />
+            <Grid MinHeight="140">
+                <ListBox ItemsSource="{Binding Mods}"
+                         SelectedItem="{Binding SelectedMod, Mode=OneWay}"
+                         ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
+                         VirtualizingPanel.IsVirtualizing="True"
+                         VirtualizingPanel.VirtualizationMode="Recycling"
+                         VirtualizingPanel.ScrollUnit="Pixel"
+                         ScrollViewer.CanContentScroll="True">
+                    <ListBox.Style>
+                        <Style TargetType="ListBox" BasedOn="{StaticResource ListPageVirtualizedListBoxStyle}">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasMods}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ListBox.Style>
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel VirtualizingPanel.IsVirtualizing="True"
+                                                    VirtualizingPanel.VirtualizationMode="Recycling"
+                                                    VirtualizingPanel.ScrollUnit="Pixel" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
 
-                <Grid Grid.Row="1">
-                    <ListBox ItemsSource="{Binding Mods}"
-                             SelectedItem="{Binding SelectedMod, Mode=OneWay}"
-                             ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
-                             VirtualizingPanel.IsVirtualizing="True"
-                             VirtualizingPanel.VirtualizationMode="Recycling"
-                             VirtualizingPanel.ScrollUnit="Pixel"
-                             ScrollViewer.CanContentScroll="True">
-                        <ListBox.Style>
-                            <Style TargetType="ListBox" BasedOn="{StaticResource ListPageVirtualizedListBoxStyle}">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasMods}" Value="False">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ListBox.Style>
-                        <ListBox.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <VirtualizingStackPanel VirtualizingPanel.IsVirtualizing="True"
-                                                        VirtualizingPanel.VirtualizationMode="Recycling"
-                                                        VirtualizingPanel.ScrollUnit="Pixel" />
-                            </ItemsPanelTemplate>
-                        </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <controls:ListPageItemButton Title="{Binding Title}"
+                                                         Subtitle="{Binding Subtitle}"
+                                                         TrailingText="{Binding TrailingText}"
+                                                         IconSource="{Binding IconSource}"
+                                                         IconKey="{Binding IconKey}"
+                                                         ItemMargin="0"
+                                                         IsSelected="{Binding IsSelected}"
+                                                         Command="{Binding DataContext.SelectModCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                                         CommandParameter="{Binding}" />
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
 
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <controls:ListPageItemButton Title="{Binding Title}"
-                                                             Subtitle="{Binding Subtitle}"
-                                                             TrailingText="{Binding TrailingText}"
-                                                             IconSource="{Binding IconSource}"
-                                                             IconKey="{Binding IconKey}"
-                                                             ItemMargin="0"
-                                                             IsSelected="{Binding IsSelected}"
-                                                             Command="{Binding DataContext.SelectModCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
-                                                             CommandParameter="{Binding}" />
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-
-                    <TextBlock Text="{Binding ModEmptyMessage}"
-                               Style="{StaticResource PageEmptyStateTextStyle}"
-                               Visibility="{Binding CanShowModEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
-                </Grid>
+                <TextBlock Text="{Binding ModEmptyMessage}"
+                           Style="{StaticResource PageEmptyStateTextStyle}"
+                           Visibility="{Binding CanShowModEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
             </Grid>
         </GroupBox>
     </StackPanel>

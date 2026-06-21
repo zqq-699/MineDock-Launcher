@@ -1,5 +1,7 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Launcher.App.Controls;
 using Launcher.App.Converters;
 using Launcher.App.Resources;
@@ -216,6 +218,19 @@ public sealed class ResourceDictionaryTests
                 var modManagementView = FindVisualDescendant<InstanceModManagementSettingsView>(detailsView);
                 Assert.NotNull(modManagementView);
 
+                var pageView = new GameSettingsPageView
+                {
+                    Width = 1200,
+                    Height = 800
+                };
+                pageView.ApplyTemplate();
+                pageView.Measure(new Size(1200, 800));
+                pageView.Arrange(new Rect(0, 0, 1200, 800));
+                pageView.UpdateLayout();
+
+                Assert.NotNull(FindVisualDescendantByTag<Border>(pageView, "StickyModListFloatingHost"));
+
+                detailsViewModel.ModManagement.ModSearchQuery = "sodium";
                 var standaloneView = new InstanceModManagementSettingsView
                 {
                     DataContext = detailsViewModel.ModManagement
@@ -226,10 +241,113 @@ public sealed class ResourceDictionaryTests
                 standaloneView.UpdateLayout();
 
                 Assert.NotNull(standaloneView.Content);
+                Assert.Null(standaloneView.FindName("StickyModListOverlay"));
+
+                var searchTextBoxes = FindVisualDescendants<TextBox>(standaloneView).ToArray();
+                Assert.Single(searchTextBoxes);
+                Assert.Equal("sodium", searchTextBoxes[0].Text);
+
+                detailsViewModel.ModManagement.ModSearchQuery = "lithium";
+                standaloneView.UpdateLayout();
+
+                Assert.Equal("lithium", searchTextBoxes[0].Text);
             }
             catch (Exception ex)
             {
                 exception = ex;
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (exception is not null)
+            throw exception;
+    }
+
+    [Fact]
+    public void ModManagementStickyHeaderActivatesEvenWhenFloatingLayerStartsHidden()
+    {
+        Exception? exception = null;
+        var thread = new Thread(() =>
+        {
+            Window? window = null;
+            try
+            {
+                var application = global::System.Windows.Application.Current ?? new global::System.Windows.Application();
+                EnsureApplicationResources(application);
+
+                var instance = CreateInstance("Fabric Pack", "1.21.4", LoaderKind.Fabric);
+                var modService = new StubModService();
+                modService.ModsByInstanceId[instance.Id] = Enumerable.Range(1, 24)
+                    .Select(index => CreateLocalMod($"mod-{index}.jar", instance.InstanceDirectory, $"Mod {index}"))
+                    .ToArray();
+
+                var pageViewModel = CreatePageViewModel([instance], modService);
+                RunSynchronously(() => pageViewModel.EnsureInstancesLoadedAsync());
+                pageViewModel.SelectInstanceCommand.Execute(pageViewModel.VisibleInstances.Single());
+                pageViewModel.SelectDetailsSectionCommand.Execute(
+                    pageViewModel.DetailSections.Single(section => section.Id == "mod_management"));
+
+                window = new Window
+                {
+                    Width = 1280,
+                    Height = 900,
+                    ShowInTaskbar = false,
+                    Content = new GameSettingsPageView
+                    {
+                        DataContext = pageViewModel,
+                        Width = 1280,
+                        Height = 900
+                    }
+                };
+
+                window.Show();
+                PumpDispatcher();
+
+                var pageView = Assert.IsType<GameSettingsPageView>(window.Content);
+                pageView.UpdateLayout();
+                PumpDispatcher();
+
+                var floatingLayer = FindVisualDescendantByTag<Grid>(pageView, "StickyModListFloatingLayer");
+                var detailsView = FindVisualDescendant<GameSettingsDetailsView>(pageView);
+                var modManagementView = FindVisualDescendant<InstanceModManagementSettingsView>(pageView);
+
+                Assert.NotNull(floatingLayer);
+                Assert.NotNull(detailsView);
+                Assert.NotNull(modManagementView);
+                Assert.Equal(Visibility.Hidden, floatingLayer.Visibility);
+                Assert.Equal(1d, modManagementView.OriginalModListHeaderElement.Opacity);
+
+                var detailsScrollViewer = detailsView.ScrollViewerControl;
+                for (var offset = 0d; offset <= 1200d && floatingLayer.Visibility != Visibility.Visible; offset += 40d)
+                {
+                    detailsScrollViewer.ScrollToVerticalOffset(offset);
+                    detailsScrollViewer.UpdateLayout();
+                    pageView.UpdateLayout();
+                    PumpDispatcher();
+                }
+
+                Assert.Equal(Visibility.Visible, floatingLayer.Visibility);
+                Assert.True(floatingLayer.IsHitTestVisible);
+                Assert.Equal(0d, modManagementView.OriginalModListHeaderElement.Opacity);
+
+                pageViewModel.BackToInstanceListCommand.Execute(null);
+                pageView.UpdateLayout();
+                PumpDispatcher();
+
+                Assert.Equal(Visibility.Hidden, floatingLayer.Visibility);
+                Assert.False(floatingLayer.IsHitTestVisible);
+                Assert.Equal(1d, modManagementView.OriginalModListHeaderElement.Opacity);
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+            finally
+            {
+                window?.Close();
             }
         });
 
@@ -328,6 +446,80 @@ public sealed class ResourceDictionaryTests
             new StubFloatingMessageService());
     }
 
+    private static GameSettingsPageViewModel CreatePageViewModel(
+        IReadOnlyList<GameInstance> instances,
+        StubModService modService)
+    {
+        var statusService = new StubStatusService();
+        var instanceService = new StubGameInstanceService();
+        foreach (var instance in instances)
+            instanceService.Instances.Add(instance);
+
+        return new GameSettingsPageViewModel(
+            instanceService,
+            new StubGameVersionService(),
+            statusService,
+            new StubInstanceFolderService(),
+            new StubSystemMemoryService(),
+            modService,
+            new LocalModsViewModel(modService, statusService),
+            new StubJavaRuntimeDiscoveryService(),
+            new StubFilePickerService(),
+            new StubFloatingMessageService());
+    }
+
+    private static GameInstance CreateInstance(string name, string minecraftVersion, LoaderKind loader)
+    {
+        return new GameInstance
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Name = name,
+            VersionName = name,
+            MinecraftVersion = minecraftVersion,
+            Loader = loader,
+            LoaderVersion = loader is LoaderKind.Vanilla ? null : "0.16.10",
+            Description = string.Empty,
+            CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            InstanceDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"))
+        };
+    }
+
+    private static LocalMod CreateLocalMod(string fileName, string instanceDirectory, string displayName)
+    {
+        return new LocalMod
+        {
+            Name = displayName,
+            Loader = "fabric",
+            ModId = Path.GetFileNameWithoutExtension(fileName),
+            Version = "1.0.0",
+            FileName = fileName,
+            FullPath = Path.Combine(instanceDirectory, "mods", fileName),
+            IsEnabled = true,
+            SizeBytes = 1024,
+            Source = "Local"
+        };
+    }
+
+    private static void PumpDispatcher()
+    {
+        var frame = new DispatcherFrame();
+        Dispatcher.CurrentDispatcher.BeginInvoke(
+            DispatcherPriority.Background,
+            new DispatcherOperationCallback(_ =>
+            {
+                frame.Continue = false;
+                return null;
+            }),
+            null);
+        Dispatcher.PushFrame(frame);
+    }
+
+    private static void RunSynchronously(Func<Task> action)
+    {
+        action().GetAwaiter().GetResult();
+    }
+
     private static T? FindVisualDescendant<T>(DependencyObject root)
         where T : DependencyObject
     {
@@ -343,6 +535,43 @@ public sealed class ResourceDictionaryTests
         }
 
         return null;
+    }
+
+    private static T? FindVisualDescendantByTag<T>(DependencyObject root, object tag)
+        where T : FrameworkElement
+    {
+        return FindVisualDescendant<T>(root, element => Equals(element.Tag, tag));
+    }
+
+    private static T? FindVisualDescendant<T>(DependencyObject root, Func<T, bool> predicate)
+        where T : DependencyObject
+    {
+        if (root is T typedRoot && predicate(typedRoot))
+            return typedRoot;
+
+        var childCount = VisualTreeHelper.GetChildrenCount(root);
+        for (var index = 0; index < childCount; index++)
+        {
+            var result = FindVisualDescendant(VisualTreeHelper.GetChild(root, index), predicate);
+            if (result is not null)
+                return result;
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<T> FindVisualDescendants<T>(DependencyObject root)
+        where T : DependencyObject
+    {
+        if (root is T typedRoot)
+            yield return typedRoot;
+
+        var childCount = VisualTreeHelper.GetChildrenCount(root);
+        for (var index = 0; index < childCount; index++)
+        {
+            foreach (var descendant in FindVisualDescendants<T>(VisualTreeHelper.GetChild(root, index)))
+                yield return descendant;
+        }
     }
 
     private static ResourceDictionary LoadDictionary(string relativePath)
@@ -403,6 +632,17 @@ public sealed class ResourceDictionaryTests
         }
     }
 
+    private sealed class StubGameVersionService : IGameVersionService
+    {
+        public Task<IReadOnlyList<MinecraftVersionInfo>> GetVersionsAsync(
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            CancellationToken cancellationToken = default,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            return Task.FromResult<IReadOnlyList<MinecraftVersionInfo>>([]);
+        }
+    }
+
     private sealed class StubJavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryService
     {
         public Task<IReadOnlyList<JavaRuntimeInfo>> DiscoverAsync(
@@ -429,9 +669,14 @@ public sealed class ResourceDictionaryTests
 
     private sealed class StubModService : IModService
     {
+        public Dictionary<string, IReadOnlyList<LocalMod>> ModsByInstanceId { get; } = new(StringComparer.OrdinalIgnoreCase);
+
         public Task<IReadOnlyList<LocalMod>> GetModsAsync(GameInstance instance, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<LocalMod>>([]);
+            return Task.FromResult(
+                ModsByInstanceId.TryGetValue(instance.Id, out var mods)
+                    ? mods
+                    : (IReadOnlyList<LocalMod>)[]);
         }
 
         public Task<LocalMod> ImportAsync(GameInstance instance, string sourceJarPath, CancellationToken cancellationToken = default)
@@ -452,9 +697,11 @@ public sealed class ResourceDictionaryTests
 
     private sealed class StubGameInstanceService : IGameInstanceService
     {
+        public List<GameInstance> Instances { get; } = [];
+
         public Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<GameInstance>>([]);
+            return Task.FromResult<IReadOnlyList<GameInstance>>(Instances);
         }
 
         public Task<GameInstance?> GetDefaultInstanceAsync(CancellationToken cancellationToken = default)

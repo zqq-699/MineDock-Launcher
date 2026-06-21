@@ -38,6 +38,8 @@ public partial class GameSettingsDetailsView : UserControl
         DataContextChanged += GameSettingsDetailsView_DataContextChanged;
     }
 
+    internal ScrollViewer ScrollViewerControl => DetailsScrollViewer;
+
     private void GameSettingsDetailsView_Loaded(object sender, System.Windows.RoutedEventArgs e)
     {
         sectionTransitionService.SyncTo(GetCurrentSectionId());

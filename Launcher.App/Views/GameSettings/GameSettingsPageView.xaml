@@ -59,6 +59,27 @@
                                 IsSearchVisible="{Binding IsListStep}"
                                 IsListVisible="True"
                                 UseFrameScrollViewer="False">
+            <controls:ListPageFrame.FloatingContent>
+                <Grid Tag="StickyModListFloatingLayer"
+                      Visibility="Hidden"
+                      IsHitTestVisible="False">
+                    <Border Tag="StickyModListFloatingHost"
+                            Margin="0,0,12,0"
+                            Padding="0,0,0,12"
+                            MaxWidth="{StaticResource DetailPageContentMaxWidth}"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Top"
+                            Background="Transparent">
+                        <Border.RenderTransform>
+                            <TranslateTransform />
+                        </Border.RenderTransform>
+
+                        <ContentControl Tag="StickyModListFloatingContent"
+                                        IsHitTestVisible="True" />
+                    </Border>
+                </Grid>
+            </controls:ListPageFrame.FloatingContent>
+
             <controls:ListPageFrame.OverlayContent>
                 <Grid>
                     <Grid.Style>
