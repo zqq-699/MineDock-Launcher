@@ -1,0 +1,236 @@
+<UserControl x:Class="Launcher.App.Views.GameSettings.InstanceSaveManagementSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Launcher.App.Controls"
+             xmlns:res="clr-namespace:Launcher.App.Resources"
+             Focusable="False">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/Launcher.App;component/Views/GameSettings/GameSettingsSectionResources.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="SaveListSectionHeaderTextStyle"
+                   TargetType="TextBlock"
+                   BasedOn="{StaticResource SettingsOptionTextStyle}">
+                <Setter Property="Foreground" Value="{DynamicResource Brush.A8FFFFFF}" />
+                <Setter Property="FontSize" Value="16" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+
+            <Style x:Key="SaveListHeaderCompactButtonStyle"
+                   TargetType="Button"
+                   BasedOn="{StaticResource LauncherDialogButtonStyle}">
+                <Setter Property="MinWidth" Value="72" />
+                <Setter Property="Height" Value="30" />
+                <Setter Property="Padding" Value="14,0" />
+                <Setter Property="FontSize" Value="13" />
+            </Style>
+
+            <Style x:Key="SaveListHeaderCompactDangerButtonStyle"
+                   TargetType="Button"
+                   BasedOn="{StaticResource LauncherDangerDialogButtonStyle}">
+                <Setter Property="MinWidth" Value="72" />
+                <Setter Property="Height" Value="30" />
+                <Setter Property="Padding" Value="14,0" />
+                <Setter Property="FontSize" Value="13" />
+            </Style>
+
+            <DataTemplate x:Key="SaveListSectionHeaderTemplate">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   Margin="0,0,12,0"
+                                   Text="{x:Static res:Strings.GameSettings_SaveManagementSaveListSection}"
+                                   Style="{StaticResource SaveListSectionHeaderTextStyle}"
+                                   VerticalAlignment="Center" />
+
+                        <WrapPanel Grid.Column="1"
+                                   VerticalAlignment="Center">
+                            <WrapPanel Margin="0,0,10,0"
+                                       VerticalAlignment="Center">
+                                <WrapPanel.Style>
+                                    <Style TargetType="WrapPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMultiSelectMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </WrapPanel.Style>
+
+                                <Button Margin="0,0,10,0"
+                                        Content="{Binding SelectAllButtonText}"
+                                        Command="{Binding SelectAllSavesCommand}"
+                                        Style="{StaticResource SaveListHeaderCompactButtonStyle}" />
+                                <Button Content="{x:Static res:Strings.GameSettings_SaveManagementDeleteButton}"
+                                        Command="{Binding RequestDeleteSelectedSavesCommand}"
+                                        Style="{StaticResource SaveListHeaderCompactDangerButtonStyle}" />
+                            </WrapPanel>
+
+                            <Button Command="{Binding ToggleMultiSelectModeCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource SaveListHeaderCompactButtonStyle}">
+                                        <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_SaveManagementMultiSelectButton}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMultiSelectMode}" Value="True">
+                                                <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_SaveManagementCancelMultiSelectButton}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </WrapPanel>
+                    </Grid>
+
+                    <TextBox Margin="0,10,0,0"
+                             Tag="{Binding RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                             Text="{Binding SaveSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource ListPageSearchBoxStyle}" />
+                </StackPanel>
+            </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid>
+        <StackPanel>
+            <GroupBox Header="{x:Static res:Strings.GameSettings_SaveManagementInfoSection}">
+                <GroupBox.Style>
+                    <Style TargetType="GroupBox" BasedOn="{StaticResource LauncherContentSectionStyle}">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CanShowSaveInfoSection}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </GroupBox.Style>
+                <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                    <StackPanel>
+                        <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
+                            <TextBlock Text="{Binding InstalledSummaryText}"
+                                       Style="{StaticResource ReadOnlyFieldTextStyle}" />
+                        </Border>
+
+                        <TextBlock Margin="0,18,0,10"
+                                   Text="{x:Static res:Strings.GameSettings_SaveManagementActionsLabel}"
+                                   Style="{StaticResource SettingsOptionTextStyle}" />
+
+                        <WrapPanel>
+                            <Button Margin="0,0,10,10"
+                                    Content="{x:Static res:Strings.GameSettings_SaveManagementOpenFolderButton}"
+                                    Command="{Binding OpenSaveFolderCommand}"
+                                    Style="{StaticResource LauncherDialogButtonStyle}" />
+                            <Button Margin="0,0,10,10"
+                                    Content="{x:Static res:Strings.GameSettings_SaveManagementLocalImportButton}"
+                                    Command="{Binding ImportLocalSaveCommand}"
+                                    Style="{StaticResource LauncherDialogButtonStyle}" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+            </GroupBox>
+
+            <GroupBox x:Name="SaveListSection"
+                      Margin="0,26,0,0">
+                <GroupBox.Style>
+                    <Style TargetType="GroupBox" BasedOn="{StaticResource LauncherContentSectionStyle}">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding CanShowSaveListSection}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </GroupBox.Style>
+                <GroupBox.Header>
+                    <ContentControl x:Name="OriginalSaveListHeaderHost"
+                                    Content="{Binding}"
+                                    ContentTemplate="{StaticResource SaveListSectionHeaderTemplate}" />
+                </GroupBox.Header>
+
+                <Grid MinHeight="140">
+                    <ListBox ItemsSource="{Binding Saves}"
+                             SelectedItem="{Binding SelectedSave, Mode=OneWay}"
+                             ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling"
+                             VirtualizingPanel.ScrollUnit="Pixel"
+                             ScrollViewer.CanContentScroll="True">
+                        <ListBox.Style>
+                            <Style TargetType="ListBox" BasedOn="{StaticResource ListPageVirtualizedListBoxStyle}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSaves}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListBox.Style>
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel VirtualizingPanel.IsVirtualizing="True"
+                                                        VirtualizingPanel.VirtualizationMode="Recycling"
+                                                        VirtualizingPanel.ScrollUnit="Pixel" />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <controls:ListPageItemButton Title="{Binding Title}"
+                                                             Subtitle="{Binding Subtitle}"
+                                                             TrailingText="{Binding TrailingText}"
+                                                             IconSource="{Binding IconSource}"
+                                                             IconKey="{Binding IconKey}"
+                                                             ItemMargin="0"
+                                                             IsSelected="{Binding IsSelected}"
+                                                             Command="{Binding DataContext.SelectSaveCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                                             CommandParameter="{Binding}">
+                                    <controls:ListPageItemButton.TrailingContent>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Style="{StaticResource InlineIconButtonStyle}"
+                                                    ToolTip="{x:Static res:Strings.GameSettings_OpenInstanceFolderTooltip}"
+                                                    Command="{Binding DataContext.OpenSaveLocationCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                                    CommandParameter="{Binding}">
+                                                <controls:SvgIcon Width="16"
+                                                                  Height="16"
+                                                                  IconKey="general/general_folder"
+                                                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                                            </Button>
+
+                                            <Button Margin="4,0,0,0"
+                                                    Style="{StaticResource SecondaryMenuDeleteButtonStyle}"
+                                                    ToolTip="{x:Static res:Strings.Delete_Button}"
+                                                    Command="{Binding DataContext.RequestDeleteSaveCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                                    CommandParameter="{Binding}">
+                                                <controls:SvgIcon Width="16"
+                                                                  Height="16"
+                                                                  IconKey="general/general_delete"
+                                                                  Style="{StaticResource DangerActionSvgIconStyle}" />
+                                            </Button>
+                                        </StackPanel>
+                                    </controls:ListPageItemButton.TrailingContent>
+                                </controls:ListPageItemButton>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <TextBlock Margin="0,42,0,0"
+                               Text="{Binding SaveEmptyMessage}"
+                               Style="{StaticResource PageEmptyStateTextStyle}"
+                               Visibility="{Binding CanShowSaveEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                </Grid>
+            </GroupBox>
+
+            <TextBlock Margin="0,72,0,0"
+                       Text="{Binding SaveEmptyMessage}"
+                       Style="{StaticResource PageEmptyStateTextStyle}"
+                       Visibility="{Binding CanShowNoSavesEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -213,7 +213,7 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Text="{x:Static res:Strings.Dialog_DeleteModsTitle}"
+                    <TextBlock Text="{Binding DeleteModsDialogTitle}"
                                Style="{StaticResource DialogTitleTextStyle}" />
 
                     <TextBlock Grid.Row="1"

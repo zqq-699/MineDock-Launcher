@@ -536,6 +536,7 @@ public sealed class MainViewModelTests
                 new FakeSystemMemoryService(),
                 new FakeModService(),
                 new LocalModsViewModel(new FakeModService(), statusService),
+                new LocalSavesViewModel(new FakeSaveService(), statusService),
                 new FakeJavaRuntimeDiscoveryService(),
                 filePickerService,
                 floatingMessageService),
@@ -736,6 +737,24 @@ public sealed class MainViewModelTests
         public Task DeleteAsync(LocalMod mod, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
+        }
+    }
+
+    private sealed class FakeSaveService : ILocalSaveService
+    {
+        public Task<IReadOnlyList<LocalSave>> GetSavesAsync(GameInstance instance, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<LocalSave>>([]);
+        }
+
+        public Task DeleteAsync(LocalSave save, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAsync(IEnumerable<LocalSave> saves, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
         }
     }
 

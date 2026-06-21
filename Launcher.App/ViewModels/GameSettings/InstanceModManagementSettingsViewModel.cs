@@ -399,7 +399,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         SelectedMod = mod;
         lastSingleSelectedModPath = mod.FullPath;
         foreach (var item in Mods)
-            item.IsSelected = ReferenceEquals(item, mod);
+            item.IsSelected = false;
     }
 
     public async Task DeleteModsAsync(IReadOnlyList<string> fullPaths)

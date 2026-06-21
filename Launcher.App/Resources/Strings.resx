@@ -538,4 +538,25 @@
   <data name="Dialog_ReplaceModImportMessageFormat" xml:space="preserve"><value>已存在《{0}》，是否替换？</value></data>
   <data name="Dialog_Replace_Button" xml:space="preserve"><value>替换</value></data>
   <data name="GameSettings_ModManagementUnavailableMessage" xml:space="preserve"><value>当前版本不可安装mod</value></data>
+  <data name="GameSettings_SaveManagementInfoSection" xml:space="preserve"><value>存档信息</value></data>
+  <data name="GameSettings_SaveManagementInstalledSummaryFormat" xml:space="preserve"><value>当前游戏有 {0} 个存档</value></data>
+  <data name="GameSettings_SaveManagementActionsLabel" xml:space="preserve"><value>操作</value></data>
+  <data name="GameSettings_SaveManagementOpenFolderButton" xml:space="preserve"><value>打开存档文件夹</value></data>
+  <data name="GameSettings_SaveManagementLocalImportButton" xml:space="preserve"><value>本地导入</value></data>
+  <data name="GameSettings_SaveManagementMultiSelectButton" xml:space="preserve"><value>多选</value></data>
+  <data name="GameSettings_SaveManagementCancelMultiSelectButton" xml:space="preserve"><value>取消多选</value></data>
+  <data name="GameSettings_SaveManagementSelectAllButton" xml:space="preserve"><value>全选</value></data>
+  <data name="GameSettings_SaveManagementCancelSelectAllButton" xml:space="preserve"><value>取消全选</value></data>
+  <data name="GameSettings_SaveManagementDeleteButton" xml:space="preserve"><value>删除</value></data>
+  <data name="GameSettings_SaveManagementSaveListSection" xml:space="preserve"><value>存档列表</value></data>
+  <data name="GameSettings_SaveManagementEmptyMessage" xml:space="preserve"><value>当前没有可用存档</value></data>
+  <data name="GameSettings_SaveManagementSearchEmptyMessage" xml:space="preserve"><value>没有匹配的存档</value></data>
+  <data name="Dialog_DeleteSavesTitle" xml:space="preserve"><value>删除存档</value></data>
+  <data name="Dialog_DeleteSingleSaveMessageFormat" xml:space="preserve"><value>确认删除存档“{0}”吗？此操作不可撤销。</value></data>
+  <data name="Dialog_DeleteMultipleSavesMessageFormat" xml:space="preserve"><value>确认删除这 {0} 个存档吗？此操作不可撤销。</value></data>
+  <data name="Status_SelectedSavesDeletedFormat" xml:space="preserve"><value>已删除 {0} 个存档</value></data>
+  <data name="Status_SelectedSavesDeletePartialFailedFormat" xml:space="preserve"><value>已删除 {0} 个存档，{1} 个失败</value></data>
+  <data name="Status_SelectedSavesDeleteFailed" xml:space="preserve"><value>删除所选存档失败，请稍后重试。</value></data>
+  <data name="Status_OpenLocalSaveFolderFailed" xml:space="preserve"><value>打开存档目录失败，请稍后重试。</value></data>
+  <data name="Status_LoadLocalSavesFailed" xml:space="preserve"><value>加载存档列表失败，请稍后重试。</value></data>
 </root>

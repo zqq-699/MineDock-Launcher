@@ -280,13 +280,14 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
 
-                <TextBlock Text="{Binding ModEmptyMessage}"
+                <TextBlock Margin="0,42,0,0"
+                           Text="{Binding ModEmptyMessage}"
                            Style="{StaticResource PageEmptyStateTextStyle}"
                            Visibility="{Binding CanShowModEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
             </Grid>
         </GroupBox>
 
-        <TextBlock Margin="0,26,0,0"
+        <TextBlock Margin="0,72,0,0"
                    Text="{Binding ModEmptyMessage}"
                    Style="{StaticResource PageEmptyStateTextStyle}"
                    Visibility="{Binding CanShowNoModsEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />

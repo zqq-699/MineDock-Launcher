@@ -99,6 +99,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         ISystemMemoryService systemMemoryService,
         IModService modService,
         LocalModsViewModel localModsViewModel,
+        LocalSavesViewModel localSavesViewModel,
         IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
         IFilePickerService filePickerService,
         IFloatingMessageService floatingMessageService)
@@ -137,6 +138,12 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             filePickerService);
         ModManagement.DeleteModsRequested += ModManagement_DeleteModsRequested;
         ModManagement.ImportModConflictRequested += ModManagement_ImportModConflictRequested;
+        SaveManagement = new InstanceSaveManagementSettingsViewModel(
+            this,
+            localSavesViewModel,
+            statusService,
+            instanceFolderService);
+        SaveManagement.DeleteSavesRequested += SaveManagement_DeleteSavesRequested;
         Placeholder = new InstancePlaceholderSettingsViewModel(this);
         CurrentSectionViewModel = General;
     }
@@ -146,6 +153,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     public event Action<GameSettingsInstanceItem>? DeleteInstanceRequested;
 
     public event Action<ModDeleteRequest>? DeleteModsRequested;
+    public event Action<SaveDeleteRequest>? DeleteSavesRequested;
     public event Action<ModImportConflictRequest>? ImportModConflictRequested;
 
     public bool HasSelectedInstance => SelectedInstance is not null;
@@ -212,6 +220,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     public InstanceJavaSettingsViewModel Java { get; }
 
     public InstanceModManagementSettingsViewModel ModManagement { get; }
+
+    public InstanceSaveManagementSettingsViewModel SaveManagement { get; }
 
     public InstancePlaceholderSettingsViewModel Placeholder { get; }
 
@@ -280,6 +290,11 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         return ModManagement.DeleteModsAsync(fullPaths);
     }
 
+    public Task DeleteSavesAsync(IReadOnlyList<string> fullPaths)
+    {
+        return SaveManagement.DeleteSavesAsync(fullPaths);
+    }
+
     [RelayCommand]
     private void RequestEditInstance()
     {
@@ -341,6 +356,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             SelectedInstanceJavaSettingsModeOption = ResolveLaunchSettingsModeOption(javaSettingsMode);
             ApplyJavaSettingsToEditor();
             _ = ModManagement.SetSelectedInstanceAsync(value?.Instance);
+            _ = SaveManagement.SetSelectedInstanceAsync(value?.Instance);
             _ = RefreshEnabledModCountAsync(value?.Instance);
 
             if (mode is LaunchSettingsMode.UseGlobal)
@@ -385,6 +401,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             "launch" => Launch,
             "java" => Java,
             "mod_management" => ModManagement,
+            "saves" => SaveManagement,
             _ => Placeholder
         };
     }
@@ -1025,6 +1042,11 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     private void ModManagement_DeleteModsRequested(ModDeleteRequest request)
     {
         DeleteModsRequested?.Invoke(request);
+    }
+
+    private void SaveManagement_DeleteSavesRequested(SaveDeleteRequest request)
+    {
+        DeleteSavesRequested?.Invoke(request);
     }
 
     public Task ReplaceImportedModAsync(string sourcePath)

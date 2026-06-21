@@ -59,6 +59,9 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     private ModDeleteRequest? pendingDeleteMods;
 
     [ObservableProperty]
+    private SaveDeleteRequest? pendingDeleteSaves;
+
+    [ObservableProperty]
     private bool isReplaceModImportDialogOpen;
 
     [ObservableProperty]
@@ -72,6 +75,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         ISystemMemoryService systemMemoryService,
         IModService modService,
         LocalModsViewModel localModsViewModel,
+        LocalSavesViewModel localSavesViewModel,
         IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
         IFilePickerService filePickerService,
         IFloatingMessageService floatingMessageService,
@@ -91,6 +95,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             systemMemoryService,
             modService,
             localModsViewModel,
+            localSavesViewModel,
             javaRuntimeDiscoveryService,
             filePickerService,
             floatingMessageService);
@@ -98,6 +103,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         Details.InstanceSettingsSaved += Details_InstanceSettingsSaved;
         Details.DeleteInstanceRequested += Details_DeleteInstanceRequested;
         Details.DeleteModsRequested += Details_DeleteModsRequested;
+        Details.DeleteSavesRequested += Details_DeleteSavesRequested;
         Details.ImportModConflictRequested += Details_ImportModConflictRequested;
 
         InstanceCategories.Add(new GameSettingsInstanceCategory("all", Strings.GameSettings_AllCategory, string.Empty, "general/general_all_application"));
@@ -159,6 +165,13 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     {
         get
         {
+            if (PendingDeleteSaves is not null)
+            {
+                return PendingDeleteSaves.Titles.Count == 1
+                    ? string.Format(Strings.Dialog_DeleteSingleSaveMessageFormat, PendingDeleteSaves.Titles[0])
+                    : string.Format(Strings.Dialog_DeleteMultipleSavesMessageFormat, PendingDeleteSaves.Titles.Count);
+            }
+
             if (PendingDeleteMods is null)
                 return string.Empty;
 
@@ -167,6 +180,10 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
                 : string.Format(Strings.Dialog_DeleteMultipleModsMessageFormat, PendingDeleteMods.Titles.Count);
         }
     }
+
+    public string DeleteModsDialogTitle => PendingDeleteSaves is null
+        ? Strings.Dialog_DeleteModsTitle
+        : Strings.Dialog_DeleteSavesTitle;
 
     public string ReplaceModImportDialogMessage => PendingModImportConflict is null
         ? string.Empty
@@ -355,7 +372,15 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     private void Details_DeleteModsRequested(ModDeleteRequest request)
     {
+        PendingDeleteSaves = null;
         PendingDeleteMods = request;
+        IsDeleteModsDialogOpen = true;
+    }
+
+    private void Details_DeleteSavesRequested(SaveDeleteRequest request)
+    {
+        PendingDeleteMods = null;
+        PendingDeleteSaves = request;
         IsDeleteModsDialogOpen = true;
     }
 
@@ -408,18 +433,29 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     {
         IsDeleteModsDialogOpen = false;
         PendingDeleteMods = null;
+        PendingDeleteSaves = null;
     }
 
     [RelayCommand]
     private async Task ConfirmDeleteModsDialogAsync()
     {
-        if (PendingDeleteMods is null)
+        if (PendingDeleteMods is null && PendingDeleteSaves is null)
             return;
 
-        var request = PendingDeleteMods;
+        var modRequest = PendingDeleteMods;
+        var saveRequest = PendingDeleteSaves;
         IsDeleteModsDialogOpen = false;
         PendingDeleteMods = null;
-        await Details.DeleteModsAsync(request.FullPaths);
+        PendingDeleteSaves = null;
+
+        if (modRequest is not null)
+        {
+            await Details.DeleteModsAsync(modRequest.FullPaths);
+        }
+        else if (saveRequest is not null)
+        {
+            await Details.DeleteSavesAsync(saveRequest.FullPaths);
+        }
     }
 
     [RelayCommand]
@@ -543,6 +579,13 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     partial void OnPendingDeleteModsChanged(ModDeleteRequest? value)
     {
+        OnPropertyChanged(nameof(DeleteModsDialogTitle));
+        OnPropertyChanged(nameof(DeleteModsDialogMessage));
+    }
+
+    partial void OnPendingDeleteSavesChanged(SaveDeleteRequest? value)
+    {
+        OnPropertyChanged(nameof(DeleteModsDialogTitle));
         OnPropertyChanged(nameof(DeleteModsDialogMessage));
     }
 

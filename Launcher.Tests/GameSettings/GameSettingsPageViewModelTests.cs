@@ -617,6 +617,131 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task SaveManagementDetailsSectionUsesDedicatedViewModel()
+    {
+        var viewModel = CreateViewModel([CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla)]);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var section = viewModel.DetailSections.Single(item => item.Id == "saves");
+
+        viewModel.SelectDetailsSectionCommand.Execute(section);
+
+        Assert.True(section.IsSelected);
+        Assert.IsType<InstanceSaveManagementSettingsViewModel>(viewModel.Details.CurrentSectionViewModel);
+        Assert.Same(viewModel.Details.SaveManagement, viewModel.Details.CurrentSectionViewModel);
+        Assert.Equal(Strings.GameSettings_DetailSaves, viewModel.Details.SectionTitle);
+    }
+
+    [Fact]
+    public async Task SaveManagementViewModelLoadsRealSavesForSelectedInstance()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var saveService = new FakeSaveService();
+        var firstCreatedAt = new DateTimeOffset(2026, 1, 3, 10, 20, 30, TimeSpan.Zero);
+        var secondCreatedAt = new DateTimeOffset(2026, 1, 2, 8, 9, 10, TimeSpan.Zero);
+        saveService.SavesByInstanceId[instance.Id] =
+        [
+            CreateLocalSave("Cherry Grove", instance.InstanceDirectory, iconSource: @"C:\temp\cherry.png", createdAt: firstCreatedAt),
+            CreateLocalSave("Starter Base", instance.InstanceDirectory, createdAt: secondCreatedAt)
+        ];
+        var viewModel = CreateViewModel([instance], saveService: saveService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "saves"));
+        await TestAsync.WaitForAsync(() => viewModel.Details.SaveManagement.Saves.Count == 2);
+
+        var saveManagement = viewModel.Details.SaveManagement;
+        Assert.Equal(2, saveManagement.InstalledSaveCount);
+        Assert.Equal(
+            string.Format(Strings.GameSettings_SaveManagementInstalledSummaryFormat, 2),
+            saveManagement.InstalledSummaryText);
+        Assert.Equal(["Cherry Grove", "Starter Base"], saveManagement.Saves.Select(save => save.Title));
+        Assert.Equal(
+            [firstCreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"), secondCreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")],
+            saveManagement.Saves.Select(save => save.TrailingText));
+        Assert.Equal(string.Empty, saveManagement.Saves[0].IconKey);
+        Assert.Equal("instance_setting_page/saves", saveManagement.Saves[1].IconKey);
+        Assert.False(saveManagement.ImportLocalSaveCommand.CanExecute(null));
+        Assert.True(saveManagement.HasSaves);
+        Assert.False(saveManagement.CanShowSaveEmptyState);
+        Assert.Same(saveManagement.Saves[0], saveManagement.SelectedSave);
+        Assert.All(saveManagement.Saves, save => Assert.False(save.IsSelected));
+    }
+
+    [Fact]
+    public async Task SaveManagementSearchAndSelectAllOnlyTargetVisibleSaves()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var saveService = new FakeSaveService();
+        saveService.SavesByInstanceId[instance.Id] =
+        [
+            CreateLocalSave("Alpha Base", instance.InstanceDirectory),
+            CreateLocalSave("Beta Base", instance.InstanceDirectory),
+            CreateLocalSave("Creative Flat", instance.InstanceDirectory)
+        ];
+        var viewModel = CreateViewModel([instance], saveService: saveService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "saves"));
+        await TestAsync.WaitForAsync(() => viewModel.Details.SaveManagement.Saves.Count == 3);
+
+        var saveManagement = viewModel.Details.SaveManagement;
+        saveManagement.SaveSearchQuery = "Base";
+        saveManagement.ToggleMultiSelectModeCommand.Execute(null);
+        saveManagement.SelectAllSavesCommand.Execute(null);
+
+        Assert.Equal(2, saveManagement.Saves.Count);
+        Assert.Equal(2, saveManagement.SelectedSaveCount);
+        Assert.True(saveManagement.AreAllVisibleSavesSelected);
+        Assert.All(saveManagement.Saves, save => Assert.True(save.IsSelected));
+    }
+
+    [Fact]
+    public async Task SaveManagementDeleteUsesConfirmationDialogBeforeRemovingSaves()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var saveService = new FakeSaveService();
+        saveService.SavesByInstanceId[instance.Id] =
+        [
+            CreateLocalSave("Alpha Base", instance.InstanceDirectory),
+            CreateLocalSave("Beta Base", instance.InstanceDirectory)
+        ];
+        var viewModel = CreateViewModel([instance], saveService: saveService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "saves"));
+        await TestAsync.WaitForAsync(() => viewModel.Details.SaveManagement.Saves.Count == 2);
+
+        var saveManagement = viewModel.Details.SaveManagement;
+        saveManagement.ToggleMultiSelectModeCommand.Execute(null);
+        saveManagement.SelectAllSavesCommand.Execute(null);
+        saveManagement.RequestDeleteSelectedSavesCommand.Execute(null);
+
+        Assert.True(viewModel.IsDeleteModsDialogOpen);
+        Assert.Equal(Strings.Dialog_DeleteSavesTitle, viewModel.DeleteModsDialogTitle);
+        Assert.Equal(
+            string.Format(Strings.Dialog_DeleteMultipleSavesMessageFormat, 2),
+            viewModel.DeleteModsDialogMessage);
+
+        viewModel.CancelDeleteModsDialogCommand.Execute(null);
+
+        Assert.False(viewModel.IsDeleteModsDialogOpen);
+        Assert.Equal(2, saveService.SavesByInstanceId[instance.Id].Count);
+
+        saveManagement.RequestDeleteSelectedSavesCommand.Execute(null);
+        await viewModel.ConfirmDeleteModsDialogCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsDeleteModsDialogOpen);
+        Assert.Empty(saveService.SavesByInstanceId[instance.Id]);
+        Assert.Empty(saveManagement.Saves);
+        Assert.False(saveManagement.IsMultiSelectMode);
+    }
+
+    [Fact]
     public async Task ModManagementViewModelLoadsRealModsForSelectedInstance()
     {
         var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
@@ -650,12 +775,12 @@ public sealed class GameSettingsPageViewModelTests
         Assert.True(modManagement.HasMods);
         Assert.False(modManagement.CanShowModEmptyState);
         Assert.Same(modManagement.Mods[0], modManagement.SelectedMod);
+        Assert.All(modManagement.Mods, mod => Assert.False(mod.IsSelected));
 
         modManagement.SelectModCommand.Execute(modManagement.Mods[1]);
 
         Assert.Same(modManagement.Mods[1], modManagement.SelectedMod);
-        Assert.True(modManagement.Mods[1].IsSelected);
-        Assert.False(modManagement.Mods[0].IsSelected);
+        Assert.All(modManagement.Mods, mod => Assert.False(mod.IsSelected));
     }
 
     [Fact]
@@ -689,7 +814,7 @@ public sealed class GameSettingsPageViewModelTests
 
         Assert.False(modManagement.IsMultiSelectMode);
         Assert.Equal(0, modManagement.SelectedModCount);
-        Assert.Single(modManagement.Mods.Where(mod => mod.IsSelected));
+        Assert.All(modManagement.Mods, mod => Assert.False(mod.IsSelected));
         Assert.NotNull(modManagement.SelectedMod);
     }
 
@@ -1727,7 +1852,8 @@ public sealed class GameSettingsPageViewModelTests
         FakeJavaRuntimeDiscoveryService? javaRuntimeDiscoveryService = null,
         FakeFilePickerService? filePickerService = null,
         FakeFloatingMessageService? floatingMessageService = null,
-        IModService? modService = null)
+        IModService? modService = null,
+        ILocalSaveService? saveService = null)
     {
         var instanceService = new FakeGameInstanceService();
         instanceService.CreatedInstances.AddRange(instances);
@@ -1739,7 +1865,8 @@ public sealed class GameSettingsPageViewModelTests
             javaRuntimeDiscoveryService ?? new FakeJavaRuntimeDiscoveryService(),
             filePickerService ?? new FakeFilePickerService(),
             floatingMessageService ?? new FakeFloatingMessageService(),
-            modService ?? new FakeModService());
+            modService ?? new FakeModService(),
+            saveService ?? new FakeSaveService());
     }
 
     private static GameSettingsPageViewModel CreateViewModel(
@@ -1750,9 +1877,11 @@ public sealed class GameSettingsPageViewModelTests
         FakeJavaRuntimeDiscoveryService? javaRuntimeDiscoveryService = null,
         FakeFilePickerService? filePickerService = null,
         FakeFloatingMessageService? floatingMessageService = null,
-        IModService? modService = null)
+        IModService? modService = null,
+        ILocalSaveService? saveService = null)
     {
         var resolvedModService = modService ?? new FakeModService();
+        var resolvedSaveService = saveService ?? new FakeSaveService();
         return new GameSettingsPageViewModel(
             instanceService,
             gameVersionService,
@@ -1761,6 +1890,7 @@ public sealed class GameSettingsPageViewModelTests
             new FakeSystemMemoryService(),
             resolvedModService,
             new LocalModsViewModel(resolvedModService, statusService),
+            new LocalSavesViewModel(resolvedSaveService, statusService),
             javaRuntimeDiscoveryService ?? new FakeJavaRuntimeDiscoveryService(),
             filePickerService ?? new FakeFilePickerService(),
             floatingMessageService ?? new FakeFloatingMessageService());
@@ -1833,6 +1963,23 @@ public sealed class GameSettingsPageViewModelTests
             IsEnabled = isEnabled,
             SizeBytes = 1024,
             Source = "Local"
+        };
+    }
+
+    private static LocalSave CreateLocalSave(
+        string name,
+        string instanceDirectory,
+        string? iconSource = null,
+        DateTimeOffset? createdAt = null)
+    {
+        var fullPath = Path.Combine(instanceDirectory, "saves", name);
+        return new LocalSave
+        {
+            Name = name,
+            DirectoryName = name,
+            FullPath = fullPath,
+            IconSource = iconSource,
+            CreatedAt = createdAt ?? new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
         };
     }
 
@@ -2070,6 +2217,53 @@ public sealed class GameSettingsPageViewModelTests
                 IsEnabled = mod.IsEnabled,
                 SizeBytes = mod.SizeBytes,
                 Source = mod.Source
+            };
+        }
+    }
+
+    private sealed class FakeSaveService : ILocalSaveService
+    {
+        public Dictionary<string, List<LocalSave>> SavesByInstanceId { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public Exception? GetSavesException { get; init; }
+
+        public Task<IReadOnlyList<LocalSave>> GetSavesAsync(GameInstance instance, CancellationToken cancellationToken = default)
+        {
+            if (GetSavesException is not null)
+                throw GetSavesException;
+
+            return Task.FromResult(
+                SavesByInstanceId.TryGetValue(instance.Id, out var saves)
+                    ? (IReadOnlyList<LocalSave>)saves.Select(CloneLocalSave).ToArray()
+                    : (IReadOnlyList<LocalSave>)[]);
+        }
+
+        public Task DeleteAsync(LocalSave save, CancellationToken cancellationToken = default)
+        {
+            foreach (var pair in SavesByInstanceId)
+            {
+                pair.Value.RemoveAll(candidate =>
+                    string.Equals(candidate.FullPath, save.FullPath, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public async Task DeleteAsync(IEnumerable<LocalSave> saves, CancellationToken cancellationToken = default)
+        {
+            foreach (var save in saves)
+                await DeleteAsync(save, cancellationToken);
+        }
+
+        private static LocalSave CloneLocalSave(LocalSave save)
+        {
+            return new LocalSave
+            {
+                Name = save.Name,
+                DirectoryName = save.DirectoryName,
+                FullPath = save.FullPath,
+                IconSource = save.IconSource,
+                CreatedAt = save.CreatedAt
             };
         }
     }

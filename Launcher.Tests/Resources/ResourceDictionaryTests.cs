@@ -251,6 +251,30 @@ public sealed class ResourceDictionaryTests
                 standaloneView.UpdateLayout();
 
                 Assert.Equal("lithium", searchTextBoxes[0].Text);
+
+                detailsViewModel.SetSelectedSection(new GameSettingsDetailSectionItem(
+                    "saves",
+                    Strings.GameSettings_DetailSaves,
+                    "instance_setting_page/saves"));
+                detailsView.UpdateLayout();
+
+                var saveManagementView = FindVisualDescendant<InstanceSaveManagementSettingsView>(detailsView);
+                Assert.NotNull(saveManagementView);
+
+                detailsViewModel.SaveManagement.SaveSearchQuery = "base";
+                var standaloneSaveView = new InstanceSaveManagementSettingsView
+                {
+                    DataContext = detailsViewModel.SaveManagement
+                };
+                standaloneSaveView.ApplyTemplate();
+                standaloneSaveView.Measure(new Size(800, 300));
+                standaloneSaveView.Arrange(new Rect(0, 0, 800, 300));
+                standaloneSaveView.UpdateLayout();
+
+                Assert.NotNull(standaloneSaveView.Content);
+                var saveSearchTextBoxes = FindVisualDescendants<TextBox>(standaloneSaveView).ToArray();
+                Assert.Single(saveSearchTextBoxes);
+                Assert.Equal("base", saveSearchTextBoxes[0].Text);
             }
             catch (Exception ex)
             {
@@ -441,6 +465,7 @@ public sealed class ResourceDictionaryTests
             new StubSystemMemoryService(),
             new StubModService(),
             new LocalModsViewModel(new StubModService(), statusService),
+            new LocalSavesViewModel(new StubSaveService(), statusService),
             new StubJavaRuntimeDiscoveryService(),
             new StubFilePickerService(),
             new StubFloatingMessageService());
@@ -463,6 +488,7 @@ public sealed class ResourceDictionaryTests
             new StubSystemMemoryService(),
             modService,
             new LocalModsViewModel(modService, statusService),
+            new LocalSavesViewModel(new StubSaveService(), statusService),
             new StubJavaRuntimeDiscoveryService(),
             new StubFilePickerService(),
             new StubFloatingMessageService());
@@ -700,6 +726,24 @@ public sealed class ResourceDictionaryTests
         public Task DeleteAsync(LocalMod mod, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
+        }
+    }
+
+    private sealed class StubSaveService : ILocalSaveService
+    {
+        public Task<IReadOnlyList<LocalSave>> GetSavesAsync(GameInstance instance, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<LocalSave>>([]);
+        }
+
+        public Task DeleteAsync(LocalSave save, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAsync(IEnumerable<LocalSave> saves, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
         }
     }
 

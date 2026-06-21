@@ -55,6 +55,7 @@ public partial class App : System.Windows.Application
             services.AddSingleton<InstanceManagementViewModel>();
             services.AddSingleton<LoaderSelectionViewModel>();
             services.AddSingleton<LocalModsViewModel>();
+            services.AddSingleton<LocalSavesViewModel>();
             services.AddSingleton<ModrinthSearchViewModel>();
             services.AddSingleton<GameManagementViewModel>();
             services.AddSingleton<MainViewModel>();
