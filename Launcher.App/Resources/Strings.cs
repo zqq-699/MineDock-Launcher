@@ -163,6 +163,19 @@ public static class Strings
     public static string GameSettings_GeneralOpenInstanceDirectoryButton => Get(nameof(GameSettings_GeneralOpenInstanceDirectoryButton));
     public static string GameSettings_GeneralCreatedAtSection => Get(nameof(GameSettings_GeneralCreatedAtSection));
     public static string GameSettings_DeleteGameButton => Get(nameof(GameSettings_DeleteGameButton));
+    public static string GameSettings_ModManagementInfoSection => Get(nameof(GameSettings_ModManagementInfoSection));
+    public static string GameSettings_ModManagementInstalledSummaryFormat => Get(nameof(GameSettings_ModManagementInstalledSummaryFormat));
+    public static string GameSettings_ModManagementActionsLabel => Get(nameof(GameSettings_ModManagementActionsLabel));
+    public static string GameSettings_ModManagementOpenFolderButton => Get(nameof(GameSettings_ModManagementOpenFolderButton));
+    public static string GameSettings_ModManagementLocalImportButton => Get(nameof(GameSettings_ModManagementLocalImportButton));
+    public static string GameSettings_ModManagementOnlineInstallButton => Get(nameof(GameSettings_ModManagementOnlineInstallButton));
+    public static string GameSettings_ModManagementEnableAllButton => Get(nameof(GameSettings_ModManagementEnableAllButton));
+    public static string GameSettings_ModManagementDisableAllButton => Get(nameof(GameSettings_ModManagementDisableAllButton));
+    public static string GameSettings_ModManagementModListSection => Get(nameof(GameSettings_ModManagementModListSection));
+    public static string GameSettings_ModManagementEmptyMessage => Get(nameof(GameSettings_ModManagementEmptyMessage));
+    public static string GameSettings_ModManagementSearchEmptyMessage => Get(nameof(GameSettings_ModManagementSearchEmptyMessage));
+    public static string GameSettings_ModManagementEnabledState => Get(nameof(GameSettings_ModManagementEnabledState));
+    public static string GameSettings_ModManagementDisabledState => Get(nameof(GameSettings_ModManagementDisabledState));
     public static string GameSettings_LaunchSettingsSection => Get(nameof(GameSettings_LaunchSettingsSection));
     public static string GameSettings_LaunchSettingsModeLabel => Get(nameof(GameSettings_LaunchSettingsModeLabel));
     public static string GameSettings_LaunchSettingsModeUseGlobal => Get(nameof(GameSettings_LaunchSettingsModeUseGlobal));
@@ -359,6 +372,7 @@ public static class Strings
     public static string Status_LocalModImportFileNotFound => Get(nameof(Status_LocalModImportFileNotFound));
     public static string Status_SelectInstanceFirst => Get(nameof(Status_SelectInstanceFirst));
     public static string Status_SearchingModrinth => Get(nameof(Status_SearchingModrinth));
+    public static string Status_LoadLocalModsFailed => Get(nameof(Status_LoadLocalModsFailed));
     public static string Status_ModDownloading => Get(nameof(Status_ModDownloading));
     public static string Status_ModDownloadingFormat => Get(nameof(Status_ModDownloadingFormat));
     public static string Status_ModCompatibleFileNotFound => Get(nameof(Status_ModCompatibleFileNotFound));

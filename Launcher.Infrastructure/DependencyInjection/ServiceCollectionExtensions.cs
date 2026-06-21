@@ -16,6 +16,7 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddLauncherInfrastructure(this IServiceCollection services)
     {
+        services.AddSingleton<LauncherPathProvider>();
         services.AddSingleton<IDownloadSpeedLimitState, DownloadSpeedLimitState>();
         services.AddSingleton<ISettingsService, JsonSettingsService>();
         services.AddSingleton<IGameInstanceRepository, JsonGameInstanceRepository>();

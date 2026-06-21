@@ -59,6 +59,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         IInstanceFolderService instanceFolderService,
         ISystemMemoryService systemMemoryService,
         IModService modService,
+        LocalModsViewModel localModsViewModel,
         IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
         IFilePickerService filePickerService,
         IFloatingMessageService floatingMessageService,
@@ -77,6 +78,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             instanceFolderService,
             systemMemoryService,
             modService,
+            localModsViewModel,
             javaRuntimeDiscoveryService,
             filePickerService,
             floatingMessageService);

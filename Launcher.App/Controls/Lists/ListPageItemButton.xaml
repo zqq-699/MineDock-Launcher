@@ -1,6 +1,7 @@
 ﻿<UserControl x:Class="Launcher.App.Controls.ListPageItemButton"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
              x:Name="Root"
              MouseEnter="Root_MouseEnter"
@@ -21,16 +22,17 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Image Width="{Binding IconWidth, ElementName=Root}"
-                       Height="{Binding IconHeight, ElementName=Root}"
-                       Margin="{Binding IconMargin, ElementName=Root}"
-                       HorizontalAlignment="Left"
-                       VerticalAlignment="Center"
-                       RenderOptions.BitmapScalingMode="{Binding IconScalingMode, ElementName=Root}"
-                       SnapsToDevicePixels="True"
-                       Source="{Binding IconSource, ElementName=Root}">
-                    <Image.Style>
-                        <Style TargetType="Image">
+                <Border Width="{Binding IconWidth, ElementName=Root}"
+                        Height="{Binding IconHeight, ElementName=Root}"
+                        Margin="{Binding IconMargin, ElementName=Root}"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Background="Transparent"
+                        CornerRadius="{StaticResource LauncherCornerRadiusSmall}"
+                        ClipToBounds="True"
+                        behaviors:RoundedClip.Radius="6">
+                    <Border.Style>
+                        <Style TargetType="Border">
                             <Setter Property="Visibility" Value="Visible" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IconSource, ElementName=Root}" Value="{x:Null}">
@@ -38,8 +40,15 @@
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </Image.Style>
-                </Image>
+                    </Border.Style>
+
+                    <Image HorizontalAlignment="Stretch"
+                           VerticalAlignment="Stretch"
+                           Stretch="UniformToFill"
+                           RenderOptions.BitmapScalingMode="{Binding IconScalingMode, ElementName=Root}"
+                           SnapsToDevicePixels="True"
+                           Source="{Binding IconSource, ElementName=Root}" />
+                </Border>
 
                 <controls:SvgIcon Width="{Binding IconWidth, ElementName=Root}"
                                   Height="{Binding IconHeight, ElementName=Root}"
@@ -79,10 +88,11 @@
                                TextTrimming="CharacterEllipsis" />
 
                     <TextBlock Grid.Row="1"
-                               Margin="0,4,0,0"
+                               Margin="0,2,0,0"
                                Text="{Binding Subtitle, ElementName=Root}"
                                Foreground="{Binding SubtitleForeground, ElementName=Root}"
                                FontSize="{Binding SubtitleFontSize, ElementName=Root}"
+                               FontWeight="Normal"
                                TextTrimming="CharacterEllipsis">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">

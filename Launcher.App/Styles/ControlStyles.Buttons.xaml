@@ -29,8 +29,8 @@
     </Style>
 
     <Style x:Key="ListPageItemButtonStyle" TargetType="Button">
-        <Setter Property="MinHeight" Value="58" />
-        <Setter Property="Padding" Value="16,10" />
+        <Setter Property="MinHeight" Value="52" />
+        <Setter Property="Padding" Value="16,8" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.F2F2F2}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />

@@ -1,8 +1,10 @@
-using Launcher.App.Resources;
+﻿using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.ViewModels.GameSettings;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure;
+using Launcher.Infrastructure.FileSystem;
 using Launcher.Infrastructure.Persistence;
 using Launcher.Tests.Helpers;
 
@@ -598,6 +600,242 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task ModManagementDetailsSectionUsesDedicatedViewModel()
+    {
+        var viewModel = CreateViewModel([CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric)]);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var section = viewModel.DetailSections.Single(item => item.Id == "mod_management");
+
+        viewModel.SelectDetailsSectionCommand.Execute(section);
+
+        Assert.True(section.IsSelected);
+        Assert.IsType<InstanceModManagementSettingsViewModel>(viewModel.Details.CurrentSectionViewModel);
+        Assert.Same(viewModel.Details.ModManagement, viewModel.Details.CurrentSectionViewModel);
+        Assert.Equal(Strings.GameSettings_DetailModManagement, viewModel.Details.SectionTitle);
+    }
+
+    [Fact]
+    public async Task ModManagementViewModelLoadsRealModsForSelectedInstance()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var modService = new FakeModService();
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            CreateLocalMod("sodium-fabric-0.5.13.jar", true, instance.InstanceDirectory, loader: "fabric", modId: "sodium", version: "0.5.13"),
+            CreateLocalMod("lithium-fabric-0.14.7.jar", false, instance.InstanceDirectory, loader: "forge", modId: "lithium", version: "0.14.7")
+        ];
+        var viewModel = CreateViewModel([instance], modService: modService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 2);
+
+        var modManagement = viewModel.Details.ModManagement;
+        Assert.Equal(2, modManagement.InstalledModCount);
+        Assert.Equal(1, modManagement.EnabledModCount);
+        Assert.Equal(
+            string.Format(Strings.GameSettings_ModManagementInstalledSummaryFormat, 2, 1),
+            modManagement.InstalledSummaryText);
+        Assert.Equal(
+            ["sodium-fabric-0.5.13", "lithium-fabric-0.14.7"],
+            modManagement.Mods.Select(mod => mod.Title));
+        Assert.Equal(
+            ["fabric-sodium-0.5.13", "forge-lithium-0.14.7"],
+            modManagement.Mods.Select(mod => mod.Subtitle));
+        Assert.Equal(
+            [Strings.GameSettings_ModManagementEnabledState, Strings.GameSettings_ModManagementDisabledState],
+            modManagement.Mods.Select(mod => mod.TrailingText));
+        Assert.True(modManagement.HasMods);
+        Assert.False(modManagement.CanShowModEmptyState);
+        Assert.Same(modManagement.Mods[0], modManagement.SelectedMod);
+
+        modManagement.SelectModCommand.Execute(modManagement.Mods[1]);
+
+        Assert.Same(modManagement.Mods[1], modManagement.SelectedMod);
+        Assert.True(modManagement.Mods[1].IsSelected);
+        Assert.False(modManagement.Mods[0].IsSelected);
+    }
+
+    [Fact]
+    public async Task ModManagementViewModelUsesResolvedIconSourceWhenAvailable()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var modService = new FakeModService();
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            CreateLocalMod(
+                "with-icon.jar",
+                true,
+                instance.InstanceDirectory,
+                "file:///C:/launcher/cache/mod-icon.png",
+                "Pretty Mod Name",
+                "fabric",
+                "pretty-mod",
+                "1.2.3")
+        ];
+        var viewModel = CreateViewModel([instance], modService: modService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 1);
+
+        var mod = Assert.Single(viewModel.Details.ModManagement.Mods);
+        Assert.Equal("Pretty Mod Name", mod.Title);
+        Assert.Equal("fabric-pretty-mod-1.2.3", mod.Subtitle);
+        Assert.Equal("file:///C:/launcher/cache/mod-icon.png", mod.IconSource);
+        Assert.Equal(string.Empty, mod.IconKey);
+    }
+
+    [Fact]
+    public async Task ModManagementOpenFolderCommandOpensInstanceModsDirectory()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var folderService = new FakeInstanceFolderService();
+        var viewModel = CreateViewModel([instance], folderService: folderService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+
+        viewModel.Details.ModManagement.OpenModFolderCommand.Execute(null);
+
+        Assert.Equal(Path.Combine(instance.InstanceDirectory, "mods"), folderService.LastOpenedPath);
+    }
+
+    [Fact]
+    public async Task ModManagementViewModelRefreshesWhenModFolderChanges()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+            instance.InstanceDirectory = Path.Combine(tempRoot, "instances", "fabric-pack");
+            Directory.CreateDirectory(instance.InstanceDirectory);
+            Directory.CreateDirectory(Path.Combine(instance.InstanceDirectory, "mods"));
+
+            var modService = new ModService(new LauncherPathProvider(tempRoot));
+            var viewModel = CreateViewModel([instance], modService: modService);
+
+            await viewModel.EnsureInstancesLoadedAsync();
+            viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+            await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.InstalledModCount == 0);
+
+            CreateModJar(
+                Path.Combine(instance.InstanceDirectory, "mods", "sodium.jar"),
+                """
+                {
+                  "schemaVersion": 1,
+                  "id": "sodium",
+                  "version": "1.0.0",
+                  "name": "Sodium"
+                }
+                """);
+
+            await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 1);
+
+            var mod = Assert.Single(viewModel.Details.ModManagement.Mods);
+            Assert.Equal("Sodium", mod.Title);
+            Assert.Equal("fabric-sodium-1.0.0", mod.Subtitle);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+                Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ModManagementViewModelFallsBackToDefaultIconWhenResolvedIconMissing()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var modService = new FakeModService();
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            CreateLocalMod("without-icon.jar", true, instance.InstanceDirectory)
+        ];
+        var viewModel = CreateViewModel([instance], modService: modService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 1);
+
+        var mod = Assert.Single(viewModel.Details.ModManagement.Mods);
+        Assert.Null(mod.IconSource);
+        Assert.Equal("instance_setting_page/mod", mod.IconKey);
+    }
+
+    [Fact]
+    public async Task ModManagementViewModelShowsEmptyStateWhenNoModsAvailable()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var modService = new FakeModService();
+        modService.ModsByInstanceId[instance.Id] = [];
+        var viewModel = CreateViewModel([instance], modService: modService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.InstalledModCount == 0);
+
+        Assert.Empty(viewModel.Details.ModManagement.Mods);
+        Assert.False(viewModel.Details.ModManagement.HasMods);
+        Assert.True(viewModel.Details.ModManagement.CanShowModEmptyState);
+        Assert.Equal(Strings.GameSettings_ModManagementEmptyMessage, viewModel.Details.ModManagement.ModEmptyMessage);
+    }
+
+    [Fact]
+    public async Task ModManagementViewModelFiltersModsBySearchQueryWithoutChangingSummary()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var modService = new FakeModService();
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            CreateLocalMod("sodium-fabric-0.5.13.jar", true, instance.InstanceDirectory, loader: "fabric", modId: "sodium", version: "0.5.13"),
+            CreateLocalMod("lithium-fabric-0.14.7.jar", false, instance.InstanceDirectory, loader: "fabric", modId: "lithium", version: "0.14.7")
+        ];
+        var viewModel = CreateViewModel([instance], modService: modService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 2);
+
+        viewModel.Details.ModManagement.ModSearchQuery = "sodium";
+
+        Assert.Single(viewModel.Details.ModManagement.Mods);
+        Assert.Equal("sodium-fabric-0.5.13", viewModel.Details.ModManagement.Mods[0].Title);
+        Assert.Equal(2, viewModel.Details.ModManagement.InstalledModCount);
+        Assert.Equal(1, viewModel.Details.ModManagement.EnabledModCount);
+        Assert.False(viewModel.Details.ModManagement.CanShowModEmptyState);
+
+        viewModel.Details.ModManagement.ModSearchQuery = "missing-mod";
+
+        Assert.Empty(viewModel.Details.ModManagement.Mods);
+        Assert.True(viewModel.Details.ModManagement.CanShowModEmptyState);
+        Assert.Equal(Strings.GameSettings_ModManagementSearchEmptyMessage, viewModel.Details.ModManagement.ModEmptyMessage);
+        Assert.Equal(2, viewModel.Details.ModManagement.InstalledModCount);
+        Assert.Equal(1, viewModel.Details.ModManagement.EnabledModCount);
+    }
+
+    [Fact]
+    public async Task ModManagementViewModelReportsFriendlyErrorWhenModLoadFails()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var statusService = new FakeStatusService();
+        var modService = new FakeModService
+        {
+            GetModsException = new InvalidOperationException("mod folder exploded")
+        };
+        var viewModel = CreateViewModel([instance], statusService: statusService, modService: modService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        await TestAsync.WaitForAsync(() => statusService.LastMessage == Strings.Status_LoadLocalModsFailed);
+
+        Assert.Empty(viewModel.Details.ModManagement.Mods);
+        Assert.Equal(Strings.Status_LoadLocalModsFailed, statusService.LastMessage);
+    }
+
+    [Fact]
     public async Task BackToInstanceListCommandReturnsToListStep()
     {
         var viewModel = CreateViewModel([CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla)]);
@@ -1104,7 +1342,8 @@ public sealed class GameSettingsPageViewModelTests
         FakeInstanceFolderService? folderService = null,
         FakeJavaRuntimeDiscoveryService? javaRuntimeDiscoveryService = null,
         FakeFilePickerService? filePickerService = null,
-        FakeFloatingMessageService? floatingMessageService = null)
+        FakeFloatingMessageService? floatingMessageService = null,
+        IModService? modService = null)
     {
         var instanceService = new FakeGameInstanceService();
         instanceService.CreatedInstances.AddRange(instances);
@@ -1115,7 +1354,8 @@ public sealed class GameSettingsPageViewModelTests
             folderService ?? new FakeInstanceFolderService(),
             javaRuntimeDiscoveryService ?? new FakeJavaRuntimeDiscoveryService(),
             filePickerService ?? new FakeFilePickerService(),
-            floatingMessageService ?? new FakeFloatingMessageService());
+            floatingMessageService ?? new FakeFloatingMessageService(),
+            modService ?? new FakeModService());
     }
 
     private static GameSettingsPageViewModel CreateViewModel(
@@ -1125,18 +1365,31 @@ public sealed class GameSettingsPageViewModelTests
         FakeInstanceFolderService folderService,
         FakeJavaRuntimeDiscoveryService? javaRuntimeDiscoveryService = null,
         FakeFilePickerService? filePickerService = null,
-        FakeFloatingMessageService? floatingMessageService = null)
+        FakeFloatingMessageService? floatingMessageService = null,
+        IModService? modService = null)
     {
+        var resolvedModService = modService ?? new FakeModService();
         return new GameSettingsPageViewModel(
             instanceService,
             gameVersionService,
             statusService,
             folderService,
             new FakeSystemMemoryService(),
-            new FakeModService(),
+            resolvedModService,
+            new LocalModsViewModel(resolvedModService, statusService),
             javaRuntimeDiscoveryService ?? new FakeJavaRuntimeDiscoveryService(),
             filePickerService ?? new FakeFilePickerService(),
             floatingMessageService ?? new FakeFloatingMessageService());
+    }
+
+    private static void CreateModJar(string path, string fabricMetadataJson)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using var archive = System.IO.Compression.ZipFile.Open(path, System.IO.Compression.ZipArchiveMode.Create);
+        var entry = archive.CreateEntry("fabric.mod.json");
+        using var stream = entry.Open();
+        using var writer = new StreamWriter(stream);
+        writer.Write(fabricMetadataJson);
     }
 
     private static GameInstance CreateInstance(string name, string minecraftVersion, LoaderKind loader)
@@ -1167,6 +1420,35 @@ public sealed class GameSettingsPageViewModelTests
             executablePath,
             installationDirectory,
             "Test");
+    }
+
+    private static LocalMod CreateLocalMod(
+        string fileName,
+        bool isEnabled,
+        string instanceDirectory,
+        string? iconSource = null,
+        string? displayName = null,
+        string? loader = "fabric",
+        string? modId = null,
+        string? version = "1.2.3")
+    {
+        var directory = isEnabled
+            ? Path.Combine(instanceDirectory, "mods")
+            : Path.Combine(instanceDirectory, "launcher", "disabled-mods");
+        var fullPath = Path.Combine(directory, fileName);
+        return new LocalMod
+        {
+            Name = displayName ?? Path.GetFileNameWithoutExtension(fileName),
+            Loader = loader,
+            ModId = modId ?? Path.GetFileNameWithoutExtension(fileName).Split('-')[0],
+            Version = version,
+            FileName = fileName,
+            FullPath = fullPath,
+            IconSource = iconSource,
+            IsEnabled = isEnabled,
+            SizeBytes = 1024,
+            Source = "Local"
+        };
     }
 
     private sealed class FakeStatusService : IStatusService
@@ -1285,9 +1567,19 @@ public sealed class GameSettingsPageViewModelTests
 
     private sealed class FakeModService : IModService
     {
+        public Dictionary<string, IReadOnlyList<LocalMod>> ModsByInstanceId { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public Exception? GetModsException { get; init; }
+
         public Task<IReadOnlyList<LocalMod>> GetModsAsync(GameInstance instance, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<LocalMod>>([]);
+            if (GetModsException is not null)
+                throw GetModsException;
+
+            return Task.FromResult(
+                ModsByInstanceId.TryGetValue(instance.Id, out var mods)
+                    ? mods
+                    : (IReadOnlyList<LocalMod>)[]);
         }
 
         public Task<LocalMod> ImportAsync(GameInstance instance, string sourceJarPath, CancellationToken cancellationToken = default)

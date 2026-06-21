@@ -212,7 +212,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanApplySelectedAccountSkin))]
     public async Task ApplySelectedAccountSkinAsync()
     {
         var account = accountList.SelectedAccount;
@@ -526,7 +526,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         await RefreshSelectedAccountProfileAsync();
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanApplySelectedCape))]
     public async Task ApplySelectedAccountCapeAsync()
     {
         var account = accountList.SelectedAccount;
@@ -1062,6 +1062,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         OnPropertyChanged(nameof(CanEditSelectedAccountSkinLibraryItem));
         OnPropertyChanged(nameof(CanDeleteSelectedAccountSkin));
         NotifySelectedAccountCapePropertiesChanged();
+        ApplySelectedAccountSkinCommand.NotifyCanExecuteChanged();
         ChangeSelectedAccountSkinModelCommand.NotifyCanExecuteChanged();
         DeleteSelectedAccountSkinCommand.NotifyCanExecuteChanged();
         ChangeAccountSkinModelCommand.NotifyCanExecuteChanged();
@@ -1080,6 +1081,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         OnPropertyChanged(nameof(HasNextAccountCape));
         SelectPreviousAccountCapeCommand.NotifyCanExecuteChanged();
         SelectNextAccountCapeCommand.NotifyCanExecuteChanged();
+        ApplySelectedAccountCapeCommand.NotifyCanExecuteChanged();
     }
 
     private void NotifySelectedAccountSkinPropertiesChanged()

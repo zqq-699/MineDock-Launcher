@@ -98,6 +98,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         IInstanceFolderService instanceFolderService,
         ISystemMemoryService systemMemoryService,
         IModService modService,
+        LocalModsViewModel localModsViewModel,
         IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
         IFilePickerService filePickerService,
         IFloatingMessageService floatingMessageService)
@@ -128,6 +129,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         General = new InstanceGeneralSettingsViewModel(this);
         Launch = new InstanceLaunchSettingsViewModel(this);
         Java = new InstanceJavaSettingsViewModel(this);
+        ModManagement = new InstanceModManagementSettingsViewModel(this, localModsViewModel, statusService, instanceFolderService);
         Placeholder = new InstancePlaceholderSettingsViewModel(this);
         CurrentSectionViewModel = General;
     }
@@ -198,6 +200,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     public InstanceLaunchSettingsViewModel Launch { get; }
 
     public InstanceJavaSettingsViewModel Java { get; }
+
+    public InstanceModManagementSettingsViewModel ModManagement { get; }
 
     public InstancePlaceholderSettingsViewModel Placeholder { get; }
 
@@ -321,6 +325,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             var javaSettingsMode = value?.Instance.JavaSettingsMode ?? LaunchSettingsMode.UseGlobal;
             SelectedInstanceJavaSettingsModeOption = ResolveLaunchSettingsModeOption(javaSettingsMode);
             ApplyJavaSettingsToEditor();
+            _ = ModManagement.SetSelectedInstanceAsync(value?.Instance);
             _ = RefreshEnabledModCountAsync(value?.Instance);
 
             if (mode is LaunchSettingsMode.UseGlobal)
@@ -364,6 +369,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             "general" => General,
             "launch" => Launch,
             "java" => Java,
+            "mod_management" => ModManagement,
             _ => Placeholder
         };
     }

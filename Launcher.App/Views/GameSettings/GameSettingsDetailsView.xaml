@@ -17,6 +17,10 @@
             <views:InstanceJavaSettingsView />
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type gameSettings:InstanceModManagementSettingsViewModel}">
+            <views:InstanceModManagementSettingsView />
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type gameSettings:InstancePlaceholderSettingsViewModel}">
             <views:InstancePlaceholderSettingsView />
         </DataTemplate>

@@ -535,6 +535,7 @@ public sealed class MainViewModelTests
                 new FakeInstanceFolderService(),
                 new FakeSystemMemoryService(),
                 new FakeModService(),
+                new LocalModsViewModel(new FakeModService(), statusService),
                 new FakeJavaRuntimeDiscoveryService(),
                 filePickerService,
                 floatingMessageService),

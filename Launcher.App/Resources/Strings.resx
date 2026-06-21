@@ -390,6 +390,17 @@
   <data name="GameSettings_GeneralOpenInstanceDirectoryButton" xml:space="preserve"><value>打开游戏目录</value></data>
   <data name="GameSettings_GeneralCreatedAtSection" xml:space="preserve"><value>创建时间</value></data>
   <data name="GameSettings_DeleteGameButton" xml:space="preserve"><value>删除游戏</value></data>
+  <data name="GameSettings_ModManagementInfoSection" xml:space="preserve"><value>Mod信息</value></data>
+  <data name="GameSettings_ModManagementInstalledSummaryFormat" xml:space="preserve"><value>当前游戏已安装 {0} 个 mods，已启用 {1} 个</value></data>
+  <data name="GameSettings_ModManagementActionsLabel" xml:space="preserve"><value>操作</value></data>
+  <data name="GameSettings_ModManagementOpenFolderButton" xml:space="preserve"><value>打开 mod 文件夹</value></data>
+  <data name="GameSettings_ModManagementLocalImportButton" xml:space="preserve"><value>本地导入</value></data>
+  <data name="GameSettings_ModManagementOnlineInstallButton" xml:space="preserve"><value>在线安装</value></data>
+  <data name="GameSettings_ModManagementEnableAllButton" xml:space="preserve"><value>全部启用</value></data>
+  <data name="GameSettings_ModManagementDisableAllButton" xml:space="preserve"><value>全部禁用</value></data>
+  <data name="GameSettings_ModManagementModListSection" xml:space="preserve"><value>Mods列表</value></data>
+  <data name="GameSettings_ModManagementEnabledState" xml:space="preserve"><value>已启用</value></data>
+  <data name="GameSettings_ModManagementDisabledState" xml:space="preserve"><value>已禁用</value></data>
   <data name="GameSettings_LaunchSettingsSection" xml:space="preserve"><value>启动设置</value></data>
   <data name="GameSettings_LaunchSettingsModeLabel" xml:space="preserve"><value>设置方式</value></data>
   <data name="GameSettings_LaunchSettingsModeUseGlobal" xml:space="preserve"><value>跟随全局设置</value></data>
@@ -497,4 +508,7 @@
   <data name="Settings_AccentColorPinkTitle" xml:space="preserve"><value>粉色 Pink</value></data>
   <data name="Settings_AccentColorOrangeTitle" xml:space="preserve"><value>橙色 Orange</value></data>
   <data name="Settings_AccentColorAmberTitle" xml:space="preserve"><value>黄色 Amber</value></data>
+  <data name="GameSettings_ModManagementEmptyMessage" xml:space="preserve"><value>当前没有可用mod</value></data>
+  <data name="GameSettings_ModManagementSearchEmptyMessage" xml:space="preserve"><value>没有匹配的mod</value></data>
+  <data name="Status_LoadLocalModsFailed" xml:space="preserve"><value>加载 Mod 列表失败，请稍后重试。</value></data>
 </root>

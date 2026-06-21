@@ -84,19 +84,19 @@ public partial class ListPageItemButton : UserControl
         DependencyProperty.Register(nameof(TrailingMargin), typeof(Thickness), typeof(ListPageItemButton), new PropertyMetadata(new Thickness(12, 0, 24, 0)));
 
     public static readonly DependencyProperty TitleFontSizeProperty =
-        DependencyProperty.Register(nameof(TitleFontSize), typeof(double), typeof(ListPageItemButton), new PropertyMetadata(16d));
+        DependencyProperty.Register(nameof(TitleFontSize), typeof(double), typeof(ListPageItemButton), new PropertyMetadata(15d));
 
     public static readonly DependencyProperty TitleFontWeightProperty =
         DependencyProperty.Register(nameof(TitleFontWeight), typeof(FontWeight), typeof(ListPageItemButton), new PropertyMetadata(FontWeights.SemiBold));
 
     public static readonly DependencyProperty SubtitleFontSizeProperty =
-        DependencyProperty.Register(nameof(SubtitleFontSize), typeof(double), typeof(ListPageItemButton), new PropertyMetadata(12d));
+        DependencyProperty.Register(nameof(SubtitleFontSize), typeof(double), typeof(ListPageItemButton), new PropertyMetadata(11d));
 
     public static readonly DependencyProperty SubtitleForegroundProperty =
         DependencyProperty.Register(nameof(SubtitleForeground), typeof(Brush), typeof(ListPageItemButton), new PropertyMetadata(null));
 
     public static readonly DependencyProperty TrailingFontSizeProperty =
-        DependencyProperty.Register(nameof(TrailingFontSize), typeof(double), typeof(ListPageItemButton), new PropertyMetadata(13d));
+        DependencyProperty.Register(nameof(TrailingFontSize), typeof(double), typeof(ListPageItemButton), new PropertyMetadata(12d));
 
     public static readonly DependencyProperty TrailingForegroundProperty =
         DependencyProperty.Register(nameof(TrailingForeground), typeof(Brush), typeof(ListPageItemButton), new PropertyMetadata(null));

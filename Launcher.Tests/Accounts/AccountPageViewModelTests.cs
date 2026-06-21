@@ -521,6 +521,7 @@ public sealed class AccountPageViewModelTests
         Assert.Null(savedAccount.ActiveSkinId);
         Assert.True(viewModel.Appearance.HasSelectedAccountSkinPreview);
         Assert.True(viewModel.Appearance.CanApplySelectedAccountSkin);
+        Assert.True(viewModel.Appearance.ApplySelectedAccountSkinCommand.CanExecute(null));
     }
 
     [Fact]
@@ -1361,6 +1362,7 @@ public sealed class AccountPageViewModelTests
         Assert.False(viewModel.Appearance.HasPreviousAccountCape);
         Assert.True(viewModel.Appearance.HasNextAccountCape);
         Assert.True(viewModel.Appearance.CanApplySelectedCape);
+        Assert.True(viewModel.Appearance.ApplySelectedAccountCapeCommand.CanExecute(null));
     }
 
     [Fact]
