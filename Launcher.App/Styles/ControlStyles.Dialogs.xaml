@@ -94,19 +94,19 @@
                     <Border x:Name="Root"
                             CornerRadius="10">
                         <Grid>
-                            <Border Background="{DynamicResource Brush.12FFFFFF}"
+                            <Border Background="{DynamicResource Brush.List.Item.Background}"
                                     CornerRadius="10" />
                             <Border x:Name="SelectedBackground"
-                                    Background="{DynamicResource Brush.80686868}"
+                                    Background="{DynamicResource Brush.List.Item.Selected}"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <Border x:Name="SelectedOutline"
-                                    BorderBrush="{DynamicResource Brush.887ABEFF}"
+                                    BorderBrush="{DynamicResource Brush.List.Item.SelectedBorder}"
                                     BorderThickness="2"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <Border x:Name="HoverBackground"
-                                    Background="{DynamicResource Brush.20FFFFFF}"
+                                    Background="{DynamicResource Brush.List.Item.Hover}"
                                     CornerRadius="10"
                                     Opacity="0" />
                             <ContentPresenter Margin="14"
@@ -187,7 +187,7 @@
         <Setter Property="Height" Value="34" />
         <Setter Property="Padding" Value="18,0" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
-        <Setter Property="Background" Value="{DynamicResource Brush.20FFFFFF}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Button.Secondary.Background}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -203,11 +203,11 @@
                                     Background="{TemplateBinding Background}"
                                     CornerRadius="8" />
                             <Border x:Name="HoverBackground"
-                                    Background="{DynamicResource Brush.32FFFFFF}"
+                                    Background="{DynamicResource Brush.Button.Secondary.Hover}"
                                     CornerRadius="8"
                                     Opacity="0" />
                             <Border x:Name="PressedBackground"
-                                    Background="{DynamicResource Brush.50808080}"
+                                    Background="{DynamicResource Brush.Button.Secondary.Pressed}"
                                     CornerRadius="8"
                                     Opacity="0" />
                             <ContentPresenter Margin="{TemplateBinding Padding}"

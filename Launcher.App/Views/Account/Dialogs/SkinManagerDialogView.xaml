@@ -25,19 +25,19 @@
                         <Border x:Name="Root"
                                 CornerRadius="10">
                             <Grid>
-                                <Border Background="{DynamicResource Brush.12FFFFFF}"
+                                <Border Background="{DynamicResource Brush.List.Item.Background}"
                                         CornerRadius="10" />
                                 <Border x:Name="SelectedBackground"
-                                        Background="{DynamicResource Brush.80686868}"
+                                        Background="{DynamicResource Brush.List.Item.Selected}"
                                         CornerRadius="10"
                                         Opacity="0" />
                                 <Border x:Name="SelectedOutline"
-                                        BorderBrush="{DynamicResource Brush.887ABEFF}"
+                                        BorderBrush="{DynamicResource Brush.List.Item.SelectedBorder}"
                                         BorderThickness="2"
                                         CornerRadius="10"
                                         Opacity="0" />
                                 <Border x:Name="HoverBackground"
-                                        Background="{DynamicResource Brush.20FFFFFF}"
+                                        Background="{DynamicResource Brush.List.Item.Hover}"
                                         CornerRadius="10"
                                         Opacity="0" />
                                 <ContentPresenter Margin="8"

@@ -72,7 +72,10 @@ public sealed class ResourceDictionaryTests
                 Assert.Equal("#D9F3F4F6", ((SolidColorBrush)light["Brush.Page.Background"]).Color.ToString());
                 Assert.Equal("#FFFFFFFF", ((SolidColorBrush)light["Brush.Card.Surface"]).Color.ToString());
                 Assert.Equal("#FFF5F6F8", ((SolidColorBrush)light["Brush.Input.TextBox.Background"]).Color.ToString());
+                Assert.Equal("#FFE9EAEC", ((SolidColorBrush)light["Brush.Input.ComboBox.Background"]).Color.ToString());
+                Assert.Equal("#FFE9EAEC", ((SolidColorBrush)light["Brush.Button.Secondary.Background"]).Color.ToString());
                 Assert.Equal("#FFF0F1F3", ((SolidColorBrush)light["Brush.Field.ReadOnly.Surface"]).Color.ToString());
+                Assert.Equal("#FFE8EDF4", ((SolidColorBrush)light["Brush.List.Item.Selected"]).Color.ToString());
             }
             catch (Exception ex)
             {

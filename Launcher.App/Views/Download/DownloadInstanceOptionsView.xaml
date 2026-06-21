@@ -25,10 +25,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.26FFFFFF}" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.List.Item.Hover}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.993D3D3D}" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.List.Item.Selected}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.45" />
@@ -58,10 +58,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.26FFFFFF}" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.List.Item.Hover}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.993D3D3D}" />
+                                <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.List.Item.Selected}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Opacity" Value="0.45" />

@@ -252,6 +252,17 @@
     <Color x:Key="Color.Input.TextBox.BackgroundFocused">#FFFFFFFF</Color>
     <Color x:Key="Color.Input.TextBox.Border">#10000000</Color>
     <Color x:Key="Color.Input.TextBox.BorderFocused">#667ABEFF</Color>
+    <Color x:Key="Color.Input.ComboBox.Background">#FFE9EAEC</Color>
+    <Color x:Key="Color.Input.ComboBox.Hover">#FFE1E4E8</Color>
+    <Color x:Key="Color.Input.ComboBox.Border">#08000000</Color>
+    <Color x:Key="Color.Input.ComboBox.BorderExpanded">#18000000</Color>
+    <Color x:Key="Color.Button.Secondary.Background">#FFE9EAEC</Color>
+    <Color x:Key="Color.Button.Secondary.Hover">#FFE1E4E8</Color>
+    <Color x:Key="Color.Button.Secondary.Pressed">#FFD4D8DE</Color>
+    <Color x:Key="Color.List.Item.Background">#08000000</Color>
+    <Color x:Key="Color.List.Item.Hover">#10000000</Color>
+    <Color x:Key="Color.List.Item.Selected">#FFE8EDF4</Color>
+    <Color x:Key="Color.List.Item.SelectedBorder">#667ABEFF</Color>
     <SolidColorBrush x:Key="Brush.Page.Background" Color="{StaticResource Color.Page.Background}" />
     <SolidColorBrush x:Key="Brush.Card.Surface" Color="{StaticResource Color.Card.Surface}" />
     <SolidColorBrush x:Key="Brush.Card.Border" Color="{StaticResource Color.Card.Border}" />
@@ -261,6 +272,17 @@
     <SolidColorBrush x:Key="Brush.Input.TextBox.BackgroundFocused" Color="{StaticResource Color.Input.TextBox.BackgroundFocused}" />
     <SolidColorBrush x:Key="Brush.Input.TextBox.Border" Color="{StaticResource Color.Input.TextBox.Border}" />
     <SolidColorBrush x:Key="Brush.Input.TextBox.BorderFocused" Color="{StaticResource Color.Input.TextBox.BorderFocused}" />
+    <SolidColorBrush x:Key="Brush.Input.ComboBox.Background" Color="{StaticResource Color.Input.ComboBox.Background}" />
+    <SolidColorBrush x:Key="Brush.Input.ComboBox.Hover" Color="{StaticResource Color.Input.ComboBox.Hover}" />
+    <SolidColorBrush x:Key="Brush.Input.ComboBox.Border" Color="{StaticResource Color.Input.ComboBox.Border}" />
+    <SolidColorBrush x:Key="Brush.Input.ComboBox.BorderExpanded" Color="{StaticResource Color.Input.ComboBox.BorderExpanded}" />
+    <SolidColorBrush x:Key="Brush.Button.Secondary.Background" Color="{StaticResource Color.Button.Secondary.Background}" />
+    <SolidColorBrush x:Key="Brush.Button.Secondary.Hover" Color="{StaticResource Color.Button.Secondary.Hover}" />
+    <SolidColorBrush x:Key="Brush.Button.Secondary.Pressed" Color="{StaticResource Color.Button.Secondary.Pressed}" />
+    <SolidColorBrush x:Key="Brush.List.Item.Background" Color="{StaticResource Color.List.Item.Background}" />
+    <SolidColorBrush x:Key="Brush.List.Item.Hover" Color="{StaticResource Color.List.Item.Hover}" />
+    <SolidColorBrush x:Key="Brush.List.Item.Selected" Color="{StaticResource Color.List.Item.Selected}" />
+    <SolidColorBrush x:Key="Brush.List.Item.SelectedBorder" Color="{StaticResource Color.List.Item.SelectedBorder}" />
     <Color x:Key="Color.SecondaryMenu.Panel">#E8FFFFFF</Color>
     <Color x:Key="Color.SecondaryMenu.Border">#10000000</Color>
     <Color x:Key="Color.SecondaryMenu.Shadow">#08000000</Color>
