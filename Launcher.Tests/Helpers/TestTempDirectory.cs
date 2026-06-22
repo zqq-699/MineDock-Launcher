@@ -1,4 +1,4 @@
-﻿namespace Launcher.Tests.Helpers;
+namespace Launcher.Tests.Helpers;
 
 public abstract class TestTempDirectory : IDisposable
 {
@@ -6,8 +6,28 @@ public abstract class TestTempDirectory : IDisposable
 
     public void Dispose()
     {
+        if (!Directory.Exists(TempRoot))
+            return;
+
+        const int maxAttempts = 5;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                Directory.Delete(TempRoot, recursive: true);
+                return;
+            }
+            catch (IOException) when (attempt < maxAttempts)
+            {
+                Thread.Sleep(50 * attempt);
+            }
+            catch (UnauthorizedAccessException) when (attempt < maxAttempts)
+            {
+                Thread.Sleep(50 * attempt);
+            }
+        }
+
         if (Directory.Exists(TempRoot))
             Directory.Delete(TempRoot, recursive: true);
     }
 }
-

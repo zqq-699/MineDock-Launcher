@@ -19,6 +19,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<LauncherPathProvider>();
         services.AddSingleton<IDownloadSpeedLimitState, DownloadSpeedLimitState>();
+        services.AddSingleton<IImportConcurrencyLimiter>(_ => ImportConcurrencyLimiter.Shared);
         services.AddSingleton<ISettingsService, JsonSettingsService>();
         services.AddSingleton<IGameInstanceRepository, JsonGameInstanceRepository>();
         services.AddSingleton<IGameVersionService, GameVersionService>();
@@ -33,6 +34,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISystemMemoryService, WindowsSystemMemoryService>();
         services.AddSingleton<IModService, ModService>();
         services.AddSingleton<ILocalSaveService, LocalSaveService>();
+        services.AddSingleton<IModpackGameInstaller, ModpackGameInstaller>();
+        services.AddSingleton<IModpackInstanceStagingService, ModpackInstanceStagingService>();
         services.AddSingleton<IModpackPackageService, LocalModpackPackageService>();
         services.AddSingleton<ILocalResourcePackService, LocalResourcePackService>();
         services.AddSingleton<ILocalShaderPackService, LocalShaderPackService>();

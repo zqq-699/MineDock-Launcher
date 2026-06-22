@@ -214,6 +214,77 @@ public sealed class DownloadPageViewModelTests
     }
 
     [Fact]
+    public async Task DownloadPageLocalImportShowsManualDownloadsDialogWhenSomeFilesNeedManualRetry()
+    {
+        var tempFilePath = CreateTempModpackFile(".zip");
+        var instanceDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(instanceDirectory);
+        File.WriteAllText(Path.Combine(instanceDirectory, ModpackManualDownloads.FileName), "stub");
+
+        try
+        {
+            var tasksPage = new DownloadTasksPageViewModel();
+            var instanceFolderService = new FakeInstanceFolderService();
+            var importedInstance = new GameInstance
+            {
+                Id = "imported",
+                Name = "Imported Pack",
+                VersionName = "Imported Pack",
+                MinecraftVersion = "1.20.1",
+                Loader = LoaderKind.Forge,
+                LoaderVersion = "47.4.20",
+                InstanceDirectory = instanceDirectory
+            };
+            var localModpackImportService = new FakeLocalModpackImportService
+            {
+                RecognitionResultToReturn = ModpackRecognitionResult.Success(),
+                ResultToReturn = ModpackImportResult.Success(
+                    importedInstance,
+                    [
+                        new ManualModpackDownload
+                        {
+                            ProjectId = 348025,
+                            FileId = 4436467,
+                            FileName = "SRParasites-1.12.2v1.9.11.jar",
+                            DisplayName = "SRP v 1.9.11",
+                            SuggestedUrl = "https://edge.forgecdn.net/files/4436/467/SRParasites-1.12.2v1.9.11.jar",
+                            FailureSummary = "http_403"
+                        }
+                    ])
+            };
+            var viewModel = CreateDownloadPageViewModel(
+                new FakeGameVersionService([]),
+                tasksPage: tasksPage,
+                localModpackImportService: localModpackImportService,
+                instanceFolderService: instanceFolderService);
+
+            viewModel.LocalImportDialog.Open();
+            Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([tempFilePath]));
+
+            await viewModel.LocalImportDialog.ConfirmImportCommand.ExecuteAsync(null);
+
+            var task = Assert.Single(tasksPage.Tasks);
+            Assert.Equal(DownloadTaskState.Completed, task.State);
+            Assert.Equal(
+                string.Format(Strings.Status_ModpackImportedWithManualDownloadsFormat, importedInstance.Name),
+                task.StatusMessage);
+            Assert.True(viewModel.ModpackManualDownloadsDialog.IsOpen);
+            Assert.Single(viewModel.ModpackManualDownloadsDialog.Files);
+
+            viewModel.ModpackManualDownloadsDialog.OpenFileCommand.Execute(null);
+            Assert.Equal(Path.Combine(instanceDirectory, ModpackManualDownloads.FileName), instanceFolderService.LastRevealedFilePath);
+
+            viewModel.ModpackManualDownloadsDialog.CloseCommand.Execute(null);
+            Assert.False(viewModel.ModpackManualDownloadsDialog.IsOpen);
+        }
+        finally
+        {
+            File.Delete(tempFilePath);
+            Directory.Delete(instanceDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public void DownloadPageLocalImportDropAppliesSingleFileSelection()
     {
         var tempFilePath = CreateTempModpackFile(".zip");
@@ -1486,6 +1557,7 @@ public sealed class DownloadPageViewModelTests
         DownloadTasksPageViewModel? tasksPage = null,
         IEnumerable<ILoaderProvider>? loaderProviders = null,
         IFloatingMessageService? floatingMessageService = null,
+        IInstanceFolderService? instanceFolderService = null,
         IFilePickerService? filePickerService = null,
         ILocalModpackImportService? localModpackImportService = null)
     {
@@ -1496,6 +1568,7 @@ public sealed class DownloadPageViewModelTests
             loaderProviders ?? CreateLoaderProviders(),
             ImmediateUiDispatcher.Instance,
             floatingMessageService ?? new FakeFloatingMessageService(),
+            instanceFolderService ?? new FakeInstanceFolderService(),
             filePickerService ?? new FakeFilePickerService(),
             localModpackImportService ?? new FakeLocalModpackImportService());
     }
@@ -1643,6 +1716,37 @@ public sealed class DownloadPageViewModelTests
                 throw ExceptionToThrow;
 
             return Task.FromResult(ResultToReturn);
+        }
+    }
+
+    private sealed class FakeInstanceFolderService : IInstanceFolderService
+    {
+        public string? LastOpenedPath { get; private set; }
+
+        public string? LastRevealedFilePath { get; private set; }
+
+        public bool DirectoryExists(string folderPath)
+        {
+            return !string.IsNullOrWhiteSpace(folderPath) && Directory.Exists(folderPath);
+        }
+
+        public string EnsureDirectoryExists(string folderPath)
+        {
+            var normalizedFolderPath = Path.GetFullPath(folderPath);
+            Directory.CreateDirectory(normalizedFolderPath);
+            return normalizedFolderPath;
+        }
+
+        public bool TryOpen(string folderPath)
+        {
+            LastOpenedPath = folderPath;
+            return true;
+        }
+
+        public bool TryRevealFile(string filePath)
+        {
+            LastRevealedFilePath = filePath;
+            return true;
         }
     }
 }

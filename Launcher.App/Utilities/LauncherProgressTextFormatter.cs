@@ -17,7 +17,12 @@ internal static class LauncherProgressTextFormatter
             InstallProgressStages.CompletingFiles => Strings.Status_InstallCompletingFiles,
             ImportProgressStages.PreparingArchive => Strings.Status_ModpackPreparingArchive,
             ImportProgressStages.ParsingManifest => Strings.Status_ModpackParsingManifest,
+            ImportProgressStages.ResolvingPackFiles when !string.IsNullOrWhiteSpace(progress.Message)
+                => string.Format(Strings.Status_ModpackResolvingFilesFormat, progress.Message),
+            ImportProgressStages.ResolvingPackFiles => Strings.Status_ModpackResolvingFiles,
             ImportProgressStages.CreatingInstance => Strings.Status_ModpackCreatingInstance,
+            ImportProgressStages.InstallingMinecraftBase => Strings.Status_ModpackInstallingMinecraftBase,
+            ImportProgressStages.InstallingLoader => Strings.Status_ModpackInstallingLoader,
             ImportProgressStages.DownloadingPackFiles when !string.IsNullOrWhiteSpace(progress.Message)
                 => string.Format(Strings.Status_ModpackDownloadingFileFormat, progress.Message),
             ImportProgressStages.DownloadingPackFiles => Strings.Status_ModpackDownloadingFiles,

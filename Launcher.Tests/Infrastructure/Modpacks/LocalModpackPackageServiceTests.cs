@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using Launcher.Application.Services;
+using Launcher.Domain.Models;
 using Launcher.Infrastructure;
 using Launcher.Infrastructure.Modpacks;
 
@@ -237,7 +238,45 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task PrepareAsyncRequiresCurseForgeApiKeyWhenManifestContainsFiles()
+    public async Task PrepareAsyncParsesCurseForgeNeoForgeManifest()
+    {
+        var archivePath = Path.Combine(TempRoot, "curseforge-neoforge.zip");
+        CreateArchive(
+            archivePath,
+            archive =>
+            {
+                AddEntry(
+                    archive,
+                    "manifest.json",
+                    """
+                    {
+                      "name": "NeoForge Curse Pack",
+                      "minecraft": {
+                        "version": "1.20.4",
+                        "modLoaders": [
+                          { "id": "neoforge-20.4.237", "primary": true }
+                        ]
+                      },
+                      "files": []
+                    }
+                    """);
+                AddEntry(archive, "overrides/config/neoforge.txt", "neoforge");
+            });
+        var service = CreateService();
+
+        var prepared = await service.PrepareAsync(archivePath);
+
+        Assert.Equal(ModpackPackageKind.CurseForge, prepared.PackageKind);
+        Assert.Equal("NeoForge Curse Pack", prepared.PackageName);
+        Assert.Equal("1.20.4", prepared.MinecraftVersion);
+        Assert.Equal(LoaderKind.NeoForge, prepared.Loader);
+        Assert.Equal("20.4.237", prepared.LoaderVersion);
+        Assert.NotNull(prepared.OverridesDirectory);
+        Assert.True(File.Exists(Path.Combine(prepared.OverridesDirectory!, "config", "neoforge.txt")));
+    }
+
+    [Fact]
+    public async Task PrepareAsyncDoesNotRequireCurseForgeApiKeyWhenManifestContainsFiles()
     {
         var previousValue = Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
         var previousCurrentDirectory = Directory.GetCurrentDirectory();
@@ -266,8 +305,10 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
 
         try
         {
-            var exception = await Assert.ThrowsAsync<ModpackImportException>(() => service.PrepareAsync(archivePath));
-            Assert.Equal(ModpackImportFailureReason.MissingCurseForgeApiKey, exception.FailureReason);
+            var prepared = await service.PrepareAsync(archivePath);
+            var file = Assert.Single(prepared.Files);
+            Assert.Equal(10, file.ProjectId);
+            Assert.Equal(20, file.FileId);
         }
         finally
         {
@@ -277,7 +318,7 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task PrepareAsyncUsesLocalSecretFileForCurseForgeApiKey()
+    public async Task DownloadFilesAsyncUsesLocalSecretFileForCurseForgeApiKey()
     {
         var previousValue = Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
         var previousCurrentDirectory = Directory.GetCurrentDirectory();
@@ -314,16 +355,202 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         try
         {
             var prepared = await service.PrepareAsync(archivePath);
+            var instanceDirectory = Path.Combine(TempRoot, "instance");
+            Directory.CreateDirectory(instanceDirectory);
+            var instance = new GameInstance
+            {
+                Name = "Curse Pack",
+                VersionName = "Curse Pack",
+                MinecraftVersion = "1.20.1",
+                InstanceDirectory = instanceDirectory
+            };
 
-            var file = Assert.Single(prepared.Files);
+            await service.DownloadFilesAsync(prepared, instance, progress: null);
+
             Assert.Equal(expectedApiKey, handler.LastApiKey);
-            Assert.Equal("example.jar", file.FileName);
-            Assert.Equal("mods/example.jar", file.RelativePath);
-            Assert.Equal("https://example.com/example.jar", file.SourceUrl);
+            Assert.True(File.Exists(Path.Combine(instanceDirectory, "mods", "example.jar")));
         }
         finally
         {
             Directory.SetCurrentDirectory(previousCurrentDirectory);
+            Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", previousValue);
+        }
+    }
+
+    [Fact]
+    public async Task PrepareAsyncKeepsCurseForgeFileReferencesLocalWhenDownloadUrlEndpointWouldNeedFallback()
+    {
+        var previousValue = Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
+        var previousCurrentDirectory = Directory.GetCurrentDirectory();
+        Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", null);
+        Directory.CreateDirectory(TempRoot);
+        Directory.SetCurrentDirectory(TempRoot);
+
+        var archivePath = Path.Combine(TempRoot, "curseforge-cdn-fallback.zip");
+        CreateArchive(
+            archivePath,
+            archive => AddEntry(
+                archive,
+                "manifest.json",
+                """
+                {
+                  "name": "Curse Pack",
+                  "minecraft": {
+                    "version": "1.20.1",
+                    "modLoaders": []
+                  },
+                  "files": [
+                    { "projectID": 348025, "fileID": 4436467 }
+                  ]
+                }
+                """));
+        var handler = new CurseForgeCdnFallbackHandler(
+            metadataJson:
+            """
+            {
+              "data": {
+                "displayName": "SRP v 1.9.11",
+                "fileName": "SRParasites-1.12.2v1.9.11.jar",
+                "downloadUrl": null,
+                "hashes": [
+                  { "algo": 1, "value": "d7dacae2c968388960bf8970080a980ed5c5dcb7" }
+                ]
+              }
+            }
+            """);
+        var service = CreateService(new HttpClient(handler));
+
+        try
+        {
+            var prepared = await service.PrepareAsync(archivePath);
+
+            var file = Assert.Single(prepared.Files);
+            Assert.Equal(348025, file.ProjectId);
+            Assert.Equal(4436467, file.FileId);
+            Assert.Equal("mods", file.TargetDirectory);
+            Assert.Equal(string.Empty, file.SourceUrl);
+            Assert.Equal(string.Empty, file.FileName);
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(previousCurrentDirectory);
+            Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", previousValue);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadFilesAsyncReportsCurseForgeResolutionProgress()
+    {
+        var previousValue = Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
+        var previousCurrentDirectory = Directory.GetCurrentDirectory();
+        Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", null);
+        Directory.CreateDirectory(TempRoot);
+        Directory.SetCurrentDirectory(TempRoot);
+
+        var secretsDirectory = Path.Combine(TempRoot, ".local-secrets");
+        Directory.CreateDirectory(secretsDirectory);
+        await File.WriteAllTextAsync(Path.Combine(secretsDirectory, "curseforge.key"), "local-secret-key");
+
+        var archivePath = Path.Combine(TempRoot, "curseforge-progress.zip");
+        CreateArchive(
+            archivePath,
+            archive => AddEntry(
+                archive,
+                "manifest.json",
+                """
+                {
+                  "name": "Curse Pack",
+                  "minecraft": {
+                    "version": "1.20.1",
+                    "modLoaders": []
+                  },
+                  "files": [
+                    { "projectID": 10, "fileID": 20 }
+                  ]
+                }
+                """));
+        var handler = new CurseForgeMetadataHandler();
+        var service = CreateService(new HttpClient(handler));
+        var progress = new ProgressCollector();
+
+        try
+        {
+            var prepared = await service.PrepareAsync(archivePath);
+            var instanceDirectory = Path.Combine(TempRoot, "instance");
+            Directory.CreateDirectory(instanceDirectory);
+            var instance = new GameInstance
+            {
+                Name = "Curse Pack",
+                VersionName = "Curse Pack",
+                MinecraftVersion = "1.20.1",
+                InstanceDirectory = instanceDirectory
+            };
+
+            await service.DownloadFilesAsync(prepared, instance, progress: progress);
+
+            Assert.Contains(
+                progress.Values,
+                value => value.Stage == ImportProgressStages.ResolvingPackFiles
+                    && value.Message == "1/1"
+                    && value.Percent == 100);
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(previousCurrentDirectory);
+            Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", previousValue);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadFilesAsyncLimitsConcurrentCurseForgeApiRequestsToTwo()
+    {
+        var previousValue = Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
+        Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", "local-secret-key");
+
+        var archivePath = Path.Combine(TempRoot, "curseforge-api-concurrency.zip");
+        CreateArchive(
+            archivePath,
+            archive => AddEntry(
+                archive,
+                "manifest.json",
+                """
+                {
+                  "name": "Curse Pack",
+                  "minecraft": {
+                    "version": "1.20.1",
+                    "modLoaders": []
+                  },
+                  "files": [
+                    { "projectID": 10, "fileID": 20 },
+                    { "projectID": 11, "fileID": 21 },
+                    { "projectID": 12, "fileID": 22 }
+                  ]
+                }
+                """));
+        var handler = new ConcurrentCurseForgeApiHandler();
+        var service = CreateService(new HttpClient(handler));
+
+        try
+        {
+            var prepared = await service.PrepareAsync(archivePath);
+            var instanceDirectory = Path.Combine(TempRoot, "instance");
+            Directory.CreateDirectory(instanceDirectory);
+            var instance = new GameInstance
+            {
+                Name = "Curse Pack",
+                VersionName = "Curse Pack",
+                MinecraftVersion = "1.20.1",
+                InstanceDirectory = instanceDirectory
+            };
+
+            await service.DownloadFilesAsync(prepared, instance, progress: null);
+
+            Assert.Equal(3, prepared.Files.Count);
+            Assert.Equal(2, handler.MaxConcurrentRequests);
+            Assert.Equal(6, handler.RequestCount);
+        }
+        finally
+        {
             Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", previousValue);
         }
     }
@@ -354,6 +581,42 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         var exception = await Assert.ThrowsAsync<ModpackImportException>(() => service.PrepareAsync(archivePath));
 
         Assert.Equal(ModpackImportFailureReason.UnsupportedLoader, exception.FailureReason);
+    }
+
+    [Fact]
+    public async Task PrepareAsyncParsesModrinthNeoForgeManifest()
+    {
+        var archivePath = Path.Combine(TempRoot, "neoforge-pack.mrpack");
+        CreateArchive(
+            archivePath,
+            archive =>
+            {
+                AddEntry(
+                    archive,
+                    "modrinth.index.json",
+                    """
+                    {
+                      "name": "NeoForge Pack",
+                      "dependencies": {
+                        "minecraft": "1.20.4",
+                        "neoforge": "20.4.237"
+                      },
+                      "files": []
+                    }
+                    """);
+                AddEntry(archive, "overrides/config/neoforge-options.txt", "value=true");
+            });
+        var service = CreateService();
+
+        var prepared = await service.PrepareAsync(archivePath);
+
+        Assert.Equal(ModpackPackageKind.Modrinth, prepared.PackageKind);
+        Assert.Equal("NeoForge Pack", prepared.PackageName);
+        Assert.Equal("1.20.4", prepared.MinecraftVersion);
+        Assert.Equal(LoaderKind.NeoForge, prepared.Loader);
+        Assert.Equal("20.4.237", prepared.LoaderVersion);
+        Assert.NotNull(prepared.OverridesDirectory);
+        Assert.True(File.Exists(Path.Combine(prepared.OverridesDirectory!, "config", "neoforge-options.txt")));
     }
 
     [Fact]
@@ -457,6 +720,240 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, "config", "settings.txt")));
     }
 
+    [Fact]
+    public async Task InstallContentAsyncLimitsConcurrentDownloadsToFourFiles()
+    {
+        var handler = new ConcurrentDownloadHandler();
+        var service = CreateService(new HttpClient(handler));
+        var prepared = new PreparedModpack
+        {
+            PackageKind = ModpackPackageKind.Modrinth,
+            SourceArchivePath = Path.Combine(TempRoot, "pack.mrpack"),
+            WorkingDirectory = Path.Combine(TempRoot, "work"),
+            PackageName = "Concurrent Pack",
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Vanilla,
+            Files =
+            [
+                new PreparedModpackDownload { FileName = "mod-1.jar", RelativePath = "mods/mod-1.jar", SourceUrl = "https://example.com/mod-1.jar" },
+                new PreparedModpackDownload { FileName = "mod-2.jar", RelativePath = "mods/mod-2.jar", SourceUrl = "https://example.com/mod-2.jar" },
+                new PreparedModpackDownload { FileName = "mod-3.jar", RelativePath = "mods/mod-3.jar", SourceUrl = "https://example.com/mod-3.jar" },
+                new PreparedModpackDownload { FileName = "mod-4.jar", RelativePath = "mods/mod-4.jar", SourceUrl = "https://example.com/mod-4.jar" },
+                new PreparedModpackDownload { FileName = "mod-5.jar", RelativePath = "mods/mod-5.jar", SourceUrl = "https://example.com/mod-5.jar" }
+            ]
+        };
+        Directory.CreateDirectory(prepared.WorkingDirectory);
+        var instance = new GameInstance
+        {
+            Name = "Concurrent Pack",
+            VersionName = "Concurrent Pack",
+            MinecraftVersion = "1.20.1",
+            InstanceDirectory = Path.Combine(TempRoot, "instance")
+        };
+        Directory.CreateDirectory(instance.InstanceDirectory);
+
+        await service.InstallContentAsync(prepared, instance, progress: null);
+
+        Assert.Equal(5, handler.RequestCount);
+        Assert.Equal(4, handler.MaxConcurrentRequests);
+        Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "mod-1.jar")));
+        Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "mod-5.jar")));
+    }
+
+    [Fact]
+    public async Task InstallContentAsyncAppliesSharedSpeedLimitAcrossParallelDownloads()
+    {
+        var handler = new ConcurrentDownloadHandler(
+            contentFactory: () => new ByteArrayContent(new byte[1024 * 1024]));
+        var service = CreateService(new HttpClient(handler));
+        var prepared = new PreparedModpack
+        {
+            PackageKind = ModpackPackageKind.Modrinth,
+            SourceArchivePath = Path.Combine(TempRoot, "pack.mrpack"),
+            WorkingDirectory = Path.Combine(TempRoot, "work"),
+            PackageName = "Throttled Pack",
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Vanilla,
+            Files =
+            [
+                new PreparedModpackDownload { FileName = "mod-1.jar", RelativePath = "mods/mod-1.jar", SourceUrl = "https://example.com/mod-1.jar" },
+                new PreparedModpackDownload { FileName = "mod-2.jar", RelativePath = "mods/mod-2.jar", SourceUrl = "https://example.com/mod-2.jar" },
+                new PreparedModpackDownload { FileName = "mod-3.jar", RelativePath = "mods/mod-3.jar", SourceUrl = "https://example.com/mod-3.jar" },
+                new PreparedModpackDownload { FileName = "mod-4.jar", RelativePath = "mods/mod-4.jar", SourceUrl = "https://example.com/mod-4.jar" }
+            ]
+        };
+        Directory.CreateDirectory(prepared.WorkingDirectory);
+        var instance = new GameInstance
+        {
+            Name = "Throttled Pack",
+            VersionName = "Throttled Pack",
+            MinecraftVersion = "1.20.1",
+            InstanceDirectory = Path.Combine(TempRoot, "instance")
+        };
+        Directory.CreateDirectory(instance.InstanceDirectory);
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        await service.InstallContentAsync(
+            prepared,
+            instance,
+            progress: null,
+            downloadSpeedLimitMbPerSecond: 2);
+        stopwatch.Stop();
+
+        Assert.Equal(4, handler.RequestCount);
+        Assert.Equal(4, handler.MaxConcurrentRequests);
+        Assert.True(stopwatch.Elapsed >= TimeSpan.FromMilliseconds(1300));
+    }
+
+    [Fact]
+    public async Task InstallContentAsyncKeepsCurseForgeImportAndWritesManualDownloadListWhenAllSourcesFail()
+    {
+        var previousValue = Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
+        var previousCurrentDirectory = Directory.GetCurrentDirectory();
+        Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", null);
+        Directory.CreateDirectory(TempRoot);
+        Directory.SetCurrentDirectory(TempRoot);
+
+        var secretsDirectory = Path.Combine(TempRoot, ".local-secrets");
+        Directory.CreateDirectory(secretsDirectory);
+        await File.WriteAllTextAsync(Path.Combine(secretsDirectory, "curseforge.key"), "local-secret-key");
+
+        var handler = new CurseForgeCdnFallbackHandler(
+            metadataJson:
+            """
+            {
+              "data": {
+                "displayName": "SRP v 1.9.11",
+                "fileName": "SRParasites-1.12.2v1.9.11.jar",
+                "downloadUrl": null,
+                "hashes": [
+                  { "algo": 1, "value": "d7dacae2c968388960bf8970080a980ed5c5dcb7" }
+                ]
+              }
+            }
+            """,
+            edgeStatusCode: HttpStatusCode.Forbidden,
+            mediafilezStatusCode: HttpStatusCode.Forbidden);
+        var service = CreateService(new HttpClient(handler));
+        var prepared = new PreparedModpack
+        {
+            PackageKind = ModpackPackageKind.CurseForge,
+            SourceArchivePath = Path.Combine(TempRoot, "pack.zip"),
+            WorkingDirectory = Path.Combine(TempRoot, "work"),
+            PackageName = "Curse Pack",
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Vanilla,
+            Files =
+            [
+                new PreparedModpackDownload
+                {
+                    ProjectId = 348025,
+                    FileId = 4436467,
+                    TargetDirectory = "mods"
+                }
+            ]
+        };
+        Directory.CreateDirectory(prepared.WorkingDirectory);
+        var instance = new GameInstance
+        {
+            Name = "Curse Pack",
+            VersionName = "Curse Pack",
+            MinecraftVersion = "1.20.1",
+            InstanceDirectory = Path.Combine(TempRoot, "instance")
+        };
+        Directory.CreateDirectory(instance.InstanceDirectory);
+
+        try
+        {
+            await service.InstallContentAsync(prepared, instance, progress: null);
+
+            var manualDownload = Assert.Single(prepared.ManualDownloads);
+            Assert.Equal(348025, manualDownload.ProjectId);
+            Assert.Equal(4436467, manualDownload.FileId);
+            Assert.Equal("SRParasites-1.12.2v1.9.11.jar", manualDownload.FileName);
+            Assert.Equal("https://edge.forgecdn.net/files/4436/467/SRParasites-1.12.2v1.9.11.jar", manualDownload.SuggestedUrl);
+            Assert.NotNull(prepared.ManualDownloadsFilePath);
+            Assert.True(File.Exists(prepared.ManualDownloadsFilePath));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(previousCurrentDirectory);
+            Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", previousValue);
+        }
+    }
+
+    [Fact]
+    public async Task InstallContentAsyncValidatesCurseForgeCdnFallbackDownloads()
+    {
+        var previousValue = Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
+        var previousCurrentDirectory = Directory.GetCurrentDirectory();
+        Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", null);
+        Directory.CreateDirectory(TempRoot);
+        Directory.SetCurrentDirectory(TempRoot);
+
+        var secretsDirectory = Path.Combine(TempRoot, ".local-secrets");
+        Directory.CreateDirectory(secretsDirectory);
+        await File.WriteAllTextAsync(Path.Combine(secretsDirectory, "curseforge.key"), "local-secret-key");
+
+        var handler = new CurseForgeCdnFallbackHandler(
+            metadataJson:
+            """
+            {
+              "data": {
+                "displayName": "SRP v 1.9.11",
+                "fileName": "SRParasites-1.12.2v1.9.11.jar",
+                "downloadUrl": null,
+                "hashes": [
+                  { "algo": 1, "value": "d7dacae2c968388960bf8970080a980ed5c5dcb7" }
+                ]
+              }
+            }
+            """,
+            edgeContent: "wrong-bytes");
+        var service = CreateService(new HttpClient(handler));
+        var prepared = new PreparedModpack
+        {
+            PackageKind = ModpackPackageKind.CurseForge,
+            SourceArchivePath = Path.Combine(TempRoot, "pack.zip"),
+            WorkingDirectory = Path.Combine(TempRoot, "work"),
+            PackageName = "Curse Pack",
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Vanilla,
+            Files =
+            [
+                new PreparedModpackDownload
+                {
+                    ProjectId = 348025,
+                    FileId = 4436467,
+                    TargetDirectory = "mods"
+                }
+            ]
+        };
+        Directory.CreateDirectory(prepared.WorkingDirectory);
+        var instance = new GameInstance
+        {
+            Name = "Curse Pack",
+            VersionName = "Curse Pack",
+            MinecraftVersion = "1.20.1",
+            InstanceDirectory = Path.Combine(TempRoot, "instance")
+        };
+        Directory.CreateDirectory(instance.InstanceDirectory);
+
+        try
+        {
+            await service.InstallContentAsync(prepared, instance, progress: null);
+
+            var manualDownload = Assert.Single(prepared.ManualDownloads);
+            Assert.Equal("hash_mismatch", manualDownload.FailureSummary);
+            Assert.Equal("local-secret-key", handler.LastEdgeApiKey);
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(previousCurrentDirectory);
+            Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", previousValue);
+        }
+    }
+
     private LocalModpackPackageService CreateService(HttpClient? httpClient = null)
     {
         return new LocalModpackPackageService(
@@ -506,30 +1003,220 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         }
     }
 
+    private sealed class ConcurrentDownloadHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpContent> contentFactory;
+        private int requestCount;
+        private int activeRequests;
+        private int maxConcurrentRequests;
+
+        public ConcurrentDownloadHandler(Func<HttpContent>? contentFactory = null)
+        {
+            this.contentFactory = contentFactory
+                ?? (() => new StringContent("downloaded-bytes", Encoding.UTF8, "application/octet-stream"));
+        }
+
+        public int RequestCount => Volatile.Read(ref requestCount);
+
+        public int MaxConcurrentRequests => Volatile.Read(ref maxConcurrentRequests);
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref requestCount);
+            var activeRequestCount = Interlocked.Increment(ref activeRequests);
+            UpdateMaxConcurrentRequests(activeRequestCount);
+
+            try
+            {
+                await Task.Delay(80, cancellationToken);
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = contentFactory()
+                };
+            }
+            finally
+            {
+                Interlocked.Decrement(ref activeRequests);
+            }
+        }
+
+        private void UpdateMaxConcurrentRequests(int activeRequestCount)
+        {
+            while (true)
+            {
+                var currentMax = Volatile.Read(ref maxConcurrentRequests);
+                if (activeRequestCount <= currentMax)
+                    return;
+
+                if (Interlocked.CompareExchange(ref maxConcurrentRequests, activeRequestCount, currentMax) == currentMax)
+                    return;
+            }
+        }
+    }
+
+    private sealed class ConcurrentCurseForgeApiHandler : HttpMessageHandler
+    {
+        private int requestCount;
+        private int activeRequests;
+        private int maxConcurrentRequests;
+
+        public int RequestCount => Volatile.Read(ref requestCount);
+
+        public int MaxConcurrentRequests => Volatile.Read(ref maxConcurrentRequests);
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var shouldTrackConcurrency = string.Equals(request.RequestUri?.Host, "api.curseforge.com", StringComparison.OrdinalIgnoreCase);
+            if (shouldTrackConcurrency)
+            {
+                Interlocked.Increment(ref requestCount);
+                var activeRequestCount = Interlocked.Increment(ref activeRequests);
+                UpdateMaxConcurrentRequests(activeRequestCount);
+            }
+
+            try
+            {
+                await Task.Delay(80, cancellationToken);
+                var content = request.RequestUri?.AbsolutePath.EndsWith("/download-url", StringComparison.OrdinalIgnoreCase) == true
+                    ? """
+                      {
+                        "data": "https://example.com/example.jar"
+                      }
+                      """
+                    : """
+                      {
+                        "data": {
+                          "displayName": "example",
+                          "fileName": "example.jar",
+                          "downloadUrl": "https://example.com/example.jar"
+                        }
+                      }
+                      """;
+
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(content, Encoding.UTF8, "application/json")
+                };
+            }
+            finally
+            {
+                if (shouldTrackConcurrency)
+                    Interlocked.Decrement(ref activeRequests);
+            }
+        }
+
+        private void UpdateMaxConcurrentRequests(int activeRequestCount)
+        {
+            while (true)
+            {
+                var currentMax = Volatile.Read(ref maxConcurrentRequests);
+                if (activeRequestCount <= currentMax)
+                    return;
+
+                if (Interlocked.CompareExchange(ref maxConcurrentRequests, activeRequestCount, currentMax) == currentMax)
+                    return;
+            }
+        }
+    }
+
     private sealed class CurseForgeMetadataHandler : HttpMessageHandler
     {
         public string? LastApiKey { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            LastApiKey = request.Headers.TryGetValues("x-api-key", out var values)
-                ? values.SingleOrDefault()
-                : null;
+            if (request.Headers.TryGetValues("x-api-key", out var values))
+                LastApiKey = values.SingleOrDefault();
+
+            var content = request.RequestUri?.AbsolutePath.EndsWith("/download-url", StringComparison.OrdinalIgnoreCase) == true
+                ? """
+                  {
+                    "data": "https://example.com/example.jar"
+                  }
+                  """
+                : """
+                  {
+                    "data": {
+                      "fileName": "example.jar",
+                      "downloadUrl": "https://example.com/example.jar"
+                    }
+                  }
+                  """;
 
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent(
-                    """
-                    {
-                      "data": {
-                        "fileName": "example.jar",
-                        "downloadUrl": "https://example.com/example.jar"
-                      }
-                    }
-                    """,
-                    Encoding.UTF8,
-                    "application/json")
+                Content = new StringContent(content, Encoding.UTF8, "application/json")
             });
+        }
+    }
+
+    private sealed class CurseForgeCdnFallbackHandler : HttpMessageHandler
+    {
+        private readonly string metadataJson;
+        private readonly HttpStatusCode edgeStatusCode;
+        private readonly HttpStatusCode mediafilezStatusCode;
+        private readonly string edgeContent;
+
+        public CurseForgeCdnFallbackHandler(
+            string metadataJson,
+            HttpStatusCode edgeStatusCode = HttpStatusCode.OK,
+            HttpStatusCode mediafilezStatusCode = HttpStatusCode.OK,
+            string edgeContent = "expected-bytes")
+        {
+            this.metadataJson = metadataJson;
+            this.edgeStatusCode = edgeStatusCode;
+            this.mediafilezStatusCode = mediafilezStatusCode;
+            this.edgeContent = edgeContent;
+        }
+
+        public string? LastEdgeApiKey { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (request.RequestUri is null)
+                throw new InvalidOperationException("RequestUri was not provided.");
+
+            if (request.RequestUri.Host.Equals("api.curseforge.com", StringComparison.OrdinalIgnoreCase))
+            {
+                if (request.RequestUri.AbsolutePath.EndsWith("/download-url", StringComparison.OrdinalIgnoreCase))
+                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
+
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(metadataJson, Encoding.UTF8, "application/json")
+                });
+            }
+
+            if (request.RequestUri.Host.Equals("edge.forgecdn.net", StringComparison.OrdinalIgnoreCase))
+            {
+                LastEdgeApiKey = request.Headers.TryGetValues("x-api-key", out var values)
+                    ? values.SingleOrDefault()
+                    : null;
+                return Task.FromResult(new HttpResponseMessage(edgeStatusCode)
+                {
+                    Content = new StringContent(edgeContent, Encoding.UTF8, "application/octet-stream")
+                });
+            }
+
+            if (request.RequestUri.Host.Equals("mediafilez.forgecdn.net", StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.FromResult(new HttpResponseMessage(mediafilezStatusCode)
+                {
+                    Content = new StringContent("backup-content", Encoding.UTF8, "application/octet-stream")
+                });
+            }
+
+            throw new InvalidOperationException($"Unexpected request URI: {request.RequestUri}");
+        }
+    }
+
+    private sealed class ProgressCollector : IProgress<LauncherProgress>
+    {
+        public List<LauncherProgress> Values { get; } = [];
+
+        public void Report(LauncherProgress value)
+        {
+            Values.Add(value);
         }
     }
 }

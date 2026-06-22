@@ -189,6 +189,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         var bandwidthLimiter = DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
         parameters.HttpClient = new HttpClient(new DownloadSourceRoutingHttpMessageHandler(
             downloadSourcePreference,
+            DownloadConcurrencyCategory.Runtime,
             new HttpClientHandler(),
             logger,
             bandwidthLimiter));
@@ -228,7 +229,8 @@ public sealed class FabricLoaderProvider : ILoaderProvider
             var executor = new MinecraftDownloadRequestExecutor(
                 httpClient,
                 logger,
-                DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState));
+                DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
+                category: DownloadConcurrencyCategory.Metadata);
             using var response = await executor.GetAsync(
                 $"https://meta.fabricmc.net/v2/versions/loader/{minecraftVersion}",
                 downloadSourcePreference,

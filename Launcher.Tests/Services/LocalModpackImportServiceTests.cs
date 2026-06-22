@@ -10,7 +10,11 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
     {
         var instanceService = new FakeGameInstanceService();
         var packageService = new FakeModpackPackageService(CreatePreparedModpack("Recognized Pack"));
-        var service = new LocalModpackImportService(instanceService, packageService);
+        var service = new LocalModpackImportService(
+            instanceService,
+            packageService,
+            new FakeModpackGameInstaller(),
+            new FakeModpackInstanceStagingService(TempRoot));
 
         var result = await service.RecognizeArchiveAsync(Path.Combine(TempRoot, "recognized.mrpack"));
 
@@ -27,7 +31,11 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
         {
             RecognizeResultToReturn = ModpackRecognitionResult.Failure(ModpackRecognitionFailureReason.InvalidManifest)
         };
-        var service = new LocalModpackImportService(instanceService, packageService);
+        var service = new LocalModpackImportService(
+            instanceService,
+            packageService,
+            new FakeModpackGameInstaller(),
+            new FakeModpackInstanceStagingService(TempRoot));
 
         var result = await service.RecognizeArchiveAsync(Path.Combine(TempRoot, "broken.zip"));
 
@@ -41,16 +49,82 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
     {
         var instanceService = new FakeGameInstanceService();
         var packageService = new FakeModpackPackageService(CreatePreparedModpack("Fabric Pack"));
-        var service = new LocalModpackImportService(instanceService, packageService);
+        var installer = new FakeModpackGameInstaller();
+        var stagingService = new FakeModpackInstanceStagingService(TempRoot);
+        var service = new LocalModpackImportService(instanceService, packageService, installer, stagingService);
 
         var result = await service.ImportFromArchiveAsync(Path.Combine(TempRoot, "fabric-pack.mrpack"), progress: null);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("Fabric Pack", instanceService.LastName);
-        Assert.False(instanceService.LastInstallFabricApi);
-        Assert.Equal(1, packageService.InstallContentCallCount);
+        Assert.Equal("Fabric Pack", stagingService.LastResolvedInstanceName);
+        Assert.Equal(1, packageService.DownloadFilesCallCount);
+        Assert.Equal(1, installer.InstallMinecraftBaseCallCount);
+        Assert.Equal(1, installer.InstallLoaderCallCount);
+        Assert.Equal(1, stagingService.FinalizeCallCount);
         Assert.Equal(1, packageService.CleanupCallCount);
         Assert.False(Directory.Exists(packageService.PreparedModpack.WorkingDirectory));
+    }
+
+    [Fact]
+    public async Task LocalModpackImportCreatesNeoForgeInstance()
+    {
+        var instanceService = new FakeGameInstanceService();
+        var packageService = new FakeModpackPackageService(CreatePreparedModpack(
+            "NeoForge Pack",
+            loader: LoaderKind.NeoForge,
+            loaderVersion: "20.4.237",
+            minecraftVersion: "1.20.4"));
+        var installer = new FakeModpackGameInstaller();
+        var stagingService = new FakeModpackInstanceStagingService(TempRoot);
+        var service = new LocalModpackImportService(instanceService, packageService, installer, stagingService);
+
+        var result = await service.ImportFromArchiveAsync(Path.Combine(TempRoot, "neoforge-pack.mrpack"), progress: null);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("NeoForge Pack", stagingService.LastResolvedInstanceName);
+        Assert.Equal(1, installer.InstallMinecraftBaseCallCount);
+        Assert.Equal(1, installer.InstallLoaderCallCount);
+        Assert.Equal(1, stagingService.FinalizeCallCount);
+        Assert.Equal(1, packageService.CleanupCallCount);
+        Assert.False(Directory.Exists(packageService.PreparedModpack.WorkingDirectory));
+    }
+
+    [Fact]
+    public async Task LocalModpackImportReturnsSuccessWithManualDownloadsWhenCurseForgeFilesAreSkipped()
+    {
+        var instanceService = new FakeGameInstanceService();
+        var preparedModpack = CreatePreparedModpack("Curse Pack", ModpackPackageKind.CurseForge);
+        var packageService = new FakeModpackPackageService(preparedModpack)
+        {
+            InstallCallback = prepared =>
+            {
+                prepared.ManualDownloads =
+                [
+                    new ManualModpackDownload
+                    {
+                        ProjectId = 348025,
+                        FileId = 4436467,
+                        FileName = "SRParasites-1.12.2v1.9.11.jar",
+                        DisplayName = "SRP v 1.9.11",
+                        SuggestedUrl = "https://edge.forgecdn.net/files/4436/467/SRParasites-1.12.2v1.9.11.jar",
+                        FailureSummary = "http_403"
+                    }
+                ];
+            }
+        };
+        var service = new LocalModpackImportService(
+            instanceService,
+            packageService,
+            new FakeModpackGameInstaller(),
+            new FakeModpackInstanceStagingService(TempRoot));
+
+        var result = await service.ImportFromArchiveAsync(Path.Combine(TempRoot, "curse-pack.zip"), progress: null);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.IsPartialSuccess);
+        Assert.True(result.HasManualDownloads);
+        Assert.Single(result.ManualDownloads);
+        Assert.Equal(0, instanceService.DeleteCallCount);
     }
 
     [Fact]
@@ -60,12 +134,17 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
         instanceService.CreatedInstances.Add(new GameInstance { Name = "Imported Pack", VersionName = "Imported Pack" });
         instanceService.CreatedInstances.Add(new GameInstance { Name = "Imported Pack (1)", VersionName = "Imported Pack (1)" });
         var packageService = new FakeModpackPackageService(CreatePreparedModpack("Imported Pack"));
-        var service = new LocalModpackImportService(instanceService, packageService);
+        var stagingService = new FakeModpackInstanceStagingService(TempRoot);
+        var service = new LocalModpackImportService(
+            instanceService,
+            packageService,
+            new FakeModpackGameInstaller(),
+            stagingService);
 
         var result = await service.ImportFromArchiveAsync(Path.Combine(TempRoot, "imported-pack.mrpack"), progress: null);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("Imported Pack (2)", instanceService.LastName);
+        Assert.Equal("Imported Pack (2)", stagingService.LastResolvedInstanceName);
     }
 
     [Fact]
@@ -76,13 +155,19 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
         {
             InstallException = new ModpackImportException(ModpackImportFailureReason.HashMismatch, "hash mismatch")
         };
-        var service = new LocalModpackImportService(instanceService, packageService);
+        var stagingService = new FakeModpackInstanceStagingService(TempRoot);
+        var service = new LocalModpackImportService(
+            instanceService,
+            packageService,
+            new FakeModpackGameInstaller(),
+            stagingService);
 
         var result = await service.ImportFromArchiveAsync(Path.Combine(TempRoot, "broken-pack.mrpack"), progress: null);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(ModpackImportFailureReason.HashMismatch, result.FailureReason);
-        Assert.Equal(1, instanceService.DeleteCallCount);
+        Assert.Equal(0, instanceService.DeleteCallCount);
+        Assert.Equal(1, stagingService.CleanupCallCount);
         Assert.Equal(1, packageService.CleanupCallCount);
         Assert.False(Directory.Exists(packageService.PreparedModpack.WorkingDirectory));
     }
@@ -95,7 +180,15 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
             CreateException = new InvalidOperationException("create failed")
         };
         var packageService = new FakeModpackPackageService(CreatePreparedModpack("Create Fail Pack"));
-        var service = new LocalModpackImportService(instanceService, packageService);
+        var stagingService = new FakeModpackInstanceStagingService(TempRoot)
+        {
+            StageException = new InvalidOperationException("create failed")
+        };
+        var service = new LocalModpackImportService(
+            instanceService,
+            packageService,
+            new FakeModpackGameInstaller(),
+            stagingService);
 
         var result = await service.ImportFromArchiveAsync(Path.Combine(TempRoot, "create-fail.mrpack"), progress: null);
 
@@ -116,7 +209,11 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
                 ModpackImportFailureReason.MissingCurseForgeApiKey,
                 "missing key")
         };
-        var service = new LocalModpackImportService(instanceService, packageService);
+        var service = new LocalModpackImportService(
+            instanceService,
+            packageService,
+            new FakeModpackGameInstaller(),
+            new FakeModpackInstanceStagingService(TempRoot));
         var progress = new ProgressCollector();
 
         var result = await service.ImportFromArchiveAsync(
@@ -137,7 +234,11 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
         {
             InstallException = new ModpackImportException(ModpackImportFailureReason.HashMismatch, "hash mismatch")
         };
-        var service = new LocalModpackImportService(instanceService, packageService);
+        var service = new LocalModpackImportService(
+            instanceService,
+            packageService,
+            new FakeModpackGameInstaller(),
+            new FakeModpackInstanceStagingService(TempRoot));
         var progress = new ProgressCollector();
 
         var result = await service.ImportFromArchiveAsync(
@@ -150,19 +251,121 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
         Assert.Equal(1, packageService.CleanupCallCount);
     }
 
-    private PreparedModpack CreatePreparedModpack(string packageName)
+    [Fact]
+    public async Task LocalModpackImportSurfacesPrepareProgressUpdates()
+    {
+        var instanceService = new FakeGameInstanceService();
+        var packageService = new FakeModpackPackageService(CreatePreparedModpack("Progress Pack"))
+        {
+            PrepareCallback = progress => progress?.Report(
+                new LauncherProgress(ImportProgressStages.ResolvingPackFiles, "1/3", 33))
+        };
+        var service = new LocalModpackImportService(
+            instanceService,
+            packageService,
+            new FakeModpackGameInstaller(),
+            new FakeModpackInstanceStagingService(TempRoot));
+        var progress = new ProgressCollector();
+
+        var result = await service.ImportFromArchiveAsync(
+            Path.Combine(TempRoot, "progress-pack.zip"),
+            progress);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(
+            progress.Values,
+            value => value.Stage == ImportProgressStages.ResolvingPackFiles
+                && value.Message == "1/3"
+                && value.Percent is > 5 and < 25);
+    }
+
+    [Fact]
+    public async Task LocalModpackImportReportsMonotonicOverallProgress()
+    {
+        var instanceService = new FakeGameInstanceService
+        {
+            InitialProgress = new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty, 100)
+        };
+        var packageService = new FakeModpackPackageService(CreatePreparedModpack("Overall Progress Pack"))
+        {
+            PrepareCallback = progress => progress?.Report(
+                new LauncherProgress(ImportProgressStages.ResolvingPackFiles, "3/3", 100)),
+            InstallProgressCallback = progress => progress?.Report(
+                new LauncherProgress(ImportProgressStages.DownloadingPackFiles, "final.jar", 100))
+        };
+        var service = new LocalModpackImportService(
+            instanceService,
+            packageService,
+            new FakeModpackGameInstaller(),
+            new FakeModpackInstanceStagingService(TempRoot));
+        var progress = new ProgressCollector();
+
+        var result = await service.ImportFromArchiveAsync(
+            Path.Combine(TempRoot, "overall-progress-pack.zip"),
+            progress);
+
+        Assert.True(result.IsSuccess);
+        var reportedPercents = progress.Values
+            .Where(value => value.Percent is not null)
+            .Select(value => value.Percent!.Value)
+            .ToList();
+
+        Assert.NotEmpty(reportedPercents);
+        Assert.True(reportedPercents.SequenceEqual(reportedPercents.OrderBy(value => value)));
+        Assert.All(reportedPercents, value => Assert.InRange(value, 0, 99));
+    }
+
+    [Fact]
+    public async Task LocalModpackImportDoesNotReachNinetyNinePercentBeforeInstallProgressFinishes()
+    {
+        var instanceService = new FakeGameInstanceService();
+        var installer = new FakeModpackGameInstaller
+        {
+            LoaderInstallProgressToReport = new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty, 10)
+        };
+        var packageService = new FakeModpackPackageService(CreatePreparedModpack("Weighted Progress Pack"))
+        {
+            PrepareCallback = progress => progress?.Report(
+                new LauncherProgress(ImportProgressStages.ResolvingPackFiles, "3/3", 100)),
+            InstallProgressCallback = progress => progress?.Report(
+                new LauncherProgress(ImportProgressStages.DownloadingPackFiles, "final.jar", 100))
+        };
+        var service = new LocalModpackImportService(
+            instanceService,
+            packageService,
+            installer,
+            new FakeModpackInstanceStagingService(TempRoot));
+        var progress = new ProgressCollector();
+
+        var result = await service.ImportFromArchiveAsync(
+            Path.Combine(TempRoot, "weighted-progress-pack.zip"),
+            progress);
+
+        Assert.True(result.IsSuccess);
+        var maxReportedPercent = progress.Values
+            .Where(value => value.Percent is not null)
+            .Max(value => value.Percent!.Value);
+        Assert.InRange(maxReportedPercent, 1, 98.99);
+    }
+
+    private PreparedModpack CreatePreparedModpack(
+        string packageName,
+        ModpackPackageKind packageKind = ModpackPackageKind.Modrinth,
+        LoaderKind loader = LoaderKind.Fabric,
+        string? loaderVersion = "0.16.10",
+        string minecraftVersion = "1.20.1")
     {
         var workingDirectory = Path.Combine(TempRoot, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(workingDirectory);
         return new PreparedModpack
         {
-            PackageKind = ModpackPackageKind.Modrinth,
+            PackageKind = packageKind,
             SourceArchivePath = Path.Combine(TempRoot, $"{packageName}.mrpack"),
             WorkingDirectory = workingDirectory,
             PackageName = packageName,
-            MinecraftVersion = "1.20.1",
-            Loader = LoaderKind.Fabric,
-            LoaderVersion = "0.16.10"
+            MinecraftVersion = minecraftVersion,
+            Loader = loader,
+            LoaderVersion = loader is LoaderKind.Vanilla ? null : loaderVersion
         };
     }
 
@@ -179,9 +382,17 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
 
         public Exception? PrepareException { get; init; }
 
+        public Action<PreparedModpack>? InstallCallback { get; init; }
+
+        public Action<IProgress<LauncherProgress>?>? PrepareCallback { get; init; }
+
+        public Action<IProgress<LauncherProgress>?>? InstallProgressCallback { get; init; }
+
         public ModpackRecognitionResult RecognizeResultToReturn { get; init; } = ModpackRecognitionResult.Success();
 
         public int InstallContentCallCount { get; private set; }
+
+        public int DownloadFilesCallCount { get; private set; }
 
         public int CleanupCallCount { get; private set; }
 
@@ -195,11 +406,15 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
             return Task.FromResult(RecognizeResultToReturn);
         }
 
-        public Task<PreparedModpack> PrepareAsync(string archivePath, CancellationToken cancellationToken = default)
+        public Task<PreparedModpack> PrepareAsync(
+            string archivePath,
+            CancellationToken cancellationToken = default,
+            IProgress<LauncherProgress>? progress = null)
         {
             if (PrepareException is not null)
                 throw PrepareException;
 
+            PrepareCallback?.Invoke(progress);
             return Task.FromResult(PreparedModpack);
         }
 
@@ -215,7 +430,51 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
             if (InstallException is not null)
                 throw InstallException;
 
+            InstallProgressCallback?.Invoke(progress);
+            InstallCallback?.Invoke(preparedModpack);
             return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<ManualModpackDownload>> DownloadFilesAsync(
+            PreparedModpack preparedModpack,
+            GameInstance instance,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            DownloadFilesCallCount++;
+            InstallContentCallCount++;
+            if (InstallException is not null)
+                throw InstallException;
+
+            InstallProgressCallback?.Invoke(progress);
+            InstallCallback?.Invoke(preparedModpack);
+            return Task.FromResult(preparedModpack.ManualDownloads);
+        }
+
+        public Task CopyOverridesAsync(
+            PreparedModpack preparedModpack,
+            GameInstance instance,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task<string?> WriteManualDownloadsFileAsync(
+            PreparedModpack preparedModpack,
+            GameInstance instance,
+            IReadOnlyList<ManualModpackDownload> manualDownloads,
+            CancellationToken cancellationToken = default)
+        {
+            if (manualDownloads.Count <= 0)
+                return Task.FromResult<string?>(null);
+
+            Directory.CreateDirectory(instance.InstanceDirectory);
+            var filePath = Path.Combine(instance.InstanceDirectory, ModpackManualDownloads.FileName);
+            File.WriteAllText(filePath, "stub");
+            return Task.FromResult<string?>(filePath);
         }
 
         public Task CleanupAsync(PreparedModpack preparedModpack, CancellationToken cancellationToken = default)
@@ -235,6 +494,123 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
         public void Report(LauncherProgress value)
         {
             Values.Add(value);
+        }
+    }
+
+    private sealed class FakeModpackGameInstaller : IModpackGameInstaller
+    {
+        public int InstallMinecraftBaseCallCount { get; private set; }
+
+        public int InstallLoaderCallCount { get; private set; }
+
+        public LauncherProgress? BaseInstallProgressToReport { get; init; }
+
+        public LauncherProgress? LoaderInstallProgressToReport { get; init; }
+
+        public Task InstallMinecraftBaseAsync(
+            string minecraftVersion,
+            string gameDirectory,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            InstallMinecraftBaseCallCount++;
+            progress?.Report(BaseInstallProgressToReport ?? new LauncherProgress(InstallProgressStages.Preparing, string.Empty, 50));
+            return Task.CompletedTask;
+        }
+
+        public Task<string> InstallLoaderAsync(
+            string minecraftVersion,
+            LoaderKind loader,
+            string? loaderVersion,
+            string gameDirectory,
+            string isolatedVersionName,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            InstallLoaderCallCount++;
+            progress?.Report(LoaderInstallProgressToReport ?? new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty, 100));
+            return Task.FromResult(isolatedVersionName);
+        }
+
+        public Task<string> InstallInstanceAsync(
+            string minecraftVersion,
+            LoaderKind loader,
+            string? loaderVersion,
+            string gameDirectory,
+            string isolatedVersionName,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            return Task.FromResult(isolatedVersionName);
+        }
+    }
+
+    private sealed class FakeModpackInstanceStagingService(string tempRoot) : IModpackInstanceStagingService
+    {
+        public string? LastResolvedInstanceName { get; private set; }
+
+        public int FinalizeCallCount { get; private set; }
+
+        public int CleanupCallCount { get; private set; }
+
+        public Exception? StageException { get; init; }
+
+        public Task<StagedModpackInstance> StageAsync(
+            PreparedModpack preparedModpack,
+            string resolvedInstanceName,
+            CancellationToken cancellationToken = default)
+        {
+            if (StageException is not null)
+                throw StageException;
+
+            LastResolvedInstanceName = resolvedInstanceName;
+            var instanceDirectory = Path.Combine(preparedModpack.WorkingDirectory, "instance-content");
+            Directory.CreateDirectory(instanceDirectory);
+            return Task.FromResult(new StagedModpackInstance
+            {
+                ResolvedInstanceName = resolvedInstanceName,
+                MinecraftDirectory = tempRoot,
+                StagingContentDirectory = instanceDirectory,
+                Instance = new GameInstance
+                {
+                    Name = resolvedInstanceName,
+                    MinecraftVersion = preparedModpack.MinecraftVersion,
+                    Loader = preparedModpack.Loader,
+                    LoaderVersion = preparedModpack.LoaderVersion,
+                    VersionName = resolvedInstanceName,
+                    InstanceDirectory = instanceDirectory
+                }
+            });
+        }
+
+        public Task<GameInstance> FinalizeAsync(
+            StagedModpackInstance stagedInstance,
+            string finalVersionName,
+            CancellationToken cancellationToken = default)
+        {
+            FinalizeCallCount++;
+            stagedInstance.Instance.VersionName = finalVersionName;
+            stagedInstance.Instance.InstanceDirectory = Path.Combine(tempRoot, finalVersionName);
+            Directory.CreateDirectory(stagedInstance.Instance.InstanceDirectory);
+            return Task.FromResult(stagedInstance.Instance);
+        }
+
+        public Task CleanupFailedImportAsync(
+            StagedModpackInstance stagedInstance,
+            string? finalVersionName,
+            CancellationToken cancellationToken = default)
+        {
+            CleanupCallCount++;
+            if (Directory.Exists(stagedInstance.StagingContentDirectory))
+                Directory.Delete(stagedInstance.StagingContentDirectory, recursive: true);
+
+            return Task.CompletedTask;
         }
     }
 }

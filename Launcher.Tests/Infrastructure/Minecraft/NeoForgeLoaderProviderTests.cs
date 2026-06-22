@@ -110,6 +110,29 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task NeoForgeLoaderProviderInstallDoesNotCreateRealVanillaBaseDirectoryWhenMissing()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+
+        var provider = CreateProvider(new ScriptedForgeInstallerRunner((gameDirectory, _, _) =>
+        {
+            return CreateSandboxNeoForgeInstallAsync(gameDirectory, "neoforge-20.4.237", "1.20.4", "20.4.237");
+        }));
+
+        var finalVersionName = await provider.InstallAsync(
+            "1.20.4",
+            minecraftDirectory,
+            "Imported NeoForge Pack",
+            "20.4.237",
+            progress: null);
+
+        Assert.Equal("Imported NeoForge Pack", finalVersionName);
+        Assert.False(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "1.20.4")));
+        Assert.False(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "neoforge-20.4.237")));
+        Assert.True(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "Imported NeoForge Pack")));
+    }
+
+    [Fact]
     public async Task NeoForgeLoaderProviderInstallCleansCreatedVersionDirectoriesWhenInstallerFails()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");

@@ -119,7 +119,8 @@ internal static class VanillaVersionComposer
         var executor = new MinecraftDownloadRequestExecutor(
             httpClient,
             logger,
-            DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState));
+            DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
+            category: DownloadConcurrencyCategory.Runtime);
         using var jarResponse = await executor.GetAsync(
             clientUrl,
             downloadSourcePreference,

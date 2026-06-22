@@ -24,6 +24,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
     private readonly DownloadTasksPageViewModel downloadTasksPage;
     private readonly IUiDispatcher uiDispatcher;
     private readonly IFloatingMessageService floatingMessageService;
+    private readonly DownloadModpackManualDownloadsDialogViewModel modpackManualDownloadsDialog;
     private readonly ILogger<DownloadLocalImportDialogViewModel> logger;
     private DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto;
     private int downloadSpeedLimitMbPerSecond;
@@ -52,6 +53,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
         DownloadTasksPageViewModel downloadTasksPage,
         IUiDispatcher uiDispatcher,
         IFloatingMessageService floatingMessageService,
+        DownloadModpackManualDownloadsDialogViewModel modpackManualDownloadsDialog,
         ILogger<DownloadLocalImportDialogViewModel>? logger = null)
     {
         this.filePickerService = filePickerService;
@@ -59,6 +61,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
         this.downloadTasksPage = downloadTasksPage;
         this.uiDispatcher = uiDispatcher;
         this.floatingMessageService = floatingMessageService;
+        this.modpackManualDownloadsDialog = modpackManualDownloadsDialog;
         this.logger = logger ?? NullLogger<DownloadLocalImportDialogViewModel>.Instance;
     }
 
@@ -188,7 +191,16 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
 
             if (result.IsSuccess && result.ImportedInstance is not null)
             {
-                importTask.Complete(string.Format(Strings.Status_ModpackImportedFormat, result.ImportedInstance.Name));
+                if (result.HasManualDownloads)
+                {
+                    importTask.Complete(string.Format(Strings.Status_ModpackImportedWithManualDownloadsFormat, result.ImportedInstance.Name));
+                    ExecuteOnUiThread(() => modpackManualDownloadsDialog.Show(result.ImportedInstance, result.ManualDownloads));
+                }
+                else
+                {
+                    importTask.Complete(string.Format(Strings.Status_ModpackImportedFormat, result.ImportedInstance.Name));
+                }
+
                 ModpackImported?.Invoke(this, result.ImportedInstance);
                 return;
             }

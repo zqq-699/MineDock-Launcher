@@ -1,5 +1,6 @@
 using System.IO;
 using System.IO.Compression;
+using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -16,23 +17,32 @@ public sealed class LocalModpackPackageService : IModpackPackageService
     private const string CurseForgeApiKeyEnvironmentVariable = "CURSEFORGE_API_KEY";
     private const string LocalSecretsDirectoryName = ".local-secrets";
     private const string CurseForgeApiKeyFileName = "curseforge.key";
+    private static readonly HashSet<string> CurseForgeDownloadHosts =
+    [
+        "api.curseforge.com",
+        "edge.forgecdn.net",
+        "mediafilez.forgecdn.net"
+    ];
     private readonly HttpClient httpClient;
     private readonly LauncherPathProvider pathProvider;
     private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
+    private readonly IImportConcurrencyLimiter limiter;
     private readonly CurseForgeApiClient curseForgeApiClient;
     private readonly ILogger<LocalModpackPackageService> logger;
 
     public LocalModpackPackageService(
         LauncherPathProvider pathProvider,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
+        IImportConcurrencyLimiter? limiter = null,
         HttpClient? httpClient = null,
         CurseForgeApiClient? curseForgeApiClient = null,
         ILogger<LocalModpackPackageService>? logger = null)
     {
         this.pathProvider = pathProvider;
         this.downloadSpeedLimitState = downloadSpeedLimitState;
+        this.limiter = limiter ?? ImportConcurrencyLimiter.Shared;
         this.httpClient = httpClient ?? new HttpClient();
-        this.curseForgeApiClient = curseForgeApiClient ?? new CurseForgeApiClient(this.httpClient);
+        this.curseForgeApiClient = curseForgeApiClient ?? new CurseForgeApiClient(this.httpClient, this.limiter);
         this.logger = logger ?? NullLogger<LocalModpackPackageService>.Instance;
     }
 
@@ -69,7 +79,8 @@ public sealed class LocalModpackPackageService : IModpackPackageService
 
     public async Task<PreparedModpack> PrepareAsync(
         string archivePath,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<LauncherProgress>? progress = null)
     {
         var normalizedArchivePath = Path.GetFullPath(archivePath);
         if (!File.Exists(normalizedArchivePath))
@@ -96,7 +107,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             return Path.GetExtension(normalizedArchivePath).ToLowerInvariant() switch
             {
                 ".mrpack" => await PrepareModrinthAsync(normalizedArchivePath, workingDirectory, cancellationToken).ConfigureAwait(false),
-                ".zip" => await PrepareZipAsync(normalizedArchivePath, workingDirectory, cancellationToken).ConfigureAwait(false),
+                ".zip" => await PrepareZipAsync(normalizedArchivePath, workingDirectory, cancellationToken, progress).ConfigureAwait(false),
                 _ => throw new ModpackImportException(
                     ModpackImportFailureReason.UnsupportedArchive,
                     $"Unsupported modpack archive type: {normalizedArchivePath}")
@@ -109,7 +120,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         }
     }
 
-    public async Task InstallContentAsync(
+    public async Task<IReadOnlyList<ManualModpackDownload>> DownloadFilesAsync(
         PreparedModpack preparedModpack,
         GameInstance instance,
         IProgress<LauncherProgress>? progress,
@@ -120,30 +131,101 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         ArgumentNullException.ThrowIfNull(preparedModpack);
         ArgumentNullException.ThrowIfNull(instance);
 
-        var completedCount = 0;
+        var curseForgeApiKey = preparedModpack.PackageKind is ModpackPackageKind.CurseForge
+            ? GetCurseForgeApiKey()
+            : null;
         var totalCount = preparedModpack.Files.Count;
-        foreach (var file in preparedModpack.Files)
-        {
-            progress?.Report(new LauncherProgress(
-                ImportProgressStages.DownloadingPackFiles,
-                file.FileName,
-                totalCount == 0 ? null : completedCount * 100d / totalCount));
+        if (totalCount <= 0)
+            return [];
 
-            await DownloadPackFileAsync(
+        var resolutionProgressState = new PackDownloadProgressState();
+        var downloadProgressState = new PackDownloadProgressState();
+        var manualDownloadsByIndex = new ManualModpackDownload?[totalCount];
+        progress?.Report(new LauncherProgress(ImportProgressStages.ResolvingPackFiles, $"0/{totalCount}", 0));
+        progress?.Report(new LauncherProgress(ImportProgressStages.DownloadingPackFiles, string.Empty, 0));
+
+        var fileTasks = preparedModpack.Files
+            .Select((file, index) => ProcessPackFileAsync(
                 preparedModpack,
                 file,
+                index,
                 instance,
+                curseForgeApiKey,
                 downloadSpeedLimitMbPerSecond,
-                cancellationToken).ConfigureAwait(false);
-            completedCount++;
+                totalCount,
+                progress,
+                cancellationToken,
+                manualDownloadsByIndex,
+                resolutionProgressState,
+                downloadProgressState))
+            .ToArray();
+
+        await Task.WhenAll(fileTasks).ConfigureAwait(false);
+
+        return manualDownloadsByIndex
+            .Where(download => download is not null)
+            .Cast<ManualModpackDownload>()
+            .ToList();
+    }
+
+    public Task CopyOverridesAsync(
+        PreparedModpack preparedModpack,
+        GameInstance instance,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(preparedModpack);
+        ArgumentNullException.ThrowIfNull(instance);
+
+        if (string.IsNullOrWhiteSpace(preparedModpack.OverridesDirectory)
+            || !Directory.Exists(preparedModpack.OverridesDirectory))
+        {
+            return Task.CompletedTask;
         }
 
-        if (!string.IsNullOrWhiteSpace(preparedModpack.OverridesDirectory)
-            && Directory.Exists(preparedModpack.OverridesDirectory))
-        {
-            progress?.Report(new LauncherProgress(ImportProgressStages.CopyingOverrides, string.Empty));
-            CopyOverrides(preparedModpack.OverridesDirectory, instance.InstanceDirectory);
-        }
+        progress?.Report(new LauncherProgress(ImportProgressStages.CopyingOverrides, string.Empty, 100));
+        CopyOverrides(preparedModpack.OverridesDirectory, instance.InstanceDirectory);
+        return Task.CompletedTask;
+    }
+
+    public Task<string?> WriteManualDownloadsFileAsync(
+        PreparedModpack preparedModpack,
+        GameInstance instance,
+        IReadOnlyList<ManualModpackDownload> manualDownloads,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(preparedModpack);
+        ArgumentNullException.ThrowIfNull(instance);
+        ArgumentNullException.ThrowIfNull(manualDownloads);
+
+        var filePath = manualDownloads.Count > 0
+            ? WriteManualDownloadsFile(instance, preparedModpack, manualDownloads)
+            : null;
+        return Task.FromResult(filePath);
+    }
+
+    public async Task InstallContentAsync(
+        PreparedModpack preparedModpack,
+        GameInstance instance,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken = default,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        int downloadSpeedLimitMbPerSecond = 0)
+    {
+        var manualDownloads = await DownloadFilesAsync(
+            preparedModpack,
+            instance,
+            progress,
+            cancellationToken,
+            downloadSourcePreference,
+            downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
+        await CopyOverridesAsync(preparedModpack, instance, progress, cancellationToken).ConfigureAwait(false);
+        preparedModpack.ManualDownloads = manualDownloads;
+        preparedModpack.ManualDownloadsFilePath = await WriteManualDownloadsFileAsync(
+            preparedModpack,
+            instance,
+            manualDownloads,
+            cancellationToken).ConfigureAwait(false);
     }
 
     public Task CleanupAsync(
@@ -221,7 +303,8 @@ public sealed class LocalModpackPackageService : IModpackPackageService
     private async Task<PreparedModpack> PrepareZipAsync(
         string archivePath,
         string workingDirectory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<LauncherProgress>? progress)
     {
         using var stream = File.OpenRead(archivePath);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
@@ -236,7 +319,8 @@ public sealed class LocalModpackPackageService : IModpackPackageService
                 archive,
                 archivePath,
                 workingDirectory,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken,
+                progress).ConfigureAwait(false);
         }
 
         var embeddedMrpackEntries = archive.Entries
@@ -416,7 +500,8 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         ZipArchive archive,
         string sourceArchivePath,
         string workingDirectory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<LauncherProgress>? progress)
     {
         var manifestEntry = archive.Entries.FirstOrDefault(entry =>
             string.Equals(
@@ -437,7 +522,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             var minecraft = GetRequiredObject(manifest.RootElement, "minecraft");
             var minecraftVersion = GetRequiredString(minecraft, "version");
             var (loader, loaderVersion) = ParseCurseForgeLoader(minecraft);
-            var downloads = await ParseCurseForgeFilesAsync(manifest.RootElement, cancellationToken).ConfigureAwait(false);
+            var downloads = ParseCurseForgeFiles(manifest.RootElement);
             var overridesDirectory = ExtractCurseForgeOverrides(archive, workingDirectory, cancellationToken);
 
             return new PreparedModpack
@@ -522,15 +607,12 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         }
     }
 
-    private async Task<IReadOnlyList<PreparedModpackDownload>> ParseCurseForgeFilesAsync(
-        JsonElement root,
-        CancellationToken cancellationToken)
+    private static IReadOnlyList<PreparedModpackDownload> ParseCurseForgeFiles(JsonElement root)
     {
         if (!root.TryGetProperty("files", out var files) || files.ValueKind != JsonValueKind.Array)
             return [];
 
-        string? apiKey = null;
-        var downloads = new List<PreparedModpackDownload>();
+        var manifestFiles = new List<PreparedModpackDownload>(files.GetArrayLength());
         foreach (var file in files.EnumerateArray())
         {
             if (!file.TryGetProperty("projectID", out var projectIdProperty)
@@ -543,19 +625,29 @@ public sealed class LocalModpackPackageService : IModpackPackageService
                     "CurseForge manifest file entry is missing projectID or fileID.");
             }
 
-            apiKey ??= GetCurseForgeApiKey();
-            var resolvedFile = await curseForgeApiClient
-                .GetFileDownloadAsync(projectId, fileId, apiKey, cancellationToken)
-                .ConfigureAwait(false);
-            downloads.Add(new PreparedModpackDownload
+            manifestFiles.Add(new PreparedModpackDownload
             {
-                FileName = resolvedFile.FileName,
-                RelativePath = $"mods/{resolvedFile.FileName}",
-                SourceUrl = resolvedFile.DownloadUrl
+                ProjectId = projectId,
+                FileId = fileId,
+                TargetDirectory = "mods"
             });
         }
 
-        return downloads;
+        return manifestFiles;
+    }
+
+    private static void ReportCurseForgeResolutionProgress(
+        IProgress<LauncherProgress>? progress,
+        int completedCount,
+        int totalCount)
+    {
+        if (progress is null || totalCount <= 0)
+            return;
+
+        progress.Report(new LauncherProgress(
+            ImportProgressStages.ResolvingPackFiles,
+            $"{completedCount}/{totalCount}",
+            completedCount * 100d / totalCount));
     }
 
     private static string? ExtractModrinthOverrides(
@@ -610,20 +702,161 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         return extractedAny ? overridesDirectory : null;
     }
 
-    private async Task DownloadPackFileAsync(
+    private async Task ProcessPackFileAsync(
         PreparedModpack preparedModpack,
         PreparedModpackDownload file,
+        int fileIndex,
         GameInstance instance,
+        string? curseForgeApiKey,
+        int downloadSpeedLimitMbPerSecond,
+        int totalCount,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken,
+        ManualModpackDownload?[] manualDownloadsByIndex,
+        PackDownloadProgressState resolutionProgressState,
+        PackDownloadProgressState downloadProgressState)
+    {
+        try
+        {
+            var resolution = await ResolvePackFileAsync(
+                preparedModpack,
+                file,
+                totalCount,
+                progress,
+                resolutionProgressState,
+                curseForgeApiKey,
+                cancellationToken).ConfigureAwait(false);
+
+            if (resolution.ManualDownload is not null)
+            {
+                manualDownloadsByIndex[fileIndex] = resolution.ManualDownload;
+                return;
+            }
+
+            if (resolution.Download is null)
+                throw new InvalidOperationException("Resolved modpack download was unexpectedly missing.");
+
+            ReportPackDownloadProgress(progress, resolution.Download.FileName, downloadProgressState.ReadCompletedCount(), totalCount);
+            manualDownloadsByIndex[fileIndex] = await DownloadResolvedPackFileAsync(
+                preparedModpack,
+                resolution.Download,
+                instance,
+                curseForgeApiKey,
+                downloadSpeedLimitMbPerSecond,
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            var completedCount = downloadProgressState.IncrementCompletedCount();
+            ReportPackDownloadProgress(progress, file.FileName, completedCount, totalCount);
+        }
+    }
+
+    private async Task<PackFileResolution> ResolvePackFileAsync(
+        PreparedModpack preparedModpack,
+        PreparedModpackDownload file,
+        int totalCount,
+        IProgress<LauncherProgress>? progress,
+        PackDownloadProgressState resolutionProgressState,
+        string? curseForgeApiKey,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (preparedModpack.PackageKind is not ModpackPackageKind.CurseForge)
+            {
+                return new PackFileResolution(
+                    new ResolvedPackDownload(
+                        string.IsNullOrWhiteSpace(file.FileName) ? Path.GetFileName(file.RelativePath) : file.FileName,
+                        string.IsNullOrWhiteSpace(file.DisplayName) ? file.FileName : file.DisplayName,
+                        file.RelativePath,
+                        file.SourceUrl,
+                        [],
+                        file.ProjectId,
+                        file.FileId,
+                        file.Sha1,
+                        file.Sha512),
+                    null);
+            }
+
+            if (string.IsNullOrWhiteSpace(curseForgeApiKey))
+            {
+                throw new ModpackImportException(
+                    ModpackImportFailureReason.MissingCurseForgeApiKey,
+                    "CurseForge API key was not configured.");
+            }
+
+            var projectId = file.ProjectId
+                ?? throw new ModpackImportException(ModpackImportFailureReason.InvalidManifest, "CurseForge project id is missing.");
+            var fileId = file.FileId
+                ?? throw new ModpackImportException(ModpackImportFailureReason.InvalidManifest, "CurseForge file id is missing.");
+
+            var resolvedFile = await curseForgeApiClient
+                .GetFileDownloadAsync(projectId, fileId, curseForgeApiKey, cancellationToken)
+                .ConfigureAwait(false);
+            var targetDirectory = string.IsNullOrWhiteSpace(file.TargetDirectory) ? "mods" : file.TargetDirectory;
+            var relativePath = string.IsNullOrWhiteSpace(file.RelativePath)
+                ? Path.Combine(targetDirectory, resolvedFile.FileName)
+                : file.RelativePath;
+
+            logger.LogInformation(
+                "Resolved CurseForge modpack file. ProjectId={ProjectId} FileId={FileId} FileName={FileName} FallbackUrlCount={FallbackUrlCount}",
+                projectId,
+                fileId,
+                resolvedFile.FileName,
+                resolvedFile.FallbackUrls.Count);
+
+            return new PackFileResolution(
+                new ResolvedPackDownload(
+                    resolvedFile.FileName,
+                    resolvedFile.DisplayName,
+                    relativePath,
+                    resolvedFile.PrimaryUrl,
+                    resolvedFile.FallbackUrls,
+                    resolvedFile.ProjectId,
+                    resolvedFile.FileId,
+                    resolvedFile.Sha1,
+                    resolvedFile.Sha512),
+                null);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (preparedModpack.PackageKind is ModpackPackageKind.CurseForge)
+        {
+            logger.LogWarning(
+                exception,
+                "Failed to resolve CurseForge modpack file and will add it to the manual download list. ProjectId={ProjectId} FileId={FileId}",
+                file.ProjectId,
+                file.FileId);
+            return new PackFileResolution(
+                null,
+                new ManualModpackDownload
+                {
+                    ProjectId = file.ProjectId,
+                    FileId = file.FileId,
+                    FileName = string.IsNullOrWhiteSpace(file.FileName) ? $"project-{file.ProjectId}-file-{file.FileId}" : file.FileName,
+                    DisplayName = string.IsNullOrWhiteSpace(file.DisplayName) ? $"CurseForge {file.ProjectId}/{file.FileId}" : file.DisplayName,
+                    SuggestedUrl = string.Empty,
+                    FailureSummary = BuildManualDownloadFailureSummary(exception)
+                });
+        }
+        finally
+        {
+            var completedCount = resolutionProgressState.IncrementCompletedCount();
+            ReportCurseForgeResolutionProgress(progress, completedCount, totalCount);
+        }
+    }
+
+    private async Task<ManualModpackDownload?> DownloadResolvedPackFileAsync(
+        PreparedModpack preparedModpack,
+        ResolvedPackDownload file,
+        GameInstance instance,
+        string? curseForgeApiKey,
         int downloadSpeedLimitMbPerSecond,
         CancellationToken cancellationToken)
     {
-        if (!ModpackArchiveUtility.IsSupportedHttpUrl(file.SourceUrl))
-        {
-            throw new ModpackImportException(
-                ModpackImportFailureReason.InvalidManifest,
-                $"Unsupported download URL: {file.SourceUrl}");
-        }
-
         var targetPath = ModpackArchiveUtility.GetValidatedTargetPath(instance.InstanceDirectory, file.RelativePath);
         var targetDirectory = Path.GetDirectoryName(targetPath);
         if (!string.IsNullOrWhiteSpace(targetDirectory))
@@ -632,34 +865,143 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         var downloadDirectory = Path.Combine(preparedModpack.WorkingDirectory, "downloads");
         Directory.CreateDirectory(downloadDirectory);
         var tempFilePath = Path.Combine(downloadDirectory, Guid.NewGuid().ToString("N"));
+        var sourceUrls = new List<string> { file.PrimaryUrl };
+        foreach (var fallbackSourceUrl in file.FallbackSourceUrls)
+        {
+            if (!string.Equals(file.PrimaryUrl, fallbackSourceUrl, StringComparison.OrdinalIgnoreCase)
+                && !sourceUrls.Contains(fallbackSourceUrl, StringComparer.OrdinalIgnoreCase))
+            {
+                sourceUrls.Add(fallbackSourceUrl);
+            }
+        }
+
+        Exception? lastException = null;
+        string? lastFailureSummary = null;
 
         try
         {
-            using var response = await httpClient.GetAsync(
-                file.SourceUrl,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-
-            var bandwidthLimiter = DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
-            await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
-            await using (var destination = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
+            foreach (var sourceUrl in sourceUrls)
             {
-                await CopyWithThrottleAsync(source, destination, bandwidthLimiter, cancellationToken).ConfigureAwait(false);
+                if (!ModpackArchiveUtility.IsSupportedHttpUrl(sourceUrl))
+                {
+                    throw new ModpackImportException(
+                        ModpackImportFailureReason.InvalidManifest,
+                        $"Unsupported download URL: {sourceUrl}");
+                }
+
+                TryDeleteFile(tempFilePath);
+                try
+                {
+                    await DownloadToTemporaryFileAsync(
+                        sourceUrl,
+                        tempFilePath,
+                        curseForgeApiKey,
+                        downloadSpeedLimitMbPerSecond,
+                        cancellationToken).ConfigureAwait(false);
+
+                    if (!string.IsNullOrWhiteSpace(file.Sha512))
+                        await VerifyHashAsync(tempFilePath, file.Sha512, HashAlgorithmName.SHA512, cancellationToken).ConfigureAwait(false);
+                    else if (!string.IsNullOrWhiteSpace(file.Sha1))
+                        await VerifyHashAsync(tempFilePath, file.Sha1, HashAlgorithmName.SHA1, cancellationToken).ConfigureAwait(false);
+
+                    File.Move(tempFilePath, targetPath, overwrite: true);
+                    logger.LogInformation(
+                        "Downloaded modpack file. PackageKind={PackageKind} FileName={FileName} ProjectId={ProjectId} FileId={FileId} SourceUrl={SourceUrl} UsedFallback={UsedFallback}",
+                        preparedModpack.PackageKind,
+                        file.FileName,
+                        file.ProjectId,
+                        file.FileId,
+                        sourceUrl,
+                        !string.Equals(sourceUrl, file.PrimaryUrl, StringComparison.OrdinalIgnoreCase));
+                    return null;
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception exception) when (preparedModpack.PackageKind is ModpackPackageKind.CurseForge)
+                {
+                    lastException = exception;
+                    lastFailureSummary = BuildManualDownloadFailureSummary(exception);
+                    logger.LogWarning(
+                        exception,
+                        "Failed to download CurseForge modpack file. ProjectId={ProjectId} FileId={FileId} FileName={FileName} SourceUrl={SourceUrl}",
+                        file.ProjectId,
+                        file.FileId,
+                        file.FileName,
+                        sourceUrl);
+                }
             }
 
-            if (!string.IsNullOrWhiteSpace(file.Sha512))
-                await VerifyHashAsync(tempFilePath, file.Sha512, HashAlgorithmName.SHA512, cancellationToken).ConfigureAwait(false);
-            else if (!string.IsNullOrWhiteSpace(file.Sha1))
-                await VerifyHashAsync(tempFilePath, file.Sha1, HashAlgorithmName.SHA1, cancellationToken).ConfigureAwait(false);
+            if (preparedModpack.PackageKind is not ModpackPackageKind.CurseForge)
+                throw lastException ?? new InvalidOperationException($"Failed to download modpack file: {file.FileName}");
 
-            File.Move(tempFilePath, targetPath, overwrite: true);
+            return new ManualModpackDownload
+            {
+                ProjectId = file.ProjectId,
+                FileId = file.FileId,
+                FileName = file.FileName,
+                DisplayName = string.IsNullOrWhiteSpace(file.DisplayName) ? file.FileName : file.DisplayName,
+                SuggestedUrl = sourceUrls.FirstOrDefault() ?? string.Empty,
+                FailureSummary = lastFailureSummary ?? "download_failed"
+            };
         }
         finally
         {
-            if (File.Exists(tempFilePath))
-                File.Delete(tempFilePath);
+            TryDeleteFile(tempFilePath);
         }
+    }
+
+    private static void ReportPackDownloadProgress(
+        IProgress<LauncherProgress>? progress,
+        string fileName,
+        int completedCount,
+        int totalCount)
+    {
+        if (progress is null || totalCount <= 0)
+            return;
+
+        progress.Report(new LauncherProgress(
+            ImportProgressStages.DownloadingPackFiles,
+            fileName,
+            completedCount * 100d / totalCount));
+    }
+
+    private sealed class PackDownloadProgressState
+    {
+        private int completedCount;
+
+        public int ReadCompletedCount() => Volatile.Read(ref completedCount);
+
+        public int IncrementCompletedCount() => Interlocked.Increment(ref completedCount);
+    }
+
+    private async Task DownloadToTemporaryFileAsync(
+        string sourceUrl,
+        string tempFilePath,
+        string? curseForgeApiKey,
+        int downloadSpeedLimitMbPerSecond,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, sourceUrl);
+        if (!string.IsNullOrWhiteSpace(curseForgeApiKey)
+            && Uri.TryCreate(sourceUrl, UriKind.Absolute, out var sourceUri)
+            && CurseForgeDownloadHosts.Contains(sourceUri.Host))
+        {
+            request.Headers.TryAddWithoutValidation("x-api-key", curseForgeApiKey);
+        }
+
+        await using var lease = await limiter.AcquireModpackDownloadSlotAsync(cancellationToken).ConfigureAwait(false);
+        using var response = await httpClient.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        var bandwidthLimiter = DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
+        await using var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        await using var destination = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        await CopyWithThrottleAsync(source, destination, bandwidthLimiter, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task CopyWithThrottleAsync(
@@ -682,12 +1024,13 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         }
     }
 
-    private static async Task VerifyHashAsync(
+    private async Task VerifyHashAsync(
         string filePath,
         string expectedHash,
         HashAlgorithmName algorithmName,
         CancellationToken cancellationToken)
     {
+        await using var lease = await limiter.AcquireHashSlotAsync(cancellationToken).ConfigureAwait(false);
         await using var stream = File.OpenRead(filePath);
         var actualHashBytes = algorithmName.Name switch
         {
@@ -704,6 +1047,19 @@ public sealed class LocalModpackPackageService : IModpackPackageService
                 $"Hash mismatch for {filePath}.");
         }
     }
+
+    private sealed record PackFileResolution(ResolvedPackDownload? Download, ManualModpackDownload? ManualDownload);
+
+    private sealed record ResolvedPackDownload(
+        string FileName,
+        string DisplayName,
+        string RelativePath,
+        string PrimaryUrl,
+        IReadOnlyList<string> FallbackSourceUrls,
+        long? ProjectId,
+        long? FileId,
+        string? Sha1,
+        string? Sha512);
 
     private static void CopyOverrides(string sourceDirectory, string instanceDirectory)
     {
@@ -737,6 +1093,69 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         throw new ModpackImportException(
             ModpackImportFailureReason.MissingCurseForgeApiKey,
             "CurseForge API key was not configured.");
+    }
+
+    private string WriteManualDownloadsFile(
+        GameInstance instance,
+        PreparedModpack preparedModpack,
+        IReadOnlyList<ManualModpackDownload> manualDownloads)
+    {
+        var filePath = Path.Combine(instance.InstanceDirectory, ModpackManualDownloads.FileName);
+        Directory.CreateDirectory(instance.InstanceDirectory);
+
+        using var writer = new StreamWriter(filePath, append: false);
+        writer.WriteLine($"instance={instance.Name}");
+        writer.WriteLine($"package={preparedModpack.PackageName}");
+        writer.WriteLine($"generatedAt={DateTimeOffset.Now:O}");
+        writer.WriteLine();
+
+        foreach (var manualDownload in manualDownloads)
+        {
+            writer.WriteLine($"fileName={manualDownload.FileName}");
+            writer.WriteLine($"displayName={manualDownload.DisplayName}");
+            writer.WriteLine($"projectId={manualDownload.ProjectId}");
+            writer.WriteLine($"fileId={manualDownload.FileId}");
+            writer.WriteLine($"suggestedUrl={manualDownload.SuggestedUrl}");
+            writer.WriteLine($"failure={manualDownload.FailureSummary}");
+            writer.WriteLine();
+        }
+
+        logger.LogInformation(
+            "Wrote modpack manual downloads file. InstanceId={InstanceId} InstanceDirectory={InstanceDirectory} ManualDownloadCount={ManualDownloadCount} FilePath={FilePath}",
+            instance.Id,
+            instance.InstanceDirectory,
+            manualDownloads.Count,
+            filePath);
+        return filePath;
+    }
+
+    private static string BuildManualDownloadFailureSummary(Exception exception)
+    {
+        if (exception is ModpackImportException modpackException
+            && modpackException.FailureReason is ModpackImportFailureReason.HashMismatch)
+        {
+            return "hash_mismatch";
+        }
+
+        if (exception is HttpRequestException httpRequestException && httpRequestException.StatusCode is { } statusCode)
+            return $"http_{(int)statusCode}";
+
+        return exception.GetType().Name;
+    }
+
+    private static void TryDeleteFile(string filePath)
+    {
+        try
+        {
+            if (File.Exists(filePath))
+                File.Delete(filePath);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     private string? TryReadCurseForgeApiKeyFromLocalSecretFile()
@@ -809,12 +1228,8 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             loaderEntries.Add((LoaderKind.Fabric, fabricVersion));
         if (TryGetString(dependencies, "forge", out var forgeVersion))
             loaderEntries.Add((LoaderKind.Forge, forgeVersion));
-        if (TryGetString(dependencies, "neoforge", out _))
-        {
-            throw new ModpackImportException(
-                ModpackImportFailureReason.UnsupportedLoader,
-                "NeoForge modpacks are not supported.");
-        }
+        if (TryGetString(dependencies, "neoforge", out var neoForgeVersion))
+            loaderEntries.Add((LoaderKind.NeoForge, neoForgeVersion));
 
         if (TryGetString(dependencies, "quilt-loader", out _))
         {
@@ -863,8 +1278,9 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             return (LoaderKind.Forge, id["forge-".Length..]);
         if (id.StartsWith("fabric-", StringComparison.OrdinalIgnoreCase))
             return (LoaderKind.Fabric, id["fabric-".Length..]);
-        if (id.StartsWith("neoforge-", StringComparison.OrdinalIgnoreCase)
-            || id.StartsWith("quilt-", StringComparison.OrdinalIgnoreCase))
+        if (id.StartsWith("neoforge-", StringComparison.OrdinalIgnoreCase))
+            return (LoaderKind.NeoForge, id["neoforge-".Length..]);
+        if (id.StartsWith("quilt-", StringComparison.OrdinalIgnoreCase))
         {
             throw new ModpackImportException(
                 ModpackImportFailureReason.UnsupportedLoader,

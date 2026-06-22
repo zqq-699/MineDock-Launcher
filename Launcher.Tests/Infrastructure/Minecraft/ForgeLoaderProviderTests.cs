@@ -118,6 +118,29 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ForgeLoaderProviderInstallDoesNotCreateRealVanillaBaseDirectoryWhenMissing()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+
+        var provider = CreateProvider(new ScriptedForgeInstallerRunner((gameDirectory, _, _) =>
+        {
+            return CreateSandboxForgeInstallAsync(gameDirectory, "forge-1.20.1-47.4.20", "1.20.1", "1.20.1-47.4.20");
+        }));
+
+        var finalVersionName = await provider.InstallAsync(
+            "1.20.1",
+            minecraftDirectory,
+            "Imported Forge Pack",
+            "47.4.20",
+            progress: null);
+
+        Assert.Equal("Imported Forge Pack", finalVersionName);
+        Assert.False(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "1.20.1")));
+        Assert.False(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "forge-1.20.1-47.4.20")));
+        Assert.True(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "Imported Forge Pack")));
+    }
+
+    [Fact]
     public async Task ForgeLoaderProviderInstallSeedsLauncherProfileBeforeRunningInstaller()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");

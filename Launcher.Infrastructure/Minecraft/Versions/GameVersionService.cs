@@ -29,7 +29,11 @@ public sealed class GameVersionService : IGameVersionService
         int downloadSpeedLimitMbPerSecond = 0)
     {
         var bandwidthLimiter = DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
-        var executor = new MinecraftDownloadRequestExecutor(httpClient, logger, bandwidthLimiter);
+        var executor = new MinecraftDownloadRequestExecutor(
+            httpClient,
+            logger,
+            bandwidthLimiter,
+            category: DownloadConcurrencyCategory.Metadata);
         using var manifestResponse = await executor.GetAsync(
             "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
             downloadSourcePreference,

@@ -23,7 +23,8 @@ internal static class VanillaVersionMetadataClient
         var executor = new MinecraftDownloadRequestExecutor(
             httpClient,
             logger,
-            DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState));
+            DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
+            category: DownloadConcurrencyCategory.Metadata);
         using var manifestResponse = await executor.GetAsync(
             VersionManifestUrl,
             downloadSourcePreference,

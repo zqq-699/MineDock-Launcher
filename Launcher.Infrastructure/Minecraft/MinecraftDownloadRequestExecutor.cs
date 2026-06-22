@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Modpacks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -11,15 +13,21 @@ internal sealed class MinecraftDownloadRequestExecutor
     private readonly HttpClient httpClient;
     private readonly ILogger logger;
     private readonly DownloadBandwidthLimiter? bandwidthLimiter;
+    private readonly IImportConcurrencyLimiter limiter;
+    private readonly DownloadConcurrencyCategory category;
 
     public MinecraftDownloadRequestExecutor(
         HttpClient httpClient,
         ILogger? logger = null,
-        DownloadBandwidthLimiter? bandwidthLimiter = null)
+        DownloadBandwidthLimiter? bandwidthLimiter = null,
+        IImportConcurrencyLimiter? limiter = null,
+        DownloadConcurrencyCategory category = DownloadConcurrencyCategory.Metadata)
     {
         this.httpClient = httpClient;
         this.logger = logger ?? NullLogger.Instance;
         this.bandwidthLimiter = bandwidthLimiter;
+        this.limiter = limiter ?? ImportConcurrencyLimiter.Shared;
+        this.category = category;
     }
 
     public async Task<ResolvedHttpResponse> GetAsync(
@@ -34,12 +42,13 @@ internal sealed class MinecraftDownloadRequestExecutor
         {
             var resolution = candidates[index];
             var hasFallback = index < candidates.Count - 1;
+            var lease = await AcquireLeaseAsync(cancellationToken).ConfigureAwait(false);
             try
             {
                 var response = await httpClient.GetAsync(resolution.ActualUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 if (response.IsSuccessStatusCode || !hasFallback)
                 {
-                    await DownloadResponseThrottler.ApplyAsync(response, bandwidthLimiter, cancellationToken);
+                    await DownloadResponseThrottler.ApplyAsync(response, bandwidthLimiter, cancellationToken, lease).ConfigureAwait(false);
                     LogResolvedRequest(resolution, response.StatusCode, fallbackUsed: index > 0);
                     return new ResolvedHttpResponse(resolution, response);
                 }
@@ -53,9 +62,11 @@ internal sealed class MinecraftDownloadRequestExecutor
                     resolution.ResolvedSourceKind,
                     (int)response.StatusCode);
                 response.Dispose();
+                await lease.DisposeAsync().ConfigureAwait(false);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
+                await lease.DisposeAsync().ConfigureAwait(false);
                 var wrapped = new DownloadSourceRequestException(resolution, exception);
                 if (!hasFallback)
                     throw wrapped;
@@ -76,6 +87,17 @@ internal sealed class MinecraftDownloadRequestExecutor
             throw lastException;
 
         throw new InvalidOperationException($"No download candidates were available for {originalUrl}.");
+    }
+
+    private ValueTask<IAsyncDisposable> AcquireLeaseAsync(CancellationToken cancellationToken)
+    {
+        return category switch
+        {
+            DownloadConcurrencyCategory.Metadata => limiter.AcquireMetadataSlotAsync(cancellationToken),
+            DownloadConcurrencyCategory.Modpack => limiter.AcquireModpackDownloadSlotAsync(cancellationToken),
+            DownloadConcurrencyCategory.Runtime => limiter.AcquireRuntimeDownloadSlotAsync(cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(category), category, "Unsupported download concurrency category.")
+        };
     }
 
     private void LogResolvedRequest(ResolvedDownloadRequest resolution, HttpStatusCode statusCode, bool fallbackUsed)

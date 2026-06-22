@@ -103,6 +103,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             loaderProviders,
             ImmediateUiDispatcher.Instance,
             NullFloatingMessageService.Instance,
+            NullInstanceFolderService.Instance,
             NullFilePickerService.Instance,
             NullLocalModpackImportService.Instance)
     {
@@ -121,6 +122,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             loaderProviders,
             uiDispatcher,
             NullFloatingMessageService.Instance,
+            NullInstanceFolderService.Instance,
             NullFilePickerService.Instance,
             NullLocalModpackImportService.Instance)
     {
@@ -133,6 +135,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         IEnumerable<ILoaderProvider> loaderProviders,
         IUiDispatcher uiDispatcher,
         IFloatingMessageService floatingMessageService,
+        IInstanceFolderService instanceFolderService,
         IFilePickerService filePickerService,
         ILocalModpackImportService localModpackImportService,
         ILogger<DownloadLocalImportDialogViewModel>? localImportLogger = null)
@@ -145,12 +148,16 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         this.floatingMessageService = floatingMessageService;
         VersionList = new DownloadVersionListViewModel(this);
         InstanceOptions = new DownloadInstanceOptionsViewModel(this);
+        ModpackManualDownloadsDialog = new DownloadModpackManualDownloadsDialogViewModel(
+            instanceFolderService,
+            floatingMessageService);
         LocalImportDialog = new DownloadLocalImportDialogViewModel(
             filePickerService,
             localModpackImportService,
             downloadTasksPage,
             uiDispatcher,
             floatingMessageService,
+            ModpackManualDownloadsDialog,
             localImportLogger);
         LocalImportDialog.ModpackImported += (_, instance) => InstanceInstalled?.Invoke(this, instance);
 
@@ -194,6 +201,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     public DownloadVersionListViewModel VersionList { get; }
 
     public DownloadInstanceOptionsViewModel InstanceOptions { get; }
+
+    public DownloadModpackManualDownloadsDialogViewModel ModpackManualDownloadsDialog { get; }
 
     public DownloadLocalImportDialogViewModel LocalImportDialog { get; }
 
@@ -906,6 +915,23 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         public string? PickShaderPackArchive() => null;
 
         public string? PickFolder(string title, string? initialDirectory = null) => null;
+    }
+
+    private sealed class NullInstanceFolderService : IInstanceFolderService
+    {
+        public static NullInstanceFolderService Instance { get; } = new();
+
+        private NullInstanceFolderService()
+        {
+        }
+
+        public bool DirectoryExists(string folderPath) => false;
+
+        public string EnsureDirectoryExists(string folderPath) => folderPath;
+
+        public bool TryOpen(string folderPath) => false;
+
+        public bool TryRevealFile(string filePath) => false;
     }
 
     private sealed class NullLocalModpackImportService : ILocalModpackImportService

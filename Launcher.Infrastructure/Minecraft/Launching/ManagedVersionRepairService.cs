@@ -816,7 +816,8 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             var executor = new MinecraftDownloadRequestExecutor(
                 httpClient,
                 logger,
-                bandwidthLimiter ?? DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState));
+                bandwidthLimiter ?? DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
+                category: DownloadConcurrencyCategory.Runtime);
             using var resolvedResponse = await executor.GetAsync(
                 download.OriginalUrl,
                 downloadSourcePreference,

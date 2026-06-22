@@ -13,6 +13,7 @@ public sealed class GameInstanceService : IGameInstanceService
     private readonly IGameInstanceRepository repository;
     private readonly IReadOnlyDictionary<LoaderKind, ILoaderProvider> providers;
     private readonly IModrinthService? modrinthService;
+    private readonly IModpackGameInstaller modpackGameInstaller;
     private readonly ILogger<GameInstanceService> logger;
     private readonly SemaphoreSlim installExecutionLock = new(1, 1);
     private readonly HashSet<string> installingVersions = new(StringComparer.OrdinalIgnoreCase);
@@ -23,12 +24,14 @@ public sealed class GameInstanceService : IGameInstanceService
         IGameInstanceRepository repository,
         IEnumerable<ILoaderProvider> providers,
         IModrinthService? modrinthService = null,
+        IModpackGameInstaller? modpackGameInstaller = null,
         ILogger<GameInstanceService>? logger = null)
     {
         this.settingsService = settingsService;
         this.repository = repository;
         this.providers = providers.ToDictionary(provider => provider.Kind);
         this.modrinthService = modrinthService;
+        this.modpackGameInstaller = modpackGameInstaller ?? new FallbackModpackGameInstaller(this.providers);
         this.logger = logger ?? NullLogger<GameInstanceService>.Instance;
     }
 
@@ -139,14 +142,15 @@ public sealed class GameInstanceService : IGameInstanceService
             {
                 TrackInstallingVersion(settings.MinecraftDirectory, versionIdentity);
 
-                var versionName = await provider.InstallAsync(
+                var versionName = await modpackGameInstaller.InstallInstanceAsync(
                     minecraftVersion,
+                    loader,
+                    loaderVersion,
                     settings.MinecraftDirectory,
                     versionIdentity,
-                    loaderVersion,
                     progress,
-                    downloadSourcePreference,
                     cancellationToken,
+                    downloadSourcePreference,
                     downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
                 logger.LogInformation(
                     "Game version installed. VersionIdentity={VersionIdentity} VersionName={VersionName} Loader={Loader}",
@@ -602,4 +606,66 @@ public sealed class GameInstanceService : IGameInstanceService
     }
 
     private sealed record VersionCleanupCandidate(string VersionName, bool ExistedBeforeInstall);
+
+    private sealed class FallbackModpackGameInstaller(IReadOnlyDictionary<LoaderKind, ILoaderProvider> providers) : IModpackGameInstaller
+    {
+        public Task InstallMinecraftBaseAsync(
+            string minecraftVersion,
+            string gameDirectory,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            throw new NotSupportedException("InstallMinecraftBaseAsync requires the infrastructure modpack game installer.");
+        }
+
+        public Task<string> InstallLoaderAsync(
+            string minecraftVersion,
+            LoaderKind loader,
+            string? loaderVersion,
+            string gameDirectory,
+            string isolatedVersionName,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            return InstallInstanceAsync(
+                minecraftVersion,
+                loader,
+                loaderVersion,
+                gameDirectory,
+                isolatedVersionName,
+                progress,
+                cancellationToken,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond);
+        }
+
+        public Task<string> InstallInstanceAsync(
+            string minecraftVersion,
+            LoaderKind loader,
+            string? loaderVersion,
+            string gameDirectory,
+            string isolatedVersionName,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            if (!providers.TryGetValue(loader, out var provider) || !provider.IsImplemented)
+                throw new NotSupportedException($"{loader} is not implemented yet.");
+
+            return provider.InstallAsync(
+                minecraftVersion,
+                gameDirectory,
+                isolatedVersionName,
+                loaderVersion,
+                progress,
+                downloadSourcePreference,
+                cancellationToken,
+                downloadSpeedLimitMbPerSecond);
+        }
+    }
 }

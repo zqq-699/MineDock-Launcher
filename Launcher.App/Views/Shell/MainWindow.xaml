@@ -180,6 +180,16 @@
                 <downloadDialogViews:DownloadLocalImportDialogView />
             </controls:DialogHost>
 
+            <controls:DialogHost x:Name="DownloadModpackManualDownloadsDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="520"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding ModpackManualDownloadsDialog.IsOpen}"
+                                 DataContext="{Binding DownloadPage}">
+                <downloadDialogViews:DownloadModpackManualDownloadsDialogView />
+            </controls:DialogHost>
+
             <controls:DialogHost x:Name="DeleteInstanceDialogHost"
                                  Grid.ColumnSpan="2"
                                  Grid.RowSpan="2"

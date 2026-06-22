@@ -334,7 +334,11 @@
   <data name="Status_InstallFailed" xml:space="preserve"><value>安装失败，请稍后重试。</value></data>
   <data name="Status_ModpackPreparingArchive" xml:space="preserve"><value>正在准备整合包文件</value></data>
   <data name="Status_ModpackParsingManifest" xml:space="preserve"><value>正在解析整合包清单</value></data>
+  <data name="Status_ModpackResolvingFiles" xml:space="preserve"><value>正在解析整合包文件</value></data>
+  <data name="Status_ModpackResolvingFilesFormat" xml:space="preserve"><value>正在解析整合包文件（{0}）</value></data>
   <data name="Status_ModpackCreatingInstance" xml:space="preserve"><value>正在创建游戏实例</value></data>
+  <data name="Status_ModpackInstallingMinecraftBase" xml:space="preserve"><value>正在安装 Minecraft 基础文件</value></data>
+  <data name="Status_ModpackInstallingLoader" xml:space="preserve"><value>正在安装 Loader</value></data>
   <data name="Status_ModpackDownloadingFiles" xml:space="preserve"><value>正在下载整合包文件</value></data>
   <data name="Status_ModpackDownloadingFileFormat" xml:space="preserve"><value>正在下载 {0}</value></data>
   <data name="Status_ModpackCopyingOverrides" xml:space="preserve"><value>正在复制整合包覆盖文件</value></data>
@@ -669,4 +673,10 @@
   <data name="Status_SelectedShaderPacksDeleteFailed" xml:space="preserve"><value>删除所选光影包失败，请稍后重试。</value></data>
   <data name="Status_SelectedShaderPacksDeletePartialFailedFormat" xml:space="preserve"><value>已删除 {0} 个光影包，{1} 个失败</value></data>
   <data name="Status_SelectedShaderPacksDeletedFormat" xml:space="preserve"><value>已删除 {0} 个光影包</value></data>
+  <data name="Dialog_ModpackManualDownloadsTitle" xml:space="preserve"><value>整合包导入完成</value></data>
+  <data name="Dialog_ModpackManualDownloadsMessageFormat" xml:space="preserve"><value>实例“{0}”已创建，但有 {1} 个文件下载失败。</value></data>
+  <data name="Dialog_ModpackManualDownloadsHint" xml:space="preserve"><value>可以打开补档清单，稍后重试或手动补全这些文件。</value></data>
+  <data name="Dialog_OpenFileButton" xml:space="preserve"><value>打开文件</value></data>
+  <data name="Status_ModpackImportedWithManualDownloadsFormat" xml:space="preserve"><value>{0} 已导入，部分文件需稍后重试或手动补全</value></data>
+  <data name="Status_OpenModpackManualDownloadsFileFailed" xml:space="preserve"><value>打开补档清单失败，请稍后重试。</value></data>
 </root>

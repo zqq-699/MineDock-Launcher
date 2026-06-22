@@ -86,7 +86,8 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
             var executor = new MinecraftDownloadRequestExecutor(
                 httpClient,
                 logger,
-                DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState));
+                DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
+                category: DownloadConcurrencyCategory.Metadata);
             using var response = await executor.GetAsync(
                 MetadataUrl,
                 downloadSourcePreference,
@@ -193,17 +194,18 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
                 downloadSourcePreference,
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
-            CopyFinalVersionDirectory(installerMinecraftDirectory, gameDirectory, finalVersionName);
-            CopySharedLibraries(installerMinecraftDirectory, gameDirectory);
 
             progress?.Report(new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty));
             await finalVersionInstaller.InstallAsync(
-                gameDirectory,
+                installerMinecraftDirectory,
                 finalVersionName,
                 downloadSourcePreference,
                 progress,
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
+
+            CopyFinalVersionDirectory(installerMinecraftDirectory, gameDirectory, finalVersionName);
+            MinecraftSharedContentCopier.CopySharedRuntimeContent(installerMinecraftDirectory, gameDirectory, logger);
 
             CleanupCreatedVersionDirectories(gameDirectory, existingVersionNames, finalVersionName);
             logger.LogInformation(
@@ -234,7 +236,8 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
         var executor = new MinecraftDownloadRequestExecutor(
             httpClient,
             logger,
-            DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState));
+            DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
+            category: DownloadConcurrencyCategory.Runtime);
         using var response = await executor.GetAsync(
             $"{ArtifactBaseUrl}/{loaderVersion}/neoforge-{loaderVersion}-installer.jar",
             downloadSourcePreference,
@@ -452,50 +455,7 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
         string destinationGameDirectory,
         string versionName)
     {
-        var sourceDirectory = Path.Combine(sourceGameDirectory, "versions", versionName);
-        var destinationDirectory = Path.Combine(destinationGameDirectory, "versions", versionName);
-        if (!Directory.Exists(sourceDirectory))
-            throw new DirectoryNotFoundException($"NeoForge final version directory is missing: {sourceDirectory}");
-
-        if (Directory.Exists(destinationDirectory))
-            throw new IOException($"Version directory already exists: {versionName}");
-
-        Directory.CreateDirectory(destinationDirectory);
-        try
-        {
-            foreach (var filePath in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
-            {
-                var relativePath = Path.GetRelativePath(sourceDirectory, filePath);
-                var destinationPath = Path.Combine(destinationDirectory, relativePath);
-                Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-                File.Copy(filePath, destinationPath, overwrite: false);
-            }
-        }
-        catch
-        {
-            TryDeleteDirectory(destinationDirectory);
-            throw;
-        }
-    }
-
-    private static void CopySharedLibraries(string sourceGameDirectory, string destinationGameDirectory)
-    {
-        var sourceLibrariesDirectory = Path.Combine(sourceGameDirectory, "libraries");
-        if (!Directory.Exists(sourceLibrariesDirectory))
-            return;
-
-        var destinationLibrariesDirectory = Path.Combine(destinationGameDirectory, "libraries");
-        foreach (var sourceFilePath in Directory.GetFiles(sourceLibrariesDirectory, "*", SearchOption.AllDirectories))
-        {
-            var relativePath = Path.GetRelativePath(sourceLibrariesDirectory, sourceFilePath);
-            var destinationPath = Path.Combine(destinationLibrariesDirectory, relativePath);
-            var destinationDirectory = Path.GetDirectoryName(destinationPath);
-            if (!string.IsNullOrWhiteSpace(destinationDirectory))
-                Directory.CreateDirectory(destinationDirectory);
-
-            if (!File.Exists(destinationPath))
-                File.Copy(sourceFilePath, destinationPath, overwrite: false);
-        }
+        MinecraftVersionDirectoryCopier.CopyVersionDirectory(sourceGameDirectory, destinationGameDirectory, versionName);
     }
 
     private static void CleanupCreatedVersionDirectories(

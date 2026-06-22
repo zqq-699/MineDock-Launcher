@@ -1,0 +1,61 @@
+<UserControl x:Class="Launcher.App.Views.Download.Dialogs.DownloadModpackManualDownloadsDialogView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:download="clr-namespace:Launcher.App.ViewModels.Download"
+             xmlns:res="clr-namespace:Launcher.App.Resources"
+             Focusable="False">
+    <Grid Style="{StaticResource DialogContentGridStyle}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Text="{Binding ModpackManualDownloadsDialog.Title}"
+                       Style="{StaticResource DialogTitleTextStyle}" />
+            <TextBlock Text="{Binding ModpackManualDownloadsDialog.Message}"
+                       Style="{StaticResource DialogSubtitleTextStyle}" />
+            <TextBlock Margin="0,10,0,0"
+                       Text="{Binding ModpackManualDownloadsDialog.Hint}"
+                       Style="{StaticResource DialogBodyTextStyle}" />
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Margin="0,18,0,0"
+                Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
+            <ScrollViewer MaxHeight="260"
+                          VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding ModpackManualDownloadsDialog.Files}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type download:DownloadModpackManualDownloadItemViewModel}">
+                            <StackPanel Margin="0,0,0,12">
+                                <TextBlock Text="{Binding Title}"
+                                           Style="{StaticResource DialogFieldLabelTextStyle}" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding FileName}"
+                                           Style="{StaticResource DialogBodyTextStyle}" />
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="{Binding FailureSummary}"
+                                           Style="{StaticResource DialogValidationTextStyle}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <StackPanel Grid.Row="3"
+                    Margin="0,24,0,0"
+                    Style="{StaticResource DialogFooterStyle}">
+            <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                    Content="{x:Static res:Strings.Dialog_OpenFileButton}"
+                    Command="{Binding ModpackManualDownloadsDialog.OpenFileCommand}" />
+            <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                    Margin="{StaticResource DialogTrailingButtonMargin}"
+                    Content="{x:Static res:Strings.Confirm_Button}"
+                    Command="{Binding ModpackManualDownloadsDialog.CloseCommand}" />
+        </StackPanel>
+    </Grid>
+</UserControl>
