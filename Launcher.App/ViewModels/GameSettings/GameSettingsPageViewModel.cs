@@ -64,6 +64,12 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     private SaveDeleteRequest? pendingDeleteSaves;
 
     [ObservableProperty]
+    private ResourcePackDeleteRequest? pendingDeleteResourcePacks;
+
+    [ObservableProperty]
+    private ShaderPackDeleteRequest? pendingDeleteShaderPacks;
+
+    [ObservableProperty]
     private bool isReplaceModImportDialogOpen;
 
     [ObservableProperty]
@@ -75,6 +81,9 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     [ObservableProperty]
     private string invalidSaveImportDialogMessage = string.Empty;
 
+    [ObservableProperty]
+    private string invalidSaveImportDialogTitle = Strings.Dialog_InvalidSaveImportTitle;
+
     public GameSettingsPageViewModel(
         IGameInstanceService instanceService,
         IGameVersionService gameVersionService,
@@ -84,6 +93,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         IModService modService,
         LocalModsViewModel localModsViewModel,
         LocalSavesViewModel localSavesViewModel,
+        LocalResourcePacksViewModel localResourcePacksViewModel,
+        LocalShaderPacksViewModel localShaderPacksViewModel,
         IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
         IFilePickerService filePickerService,
         IFloatingMessageService floatingMessageService,
@@ -105,6 +116,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             modService,
             localModsViewModel,
             localSavesViewModel,
+            localResourcePacksViewModel,
+            localShaderPacksViewModel,
             javaRuntimeDiscoveryService,
             filePickerService,
             floatingMessageService);
@@ -113,8 +126,12 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         Details.DeleteInstanceRequested += Details_DeleteInstanceRequested;
         Details.DeleteModsRequested += Details_DeleteModsRequested;
         Details.DeleteSavesRequested += Details_DeleteSavesRequested;
+        Details.DeleteResourcePacksRequested += Details_DeleteResourcePacksRequested;
+        Details.DeleteShaderPacksRequested += Details_DeleteShaderPacksRequested;
         Details.ImportModConflictRequested += Details_ImportModConflictRequested;
         Details.SaveImportFailedRequested += Details_SaveImportFailedRequested;
+        Details.ResourcePackImportFailedRequested += Details_ResourcePackImportFailedRequested;
+        Details.ShaderPackImportFailedRequested += Details_ShaderPackImportFailedRequested;
 
         InstanceCategories.Add(new GameSettingsInstanceCategory("all", Strings.GameSettings_AllCategory, string.Empty, "general/general_all_application"));
         InstanceCategories.Add(new GameSettingsInstanceCategory("mod_loader", Strings.GameSettings_ModLoaderCategory, string.Empty, "general/general_extention"));
@@ -182,6 +199,20 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
                     : string.Format(Strings.Dialog_DeleteMultipleSavesMessageFormat, PendingDeleteSaves.Titles.Count);
             }
 
+            if (PendingDeleteResourcePacks is not null)
+            {
+                return PendingDeleteResourcePacks.Titles.Count == 1
+                    ? string.Format(Strings.Dialog_DeleteSingleResourcePackMessageFormat, PendingDeleteResourcePacks.Titles[0])
+                    : string.Format(Strings.Dialog_DeleteMultipleResourcePacksMessageFormat, PendingDeleteResourcePacks.Titles.Count);
+            }
+
+            if (PendingDeleteShaderPacks is not null)
+            {
+                return PendingDeleteShaderPacks.Titles.Count == 1
+                    ? string.Format(Strings.Dialog_DeleteSingleShaderPackMessageFormat, PendingDeleteShaderPacks.Titles[0])
+                    : string.Format(Strings.Dialog_DeleteMultipleShaderPacksMessageFormat, PendingDeleteShaderPacks.Titles.Count);
+            }
+
             if (PendingDeleteMods is null)
                 return string.Empty;
 
@@ -191,15 +222,17 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         }
     }
 
-    public string DeleteModsDialogTitle => PendingDeleteSaves is null
-        ? Strings.Dialog_DeleteModsTitle
-        : Strings.Dialog_DeleteSavesTitle;
+    public string DeleteModsDialogTitle => PendingDeleteSaves is not null
+        ? Strings.Dialog_DeleteSavesTitle
+        : PendingDeleteResourcePacks is not null
+            ? Strings.Dialog_DeleteResourcePacksTitle
+            : PendingDeleteShaderPacks is not null
+                ? Strings.Dialog_DeleteShaderPacksTitle
+            : Strings.Dialog_DeleteModsTitle;
 
     public string ReplaceModImportDialogMessage => PendingModImportConflict is null
         ? string.Empty
         : string.Format(Strings.Dialog_ReplaceModImportMessageFormat, PendingModImportConflict.FileName);
-
-    public string InvalidSaveImportDialogTitle => Strings.Dialog_InvalidSaveImportTitle;
 
     public bool UpdateImportDropState(IReadOnlyList<string> paths)
     {
@@ -426,6 +459,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     private void Details_DeleteModsRequested(ModDeleteRequest request)
     {
         PendingDeleteSaves = null;
+        PendingDeleteResourcePacks = null;
+        PendingDeleteShaderPacks = null;
         PendingDeleteMods = request;
         IsDeleteModsDialogOpen = true;
     }
@@ -433,7 +468,27 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     private void Details_DeleteSavesRequested(SaveDeleteRequest request)
     {
         PendingDeleteMods = null;
+        PendingDeleteResourcePacks = null;
+        PendingDeleteShaderPacks = null;
         PendingDeleteSaves = request;
+        IsDeleteModsDialogOpen = true;
+    }
+
+    private void Details_DeleteResourcePacksRequested(ResourcePackDeleteRequest request)
+    {
+        PendingDeleteMods = null;
+        PendingDeleteSaves = null;
+        PendingDeleteShaderPacks = null;
+        PendingDeleteResourcePacks = request;
+        IsDeleteModsDialogOpen = true;
+    }
+
+    private void Details_DeleteShaderPacksRequested(ShaderPackDeleteRequest request)
+    {
+        PendingDeleteMods = null;
+        PendingDeleteSaves = null;
+        PendingDeleteResourcePacks = null;
+        PendingDeleteShaderPacks = request;
         IsDeleteModsDialogOpen = true;
     }
 
@@ -445,6 +500,21 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     private void Details_SaveImportFailedRequested(SaveImportFailureRequest request)
     {
+        InvalidSaveImportDialogTitle = Strings.Dialog_InvalidSaveImportTitle;
+        InvalidSaveImportDialogMessage = request.Message;
+        IsInvalidSaveImportDialogOpen = true;
+    }
+
+    private void Details_ResourcePackImportFailedRequested(ResourcePackImportFailureRequest request)
+    {
+        InvalidSaveImportDialogTitle = Strings.Dialog_InvalidResourcePackImportTitle;
+        InvalidSaveImportDialogMessage = request.Message;
+        IsInvalidSaveImportDialogOpen = true;
+    }
+
+    private void Details_ShaderPackImportFailedRequested(ShaderPackImportFailureRequest request)
+    {
+        InvalidSaveImportDialogTitle = Strings.Dialog_InvalidShaderPackImportTitle;
         InvalidSaveImportDialogMessage = request.Message;
         IsInvalidSaveImportDialogOpen = true;
     }
@@ -493,19 +563,25 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         IsDeleteModsDialogOpen = false;
         PendingDeleteMods = null;
         PendingDeleteSaves = null;
+        PendingDeleteResourcePacks = null;
+        PendingDeleteShaderPacks = null;
     }
 
     [RelayCommand]
     private async Task ConfirmDeleteModsDialogAsync()
     {
-        if (PendingDeleteMods is null && PendingDeleteSaves is null)
+        if (PendingDeleteMods is null && PendingDeleteSaves is null && PendingDeleteResourcePacks is null && PendingDeleteShaderPacks is null)
             return;
 
         var modRequest = PendingDeleteMods;
         var saveRequest = PendingDeleteSaves;
+        var resourcePackRequest = PendingDeleteResourcePacks;
+        var shaderPackRequest = PendingDeleteShaderPacks;
         IsDeleteModsDialogOpen = false;
         PendingDeleteMods = null;
         PendingDeleteSaves = null;
+        PendingDeleteResourcePacks = null;
+        PendingDeleteShaderPacks = null;
 
         if (modRequest is not null)
         {
@@ -514,6 +590,14 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         else if (saveRequest is not null)
         {
             await Details.DeleteSavesAsync(saveRequest.FullPaths);
+        }
+        else if (resourcePackRequest is not null)
+        {
+            await Details.DeleteResourcePacksAsync(resourcePackRequest.FullPaths);
+        }
+        else if (shaderPackRequest is not null)
+        {
+            await Details.DeleteShaderPacksAsync(shaderPackRequest.FullPaths);
         }
     }
 
@@ -542,6 +626,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     {
         IsInvalidSaveImportDialogOpen = false;
         InvalidSaveImportDialogMessage = string.Empty;
+        InvalidSaveImportDialogTitle = Strings.Dialog_InvalidSaveImportTitle;
     }
 
     [RelayCommand]
@@ -656,14 +741,21 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(DeleteModsDialogMessage));
     }
 
+    partial void OnPendingDeleteResourcePacksChanged(ResourcePackDeleteRequest? value)
+    {
+        OnPropertyChanged(nameof(DeleteModsDialogTitle));
+        OnPropertyChanged(nameof(DeleteModsDialogMessage));
+    }
+
+    partial void OnPendingDeleteShaderPacksChanged(ShaderPackDeleteRequest? value)
+    {
+        OnPropertyChanged(nameof(DeleteModsDialogTitle));
+        OnPropertyChanged(nameof(DeleteModsDialogMessage));
+    }
+
     partial void OnPendingModImportConflictChanged(ModImportConflictRequest? value)
     {
         OnPropertyChanged(nameof(ReplaceModImportDialogMessage));
-    }
-
-    partial void OnInvalidSaveImportDialogMessageChanged(string value)
-    {
-        OnPropertyChanged(nameof(InvalidSaveImportDialogTitle));
     }
 
     partial void OnInstanceSearchQueryChanged(string value)

@@ -59,6 +59,32 @@ public sealed class FilePickerService : IFilePickerService
         return dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) == true ? dialog.FileName : null;
     }
 
+    public string? PickResourcePackArchive()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = Strings.FilePicker_ResourcePackArchiveTitle,
+            Filter = Strings.FilePicker_ResourcePackArchiveFilter,
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        return dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) == true ? dialog.FileName : null;
+    }
+
+    public string? PickShaderPackArchive()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = Strings.FilePicker_ShaderPackArchiveTitle,
+            Filter = Strings.FilePicker_ShaderPackArchiveFilter,
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        return dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) == true ? dialog.FileName : null;
+    }
+
     public string? PickFolder(string title, string? initialDirectory = null)
     {
         var dialog = new OpenFolderDialog

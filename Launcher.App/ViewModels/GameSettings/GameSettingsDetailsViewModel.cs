@@ -100,6 +100,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         IModService modService,
         LocalModsViewModel localModsViewModel,
         LocalSavesViewModel localSavesViewModel,
+        LocalResourcePacksViewModel localResourcePacksViewModel,
+        LocalShaderPacksViewModel localShaderPacksViewModel,
         IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
         IFilePickerService filePickerService,
         IFloatingMessageService floatingMessageService)
@@ -146,6 +148,22 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             filePickerService);
         SaveManagement.DeleteSavesRequested += SaveManagement_DeleteSavesRequested;
         SaveManagement.SaveImportFailedRequested += SaveManagement_SaveImportFailedRequested;
+        ResourcePackManagement = new InstanceResourcePackManagementSettingsViewModel(
+            this,
+            localResourcePacksViewModel,
+            statusService,
+            instanceFolderService,
+            filePickerService);
+        ResourcePackManagement.DeleteResourcePacksRequested += ResourcePackManagement_DeleteResourcePacksRequested;
+        ResourcePackManagement.ResourcePackImportFailedRequested += ResourcePackManagement_ResourcePackImportFailedRequested;
+        ShaderPackManagement = new InstanceShaderPackManagementSettingsViewModel(
+            this,
+            localShaderPacksViewModel,
+            statusService,
+            instanceFolderService,
+            filePickerService);
+        ShaderPackManagement.DeleteShaderPacksRequested += ShaderPackManagement_DeleteShaderPacksRequested;
+        ShaderPackManagement.ShaderPackImportFailedRequested += ShaderPackManagement_ShaderPackImportFailedRequested;
         Placeholder = new InstancePlaceholderSettingsViewModel(this);
         CurrentSectionViewModel = General;
     }
@@ -158,6 +176,10 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     public event Action<SaveDeleteRequest>? DeleteSavesRequested;
     public event Action<ModImportConflictRequest>? ImportModConflictRequested;
     public event Action<SaveImportFailureRequest>? SaveImportFailedRequested;
+    public event Action<ResourcePackDeleteRequest>? DeleteResourcePacksRequested;
+    public event Action<ResourcePackImportFailureRequest>? ResourcePackImportFailedRequested;
+    public event Action<ShaderPackDeleteRequest>? DeleteShaderPacksRequested;
+    public event Action<ShaderPackImportFailureRequest>? ShaderPackImportFailedRequested;
 
     public bool HasSelectedInstance => SelectedInstance is not null;
 
@@ -225,6 +247,10 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     public InstanceModManagementSettingsViewModel ModManagement { get; }
 
     public InstanceSaveManagementSettingsViewModel SaveManagement { get; }
+
+    public InstanceResourcePackManagementSettingsViewModel ResourcePackManagement { get; }
+
+    public InstanceShaderPackManagementSettingsViewModel ShaderPackManagement { get; }
 
     public InstancePlaceholderSettingsViewModel Placeholder { get; }
 
@@ -298,6 +324,16 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         return SaveManagement.DeleteSavesAsync(fullPaths);
     }
 
+    public Task DeleteResourcePacksAsync(IReadOnlyList<string> fullPaths)
+    {
+        return ResourcePackManagement.DeleteResourcePacksAsync(fullPaths);
+    }
+
+    public Task DeleteShaderPacksAsync(IReadOnlyList<string> fullPaths)
+    {
+        return ShaderPackManagement.DeleteShaderPacksAsync(fullPaths);
+    }
+
     public GameSettingsFileDropEvaluation EvaluateImportDrop(IReadOnlyList<string> paths)
     {
         if (SelectedInstance is null)
@@ -307,6 +343,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         {
             "mod_management" => ModManagement.EvaluateDroppedFiles(paths),
             "saves" => SaveManagement.EvaluateDroppedFiles(paths),
+            "resource_packs" => ResourcePackManagement.EvaluateDroppedFiles(paths),
+            "shaders" => ShaderPackManagement.EvaluateDroppedFiles(paths),
             _ => GameSettingsFileDropEvaluation.Hidden
         };
     }
@@ -320,6 +358,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         {
             "mod_management" => ModManagement.ImportDroppedModFilesAsync(paths),
             "saves" => SaveManagement.ImportDroppedSaveArchivesAsync(paths),
+            "resource_packs" => ResourcePackManagement.ImportDroppedResourcePackArchivesAsync(paths),
+            "shaders" => ShaderPackManagement.ImportDroppedShaderPackArchivesAsync(paths),
             _ => Task.CompletedTask
         };
     }
@@ -394,6 +434,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             ApplyJavaSettingsToEditor();
             _ = ModManagement.SetSelectedInstanceAsync(value?.Instance);
             _ = SaveManagement.SetSelectedInstanceAsync(value?.Instance);
+            _ = ResourcePackManagement.SetSelectedInstanceAsync(value?.Instance);
+            _ = ShaderPackManagement.SetSelectedInstanceAsync(value?.Instance);
             _ = RefreshEnabledModCountAsync(value?.Instance);
 
             if (mode is LaunchSettingsMode.UseGlobal)
@@ -439,6 +481,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             "java" => Java,
             "mod_management" => ModManagement,
             "saves" => SaveManagement,
+            "resource_packs" => ResourcePackManagement,
+            "shaders" => ShaderPackManagement,
             _ => Placeholder
         };
     }
@@ -1089,6 +1133,26 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     private void SaveManagement_SaveImportFailedRequested(SaveImportFailureRequest request)
     {
         SaveImportFailedRequested?.Invoke(request);
+    }
+
+    private void ResourcePackManagement_DeleteResourcePacksRequested(ResourcePackDeleteRequest request)
+    {
+        DeleteResourcePacksRequested?.Invoke(request);
+    }
+
+    private void ResourcePackManagement_ResourcePackImportFailedRequested(ResourcePackImportFailureRequest request)
+    {
+        ResourcePackImportFailedRequested?.Invoke(request);
+    }
+
+    private void ShaderPackManagement_DeleteShaderPacksRequested(ShaderPackDeleteRequest request)
+    {
+        DeleteShaderPacksRequested?.Invoke(request);
+    }
+
+    private void ShaderPackManagement_ShaderPackImportFailedRequested(ShaderPackImportFailureRequest request)
+    {
+        ShaderPackImportFailedRequested?.Invoke(request);
     }
 
     public Task ReplaceImportedModAsync(string sourcePath)

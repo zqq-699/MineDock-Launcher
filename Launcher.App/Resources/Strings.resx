@@ -132,7 +132,7 @@
   <data name="GameSettings_DetailJava" xml:space="preserve"><value>Java</value></data>
   <data name="GameSettings_DetailModManagement" xml:space="preserve"><value>Mod管理</value></data>
   <data name="GameSettings_DetailSaves" xml:space="preserve"><value>存档</value></data>
-  <data name="GameSettings_DetailShaders" xml:space="preserve"><value>光影</value></data>
+  <data name="GameSettings_DetailShaders" xml:space="preserve"><value>光影包</value></data>
   <data name="GameSettings_DetailLoader" xml:space="preserve"><value>加载器</value></data>
   <data name="GameSettings_DetailAdvanced" xml:space="preserve"><value>高级设置</value></data>
   <data name="GameSettings_DetailBackup" xml:space="preserve"><value>备份</value></data>
@@ -576,4 +576,69 @@
   <data name="GameSettings_DropFoldersUnsupportedMessage" xml:space="preserve"><value>暂不支持拖入文件夹。</value></data>
   <data name="Status_LocalModsImportedFormat" xml:space="preserve"><value>已导入 {0} 个 Mod</value></data>
   <data name="Status_LocalSavesImportedFormat" xml:space="preserve"><value>已导入 {0} 个存档</value></data>
+  <data name="Dialog_DeleteMultipleResourcePacksMessageFormat" xml:space="preserve"><value>确认删除这 {0} 个资源包吗？此操作不可撤销。</value></data>
+  <data name="Dialog_DeleteResourcePacksTitle" xml:space="preserve"><value>删除资源包</value></data>
+  <data name="Dialog_DeleteSingleResourcePackMessageFormat" xml:space="preserve"><value>确认删除资源包“{0}”吗？此操作不可撤销。</value></data>
+  <data name="Dialog_InvalidResourcePackImportTitle" xml:space="preserve"><value>无法导入资源包</value></data>
+  <data name="Dialog_UnsupportedResourcePackArchiveMessage" xml:space="preserve"><value>当前仅支持导入 .zip 资源包。</value></data>
+  <data name="FilePicker_ResourcePackArchiveFilter" xml:space="preserve"><value>资源包压缩包|*.zip|所有文件|*.*</value></data>
+  <data name="FilePicker_ResourcePackArchiveTitle" xml:space="preserve"><value>选择资源包压缩包</value></data>
+  <data name="GameSettings_DetailResourcePacks" xml:space="preserve"><value>资源包</value></data>
+  <data name="GameSettings_DropImportResourcePacksMessage" xml:space="preserve"><value>释放以导入资源包</value></data>
+  <data name="GameSettings_DropResourcePackArchivesOnlyMessage" xml:space="preserve"><value>当前页面仅支持拖入资源包压缩包。</value></data>
+  <data name="GameSettings_ResourcePackManagementActionsLabel" xml:space="preserve"><value>操作</value></data>
+  <data name="GameSettings_ResourcePackManagementCancelMultiSelectButton" xml:space="preserve"><value>取消多选</value></data>
+  <data name="GameSettings_ResourcePackManagementCancelSelectAllButton" xml:space="preserve"><value>取消全选</value></data>
+  <data name="GameSettings_ResourcePackManagementDeleteButton" xml:space="preserve"><value>删除</value></data>
+  <data name="GameSettings_ResourcePackManagementEmptyMessage" xml:space="preserve"><value>当前没有可用资源包</value></data>
+  <data name="GameSettings_ResourcePackManagementInfoSection" xml:space="preserve"><value>资源包信息</value></data>
+  <data name="GameSettings_ResourcePackManagementInstalledSummaryFormat" xml:space="preserve"><value>当前游戏有 {0} 个资源包</value></data>
+  <data name="GameSettings_ResourcePackManagementListSection" xml:space="preserve"><value>资源包列表</value></data>
+  <data name="GameSettings_ResourcePackManagementLocalImportButton" xml:space="preserve"><value>本地导入</value></data>
+  <data name="GameSettings_ResourcePackManagementMultiSelectButton" xml:space="preserve"><value>多选</value></data>
+  <data name="GameSettings_ResourcePackManagementOpenFolderButton" xml:space="preserve"><value>打开资源包文件夹</value></data>
+  <data name="GameSettings_ResourcePackManagementSearchEmptyMessage" xml:space="preserve"><value>没有匹配的资源包</value></data>
+  <data name="GameSettings_ResourcePackManagementSelectAllButton" xml:space="preserve"><value>全选</value></data>
+  <data name="Status_LoadLocalResourcePacksFailed" xml:space="preserve"><value>加载资源包列表失败，请稍后重试。</value></data>
+  <data name="Status_LocalResourcePackImportFailed" xml:space="preserve"><value>导入本地资源包失败，请稍后重试。</value></data>
+  <data name="Status_LocalResourcePackImportFileNotFound" xml:space="preserve"><value>未找到要导入的资源包压缩包。</value></data>
+  <data name="Status_LocalResourcePackImported" xml:space="preserve"><value>本地资源包已导入</value></data>
+  <data name="Status_LocalResourcePacksImportedFormat" xml:space="preserve"><value>已导入 {0} 个资源包</value></data>
+  <data name="Status_OpenLocalResourcePackFolderFailed" xml:space="preserve"><value>打开资源包目录失败，请稍后重试。</value></data>
+  <data name="Status_OpenLocalResourcePackLocationFailed" xml:space="preserve"><value>打开资源包文件位置失败，请稍后重试。</value></data>
+  <data name="Status_SelectedResourcePacksDeleteFailed" xml:space="preserve"><value>删除所选资源包失败，请稍后重试。</value></data>
+  <data name="Status_SelectedResourcePacksDeletePartialFailedFormat" xml:space="preserve"><value>已删除 {0} 个资源包，{1} 个失败</value></data>
+  <data name="Status_SelectedResourcePacksDeletedFormat" xml:space="preserve"><value>已删除 {0} 个资源包</value></data>
+  <data name="Dialog_DeleteMultipleShaderPacksMessageFormat" xml:space="preserve"><value>确认删除这 {0} 个光影包吗？此操作不可撤销。</value></data>
+  <data name="Dialog_DeleteShaderPacksTitle" xml:space="preserve"><value>删除光影包</value></data>
+  <data name="Dialog_DeleteSingleShaderPackMessageFormat" xml:space="preserve"><value>确认删除光影包“{0}”吗？此操作不可撤销。</value></data>
+  <data name="Dialog_InvalidShaderPackImportTitle" xml:space="preserve"><value>无法导入光影包</value></data>
+  <data name="Dialog_UnsupportedShaderPackArchiveMessage" xml:space="preserve"><value>当前仅支持导入 .zip 光影包。</value></data>
+  <data name="FilePicker_ShaderPackArchiveFilter" xml:space="preserve"><value>光影包压缩包|*.zip|所有文件|*.*</value></data>
+  <data name="FilePicker_ShaderPackArchiveTitle" xml:space="preserve"><value>选择光影包压缩包</value></data>
+  <data name="GameSettings_DropImportShaderPacksMessage" xml:space="preserve"><value>释放以导入光影包</value></data>
+  <data name="GameSettings_DropShaderPackArchivesOnlyMessage" xml:space="preserve"><value>当前页面仅支持拖入光影包压缩包。</value></data>
+  <data name="GameSettings_ShaderPackManagementActionsLabel" xml:space="preserve"><value>操作</value></data>
+  <data name="GameSettings_ShaderPackManagementCancelMultiSelectButton" xml:space="preserve"><value>取消多选</value></data>
+  <data name="GameSettings_ShaderPackManagementCancelSelectAllButton" xml:space="preserve"><value>取消全选</value></data>
+  <data name="GameSettings_ShaderPackManagementDeleteButton" xml:space="preserve"><value>删除</value></data>
+  <data name="GameSettings_ShaderPackManagementEmptyMessage" xml:space="preserve"><value>当前没有可用光影包</value></data>
+  <data name="GameSettings_ShaderPackManagementInfoSection" xml:space="preserve"><value>光影包信息</value></data>
+  <data name="GameSettings_ShaderPackManagementInstalledSummaryFormat" xml:space="preserve"><value>当前游戏有 {0} 个光影包</value></data>
+  <data name="GameSettings_ShaderPackManagementListSection" xml:space="preserve"><value>光影包列表</value></data>
+  <data name="GameSettings_ShaderPackManagementLocalImportButton" xml:space="preserve"><value>本地导入</value></data>
+  <data name="GameSettings_ShaderPackManagementMultiSelectButton" xml:space="preserve"><value>多选</value></data>
+  <data name="GameSettings_ShaderPackManagementOpenFolderButton" xml:space="preserve"><value>打开光影包文件夹</value></data>
+  <data name="GameSettings_ShaderPackManagementSearchEmptyMessage" xml:space="preserve"><value>没有匹配的光影包</value></data>
+  <data name="GameSettings_ShaderPackManagementSelectAllButton" xml:space="preserve"><value>全选</value></data>
+  <data name="Status_LoadLocalShaderPacksFailed" xml:space="preserve"><value>加载光影包列表失败，请稍后重试。</value></data>
+  <data name="Status_LocalShaderPackImportFailed" xml:space="preserve"><value>导入本地光影包失败，请稍后重试。</value></data>
+  <data name="Status_LocalShaderPackImportFileNotFound" xml:space="preserve"><value>未找到要导入的光影包压缩包。</value></data>
+  <data name="Status_LocalShaderPackImported" xml:space="preserve"><value>本地光影包已导入</value></data>
+  <data name="Status_LocalShaderPacksImportedFormat" xml:space="preserve"><value>已导入 {0} 个光影包</value></data>
+  <data name="Status_OpenLocalShaderPackFolderFailed" xml:space="preserve"><value>打开光影包目录失败，请稍后重试。</value></data>
+  <data name="Status_OpenLocalShaderPackLocationFailed" xml:space="preserve"><value>打开光影包文件位置失败，请稍后重试。</value></data>
+  <data name="Status_SelectedShaderPacksDeleteFailed" xml:space="preserve"><value>删除所选光影包失败，请稍后重试。</value></data>
+  <data name="Status_SelectedShaderPacksDeletePartialFailedFormat" xml:space="preserve"><value>已删除 {0} 个光影包，{1} 个失败</value></data>
+  <data name="Status_SelectedShaderPacksDeletedFormat" xml:space="preserve"><value>已删除 {0} 个光影包</value></data>
 </root>

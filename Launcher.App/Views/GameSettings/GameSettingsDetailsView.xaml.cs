@@ -16,6 +16,7 @@ public partial class GameSettingsDetailsView : UserControl
         "java",
         "mod_management",
         "saves",
+        "resource_packs",
         "shaders",
         "loader",
         "advanced",

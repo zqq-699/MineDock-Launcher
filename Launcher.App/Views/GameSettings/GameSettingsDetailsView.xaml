@@ -25,6 +25,14 @@
             <views:InstanceSaveManagementSettingsView />
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type gameSettings:InstanceResourcePackManagementSettingsViewModel}">
+            <views:InstanceResourcePackManagementSettingsView />
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type gameSettings:InstanceShaderPackManagementSettingsViewModel}">
+            <views:InstanceShaderPackManagementSettingsView />
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type gameSettings:InstancePlaceholderSettingsViewModel}">
             <views:InstancePlaceholderSettingsView />
         </DataTemplate>

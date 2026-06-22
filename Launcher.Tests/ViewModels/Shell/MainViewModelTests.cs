@@ -537,6 +537,8 @@ public sealed class MainViewModelTests
                 new FakeModService(),
                 new LocalModsViewModel(new FakeModService(), statusService),
                 new LocalSavesViewModel(new FakeSaveService(), statusService),
+                new LocalResourcePacksViewModel(new FakeResourcePackService(), statusService),
+                new LocalShaderPacksViewModel(new FakeShaderPackService(), statusService),
                 new FakeJavaRuntimeDiscoveryService(),
                 filePickerService,
                 floatingMessageService),
@@ -766,6 +768,62 @@ public sealed class MainViewModelTests
         }
     }
 
+    private sealed class FakeResourcePackService : ILocalResourcePackService
+    {
+        public Task<IReadOnlyList<LocalResourcePack>> GetResourcePacksAsync(
+            GameInstance instance,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<LocalResourcePack>>([]);
+        }
+
+        public Task<LocalResourcePackImportResult> ImportAsync(
+            GameInstance instance,
+            string archivePath,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(LocalResourcePackImportResult.Failure(LocalResourcePackImportFailureReason.UnsupportedArchive));
+        }
+
+        public Task DeleteAsync(LocalResourcePack resourcePack, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAsync(IEnumerable<LocalResourcePack> resourcePacks, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeShaderPackService : ILocalShaderPackService
+    {
+        public Task<IReadOnlyList<LocalShaderPack>> GetShaderPacksAsync(
+            GameInstance instance,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<LocalShaderPack>>([]);
+        }
+
+        public Task<LocalShaderPackImportResult> ImportAsync(
+            GameInstance instance,
+            string archivePath,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(LocalShaderPackImportResult.Failure(LocalShaderPackImportFailureReason.UnsupportedArchive));
+        }
+
+        public Task DeleteAsync(LocalShaderPack shaderPack, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAsync(IEnumerable<LocalShaderPack> shaderPacks, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class FakeModrinthService : IModrinthService
     {
         public Task<IReadOnlyList<ModrinthProject>> SearchModsAsync(
@@ -973,6 +1031,16 @@ public sealed class MainViewModelTests
         }
 
         public string? PickSaveArchive()
+        {
+            return null;
+        }
+
+        public string? PickResourcePackArchive()
+        {
+            return null;
+        }
+
+        public string? PickShaderPackArchive()
         {
             return null;
         }

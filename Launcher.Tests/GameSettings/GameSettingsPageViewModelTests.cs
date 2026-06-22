@@ -565,7 +565,7 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Equal(Strings.GameSettings_DetailGeneral, viewModel.Details.SectionTitle);
         Assert.IsType<InstanceGeneralSettingsViewModel>(viewModel.Details.CurrentSectionViewModel);
         Assert.True(viewModel.DetailSections.First(section => section.Id == "general").IsSelected);
-        Assert.Equal(9, viewModel.DetailSections.Count);
+        Assert.Equal(10, viewModel.DetailSections.Count);
         Assert.Equal(
             [
                 Strings.GameSettings_DetailGeneral,
@@ -573,6 +573,7 @@ public sealed class GameSettingsPageViewModelTests
                 Strings.GameSettings_DetailJava,
                 Strings.GameSettings_DetailModManagement,
                 Strings.GameSettings_DetailSaves,
+                Strings.GameSettings_DetailResourcePacks,
                 Strings.GameSettings_DetailShaders,
                 Strings.GameSettings_DetailLoader,
                 Strings.GameSettings_DetailAdvanced,
@@ -1005,6 +1006,339 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Equal(0, saveService.ImportArchiveCallCount);
         Assert.True(viewModel.IsInvalidSaveImportDialogOpen);
         Assert.Equal(Strings.Dialog_UnsupportedSaveArchiveMessage, viewModel.InvalidSaveImportDialogMessage);
+    }
+
+    [Fact]
+    public async Task ResourcePackManagementDetailsSectionUsesDedicatedViewModel()
+    {
+        var viewModel = CreateViewModel([CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla)]);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var section = viewModel.DetailSections.Single(item => item.Id == "resource_packs");
+
+        viewModel.SelectDetailsSectionCommand.Execute(section);
+
+        Assert.True(section.IsSelected);
+        Assert.IsType<InstanceResourcePackManagementSettingsViewModel>(viewModel.Details.CurrentSectionViewModel);
+        Assert.Same(viewModel.Details.ResourcePackManagement, viewModel.Details.CurrentSectionViewModel);
+        Assert.Equal(Strings.GameSettings_DetailResourcePacks, viewModel.Details.SectionTitle);
+    }
+
+    [Fact]
+    public async Task ResourcePackManagementViewModelLoadsRealResourcePacksForSelectedInstance()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var resourcePackService = new FakeResourcePackService();
+        var firstCreatedAt = new DateTimeOffset(2026, 1, 3, 10, 20, 30, TimeSpan.Zero);
+        var secondCreatedAt = new DateTimeOffset(2026, 1, 2, 8, 9, 10, TimeSpan.Zero);
+        resourcePackService.ResourcePacksByInstanceId[instance.Id] =
+        [
+            CreateLocalResourcePack("Fresh Animations.zip", instance.InstanceDirectory, iconSource: @"C:\temp\pack.png", createdAt: firstCreatedAt),
+            CreateLocalResourcePack("Bare Bones.zip", instance.InstanceDirectory, createdAt: secondCreatedAt)
+        ];
+        var viewModel = CreateViewModel([instance], resourcePackService: resourcePackService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "resource_packs"));
+        await TestAsync.WaitForAsync(() => viewModel.Details.ResourcePackManagement.ResourcePacks.Count == 2);
+
+        var resourcePackManagement = viewModel.Details.ResourcePackManagement;
+        Assert.Equal(2, resourcePackManagement.InstalledResourcePackCount);
+        Assert.Equal(
+            string.Format(Strings.GameSettings_ResourcePackManagementInstalledSummaryFormat, 2),
+            resourcePackManagement.InstalledSummaryText);
+        Assert.Equal(["Fresh Animations", "Bare Bones"], resourcePackManagement.ResourcePacks.Select(resourcePack => resourcePack.Title));
+        Assert.Equal(string.Empty, resourcePackManagement.ResourcePacks[0].IconKey);
+        Assert.Equal("main_menu_library", resourcePackManagement.ResourcePacks[1].IconKey);
+        Assert.True(resourcePackManagement.ImportLocalResourcePackCommand.CanExecute(null));
+        Assert.True(resourcePackManagement.HasResourcePacks);
+        Assert.False(resourcePackManagement.CanShowResourcePackEmptyState);
+        Assert.Same(resourcePackManagement.ResourcePacks[0], resourcePackManagement.SelectedResourcePack);
+    }
+
+    [Fact]
+    public async Task ResourcePackManagementOpenFolderAndRevealUseResourcePackPaths()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var folderService = new FakeInstanceFolderService();
+        var resourcePackService = new FakeResourcePackService();
+        resourcePackService.ResourcePacksByInstanceId[instance.Id] =
+        [
+            CreateLocalResourcePack("Fresh Animations.zip", instance.InstanceDirectory)
+        ];
+        var viewModel = CreateViewModel([instance], folderService: folderService, resourcePackService: resourcePackService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "resource_packs"));
+        await TestAsync.WaitForAsync(() => viewModel.Details.ResourcePackManagement.ResourcePacks.Count == 1);
+
+        viewModel.Details.ResourcePackManagement.OpenResourcePackFolderCommand.Execute(null);
+        viewModel.Details.ResourcePackManagement.OpenResourcePackLocationCommand.Execute(
+            viewModel.Details.ResourcePackManagement.ResourcePacks[0]);
+
+        Assert.Equal(Path.Combine(instance.InstanceDirectory, "resourcepacks"), folderService.LastOpenedPath);
+        Assert.Equal(viewModel.Details.ResourcePackManagement.ResourcePacks[0].FullPath, folderService.LastRevealedFilePath);
+    }
+
+    [Fact]
+    public async Task ResourcePackManagementImportLocalResourcePackCommandImportsSelectedArchive()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var statusService = new FakeStatusService();
+        var resourcePackService = new FakeResourcePackService();
+        var archivePath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "Fresh Animations.zip");
+        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
+        await File.WriteAllTextAsync(archivePath, "fake archive");
+        var filePickerService = new FakeFilePickerService
+        {
+            ResourcePackArchivePath = archivePath
+        };
+        var viewModel = CreateViewModel([instance], statusService: statusService, filePickerService: filePickerService, resourcePackService: resourcePackService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "resource_packs"));
+
+        await viewModel.Details.ResourcePackManagement.ImportLocalResourcePackCommand.ExecuteAsync(null);
+
+        Assert.Single(viewModel.Details.ResourcePackManagement.ResourcePacks);
+        Assert.Equal("Fresh Animations", viewModel.Details.ResourcePackManagement.ResourcePacks[0].Title);
+        Assert.Equal(1, viewModel.Details.ResourcePackManagement.InstalledResourcePackCount);
+        Assert.Equal(Strings.Status_LocalResourcePackImported, statusService.LastMessage);
+        Assert.False(viewModel.IsInvalidSaveImportDialogOpen);
+    }
+
+    [Fact]
+    public async Task ResourcePackManagementImportLocalResourcePackCommandRejectsUnsupportedExtensionBeforeService()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var resourcePackService = new FakeResourcePackService();
+        var archivePath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "resourcepack.rar");
+        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
+        await File.WriteAllTextAsync(archivePath, "not a zip");
+        var filePickerService = new FakeFilePickerService
+        {
+            ResourcePackArchivePath = archivePath
+        };
+        var viewModel = CreateViewModel([instance], filePickerService: filePickerService, resourcePackService: resourcePackService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "resource_packs"));
+
+        await viewModel.Details.ResourcePackManagement.ImportLocalResourcePackCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, resourcePackService.ImportArchiveCallCount);
+        Assert.True(viewModel.IsInvalidSaveImportDialogOpen);
+        Assert.Equal(Strings.Dialog_UnsupportedResourcePackArchiveMessage, viewModel.InvalidSaveImportDialogMessage);
+        Assert.Equal(Strings.Dialog_InvalidResourcePackImportTitle, viewModel.InvalidSaveImportDialogTitle);
+    }
+
+    [Fact]
+    public async Task ResourcePackManagementDragDropImportsSupportedArchives()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var statusService = new FakeStatusService();
+        var floatingMessageService = new FakeFloatingMessageService();
+        var resourcePackService = new FakeResourcePackService();
+        var firstArchive = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "Fresh.zip");
+        var secondArchive = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "Bare Bones.zip");
+        Directory.CreateDirectory(Path.GetDirectoryName(firstArchive)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(secondArchive)!);
+        await File.WriteAllTextAsync(firstArchive, "first");
+        await File.WriteAllTextAsync(secondArchive, "second");
+        var viewModel = CreateViewModel(
+            [instance],
+            statusService: statusService,
+            resourcePackService: resourcePackService,
+            floatingMessageService: floatingMessageService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "resource_packs"));
+
+        var accepted = viewModel.UpdateImportDropState([firstArchive, secondArchive]);
+        Assert.Equal(Strings.GameSettings_DropReleaseToImportMessage, floatingMessageService.LastMessage);
+        await viewModel.HandleImportDropAsync([firstArchive, secondArchive]);
+
+        Assert.True(accepted);
+        Assert.Equal(2, resourcePackService.ImportArchiveCallCount);
+        Assert.Equal(string.Format(Strings.Status_LocalResourcePacksImportedFormat, 2), statusService.LastMessage);
+        Assert.Equal(2, viewModel.Details.ResourcePackManagement.ResourcePacks.Count);
+        Assert.Equal(string.Empty, floatingMessageService.LastMessage);
+    }
+
+    [Fact]
+    public async Task ResourcePackManagementDeleteUsesConfirmationDialogBeforeRemovingResourcePacks()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var statusService = new FakeStatusService();
+        var resourcePackService = new FakeResourcePackService();
+        resourcePackService.ResourcePacksByInstanceId[instance.Id] =
+        [
+            CreateLocalResourcePack("Fresh Animations.zip", instance.InstanceDirectory),
+            CreateLocalResourcePack("Bare Bones.zip", instance.InstanceDirectory)
+        ];
+        var viewModel = CreateViewModel([instance], statusService: statusService, resourcePackService: resourcePackService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "resource_packs"));
+        await TestAsync.WaitForAsync(() => viewModel.Details.ResourcePackManagement.ResourcePacks.Count == 2);
+
+        var resourcePackManagement = viewModel.Details.ResourcePackManagement;
+        resourcePackManagement.ToggleMultiSelectModeCommand.Execute(null);
+        resourcePackManagement.SelectAllResourcePacksCommand.Execute(null);
+        resourcePackManagement.RequestDeleteSelectedResourcePacksCommand.Execute(null);
+
+        Assert.True(viewModel.IsDeleteModsDialogOpen);
+        Assert.Equal(Strings.Dialog_DeleteResourcePacksTitle, viewModel.DeleteModsDialogTitle);
+        Assert.Equal(string.Format(Strings.Dialog_DeleteMultipleResourcePacksMessageFormat, 2), viewModel.DeleteModsDialogMessage);
+
+        await viewModel.ConfirmDeleteModsDialogCommand.ExecuteAsync(null);
+        await TestAsync.WaitForAsync(() => statusService.LastMessage is not null);
+
+        Assert.Equal(string.Format(Strings.Status_SelectedResourcePacksDeletedFormat, 2), statusService.LastMessage);
+        Assert.Empty(viewModel.Details.ResourcePackManagement.ResourcePacks);
+    }
+
+    [Fact]
+    public async Task ShaderPackManagementDetailsSectionUsesDedicatedViewModel()
+    {
+        var viewModel = CreateViewModel([CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla)]);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var section = viewModel.DetailSections.Single(item => item.Id == "shaders");
+
+        viewModel.SelectDetailsSectionCommand.Execute(section);
+
+        Assert.True(section.IsSelected);
+        Assert.IsType<InstanceShaderPackManagementSettingsViewModel>(viewModel.Details.CurrentSectionViewModel);
+        Assert.Same(viewModel.Details.ShaderPackManagement, viewModel.Details.CurrentSectionViewModel);
+        Assert.Equal(Strings.GameSettings_DetailShaders, viewModel.Details.SectionTitle);
+    }
+
+    [Fact]
+    public async Task ShaderPackManagementViewModelLoadsRealShaderPacksForSelectedInstance()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var shaderPackService = new FakeShaderPackService();
+        var firstCreatedAt = new DateTimeOffset(2026, 1, 3, 10, 20, 30, TimeSpan.Zero);
+        var secondCreatedAt = new DateTimeOffset(2026, 1, 2, 8, 9, 10, TimeSpan.Zero);
+        shaderPackService.ShaderPacksByInstanceId[instance.Id] =
+        [
+            CreateLocalShaderPack("Complementary.zip", instance.InstanceDirectory, createdAt: firstCreatedAt),
+            CreateLocalShaderPack("BSL.zip", instance.InstanceDirectory, createdAt: secondCreatedAt)
+        ];
+        var viewModel = CreateViewModel([instance], shaderPackService: shaderPackService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "shaders"));
+        await TestAsync.WaitForAsync(() => viewModel.Details.ShaderPackManagement.ShaderPacks.Count == 2);
+
+        var shaderPackManagement = viewModel.Details.ShaderPackManagement;
+        Assert.Equal(2, shaderPackManagement.InstalledShaderPackCount);
+        Assert.Equal(
+            string.Format(Strings.GameSettings_ShaderPackManagementInstalledSummaryFormat, 2),
+            shaderPackManagement.InstalledSummaryText);
+        Assert.Equal(["Complementary", "BSL"], shaderPackManagement.ShaderPacks.Select(shaderPack => shaderPack.Title));
+        Assert.Equal(["instance_setting_page/shader", "instance_setting_page/shader"], shaderPackManagement.ShaderPacks.Select(shaderPack => shaderPack.IconKey));
+        Assert.True(shaderPackManagement.ImportLocalShaderPackCommand.CanExecute(null));
+        Assert.True(shaderPackManagement.HasShaderPacks);
+        Assert.False(shaderPackManagement.CanShowShaderPackEmptyState);
+        Assert.Same(shaderPackManagement.ShaderPacks[0], shaderPackManagement.SelectedShaderPack);
+    }
+
+    [Fact]
+    public async Task ShaderPackManagementOpenFolderAndRevealUseShaderPackPaths()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var folderService = new FakeInstanceFolderService();
+        var shaderPackService = new FakeShaderPackService();
+        shaderPackService.ShaderPacksByInstanceId[instance.Id] =
+        [
+            CreateLocalShaderPack("Complementary.zip", instance.InstanceDirectory)
+        ];
+        var viewModel = CreateViewModel([instance], folderService: folderService, shaderPackService: shaderPackService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "shaders"));
+        await TestAsync.WaitForAsync(() => viewModel.Details.ShaderPackManagement.ShaderPacks.Count == 1);
+
+        viewModel.Details.ShaderPackManagement.OpenShaderPackFolderCommand.Execute(null);
+        viewModel.Details.ShaderPackManagement.OpenShaderPackLocationCommand.Execute(
+            viewModel.Details.ShaderPackManagement.ShaderPacks[0]);
+
+        Assert.Equal(Path.Combine(instance.InstanceDirectory, "shaderpacks"), folderService.LastOpenedPath);
+        Assert.Equal(viewModel.Details.ShaderPackManagement.ShaderPacks[0].FullPath, folderService.LastRevealedFilePath);
+    }
+
+    [Fact]
+    public async Task ShaderPackManagementImportLocalShaderPackCommandImportsSelectedArchive()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var statusService = new FakeStatusService();
+        var shaderPackService = new FakeShaderPackService();
+        var archivePath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "Complementary.zip");
+        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
+        await File.WriteAllTextAsync(archivePath, "fake archive");
+        var filePickerService = new FakeFilePickerService
+        {
+            ShaderPackArchivePath = archivePath
+        };
+        var viewModel = CreateViewModel([instance], statusService: statusService, filePickerService: filePickerService, shaderPackService: shaderPackService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "shaders"));
+
+        await viewModel.Details.ShaderPackManagement.ImportLocalShaderPackCommand.ExecuteAsync(null);
+
+        Assert.Single(viewModel.Details.ShaderPackManagement.ShaderPacks);
+        Assert.Equal("Complementary", viewModel.Details.ShaderPackManagement.ShaderPacks[0].Title);
+        Assert.Equal(1, viewModel.Details.ShaderPackManagement.InstalledShaderPackCount);
+        Assert.Equal(Strings.Status_LocalShaderPackImported, statusService.LastMessage);
+        Assert.False(viewModel.IsInvalidSaveImportDialogOpen);
+    }
+
+    [Fact]
+    public async Task ShaderPackManagementDeleteUsesConfirmationDialogBeforeRemovingShaderPacks()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var statusService = new FakeStatusService();
+        var shaderPackService = new FakeShaderPackService();
+        shaderPackService.ShaderPacksByInstanceId[instance.Id] =
+        [
+            CreateLocalShaderPack("Complementary.zip", instance.InstanceDirectory),
+            CreateLocalShaderPack("BSL.zip", instance.InstanceDirectory)
+        ];
+        var viewModel = CreateViewModel([instance], statusService: statusService, shaderPackService: shaderPackService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.SelectDetailsSectionCommand.Execute(viewModel.DetailSections.Single(section => section.Id == "shaders"));
+        await TestAsync.WaitForAsync(() => viewModel.Details.ShaderPackManagement.ShaderPacks.Count == 2);
+
+        var shaderPackManagement = viewModel.Details.ShaderPackManagement;
+        shaderPackManagement.ToggleMultiSelectModeCommand.Execute(null);
+        shaderPackManagement.SelectAllShaderPacksCommand.Execute(null);
+        shaderPackManagement.RequestDeleteSelectedShaderPacksCommand.Execute(null);
+
+        Assert.True(viewModel.IsDeleteModsDialogOpen);
+        Assert.Equal(Strings.Dialog_DeleteShaderPacksTitle, viewModel.DeleteModsDialogTitle);
+        Assert.Equal(string.Format(Strings.Dialog_DeleteMultipleShaderPacksMessageFormat, 2), viewModel.DeleteModsDialogMessage);
+
+        await viewModel.ConfirmDeleteModsDialogCommand.ExecuteAsync(null);
+        await TestAsync.WaitForAsync(() => statusService.LastMessage is not null);
+
+        Assert.Equal(string.Format(Strings.Status_SelectedShaderPacksDeletedFormat, 2), statusService.LastMessage);
+        Assert.Empty(viewModel.Details.ShaderPackManagement.ShaderPacks);
     }
 
     [Fact]
@@ -2211,7 +2545,9 @@ public sealed class GameSettingsPageViewModelTests
         FakeFilePickerService? filePickerService = null,
         FakeFloatingMessageService? floatingMessageService = null,
         IModService? modService = null,
-        ILocalSaveService? saveService = null)
+        ILocalSaveService? saveService = null,
+        ILocalResourcePackService? resourcePackService = null,
+        ILocalShaderPackService? shaderPackService = null)
     {
         var instanceService = new FakeGameInstanceService();
         instanceService.CreatedInstances.AddRange(instances);
@@ -2224,7 +2560,9 @@ public sealed class GameSettingsPageViewModelTests
             filePickerService ?? new FakeFilePickerService(),
             floatingMessageService ?? new FakeFloatingMessageService(),
             modService ?? new FakeModService(),
-            saveService ?? new FakeSaveService());
+            saveService ?? new FakeSaveService(),
+            resourcePackService ?? new FakeResourcePackService(),
+            shaderPackService ?? new FakeShaderPackService());
     }
 
     private static GameSettingsPageViewModel CreateViewModel(
@@ -2236,10 +2574,14 @@ public sealed class GameSettingsPageViewModelTests
         FakeFilePickerService? filePickerService = null,
         FakeFloatingMessageService? floatingMessageService = null,
         IModService? modService = null,
-        ILocalSaveService? saveService = null)
+        ILocalSaveService? saveService = null,
+        ILocalResourcePackService? resourcePackService = null,
+        ILocalShaderPackService? shaderPackService = null)
     {
         var resolvedModService = modService ?? new FakeModService();
         var resolvedSaveService = saveService ?? new FakeSaveService();
+        var resolvedResourcePackService = resourcePackService ?? new FakeResourcePackService();
+        var resolvedShaderPackService = shaderPackService ?? new FakeShaderPackService();
         return new GameSettingsPageViewModel(
             instanceService,
             gameVersionService,
@@ -2249,6 +2591,8 @@ public sealed class GameSettingsPageViewModelTests
             resolvedModService,
             new LocalModsViewModel(resolvedModService, statusService),
             new LocalSavesViewModel(resolvedSaveService, statusService),
+            new LocalResourcePacksViewModel(resolvedResourcePackService, statusService),
+            new LocalShaderPacksViewModel(resolvedShaderPackService, statusService),
             javaRuntimeDiscoveryService ?? new FakeJavaRuntimeDiscoveryService(),
             filePickerService ?? new FakeFilePickerService(),
             floatingMessageService ?? new FakeFloatingMessageService());
@@ -2341,6 +2685,40 @@ public sealed class GameSettingsPageViewModelTests
         };
     }
 
+    private static LocalResourcePack CreateLocalResourcePack(
+        string fileName,
+        string instanceDirectory,
+        string? iconSource = null,
+        DateTimeOffset? createdAt = null)
+    {
+        var fullPath = Path.Combine(instanceDirectory, "resourcepacks", fileName);
+        return new LocalResourcePack
+        {
+            Name = Path.GetFileNameWithoutExtension(fileName),
+            FileName = fileName,
+            FullPath = fullPath,
+            IconSource = iconSource,
+            CreatedAt = createdAt ?? new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+        };
+    }
+
+    private static LocalShaderPack CreateLocalShaderPack(
+        string fileName,
+        string instanceDirectory,
+        string? iconSource = null,
+        DateTimeOffset? createdAt = null)
+    {
+        var fullPath = Path.Combine(instanceDirectory, "shaderpacks", fileName);
+        return new LocalShaderPack
+        {
+            Name = Path.GetFileNameWithoutExtension(fileName),
+            FileName = fileName,
+            FullPath = fullPath,
+            IconSource = iconSource,
+            CreatedAt = createdAt ?? new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+        };
+    }
+
     private sealed class FakeStatusService : IStatusService
     {
         public event Action<string>? MessageReported;
@@ -2423,6 +2801,8 @@ public sealed class GameSettingsPageViewModelTests
         public string? JavaExecutablePath { get; init; }
         public string? ModFilePath { get; init; }
         public string? SaveArchivePath { get; init; }
+        public string? ResourcePackArchivePath { get; init; }
+        public string? ShaderPackArchivePath { get; init; }
         public string? FolderPath { get; init; }
 
         public string? PickMinecraftSkin()
@@ -2443,6 +2823,16 @@ public sealed class GameSettingsPageViewModelTests
         public string? PickSaveArchive()
         {
             return SaveArchivePath;
+        }
+
+        public string? PickResourcePackArchive()
+        {
+            return ResourcePackArchivePath;
+        }
+
+        public string? PickShaderPackArchive()
+        {
+            return ShaderPackArchivePath;
         }
 
         public string? PickFolder(string title, string? initialDirectory = null)
@@ -2718,6 +3108,256 @@ public sealed class GameSettingsPageViewModelTests
 
                 candidate = withoutExtension;
             }
+        }
+    }
+
+    private sealed class FakeResourcePackService : ILocalResourcePackService
+    {
+        public Dictionary<string, List<LocalResourcePack>> ResourcePacksByInstanceId { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public Exception? GetResourcePacksException { get; init; }
+
+        public LocalResourcePackImportResult? NextImportResult { get; init; }
+
+        public int ImportArchiveCallCount { get; private set; }
+
+        public string? LastImportedArchivePath { get; private set; }
+
+        public List<string> ImportedArchivePaths { get; } = [];
+
+        public Task<IReadOnlyList<LocalResourcePack>> GetResourcePacksAsync(
+            GameInstance instance,
+            CancellationToken cancellationToken = default)
+        {
+            if (GetResourcePacksException is not null)
+                throw GetResourcePacksException;
+
+            return Task.FromResult(
+                ResourcePacksByInstanceId.TryGetValue(instance.Id, out var resourcePacks)
+                    ? (IReadOnlyList<LocalResourcePack>)resourcePacks.Select(CloneLocalResourcePack).ToArray()
+                    : (IReadOnlyList<LocalResourcePack>)[]);
+        }
+
+        public Task<LocalResourcePackImportResult> ImportAsync(
+            GameInstance instance,
+            string archivePath,
+            CancellationToken cancellationToken = default)
+        {
+            ImportArchiveCallCount++;
+            LastImportedArchivePath = archivePath;
+            ImportedArchivePaths.Add(archivePath);
+
+            if (NextImportResult is not null)
+            {
+                if (NextImportResult.IsSuccess && NextImportResult.ImportedResourcePack is not null)
+                    AddOrUpdateResourcePack(instance.Id, NextImportResult.ImportedResourcePack);
+
+                return Task.FromResult(CloneImportResult(NextImportResult));
+            }
+
+            if (!File.Exists(archivePath))
+            {
+                return Task.FromResult(
+                    LocalResourcePackImportResult.Failure(LocalResourcePackImportFailureReason.FileNotFound));
+            }
+
+            var fileName = ResolveUniqueResourcePackFileName(instance.Id, Path.GetFileName(archivePath));
+            var importedResourcePack = CreateLocalResourcePack(fileName, instance.InstanceDirectory);
+            AddOrUpdateResourcePack(instance.Id, importedResourcePack);
+            return Task.FromResult(LocalResourcePackImportResult.Success(CloneLocalResourcePack(importedResourcePack)));
+        }
+
+        public Task DeleteAsync(LocalResourcePack resourcePack, CancellationToken cancellationToken = default)
+        {
+            foreach (var pair in ResourcePacksByInstanceId)
+            {
+                pair.Value.RemoveAll(candidate =>
+                    string.Equals(candidate.FullPath, resourcePack.FullPath, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public async Task DeleteAsync(IEnumerable<LocalResourcePack> resourcePacks, CancellationToken cancellationToken = default)
+        {
+            foreach (var resourcePack in resourcePacks)
+                await DeleteAsync(resourcePack, cancellationToken);
+        }
+
+        private static LocalResourcePack CloneLocalResourcePack(LocalResourcePack resourcePack)
+        {
+            return new LocalResourcePack
+            {
+                Name = resourcePack.Name,
+                FileName = resourcePack.FileName,
+                FullPath = resourcePack.FullPath,
+                IconSource = resourcePack.IconSource,
+                CreatedAt = resourcePack.CreatedAt
+            };
+        }
+
+        private void AddOrUpdateResourcePack(string instanceId, LocalResourcePack resourcePack)
+        {
+            if (!ResourcePacksByInstanceId.TryGetValue(instanceId, out var resourcePacks))
+            {
+                resourcePacks = [];
+                ResourcePacksByInstanceId[instanceId] = resourcePacks;
+            }
+
+            resourcePacks.RemoveAll(candidate =>
+                string.Equals(candidate.FullPath, resourcePack.FullPath, StringComparison.OrdinalIgnoreCase));
+            resourcePacks.Add(CloneLocalResourcePack(resourcePack));
+        }
+
+        private string ResolveUniqueResourcePackFileName(string instanceId, string baseFileName)
+        {
+            var normalizedBaseFileName = string.IsNullOrWhiteSpace(baseFileName) ? "Imported Resource Pack.zip" : baseFileName;
+            if (!ResourcePacksByInstanceId.TryGetValue(instanceId, out var resourcePacks))
+                return normalizedBaseFileName;
+
+            var baseName = Path.GetFileNameWithoutExtension(normalizedBaseFileName);
+            var extension = Path.GetExtension(normalizedBaseFileName);
+            var candidate = normalizedBaseFileName;
+            var index = 1;
+            while (resourcePacks.Any(resourcePack => string.Equals(resourcePack.FileName, candidate, StringComparison.OrdinalIgnoreCase)))
+            {
+                candidate = $"{baseName} ({index}){extension}";
+                index++;
+            }
+
+            return candidate;
+        }
+
+        private static LocalResourcePackImportResult CloneImportResult(LocalResourcePackImportResult result)
+        {
+            return result.IsSuccess && result.ImportedResourcePack is not null
+                ? LocalResourcePackImportResult.Success(CloneLocalResourcePack(result.ImportedResourcePack))
+                : LocalResourcePackImportResult.Failure(result.FailureReason);
+        }
+    }
+
+    private sealed class FakeShaderPackService : ILocalShaderPackService
+    {
+        public Dictionary<string, List<LocalShaderPack>> ShaderPacksByInstanceId { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public Exception? GetShaderPacksException { get; init; }
+
+        public LocalShaderPackImportResult? NextImportResult { get; init; }
+
+        public int ImportArchiveCallCount { get; private set; }
+
+        public string? LastImportedArchivePath { get; private set; }
+
+        public List<string> ImportedArchivePaths { get; } = [];
+
+        public Task<IReadOnlyList<LocalShaderPack>> GetShaderPacksAsync(
+            GameInstance instance,
+            CancellationToken cancellationToken = default)
+        {
+            if (GetShaderPacksException is not null)
+                throw GetShaderPacksException;
+
+            return Task.FromResult(
+                ShaderPacksByInstanceId.TryGetValue(instance.Id, out var shaderPacks)
+                    ? (IReadOnlyList<LocalShaderPack>)shaderPacks.Select(CloneLocalShaderPack).ToArray()
+                    : (IReadOnlyList<LocalShaderPack>)[]);
+        }
+
+        public Task<LocalShaderPackImportResult> ImportAsync(
+            GameInstance instance,
+            string archivePath,
+            CancellationToken cancellationToken = default)
+        {
+            ImportArchiveCallCount++;
+            LastImportedArchivePath = archivePath;
+            ImportedArchivePaths.Add(archivePath);
+
+            if (NextImportResult is not null)
+            {
+                if (NextImportResult.IsSuccess && NextImportResult.ImportedShaderPack is not null)
+                    AddOrUpdateShaderPack(instance.Id, NextImportResult.ImportedShaderPack);
+
+                return Task.FromResult(CloneImportResult(NextImportResult));
+            }
+
+            if (!File.Exists(archivePath))
+            {
+                return Task.FromResult(
+                    LocalShaderPackImportResult.Failure(LocalShaderPackImportFailureReason.FileNotFound));
+            }
+
+            var fileName = ResolveUniqueShaderPackFileName(instance.Id, Path.GetFileName(archivePath));
+            var importedShaderPack = CreateLocalShaderPack(fileName, instance.InstanceDirectory);
+            AddOrUpdateShaderPack(instance.Id, importedShaderPack);
+            return Task.FromResult(LocalShaderPackImportResult.Success(CloneLocalShaderPack(importedShaderPack)));
+        }
+
+        public Task DeleteAsync(LocalShaderPack shaderPack, CancellationToken cancellationToken = default)
+        {
+            foreach (var pair in ShaderPacksByInstanceId)
+            {
+                pair.Value.RemoveAll(candidate =>
+                    string.Equals(candidate.FullPath, shaderPack.FullPath, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public async Task DeleteAsync(IEnumerable<LocalShaderPack> shaderPacks, CancellationToken cancellationToken = default)
+        {
+            foreach (var shaderPack in shaderPacks)
+                await DeleteAsync(shaderPack, cancellationToken);
+        }
+
+        private static LocalShaderPack CloneLocalShaderPack(LocalShaderPack shaderPack)
+        {
+            return new LocalShaderPack
+            {
+                Name = shaderPack.Name,
+                FileName = shaderPack.FileName,
+                FullPath = shaderPack.FullPath,
+                IconSource = shaderPack.IconSource,
+                CreatedAt = shaderPack.CreatedAt
+            };
+        }
+
+        private void AddOrUpdateShaderPack(string instanceId, LocalShaderPack shaderPack)
+        {
+            if (!ShaderPacksByInstanceId.TryGetValue(instanceId, out var shaderPacks))
+            {
+                shaderPacks = [];
+                ShaderPacksByInstanceId[instanceId] = shaderPacks;
+            }
+
+            shaderPacks.RemoveAll(candidate =>
+                string.Equals(candidate.FullPath, shaderPack.FullPath, StringComparison.OrdinalIgnoreCase));
+            shaderPacks.Add(CloneLocalShaderPack(shaderPack));
+        }
+
+        private string ResolveUniqueShaderPackFileName(string instanceId, string baseFileName)
+        {
+            var normalizedBaseFileName = string.IsNullOrWhiteSpace(baseFileName) ? "Imported Shader Pack.zip" : baseFileName;
+            if (!ShaderPacksByInstanceId.TryGetValue(instanceId, out var shaderPacks))
+                return normalizedBaseFileName;
+
+            var baseName = Path.GetFileNameWithoutExtension(normalizedBaseFileName);
+            var extension = Path.GetExtension(normalizedBaseFileName);
+            var candidate = normalizedBaseFileName;
+            var index = 1;
+            while (shaderPacks.Any(shaderPack => string.Equals(shaderPack.FileName, candidate, StringComparison.OrdinalIgnoreCase)))
+            {
+                candidate = $"{baseName} ({index}){extension}";
+                index++;
+            }
+
+            return candidate;
+        }
+
+        private static LocalShaderPackImportResult CloneImportResult(LocalShaderPackImportResult result)
+        {
+            return result.IsSuccess && result.ImportedShaderPack is not null
+                ? LocalShaderPackImportResult.Success(CloneLocalShaderPack(result.ImportedShaderPack))
+                : LocalShaderPackImportResult.Failure(result.FailureReason);
         }
     }
 

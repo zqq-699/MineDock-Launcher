@@ -1,0 +1,606 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Launcher.App.Resources;
+using Launcher.App.Services;
+using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using System.Collections.ObjectModel;
+using System.IO;
+
+namespace Launcher.App.ViewModels.GameSettings;
+
+public sealed partial class InstanceResourcePackManagementSettingsViewModel : GameSettingsDetailsSectionViewModelBase
+{
+    private readonly LocalResourcePacksViewModel localResourcePacksViewModel;
+    private readonly IStatusService statusService;
+    private readonly IInstanceFolderService instanceFolderService;
+    private readonly IFilePickerService filePickerService;
+    private readonly ILogger<InstanceResourcePackManagementSettingsViewModel> logger;
+    private readonly HashSet<string> selectedResourcePackPaths = new(StringComparer.OrdinalIgnoreCase);
+    private GameInstance? selectedInstance;
+    private string? lastSingleSelectedResourcePackPath;
+
+    [ObservableProperty]
+    private int installedResourcePackCount;
+
+    [ObservableProperty]
+    private ResourcePackManagementItemViewModel? selectedResourcePack;
+
+    [ObservableProperty]
+    private string resourcePackSearchQuery = string.Empty;
+
+    [ObservableProperty]
+    private bool isMultiSelectMode;
+
+    [ObservableProperty]
+    private int selectedResourcePackCount;
+
+    public InstanceResourcePackManagementSettingsViewModel(
+        GameSettingsDetailsViewModel parent,
+        LocalResourcePacksViewModel localResourcePacksViewModel,
+        IStatusService statusService,
+        IInstanceFolderService instanceFolderService,
+        IFilePickerService filePickerService,
+        ILogger<InstanceResourcePackManagementSettingsViewModel>? logger = null)
+        : base(parent)
+    {
+        this.localResourcePacksViewModel = localResourcePacksViewModel;
+        this.statusService = statusService;
+        this.instanceFolderService = instanceFolderService;
+        this.filePickerService = filePickerService;
+        this.logger = logger ?? NullLogger<InstanceResourcePackManagementSettingsViewModel>.Instance;
+        this.localResourcePacksViewModel.ResourcePacksChanged += LocalResourcePacksViewModel_ResourcePacksChanged;
+    }
+
+    public event Action<ResourcePackDeleteRequest>? DeleteResourcePacksRequested;
+
+    public event Action<ResourcePackImportFailureRequest>? ResourcePackImportFailedRequested;
+
+    public ObservableCollection<ResourcePackManagementItemViewModel> ResourcePacks { get; } = [];
+
+    public bool CanShowResourcePackInfoSection => selectedInstance is not null;
+
+    public bool HasResourcePacks => ResourcePacks.Count > 0;
+
+    public bool HasInstalledResourcePacks => InstalledResourcePackCount > 0;
+
+    public bool CanShowResourcePackListSection => selectedInstance is not null && HasInstalledResourcePacks;
+
+    public bool CanShowNoResourcePacksEmptyState => selectedInstance is not null && !HasInstalledResourcePacks;
+
+    public bool CanShowResourcePackEmptyState => selectedInstance is not null && HasInstalledResourcePacks && !HasResourcePacks;
+
+    public bool HasSelectedResourcePacks => SelectedResourcePackCount > 0;
+
+    public bool AreAllVisibleResourcePacksSelected => HasResourcePacks && SelectedResourcePackCount == ResourcePacks.Count;
+
+    public bool CanImportLocalResourcePack => selectedInstance is not null;
+
+    public string SelectAllButtonText => AreAllVisibleResourcePacksSelected
+        ? Strings.GameSettings_ResourcePackManagementCancelSelectAllButton
+        : Strings.GameSettings_ResourcePackManagementSelectAllButton;
+
+    public string InstalledSummaryText => string.Format(
+        Strings.GameSettings_ResourcePackManagementInstalledSummaryFormat,
+        InstalledResourcePackCount);
+
+    public string ResourcePackEmptyMessage => !HasInstalledResourcePacks || string.IsNullOrWhiteSpace(ResourcePackSearchQuery)
+        ? Strings.GameSettings_ResourcePackManagementEmptyMessage
+        : Strings.GameSettings_ResourcePackManagementSearchEmptyMessage;
+
+    public async Task SetSelectedInstanceAsync(GameInstance? instance)
+    {
+        selectedInstance = instance;
+        ResetSelectionState();
+        RaiseAvailabilityPropertyChanges();
+        ImportLocalResourcePackCommand.NotifyCanExecuteChanged();
+        try
+        {
+            await localResourcePacksViewModel.SetSelectedInstanceAsync(instance);
+            RefreshFromLocalResourcePacks();
+        }
+        catch (Exception)
+        {
+            ResourcePacks.Clear();
+            SelectedResourcePack = null;
+            RefreshSummary();
+            OnPropertyChanged(nameof(HasResourcePacks));
+            RaiseAvailabilityPropertyChanges();
+            statusService.Report(Strings.Status_LoadLocalResourcePacksFailed);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenResourcePackFolder()
+    {
+        if (selectedInstance is null)
+            return;
+
+        try
+        {
+            var resourcePacksDirectory = instanceFolderService.EnsureDirectoryExists(
+                Path.Combine(selectedInstance.InstanceDirectory, "resourcepacks"));
+            logger.LogInformation(
+                "Opening resource pack folder. InstanceId={InstanceId} ResourcePacksDirectory={ResourcePacksDirectory}",
+                selectedInstance.Id,
+                resourcePacksDirectory);
+
+            if (!instanceFolderService.TryOpen(resourcePacksDirectory))
+            {
+                logger.LogWarning(
+                    "Failed to open resource pack folder. InstanceId={InstanceId} ResourcePacksDirectory={ResourcePacksDirectory}",
+                    selectedInstance.Id,
+                    resourcePacksDirectory);
+                statusService.Report(Strings.Status_OpenLocalResourcePackFolderFailed);
+            }
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Failed to prepare resource pack folder for opening. InstanceId={InstanceId}",
+                selectedInstance.Id);
+            statusService.Report(Strings.Status_OpenLocalResourcePackFolderFailed);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanImportLocalResourcePack))]
+    private async Task ImportLocalResourcePackAsync()
+    {
+        if (selectedInstance is null)
+            return;
+
+        var archivePath = filePickerService.PickResourcePackArchive();
+        if (string.IsNullOrWhiteSpace(archivePath))
+            return;
+
+        await ImportResourcePackArchivesAsync([archivePath], ImportTriggerSource.FilePicker);
+    }
+
+    public GameSettingsFileDropEvaluation EvaluateDroppedFiles(IReadOnlyList<string> paths)
+    {
+        return TryValidateImportPaths(paths, Strings.GameSettings_DropResourcePackArchivesOnlyMessage, out var failureMessage)
+            ? GameSettingsFileDropEvaluation.Accept(Strings.GameSettings_DropImportResourcePacksMessage)
+            : GameSettingsFileDropEvaluation.Reject(failureMessage);
+    }
+
+    public Task ImportDroppedResourcePackArchivesAsync(IReadOnlyList<string> paths)
+    {
+        return ImportResourcePackArchivesAsync(paths, ImportTriggerSource.DragDrop);
+    }
+
+    [RelayCommand]
+    private void ToggleMultiSelectMode()
+    {
+        if (IsMultiSelectMode)
+        {
+            ExitMultiSelectMode();
+            return;
+        }
+
+        EnterMultiSelectMode();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanToggleSelectAllResourcePacks))]
+    private void SelectAllResourcePacks()
+    {
+        if (AreAllVisibleResourcePacksSelected)
+        {
+            foreach (var resourcePack in ResourcePacks)
+                resourcePack.IsSelected = false;
+
+            selectedResourcePackPaths.Clear();
+            SelectedResourcePack = null;
+            UpdateSelectedResourcePackState();
+            return;
+        }
+
+        foreach (var resourcePack in ResourcePacks)
+        {
+            resourcePack.IsSelected = true;
+            selectedResourcePackPaths.Add(resourcePack.FullPath);
+        }
+
+        SelectedResourcePack = null;
+        UpdateSelectedResourcePackState();
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelectedResourcePacks))]
+    private void RequestDeleteSelectedResourcePacks()
+    {
+        var selectedResourcePacks = GetSelectedVisibleResourcePacks();
+        if (selectedResourcePacks.Count == 0)
+            return;
+
+        DeleteResourcePacksRequested?.Invoke(new ResourcePackDeleteRequest(
+            selectedResourcePacks.Select(resourcePack => resourcePack.FullPath).ToArray(),
+            selectedResourcePacks.Select(resourcePack => resourcePack.Title).ToArray()));
+    }
+
+    [RelayCommand]
+    private void OpenResourcePackLocation(ResourcePackManagementItemViewModel? resourcePack)
+    {
+        if (resourcePack is null)
+            return;
+
+        try
+        {
+            if (!instanceFolderService.TryRevealFile(resourcePack.FullPath))
+            {
+                logger.LogWarning(
+                    "Failed to reveal local resource pack file. InstanceId={InstanceId} Path={Path}",
+                    selectedInstance?.Id ?? "<none>",
+                    resourcePack.FullPath);
+                statusService.Report(Strings.Status_OpenLocalResourcePackLocationFailed);
+            }
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Failed to reveal local resource pack file. InstanceId={InstanceId} Path={Path}",
+                selectedInstance?.Id ?? "<none>",
+                resourcePack.FullPath);
+            statusService.Report(Strings.Status_OpenLocalResourcePackLocationFailed);
+        }
+    }
+
+    [RelayCommand]
+    private void RequestDeleteResourcePack(ResourcePackManagementItemViewModel? resourcePack)
+    {
+        if (resourcePack is null)
+            return;
+
+        DeleteResourcePacksRequested?.Invoke(new ResourcePackDeleteRequest(
+            [resourcePack.FullPath],
+            [resourcePack.Title]));
+    }
+
+    [RelayCommand]
+    private void SelectResourcePack(ResourcePackManagementItemViewModel? resourcePack)
+    {
+        if (resourcePack is null)
+        {
+            SelectedResourcePack = null;
+            if (IsMultiSelectMode)
+                selectedResourcePackPaths.Clear();
+            foreach (var item in ResourcePacks)
+                item.IsSelected = false;
+            UpdateSelectedResourcePackState();
+            return;
+        }
+
+        if (IsMultiSelectMode)
+        {
+            var isSelected = !resourcePack.IsSelected;
+            resourcePack.IsSelected = isSelected;
+            if (isSelected)
+                selectedResourcePackPaths.Add(resourcePack.FullPath);
+            else
+                selectedResourcePackPaths.Remove(resourcePack.FullPath);
+
+            SelectedResourcePack = null;
+            UpdateSelectedResourcePackState();
+            return;
+        }
+
+        SelectedResourcePack = resourcePack;
+        lastSingleSelectedResourcePackPath = resourcePack.FullPath;
+        foreach (var item in ResourcePacks)
+            item.IsSelected = false;
+    }
+
+    public async Task DeleteResourcePacksAsync(IReadOnlyList<string> fullPaths)
+    {
+        ArgumentNullException.ThrowIfNull(fullPaths);
+
+        var resourcePacksToDelete = ResolveLocalResourcePacks(fullPaths);
+        if (resourcePacksToDelete.Count == 0)
+        {
+            ExitMultiSelectMode();
+            return;
+        }
+
+        logger.LogInformation(
+            "Deleting selected resource packs. InstanceId={InstanceId} Count={Count}",
+            selectedInstance?.Id ?? "<none>",
+            resourcePacksToDelete.Count);
+        try
+        {
+            var failedCount = await localResourcePacksViewModel.DeleteResourcePacksAsync(resourcePacksToDelete);
+            ExitMultiSelectMode();
+            ReportBatchOperationResult(
+                resourcePacksToDelete.Count,
+                failedCount,
+                Strings.Status_SelectedResourcePacksDeletedFormat,
+                Strings.Status_SelectedResourcePacksDeletePartialFailedFormat);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Failed to delete selected resource packs. InstanceId={InstanceId}",
+                selectedInstance?.Id ?? "<none>");
+            statusService.Report(Strings.Status_SelectedResourcePacksDeleteFailed);
+        }
+    }
+
+    partial void OnInstalledResourcePackCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(InstalledSummaryText));
+        RaiseAvailabilityPropertyChanges();
+        OnPropertyChanged(nameof(ResourcePackEmptyMessage));
+    }
+
+    partial void OnResourcePackSearchQueryChanged(string value)
+    {
+        RefreshFromLocalResourcePacks();
+        OnPropertyChanged(nameof(ResourcePackEmptyMessage));
+    }
+
+    partial void OnSelectedResourcePackCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(HasSelectedResourcePacks));
+        OnPropertyChanged(nameof(AreAllVisibleResourcePacksSelected));
+        OnPropertyChanged(nameof(SelectAllButtonText));
+        SelectAllResourcePacksCommand.NotifyCanExecuteChanged();
+        RequestDeleteSelectedResourcePacksCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsMultiSelectModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(AreAllVisibleResourcePacksSelected));
+        OnPropertyChanged(nameof(SelectAllButtonText));
+        SelectAllResourcePacksCommand.NotifyCanExecuteChanged();
+    }
+
+    private void RefreshSummary()
+    {
+        InstalledResourcePackCount = localResourcePacksViewModel.ResourcePacks.Count;
+    }
+
+    private void LocalResourcePacksViewModel_ResourcePacksChanged(object? sender, EventArgs e)
+    {
+        RefreshFromLocalResourcePacks();
+    }
+
+    private void RefreshFromLocalResourcePacks()
+    {
+        var selectedFullPath = lastSingleSelectedResourcePackPath ?? SelectedResourcePack?.FullPath;
+        var filteredResourcePacks = localResourcePacksViewModel.ResourcePacks.Where(MatchesSearch).ToArray();
+
+        if (IsMultiSelectMode)
+            selectedResourcePackPaths.IntersectWith(filteredResourcePacks.Select(resourcePack => resourcePack.FullPath));
+
+        ResourcePacks.Clear();
+        foreach (var resourcePack in filteredResourcePacks)
+        {
+            var item = new ResourcePackManagementItemViewModel(resourcePack)
+            {
+                IsSelected = IsMultiSelectMode
+                    && selectedResourcePackPaths.Contains(resourcePack.FullPath)
+            };
+            ResourcePacks.Add(item);
+        }
+
+        RefreshSummary();
+        OnPropertyChanged(nameof(HasResourcePacks));
+        RaiseAvailabilityPropertyChanges();
+        OnPropertyChanged(nameof(ResourcePackEmptyMessage));
+        OnPropertyChanged(nameof(AreAllVisibleResourcePacksSelected));
+        OnPropertyChanged(nameof(SelectAllButtonText));
+        SelectAllResourcePacksCommand.NotifyCanExecuteChanged();
+
+        if (IsMultiSelectMode)
+        {
+            SelectedResourcePack = null;
+            UpdateSelectedResourcePackState();
+            return;
+        }
+
+        var restoredSelection = ResourcePacks.FirstOrDefault(resourcePack =>
+            string.Equals(resourcePack.FullPath, selectedFullPath, StringComparison.OrdinalIgnoreCase));
+        SelectResourcePack(restoredSelection ?? ResourcePacks.FirstOrDefault());
+    }
+
+    private bool MatchesSearch(LocalResourcePack resourcePack)
+    {
+        if (string.IsNullOrWhiteSpace(ResourcePackSearchQuery))
+            return true;
+
+        var query = ResourcePackSearchQuery.Trim();
+        return Contains(resourcePack.Name, query)
+            || Contains(resourcePack.FileName, query);
+    }
+
+    private static bool Contains(string? source, string query)
+    {
+        return !string.IsNullOrWhiteSpace(source)
+            && source.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool CanToggleSelectAllResourcePacks()
+    {
+        return IsMultiSelectMode && HasResourcePacks;
+    }
+
+    private void RaiseAvailabilityPropertyChanges()
+    {
+        OnPropertyChanged(nameof(CanShowResourcePackInfoSection));
+        OnPropertyChanged(nameof(HasInstalledResourcePacks));
+        OnPropertyChanged(nameof(CanShowResourcePackListSection));
+        OnPropertyChanged(nameof(CanShowNoResourcePacksEmptyState));
+        OnPropertyChanged(nameof(CanShowResourcePackEmptyState));
+    }
+
+    private void EnterMultiSelectMode()
+    {
+        lastSingleSelectedResourcePackPath = SelectedResourcePack?.FullPath ?? lastSingleSelectedResourcePackPath;
+        IsMultiSelectMode = true;
+        SelectedResourcePack = null;
+        selectedResourcePackPaths.Clear();
+        ClearVisibleSelections();
+        UpdateSelectedResourcePackState();
+    }
+
+    private void ExitMultiSelectMode()
+    {
+        IsMultiSelectMode = false;
+        ClearVisibleSelections();
+        selectedResourcePackPaths.Clear();
+        UpdateSelectedResourcePackState();
+
+        var restoredSelection = ResourcePacks.FirstOrDefault(resourcePack =>
+            string.Equals(resourcePack.FullPath, lastSingleSelectedResourcePackPath, StringComparison.OrdinalIgnoreCase));
+        SelectResourcePack(restoredSelection ?? ResourcePacks.FirstOrDefault());
+    }
+
+    private void ResetSelectionState()
+    {
+        lastSingleSelectedResourcePackPath = null;
+        IsMultiSelectMode = false;
+        SelectedResourcePack = null;
+        selectedResourcePackPaths.Clear();
+        SelectedResourcePackCount = 0;
+    }
+
+    private void ClearVisibleSelections()
+    {
+        foreach (var resourcePack in ResourcePacks)
+            resourcePack.IsSelected = false;
+    }
+
+    private IReadOnlyList<ResourcePackManagementItemViewModel> GetSelectedVisibleResourcePacks()
+    {
+        return ResourcePacks.Where(resourcePack => selectedResourcePackPaths.Contains(resourcePack.FullPath)).ToArray();
+    }
+
+    private IReadOnlyList<LocalResourcePack> ResolveLocalResourcePacks(IEnumerable<string> fullPaths)
+    {
+        var pathSet = new HashSet<string>(fullPaths, StringComparer.OrdinalIgnoreCase);
+        return localResourcePacksViewModel.ResourcePacks
+            .Where(resourcePack => pathSet.Contains(resourcePack.FullPath))
+            .ToArray();
+    }
+
+    private void ReportBatchOperationResult(
+        int totalCount,
+        int failedCount,
+        string successFormat,
+        string partialFailureFormat)
+    {
+        if (failedCount <= 0)
+        {
+            statusService.Report(string.Format(successFormat, totalCount));
+            return;
+        }
+
+        statusService.Report(string.Format(partialFailureFormat, totalCount - failedCount, failedCount));
+    }
+
+    private void UpdateSelectedResourcePackState()
+    {
+        SelectedResourcePackCount = ResourcePacks.Count(resourcePack => resourcePack.IsSelected);
+    }
+
+    private async Task ImportResourcePackArchivesAsync(IReadOnlyList<string> archivePaths, ImportTriggerSource source)
+    {
+        if (selectedInstance is null)
+            return;
+
+        if (!TryValidateImportPaths(archivePaths, Strings.GameSettings_DropResourcePackArchivesOnlyMessage, out var validationMessage))
+        {
+            if (source is ImportTriggerSource.DragDrop)
+            {
+                statusService.Report(validationMessage);
+            }
+            else
+            {
+                ResourcePackImportFailedRequested?.Invoke(
+                    new ResourcePackImportFailureRequest(Strings.Dialog_UnsupportedResourcePackArchiveMessage));
+            }
+
+            return;
+        }
+
+        logger.LogInformation(
+            "Starting local resource pack import batch. InstanceId={InstanceId} Source={Source} FileCount={FileCount}",
+            selectedInstance.Id,
+            source,
+            archivePaths.Count);
+
+        var successCount = 0;
+        foreach (var archivePath in archivePaths)
+        {
+            logger.LogInformation(
+                "Importing local resource pack archive. InstanceId={InstanceId} ArchivePath={ArchivePath}",
+                selectedInstance.Id,
+                archivePath);
+
+            var result = await localResourcePacksViewModel.ImportResourcePackAsync(archivePath, reportStatus: false);
+            if (result.IsSuccess)
+            {
+                successCount++;
+                continue;
+            }
+
+            switch (result.FailureReason)
+            {
+                case LocalResourcePackImportFailureReason.UnsupportedArchive:
+                    ResourcePackImportFailedRequested?.Invoke(
+                        new ResourcePackImportFailureRequest(Strings.Dialog_UnsupportedResourcePackArchiveMessage));
+                    break;
+                case LocalResourcePackImportFailureReason.FileNotFound:
+                    statusService.Report(Strings.Status_LocalResourcePackImportFileNotFound);
+                    break;
+                case LocalResourcePackImportFailureReason.UnexpectedError:
+                    logger.LogWarning(
+                        "Local resource pack import failed unexpectedly after service call. InstanceId={InstanceId} ArchivePath={ArchivePath}",
+                        selectedInstance.Id,
+                        archivePath);
+                    statusService.Report(Strings.Status_LocalResourcePackImportFailed);
+                    break;
+            }
+
+            return;
+        }
+
+        if (successCount > 0)
+        {
+            statusService.Report(successCount == 1
+                ? Strings.Status_LocalResourcePackImported
+                : string.Format(Strings.Status_LocalResourcePacksImportedFormat, successCount));
+        }
+    }
+
+    private bool TryValidateImportPaths(
+        IReadOnlyList<string> paths,
+        string invalidTypeMessage,
+        out string failureMessage)
+    {
+        failureMessage = string.Empty;
+        if (paths.Count == 0)
+        {
+            failureMessage = invalidTypeMessage;
+            return false;
+        }
+
+        foreach (var path in paths)
+        {
+            if (Directory.Exists(path))
+            {
+                failureMessage = Strings.GameSettings_DropFoldersUnsupportedMessage;
+                return false;
+            }
+
+            if (!File.Exists(path) || !path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                failureMessage = invalidTypeMessage;
+                return false;
+            }
+        }
+
+        return true;
+    }
+}

@@ -1218,6 +1218,16 @@ public sealed class SettingsPageViewModelTests
             return null;
         }
 
+        public string? PickResourcePackArchive()
+        {
+            return null;
+        }
+
+        public string? PickShaderPackArchive()
+        {
+            return null;
+        }
+
         public string? PickFolder(string title, string? initialDirectory = null)
         {
             return FolderPath;

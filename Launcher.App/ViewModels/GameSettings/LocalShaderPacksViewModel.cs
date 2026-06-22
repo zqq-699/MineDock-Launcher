@@ -1,0 +1,278 @@
+using System.Collections.ObjectModel;
+using System.IO;
+using Launcher.App.Resources;
+using Launcher.App.Services;
+using Launcher.Application.Services;
+using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Launcher.App.ViewModels.GameSettings;
+
+public sealed class LocalShaderPacksViewModel : IDisposable
+{
+    private readonly ILocalShaderPackService localShaderPackService;
+    private readonly IStatusService statusService;
+    private readonly IUiDispatcher uiDispatcher;
+    private readonly ILogger<LocalShaderPacksViewModel> logger;
+    private FileSystemWatcher? shaderPacksWatcher;
+    private CancellationTokenSource? watcherRefreshCancellationTokenSource;
+    private GameInstance? selectedInstance;
+    private string? watchedShaderPacksDirectory;
+    private int shaderPackRefreshVersion;
+
+    public LocalShaderPacksViewModel(
+        ILocalShaderPackService localShaderPackService,
+        IStatusService statusService,
+        IUiDispatcher? uiDispatcher = null,
+        ILogger<LocalShaderPacksViewModel>? logger = null)
+    {
+        this.localShaderPackService = localShaderPackService;
+        this.statusService = statusService;
+        this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
+        this.logger = logger ?? NullLogger<LocalShaderPacksViewModel>.Instance;
+    }
+
+    public event EventHandler? ShaderPacksChanged;
+
+    public ObservableCollection<LocalShaderPack> ShaderPacks { get; } = [];
+
+    public Task SetSelectedInstanceAsync(GameInstance? instance)
+    {
+        selectedInstance = instance;
+        ResetWatcher(instance);
+        logger.LogInformation(
+            "Selected instance changed for local shader packs view. InstanceId={InstanceId}",
+            instance?.Id ?? "<none>");
+        return RefreshShaderPacksAsync();
+    }
+
+    public async Task RefreshShaderPacksAsync()
+    {
+        var refreshVersion = Interlocked.Increment(ref shaderPackRefreshVersion);
+        var instance = selectedInstance;
+
+        if (instance is null)
+        {
+            uiDispatcher.Invoke(() =>
+            {
+                ShaderPacks.Clear();
+                ShaderPacksChanged?.Invoke(this, EventArgs.Empty);
+            });
+            logger.LogInformation("Local shader packs view cleared because no instance is selected.");
+            return;
+        }
+
+        IReadOnlyList<LocalShaderPack> loadedShaderPacks;
+        try
+        {
+            loadedShaderPacks = await localShaderPackService.GetShaderPacksAsync(instance);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Failed to load local shader packs. InstanceId={InstanceId}",
+                instance.Id);
+            throw;
+        }
+
+        if (refreshVersion != shaderPackRefreshVersion
+            || !string.Equals(instance.Id, selectedInstance?.Id, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        uiDispatcher.Invoke(() =>
+        {
+            ShaderPacks.ReplaceWith(loadedShaderPacks);
+            ShaderPacksChanged?.Invoke(this, EventArgs.Empty);
+        });
+        logger.LogInformation(
+            "Local shader packs view refreshed. InstanceId={InstanceId} Count={ShaderPackCount}",
+            instance.Id,
+            ShaderPacks.Count);
+    }
+
+    public async Task<int> DeleteShaderPacksAsync(IEnumerable<LocalShaderPack> shaderPacks)
+    {
+        ArgumentNullException.ThrowIfNull(shaderPacks);
+
+        var failedCount = 0;
+        foreach (var shaderPack in shaderPacks.DistinctBy(shaderPack => shaderPack.FullPath, StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                await localShaderPackService.DeleteAsync(shaderPack);
+            }
+            catch (Exception exception)
+            {
+                failedCount++;
+                logger.LogWarning(
+                    exception,
+                    "Failed to delete local shader pack. Path={Path}",
+                    shaderPack.FullPath);
+            }
+        }
+
+        await RefreshShaderPacksAsync();
+        return failedCount;
+    }
+
+    public async Task<LocalShaderPackImportResult> ImportShaderPackAsync(string archivePath, bool reportStatus = true)
+    {
+        if (selectedInstance is null || string.IsNullOrWhiteSpace(archivePath))
+            return LocalShaderPackImportResult.Failure(LocalShaderPackImportFailureReason.UnexpectedError);
+
+        var result = await localShaderPackService.ImportAsync(selectedInstance, archivePath);
+        if (!result.IsSuccess)
+        {
+            switch (result.FailureReason)
+            {
+                case LocalShaderPackImportFailureReason.FileNotFound:
+                    if (reportStatus)
+                        ReportStatus(Strings.Status_LocalShaderPackImportFileNotFound);
+                    break;
+                case LocalShaderPackImportFailureReason.UnexpectedError:
+                    if (reportStatus)
+                        ReportStatus(Strings.Status_LocalShaderPackImportFailed);
+                    break;
+            }
+
+            return result;
+        }
+
+        await RefreshShaderPacksAsync();
+        if (reportStatus)
+            ReportStatus(Strings.Status_LocalShaderPackImported);
+        return result;
+    }
+
+    public void Dispose()
+    {
+        shaderPacksWatcher?.Dispose();
+        shaderPacksWatcher = null;
+        watcherRefreshCancellationTokenSource?.Cancel();
+        watcherRefreshCancellationTokenSource?.Dispose();
+        watcherRefreshCancellationTokenSource = null;
+    }
+
+    private void ResetWatcher(GameInstance? instance)
+    {
+        shaderPacksWatcher?.Dispose();
+        shaderPacksWatcher = null;
+        watcherRefreshCancellationTokenSource?.Cancel();
+        watcherRefreshCancellationTokenSource?.Dispose();
+        watcherRefreshCancellationTokenSource = null;
+        watchedShaderPacksDirectory = null;
+
+        if (instance is null || string.IsNullOrWhiteSpace(instance.InstanceDirectory))
+            return;
+
+        watchedShaderPacksDirectory = Path.Combine(instance.InstanceDirectory, "shaderpacks");
+        Directory.CreateDirectory(watchedShaderPacksDirectory);
+
+        try
+        {
+            shaderPacksWatcher = new FileSystemWatcher(watchedShaderPacksDirectory, "*")
+            {
+                IncludeSubdirectories = false,
+                NotifyFilter = NotifyFilters.DirectoryName
+                    | NotifyFilters.FileName
+                    | NotifyFilters.LastWrite
+                    | NotifyFilters.Size
+                    | NotifyFilters.CreationTime
+            };
+            shaderPacksWatcher.Changed += ShaderPacksWatcher_StateChanged;
+            shaderPacksWatcher.Created += ShaderPacksWatcher_StateChanged;
+            shaderPacksWatcher.Deleted += ShaderPacksWatcher_StateChanged;
+            shaderPacksWatcher.Renamed += ShaderPacksWatcher_StateRenamed;
+            shaderPacksWatcher.EnableRaisingEvents = true;
+            logger.LogInformation(
+                "Local shader pack watcher started. InstanceId={InstanceId} ShaderPacksDirectory={ShaderPacksDirectory}",
+                instance.Id,
+                watchedShaderPacksDirectory);
+        }
+        catch (Exception exception) when (
+            exception is IOException
+            or UnauthorizedAccessException
+            or ArgumentException)
+        {
+            logger.LogWarning(
+                exception,
+                "Failed to start local shader pack watcher. InstanceId={InstanceId} ShaderPacksDirectory={ShaderPacksDirectory}",
+                instance.Id,
+                watchedShaderPacksDirectory);
+        }
+    }
+
+    private void ShaderPacksWatcher_StateChanged(object sender, FileSystemEventArgs e)
+    {
+        if (!IsTrackedShaderPackPath(e.FullPath))
+            return;
+
+        QueueWatcherRefresh(e.ChangeType.ToString(), e.FullPath);
+    }
+
+    private void ShaderPacksWatcher_StateRenamed(object sender, RenamedEventArgs e)
+    {
+        if (!IsTrackedShaderPackPath(e.FullPath) && !IsTrackedShaderPackPath(e.OldFullPath))
+            return;
+
+        QueueWatcherRefresh("Renamed", e.FullPath);
+    }
+
+    private void QueueWatcherRefresh(string changeType, string fullPath)
+    {
+        var instance = selectedInstance;
+        if (instance is null)
+            return;
+
+        var previousCts = Interlocked.Exchange(
+            ref watcherRefreshCancellationTokenSource,
+            new CancellationTokenSource());
+        previousCts?.Cancel();
+        previousCts?.Dispose();
+
+        var refreshCts = watcherRefreshCancellationTokenSource!;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(200, refreshCts.Token);
+                logger.LogInformation(
+                    "Detected local shader pack folder change. InstanceId={InstanceId} ChangeType={ChangeType} Path={Path}",
+                    instance.Id,
+                    changeType,
+                    fullPath);
+                await RefreshShaderPacksAsync();
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(
+                    exception,
+                    "Failed to refresh local shader packs after watcher update. InstanceId={InstanceId}",
+                    instance.Id);
+                uiDispatcher.Post(() => ReportStatus(Strings.Status_LoadLocalShaderPacksFailed));
+            }
+        });
+    }
+
+    private bool IsTrackedShaderPackPath(string? fullPath)
+    {
+        if (string.IsNullOrWhiteSpace(fullPath) || string.IsNullOrWhiteSpace(watchedShaderPacksDirectory))
+            return false;
+
+        var normalizedRoot = Path.GetFullPath(watchedShaderPacksDirectory);
+        var normalizedPath = Path.GetFullPath(fullPath);
+        return normalizedPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void ReportStatus(string message)
+    {
+        statusService.Report(message);
+    }
+}

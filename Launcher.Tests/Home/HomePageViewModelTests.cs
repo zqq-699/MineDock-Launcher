@@ -925,6 +925,16 @@ public sealed class HomePageViewModelTests
             return null;
         }
 
+        public string? PickResourcePackArchive()
+        {
+            return null;
+        }
+
+        public string? PickShaderPackArchive()
+        {
+            return null;
+        }
+
         public string? PickFolder(string title, string? initialDirectory = null)
         {
             return null;

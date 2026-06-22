@@ -13,6 +13,7 @@ internal static class GameSettingsDetailSectionFactory
             new GameSettingsDetailSectionItem("java", Strings.GameSettings_DetailJava, "instance_setting_page/java"),
             new GameSettingsDetailSectionItem("mod_management", Strings.GameSettings_DetailModManagement, "instance_setting_page/mod"),
             new GameSettingsDetailSectionItem("saves", Strings.GameSettings_DetailSaves, "instance_setting_page/saves"),
+            new GameSettingsDetailSectionItem("resource_packs", Strings.GameSettings_DetailResourcePacks, "main_menu_library"),
             new GameSettingsDetailSectionItem("shaders", Strings.GameSettings_DetailShaders, "instance_setting_page/shader"),
             new GameSettingsDetailSectionItem("loader", Strings.GameSettings_DetailLoader, "instance_setting_page/loader"),
             new GameSettingsDetailSectionItem("advanced", Strings.GameSettings_DetailAdvanced, "instance_setting_page/advanced_setting"),

@@ -32,6 +32,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISystemMemoryService, WindowsSystemMemoryService>();
         services.AddSingleton<IModService, ModService>();
         services.AddSingleton<ILocalSaveService, LocalSaveService>();
+        services.AddSingleton<ILocalResourcePackService, LocalResourcePackService>();
+        services.AddSingleton<ILocalShaderPackService, LocalShaderPackService>();
         services.AddSingleton<IModrinthService, ModrinthService>();
         services.AddSingleton<ILauncherStateMonitor, LauncherStateMonitor>();
         services.AddSingleton<IMicrosoftAccountService, MicrosoftAccountService>();

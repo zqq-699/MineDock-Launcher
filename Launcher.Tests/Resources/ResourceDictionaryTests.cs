@@ -73,12 +73,12 @@ public sealed class ResourceDictionaryTests
                 Assert.NotNull(light["Brush.Text.Primary"]);
                 Assert.NotNull(dark["Brush.Icon.Primary"]);
                 Assert.NotNull(light["Brush.Icon.Primary"]);
-                Assert.Equal("#5A4A4A4A", ((SolidColorBrush)dark["Brush.SecondaryMenu.Panel"]).Color.ToString());
+                Assert.Equal("#804A4A4A", ((SolidColorBrush)dark["Brush.SecondaryMenu.Panel"]).Color.ToString());
                 Assert.Equal("#CC252525", ((SolidColorBrush)dark["Brush.Surface.Popup"]).Color.ToString());
                 Assert.Equal("#FF181818", ((SolidColorBrush)dark["Brush.Page.Background"]).Color.ToString());
                 Assert.Equal(0.85d, Assert.IsType<double>(dark["Opacity.Page.Background"]), 3);
                 Assert.Equal("#80FFFFFF", ((SolidColorBrush)light["Brush.Surface.Popup"]).Color.ToString());
-                Assert.Equal("#5AFFFFFF", ((SolidColorBrush)light["Brush.SecondaryMenu.Panel"]).Color.ToString());
+                Assert.Equal("#80FFFFFF", ((SolidColorBrush)light["Brush.SecondaryMenu.Panel"]).Color.ToString());
                 Assert.Equal("#24000000", ((SolidColorBrush)light["Brush.SecondaryMenu.Border"]).Color.ToString());
                 Assert.Equal("#52000000", ((Color)light["Color.SecondaryMenu.Shadow"]).ToString());
                 Assert.Equal("#FFECEEF1", ((SolidColorBrush)light["Brush.Page.Background"]).Color.ToString());
@@ -268,6 +268,54 @@ public sealed class ResourceDictionaryTests
                 var saveSearchTextBoxes = FindVisualDescendants<TextBox>(standaloneSaveView).ToArray();
                 Assert.Single(saveSearchTextBoxes);
                 Assert.Equal("base", saveSearchTextBoxes[0].Text);
+
+                detailsViewModel.SetSelectedSection(new GameSettingsDetailSectionItem(
+                    "resource_packs",
+                    Strings.GameSettings_DetailResourcePacks,
+                    "main_menu_library"));
+                detailsView.UpdateLayout();
+
+                var resourcePackManagementView = FindVisualDescendant<InstanceResourcePackManagementSettingsView>(detailsView);
+                Assert.NotNull(resourcePackManagementView);
+
+                detailsViewModel.ResourcePackManagement.ResourcePackSearchQuery = "fresh";
+                var standaloneResourcePackView = new InstanceResourcePackManagementSettingsView
+                {
+                    DataContext = detailsViewModel.ResourcePackManagement
+                };
+                standaloneResourcePackView.ApplyTemplate();
+                standaloneResourcePackView.Measure(new Size(800, 300));
+                standaloneResourcePackView.Arrange(new Rect(0, 0, 800, 300));
+                standaloneResourcePackView.UpdateLayout();
+
+                Assert.NotNull(standaloneResourcePackView.Content);
+                var resourcePackSearchTextBoxes = FindVisualDescendants<TextBox>(standaloneResourcePackView).ToArray();
+                Assert.Single(resourcePackSearchTextBoxes);
+                Assert.Equal("fresh", resourcePackSearchTextBoxes[0].Text);
+
+                detailsViewModel.SetSelectedSection(new GameSettingsDetailSectionItem(
+                    "shaders",
+                    Strings.GameSettings_DetailShaders,
+                    "instance_setting_page/shader"));
+                detailsView.UpdateLayout();
+
+                var shaderPackManagementView = FindVisualDescendant<InstanceShaderPackManagementSettingsView>(detailsView);
+                Assert.NotNull(shaderPackManagementView);
+
+                detailsViewModel.ShaderPackManagement.ShaderPackSearchQuery = "complementary";
+                var standaloneShaderPackView = new InstanceShaderPackManagementSettingsView
+                {
+                    DataContext = detailsViewModel.ShaderPackManagement
+                };
+                standaloneShaderPackView.ApplyTemplate();
+                standaloneShaderPackView.Measure(new Size(800, 300));
+                standaloneShaderPackView.Arrange(new Rect(0, 0, 800, 300));
+                standaloneShaderPackView.UpdateLayout();
+
+                Assert.NotNull(standaloneShaderPackView.Content);
+                var shaderPackSearchTextBoxes = FindVisualDescendants<TextBox>(standaloneShaderPackView).ToArray();
+                Assert.Single(shaderPackSearchTextBoxes);
+                Assert.Equal("complementary", shaderPackSearchTextBoxes[0].Text);
             }
             catch (Exception ex)
             {
@@ -459,6 +507,8 @@ public sealed class ResourceDictionaryTests
             new StubModService(),
             new LocalModsViewModel(new StubModService(), statusService),
             new LocalSavesViewModel(new StubSaveService(), statusService),
+            new LocalResourcePacksViewModel(new StubResourcePackService(), statusService),
+            new LocalShaderPacksViewModel(new StubShaderPackService(), statusService),
             new StubJavaRuntimeDiscoveryService(),
             new StubFilePickerService(),
             new StubFloatingMessageService());
@@ -482,6 +532,8 @@ public sealed class ResourceDictionaryTests
             modService,
             new LocalModsViewModel(modService, statusService),
             new LocalSavesViewModel(new StubSaveService(), statusService),
+            new LocalResourcePacksViewModel(new StubResourcePackService(), statusService),
+            new LocalShaderPacksViewModel(new StubShaderPackService(), statusService),
             new StubJavaRuntimeDiscoveryService(),
             new StubFilePickerService(),
             new StubFloatingMessageService());
@@ -632,6 +684,10 @@ public sealed class ResourceDictionaryTests
 
         public string? PickSaveArchive() => null;
 
+        public string? PickResourcePackArchive() => null;
+
+        public string? PickShaderPackArchive() => null;
+
         public string? PickFolder(string title, string? initialDirectory = null) => null;
     }
 
@@ -743,6 +799,58 @@ public sealed class ResourceDictionaryTests
         }
 
         public Task DeleteAsync(IEnumerable<LocalSave> saves, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class StubResourcePackService : ILocalResourcePackService
+    {
+        public Task<IReadOnlyList<LocalResourcePack>> GetResourcePacksAsync(GameInstance instance, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<LocalResourcePack>>([]);
+        }
+
+        public Task<LocalResourcePackImportResult> ImportAsync(
+            GameInstance instance,
+            string archivePath,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(LocalResourcePackImportResult.Failure(LocalResourcePackImportFailureReason.UnsupportedArchive));
+        }
+
+        public Task DeleteAsync(LocalResourcePack resourcePack, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAsync(IEnumerable<LocalResourcePack> resourcePacks, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class StubShaderPackService : ILocalShaderPackService
+    {
+        public Task<IReadOnlyList<LocalShaderPack>> GetShaderPacksAsync(GameInstance instance, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<LocalShaderPack>>([]);
+        }
+
+        public Task<LocalShaderPackImportResult> ImportAsync(
+            GameInstance instance,
+            string archivePath,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(LocalShaderPackImportResult.Failure(LocalShaderPackImportFailureReason.UnsupportedArchive));
+        }
+
+        public Task DeleteAsync(LocalShaderPack shaderPack, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAsync(IEnumerable<LocalShaderPack> shaderPacks, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }
