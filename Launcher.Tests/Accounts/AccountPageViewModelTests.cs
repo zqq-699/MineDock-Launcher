@@ -1869,10 +1869,6 @@ public sealed class AccountPageViewModelTests
             WasSkinManagerCanceled = true;
         }
 
-        public void QueueOpenDialogBlurRefresh()
-        {
-        }
-
         public void Prewarm()
         {
         }

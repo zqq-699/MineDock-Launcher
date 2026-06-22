@@ -3,7 +3,6 @@ using System.Windows.Controls;
 using System.Windows.Markup;
 using System.Windows.Media.Animation;
 using Launcher.App.Services;
-using Launcher.App.Utilities;
 
 namespace Launcher.App.Controls;
 
@@ -29,13 +28,6 @@ public partial class DialogHost : UserControl
             typeof(DialogHost),
             new PropertyMetadata(false, OnIntegratedOverlayPropertyChanged));
 
-    public static readonly DependencyProperty OverlaySourceElementProperty =
-        DependencyProperty.Register(
-            nameof(OverlaySourceElement),
-            typeof(FrameworkElement),
-            typeof(DialogHost),
-            new PropertyMetadata(null, OnIntegratedOverlayPropertyChanged));
-
     private DialogOverlayService? integratedOverlayService;
     private Window? ownerWindow;
     private bool suppressIsOpenChanged;
@@ -45,8 +37,6 @@ public partial class DialogHost : UserControl
         InitializeComponent();
         Loaded += DialogHost_Loaded;
         Unloaded += DialogHost_Unloaded;
-        SizeChanged += DialogHost_SizeChanged;
-        SurfaceBorder.SizeChanged += SurfaceBorder_SizeChanged;
     }
 
     public double DialogWidth
@@ -73,19 +63,11 @@ public partial class DialogHost : UserControl
         set => SetValue(UseIntegratedOverlayProperty, value);
     }
 
-    public FrameworkElement? OverlaySourceElement
-    {
-        get => (FrameworkElement?)GetValue(OverlaySourceElementProperty);
-        set => SetValue(OverlaySourceElementProperty, value);
-    }
-
     public bool IsSizeAnimating => integratedOverlayService?.IsSizeAnimating ?? false;
 
     public Grid OverlayRoot => RootOverlay;
 
     public Border SurfaceBorder => Surface;
-
-    public Border BlurLayerBorder => BlurLayer;
 
     public void Show()
     {
@@ -103,14 +85,6 @@ public partial class DialogHost : UserControl
     {
         if (EnsureIntegratedOverlayService())
             integratedOverlayService!.Prewarm(this);
-    }
-
-    public void QueueRefresh(int attempts = 5)
-    {
-        if (!IsOpen || !EnsureIntegratedOverlayService())
-            return;
-
-        integratedOverlayService!.QueueRefresh(this, attempts);
     }
 
     public void AnimateSizeChange(double previousHeight)
@@ -157,21 +131,6 @@ public partial class DialogHost : UserControl
     private void DialogHost_Unloaded(object sender, RoutedEventArgs e)
     {
         ResetIntegratedOverlayService();
-    }
-
-    private void DialogHost_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        QueueIntegratedOverlayRefresh();
-    }
-
-    private void SurfaceBorder_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        QueueIntegratedOverlayRefresh();
-    }
-
-    private void OwnerWindow_SizeChanged(object? sender, SizeChangedEventArgs e)
-    {
-        QueueIntegratedOverlayRefresh();
     }
 
     private void SetIsOpenValue(bool value)
@@ -244,16 +203,7 @@ public partial class DialogHost : UserControl
         if (ownerWindow is null)
             return false;
 
-        var sourceElement = OverlaySourceElement
-            ?? VisualTreeSearch.FindDescendant<Grid>(
-                ownerWindow,
-                grid => string.Equals(grid.Name, "WindowContentLayer", StringComparison.Ordinal))
-            ?? ownerWindow.Content as FrameworkElement;
-        if (sourceElement is null)
-            return false;
-
-        integratedOverlayService = new DialogOverlayService(ownerWindow, sourceElement);
-        ownerWindow.SizeChanged += OwnerWindow_SizeChanged;
+        integratedOverlayService = new DialogOverlayService(ownerWindow);
         return true;
     }
 
@@ -261,18 +211,9 @@ public partial class DialogHost : UserControl
     {
         if (ownerWindow is not null)
         {
-            ownerWindow.SizeChanged -= OwnerWindow_SizeChanged;
             ownerWindow = null;
         }
 
         integratedOverlayService = null;
-    }
-
-    private void QueueIntegratedOverlayRefresh()
-    {
-        if (!UseIntegratedOverlay || !IsOpen || integratedOverlayService is null)
-            return;
-
-        integratedOverlayService.QueueRefresh(this);
     }
 }

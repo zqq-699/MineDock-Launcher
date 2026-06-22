@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Animation;
-
 using Launcher.App.Controls;
 
 namespace Launcher.App.Services;
@@ -14,51 +13,21 @@ public sealed class DialogOverlayService
     private static readonly Duration FadeOutDuration = TimeSpan.FromMilliseconds(180);
     private static readonly Duration SizeTransitionDuration = TimeSpan.FromMilliseconds(240);
     private readonly Window owner;
-    private readonly FrameworkElement sourceLayer;
     private bool isSizeAnimating;
 
-    public DialogOverlayService(Window owner, FrameworkElement sourceLayer)
+    public DialogOverlayService(Window owner)
     {
         this.owner = owner;
-        this.sourceLayer = sourceLayer;
     }
 
     public bool IsSizeAnimating => isSizeAnimating;
 
-    public void QueueRefresh(DialogHost host, int attempts = 5)
-    {
-        QueueRefresh(host.SurfaceBorder, host.BlurLayerBorder, attempts);
-    }
-
-    public void QueueRefresh(FrameworkElement dialog, Border target, int attempts = 5)
-    {
-        if (target is BackdropBlurBorder blurTarget)
-        {
-            blurTarget.SourceElement = sourceLayer;
-            blurTarget.UseSourceElementAsRenderRoot = true;
-            blurTarget.RequestRefresh();
-            return;
-        }
-
-        target.SetCurrentValue(Border.BackgroundProperty, null);
-    }
-
-    public void RefreshNow(DialogHost host)
-    {
-        RefreshNow(host.SurfaceBorder, host.BlurLayerBorder);
-    }
-
-    public void RefreshNow(FrameworkElement dialog, Border target)
-    {
-        QueueRefresh(dialog, target);
-    }
-
     public void AnimateSizeChange(DialogHost host, double previousHeight)
     {
-        AnimateSizeChange(host.SurfaceBorder, host.BlurLayerBorder, previousHeight);
+        AnimateSizeChange(host.SurfaceBorder, previousHeight);
     }
 
-    public void AnimateSizeChange(Border dialog, Border blurTarget, double previousHeight)
+    public void AnimateSizeChange(Border dialog, double previousHeight)
     {
         dialog.BeginAnimation(FrameworkElement.HeightProperty, null);
         dialog.Height = double.NaN;
@@ -73,7 +42,6 @@ public sealed class DialogOverlayService
         {
             dialog.Height = double.NaN;
             isSizeAnimating = false;
-            RefreshNow(dialog, blurTarget);
             return;
         }
 
@@ -93,7 +61,6 @@ public sealed class DialogOverlayService
         {
             dialog.Height = double.NaN;
             isSizeAnimating = false;
-            QueueRefresh(dialog, blurTarget);
         };
 
         dialog.BeginAnimation(FrameworkElement.HeightProperty, animation);
@@ -101,16 +68,14 @@ public sealed class DialogOverlayService
 
     public void Show(DialogHost host)
     {
-        Show(host.OverlayRoot, host.SurfaceBorder, host.BlurLayerBorder);
+        Show(host.OverlayRoot);
     }
 
-    public void Show(Grid overlay, FrameworkElement dialog, Border blurTarget)
+    public void Show(Grid overlay)
     {
         overlay.BeginAnimation(UIElement.OpacityProperty, null);
         overlay.Visibility = Visibility.Visible;
         overlay.Opacity = 0;
-
-        QueueRefresh(dialog, blurTarget);
 
         var animation = new DoubleAnimation
         {
@@ -162,10 +127,10 @@ public sealed class DialogOverlayService
 
     public void Prewarm(DialogHost host)
     {
-        Prewarm(host.OverlayRoot, host.SurfaceBorder, host.BlurLayerBorder);
+        Prewarm(host.OverlayRoot, host.SurfaceBorder);
     }
 
-    public void Prewarm(Grid overlay, Border dialog, Border blurTarget)
+    public void Prewarm(Grid overlay, Border dialog)
     {
         var originalVisibility = overlay.Visibility;
         var originalOpacity = overlay.Opacity;
@@ -175,9 +140,7 @@ public sealed class DialogOverlayService
         overlay.Opacity = 0;
 
         dialog.ApplyTemplate();
-        blurTarget.ApplyTemplate();
         dialog.UpdateLayout();
-        QueueRefresh(dialog, blurTarget);
 
         overlay.Visibility = originalVisibility;
         overlay.Opacity = originalOpacity;

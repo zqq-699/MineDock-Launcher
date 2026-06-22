@@ -100,7 +100,6 @@
                     </Grid>
 
                     <TextBox Margin="0,10,0,0"
-                             Tag="{Binding RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                              Text="{Binding ModSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource ListPageSearchBoxStyle}" />
                 </StackPanel>

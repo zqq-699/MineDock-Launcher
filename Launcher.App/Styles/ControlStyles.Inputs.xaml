@@ -296,10 +296,10 @@
                             <Grid x:Name="PopupSurface"
                                   Opacity="0"
                                   Margin="14"
-                                  Background="{DynamicResource Brush.01000000}"
+                                  Background="Transparent"
                                   MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                   MaxHeight="{TemplateBinding MaxDropDownHeight}">
-                                <Border Background="{DynamicResource Brush.Surface.Popup}"
+                                <Border Background="Transparent"
                                         CornerRadius="9"
                                         IsHitTestVisible="False">
                                     <Border.Effect>
@@ -309,20 +309,13 @@
                                                           ShadowDepth="0" />
                                     </Border.Effect>
                                 </Border>
-                                <Border Background="{DynamicResource Brush.Surface.Popup}"
+                                <Border x:Name="PopupBlurSurface"
+                                        Background="{DynamicResource Brush.Surface.Flyout}"
+                                        BorderBrush="{DynamicResource Brush.14FFFFFF}"
+                                        BorderThickness="1"
                                         CornerRadius="9"
-                                        IsHitTestVisible="False" />
-                                <controls:BackdropBlurBorder x:Name="PopupBlurSurface"
-                                                             BlurRadius="42"
-                                                             TintBrush="{DynamicResource Brush.Surface.PopupBlurTint}"
-                                                             BorderBrush="{DynamicResource Brush.14FFFFFF}"
-                                                             BorderThickness="1"
-                                                             CornerRadius="9"
-                                                             ClipToBounds="True"
-                                                             behaviors:RoundedClip.Radius="9" />
-                                <Border Background="{DynamicResource Brush.Surface.PopupTint}"
-                                        CornerRadius="9"
-                                        IsHitTestVisible="False" />
+                                        ClipToBounds="True"
+                                        behaviors:RoundedClip.Radius="9" />
                                 <ListBox x:Name="PART_DropDownList"
                                          Margin="5"
                                          Style="{StaticResource LauncherComboBoxDropDownListStyle}"

@@ -49,8 +49,6 @@ public interface IAccountDialogService
 
     void CancelSkinManagerDialog();
 
-    void QueueOpenDialogBlurRefresh();
-
     void Prewarm();
 }
 

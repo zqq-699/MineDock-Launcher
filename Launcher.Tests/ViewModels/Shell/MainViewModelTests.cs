@@ -941,10 +941,6 @@ public sealed class MainViewModelTests
         {
         }
 
-        public void QueueOpenDialogBlurRefresh()
-        {
-        }
-
         public void Prewarm()
         {
         }

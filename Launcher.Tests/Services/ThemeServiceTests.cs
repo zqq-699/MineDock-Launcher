@@ -33,7 +33,7 @@ public sealed class ThemeServiceTests
                 Assert.Single(application.Resources.MergedDictionaries, IsDarkThemeDictionary);
                 Assert.DoesNotContain(application.Resources.MergedDictionaries, IsLightThemeDictionary);
                 Assert.Equal(0.85d, Assert.IsType<double>(application.Resources["Opacity.Page.Background"]), 3);
-                Assert.True(Assert.IsType<bool>(application.Resources["Is.BackdropBlur.Enabled"]));
+                Assert.False(themeService.BackgroundBlurDisabled);
                 Assert.Equal(0, changedCount);
                 Assert.Equal(0, backgroundBlurDisabledChangedCount);
                 Assert.Equal("#FF2196F3", ((SolidColorBrush)application.TryFindResource("LauncherAccentBrush")!).Color.ToString());
@@ -52,7 +52,6 @@ public sealed class ThemeServiceTests
                 Assert.DoesNotContain(application.Resources.MergedDictionaries, IsDarkThemeDictionary);
                 Assert.Equal(EffectiveTheme.Light, themeService.EffectiveTheme);
                 Assert.Equal(0.65d, Assert.IsType<double>(application.Resources["Opacity.Page.Background"]), 3);
-                Assert.False(Assert.IsType<bool>(application.Resources["Is.BackdropBlur.Enabled"]));
                 Assert.Equal(1, changedCount);
                 Assert.Equal(1, backgroundBlurDisabledChangedCount);
                 Assert.Equal("#FF8B5CF6", ((SolidColorBrush)application.TryFindResource("LauncherAccentBrush")!).Color.ToString());
@@ -70,7 +69,7 @@ public sealed class ThemeServiceTests
                 Assert.Equal(1, changedCount);
 
                 themeService.ApplyBackgroundBlurDisabled(false);
-                Assert.True(Assert.IsType<bool>(application.Resources["Is.BackdropBlur.Enabled"]));
+                Assert.False(themeService.BackgroundBlurDisabled);
                 Assert.Equal(1, changedCount);
                 Assert.Equal(2, backgroundBlurDisabledChangedCount);
 

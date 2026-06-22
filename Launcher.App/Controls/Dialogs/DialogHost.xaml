@@ -1,7 +1,6 @@
-﻿<UserControl x:Class="Launcher.App.Controls.DialogHost"
+<UserControl x:Class="Launcher.App.Controls.DialogHost"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:controls="clr-namespace:Launcher.App.Controls"
              x:Name="Host"
              Focusable="False">
     <Grid x:Name="RootOverlay"
@@ -11,16 +10,7 @@
         <Border x:Name="Surface"
                 Width="{Binding DialogWidth, ElementName=Host}"
                 Style="{StaticResource DialogSurfaceStyle}">
-            <Grid ClipToBounds="True">
-                <Border Background="{DynamicResource Brush.Surface.Popup}" />
-                <controls:BackdropBlurBorder x:Name="BlurLayer"
-                                             BlurRadius="42"
-                                             TintBrush="{DynamicResource Brush.Surface.PopupBlurTint}"
-                                             Style="{StaticResource DialogBlurLayerStyle}" />
-                <Border Background="{DynamicResource Brush.Surface.PopupTint}" />
-                <ContentPresenter Content="{Binding DialogContent, ElementName=Host}" />
-            </Grid>
+            <ContentPresenter Content="{Binding DialogContent, ElementName=Host}" />
         </Border>
     </Grid>
 </UserControl>
-

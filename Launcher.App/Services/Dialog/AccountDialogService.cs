@@ -7,8 +7,6 @@ namespace Launcher.App.Services;
 
 public sealed class AccountDialogService : IAccountDialogService
 {
-    private const int BlurRefreshAttempts = 5;
-
     private AccountPageViewModel? accountPage;
     private DialogHost? addAccountHost;
     private DialogHost? deleteAccountHost;
@@ -228,27 +226,6 @@ public sealed class AccountDialogService : IAccountDialogService
 
         accountPage.Appearance.CloseSkinManagerDialog();
         skinManagerDialogHost.Hide();
-    }
-
-    public void QueueOpenDialogBlurRefresh()
-    {
-        if (accountPage is null)
-            return;
-
-        if (accountPage.Dialog.IsAddAccountDialogOpen)
-            addAccountHost?.QueueRefresh(BlurRefreshAttempts);
-
-        if (accountPage.Dialog.IsDeleteAccountDialogOpen)
-            deleteAccountHost?.QueueRefresh(BlurRefreshAttempts);
-
-        if (accountPage.Dialog.IsRenameAccountDialogOpen)
-            renameAccountHost?.QueueRefresh(BlurRefreshAttempts);
-
-        if (accountPage.Appearance.SkinModelDialog.IsSkinModelDialogOpen)
-            skinModelDialogHost?.QueueRefresh(BlurRefreshAttempts);
-
-        if (accountPage.Appearance.IsSkinManagerDialogOpen)
-            skinManagerDialogHost?.QueueRefresh(BlurRefreshAttempts);
     }
 
     public void Prewarm()

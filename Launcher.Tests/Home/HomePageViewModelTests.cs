@@ -869,10 +869,6 @@ public sealed class HomePageViewModelTests
         {
         }
 
-        public void QueueOpenDialogBlurRefresh()
-        {
-        }
-
         public void Prewarm()
         {
         }

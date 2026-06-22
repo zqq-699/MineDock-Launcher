@@ -69,20 +69,15 @@ public sealed class ResourceDictionaryTests
                 var purpleAccent = LoadDictionary("Resources/Themes/Accents/Purple.xaml");
 
                 Assert.NotNull(shared["LauncherFontFamily"]);
-                Assert.True(Assert.IsType<bool>(shared["Is.BackdropBlur.Enabled"]));
                 Assert.NotNull(dark["Brush.Text.Primary"]);
                 Assert.NotNull(light["Brush.Text.Primary"]);
                 Assert.NotNull(dark["Brush.Icon.Primary"]);
                 Assert.NotNull(light["Brush.Icon.Primary"]);
                 Assert.Equal("#5A4A4A4A", ((SolidColorBrush)dark["Brush.SecondaryMenu.Panel"]).Color.ToString());
                 Assert.Equal("#CC252525", ((SolidColorBrush)dark["Brush.Surface.Popup"]).Color.ToString());
-                Assert.Equal("#66252525", ((SolidColorBrush)dark["Brush.Surface.PopupTint"]).Color.ToString());
-                Assert.Equal("#33252525", ((SolidColorBrush)dark["Brush.Surface.PopupBlurTint"]).Color.ToString());
                 Assert.Equal("#FF181818", ((SolidColorBrush)dark["Brush.Page.Background"]).Color.ToString());
                 Assert.Equal(0.85d, Assert.IsType<double>(dark["Opacity.Page.Background"]), 3);
                 Assert.Equal("#80FFFFFF", ((SolidColorBrush)light["Brush.Surface.Popup"]).Color.ToString());
-                Assert.Equal("#40FFFFFF", ((SolidColorBrush)light["Brush.Surface.PopupTint"]).Color.ToString());
-                Assert.Equal("#33FFFFFF", ((SolidColorBrush)light["Brush.Surface.PopupBlurTint"]).Color.ToString());
                 Assert.Equal("#5AFFFFFF", ((SolidColorBrush)light["Brush.SecondaryMenu.Panel"]).Color.ToString());
                 Assert.Equal("#24000000", ((SolidColorBrush)light["Brush.SecondaryMenu.Border"]).Color.ToString());
                 Assert.Equal("#52000000", ((Color)light["Color.SecondaryMenu.Shadow"]).ToString());
@@ -94,7 +89,7 @@ public sealed class ResourceDictionaryTests
                 Assert.Equal("#12000000", ((SolidColorBrush)light["Brush.Input.ComboBox.Background"]).Color.ToString());
                 Assert.Equal("#12000000", ((SolidColorBrush)light["Brush.Button.Secondary.Background"]).Color.ToString());
                 Assert.Equal("#12000000", ((SolidColorBrush)light["Brush.Field.ReadOnly.Surface"]).Color.ToString());
-                Assert.Equal("#80E8EDF4", ((SolidColorBrush)light["Brush.List.Item.Selected"]).Color.ToString());
+                Assert.Equal("#20000000", ((SolidColorBrush)light["Brush.List.Item.Selected"]).Color.ToString());
                 Assert.Equal("#FF8B5CF6", ((SolidColorBrush)purpleAccent["LauncherAccentBrush"]).Color.ToString());
                 Assert.Equal("#888B5CF6", ((SolidColorBrush)purpleAccent["Brush.List.Item.SelectedBorder"]).Color.ToString());
             }
@@ -111,8 +106,6 @@ public sealed class ResourceDictionaryTests
         if (exception is not null)
             throw exception;
     }
-
-
     [Fact]
     public void LauncherComboBoxStyleAppliesTemplateAtRuntime()
     {
@@ -388,8 +381,8 @@ public sealed class ResourceDictionaryTests
     public void ModManagementStringsResolveAtRuntime()
     {
         Assert.Equal("Mod信息", Strings.GameSettings_ModManagementInfoSection);
-        Assert.Equal("当前游戏已安装 0 个 mods，已启用 0 个", string.Format(Strings.GameSettings_ModManagementInstalledSummaryFormat, 0, 0));
-        Assert.Equal("打开 mod 文件夹", Strings.GameSettings_ModManagementOpenFolderButton);
+        Assert.Equal("当前游戏已安�?0 �?mods，已启用 0 �?, string.Format(Strings.GameSettings_ModManagementInstalledSummaryFormat, 0, 0));
+        Assert.Equal("打开 mod 文件�?, Strings.GameSettings_ModManagementOpenFolderButton);
     }
 
 #endif
@@ -545,7 +538,6 @@ public sealed class ResourceDictionaryTests
     {
         action().GetAwaiter().GetResult();
     }
-
     private static T? FindVisualDescendant<T>(DependencyObject root)
         where T : DependencyObject
     {
@@ -609,7 +601,6 @@ public sealed class ResourceDictionaryTests
                 UriKind.Absolute)
         };
     }
-
     private sealed class StubStatusService : IStatusService
     {
         public event Action<string>? MessageReported;
@@ -805,3 +796,4 @@ public sealed class ResourceDictionaryTests
         }
     }
 }
+

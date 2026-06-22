@@ -1,18 +1,13 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <FontFamily x:Key="LauncherFontFamily">Microsoft YaHei UI</FontFamily>
     <FontFamily x:Key="LauncherIconFontFamily">Segoe MDL2 Assets</FontFamily>
-
     <Thickness x:Key="DialogTrailingButtonMargin">10,0,0,0</Thickness>
     <GridLength x:Key="SecondaryMenuIconColumnWidth">36</GridLength>
-
     <CornerRadius x:Key="LauncherCornerRadiusSmall">6</CornerRadius>
     <CornerRadius x:Key="LauncherCornerRadiusMedium">8</CornerRadius>
     <CornerRadius x:Key="LauncherCornerRadiusLarge">12</CornerRadius>
     <CornerRadius x:Key="LauncherDialogCornerRadius">14</CornerRadius>
-    <sys:Boolean x:Key="Is.BackdropBlur.Enabled">True</sys:Boolean>
-
     <Color x:Key="Color.AccentOption.Blue">#2196F3</Color>
     <Color x:Key="Color.AccentOption.Cyan">#00BCD4</Color>
     <Color x:Key="Color.AccentOption.Green">#22C55E</Color>

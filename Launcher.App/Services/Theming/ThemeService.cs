@@ -204,11 +204,7 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     private static void ApplyBackgroundBlurDisabledCore(bool disabled)
     {
-        var application = global::System.Windows.Application.Current;
-        if (application is null)
-            return;
-
-        application.Resources["Is.BackdropBlur.Enabled"] = !disabled;
+        _ = disabled;
     }
 
     private void ApplyAccentCore(string accentColor)

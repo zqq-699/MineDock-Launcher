@@ -92,7 +92,6 @@
                     </Grid>
 
                     <TextBox Margin="0,10,0,0"
-                             Tag="{Binding RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                              Text="{Binding SaveSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource ListPageSearchBoxStyle}" />
                 </StackPanel>

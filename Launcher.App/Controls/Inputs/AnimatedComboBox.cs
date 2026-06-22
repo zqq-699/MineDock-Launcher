@@ -62,7 +62,6 @@ public class AnimatedComboBox : ComboBox
     private Popup? popup;
     private ListBox? popupListBox;
     private FrameworkElement? popupSurface;
-    private BackdropBlurBorder? popupBlurSurface;
     private TextBlock? selectionTextBlock;
     private ContentPresenter? selectionContentPresenter;
     private ScaleTransform? scaleTransform;
@@ -125,7 +124,6 @@ public class AnimatedComboBox : ComboBox
         popup = GetTemplateChild("PART_Popup") as Popup;
         popupListBox = GetTemplateChild("PART_DropDownList") as ListBox;
         popupSurface = GetTemplateChild("PopupSurface") as FrameworkElement;
-        popupBlurSurface = GetTemplateChild("PopupBlurSurface") as BackdropBlurBorder;
         selectionTextBlock = GetTemplateChild("SelectionTextBlock") as TextBlock;
         selectionContentPresenter = GetTemplateChild("SelectionContentPresenter") as ContentPresenter;
         AttachPopup();
@@ -188,10 +186,6 @@ public class AnimatedComboBox : ComboBox
             var opacityAnimation = new DoubleAnimation(0, 1, OpenDuration) { EasingFunction = OpenEasing };
             var scaleAnimation = new DoubleAnimation(0.92, 1, OpenDuration) { EasingFunction = OpenEasing };
             var translateAnimation = new DoubleAnimation(GetOpenTranslateOffset(), 0, OpenDuration) { EasingFunction = OpenEasing };
-            translateAnimation.Completed += (_, _) =>
-            {
-                Dispatcher.BeginInvoke(RefreshPopupBlur, DispatcherPriority.Render);
-            };
 
             popupSurface.BeginAnimation(OpacityProperty, opacityAnimation);
             scaleTransform?.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnimation);
@@ -385,9 +379,6 @@ public class AnimatedComboBox : ComboBox
     {
         AttachPopupWheelOwner();
         popupListBox?.Focus();
-        RefreshPopupBlur();
-        Dispatcher.BeginInvoke(RefreshPopupBlur, DispatcherPriority.Render);
-        Dispatcher.BeginInvoke(RefreshPopupBlur, DispatcherPriority.ApplicationIdle);
     }
 
     private void Popup_Closed(object? sender, EventArgs e)
@@ -479,32 +470,6 @@ public class AnimatedComboBox : ComboBox
             && point.Y >= 0
             && point.X <= popupSurface.ActualWidth
             && point.Y <= popupSurface.ActualHeight;
-    }
-
-    private void RefreshPopupBlur()
-    {
-        if (popupBlurSurface is null)
-            return;
-
-        var sourceRoot = Window.GetWindow(this)?.Content as FrameworkElement;
-        if (sourceRoot is null)
-            return;
-
-        var popupHeight = popupBlurSurface.ActualHeight > 0
-            ? popupBlurSurface.ActualHeight
-            : popupSurface?.ActualHeight ?? GetPopupHeightEstimate();
-        var controlTopLeft = PointToScreen(new Point(0, 0));
-        var sampleTop = opensAbove
-            ? controlTopLeft.Y - PopupGap - popupHeight
-            : controlTopLeft.Y + ActualHeight + PopupGap;
-        var sampleOrigin = sourceRoot.PointFromScreen(new Point(controlTopLeft.X, sampleTop));
-
-        popupBlurSurface.SourceElement = sourceRoot;
-        popupBlurSurface.UseSourceElementAsRenderRoot = true;
-        popupBlurSurface.UseSourceElementAsSampleOrigin = true;
-        popupBlurSurface.SampleOffsetX = sampleOrigin.X;
-        popupBlurSurface.SampleOffsetY = sampleOrigin.Y;
-        popupBlurSurface.RequestRefresh();
     }
 
     private void UpdateSelectionPresenterMode()

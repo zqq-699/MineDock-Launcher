@@ -188,23 +188,14 @@
                                               ShadowDepth="0" />
                         </Border.Effect>
                         <Grid>
-                            <controls:BackdropBlurBorder x:Name="SearchBlurSurface"
-                                                         SourceElement="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
-                                                         UseSourceElementAsRenderRoot="True"
-                                                         Opacity="1"
-                                                         BlurRadius="24"
-                                                         TintBrush="{DynamicResource Brush.Surface.PopupBlurTint}"
-                                                         BorderBrush="{TemplateBinding BorderBrush}"
-                                                         BorderThickness="{TemplateBinding BorderThickness}"
-                                                         CornerRadius="10"
-                                                         ClipToBounds="True"
-                                                         behaviors:RoundedClip.Radius="10" />
-                            <Border Background="{DynamicResource Brush.Surface.PopupTint}"
-                                    CornerRadius="10" />
-                            <Border x:Name="HoverLayer"
-                                    Background="{DynamicResource Brush.10FFFFFF}"
+                            <Border x:Name="SearchBlurSurface"
+                                    Background="{DynamicResource Brush.SecondaryMenu.Panel}"
+                                    Opacity="1"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
                                     CornerRadius="10"
-                                    Opacity="0" />
+                                    ClipToBounds="True"
+                                    behaviors:RoundedClip.Radius="10" />
                             <controls:SvgIcon Width="15"
                                               Height="15"
                                               Margin="8,0,0,0"
@@ -240,11 +231,9 @@
                             <Setter TargetName="SearchPlaceholderText" Property="Visibility" Value="Visible" />
                         </MultiTrigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="HoverLayer" Property="Opacity" Value="1" />
                             <Setter TargetName="SearchBlurSurface" Property="BorderBrush" Value="{DynamicResource Brush.20FFFFFF}" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                            <Setter TargetName="HoverLayer" Property="Opacity" Value="1" />
                             <Setter TargetName="SearchBlurSurface" Property="BorderBrush" Value="{DynamicResource Brush.42FFFFFF}" />
                         </Trigger>
                     </ControlTemplate.Triggers>

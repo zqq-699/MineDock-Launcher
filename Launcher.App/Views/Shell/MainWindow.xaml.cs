@@ -55,7 +55,6 @@ public partial class MainWindow : Window
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
         launcherStateMonitor.StateChanged += LauncherStateMonitor_StateChanged;
         AcrylicWindow.Enable(this, themeService);
-        SizeChanged += (_, _) => accountDialogService.QueueOpenDialogBlurRefresh();
         Loaded += async (_, _) =>
         {
             await viewModel.InitializeCommand.ExecuteAsync(null);
@@ -229,5 +228,6 @@ public partial class MainWindow : Window
                && point.X <= ActualWidth
                && point.Y <= ActualHeight;
     }
+
 }
 
