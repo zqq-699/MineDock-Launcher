@@ -80,6 +80,34 @@ public sealed class DownloadTasksPageViewModelTests
         Assert.Empty(task.DownloadSpeedText);
     }
 
+    [Fact]
+    public void DownloadTaskDoesNotRevertFromFailedStateWhenLateProgressArrives()
+    {
+        var task = new DownloadTaskItem("CurseForge Pack", "pack.zip");
+
+        task.Report(new LauncherProgress(ImportProgressStages.DownloadingPackFiles, "downloading", 42));
+        task.Fail("missing key");
+        task.Report(new LauncherProgress(ImportProgressStages.CleaningUp, "cleaning", 99));
+
+        Assert.Equal(DownloadTaskState.Failed, task.State);
+        Assert.Equal("missing key", task.StatusMessage);
+        Assert.Equal(42, task.ProgressPercent);
+    }
+
+    [Fact]
+    public void DownloadTaskDoesNotRevertFromCompletedStateWhenLateProgressArrives()
+    {
+        var task = new DownloadTaskItem("Modrinth Pack", "pack.mrpack");
+
+        task.Report(new LauncherProgress(ImportProgressStages.DownloadingPackFiles, "downloading", 64));
+        task.Complete("done");
+        task.Report(new LauncherProgress(ImportProgressStages.CleaningUp, "cleaning", 10));
+
+        Assert.Equal(DownloadTaskState.Completed, task.State);
+        Assert.Equal("done", task.StatusMessage);
+        Assert.Equal(100, task.ProgressPercent);
+    }
+
 }
 
 

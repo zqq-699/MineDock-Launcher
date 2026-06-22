@@ -103,7 +103,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             loaderProviders,
             ImmediateUiDispatcher.Instance,
             NullFloatingMessageService.Instance,
-            NullFilePickerService.Instance)
+            NullFilePickerService.Instance,
+            NullLocalModpackImportService.Instance)
     {
     }
 
@@ -120,7 +121,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             loaderProviders,
             uiDispatcher,
             NullFloatingMessageService.Instance,
-            NullFilePickerService.Instance)
+            NullFilePickerService.Instance,
+            NullLocalModpackImportService.Instance)
     {
     }
 
@@ -132,6 +134,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         IUiDispatcher uiDispatcher,
         IFloatingMessageService floatingMessageService,
         IFilePickerService filePickerService,
+        ILocalModpackImportService localModpackImportService,
         ILogger<DownloadLocalImportDialogViewModel>? localImportLogger = null)
     {
         this.gameVersionService = gameVersionService;
@@ -142,7 +145,14 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         this.floatingMessageService = floatingMessageService;
         VersionList = new DownloadVersionListViewModel(this);
         InstanceOptions = new DownloadInstanceOptionsViewModel(this);
-        LocalImportDialog = new DownloadLocalImportDialogViewModel(filePickerService, localImportLogger);
+        LocalImportDialog = new DownloadLocalImportDialogViewModel(
+            filePickerService,
+            localModpackImportService,
+            downloadTasksPage,
+            uiDispatcher,
+            floatingMessageService,
+            localImportLogger);
+        LocalImportDialog.ModpackImported += (_, instance) => InstanceInstalled?.Invoke(this, instance);
 
         LoaderVersions.CollectionChanged += (_, _) =>
         {
@@ -242,6 +252,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     {
         downloadSourcePreference = settings.DownloadSourcePreference;
         downloadSpeedLimitMbPerSecond = settings.DownloadSpeedLimitMbPerSecond;
+        LocalImportDialog.ApplyDownloadSourcePreference(downloadSourcePreference);
+        LocalImportDialog.ApplyDownloadSpeedLimit(downloadSpeedLimitMbPerSecond);
     }
 
     public void ApplyDownloadSourcePreference(DownloadSourcePreference preference)
@@ -250,6 +262,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             return;
 
         downloadSourcePreference = preference;
+        LocalImportDialog.ApplyDownloadSourcePreference(preference);
         hasLoadedVersions = false;
         IsLoadingVersions = false;
         VersionLoadError = string.Empty;
@@ -269,6 +282,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     public void ApplyDownloadSpeedLimit(int downloadSpeedLimitMbPerSecond)
     {
         this.downloadSpeedLimitMbPerSecond = Math.Max(downloadSpeedLimitMbPerSecond, 0);
+        LocalImportDialog.ApplyDownloadSpeedLimit(this.downloadSpeedLimitMbPerSecond);
     }
 
     public async Task EnsureVersionsLoadedAsync(CancellationToken cancellationToken = default)
@@ -888,6 +902,32 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         public string? PickShaderPackArchive() => null;
 
         public string? PickFolder(string title, string? initialDirectory = null) => null;
+    }
+
+    private sealed class NullLocalModpackImportService : ILocalModpackImportService
+    {
+        public static NullLocalModpackImportService Instance { get; } = new();
+
+        private NullLocalModpackImportService()
+        {
+        }
+
+        public Task<ModpackRecognitionResult> RecognizeArchiveAsync(
+            string archivePath,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(ModpackRecognitionResult.Failure(ModpackRecognitionFailureReason.UnsupportedArchive));
+        }
+
+        public Task<ModpackImportResult> ImportFromArchiveAsync(
+            string archivePath,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            return Task.FromResult(ModpackImportResult.Failure(ModpackImportFailureReason.UnsupportedArchive));
+        }
     }
 
     private sealed class NullFloatingMessageService : IFloatingMessageService

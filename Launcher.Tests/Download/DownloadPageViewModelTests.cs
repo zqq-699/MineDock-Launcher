@@ -62,7 +62,7 @@ public sealed class DownloadPageViewModelTests
     [Fact]
     public void DownloadPageOpeningLocalImportDialogResetsPreviousSelection()
     {
-        var tempFilePath = Path.GetTempFileName();
+        var tempFilePath = CreateTempModpackFile(".mrpack");
 
         try
         {
@@ -89,7 +89,7 @@ public sealed class DownloadPageViewModelTests
     [Fact]
     public void DownloadPageLocalImportSelectFileUpdatesSelectedFileName()
     {
-        var tempFilePath = Path.GetTempFileName();
+        var tempFilePath = CreateTempModpackFile(".mrpack");
 
         try
         {
@@ -112,9 +112,33 @@ public sealed class DownloadPageViewModelTests
     }
 
     [Fact]
+    public void DownloadPageLocalImportAcceptsSingleFileBeforeRecognition()
+    {
+        var tempFilePath = CreateTempModpackFile(".txt");
+
+        try
+        {
+            var filePickerService = new FakeFilePickerService
+            {
+                LocalImportFilePath = tempFilePath
+            };
+            var viewModel = CreateDownloadPageViewModel(new FakeGameVersionService([]), filePickerService: filePickerService);
+
+            viewModel.LocalImportDialog.SelectFileCommand.Execute(null);
+
+            Assert.True(viewModel.LocalImportDialog.HasSelectedFile);
+            Assert.True(viewModel.LocalImportDialog.ConfirmImportCommand.CanExecute(null));
+        }
+        finally
+        {
+            File.Delete(tempFilePath);
+        }
+    }
+
+    [Fact]
     public void DownloadPageLocalImportCancelClosesDialogAndClearsSelection()
     {
-        var tempFilePath = Path.GetTempFileName();
+        var tempFilePath = CreateTempModpackFile(".mrpack");
 
         try
         {
@@ -137,23 +161,51 @@ public sealed class DownloadPageViewModelTests
     }
 
     [Fact]
-    public void DownloadPageLocalImportConfirmKeepsDialogOpenAndPreservesSelection()
+    public async Task DownloadPageLocalImportConfirmImportsSelectedModpackAndRaisesInstanceInstalled()
     {
-        var tempFilePath = Path.GetTempFileName();
+        var tempFilePath = CreateTempModpackFile(".mrpack");
 
         try
         {
-            var viewModel = CreateDownloadPageViewModel(new FakeGameVersionService([]));
+            var tasksPage = new DownloadTasksPageViewModel();
+            var importedInstance = new GameInstance
+            {
+                Id = "imported",
+                Name = "Imported Pack",
+                VersionName = "Imported Pack",
+                MinecraftVersion = "1.20.1",
+                Loader = LoaderKind.Fabric,
+                LoaderVersion = "0.16.10",
+                InstanceDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"))
+            };
+            var localModpackImportService = new FakeLocalModpackImportService
+            {
+                RecognitionResultToReturn = ModpackRecognitionResult.Success(),
+                ResultToReturn = ModpackImportResult.Success(importedInstance)
+            };
+            var floatingMessageService = new FakeFloatingMessageService();
+            var viewModel = CreateDownloadPageViewModel(
+                new FakeGameVersionService([]),
+                tasksPage: tasksPage,
+                localModpackImportService: localModpackImportService,
+                floatingMessageService: floatingMessageService);
+            GameInstance? installedInstance = null;
+            viewModel.InstanceInstalled += (_, instance) => installedInstance = instance;
 
             viewModel.LocalImportDialog.Open();
             Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([tempFilePath]));
+            Assert.True(viewModel.LocalImportDialog.ConfirmImportCommand.CanExecute(null));
 
-            viewModel.LocalImportDialog.ConfirmNoOpCommand.Execute(null);
+            await viewModel.LocalImportDialog.ConfirmImportCommand.ExecuteAsync(null);
 
-            Assert.True(viewModel.LocalImportDialog.IsOpen);
-            Assert.Equal(Path.GetFullPath(tempFilePath), viewModel.LocalImportDialog.SelectedFilePath);
-            Assert.Equal(Path.GetFileName(tempFilePath), viewModel.LocalImportDialog.SelectedFileName);
-            Assert.True(viewModel.LocalImportDialog.HasSelectedFile);
+            Assert.False(viewModel.LocalImportDialog.IsOpen);
+            Assert.False(viewModel.LocalImportDialog.HasSelectedFile);
+            Assert.Equal(Path.GetFullPath(tempFilePath), localModpackImportService.LastArchivePath);
+            Assert.Same(importedInstance, installedInstance);
+            Assert.Equal(Strings.Status_ModpackInstalling, floatingMessageService.LastMessage);
+            var task = Assert.Single(tasksPage.Tasks);
+            Assert.Equal(DownloadTaskState.Completed, task.State);
+            Assert.Equal(string.Format(Strings.Status_ModpackImportedFormat, importedInstance.Name), task.StatusMessage);
         }
         finally
         {
@@ -164,7 +216,7 @@ public sealed class DownloadPageViewModelTests
     [Fact]
     public void DownloadPageLocalImportDropAppliesSingleFileSelection()
     {
-        var tempFilePath = Path.GetTempFileName();
+        var tempFilePath = CreateTempModpackFile(".zip");
 
         try
         {
@@ -176,6 +228,91 @@ public sealed class DownloadPageViewModelTests
             Assert.False(viewModel.LocalImportDialog.IsDragOver);
             Assert.Equal(Path.GetFullPath(tempFilePath), viewModel.LocalImportDialog.SelectedFilePath);
             Assert.Equal(Path.GetFileName(tempFilePath), viewModel.LocalImportDialog.SelectedFileName);
+        }
+        finally
+        {
+            File.Delete(tempFilePath);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadPageLocalImportConfirmShowsUnrecognizedStateWithoutCreatingTask()
+    {
+        var tempFilePath = CreateTempModpackFile(".txt");
+
+        try
+        {
+            var tasksPage = new DownloadTasksPageViewModel();
+            var floatingMessageService = new FakeFloatingMessageService();
+            var localModpackImportService = new FakeLocalModpackImportService
+            {
+                RecognitionResultToReturn = ModpackRecognitionResult.Failure(ModpackRecognitionFailureReason.InvalidManifest)
+            };
+            var viewModel = CreateDownloadPageViewModel(
+                new FakeGameVersionService([]),
+                tasksPage: tasksPage,
+                floatingMessageService: floatingMessageService,
+                localModpackImportService: localModpackImportService);
+
+            viewModel.LocalImportDialog.Open();
+            Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([tempFilePath]));
+
+            await viewModel.LocalImportDialog.ConfirmImportCommand.ExecuteAsync(null);
+
+            Assert.True(viewModel.LocalImportDialog.IsOpen);
+            Assert.True(viewModel.LocalImportDialog.IsUnrecognizedState);
+            Assert.Empty(tasksPage.Tasks);
+            Assert.Null(floatingMessageService.LastMessage);
+            Assert.Equal(0, localModpackImportService.ImportCallCount);
+
+            viewModel.LocalImportDialog.ConfirmUnrecognizedCommand.Execute(null);
+
+            Assert.False(viewModel.LocalImportDialog.IsOpen);
+            Assert.True(viewModel.LocalImportDialog.IsUnrecognizedState);
+            Assert.False(viewModel.LocalImportDialog.HasSelectedFile);
+
+            viewModel.LocalImportDialog.Open();
+
+            Assert.True(viewModel.LocalImportDialog.IsSelectionState);
+            Assert.False(viewModel.LocalImportDialog.HasSelectedFile);
+        }
+        finally
+        {
+            File.Delete(tempFilePath);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadPageLocalImportShowsKnownFailureReasonInsteadOfCleaningUpMessage()
+    {
+        var tempFilePath = CreateTempModpackFile(".zip");
+
+        try
+        {
+            var tasksPage = new DownloadTasksPageViewModel();
+            var localModpackImportService = new FakeLocalModpackImportService
+            {
+                RecognitionResultToReturn = ModpackRecognitionResult.Success(),
+                ProgressReportsToEmit =
+                [
+                    new LauncherProgress(ImportProgressStages.CleaningUp, Strings.Status_ModpackCleaningUp)
+                ],
+                ResultToReturn = ModpackImportResult.Failure(ModpackImportFailureReason.MissingCurseForgeApiKey)
+            };
+            var viewModel = CreateDownloadPageViewModel(
+                new FakeGameVersionService([]),
+                tasksPage: tasksPage,
+                localModpackImportService: localModpackImportService);
+
+            viewModel.LocalImportDialog.Open();
+            Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([tempFilePath]));
+
+            await viewModel.LocalImportDialog.ConfirmImportCommand.ExecuteAsync(null);
+            await Task.Yield();
+
+            var task = Assert.Single(tasksPage.Tasks);
+            Assert.Equal(DownloadTaskState.Failed, task.State);
+            Assert.Equal(Strings.Status_ModpackMissingCurseForgeApiKey, task.StatusMessage);
         }
         finally
         {
@@ -207,7 +344,7 @@ public sealed class DownloadPageViewModelTests
     [Fact]
     public void DownloadPageLocalImportClearDropStateRemovesHighlight()
     {
-        var tempFilePath = Path.GetTempFileName();
+        var tempFilePath = CreateTempModpackFile(".mrpack");
 
         try
         {
@@ -1273,7 +1410,8 @@ public sealed class DownloadPageViewModelTests
         DownloadTasksPageViewModel? tasksPage = null,
         IEnumerable<ILoaderProvider>? loaderProviders = null,
         IFloatingMessageService? floatingMessageService = null,
-        IFilePickerService? filePickerService = null)
+        IFilePickerService? filePickerService = null,
+        ILocalModpackImportService? localModpackImportService = null)
     {
         return new DownloadPageViewModel(
             gameVersionService,
@@ -1282,7 +1420,16 @@ public sealed class DownloadPageViewModelTests
             loaderProviders ?? CreateLoaderProviders(),
             ImmediateUiDispatcher.Instance,
             floatingMessageService ?? new FakeFloatingMessageService(),
-            filePickerService ?? new FakeFilePickerService());
+            filePickerService ?? new FakeFilePickerService(),
+            localModpackImportService ?? new FakeLocalModpackImportService());
+    }
+
+    private static string CreateTempModpackFile(string extension)
+    {
+        var path = Path.Combine(Path.GetTempPath(), "launcher-tests", $"{Guid.NewGuid():N}{extension}");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, "stub");
+        return path;
     }
 
     private static IEnumerable<ILoaderProvider> CreateLoaderProviders(
@@ -1367,6 +1514,49 @@ public sealed class DownloadPageViewModelTests
         public string? PickFolder(string title, string? initialDirectory = null)
         {
             return null;
+        }
+    }
+
+    private sealed class FakeLocalModpackImportService : ILocalModpackImportService
+    {
+        public ModpackRecognitionResult RecognitionResultToReturn { get; init; } =
+            ModpackRecognitionResult.Success();
+
+        public ModpackImportResult ResultToReturn { get; init; } =
+            ModpackImportResult.Failure(ModpackImportFailureReason.UnsupportedArchive);
+
+        public Exception? ExceptionToThrow { get; init; }
+
+        public IReadOnlyList<LauncherProgress> ProgressReportsToEmit { get; init; } = [];
+
+        public string? LastArchivePath { get; private set; }
+
+        public int ImportCallCount { get; private set; }
+
+        public Task<ModpackRecognitionResult> RecognizeArchiveAsync(
+            string archivePath,
+            CancellationToken cancellationToken = default)
+        {
+            LastArchivePath = archivePath;
+            return Task.FromResult(RecognitionResultToReturn);
+        }
+
+        public Task<ModpackImportResult> ImportFromArchiveAsync(
+            string archivePath,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            LastArchivePath = archivePath;
+            ImportCallCount++;
+            foreach (var progressUpdate in ProgressReportsToEmit)
+                progress?.Report(progressUpdate);
+
+            if (ExceptionToThrow is not null)
+                throw ExceptionToThrow;
+
+            return Task.FromResult(ResultToReturn);
         }
     }
 }

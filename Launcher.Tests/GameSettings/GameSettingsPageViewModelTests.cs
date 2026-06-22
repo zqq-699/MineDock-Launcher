@@ -3404,7 +3404,8 @@ public sealed class GameSettingsPageViewModelTests
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default,
             DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
-            int downloadSpeedLimitMbPerSecond = 0)
+            int downloadSpeedLimitMbPerSecond = 0,
+            bool installFabricApi = true)
         {
             throw exception;
         }

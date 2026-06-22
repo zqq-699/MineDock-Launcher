@@ -5,6 +5,7 @@ using Launcher.Domain.Models;
 using Launcher.Infrastructure.Accounts;
 using Launcher.Infrastructure.FileSystem;
 using Launcher.Infrastructure.Minecraft;
+using Launcher.Infrastructure.Modpacks;
 using Launcher.Infrastructure.Modrinth;
 using Launcher.Infrastructure.Platform;
 using Launcher.Infrastructure.Persistence;
@@ -32,6 +33,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISystemMemoryService, WindowsSystemMemoryService>();
         services.AddSingleton<IModService, ModService>();
         services.AddSingleton<ILocalSaveService, LocalSaveService>();
+        services.AddSingleton<IModpackPackageService, LocalModpackPackageService>();
         services.AddSingleton<ILocalResourcePackService, LocalResourcePackService>();
         services.AddSingleton<ILocalShaderPackService, LocalShaderPackService>();
         services.AddSingleton<IModrinthService, ModrinthService>();

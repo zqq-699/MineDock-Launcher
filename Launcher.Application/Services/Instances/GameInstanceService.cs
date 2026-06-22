@@ -102,7 +102,8 @@ public sealed class GameInstanceService : IGameInstanceService
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
-        int downloadSpeedLimitMbPerSecond = 0)
+        int downloadSpeedLimitMbPerSecond = 0,
+        bool installFabricApi = true)
     {
         if (!providers.TryGetValue(loader, out var provider) || !provider.IsImplemented)
             throw new NotSupportedException($"{loader} is not implemented yet.");
@@ -171,7 +172,7 @@ public sealed class GameInstanceService : IGameInstanceService
                     UpdatedAt = now
                 };
 
-                if (loader is LoaderKind.Fabric && modrinthService is not null)
+                if (loader is LoaderKind.Fabric && installFabricApi && modrinthService is not null)
                     await modrinthService.InstallFabricApiAsync(instance, progress, cancellationToken).ConfigureAwait(false);
 
                 instances.Add(instance);

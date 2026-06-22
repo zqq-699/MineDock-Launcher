@@ -182,6 +182,9 @@ public sealed partial class DownloadTaskItem : ObservableObject
 
     public void Report(LauncherProgress progress)
     {
+        if (State is DownloadTaskState.Completed or DownloadTaskState.Failed)
+            return;
+
         State = DownloadTaskState.Running;
         StatusMessage = progress.Message;
         if (progress.DownloadSpeedText is not null)

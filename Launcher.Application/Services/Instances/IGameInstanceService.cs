@@ -14,7 +14,8 @@ public interface IGameInstanceService
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
-        int downloadSpeedLimitMbPerSecond = 0);
+        int downloadSpeedLimitMbPerSecond = 0,
+        bool installFabricApi = true);
     Task SaveInstanceAsync(GameInstance instance, CancellationToken cancellationToken = default);
     Task<GameInstance> RenameInstanceAsync(string instanceId, string? newName, string? newIconSource, CancellationToken cancellationToken = default);
     Task<bool> SetDefaultInstanceAsync(string instanceId, CancellationToken cancellationToken = default);

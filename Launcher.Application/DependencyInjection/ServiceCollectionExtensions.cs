@@ -10,6 +10,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<IAccountStore, AccountStore>();
         services.AddSingleton<IGameInstanceService, GameInstanceService>();
+        services.AddSingleton<ILocalModpackImportService, LocalModpackImportService>();
         return services;
     }
 }

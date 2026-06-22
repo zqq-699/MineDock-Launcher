@@ -237,7 +237,9 @@
   <data name="Download_LocalImportDropZoneSubtitle" xml:space="preserve"><value>也可以使用左下角的“选择文件”按钮。</value></data>
   <data name="Download_LocalImportSelectedFileLabel" xml:space="preserve"><value>已选文件</value></data>
   <data name="Download_LocalImportNoFileSelected" xml:space="preserve"><value>尚未选择文件</value></data>
+  <data name="Download_LocalImportUnrecognizedMessage" xml:space="preserve"><value>无法识别所选文件，请选择受支持的整合包文件</value></data>
   <data name="Download_LocalImportSelectFileButton" xml:space="preserve"><value>选择文件</value></data>
+  <data name="Download_LocalImportTaskTitle" xml:space="preserve"><value>整合包导入</value></data>
   <data name="Download_VanillaLoaderTitle" xml:space="preserve"><value>原版</value></data>
   <data name="Download_FabricLoaderTitle" xml:space="preserve"><value>Fabric</value></data>
   <data name="Download_ForgeLoaderTitle" xml:space="preserve"><value>Forge</value></data>
@@ -328,6 +330,20 @@
   <data name="Status_InstallingLoaderFormat" xml:space="preserve"><value>正在安装 {0} {1}...</value></data>
   <data name="Status_InstanceInstalledFormat" xml:space="preserve"><value>游戏 {0} 已安装</value></data>
   <data name="Status_InstallFailed" xml:space="preserve"><value>安装失败，请稍后重试。</value></data>
+  <data name="Status_ModpackPreparingArchive" xml:space="preserve"><value>正在准备整合包文件</value></data>
+  <data name="Status_ModpackParsingManifest" xml:space="preserve"><value>正在解析整合包清单</value></data>
+  <data name="Status_ModpackCreatingInstance" xml:space="preserve"><value>正在创建游戏实例</value></data>
+  <data name="Status_ModpackDownloadingFiles" xml:space="preserve"><value>正在下载整合包文件</value></data>
+  <data name="Status_ModpackDownloadingFileFormat" xml:space="preserve"><value>正在下载 {0}</value></data>
+  <data name="Status_ModpackCopyingOverrides" xml:space="preserve"><value>正在复制整合包覆盖文件</value></data>
+  <data name="Status_ModpackCleaningUp" xml:space="preserve"><value>正在清理导入现场</value></data>
+  <data name="Status_ModpackImportedFormat" xml:space="preserve"><value>{0} 已导入完成</value></data>
+  <data name="Status_ModpackInvalidArchive" xml:space="preserve"><value>整合包格式不支持或文件损坏</value></data>
+  <data name="Status_ModpackUnsupportedLoader" xml:space="preserve"><value>当前仅支持 Vanilla、Fabric、Forge 整合包</value></data>
+  <data name="Status_ModpackMissingCurseForgeApiKey" xml:space="preserve"><value>未配置 CurseForge API Key</value></data>
+  <data name="Status_ModpackHashMismatch" xml:space="preserve"><value>整合包文件校验失败</value></data>
+  <data name="Status_ModpackInstalling" xml:space="preserve"><value>正在安装</value></data>
+  <data name="Status_ModpackImportFailed" xml:space="preserve"><value>导入整合包失败</value></data>
   <data name="Status_LoaderInstallPending" xml:space="preserve"><value>该加载器将在后续版本接入安装。</value></data>
   <data name="Status_FabricLoaderVersionsLoadFailed" xml:space="preserve"><value>Fabric 版本列表加载失败，请稍后重试。</value></data>
   <data name="Status_LoaderVersionsLoadFailedFormat" xml:space="preserve"><value>{0} 版本列表加载失败，请稍后重试。</value></data>
@@ -381,7 +397,7 @@
   <data name="FilePicker_JavaExecutableTitle" xml:space="preserve"><value>选择 Java 可执行文件</value></data>
   <data name="FilePicker_JavaExecutableFilter" xml:space="preserve"><value>Java 可执行文件 (java.exe;java)|java.exe;java|所有文件 (*.*)|*.*</value></data>
   <data name="FilePicker_LocalImportFileTitle" xml:space="preserve"><value>选择本地游戏或整合包文件</value></data>
-  <data name="FilePicker_LocalImportFileFilter" xml:space="preserve"><value>所有文件|*.*</value></data>
+  <data name="FilePicker_LocalImportFileFilter" xml:space="preserve"><value>整合包 (*.mrpack;*.zip)|*.mrpack;*.zip|Modrinth 整合包 (*.mrpack)|*.mrpack|CurseForge 整合包 (*.zip)|*.zip|所有文件 (*.*)|*.*</value></data>
   <data name="GameSettings_DeleteInstanceTooltip" xml:space="preserve"><value>删除版本</value></data>
   <data name="GameSettings_OpenInstanceFolderTooltip" xml:space="preserve"><value>打开文件夹位置</value></data>
   <data name="GameSettings_SelectInstanceAndGoHomeTooltip" xml:space="preserve"><value>返回主页并选择此版本</value></data>

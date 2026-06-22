@@ -59,6 +59,33 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task InstanceServiceCanSkipFabricApiInstallWhenRequested()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var provider = new FakeLoaderProvider { Kind = LoaderKind.Fabric };
+        var modrinthService = new FakeModrinthService();
+        var service = new GameInstanceService(settingsService, repository, [provider], modrinthService);
+
+        var instance = await service.CreateInstanceAsync(
+            "1.20.1",
+            LoaderKind.Fabric,
+            "0.16.10",
+            "Fabric Pack",
+            null,
+            installFabricApi: false);
+
+        Assert.Equal("Fabric Pack", instance.VersionName);
+        Assert.Equal(0, modrinthService.InstallFabricApiCallCount);
+        Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "fabric-api.jar")));
+    }
+
+    [Fact]
     public async Task InstanceServiceFailsFabricCreateWhenFabricApiInstallFails()
     {
         var settings = new LauncherSettings
