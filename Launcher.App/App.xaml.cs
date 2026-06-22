@@ -49,6 +49,7 @@ public partial class App : System.Windows.Application
             services.AddSingleton<AccountSkinModelDialogViewModel>();
             services.AddSingleton<AccountPageViewModel>();
             services.AddSingleton<DownloadTasksPageViewModel>();
+            services.AddSingleton<DownloadLocalImportDialogViewModel>();
             services.AddSingleton<DownloadPageViewModel>();
             services.AddSingleton<GameSettingsPageViewModel>();
             services.AddSingleton<SettingsPageViewModel>();

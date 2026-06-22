@@ -688,6 +688,8 @@ public sealed class ResourceDictionaryTests
 
         public string? PickShaderPackArchive() => null;
 
+        public string? PickLocalImportFile() => null;
+
         public string? PickFolder(string title, string? initialDirectory = null) => null;
     }
 

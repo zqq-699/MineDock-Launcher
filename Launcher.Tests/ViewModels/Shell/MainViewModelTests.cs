@@ -1045,6 +1045,11 @@ public sealed class MainViewModelTests
             return null;
         }
 
+        public string? PickLocalImportFile()
+        {
+            return null;
+        }
+
         public string? PickFolder(string title, string? initialDirectory = null)
         {
             return FolderPath;

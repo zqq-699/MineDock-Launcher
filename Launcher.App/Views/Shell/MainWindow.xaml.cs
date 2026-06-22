@@ -172,16 +172,30 @@ public partial class MainWindow : Window
 
     private void Window_OnPreviewDragEnter(object sender, DragEventArgs e)
     {
+        if (HandleDownloadLocalImportPreview(e))
+            return;
+
         HandleFileDropPreview(e);
     }
 
     private void Window_OnPreviewDragOver(object sender, DragEventArgs e)
     {
+        if (HandleDownloadLocalImportPreview(e))
+            return;
+
         HandleFileDropPreview(e);
     }
 
     private void Window_OnPreviewDragLeave(object sender, DragEventArgs e)
     {
+        if (viewModel.DownloadPage.LocalImportDialog.IsOpen)
+        {
+            if (!IsPointWithinWindow(e.GetPosition(this)))
+                viewModel.DownloadPage.LocalImportDialog.ClearDropState();
+
+            return;
+        }
+
         if (IsPointWithinWindow(e.GetPosition(this)))
             return;
 
@@ -190,6 +204,9 @@ public partial class MainWindow : Window
 
     private async void Window_OnPreviewDrop(object sender, DragEventArgs e)
     {
+        if (HandleDownloadLocalImportDrop(e))
+            return;
+
         var paths = TryGetDroppedPaths(e);
         if (paths is null)
             return;
@@ -211,6 +228,42 @@ public partial class MainWindow : Window
         var canAccept = viewModel.GameSettingsPage.UpdateImportDropState(paths);
         e.Effects = canAccept ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
+    }
+
+    private bool HandleDownloadLocalImportPreview(DragEventArgs e)
+    {
+        if (!viewModel.DownloadPage.LocalImportDialog.IsOpen)
+            return false;
+
+        var paths = TryGetDroppedPaths(e);
+        if (paths is null)
+        {
+            viewModel.DownloadPage.LocalImportDialog.ClearDropState();
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            return true;
+        }
+
+        var canAccept = viewModel.DownloadPage.LocalImportDialog.PreviewDroppedFiles(paths);
+        e.Effects = canAccept ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+        return true;
+    }
+
+    private bool HandleDownloadLocalImportDrop(DragEventArgs e)
+    {
+        if (!viewModel.DownloadPage.LocalImportDialog.IsOpen)
+            return false;
+
+        var paths = TryGetDroppedPaths(e);
+        if (paths is not null)
+            viewModel.DownloadPage.LocalImportDialog.ApplyDroppedFiles(paths);
+        else
+            viewModel.DownloadPage.LocalImportDialog.ClearDropState();
+
+        e.Handled = true;
+        e.Effects = DragDropEffects.None;
+        return true;
     }
 
     private static string[]? TryGetDroppedPaths(DragEventArgs e)

@@ -230,6 +230,14 @@
   <data name="Download_SnapshotCategory" xml:space="preserve"><value>快照版</value></data>
   <data name="Download_BetaCategory" xml:space="preserve"><value>beta版</value></data>
   <data name="Download_AlphaCategory" xml:space="preserve"><value>alpha版</value></data>
+  <data name="Download_LocalImportCategory" xml:space="preserve"><value>本地导入</value></data>
+  <data name="Download_LocalImportDialogTitle" xml:space="preserve"><value>本地导入</value></data>
+  <data name="Download_LocalImportDialogSubtitle" xml:space="preserve"><value>导入本地游戏或整合包，可选择文件或直接拖入文件。</value></data>
+  <data name="Download_LocalImportDropZoneTitle" xml:space="preserve"><value>将文件拖到这里</value></data>
+  <data name="Download_LocalImportDropZoneSubtitle" xml:space="preserve"><value>也可以使用左下角的“选择文件”按钮。</value></data>
+  <data name="Download_LocalImportSelectedFileLabel" xml:space="preserve"><value>已选文件</value></data>
+  <data name="Download_LocalImportNoFileSelected" xml:space="preserve"><value>尚未选择文件</value></data>
+  <data name="Download_LocalImportSelectFileButton" xml:space="preserve"><value>选择文件</value></data>
   <data name="Download_VanillaLoaderTitle" xml:space="preserve"><value>原版</value></data>
   <data name="Download_FabricLoaderTitle" xml:space="preserve"><value>Fabric</value></data>
   <data name="Download_ForgeLoaderTitle" xml:space="preserve"><value>Forge</value></data>
@@ -372,6 +380,8 @@
   <data name="FilePicker_MinecraftSkinFilter" xml:space="preserve"><value>PNG 皮肤 (*.png)|*.png</value></data>
   <data name="FilePicker_JavaExecutableTitle" xml:space="preserve"><value>选择 Java 可执行文件</value></data>
   <data name="FilePicker_JavaExecutableFilter" xml:space="preserve"><value>Java 可执行文件 (java.exe;java)|java.exe;java|所有文件 (*.*)|*.*</value></data>
+  <data name="FilePicker_LocalImportFileTitle" xml:space="preserve"><value>选择本地游戏或整合包文件</value></data>
+  <data name="FilePicker_LocalImportFileFilter" xml:space="preserve"><value>所有文件|*.*</value></data>
   <data name="GameSettings_DeleteInstanceTooltip" xml:space="preserve"><value>删除版本</value></data>
   <data name="GameSettings_OpenInstanceFolderTooltip" xml:space="preserve"><value>打开文件夹位置</value></data>
   <data name="GameSettings_SelectInstanceAndGoHomeTooltip" xml:space="preserve"><value>返回主页并选择此版本</value></data>

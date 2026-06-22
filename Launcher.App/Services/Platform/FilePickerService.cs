@@ -33,6 +33,19 @@ public sealed class FilePickerService : IFilePickerService
         return dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) == true ? dialog.FileName : null;
     }
 
+    public string? PickLocalImportFile()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = Strings.FilePicker_LocalImportFileTitle,
+            Filter = Strings.FilePicker_LocalImportFileFilter,
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        return dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) == true ? dialog.FileName : null;
+    }
+
     public string? PickModFile()
     {
         var dialog = new OpenFileDialog

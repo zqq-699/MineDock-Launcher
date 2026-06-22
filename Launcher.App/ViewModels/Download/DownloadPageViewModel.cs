@@ -7,11 +7,13 @@ using Launcher.App.Utilities;
 using Launcher.App.ViewModels.Shared;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Launcher.App.ViewModels.Download;
 
 public sealed partial class DownloadPageViewModel : ObservableObject
 {
+    private const string LocalImportCategoryId = "local_import";
     private readonly IGameVersionService gameVersionService;
     private readonly IGameInstanceService instanceService;
     private readonly DownloadTasksPageViewModel downloadTasksPage;
@@ -100,7 +102,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             downloadTasksPage,
             loaderProviders,
             ImmediateUiDispatcher.Instance,
-            NullFloatingMessageService.Instance)
+            NullFloatingMessageService.Instance,
+            NullFilePickerService.Instance)
     {
     }
 
@@ -110,7 +113,14 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         DownloadTasksPageViewModel downloadTasksPage,
         IEnumerable<ILoaderProvider> loaderProviders,
         IUiDispatcher uiDispatcher)
-        : this(gameVersionService, instanceService, downloadTasksPage, loaderProviders, uiDispatcher, NullFloatingMessageService.Instance)
+        : this(
+            gameVersionService,
+            instanceService,
+            downloadTasksPage,
+            loaderProviders,
+            uiDispatcher,
+            NullFloatingMessageService.Instance,
+            NullFilePickerService.Instance)
     {
     }
 
@@ -120,7 +130,9 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         DownloadTasksPageViewModel downloadTasksPage,
         IEnumerable<ILoaderProvider> loaderProviders,
         IUiDispatcher uiDispatcher,
-        IFloatingMessageService floatingMessageService)
+        IFloatingMessageService floatingMessageService,
+        IFilePickerService filePickerService,
+        ILogger<DownloadLocalImportDialogViewModel>? localImportLogger = null)
     {
         this.gameVersionService = gameVersionService;
         this.instanceService = instanceService;
@@ -130,6 +142,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         this.floatingMessageService = floatingMessageService;
         VersionList = new DownloadVersionListViewModel(this);
         InstanceOptions = new DownloadInstanceOptionsViewModel(this);
+        LocalImportDialog = new DownloadLocalImportDialogViewModel(filePickerService, localImportLogger);
 
         LoaderVersions.CollectionChanged += (_, _) =>
         {
@@ -142,6 +155,12 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         VersionCategories.Add(new DownloadVersionCategory("snapshot", Strings.Download_SnapshotCategory, string.Empty, "instance_download_page/snapshot"));
         VersionCategories.Add(new DownloadVersionCategory("old_beta", Strings.Download_BetaCategory, "\u03b2"));
         VersionCategories.Add(new DownloadVersionCategory("old_alpha", Strings.Download_AlphaCategory, "\u03b1"));
+        VersionCategories.Add(new DownloadVersionCategory(
+            LocalImportCategoryId,
+            Strings.Download_LocalImportCategory,
+            string.Empty,
+            "instance_download_page/localimport",
+            isEnabled: true));
 
         LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Vanilla, Strings.Download_VanillaLoaderTitle, Strings.Download_VanillaLoaderSubtitle, string.Empty, "/Assets/Icons/block/grass_block.png"));
         LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Fabric, Strings.Download_FabricLoaderTitle, Strings.Download_FabricLoaderSubtitle, "\uE8B7", MinecraftVersionIconResolver.DefaultFabricIconSource));
@@ -164,6 +183,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     public DownloadVersionListViewModel VersionList { get; }
 
     public DownloadInstanceOptionsViewModel InstanceOptions { get; }
+
+    public DownloadLocalImportDialogViewModel LocalImportDialog { get; }
 
     public bool HasVisibleVersions => VisibleVersions.Count > 0;
 
@@ -290,6 +311,15 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     [RelayCommand]
     private void SelectVersionCategory(DownloadVersionCategory category)
     {
+        if (!category.IsEnabled)
+            return;
+
+        if (string.Equals(category.Id, LocalImportCategoryId, StringComparison.Ordinal))
+        {
+            LocalImportDialog.Open();
+            return;
+        }
+
         var isRefreshingCurrentCategory = ReferenceEquals(SelectedVersionCategory, category);
         SelectVersionCategoryCore(category, deferRefresh: false);
 
@@ -833,6 +863,31 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         SelectedMinecraftVersion = null;
         foreach (var item in AllVersions)
             item.IsSelected = false;
+    }
+
+    private sealed class NullFilePickerService : IFilePickerService
+    {
+        public static NullFilePickerService Instance { get; } = new();
+
+        private NullFilePickerService()
+        {
+        }
+
+        public string? PickMinecraftSkin() => null;
+
+        public string? PickJavaExecutable() => null;
+
+        public string? PickLocalImportFile() => null;
+
+        public string? PickModFile() => null;
+
+        public string? PickSaveArchive() => null;
+
+        public string? PickResourcePackArchive() => null;
+
+        public string? PickShaderPackArchive() => null;
+
+        public string? PickFolder(string title, string? initialDirectory = null) => null;
     }
 
     private sealed class NullFloatingMessageService : IFloatingMessageService

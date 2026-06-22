@@ -5,6 +5,7 @@
         xmlns:shellViews="clr-namespace:Launcher.App.Views.Shell"
         xmlns:homeViews="clr-namespace:Launcher.App.Views.Home"
         xmlns:downloadViews="clr-namespace:Launcher.App.Views.Download"
+        xmlns:downloadDialogViews="clr-namespace:Launcher.App.Views.Download.Dialogs"
         xmlns:installViews="clr-namespace:Launcher.App.Views.Install"
         xmlns:accountViews="clr-namespace:Launcher.App.Views.Account"
         xmlns:accountDialogViews="clr-namespace:Launcher.App.Views.Account.Dialogs"
@@ -167,6 +168,16 @@
                                  IsOpen="{Binding EditDialog.IsEditInstanceDialogOpen}"
                                  DataContext="{Binding GameSettingsPage}">
                 <gameSettingsDialogViews:RenameInstanceDialogView />
+            </controls:DialogHost>
+
+            <controls:DialogHost x:Name="DownloadLocalImportDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="500"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding LocalImportDialog.IsOpen}"
+                                 DataContext="{Binding DownloadPage}">
+                <downloadDialogViews:DownloadLocalImportDialogView />
             </controls:DialogHost>
 
             <controls:DialogHost x:Name="DeleteInstanceDialogHost"

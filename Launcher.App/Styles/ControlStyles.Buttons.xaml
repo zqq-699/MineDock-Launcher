@@ -426,6 +426,13 @@
                         <DataTrigger Binding="{Binding Tag.IsSelected, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
                             <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
                         </DataTrigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Disabled}" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                            <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
+                            <Setter TargetName="Root" Property="Opacity" Value="0.68" />
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>

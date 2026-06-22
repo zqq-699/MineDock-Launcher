@@ -2835,6 +2835,11 @@ public sealed class GameSettingsPageViewModelTests
             return ShaderPackArchivePath;
         }
 
+        public string? PickLocalImportFile()
+        {
+            return null;
+        }
+
         public string? PickFolder(string title, string? initialDirectory = null)
         {
             return FolderPath;

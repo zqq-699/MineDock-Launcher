@@ -4,6 +4,7 @@ public interface IFilePickerService
 {
     string? PickMinecraftSkin();
     string? PickJavaExecutable();
+    string? PickLocalImportFile();
     string? PickModFile();
     string? PickSaveArchive();
     string? PickResourcePackArchive();

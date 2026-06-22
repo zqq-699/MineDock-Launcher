@@ -167,6 +167,23 @@
         <Setter Property="Margin" Value="0,24,0,26" />
     </Style>
 
+    <Style x:Key="DialogDropZoneBorderStyle" TargetType="Border">
+        <Setter Property="MinHeight" Value="148" />
+        <Setter Property="Padding" Value="20" />
+        <Setter Property="Background" Value="{DynamicResource Brush.List.Item.Background}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.24FFFFFF}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="behaviors:RoundedClip.Radius" Value="14" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding LocalImportDialog.IsDragOver}" Value="True">
+                <Setter Property="Background" Value="{DynamicResource Brush.List.Item.Hover}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource Brush.List.Item.SelectedBorder}" />
+                <Setter Property="BorderThickness" Value="2" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="DialogFooterStyle" TargetType="StackPanel">
         <Setter Property="Orientation" Value="Horizontal" />
         <Setter Property="HorizontalAlignment" Value="Right" />

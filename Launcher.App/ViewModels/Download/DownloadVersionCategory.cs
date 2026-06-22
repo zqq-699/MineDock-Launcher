@@ -4,12 +4,13 @@ namespace Launcher.App.ViewModels.Download;
 
 public sealed partial class DownloadVersionCategory : ObservableObject
 {
-    public DownloadVersionCategory(string id, string title, string icon, string? iconKey = null)
+    public DownloadVersionCategory(string id, string title, string icon, string? iconKey = null, bool isEnabled = true)
     {
         Id = id;
         Title = title;
         Icon = icon;
         IconKey = iconKey;
+        IsEnabled = isEnabled;
     }
 
     public string Id { get; }
@@ -21,6 +22,8 @@ public sealed partial class DownloadVersionCategory : ObservableObject
     public string? IconKey { get; }
 
     public string IconMode => string.IsNullOrWhiteSpace(IconKey) ? "Glyph" : "Svg";
+
+    public bool IsEnabled { get; }
 
     [ObservableProperty]
     private bool isSelected;

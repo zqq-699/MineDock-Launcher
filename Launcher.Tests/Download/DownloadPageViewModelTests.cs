@@ -4,6 +4,8 @@ using Launcher.App.ViewModels.Download;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
+using System.IO;
+
 namespace Launcher.Tests.Download;
 
 public sealed class DownloadPageViewModelTests
@@ -36,6 +38,192 @@ public sealed class DownloadPageViewModelTests
         Assert.True(viewModel.HasVisibleVersions);
         Assert.Equal(["1.21.4", "1.20.1"], viewModel.VisibleVersions.Select(version => version.Name));
         Assert.False(viewModel.HasVersionEmptyMessage);
+    }
+
+    [Fact]
+    public void DownloadPageSelectingLocalImportOpensDialogWithoutChangingCategory()
+    {
+        var viewModel = CreateDownloadPageViewModel(new FakeGameVersionService([]));
+
+        var releaseCategory = viewModel.VersionCategories.Single(category => category.Id == "release");
+        var localImportCategory = viewModel.VersionCategories.Single(category => category.Id == "local_import");
+
+        Assert.Equal(Strings.Download_LocalImportCategory, localImportCategory.Title);
+        Assert.True(localImportCategory.IsEnabled);
+
+        viewModel.SelectVersionCategoryCommand.Execute(localImportCategory);
+
+        Assert.True(viewModel.LocalImportDialog.IsOpen);
+        Assert.Same(releaseCategory, viewModel.SelectedVersionCategory);
+        Assert.True(releaseCategory.IsSelected);
+        Assert.False(localImportCategory.IsSelected);
+    }
+
+    [Fact]
+    public void DownloadPageOpeningLocalImportDialogResetsPreviousSelection()
+    {
+        var tempFilePath = Path.GetTempFileName();
+
+        try
+        {
+            var viewModel = CreateDownloadPageViewModel(new FakeGameVersionService([]));
+            var localImportCategory = viewModel.VersionCategories.Single(category => category.Id == "local_import");
+
+            viewModel.LocalImportDialog.Open();
+            Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([tempFilePath]));
+            Assert.True(viewModel.LocalImportDialog.HasSelectedFile);
+
+            viewModel.SelectVersionCategoryCommand.Execute(localImportCategory);
+
+            Assert.True(viewModel.LocalImportDialog.IsOpen);
+            Assert.False(viewModel.LocalImportDialog.HasSelectedFile);
+            Assert.Empty(viewModel.LocalImportDialog.SelectedFilePath);
+            Assert.Empty(viewModel.LocalImportDialog.SelectedFileName);
+        }
+        finally
+        {
+            File.Delete(tempFilePath);
+        }
+    }
+
+    [Fact]
+    public void DownloadPageLocalImportSelectFileUpdatesSelectedFileName()
+    {
+        var tempFilePath = Path.GetTempFileName();
+
+        try
+        {
+            var filePickerService = new FakeFilePickerService
+            {
+                LocalImportFilePath = tempFilePath
+            };
+            var viewModel = CreateDownloadPageViewModel(new FakeGameVersionService([]), filePickerService: filePickerService);
+
+            viewModel.LocalImportDialog.SelectFileCommand.Execute(null);
+
+            Assert.Equal(Path.GetFullPath(tempFilePath), viewModel.LocalImportDialog.SelectedFilePath);
+            Assert.Equal(Path.GetFileName(tempFilePath), viewModel.LocalImportDialog.SelectedFileName);
+            Assert.True(viewModel.LocalImportDialog.HasSelectedFile);
+        }
+        finally
+        {
+            File.Delete(tempFilePath);
+        }
+    }
+
+    [Fact]
+    public void DownloadPageLocalImportCancelClosesDialogAndClearsSelection()
+    {
+        var tempFilePath = Path.GetTempFileName();
+
+        try
+        {
+            var viewModel = CreateDownloadPageViewModel(new FakeGameVersionService([]));
+
+            viewModel.LocalImportDialog.Open();
+            Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([tempFilePath]));
+
+            viewModel.LocalImportDialog.CancelCommand.Execute(null);
+
+            Assert.False(viewModel.LocalImportDialog.IsOpen);
+            Assert.False(viewModel.LocalImportDialog.HasSelectedFile);
+            Assert.Empty(viewModel.LocalImportDialog.SelectedFilePath);
+            Assert.Empty(viewModel.LocalImportDialog.SelectedFileName);
+        }
+        finally
+        {
+            File.Delete(tempFilePath);
+        }
+    }
+
+    [Fact]
+    public void DownloadPageLocalImportConfirmKeepsDialogOpenAndPreservesSelection()
+    {
+        var tempFilePath = Path.GetTempFileName();
+
+        try
+        {
+            var viewModel = CreateDownloadPageViewModel(new FakeGameVersionService([]));
+
+            viewModel.LocalImportDialog.Open();
+            Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([tempFilePath]));
+
+            viewModel.LocalImportDialog.ConfirmNoOpCommand.Execute(null);
+
+            Assert.True(viewModel.LocalImportDialog.IsOpen);
+            Assert.Equal(Path.GetFullPath(tempFilePath), viewModel.LocalImportDialog.SelectedFilePath);
+            Assert.Equal(Path.GetFileName(tempFilePath), viewModel.LocalImportDialog.SelectedFileName);
+            Assert.True(viewModel.LocalImportDialog.HasSelectedFile);
+        }
+        finally
+        {
+            File.Delete(tempFilePath);
+        }
+    }
+
+    [Fact]
+    public void DownloadPageLocalImportDropAppliesSingleFileSelection()
+    {
+        var tempFilePath = Path.GetTempFileName();
+
+        try
+        {
+            var viewModel = CreateDownloadPageViewModel(new FakeGameVersionService([]));
+
+            Assert.True(viewModel.LocalImportDialog.PreviewDroppedFiles([tempFilePath]));
+            Assert.True(viewModel.LocalImportDialog.IsDragOver);
+            Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([tempFilePath]));
+            Assert.False(viewModel.LocalImportDialog.IsDragOver);
+            Assert.Equal(Path.GetFullPath(tempFilePath), viewModel.LocalImportDialog.SelectedFilePath);
+            Assert.Equal(Path.GetFileName(tempFilePath), viewModel.LocalImportDialog.SelectedFileName);
+        }
+        finally
+        {
+            File.Delete(tempFilePath);
+        }
+    }
+
+    [Fact]
+    public void DownloadPageLocalImportDropRejectsFolder()
+    {
+        var tempDirectoryPath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectoryPath);
+
+        try
+        {
+            var viewModel = CreateDownloadPageViewModel(new FakeGameVersionService([]));
+
+            Assert.False(viewModel.LocalImportDialog.PreviewDroppedFiles([tempDirectoryPath]));
+            Assert.False(viewModel.LocalImportDialog.IsDragOver);
+            Assert.False(viewModel.LocalImportDialog.ApplyDroppedFiles([tempDirectoryPath]));
+            Assert.False(viewModel.LocalImportDialog.HasSelectedFile);
+        }
+        finally
+        {
+            Directory.Delete(tempDirectoryPath);
+        }
+    }
+
+    [Fact]
+    public void DownloadPageLocalImportClearDropStateRemovesHighlight()
+    {
+        var tempFilePath = Path.GetTempFileName();
+
+        try
+        {
+            var viewModel = CreateDownloadPageViewModel(new FakeGameVersionService([]));
+
+            Assert.True(viewModel.LocalImportDialog.PreviewDroppedFiles([tempFilePath]));
+            Assert.True(viewModel.LocalImportDialog.IsDragOver);
+
+            viewModel.LocalImportDialog.ClearDropState();
+
+            Assert.False(viewModel.LocalImportDialog.IsDragOver);
+        }
+        finally
+        {
+            File.Delete(tempFilePath);
+        }
     }
 
     [Fact]
@@ -1084,7 +1272,8 @@ public sealed class DownloadPageViewModelTests
         IGameInstanceService? instanceService = null,
         DownloadTasksPageViewModel? tasksPage = null,
         IEnumerable<ILoaderProvider>? loaderProviders = null,
-        IFloatingMessageService? floatingMessageService = null)
+        IFloatingMessageService? floatingMessageService = null,
+        IFilePickerService? filePickerService = null)
     {
         return new DownloadPageViewModel(
             gameVersionService,
@@ -1092,7 +1281,8 @@ public sealed class DownloadPageViewModelTests
             tasksPage ?? new DownloadTasksPageViewModel(),
             loaderProviders ?? CreateLoaderProviders(),
             ImmediateUiDispatcher.Instance,
-            floatingMessageService ?? new FakeFloatingMessageService());
+            floatingMessageService ?? new FakeFloatingMessageService(),
+            filePickerService ?? new FakeFilePickerService());
     }
 
     private static IEnumerable<ILoaderProvider> CreateLoaderProviders(
@@ -1132,6 +1322,51 @@ public sealed class DownloadPageViewModelTests
         {
             LastMessage = message;
             MessageRequested?.Invoke(message);
+        }
+    }
+
+    private sealed class FakeFilePickerService : IFilePickerService
+    {
+        public string? LocalImportFilePath { get; init; }
+
+        public string? PickMinecraftSkin()
+        {
+            return null;
+        }
+
+        public string? PickJavaExecutable()
+        {
+            return null;
+        }
+
+        public string? PickModFile()
+        {
+            return null;
+        }
+
+        public string? PickSaveArchive()
+        {
+            return null;
+        }
+
+        public string? PickResourcePackArchive()
+        {
+            return null;
+        }
+
+        public string? PickShaderPackArchive()
+        {
+            return null;
+        }
+
+        public string? PickLocalImportFile()
+        {
+            return LocalImportFilePath;
+        }
+
+        public string? PickFolder(string title, string? initialDirectory = null)
+        {
+            return null;
         }
     }
 }

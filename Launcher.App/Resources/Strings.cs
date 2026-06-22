@@ -398,6 +398,14 @@ public static class Strings
     public static string Download_SnapshotCategory => Get(nameof(Download_SnapshotCategory));
     public static string Download_BetaCategory => Get(nameof(Download_BetaCategory));
     public static string Download_AlphaCategory => Get(nameof(Download_AlphaCategory));
+    public static string Download_LocalImportCategory => Get(nameof(Download_LocalImportCategory));
+    public static string Download_LocalImportDialogTitle => Get(nameof(Download_LocalImportDialogTitle));
+    public static string Download_LocalImportDialogSubtitle => Get(nameof(Download_LocalImportDialogSubtitle));
+    public static string Download_LocalImportDropZoneTitle => Get(nameof(Download_LocalImportDropZoneTitle));
+    public static string Download_LocalImportDropZoneSubtitle => Get(nameof(Download_LocalImportDropZoneSubtitle));
+    public static string Download_LocalImportSelectedFileLabel => Get(nameof(Download_LocalImportSelectedFileLabel));
+    public static string Download_LocalImportNoFileSelected => Get(nameof(Download_LocalImportNoFileSelected));
+    public static string Download_LocalImportSelectFileButton => Get(nameof(Download_LocalImportSelectFileButton));
     public static string Download_VanillaLoaderTitle => Get(nameof(Download_VanillaLoaderTitle));
     public static string Download_FabricLoaderTitle => Get(nameof(Download_FabricLoaderTitle));
     public static string Download_ForgeLoaderTitle => Get(nameof(Download_ForgeLoaderTitle));
@@ -594,6 +602,8 @@ public static class Strings
     public static string FilePicker_MinecraftSkinFilter => Get(nameof(FilePicker_MinecraftSkinFilter));
     public static string FilePicker_JavaExecutableTitle => Get(nameof(FilePicker_JavaExecutableTitle));
     public static string FilePicker_JavaExecutableFilter => Get(nameof(FilePicker_JavaExecutableFilter));
+    public static string FilePicker_LocalImportFileTitle => Get(nameof(FilePicker_LocalImportFileTitle));
+    public static string FilePicker_LocalImportFileFilter => Get(nameof(FilePicker_LocalImportFileFilter));
     public static string FilePicker_ModFileTitle => Get(nameof(FilePicker_ModFileTitle));
     public static string FilePicker_ModFileFilter => Get(nameof(FilePicker_ModFileFilter));
     public static string FilePicker_SaveArchiveTitle => Get(nameof(FilePicker_SaveArchiveTitle));
