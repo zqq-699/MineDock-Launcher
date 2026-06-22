@@ -175,6 +175,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Vanilla, Strings.Download_VanillaLoaderTitle, Strings.Download_VanillaLoaderSubtitle, string.Empty, "/Assets/Icons/block/grass_block.png"));
         LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Fabric, Strings.Download_FabricLoaderTitle, Strings.Download_FabricLoaderSubtitle, "\uE8B7", MinecraftVersionIconResolver.DefaultFabricIconSource));
         LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Forge, Strings.Download_ForgeLoaderTitle, Strings.Download_ForgeLoaderSubtitle, "\uE8B7", MinecraftVersionIconResolver.DefaultForgeIconSource));
+        LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.NeoForge, Strings.Download_NeoForgeLoaderTitle, Strings.Download_NeoForgeLoaderSubtitle, "\uE8B7", MinecraftVersionIconResolver.DefaultNeoForgeIconSource));
         SelectLoaderOptionCore(LoaderOptions.First());
 
         SelectVersionCategoryCore(VersionCategories.First(), deferRefresh: false);
@@ -844,6 +845,9 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             LoaderKind.Forge when !string.IsNullOrWhiteSpace(SelectedLoaderVersion?.Version)
                 => $"{minecraftVersionName}-forge-{SelectedLoaderVersion.Version}",
             LoaderKind.Forge => $"{minecraftVersionName}-forge",
+            LoaderKind.NeoForge when !string.IsNullOrWhiteSpace(SelectedLoaderVersion?.Version)
+                => $"{minecraftVersionName}-neoforge-{SelectedLoaderVersion.Version}",
+            LoaderKind.NeoForge => $"{minecraftVersionName}-neoforge",
             _ => minecraftVersionName
         };
     }
@@ -869,7 +873,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 
     private static bool RequiresLoaderVersionSelection(LoaderKind? loaderKind)
     {
-        return loaderKind is LoaderKind.Fabric or LoaderKind.Forge;
+        return loaderKind is LoaderKind.Fabric or LoaderKind.Forge or LoaderKind.NeoForge;
     }
 
     private void ClearSelectedVersion()

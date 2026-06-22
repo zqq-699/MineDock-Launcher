@@ -169,11 +169,13 @@ public sealed class HomePageViewModelTests
         var viewModel = CreateViewModel();
         var fabric = CreateInstance("fabric", "Fabric Pack", "1.21.4", LoaderKind.Fabric);
         var forge = CreateInstance("forge", "Forge Pack", "1.20.1", LoaderKind.Forge);
+        var neoForge = CreateInstance("neoforge", "NeoForge Pack", "1.20.4", LoaderKind.NeoForge);
 
-        viewModel.SetLaunchInstances([fabric, forge]);
+        viewModel.SetLaunchInstances([fabric, forge, neoForge]);
 
         Assert.Equal("/Assets/Icons/block/fabric.png", viewModel.LaunchInstances[0].IconSource);
         Assert.Equal("/Assets/Icons/block/Anvil.png", viewModel.LaunchInstances[1].IconSource);
+        Assert.Equal("/Assets/Icons/block/neo_logo.png", viewModel.LaunchInstances[2].IconSource);
     }
 
     [Fact]
@@ -197,12 +199,15 @@ public sealed class HomePageViewModelTests
         fabric.LoaderVersion = "0.16.10";
         var forge = CreateInstance("forge", "Forge Pack", "26.1.1", LoaderKind.Forge);
         forge.LoaderVersion = "63.0.2";
+        var neoForge = CreateInstance("neoforge", "NeoForge Pack", "1.20.4", LoaderKind.NeoForge);
+        neoForge.LoaderVersion = "20.4.237";
 
-        viewModel.SetLaunchInstances([vanilla, fabric, forge]);
+        viewModel.SetLaunchInstances([vanilla, fabric, forge, neoForge]);
 
         Assert.Equal("1.21.4", viewModel.LaunchInstances.Single(instance => instance.Name == "Vanilla World").Subtitle);
         Assert.Equal("1.20.1 Fabric 0.16.10", viewModel.LaunchInstances.Single(instance => instance.Name == "Fabric Pack").Subtitle);
         Assert.Equal("26.1.1 Forge 63.0.2", viewModel.LaunchInstances.Single(instance => instance.Name == "Forge Pack").Subtitle);
+        Assert.Equal("1.20.4 NeoForge 20.4.237", viewModel.LaunchInstances.Single(instance => instance.Name == "NeoForge Pack").Subtitle);
     }
 
     [Fact]

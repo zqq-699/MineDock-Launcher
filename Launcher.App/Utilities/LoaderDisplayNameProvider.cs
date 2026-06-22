@@ -12,7 +12,7 @@ internal static class LoaderDisplayNameProvider
             LoaderKind.Vanilla => Strings.Download_VanillaLoaderTitle,
             LoaderKind.Fabric => Strings.Download_FabricLoaderTitle,
             LoaderKind.Forge => Strings.Download_ForgeLoaderTitle,
-            LoaderKind.NeoForge => nameof(LoaderKind.NeoForge),
+            LoaderKind.NeoForge => Strings.Download_NeoForgeLoaderTitle,
             LoaderKind.Quilt => nameof(LoaderKind.Quilt),
             _ => kind.ToString()
         };

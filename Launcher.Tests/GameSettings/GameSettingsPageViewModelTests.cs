@@ -138,13 +138,15 @@ public sealed class GameSettingsPageViewModelTests
         var viewModel = CreateViewModel(
         [
             CreateInstance("Fabric Pack", "1.21.4", LoaderKind.Fabric),
-            CreateInstance("Forge Pack", "1.20.1", LoaderKind.Forge)
+            CreateInstance("Forge Pack", "1.20.1", LoaderKind.Forge),
+            CreateInstance("NeoForge Pack", "1.20.4", LoaderKind.NeoForge)
         ]);
 
         await viewModel.EnsureInstancesLoadedAsync();
 
         Assert.Equal("/Assets/Icons/block/fabric.png", viewModel.VisibleInstances[0].IconSource);
         Assert.Equal("/Assets/Icons/block/Anvil.png", viewModel.VisibleInstances[1].IconSource);
+        Assert.Equal("/Assets/Icons/block/neo_logo.png", viewModel.VisibleInstances[2].IconSource);
     }
 
     [Fact]
@@ -155,13 +157,16 @@ public sealed class GameSettingsPageViewModelTests
         fabric.LoaderVersion = "0.16.10";
         var forge = CreateInstance("Forge Pack", "26.1.1", LoaderKind.Forge);
         forge.LoaderVersion = "63.0.2";
-        var viewModel = CreateViewModel([vanilla, fabric, forge]);
+        var neoForge = CreateInstance("NeoForge Pack", "1.20.4", LoaderKind.NeoForge);
+        neoForge.LoaderVersion = "20.4.237";
+        var viewModel = CreateViewModel([vanilla, fabric, forge, neoForge]);
 
         await viewModel.EnsureInstancesLoadedAsync();
 
         Assert.Equal("1.21.4", viewModel.VisibleInstances.Single(instance => instance.Name == "Vanilla World").Subtitle);
         Assert.Equal("1.20.1 Fabric 0.16.10", viewModel.VisibleInstances.Single(instance => instance.Name == "Fabric Pack").Subtitle);
         Assert.Equal("26.1.1 Forge 63.0.2", viewModel.VisibleInstances.Single(instance => instance.Name == "Forge Pack").Subtitle);
+        Assert.Equal("1.20.4 NeoForge 20.4.237", viewModel.VisibleInstances.Single(instance => instance.Name == "NeoForge Pack").Subtitle);
     }
 
     [Fact]

@@ -411,9 +411,11 @@ public static class Strings
     public static string Download_VanillaLoaderTitle => Get(nameof(Download_VanillaLoaderTitle));
     public static string Download_FabricLoaderTitle => Get(nameof(Download_FabricLoaderTitle));
     public static string Download_ForgeLoaderTitle => Get(nameof(Download_ForgeLoaderTitle));
+    public static string Download_NeoForgeLoaderTitle => Get(nameof(Download_NeoForgeLoaderTitle));
     public static string Download_VanillaLoaderSubtitle => Get(nameof(Download_VanillaLoaderSubtitle));
     public static string Download_FabricLoaderSubtitle => Get(nameof(Download_FabricLoaderSubtitle));
     public static string Download_ForgeLoaderSubtitle => Get(nameof(Download_ForgeLoaderSubtitle));
+    public static string Download_NeoForgeLoaderSubtitle => Get(nameof(Download_NeoForgeLoaderSubtitle));
     public static string Download_FabricLoaderVersionLabel => Get(nameof(Download_FabricLoaderVersionLabel));
     public static string Download_FabricLoaderVersionEmpty => Get(nameof(Download_FabricLoaderVersionEmpty));
     public static string Download_LoaderVersionEmptyFormat => Get(nameof(Download_LoaderVersionEmptyFormat));
