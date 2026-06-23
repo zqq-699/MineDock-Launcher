@@ -183,6 +183,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Fabric, Strings.Download_FabricLoaderTitle, Strings.Download_FabricLoaderSubtitle, "\uE8B7", MinecraftVersionIconResolver.DefaultFabricIconSource));
         LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Forge, Strings.Download_ForgeLoaderTitle, Strings.Download_ForgeLoaderSubtitle, "\uE8B7", MinecraftVersionIconResolver.DefaultForgeIconSource));
         LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.NeoForge, Strings.Download_NeoForgeLoaderTitle, Strings.Download_NeoForgeLoaderSubtitle, "\uE8B7", MinecraftVersionIconResolver.DefaultNeoForgeIconSource));
+        LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Quilt, Strings.Download_QuiltLoaderTitle, Strings.Download_QuiltLoaderSubtitle, "\uE8B7", MinecraftVersionIconResolver.DefaultQuiltIconSource));
         SelectLoaderOptionCore(LoaderOptions.First());
 
         SelectVersionCategoryCore(VersionCategories.First(), deferRefresh: false);
@@ -857,6 +858,9 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             LoaderKind.NeoForge when !string.IsNullOrWhiteSpace(SelectedLoaderVersion?.Version)
                 => $"{minecraftVersionName}-neoforge-{SelectedLoaderVersion.Version}",
             LoaderKind.NeoForge => $"{minecraftVersionName}-neoforge",
+            LoaderKind.Quilt when !string.IsNullOrWhiteSpace(SelectedLoaderVersion?.Version)
+                => $"{minecraftVersionName}-quilt-{SelectedLoaderVersion.Version}",
+            LoaderKind.Quilt => $"{minecraftVersionName}-quilt",
             _ => minecraftVersionName
         };
     }
@@ -882,7 +886,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 
     private static bool RequiresLoaderVersionSelection(LoaderKind? loaderKind)
     {
-        return loaderKind is LoaderKind.Fabric or LoaderKind.Forge or LoaderKind.NeoForge;
+        return loaderKind is LoaderKind.Fabric or LoaderKind.Forge or LoaderKind.NeoForge or LoaderKind.Quilt;
     }
 
     private void ClearSelectedVersion()

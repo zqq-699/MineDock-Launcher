@@ -244,10 +244,12 @@
   <data name="Download_FabricLoaderTitle" xml:space="preserve"><value>Fabric</value></data>
   <data name="Download_ForgeLoaderTitle" xml:space="preserve"><value>Forge</value></data>
   <data name="Download_NeoForgeLoaderTitle" xml:space="preserve"><value>NeoForge</value></data>
+  <data name="Download_QuiltLoaderTitle" xml:space="preserve"><value>Quilt</value></data>
   <data name="Download_VanillaLoaderSubtitle" xml:space="preserve"><value>不安装 Mod 加载器</value></data>
   <data name="Download_FabricLoaderSubtitle" xml:space="preserve"><value>支持选择 Fabric 版本并安装</value></data>
   <data name="Download_ForgeLoaderSubtitle" xml:space="preserve"><value>支持选择 Forge 版本并安装</value></data>
   <data name="Download_NeoForgeLoaderSubtitle" xml:space="preserve"><value>支持选择 NeoForge 版本并安装</value></data>
+  <data name="Download_QuiltLoaderSubtitle" xml:space="preserve"><value>支持选择 Quilt 版本并安装</value></data>
   <data name="Download_FabricLoaderVersionLabel" xml:space="preserve"><value>Fabric 版本</value></data>
   <data name="Download_FabricLoaderVersionEmpty" xml:space="preserve"><value>无可用版本</value></data>
   <data name="Download_LoaderVersionEmptyFormat" xml:space="preserve"><value>{0} 无可用版本</value></data>
@@ -462,6 +464,8 @@
   <data name="GameSettings_IconStoneBlock" xml:space="preserve"><value>石头</value></data>
   <data name="GameSettings_IconFabric" xml:space="preserve"><value>Fabric</value></data>
   <data name="GameSettings_IconAnvil" xml:space="preserve"><value>铁砧</value></data>
+  <data name="GameSettings_IconNeoForge" xml:space="preserve"><value>NeoForge</value></data>
+  <data name="GameSettings_IconQuilt" xml:space="preserve"><value>Quilt</value></data>
   <data name="GameSettings_IconDiamondBlock" xml:space="preserve"><value>钻石方块</value></data>
   <data name="GameSettings_IconBeacon" xml:space="preserve"><value>信标</value></data>
   <data name="GameSettings_IconFurnace" xml:space="preserve"><value>熔炉</value></data>

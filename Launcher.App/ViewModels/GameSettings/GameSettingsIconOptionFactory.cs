@@ -15,6 +15,8 @@ internal static class GameSettingsIconOptionFactory
             new GameSettingsIconOption(Strings.GameSettings_IconStoneBlock, MinecraftVersionIconResolver.DefaultAlphaIconSource),
             new GameSettingsIconOption(Strings.GameSettings_IconFabric, MinecraftVersionIconResolver.DefaultFabricIconSource),
             new GameSettingsIconOption(Strings.GameSettings_IconAnvil, MinecraftVersionIconResolver.DefaultForgeIconSource),
+            new GameSettingsIconOption(Strings.GameSettings_IconNeoForge, MinecraftVersionIconResolver.DefaultNeoForgeIconSource),
+            new GameSettingsIconOption(Strings.GameSettings_IconQuilt, MinecraftVersionIconResolver.DefaultQuiltIconSource),
             new GameSettingsIconOption(Strings.GameSettings_IconDiamondBlock, "/Assets/Icons/block/diamond_block.png"),
             new GameSettingsIconOption(Strings.GameSettings_IconBeacon, "/Assets/Icons/block/Beacon_block.png"),
             new GameSettingsIconOption(Strings.GameSettings_IconFurnace, "/Assets/Icons/block/Furnace_block.png"),

@@ -914,13 +914,14 @@ public sealed class DownloadPageViewModelTests
         Assert.Equal("1.20.1", viewModel.InstanceName);
         Assert.Equal("1.20.1", viewModel.PageTitle);
         Assert.Equal("/Assets/Icons/block/grass_block.png", viewModel.PageTitleIconSource);
-        Assert.Equal([LoaderKind.Vanilla, LoaderKind.Fabric, LoaderKind.Forge, LoaderKind.NeoForge], viewModel.LoaderOptions.Select(option => option.Kind));
+        Assert.Equal([LoaderKind.Vanilla, LoaderKind.Fabric, LoaderKind.Forge, LoaderKind.NeoForge, LoaderKind.Quilt], viewModel.LoaderOptions.Select(option => option.Kind));
         Assert.Equal(LoaderKind.Vanilla, viewModel.SelectedLoaderOption?.Kind);
         Assert.True(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Vanilla).IsSelected);
         Assert.Equal("/Assets/Icons/block/grass_block.png", viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Vanilla).IconSource);
         Assert.Equal("/Assets/Icons/block/fabric.png", viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Fabric).IconSource);
         Assert.Equal("/Assets/Icons/block/Anvil.png", viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Forge).IconSource);
         Assert.Equal("/Assets/Icons/block/neo_logo.png", viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.NeoForge).IconSource);
+        Assert.Equal("/Assets/Icons/block/quilt_x16.png", viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Quilt).IconSource);
     }
 
     [Fact]
@@ -1310,6 +1311,29 @@ public sealed class DownloadPageViewModelTests
     }
 
     [Fact]
+    public async Task DownloadPageQuiltInstallPassesSelectedLoaderVersion()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.2", "Release", false)
+        ]);
+        var instanceService = new FakeGameInstanceService();
+        var viewModel = CreateDownloadPageViewModel(service, instanceService);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Quilt));
+        await TestAsync.WaitForAsync(() => viewModel.HasLoaderVersions);
+        viewModel.SelectedLoaderVersion = viewModel.LoaderVersions.Single(version => version.Version == "0.29.2");
+        await viewModel.InstallCommand.ExecuteAsync(null);
+
+        Assert.Equal("1.20.2", instanceService.LastMinecraftVersion);
+        Assert.Equal(LoaderKind.Quilt, instanceService.LastLoader);
+        Assert.Equal("0.29.2", instanceService.LastLoaderVersion);
+        Assert.Equal("1.20.2-quilt-0.29.2", instanceService.LastName);
+    }
+
+    [Fact]
     public async Task DownloadPageForgeInstallIsDisabledWhenLoaderVersionsFailToLoad()
     {
         var service = new FakeGameVersionService(
@@ -1362,6 +1386,32 @@ public sealed class DownloadPageViewModelTests
     }
 
     [Fact]
+    public async Task DownloadPageQuiltInstallIsDisabledWhenLoaderVersionsFailToLoad()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.2", "Release", false)
+        ]);
+        var quiltProvider = new FakeLoaderProvider
+        {
+            Kind = LoaderKind.Quilt,
+            GetLoaderVersionsException = new InvalidOperationException("boom")
+        };
+        var viewModel = CreateDownloadPageViewModel(service, loaderProviders: CreateLoaderProviders(quiltProvider: quiltProvider));
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Quilt));
+
+        await TestAsync.WaitForAsync(() => viewModel.HasLoaderVersionLoadError);
+
+        Assert.False(viewModel.InstallCommand.CanExecute(null));
+        Assert.Equal(
+            string.Format(Strings.Status_LoaderVersionsLoadFailedFormat, Strings.Download_QuiltLoaderTitle),
+            viewModel.LoaderVersionLoadError);
+    }
+
+    [Fact]
     public async Task DownloadPageShowsNoAvailableVersionWhenForgeHasNoCompatibleVersions()
     {
         var service = new FakeGameVersionService(
@@ -1410,6 +1460,32 @@ public sealed class DownloadPageViewModelTests
         Assert.False(viewModel.InstallCommand.CanExecute(null));
         Assert.Equal(
             string.Format(Strings.Download_LoaderVersionEmptyFormat, Strings.Download_NeoForgeLoaderTitle),
+            viewModel.LoaderVersionPlaceholderText);
+    }
+
+    [Fact]
+    public async Task DownloadPageShowsNoAvailableVersionWhenQuiltHasNoCompatibleVersions()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.2", "Release", false)
+        ]);
+        var quiltProvider = new FakeLoaderProvider
+        {
+            Kind = LoaderKind.Quilt,
+            LoaderVersions = []
+        };
+        var viewModel = CreateDownloadPageViewModel(service, loaderProviders: CreateLoaderProviders(quiltProvider: quiltProvider));
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Quilt));
+
+        await TestAsync.WaitForAsync(() => viewModel.HasNoLoaderVersions);
+
+        Assert.False(viewModel.InstallCommand.CanExecute(null));
+        Assert.Equal(
+            string.Format(Strings.Download_LoaderVersionEmptyFormat, Strings.Download_QuiltLoaderTitle),
             viewModel.LoaderVersionPlaceholderText);
     }
 
@@ -1741,7 +1817,8 @@ public sealed class DownloadPageViewModelTests
     private static IEnumerable<ILoaderProvider> CreateLoaderProviders(
         FakeLoaderProvider? fabricProvider = null,
         FakeLoaderProvider? forgeProvider = null,
-        FakeLoaderProvider? neoForgeProvider = null)
+        FakeLoaderProvider? neoForgeProvider = null,
+        FakeLoaderProvider? quiltProvider = null)
     {
         return
         [
@@ -1770,6 +1847,15 @@ public sealed class DownloadPageViewModelTests
                 [
                     new LoaderVersionInfo("20.4.237"),
                     new LoaderVersionInfo("20.4.236-beta", false)
+                ]
+            },
+            quiltProvider ?? new FakeLoaderProvider
+            {
+                Kind = LoaderKind.Quilt,
+                LoaderVersions =
+                [
+                    new LoaderVersionInfo("0.29.2"),
+                    new LoaderVersionInfo("0.29.2-beta.5", false)
                 ]
             }
         ];

@@ -3072,6 +3072,21 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
+    public void EditInstanceDialogIconOptionsIncludeNeoForgeAndQuilt()
+    {
+        var viewModel = CreateViewModel([CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla)]);
+
+        Assert.Contains(
+            viewModel.EditDialog.IconOptions,
+            option => option.Title == Strings.GameSettings_IconNeoForge
+                      && option.IconSource == "/Assets/Icons/block/neo_logo.png");
+        Assert.Contains(
+            viewModel.EditDialog.IconOptions,
+            option => option.Title == Strings.GameSettings_IconQuilt
+                      && option.IconSource == "/Assets/Icons/block/quilt_x16.png");
+    }
+
+    [Fact]
     public async Task ConfirmEditInstanceDialogRenamesSelectedInstanceAndRaisesSyncEvent()
     {
         var instanceService = new FakeGameInstanceService();

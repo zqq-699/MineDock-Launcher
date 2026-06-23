@@ -266,6 +266,8 @@ public static class Strings
     public static string GameSettings_IconStoneBlock => Get(nameof(GameSettings_IconStoneBlock));
     public static string GameSettings_IconFabric => Get(nameof(GameSettings_IconFabric));
     public static string GameSettings_IconAnvil => Get(nameof(GameSettings_IconAnvil));
+    public static string GameSettings_IconNeoForge => Get(nameof(GameSettings_IconNeoForge));
+    public static string GameSettings_IconQuilt => Get(nameof(GameSettings_IconQuilt));
     public static string GameSettings_IconDiamondBlock => Get(nameof(GameSettings_IconDiamondBlock));
     public static string GameSettings_IconBeacon => Get(nameof(GameSettings_IconBeacon));
     public static string GameSettings_IconFurnace => Get(nameof(GameSettings_IconFurnace));
@@ -424,10 +426,12 @@ public static class Strings
     public static string Download_FabricLoaderTitle => Get(nameof(Download_FabricLoaderTitle));
     public static string Download_ForgeLoaderTitle => Get(nameof(Download_ForgeLoaderTitle));
     public static string Download_NeoForgeLoaderTitle => Get(nameof(Download_NeoForgeLoaderTitle));
+    public static string Download_QuiltLoaderTitle => Get(nameof(Download_QuiltLoaderTitle));
     public static string Download_VanillaLoaderSubtitle => Get(nameof(Download_VanillaLoaderSubtitle));
     public static string Download_FabricLoaderSubtitle => Get(nameof(Download_FabricLoaderSubtitle));
     public static string Download_ForgeLoaderSubtitle => Get(nameof(Download_ForgeLoaderSubtitle));
     public static string Download_NeoForgeLoaderSubtitle => Get(nameof(Download_NeoForgeLoaderSubtitle));
+    public static string Download_QuiltLoaderSubtitle => Get(nameof(Download_QuiltLoaderSubtitle));
     public static string Download_FabricLoaderVersionLabel => Get(nameof(Download_FabricLoaderVersionLabel));
     public static string Download_FabricLoaderVersionEmpty => Get(nameof(Download_FabricLoaderVersionEmpty));
     public static string Download_LoaderVersionEmptyFormat => Get(nameof(Download_LoaderVersionEmptyFormat));

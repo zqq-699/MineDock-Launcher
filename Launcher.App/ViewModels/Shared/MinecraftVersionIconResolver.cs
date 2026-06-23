@@ -11,6 +11,7 @@ internal static class MinecraftVersionIconResolver
     public const string DefaultFabricIconSource = "/Assets/Icons/block/fabric.png";
     public const string DefaultForgeIconSource = "/Assets/Icons/block/Anvil.png";
     public const string DefaultNeoForgeIconSource = "/Assets/Icons/block/neo_logo.png";
+    public const string DefaultQuiltIconSource = "/Assets/Icons/block/quilt_x16.png";
 
     public static string Resolve(GameInstance instance, string? versionType = null, string? minecraftVersion = null)
     {
@@ -25,6 +26,9 @@ internal static class MinecraftVersionIconResolver
 
         if (instance.Loader is LoaderKind.NeoForge)
             return DefaultNeoForgeIconSource;
+
+        if (instance.Loader is LoaderKind.Quilt)
+            return DefaultQuiltIconSource;
 
         return Resolve(versionType, minecraftVersion, instance.MinecraftVersion, instance.VersionName);
     }
