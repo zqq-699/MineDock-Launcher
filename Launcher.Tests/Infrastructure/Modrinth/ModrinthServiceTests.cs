@@ -47,6 +47,56 @@ public sealed class ModrinthServiceTests
         Assert.Equal(Path.Combine(instanceDirectory, "mods", "fabric-api.jar"), path);
     }
 
+    [Fact]
+    public async Task ModrinthServiceGetsQuiltStandardLibraryVersions()
+    {
+        var handler = new CaptureHandler("""
+            [
+              {"id":"qsl-new","project_id":"qvIfYCYJ","name":"QFAPI / QSL 8.0.0","version_number":"8.0.0","version_type":"release","files":[{"filename":"qsl-new.jar","url":"https://cdn.modrinth.com/data/qsl-new.jar","primary":true}]},
+              {"id":"qsl-beta","project_id":"qvIfYCYJ","name":"QFAPI / QSL 8.0.0-beta","version_number":"8.0.0-beta","version_type":"beta","files":[{"filename":"qsl-beta.jar","url":"https://cdn.modrinth.com/data/qsl-beta.jar","primary":true}]}
+            ]
+            """);
+        var service = new ModrinthService(new HttpClient(handler));
+
+        var versions = await service.GetQuiltStandardLibraryVersionsAsync("1.20.2");
+
+        Assert.Contains("/project/qsl/version", handler.LastRequest!.AbsoluteUri);
+        Assert.Contains("loaders=%5B%22quilt%22%5D", handler.LastRequest.Query);
+        Assert.Contains("game_versions=%5B%221.20.2%22%5D", handler.LastRequest.Query);
+        Assert.Equal(2, versions.Count);
+        Assert.Equal("qsl-new", versions[0].VersionId);
+        Assert.Equal("8.0.0", versions[0].VersionNumber);
+        Assert.True(versions[0].IsStable);
+        Assert.Equal("qsl-beta", versions[1].VersionId);
+        Assert.False(versions[1].IsStable);
+    }
+
+    [Fact]
+    public async Task ModrinthServiceInstallsSelectedQuiltStandardLibraryVersion()
+    {
+        var handler = new SequencedHandler(
+            """
+            {"id":"qsl-new","project_id":"qvIfYCYJ","name":"QFAPI / QSL 8.0.0","version_number":"8.0.0","version_type":"release","files":[{"filename":"qsl-secondary.jar","url":"https://cdn.modrinth.com/data/qsl-secondary.jar","primary":false},{"filename":"qsl-primary.jar","url":"https://cdn.modrinth.com/data/qsl-primary.jar","primary":true}]}
+            """,
+            "qsl bytes");
+        var service = new ModrinthService(new HttpClient(handler));
+        var instanceDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"));
+        var instance = new GameInstance
+        {
+            Name = "Quilt Pack",
+            MinecraftVersion = "1.20.2",
+            Loader = LoaderKind.Quilt,
+            InstanceDirectory = instanceDirectory
+        };
+
+        var path = await service.InstallQuiltStandardLibraryAsync(instance, "qsl-new", null);
+
+        Assert.Contains("/version/qsl-new", handler.RequestUris[0].AbsoluteUri);
+        Assert.Contains("qsl-primary.jar", handler.RequestUris[1].AbsoluteUri);
+        Assert.True(File.Exists(path));
+        Assert.Equal(Path.Combine(instanceDirectory, "mods", "qsl-primary.jar"), path);
+    }
+
     private sealed class SequencedHandler : HttpMessageHandler
     {
         private readonly Queue<HttpResponseMessage> responses;

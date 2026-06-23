@@ -18,12 +18,14 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     private readonly IGameInstanceService instanceService;
     private readonly DownloadTasksPageViewModel downloadTasksPage;
     private readonly IReadOnlyDictionary<LoaderKind, ILoaderProvider> loaderProviders;
+    private readonly IModrinthService? modrinthService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly IFloatingMessageService floatingMessageService;
     private readonly DownloadInstanceNameTracker instanceNameTracker = new();
     private bool hasLoadedVersions;
     private int refreshRequestVersion;
     private int loaderVersionRequestVersion;
+    private int quiltLibraryVersionRequestVersion;
     private int activeInstallCount;
     private long latestInstallSequence;
     private DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto;
@@ -69,6 +71,15 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 
     [ObservableProperty]
     private string loaderVersionLoadError = string.Empty;
+
+    [ObservableProperty]
+    private DownloadQuiltLibraryVersionOption? selectedQuiltLibraryVersion;
+
+    [ObservableProperty]
+    private bool isLoadingQuiltLibraryVersions;
+
+    [ObservableProperty]
+    private string quiltLibraryVersionLoadError = string.Empty;
 
     [ObservableProperty]
     private bool isInstalling;
@@ -138,12 +149,14 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         IInstanceFolderService instanceFolderService,
         IFilePickerService filePickerService,
         ILocalModpackImportService localModpackImportService,
+        IModrinthService? modrinthService = null,
         ILogger<DownloadLocalImportDialogViewModel>? localImportLogger = null)
     {
         this.gameVersionService = gameVersionService;
         this.instanceService = instanceService;
         this.downloadTasksPage = downloadTasksPage;
         this.loaderProviders = loaderProviders.ToDictionary(provider => provider.Kind);
+        this.modrinthService = modrinthService;
         this.uiDispatcher = uiDispatcher;
         this.floatingMessageService = floatingMessageService;
         VersionList = new DownloadVersionListViewModel(this);
@@ -167,6 +180,14 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             OnPropertyChanged(nameof(HasNoLoaderVersions));
             OnPropertyChanged(nameof(LoaderVersionPlaceholderText));
         };
+
+        QuiltLibraryVersions.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(HasQuiltLibraryVersions));
+            OnPropertyChanged(nameof(IsQuiltLibraryVersionSelectorEnabled));
+            OnPropertyChanged(nameof(QuiltLibraryVersionPlaceholderText));
+        };
+        ClearQuiltLibraryVersionOptions();
 
         VersionCategories.Add(new DownloadVersionCategory("release", Strings.Download_ReleaseCategory, string.Empty, "instance_download_page/release"));
         VersionCategories.Add(new DownloadVersionCategory("snapshot", Strings.Download_SnapshotCategory, string.Empty, "instance_download_page/snapshot"));
@@ -196,6 +217,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     public ObservableCollection<DownloadLoaderOption> LoaderOptions { get; } = [];
 
     public ObservableCollection<LoaderVersionInfo> LoaderVersions { get; } = [];
+
+    public ObservableCollection<DownloadQuiltLibraryVersionOption> QuiltLibraryVersions { get; } = [];
 
     public List<DownloadMinecraftVersionItem> AllVersions { get; } = [];
 
@@ -238,6 +261,22 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     public bool HasInstanceNameDuplicateMessage => !string.IsNullOrWhiteSpace(InstanceNameDuplicateMessage);
 
     public bool ShouldShowLoaderVersionSelector => IsInstanceOptionsStep && RequiresLoaderVersionSelection(SelectedLoaderOption?.Kind);
+
+    public bool ShouldShowQuiltLibrarySelector => IsInstanceOptionsStep && SelectedLoaderOption?.Kind is LoaderKind.Quilt;
+
+    public bool HasQuiltLibraryVersions => QuiltLibraryVersions.Count > 0;
+
+    public bool HasQuiltLibraryVersionLoadError => !string.IsNullOrWhiteSpace(QuiltLibraryVersionLoadError);
+
+    public bool IsQuiltLibraryVersionSelectorEnabled => !IsLoadingQuiltLibraryVersions && HasQuiltLibraryVersions;
+
+    public string QuiltLibraryVersionPlaceholderText => IsLoadingQuiltLibraryVersions
+        ? Strings.Download_QuiltLibraryLoading
+        : HasQuiltLibraryVersionLoadError
+            ? Strings.Download_QuiltLibraryLoadFailedShort
+            : !HasQuiltLibraryVersions
+                ? Strings.Download_QuiltLibraryEmpty
+                : string.Empty;
 
     public bool CanInstallSelectedVersion => CanInstall();
 
@@ -287,6 +326,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             && SelectedMinecraftVersion is not null)
         {
             _ = RefreshLoaderVersionsForSelectionAsync(SelectedLoaderOption);
+            _ = RefreshQuiltLibraryVersionsForSelectionAsync(SelectedLoaderOption);
         }
     }
 
@@ -384,6 +424,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             return;
 
         ResetLoaderVersionState();
+        ResetQuiltLibraryVersionState();
         SelectLoaderOptionCore(LoaderOptions.First(option => option.Kind is LoaderKind.Vanilla));
         ApplyAutoGeneratedInstanceName(force: true);
         await RefreshExistingInstanceNamesAsync(CancellationToken.None);
@@ -401,6 +442,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     {
         CurrentStep = DownloadPageStep.VersionList;
         ResetLoaderVersionState();
+        ResetQuiltLibraryVersionState();
         lastAutoGeneratedInstanceName = string.Empty;
         ClearSelectedVersion();
     }
@@ -435,6 +477,9 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         var instanceName = string.IsNullOrWhiteSpace(InstanceName) ? versionName : InstanceName.Trim();
         var selectedLoader = SelectedLoaderOption ?? LoaderOptions.First(option => option.Kind is LoaderKind.Vanilla);
         var loaderVersion = selectedLoader.Kind is LoaderKind.Vanilla ? null : SelectedLoaderVersion?.Version;
+        var quiltStandardLibraryVersionId = selectedLoader.Kind is LoaderKind.Quilt
+            ? SelectedQuiltLibraryVersion?.VersionId
+            : null;
         var loaderDisplayName = GetSelectedLoaderDisplayName();
         var installSequence = Interlocked.Increment(ref latestInstallSequence);
         var installTask = downloadTasksPage.BeginTask($"{loaderDisplayName} {versionName}", instanceName);
@@ -464,7 +509,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject
                 installProgress,
                 installTask.CancellationToken,
                 downloadSourcePreference: downloadSourcePreference,
-                downloadSpeedLimitMbPerSecond: downloadSpeedLimitMbPerSecond);
+                downloadSpeedLimitMbPerSecond: downloadSpeedLimitMbPerSecond,
+                quiltStandardLibraryVersionId: quiltStandardLibraryVersionId);
 
             instanceNameTracker.RemovePending(instanceName);
             SetLatestInstallCompletion(installSequence, string.Format(Strings.Status_InstanceInstalledFormat, instance.Name));
@@ -517,6 +563,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         {
             LoaderKind.Vanilla => true,
             { } loaderKind when RequiresLoaderVersionSelection(loaderKind) => !IsLoadingLoaderVersions
+                && (loaderKind is not LoaderKind.Quilt || !IsLoadingQuiltLibraryVersions)
                 && string.IsNullOrWhiteSpace(LoaderVersionLoadError)
                 && SelectedLoaderVersion is not null,
             _ => false
@@ -536,15 +583,22 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 
         OnPropertyChanged(nameof(HasNoLoaderVersions));
         OnPropertyChanged(nameof(ShouldShowLoaderVersionSelector));
+        OnPropertyChanged(nameof(ShouldShowQuiltLibrarySelector));
 
         ApplyAutoGeneratedInstanceName(force: false);
         _ = RefreshLoaderVersionsForSelectionAsync(value);
+        _ = RefreshQuiltLibraryVersionsForSelectionAsync(value);
         NotifyInstallStateChanged();
     }
 
     partial void OnSelectedLoaderVersionChanged(LoaderVersionInfo? value)
     {
         ApplyAutoGeneratedInstanceName(force: false);
+        NotifyInstallStateChanged();
+    }
+
+    partial void OnSelectedQuiltLibraryVersionChanged(DownloadQuiltLibraryVersionOption? value)
+    {
         NotifyInstallStateChanged();
     }
 
@@ -557,6 +611,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         OnPropertyChanged(nameof(PageTitle));
         OnPropertyChanged(nameof(PageTitleIconSource));
         OnPropertyChanged(nameof(ShouldShowLoaderVersionSelector));
+        OnPropertyChanged(nameof(ShouldShowQuiltLibrarySelector));
         NotifyInstallStateChanged();
     }
 
@@ -590,6 +645,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 
         if (value is null && CurrentStep is DownloadPageStep.InstanceOptions)
             CurrentStep = DownloadPageStep.VersionList;
+        else if (CurrentStep is DownloadPageStep.InstanceOptions)
+            _ = RefreshQuiltLibraryVersionsForSelectionAsync(SelectedLoaderOption);
     }
 
     partial void OnVisibleVersionsChanged(IReadOnlyList<DownloadMinecraftVersionItem> value)
@@ -642,6 +699,19 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         OnPropertyChanged(nameof(HasLoaderVersionLoadError));
         OnPropertyChanged(nameof(LoaderVersionPlaceholderText));
         NotifyInstallStateChanged();
+    }
+
+    partial void OnIsLoadingQuiltLibraryVersionsChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsQuiltLibraryVersionSelectorEnabled));
+        OnPropertyChanged(nameof(QuiltLibraryVersionPlaceholderText));
+        NotifyInstallStateChanged();
+    }
+
+    partial void OnQuiltLibraryVersionLoadErrorChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasQuiltLibraryVersionLoadError));
+        OnPropertyChanged(nameof(QuiltLibraryVersionPlaceholderText));
     }
 
     private void RequestVisibleVersionsRefresh(bool defer)
@@ -813,6 +883,84 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         IsLoadingLoaderVersions = false;
         LoaderVersionLoadError = string.Empty;
         OnPropertyChanged(nameof(LoaderVersionPlaceholderText));
+    }
+
+    private async Task RefreshQuiltLibraryVersionsForSelectionAsync(DownloadLoaderOption? loaderOption)
+    {
+        if (loaderOption?.Kind is not LoaderKind.Quilt
+            || SelectedMinecraftVersion is null
+            || CurrentStep is not DownloadPageStep.InstanceOptions)
+        {
+            ResetQuiltLibraryVersionState();
+            return;
+        }
+
+        var requestVersion = ++quiltLibraryVersionRequestVersion;
+        QuiltLibraryVersionLoadError = string.Empty;
+        IsLoadingQuiltLibraryVersions = true;
+        ClearQuiltLibraryVersionOptions();
+
+        if (modrinthService is null)
+        {
+            IsLoadingQuiltLibraryVersions = false;
+            return;
+        }
+
+        try
+        {
+            var versions = await modrinthService.GetQuiltStandardLibraryVersionsAsync(SelectedMinecraftVersion.Name);
+            if (!IsQuiltLibraryVersionRequestCurrent(requestVersion, loaderOption))
+                return;
+
+            ClearQuiltLibraryVersionOptions();
+            if (versions.Count > 0)
+            {
+                QuiltLibraryVersions.Add(DownloadQuiltLibraryVersionOption.None);
+                var isLatest = true;
+                foreach (var version in versions)
+                {
+                    QuiltLibraryVersions.Add(DownloadQuiltLibraryVersionOption.FromVersion(version, isLatest));
+                    isLatest = false;
+                }
+            }
+
+            SelectedQuiltLibraryVersion = QuiltLibraryVersions.FirstOrDefault(option => option.IsInstallable)
+                ?? QuiltLibraryVersions.FirstOrDefault();
+        }
+        catch (Exception)
+        {
+            if (!IsQuiltLibraryVersionRequestCurrent(requestVersion, loaderOption))
+                return;
+
+            ClearQuiltLibraryVersionOptions();
+            QuiltLibraryVersionLoadError = Strings.Status_QuiltLibraryVersionsLoadFailed;
+        }
+        finally
+        {
+            if (IsQuiltLibraryVersionRequestCurrent(requestVersion, loaderOption))
+                IsLoadingQuiltLibraryVersions = false;
+        }
+    }
+
+    private bool IsQuiltLibraryVersionRequestCurrent(int requestVersion, DownloadLoaderOption loaderOption)
+    {
+        return requestVersion == quiltLibraryVersionRequestVersion
+            && ReferenceEquals(SelectedLoaderOption, loaderOption)
+            && CurrentStep is DownloadPageStep.InstanceOptions;
+    }
+
+    private void ResetQuiltLibraryVersionState()
+    {
+        quiltLibraryVersionRequestVersion++;
+        IsLoadingQuiltLibraryVersions = false;
+        QuiltLibraryVersionLoadError = string.Empty;
+        ClearQuiltLibraryVersionOptions();
+    }
+
+    private void ClearQuiltLibraryVersionOptions()
+    {
+        QuiltLibraryVersions.Clear();
+        SelectedQuiltLibraryVersion = null;
     }
 
     private void ApplyAutoGeneratedInstanceName(bool force)

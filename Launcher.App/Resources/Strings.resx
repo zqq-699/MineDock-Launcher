@@ -255,6 +255,12 @@
   <data name="Download_LoaderVersionEmptyFormat" xml:space="preserve"><value>{0} 无可用版本</value></data>
   <data name="Download_LoaderVersionStableTag" xml:space="preserve"><value>稳定版</value></data>
   <data name="Download_LoaderVersionPreviewTag" xml:space="preserve"><value>测试版</value></data>
+  <data name="Download_QuiltLibraryLabel" xml:space="preserve"><value>安装 QFAPI / QSL（推荐）</value></data>
+  <data name="Download_QuiltLibraryNone" xml:space="preserve"><value>不安装</value></data>
+  <data name="Download_QuiltLibraryLatestTag" xml:space="preserve"><value>最新</value></data>
+  <data name="Download_QuiltLibraryLoading" xml:space="preserve"><value>正在读取 QFAPI / QSL...</value></data>
+  <data name="Download_QuiltLibraryEmpty" xml:space="preserve"><value>无可用版本</value></data>
+  <data name="Download_QuiltLibraryLoadFailedShort" xml:space="preserve"><value>获取失败</value></data>
   <data name="Download_SelectVersionPlaceholder" xml:space="preserve"><value>选择版本</value></data>
   <data name="Download_LoaderVersionLoadFailedShort" xml:space="preserve"><value>获取失败</value></data>
   <data name="Download_LoaderPendingSubtitle" xml:space="preserve"><value>暂未接入安装</value></data>
@@ -355,6 +361,7 @@
   <data name="Status_LoaderInstallPending" xml:space="preserve"><value>该加载器将在后续版本接入安装。</value></data>
   <data name="Status_FabricLoaderVersionsLoadFailed" xml:space="preserve"><value>Fabric 版本列表加载失败，请稍后重试。</value></data>
   <data name="Status_LoaderVersionsLoadFailedFormat" xml:space="preserve"><value>{0} 版本列表加载失败，请稍后重试。</value></data>
+  <data name="Status_QuiltLibraryVersionsLoadFailed" xml:space="preserve"><value>QFAPI / QSL 版本列表加载失败，已改为不安装。</value></data>
   <data name="Status_OpeningMicrosoftLogin" xml:space="preserve"><value>正在打开 Microsoft 官方登录页面...</value></data>
   <data name="Status_LoginMicrosoftActive" xml:space="preserve"><value>正在登录，请在弹出的 Microsoft 官方页面完成登录...</value></data>
   <data name="Status_LoginMissingProfile" xml:space="preserve"><value>正版登录失败：未获取到 Minecraft Java 账户资料</value></data>

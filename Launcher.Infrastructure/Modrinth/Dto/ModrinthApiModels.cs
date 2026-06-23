@@ -31,8 +31,20 @@ internal sealed class ModrinthHit
 
 internal sealed class ModrinthVersion
 {
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("project_id")]
+    public string ProjectId { get; set; } = string.Empty;
+
     [JsonPropertyName("version_number")]
     public string VersionNumber { get; set; } = string.Empty;
+
+    [JsonPropertyName("version_type")]
+    public string VersionType { get; set; } = string.Empty;
 
     [JsonPropertyName("game_versions")]
     public List<string> GameVersions { get; set; } = [];

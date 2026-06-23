@@ -20,6 +20,7 @@ public sealed class DownloadPageViewModelTests
         Assert.Same(viewModel.VisibleVersions, viewModel.VersionList.VisibleVersions);
         Assert.Same(viewModel.LoaderOptions, viewModel.InstanceOptions.LoaderOptions);
         Assert.Same(viewModel.LoaderVersions, viewModel.InstanceOptions.LoaderVersions);
+        Assert.Same(viewModel.QuiltLibraryVersions, viewModel.InstanceOptions.QuiltLibraryVersions);
     }
 
     [Fact]
@@ -1334,6 +1335,186 @@ public sealed class DownloadPageViewModelTests
     }
 
     [Fact]
+    public async Task DownloadPageQuiltLoadsLibraryVersionsAndSelectsLatest()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.2", "Release", false)
+        ]);
+        var modrinthService = new FakeModrinthService
+        {
+            QuiltStandardLibraryVersions =
+            [
+                new ModrinthVersionInfo
+                {
+                    VersionId = "qsl-new",
+                    Name = "QFAPI / QSL 8.0.0",
+                    VersionNumber = "8.0.0",
+                    IsStable = true
+                },
+                new ModrinthVersionInfo
+                {
+                    VersionId = "qsl-old",
+                    Name = "QFAPI / QSL 7.0.0",
+                    VersionNumber = "7.0.0",
+                    IsStable = false
+                }
+            ]
+        };
+        var viewModel = CreateDownloadPageViewModel(service, modrinthService: modrinthService);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Quilt));
+
+        await TestAsync.WaitForAsync(() => viewModel.SelectedQuiltLibraryVersion?.VersionId == "qsl-new");
+
+        Assert.True(viewModel.ShouldShowQuiltLibrarySelector);
+        Assert.Equal("1.20.2", modrinthService.LastQuiltStandardLibraryMinecraftVersion);
+        Assert.Equal(Strings.Download_QuiltLibraryNone, viewModel.QuiltLibraryVersions[0].Title);
+        Assert.False(viewModel.QuiltLibraryVersions[0].IsInstallable);
+        Assert.Equal("qsl-new", viewModel.QuiltLibraryVersions[1].VersionId);
+        Assert.True(viewModel.QuiltLibraryVersions[1].IsLatest);
+        Assert.Equal("qsl-new", viewModel.SelectedQuiltLibraryVersion?.VersionId);
+    }
+
+    [Fact]
+    public async Task DownloadPageQuiltLibraryVersionLoadFailureDoesNotBlockInstall()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.2", "Release", false)
+        ]);
+        var instanceService = new FakeGameInstanceService();
+        var modrinthService = new FakeModrinthService
+        {
+            GetQuiltStandardLibraryVersionsException = new InvalidOperationException("boom")
+        };
+        var viewModel = CreateDownloadPageViewModel(service, instanceService, modrinthService: modrinthService);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Quilt));
+
+        await TestAsync.WaitForAsync(() => viewModel.HasQuiltLibraryVersionLoadError);
+        await TestAsync.WaitForAsync(() => viewModel.HasLoaderVersions);
+        viewModel.SelectedLoaderVersion = viewModel.LoaderVersions.Single(version => version.Version == "0.29.2");
+
+        Assert.Empty(viewModel.QuiltLibraryVersions);
+        Assert.Null(viewModel.SelectedQuiltLibraryVersion);
+        Assert.Equal(Strings.Download_QuiltLibraryLoadFailedShort, viewModel.QuiltLibraryVersionPlaceholderText);
+        Assert.True(viewModel.InstallCommand.CanExecute(null));
+
+        await viewModel.InstallCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_QuiltLibraryVersionsLoadFailed, viewModel.QuiltLibraryVersionLoadError);
+        Assert.Null(instanceService.LastQuiltStandardLibraryVersionId);
+    }
+
+    [Fact]
+    public async Task DownloadPageQuiltLibraryEmptyVersionsDoNotShowNoneOption()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.2", "Release", false)
+        ]);
+        var instanceService = new FakeGameInstanceService();
+        var modrinthService = new FakeModrinthService
+        {
+            QuiltStandardLibraryVersions = []
+        };
+        var viewModel = CreateDownloadPageViewModel(service, instanceService, modrinthService: modrinthService);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Quilt));
+
+        await TestAsync.WaitForAsync(() => modrinthService.GetQuiltStandardLibraryVersionsCallCount > 0 && !viewModel.IsLoadingQuiltLibraryVersions);
+        await TestAsync.WaitForAsync(() => viewModel.HasLoaderVersions);
+        viewModel.SelectedLoaderVersion = viewModel.LoaderVersions.Single(version => version.Version == "0.29.2");
+
+        Assert.Empty(viewModel.QuiltLibraryVersions);
+        Assert.Null(viewModel.SelectedQuiltLibraryVersion);
+        Assert.Equal(Strings.Download_QuiltLibraryEmpty, viewModel.QuiltLibraryVersionPlaceholderText);
+        Assert.True(viewModel.InstallCommand.CanExecute(null));
+
+        await viewModel.InstallCommand.ExecuteAsync(null);
+
+        Assert.Null(instanceService.LastQuiltStandardLibraryVersionId);
+    }
+
+    [Fact]
+    public async Task DownloadPageQuiltInstallPassesSelectedLibraryVersion()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.2", "Release", false)
+        ]);
+        var instanceService = new FakeGameInstanceService();
+        var modrinthService = new FakeModrinthService
+        {
+            QuiltStandardLibraryVersions =
+            [
+                new ModrinthVersionInfo
+                {
+                    VersionId = "qsl-new",
+                    Name = "QFAPI / QSL 8.0.0",
+                    VersionNumber = "8.0.0",
+                    IsStable = true
+                }
+            ]
+        };
+        var viewModel = CreateDownloadPageViewModel(service, instanceService, modrinthService: modrinthService);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Quilt));
+        await TestAsync.WaitForAsync(() => viewModel.SelectedQuiltLibraryVersion?.VersionId == "qsl-new");
+        await TestAsync.WaitForAsync(() => viewModel.HasLoaderVersions);
+        viewModel.SelectedLoaderVersion = viewModel.LoaderVersions.Single(version => version.Version == "0.29.2");
+
+        await viewModel.InstallCommand.ExecuteAsync(null);
+
+        Assert.Equal("qsl-new", instanceService.LastQuiltStandardLibraryVersionId);
+    }
+
+    [Fact]
+    public async Task DownloadPageQuiltInstallPassesNoLibraryVersionWhenNoneIsSelected()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.2", "Release", false)
+        ]);
+        var instanceService = new FakeGameInstanceService();
+        var modrinthService = new FakeModrinthService
+        {
+            QuiltStandardLibraryVersions =
+            [
+                new ModrinthVersionInfo
+                {
+                    VersionId = "qsl-new",
+                    Name = "QFAPI / QSL 8.0.0",
+                    VersionNumber = "8.0.0",
+                    IsStable = true
+                }
+            ]
+        };
+        var viewModel = CreateDownloadPageViewModel(service, instanceService, modrinthService: modrinthService);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Quilt));
+        await TestAsync.WaitForAsync(() => viewModel.SelectedQuiltLibraryVersion?.VersionId == "qsl-new");
+        await TestAsync.WaitForAsync(() => viewModel.HasLoaderVersions);
+        viewModel.SelectedLoaderVersion = viewModel.LoaderVersions.Single(version => version.Version == "0.29.2");
+        viewModel.SelectedQuiltLibraryVersion = viewModel.QuiltLibraryVersions[0];
+
+        await viewModel.InstallCommand.ExecuteAsync(null);
+
+        Assert.Null(instanceService.LastQuiltStandardLibraryVersionId);
+    }
+
+    [Fact]
     public async Task DownloadPageForgeInstallIsDisabledWhenLoaderVersionsFailToLoad()
     {
         var service = new FakeGameVersionService(
@@ -1778,7 +1959,8 @@ public sealed class DownloadPageViewModelTests
         IFloatingMessageService? floatingMessageService = null,
         IInstanceFolderService? instanceFolderService = null,
         IFilePickerService? filePickerService = null,
-        ILocalModpackImportService? localModpackImportService = null)
+        ILocalModpackImportService? localModpackImportService = null,
+        IModrinthService? modrinthService = null)
     {
         return new DownloadPageViewModel(
             gameVersionService,
@@ -1789,7 +1971,8 @@ public sealed class DownloadPageViewModelTests
             floatingMessageService ?? new FakeFloatingMessageService(),
             instanceFolderService ?? new FakeInstanceFolderService(),
             filePickerService ?? new FakeFilePickerService(),
-            localModpackImportService ?? new FakeLocalModpackImportService());
+            localModpackImportService ?? new FakeLocalModpackImportService(),
+            modrinthService);
     }
 
     private static string CreateTempModpackFile(string extension)
@@ -1859,6 +2042,62 @@ public sealed class DownloadPageViewModelTests
                 ]
             }
         ];
+    }
+
+    private sealed class FakeModrinthService : IModrinthService
+    {
+        public IReadOnlyList<ModrinthVersionInfo> QuiltStandardLibraryVersions { get; init; } = [];
+        public Exception? GetQuiltStandardLibraryVersionsException { get; init; }
+        public int GetQuiltStandardLibraryVersionsCallCount { get; private set; }
+        public string? LastQuiltStandardLibraryMinecraftVersion { get; private set; }
+
+        public Task<IReadOnlyList<ModrinthProject>> SearchModsAsync(
+            string query,
+            string minecraftVersion,
+            LoaderKind loader,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<ModrinthProject>>([]);
+        }
+
+        public Task<IReadOnlyList<ModrinthVersionInfo>> GetQuiltStandardLibraryVersionsAsync(
+            string minecraftVersion,
+            CancellationToken cancellationToken = default)
+        {
+            GetQuiltStandardLibraryVersionsCallCount++;
+            LastQuiltStandardLibraryMinecraftVersion = minecraftVersion;
+
+            if (GetQuiltStandardLibraryVersionsException is not null)
+                return Task.FromException<IReadOnlyList<ModrinthVersionInfo>>(GetQuiltStandardLibraryVersionsException);
+
+            return Task.FromResult(QuiltStandardLibraryVersions);
+        }
+
+        public Task<string> InstallLatestCompatibleAsync(
+            ModrinthProject project,
+            GameInstance instance,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<string> InstallFabricApiAsync(
+            GameInstance instance,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<string> InstallQuiltStandardLibraryAsync(
+            GameInstance instance,
+            string versionId,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     private sealed class FakeFloatingMessageService : IFloatingMessageService

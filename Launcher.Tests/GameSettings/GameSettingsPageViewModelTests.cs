@@ -4066,7 +4066,8 @@ public sealed class GameSettingsPageViewModelTests
             CancellationToken cancellationToken = default,
             DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
             int downloadSpeedLimitMbPerSecond = 0,
-            bool installFabricApi = true)
+            bool installFabricApi = true,
+            string? quiltStandardLibraryVersionId = null)
         {
             throw exception;
         }

@@ -86,6 +86,60 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task InstanceServiceInstallsQuiltStandardLibraryWhenVersionIsSelected()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var provider = new FakeLoaderProvider { Kind = LoaderKind.Quilt };
+        var modrinthService = new FakeModrinthService();
+        var service = new GameInstanceService(settingsService, repository, [provider], modrinthService);
+
+        var instance = await service.CreateInstanceAsync(
+            "1.20.2",
+            LoaderKind.Quilt,
+            "0.29.2",
+            "Quilt Pack",
+            null,
+            quiltStandardLibraryVersionId: "qsl-new");
+
+        Assert.Equal("Quilt Pack", instance.VersionName);
+        Assert.Equal(1, modrinthService.InstallQuiltStandardLibraryCallCount);
+        Assert.Equal("qsl-new", modrinthService.LastQuiltStandardLibraryVersionId);
+        Assert.Equal(instance.InstanceDirectory, modrinthService.LastInstance?.InstanceDirectory);
+        Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "qsl.jar")));
+    }
+
+    [Fact]
+    public async Task InstanceServiceDoesNotInstallQuiltStandardLibraryForOtherLoaders()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var provider = new FakeLoaderProvider { Kind = LoaderKind.Forge };
+        var modrinthService = new FakeModrinthService();
+        var service = new GameInstanceService(settingsService, repository, [provider], modrinthService);
+
+        await service.CreateInstanceAsync(
+            "1.20.1",
+            LoaderKind.Forge,
+            "47.4.20",
+            "Forge Pack",
+            null,
+            quiltStandardLibraryVersionId: "qsl-new");
+
+        Assert.Equal(0, modrinthService.InstallQuiltStandardLibraryCallCount);
+    }
+
+    [Fact]
     public async Task InstanceServiceFailsFabricCreateWhenFabricApiInstallFails()
     {
         var settings = new LauncherSettings
@@ -104,6 +158,33 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
 
         Assert.Empty(await repository.GetAllAsync());
         Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "Fabric Pack")));
+    }
+
+    [Fact]
+    public async Task InstanceServiceFailsQuiltCreateWhenStandardLibraryInstallFails()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var provider = new FakeLoaderProvider { Kind = LoaderKind.Quilt };
+        var modrinthService = new FakeModrinthService { InstallQuiltStandardLibraryException = new InvalidOperationException("qsl failed") };
+        var service = new GameInstanceService(settingsService, repository, [provider], modrinthService);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.CreateInstanceAsync(
+                "1.20.2",
+                LoaderKind.Quilt,
+                "0.29.2",
+                "Quilt Pack",
+                null,
+                quiltStandardLibraryVersionId: "qsl-new"));
+
+        Assert.Empty(await repository.GetAllAsync());
+        Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "Quilt Pack")));
     }
 
     [Fact]
@@ -1235,8 +1316,11 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     private sealed class FakeModrinthService : IModrinthService
     {
         public int InstallFabricApiCallCount { get; private set; }
+        public int InstallQuiltStandardLibraryCallCount { get; private set; }
         public GameInstance? LastInstance { get; private set; }
+        public string? LastQuiltStandardLibraryVersionId { get; private set; }
         public Exception? InstallFabricApiException { get; init; }
+        public Exception? InstallQuiltStandardLibraryException { get; init; }
 
         public Task<IReadOnlyList<ModrinthProject>> SearchModsAsync(
             string query,
@@ -1245,6 +1329,13 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<ModrinthProject>>([]);
+        }
+
+        public Task<IReadOnlyList<ModrinthVersionInfo>> GetQuiltStandardLibraryVersionsAsync(
+            string minecraftVersion,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<ModrinthVersionInfo>>([]);
         }
 
         public Task<string> InstallLatestCompatibleAsync(
@@ -1271,6 +1362,26 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
             Directory.CreateDirectory(modsDirectory);
             var target = Path.Combine(modsDirectory, "fabric-api.jar");
             await File.WriteAllTextAsync(target, "fabric api", cancellationToken);
+            return target;
+        }
+
+        public async Task<string> InstallQuiltStandardLibraryAsync(
+            GameInstance instance,
+            string versionId,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default)
+        {
+            InstallQuiltStandardLibraryCallCount++;
+            LastInstance = instance;
+            LastQuiltStandardLibraryVersionId = versionId;
+
+            if (InstallQuiltStandardLibraryException is not null)
+                throw InstallQuiltStandardLibraryException;
+
+            var modsDirectory = Path.Combine(instance.InstanceDirectory, "mods");
+            Directory.CreateDirectory(modsDirectory);
+            var target = Path.Combine(modsDirectory, "qsl.jar");
+            await File.WriteAllTextAsync(target, "qsl", cancellationToken);
             return target;
         }
     }

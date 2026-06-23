@@ -106,7 +106,8 @@ public sealed class GameInstanceService : IGameInstanceService
         CancellationToken cancellationToken = default,
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
         int downloadSpeedLimitMbPerSecond = 0,
-        bool installFabricApi = true)
+        bool installFabricApi = true,
+        string? quiltStandardLibraryVersionId = null)
     {
         if (!providers.TryGetValue(loader, out var provider) || !provider.IsImplemented)
             throw new NotSupportedException($"{loader} is not implemented yet.");
@@ -173,6 +174,22 @@ public sealed class GameInstanceService : IGameInstanceService
 
             if (loader is LoaderKind.Fabric && installFabricApi && modrinthService is not null)
                 await modrinthService.InstallFabricApiAsync(instance, progress, cancellationToken).ConfigureAwait(false);
+
+            if (loader is LoaderKind.Quilt && !string.IsNullOrWhiteSpace(quiltStandardLibraryVersionId))
+            {
+                if (modrinthService is null)
+                    throw new InvalidOperationException("Modrinth service is required to install QFAPI/QSL.");
+
+                logger.LogInformation(
+                    "Installing Quilt standard library for game instance. InstanceId={InstanceId} VersionId={VersionId}",
+                    instance.Id,
+                    quiltStandardLibraryVersionId);
+                await modrinthService.InstallQuiltStandardLibraryAsync(
+                    instance,
+                    quiltStandardLibraryVersionId,
+                    progress,
+                    cancellationToken).ConfigureAwait(false);
+            }
 
             instances.Add(instance);
             await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);

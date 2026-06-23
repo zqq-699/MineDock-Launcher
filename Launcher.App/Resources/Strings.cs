@@ -437,6 +437,12 @@ public static class Strings
     public static string Download_LoaderVersionEmptyFormat => Get(nameof(Download_LoaderVersionEmptyFormat));
     public static string Download_LoaderVersionStableTag => Get(nameof(Download_LoaderVersionStableTag));
     public static string Download_LoaderVersionPreviewTag => Get(nameof(Download_LoaderVersionPreviewTag));
+    public static string Download_QuiltLibraryLabel => Get(nameof(Download_QuiltLibraryLabel));
+    public static string Download_QuiltLibraryNone => Get(nameof(Download_QuiltLibraryNone));
+    public static string Download_QuiltLibraryLatestTag => Get(nameof(Download_QuiltLibraryLatestTag));
+    public static string Download_QuiltLibraryLoading => Get(nameof(Download_QuiltLibraryLoading));
+    public static string Download_QuiltLibraryEmpty => Get(nameof(Download_QuiltLibraryEmpty));
+    public static string Download_QuiltLibraryLoadFailedShort => Get(nameof(Download_QuiltLibraryLoadFailedShort));
     public static string Download_SelectVersionPlaceholder => Get(nameof(Download_SelectVersionPlaceholder));
     public static string Download_LoaderVersionLoadFailedShort => Get(nameof(Download_LoaderVersionLoadFailedShort));
     public static string Download_LoaderPendingSubtitle => Get(nameof(Download_LoaderPendingSubtitle));
@@ -593,6 +599,7 @@ public static class Strings
     public static string Status_LoaderInstallPending => Get(nameof(Status_LoaderInstallPending));
     public static string Status_FabricLoaderVersionsLoadFailed => Get(nameof(Status_FabricLoaderVersionsLoadFailed));
     public static string Status_LoaderVersionsLoadFailedFormat => Get(nameof(Status_LoaderVersionsLoadFailedFormat));
+    public static string Status_QuiltLibraryVersionsLoadFailed => Get(nameof(Status_QuiltLibraryVersionsLoadFailed));
     public static string Status_OpeningMicrosoftLogin => Get(nameof(Status_OpeningMicrosoftLogin));
     public static string Status_LoginMicrosoftActive => Get(nameof(Status_LoginMicrosoftActive));
     public static string Status_LoginMissingProfile => Get(nameof(Status_LoginMissingProfile));

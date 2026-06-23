@@ -42,11 +42,31 @@ public sealed class DownloadInstanceOptionsViewModel : ObservableObject
         set => parent.SelectedLoaderVersion = value;
     }
 
+    public ObservableCollection<DownloadQuiltLibraryVersionOption> QuiltLibraryVersions => parent.QuiltLibraryVersions;
+
+    public DownloadQuiltLibraryVersionOption? SelectedQuiltLibraryVersion
+    {
+        get => parent.SelectedQuiltLibraryVersion;
+        set => parent.SelectedQuiltLibraryVersion = value;
+    }
+
     public bool ShouldShowLoaderVersionSelector => parent.ShouldShowLoaderVersionSelector;
 
     public bool HasLoaderVersions => parent.HasLoaderVersions;
 
     public string LoaderVersionPlaceholderText => parent.LoaderVersionPlaceholderText;
+
+    public bool ShouldShowQuiltLibrarySelector => parent.ShouldShowQuiltLibrarySelector;
+
+    public bool IsLoadingQuiltLibraryVersions => parent.IsLoadingQuiltLibraryVersions;
+
+    public bool IsQuiltLibraryVersionSelectorEnabled => parent.IsQuiltLibraryVersionSelectorEnabled;
+
+    public string QuiltLibraryVersionLoadError => parent.QuiltLibraryVersionLoadError;
+
+    public bool HasQuiltLibraryVersionLoadError => parent.HasQuiltLibraryVersionLoadError;
+
+    public string QuiltLibraryVersionPlaceholderText => parent.QuiltLibraryVersionPlaceholderText;
 
     public ICommand SelectLoaderOptionCommand => parent.SelectLoaderOptionCommand;
 

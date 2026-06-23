@@ -835,6 +835,13 @@ public sealed class MainViewModelTests
             return Task.FromResult<IReadOnlyList<ModrinthProject>>([]);
         }
 
+        public Task<IReadOnlyList<ModrinthVersionInfo>> GetQuiltStandardLibraryVersionsAsync(
+            string minecraftVersion,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<ModrinthVersionInfo>>([]);
+        }
+
         public Task<string> InstallLatestCompatibleAsync(
             ModrinthProject project,
             GameInstance instance,
@@ -846,6 +853,15 @@ public sealed class MainViewModelTests
 
         public Task<string> InstallFabricApiAsync(
             GameInstance instance,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<string> InstallQuiltStandardLibraryAsync(
+            GameInstance instance,
+            string versionId,
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default)
         {
