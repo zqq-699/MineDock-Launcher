@@ -238,6 +238,33 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task PrepareAsyncRejectsManifestEntryOverSizeLimit()
+    {
+        var archivePath = Path.Combine(TempRoot, "large-manifest.zip");
+        CreateArchive(
+            archivePath,
+            archive => AddEntry(
+                archive,
+                "manifest.json",
+                new string(' ', (int)ModpackArchiveUtility.MaxManifestBytes + 1)));
+        var service = CreateService();
+
+        var exception = await Assert.ThrowsAsync<ModpackImportException>(() => service.PrepareAsync(archivePath));
+
+        Assert.Equal(ModpackImportFailureReason.InvalidManifest, exception.FailureReason);
+    }
+
+    [Fact]
+    public void ZipExtractionBudgetRejectsTotalOverrideSizeOverLimit()
+    {
+        var budget = new ZipExtractionBudget(1);
+
+        var exception = Assert.Throws<ModpackImportException>(() => budget.Reserve(2));
+
+        Assert.Equal(ModpackImportFailureReason.InvalidManifest, exception.FailureReason);
+    }
+
+    [Fact]
     public async Task PrepareAsyncParsesCurseForgeNeoForgeManifest()
     {
         var archivePath = Path.Combine(TempRoot, "curseforge-neoforge.zip");
@@ -326,10 +353,8 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Directory.CreateDirectory(TempRoot);
         Directory.SetCurrentDirectory(TempRoot);
 
-        var secretsDirectory = Path.Combine(TempRoot, ".local-secrets");
-        Directory.CreateDirectory(secretsDirectory);
         var expectedApiKey = "local-secret-key";
-        await File.WriteAllTextAsync(Path.Combine(secretsDirectory, "curseforge.key"), expectedApiKey);
+        await WriteLocalCurseForgeSecretAsync(expectedApiKey);
 
         var archivePath = Path.Combine(TempRoot, "curseforge-local-secret.zip");
         CreateArchive(
@@ -369,6 +394,60 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
 
             Assert.Equal(expectedApiKey, handler.LastApiKey);
             Assert.True(File.Exists(Path.Combine(instanceDirectory, "mods", "example.jar")));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(previousCurrentDirectory);
+            Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", previousValue);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadFilesAsyncUsesCurrentDirectorySecretFileForCurseForgeApiKey()
+    {
+        var previousValue = Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
+        var previousCurrentDirectory = Directory.GetCurrentDirectory();
+        Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", null);
+        Directory.CreateDirectory(TempRoot);
+        Directory.SetCurrentDirectory(TempRoot);
+        var expectedApiKey = "current-directory-secret";
+        var secretsDirectory = Path.Combine(TempRoot, ".local-secrets");
+        Directory.CreateDirectory(secretsDirectory);
+        await File.WriteAllTextAsync(Path.Combine(secretsDirectory, "curseforge.key"), expectedApiKey);
+
+        var handler = new CurseForgeMetadataHandler();
+        var service = CreateService(new HttpClient(handler));
+        var prepared = new PreparedModpack
+        {
+            PackageKind = ModpackPackageKind.CurseForge,
+            SourceArchivePath = Path.Combine(TempRoot, "pack.zip"),
+            WorkingDirectory = Path.Combine(TempRoot, "work"),
+            PackageName = "Curse Pack",
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Vanilla,
+            Files =
+            [
+                new PreparedModpackDownload
+                {
+                    ProjectId = 10,
+                    FileId = 20,
+                    TargetDirectory = "mods"
+                }
+            ]
+        };
+        var instance = new GameInstance
+        {
+            Name = "Curse Pack",
+            VersionName = "Curse Pack",
+            MinecraftVersion = "1.20.1",
+            InstanceDirectory = Path.Combine(TempRoot, "instance")
+        };
+
+        try
+        {
+            await service.DownloadFilesAsync(prepared, instance, progress: null);
+
+            Assert.Equal(expectedApiKey, handler.LastApiKey);
         }
         finally
         {
@@ -447,9 +526,7 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Directory.CreateDirectory(TempRoot);
         Directory.SetCurrentDirectory(TempRoot);
 
-        var secretsDirectory = Path.Combine(TempRoot, ".local-secrets");
-        Directory.CreateDirectory(secretsDirectory);
-        await File.WriteAllTextAsync(Path.Combine(secretsDirectory, "curseforge.key"), "local-secret-key");
+        await WriteLocalCurseForgeSecretAsync("local-secret-key");
 
         var archivePath = Path.Combine(TempRoot, "curseforge-progress.zip");
         CreateArchive(
@@ -814,9 +891,7 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Directory.CreateDirectory(TempRoot);
         Directory.SetCurrentDirectory(TempRoot);
 
-        var secretsDirectory = Path.Combine(TempRoot, ".local-secrets");
-        Directory.CreateDirectory(secretsDirectory);
-        await File.WriteAllTextAsync(Path.Combine(secretsDirectory, "curseforge.key"), "local-secret-key");
+        await WriteLocalCurseForgeSecretAsync("local-secret-key");
 
         var handler = new CurseForgeCdnFallbackHandler(
             metadataJson:
@@ -891,9 +966,7 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Directory.CreateDirectory(TempRoot);
         Directory.SetCurrentDirectory(TempRoot);
 
-        var secretsDirectory = Path.Combine(TempRoot, ".local-secrets");
-        Directory.CreateDirectory(secretsDirectory);
-        await File.WriteAllTextAsync(Path.Combine(secretsDirectory, "curseforge.key"), "local-secret-key");
+        await WriteLocalCurseForgeSecretAsync("local-secret-key");
 
         var handler = new CurseForgeCdnFallbackHandler(
             metadataJson:
@@ -959,6 +1032,15 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         return new LocalModpackPackageService(
             new LauncherPathProvider(TempRoot),
             httpClient: httpClient);
+    }
+
+    private async Task WriteLocalCurseForgeSecretAsync(string apiKey)
+    {
+        var secretsDirectory = Path.Combine(
+            new LauncherPathProvider(TempRoot).DefaultDataDirectory,
+            ".local-secrets");
+        Directory.CreateDirectory(secretsDirectory);
+        await File.WriteAllTextAsync(Path.Combine(secretsDirectory, "curseforge.key"), apiKey);
     }
 
     private static void CreateArchive(string archivePath, Action<ZipArchive> configure)

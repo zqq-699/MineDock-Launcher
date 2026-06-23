@@ -39,6 +39,87 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
+    public void MergeFlattenedVersionNormalizesLegacyForgeMinecraftArguments()
+    {
+        var baseVersion = new JsonObject
+        {
+            ["id"] = "1.12.2",
+            ["minecraftArguments"] = "--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userType ${user_type} --versionType ${version_type}"
+        };
+        var derivedVersion = new JsonObject
+        {
+            ["id"] = "forge-1.12.2-14.23.5.2860",
+            ["inheritsFrom"] = "1.12.2",
+            ["minecraftArguments"] = "--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userType ${user_type} --tweakClass net.minecraftforge.fml.common.launcher.FMLTweaker --versionType Forge"
+        };
+
+        var merged = VersionJsonMergeHelper.MergeFlattenedVersion(baseVersion, derivedVersion, "RLCraft", "1.12.2");
+
+        var arguments = merged["minecraftArguments"]!.GetValue<string>();
+        Assert.Equal(1, CountArgument(arguments, "--gameDir"));
+        Assert.Equal(1, CountArgument(arguments, "--assetsDir"));
+        Assert.Equal(1, CountArgument(arguments, "--accessToken"));
+        Assert.Contains("--tweakClass net.minecraftforge.fml.common.launcher.FMLTweaker", arguments);
+        Assert.Contains("--versionType Forge", arguments);
+        Assert.DoesNotContain("--versionType ${version_type}", arguments);
+    }
+
+    [Fact]
+    public void MergeFlattenedVersionKeepsLegacyBaseArgumentsWhenForgeAddsOnlyTweakClass()
+    {
+        var baseVersion = new JsonObject
+        {
+            ["id"] = "1.12.2",
+            ["minecraftArguments"] = "--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userType ${user_type} --versionType ${version_type}"
+        };
+        var derivedVersion = new JsonObject
+        {
+            ["id"] = "forge-1.12.2-14.23.5.2860",
+            ["inheritsFrom"] = "1.12.2",
+            ["minecraftArguments"] = "--tweakClass net.minecraftforge.fml.common.launcher.FMLTweaker"
+        };
+
+        var merged = VersionJsonMergeHelper.MergeFlattenedVersion(baseVersion, derivedVersion, "Legacy Forge Pack", "1.12.2");
+
+        var arguments = merged["minecraftArguments"]!.GetValue<string>();
+        Assert.Equal(1, CountArgument(arguments, "--gameDir"));
+        Assert.Contains("--username ${auth_player_name}", arguments);
+        Assert.Contains("--tweakClass net.minecraftforge.fml.common.launcher.FMLTweaker", arguments);
+    }
+
+    [Fact]
+    public void MergeFlattenedVersionNormalizesDuplicateModernGameArguments()
+    {
+        var baseVersion = new JsonObject
+        {
+            ["id"] = "1.20.1",
+            ["arguments"] = new JsonObject
+            {
+                ["game"] = new JsonArray("--username", "${auth_player_name}", "--gameDir", "${game_directory}")
+            }
+        };
+        var derivedVersion = new JsonObject
+        {
+            ["id"] = "forge-1.20.1-47.4.20",
+            ["inheritsFrom"] = "1.20.1",
+            ["arguments"] = new JsonObject
+            {
+                ["game"] = new JsonArray("--username", "${auth_player_name}", "--gameDir", "${game_directory}", "--launchTarget", "forgeclient")
+            }
+        };
+
+        var merged = VersionJsonMergeHelper.MergeFlattenedVersion(baseVersion, derivedVersion, "Modern Forge Pack", "1.20.1");
+
+        var gameArguments = merged["arguments"]!["game"]!.AsArray()
+            .Select(node => node!.GetValue<string>())
+            .ToList();
+        Assert.Equal(1, gameArguments.Count(argument => argument == "--username"));
+        Assert.Equal(1, gameArguments.Count(argument => argument == "--gameDir"));
+        Assert.Contains("--launchTarget", gameArguments);
+        Assert.Contains("forgeclient", gameArguments);
+    }
+
+    [Fact]
     public async Task ForgeLoaderProviderInstallCreatesOnlyFinalVersionDirectory()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -209,6 +290,13 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
         Assert.Equal("Existing Forge Pack", finalVersionName);
         Assert.True(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "forge-1.20.1-47.4.20")));
         Assert.True(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "Existing Forge Pack")));
+    }
+
+    private static int CountArgument(string arguments, string argument)
+    {
+        return arguments
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Count(token => string.Equals(token, argument, StringComparison.OrdinalIgnoreCase));
     }
 
     private ForgeLoaderProvider CreateProvider(

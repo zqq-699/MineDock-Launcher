@@ -193,6 +193,43 @@ public sealed class LaunchServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ManagedVersionRepairNormalizesDuplicatedLegacyMinecraftArguments()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", "RLCraft");
+        Directory.CreateDirectory(versionDirectory);
+        await File.WriteAllTextAsync(Path.Combine(versionDirectory, "RLCraft.jar"), "jar");
+        await File.WriteAllTextAsync(
+            Path.Combine(versionDirectory, "RLCraft.json"),
+            """
+            {
+              "id": "RLCraft",
+              "jar": "RLCraft",
+              "mainClass": "net.minecraft.launchwrapper.Launch",
+              "minecraftArguments": "--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userType ${user_type} --versionType ${version_type} --username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userType ${user_type} --tweakClass net.minecraftforge.fml.common.launcher.FMLTweaker --versionType Forge",
+              "libraries": []
+            }
+            """);
+
+        var repairService = new ManagedVersionRepairService(new HttpClient(new RepairHttpHandler()));
+        await repairService.RepairAsync(
+            minecraftDirectory,
+            "RLCraft",
+            versionDirectory,
+            progress: null,
+            allowRepair: true,
+            CancellationToken.None);
+
+        var repairedJson = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(versionDirectory, "RLCraft.json")))!.AsObject();
+        var arguments = repairedJson["minecraftArguments"]!.GetValue<string>();
+        Assert.Equal(1, CountArgument(arguments, "--gameDir"));
+        Assert.Equal(1, CountArgument(arguments, "--assetsDir"));
+        Assert.Equal(1, CountArgument(arguments, "--accessToken"));
+        Assert.Contains("--tweakClass net.minecraftforge.fml.common.launcher.FMLTweaker", arguments);
+        Assert.Contains("--versionType Forge", arguments);
+    }
+
+    [Fact]
     public async Task ManagedVersionRepairFlattensInstanceFromLocalParentWithoutCreatingSiblingVersion()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -1837,6 +1874,13 @@ public sealed class LaunchServiceTests : TestTempDirectory
             .Select(item => item.Percent!.Value)
             .ToList();
         Assert.True(percents.SequenceEqual(percents.Order()));
+    }
+
+    private static int CountArgument(string arguments, string argument)
+    {
+        return arguments
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Count(token => string.Equals(token, argument, StringComparison.OrdinalIgnoreCase));
     }
 
     private static string FlattenArguments(IEnumerable<MArgument>? arguments)

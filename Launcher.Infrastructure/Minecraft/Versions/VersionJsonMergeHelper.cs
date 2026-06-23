@@ -1,9 +1,26 @@
+using System.Text;
 using System.Text.Json.Nodes;
 
 namespace Launcher.Infrastructure.Minecraft;
 
 internal static class VersionJsonMergeHelper
 {
+    private static readonly HashSet<string> SingleValueMinecraftArgumentOptions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "--username",
+        "--version",
+        "--gameDir",
+        "--assetsDir",
+        "--assetIndex",
+        "--uuid",
+        "--accessToken",
+        "--userType",
+        "--userProperties",
+        "--versionType",
+        "--width",
+        "--height"
+    };
+
     public static JsonObject MergeFlattenedVersion(
         JsonObject baseVersion,
         JsonObject derivedVersion,
@@ -103,12 +120,17 @@ internal static class VersionJsonMergeHelper
                 foreach (var item in derivedArray)
                     mergedArray.Add(item?.DeepClone());
 
-                mergedArguments[property.Key] = mergedArray;
+                mergedArguments[property.Key] = string.Equals(property.Key, "game", StringComparison.OrdinalIgnoreCase)
+                    ? NormalizeGameArgumentArray(mergedArray)
+                    : mergedArray;
                 continue;
             }
 
             mergedArguments[property.Key] = property.Value?.DeepClone();
         }
+
+        if (mergedArguments["game"] is JsonArray gameArguments)
+            mergedArguments["game"] = NormalizeGameArgumentArray(gameArguments);
 
         return mergedArguments;
     }
@@ -116,11 +138,182 @@ internal static class VersionJsonMergeHelper
     public static string MergeMinecraftArguments(string? baseArguments, string? derivedArguments)
     {
         if (string.IsNullOrWhiteSpace(baseArguments))
-            return derivedArguments ?? string.Empty;
+            return NormalizeMinecraftArguments(derivedArguments);
 
         if (string.IsNullOrWhiteSpace(derivedArguments))
-            return baseArguments;
+            return NormalizeMinecraftArguments(baseArguments);
 
-        return $"{baseArguments} {derivedArguments}";
+        return NormalizeMinecraftArguments($"{baseArguments} {derivedArguments}");
+    }
+
+    public static string NormalizeMinecraftArguments(string? arguments)
+    {
+        if (string.IsNullOrWhiteSpace(arguments))
+            return string.Empty;
+
+        var tokens = SplitCommandLine(arguments);
+        if (tokens.Count == 0)
+            return string.Empty;
+
+        var keep = Enumerable.Repeat(true, tokens.Count).ToArray();
+        var lastOptionIndexes = new Dictionary<string, (int OptionIndex, int? ValueIndex)>(StringComparer.OrdinalIgnoreCase);
+
+        for (var index = 0; index < tokens.Count; index++)
+        {
+            var token = tokens[index];
+            var optionName = GetOptionName(token);
+            if (optionName is null || !SingleValueMinecraftArgumentOptions.Contains(optionName))
+                continue;
+
+            int? valueIndex = null;
+            if (!HasInlineOptionValue(token) && index + 1 < tokens.Count && !IsOptionToken(tokens[index + 1]))
+            {
+                valueIndex = index + 1;
+                index++;
+            }
+
+            if (lastOptionIndexes.TryGetValue(optionName, out var previous))
+            {
+                keep[previous.OptionIndex] = false;
+                if (previous.ValueIndex is int previousValueIndex)
+                    keep[previousValueIndex] = false;
+            }
+
+            var optionIndex = valueIndex is null ? index : index - 1;
+            lastOptionIndexes[optionName] = (optionIndex, valueIndex);
+        }
+
+        return string.Join(
+            " ",
+            tokens
+                .Where((_, index) => keep[index])
+                .Select(QuoteCommandLineToken));
+    }
+
+    private static JsonArray NormalizeGameArgumentArray(JsonArray arguments)
+    {
+        var normalized = new JsonArray();
+        var keep = Enumerable.Repeat(true, arguments.Count).ToArray();
+        var lastOptionIndexes = new Dictionary<string, (int OptionIndex, int? ValueIndex)>(StringComparer.OrdinalIgnoreCase);
+
+        for (var index = 0; index < arguments.Count; index++)
+        {
+            var token = GetStringValue(arguments[index]);
+            if (token is null)
+                continue;
+
+            var optionName = GetOptionName(token);
+            if (optionName is null || !SingleValueMinecraftArgumentOptions.Contains(optionName))
+                continue;
+
+            int? valueIndex = null;
+            if (!HasInlineOptionValue(token)
+                && index + 1 < arguments.Count
+                && GetStringValue(arguments[index + 1]) is { } value
+                && !IsOptionToken(value))
+            {
+                valueIndex = index + 1;
+                index++;
+            }
+
+            if (lastOptionIndexes.TryGetValue(optionName, out var previous))
+            {
+                keep[previous.OptionIndex] = false;
+                if (previous.ValueIndex is int previousValueIndex)
+                    keep[previousValueIndex] = false;
+            }
+
+            var optionIndex = valueIndex is null ? index : index - 1;
+            lastOptionIndexes[optionName] = (optionIndex, valueIndex);
+        }
+
+        for (var index = 0; index < arguments.Count; index++)
+        {
+            if (keep[index])
+                normalized.Add(arguments[index]?.DeepClone());
+        }
+
+        return normalized;
+    }
+
+    private static string? GetStringValue(JsonNode? node)
+    {
+        return node is JsonValue value && value.TryGetValue<string>(out var result)
+            ? result
+            : null;
+    }
+
+    private static IReadOnlyList<string> SplitCommandLine(string commandLine)
+    {
+        var tokens = new List<string>();
+        var current = new StringBuilder();
+        var inQuotes = false;
+
+        for (var index = 0; index < commandLine.Length; index++)
+        {
+            var character = commandLine[index];
+            if (character == '"')
+            {
+                inQuotes = !inQuotes;
+                continue;
+            }
+
+            if (char.IsWhiteSpace(character) && !inQuotes)
+            {
+                AppendCurrentToken();
+                continue;
+            }
+
+            if (character == '\\' && index + 1 < commandLine.Length && commandLine[index + 1] == '"')
+            {
+                current.Append('"');
+                index++;
+                continue;
+            }
+
+            current.Append(character);
+        }
+
+        AppendCurrentToken();
+        return tokens;
+
+        void AppendCurrentToken()
+        {
+            if (current.Length == 0)
+                return;
+
+            tokens.Add(current.ToString());
+            current.Clear();
+        }
+    }
+
+    private static string? GetOptionName(string token)
+    {
+        if (!IsOptionToken(token))
+            return null;
+
+        var separatorIndex = token.IndexOf('=');
+        return separatorIndex > 0 ? token[..separatorIndex] : token;
+    }
+
+    private static bool HasInlineOptionValue(string token)
+    {
+        var separatorIndex = token.IndexOf('=');
+        return separatorIndex > 0 && separatorIndex < token.Length - 1;
+    }
+
+    private static bool IsOptionToken(string token)
+    {
+        return token.StartsWith("--", StringComparison.Ordinal);
+    }
+
+    private static string QuoteCommandLineToken(string token)
+    {
+        if (token.Length == 0)
+            return "\"\"";
+
+        return token.Any(char.IsWhiteSpace) || token.Contains('"')
+            ? $"\"{token.Replace("\"", "\\\"", StringComparison.Ordinal)}\""
+            : token;
     }
 }

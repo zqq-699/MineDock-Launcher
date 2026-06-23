@@ -94,18 +94,49 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 .ConfigureAwait(false);
             importProgress?.Report(new LauncherProgress(ImportProgressStages.CreatingInstance, string.Empty, 100));
 
-            await using var installLease = await installCoordinator
+            using var importCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var importCancellationToken = importCancellation.Token;
+
+            var downloadModsTask = CompleteWithProgressAsync(
+                modpackPackageService.DownloadFilesAsync(
+                    preparedModpack,
+                    stagedInstance.Instance,
+                    importProgress,
+                    importCancellationToken,
+                    downloadSourcePreference,
+                    downloadSpeedLimitMbPerSecond),
+                importProgress,
+                new LauncherProgress(ImportProgressStages.DownloadingPackFiles, string.Empty, 100));
+            var copyOverridesTask = CompleteWithProgressAsync(
+                modpackPackageService.CopyOverridesAsync(
+                    preparedModpack,
+                    stagedInstance.Instance,
+                    importProgress,
+                    importCancellationToken),
+                importProgress,
+                new LauncherProgress(ImportProgressStages.CopyingOverrides, string.Empty, 100));
+            var contentTask = Task.WhenAll(downloadModsTask, copyOverridesTask);
+            _ = CancelImportOnBranchFailureAsync(contentTask, importCancellation);
+
+            var installLeaseTask = installCoordinator
                 .AcquireInstallAsync(
                     stagedInstance.MinecraftDirectory,
                     stagedInstance.ResolvedInstanceName,
                     importProgress,
-                    cancellationToken)
-                .ConfigureAwait(false);
+                    importCancellationToken)
+                .AsTask();
+
+            await ThrowContentFailureBeforeInstallLeaseAsync(
+                contentTask,
+                installLeaseTask,
+                importCancellation).ConfigureAwait(false);
+
+            await using var installLease = await installLeaseTask.ConfigureAwait(false);
             var minecraftBaseTask = modpackGameInstaller.InstallMinecraftBaseAsync(
                 preparedModpack.MinecraftVersion,
                 stagedInstance.MinecraftDirectory,
                 CreateInstallStageProgress(importProgress, ImportProgressStages.InstallingMinecraftBase),
-                cancellationToken,
+                importCancellationToken,
                 downloadSourcePreference,
                 downloadSpeedLimitMbPerSecond);
             var loaderInstallTask = InstallLoaderAfterBaseAsync(
@@ -113,46 +144,30 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 stagedInstance,
                 minecraftBaseTask,
                 importProgress,
-                cancellationToken,
+                importCancellationToken,
                 downloadSourcePreference,
                 downloadSpeedLimitMbPerSecond);
-            var downloadModsTask = CompleteWithProgressAsync(
-                modpackPackageService.DownloadFilesAsync(
-                    preparedModpack,
-                    stagedInstance.Instance,
-                    importProgress,
-                    cancellationToken,
-                    downloadSourcePreference,
-                    downloadSpeedLimitMbPerSecond),
-                importProgress,
-                new LauncherProgress(ImportProgressStages.DownloadingPackFiles, string.Empty, 100));
-            var copyOverridesTask = modpackPackageService.CopyOverridesAsync(
-                preparedModpack,
-                stagedInstance.Instance,
-                importProgress,
-                cancellationToken);
-            copyOverridesTask = CompleteWithProgressAsync(
-                copyOverridesTask,
-                importProgress,
-                new LauncherProgress(ImportProgressStages.CopyingOverrides, string.Empty, 100));
-            var metadataTask = Task.CompletedTask;
+            _ = CancelImportOnBranchFailureAsync(loaderInstallTask, importCancellation);
 
-            await Task.WhenAll(loaderInstallTask, downloadModsTask, copyOverridesTask, metadataTask).ConfigureAwait(false);
+            await AwaitImportBranchesAsync(
+                importCancellation,
+                loaderInstallTask,
+                contentTask).ConfigureAwait(false);
 
             finalVersionName = await loaderInstallTask.ConfigureAwait(false);
             var manualDownloads = await downloadModsTask.ConfigureAwait(false);
             importedInstance = await stagingService
-                .FinalizeAsync(stagedInstance, finalVersionName, cancellationToken)
+                .FinalizeAsync(stagedInstance, finalVersionName, importCancellationToken)
                 .ConfigureAwait(false);
 
             preparedModpack.ManualDownloads = manualDownloads;
             preparedModpack.ManualDownloadsFilePath = await modpackPackageService
-                .WriteManualDownloadsFileAsync(preparedModpack, importedInstance, manualDownloads, cancellationToken)
+                .WriteManualDownloadsFileAsync(preparedModpack, importedInstance, manualDownloads, importCancellationToken)
                 .ConfigureAwait(false);
 
             try
             {
-                await modpackPackageService.CleanupAsync(preparedModpack, cancellationToken).ConfigureAwait(false);
+                await modpackPackageService.CleanupAsync(preparedModpack, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -179,12 +194,12 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 "Modpack import failed with a known reason. ArchivePath={ArchivePath} FailureReason={FailureReason}",
                 archivePath,
                 exception.FailureReason);
-            await CleanupFailedImportAsync(preparedModpack, stagedInstance, importedInstance, finalVersionName, importProgress, cancellationToken).ConfigureAwait(false);
+            await CleanupFailedImportAsync(preparedModpack, stagedInstance, importedInstance, finalVersionName, importProgress).ConfigureAwait(false);
             return ModpackImportResult.Failure(exception.FailureReason);
         }
         catch (OperationCanceledException)
         {
-            await CleanupFailedImportAsync(preparedModpack, stagedInstance, importedInstance, finalVersionName, importProgress, cancellationToken).ConfigureAwait(false);
+            await CleanupFailedImportAsync(preparedModpack, stagedInstance, importedInstance, finalVersionName, importProgress).ConfigureAwait(false);
             throw;
         }
         catch (Exception exception)
@@ -193,7 +208,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 exception,
                 "Unexpected modpack import failure. ArchivePath={ArchivePath}",
                 archivePath);
-            await CleanupFailedImportAsync(preparedModpack, stagedInstance, importedInstance, finalVersionName, importProgress, cancellationToken).ConfigureAwait(false);
+            await CleanupFailedImportAsync(preparedModpack, stagedInstance, importedInstance, finalVersionName, importProgress).ConfigureAwait(false);
             return ModpackImportResult.Failure(ModpackImportFailureReason.UnexpectedError);
         }
     }
@@ -203,8 +218,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         StagedModpackInstance? stagedInstance,
         GameInstance? importedInstance,
         string? finalVersionName,
-        IProgress<LauncherProgress>? progress,
-        CancellationToken cancellationToken)
+        IProgress<LauncherProgress>? progress)
     {
         if (stagedInstance is not null || importedInstance is not null || preparedModpack is not null)
             progress?.Report(new LauncherProgress(ImportProgressStages.CleaningUp, string.Empty));
@@ -213,7 +227,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         {
             try
             {
-                await instanceService.DeleteInstanceAsync(importedInstance.Id, cancellationToken).ConfigureAwait(false);
+                await instanceService.DeleteInstanceAsync(importedInstance.Id, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -228,7 +242,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         {
             try
             {
-                await stagingService.CleanupFailedImportAsync(stagedInstance, finalVersionName, cancellationToken).ConfigureAwait(false);
+                await stagingService.CleanupFailedImportAsync(stagedInstance, finalVersionName, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -244,7 +258,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
 
         try
         {
-            await modpackPackageService.CleanupAsync(preparedModpack, cancellationToken).ConfigureAwait(false);
+            await modpackPackageService.CleanupAsync(preparedModpack, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -343,6 +357,70 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 return candidate;
 
             suffix++;
+        }
+    }
+
+    private static async Task ThrowContentFailureBeforeInstallLeaseAsync(
+        Task contentTask,
+        Task<IAsyncDisposable> installLeaseTask,
+        CancellationTokenSource importCancellation)
+    {
+        var firstCompleted = await Task.WhenAny(contentTask, installLeaseTask).ConfigureAwait(false);
+        if (!ReferenceEquals(firstCompleted, contentTask) || contentTask.IsCompletedSuccessfully)
+            return;
+
+        SafeCancel(importCancellation);
+        try
+        {
+            await using var abandonedLease = await installLeaseTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        await contentTask.ConfigureAwait(false);
+    }
+
+    private static async Task AwaitImportBranchesAsync(
+        CancellationTokenSource importCancellation,
+        params Task[] tasks)
+    {
+        try
+        {
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+        catch
+        {
+            SafeCancel(importCancellation);
+            throw;
+        }
+    }
+
+    private static async Task CancelImportOnBranchFailureAsync(
+        Task branchTask,
+        CancellationTokenSource importCancellation)
+    {
+        try
+        {
+            await branchTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch
+        {
+            SafeCancel(importCancellation);
+        }
+    }
+
+    private static void SafeCancel(CancellationTokenSource cancellation)
+    {
+        try
+        {
+            cancellation.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
         }
     }
 

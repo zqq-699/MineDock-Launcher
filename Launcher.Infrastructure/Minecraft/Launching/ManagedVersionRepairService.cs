@@ -280,6 +280,13 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         normalized["id"] = versionName;
         normalized["jar"] = versionName;
         normalized.Remove("inheritsFrom");
+
+        if (normalized["minecraftArguments"] is JsonValue minecraftArgumentsValue
+            && minecraftArgumentsValue.TryGetValue<string>(out var minecraftArguments))
+        {
+            normalized["minecraftArguments"] = VersionJsonMergeHelper.NormalizeMinecraftArguments(minecraftArguments);
+        }
+
         return normalized;
     }
 

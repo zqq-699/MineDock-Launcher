@@ -14,6 +14,7 @@ namespace Launcher.Infrastructure.Modpacks;
 
 public sealed class LocalModpackPackageService : IModpackPackageService
 {
+    private const int MaxPackFileProcessingConcurrency = 16;
     private const string CurseForgeApiKeyEnvironmentVariable = "CURSEFORGE_API_KEY";
     private const string LocalSecretsDirectoryName = ".local-secrets";
     private const string CurseForgeApiKeyFileName = "curseforge.key";
@@ -26,6 +27,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
     private readonly HttpClient httpClient;
     private readonly LauncherPathProvider pathProvider;
     private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
+    private readonly ISettingsService? settingsService;
     private readonly IImportConcurrencyLimiter limiter;
     private readonly CurseForgeApiClient curseForgeApiClient;
     private readonly ILogger<LocalModpackPackageService> logger;
@@ -36,10 +38,12 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         IImportConcurrencyLimiter? limiter = null,
         HttpClient? httpClient = null,
         CurseForgeApiClient? curseForgeApiClient = null,
-        ILogger<LocalModpackPackageService>? logger = null)
+        ILogger<LocalModpackPackageService>? logger = null,
+        ISettingsService? settingsService = null)
     {
         this.pathProvider = pathProvider;
         this.downloadSpeedLimitState = downloadSpeedLimitState;
+        this.settingsService = settingsService;
         this.limiter = limiter ?? ImportConcurrencyLimiter.Shared;
         this.httpClient = httpClient ?? new HttpClient();
         this.curseForgeApiClient = curseForgeApiClient ?? new CurseForgeApiClient(this.httpClient, this.limiter);
@@ -132,7 +136,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         ArgumentNullException.ThrowIfNull(instance);
 
         var curseForgeApiKey = preparedModpack.PackageKind is ModpackPackageKind.CurseForge
-            ? GetCurseForgeApiKey()
+            ? await GetCurseForgeApiKeyAsync(cancellationToken).ConfigureAwait(false)
             : null;
         var totalCount = preparedModpack.Files.Count;
         if (totalCount <= 0)
@@ -144,23 +148,30 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         progress?.Report(new LauncherProgress(ImportProgressStages.ResolvingPackFiles, $"0/{totalCount}", 0));
         progress?.Report(new LauncherProgress(ImportProgressStages.DownloadingPackFiles, string.Empty, 0));
 
-        var fileTasks = preparedModpack.Files
-            .Select((file, index) => ProcessPackFileAsync(
-                preparedModpack,
-                file,
-                index,
-                instance,
-                curseForgeApiKey,
-                downloadSpeedLimitMbPerSecond,
-                totalCount,
-                progress,
-                cancellationToken,
-                manualDownloadsByIndex,
-                resolutionProgressState,
-                downloadProgressState))
-            .ToArray();
-
-        await Task.WhenAll(fileTasks).ConfigureAwait(false);
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, totalCount),
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = MaxPackFileProcessingConcurrency,
+                CancellationToken = cancellationToken
+            },
+            async (index, token) =>
+            {
+                var file = preparedModpack.Files[index];
+                await ProcessPackFileAsync(
+                    preparedModpack,
+                    file,
+                    index,
+                    instance,
+                    curseForgeApiKey,
+                    downloadSpeedLimitMbPerSecond,
+                    totalCount,
+                    progress,
+                    token,
+                    manualDownloadsByIndex,
+                    resolutionProgressState,
+                    downloadProgressState).ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
         return manualDownloadsByIndex
             .Where(download => download is not null)
@@ -184,7 +195,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         }
 
         progress?.Report(new LauncherProgress(ImportProgressStages.CopyingOverrides, string.Empty, 100));
-        CopyOverrides(preparedModpack.OverridesDirectory, instance.InstanceDirectory);
+        CopyOverrides(preparedModpack.OverridesDirectory, instance.InstanceDirectory, cancellationToken);
         return Task.CompletedTask;
     }
 
@@ -359,12 +370,11 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         CancellationToken cancellationToken)
     {
         var extractedMrpackPath = Path.Combine(workingDirectory, "embedded", Path.GetFileName(mrpackEntry.Name));
-        Directory.CreateDirectory(Path.GetDirectoryName(extractedMrpackPath)!);
-        await using (var source = mrpackEntry.Open())
-        await using (var destination = new FileStream(extractedMrpackPath, FileMode.Create, FileAccess.Write, FileShare.None))
-        {
-            await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
-        }
+        await ModpackArchiveUtility.CopyZipEntryToFileAsync(
+            mrpackEntry,
+            extractedMrpackPath,
+            ModpackArchiveUtility.MaxEmbeddedModpackBytes,
+            cancellationToken).ConfigureAwait(false);
 
         using var stream = File.OpenRead(extractedMrpackPath);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
@@ -379,12 +389,23 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         ZipArchiveEntry mrpackEntry,
         CancellationToken cancellationToken)
     {
-        await using var source = mrpackEntry.Open();
-        await using var buffer = new MemoryStream();
-        await source.CopyToAsync(buffer, cancellationToken).ConfigureAwait(false);
-        buffer.Position = 0;
-        using var archive = new ZipArchive(buffer, ZipArchiveMode.Read, leaveOpen: false);
-        await ValidateModrinthArchiveAsync(archive, cancellationToken).ConfigureAwait(false);
+        var tempFilePath = Path.Combine(Path.GetTempPath(), $"launcher-embedded-{Guid.NewGuid():N}.mrpack");
+        try
+        {
+            await ModpackArchiveUtility.CopyZipEntryToFileAsync(
+                mrpackEntry,
+                tempFilePath,
+                ModpackArchiveUtility.MaxEmbeddedModpackBytes,
+                cancellationToken).ConfigureAwait(false);
+
+            using var stream = File.OpenRead(tempFilePath);
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
+            await ValidateModrinthArchiveAsync(archive, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            TryDeleteFile(tempFilePath);
+        }
     }
 
     private async Task ValidateModrinthArchiveAsync(
@@ -443,7 +464,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             var minecraftVersion = GetRequiredString(dependencies, "minecraft");
             var (loader, loaderVersion) = ParseModrinthLoader(dependencies);
             var downloads = ParseModrinthFiles(index.RootElement);
-            var overridesDirectory = ExtractModrinthOverrides(archive, workingDirectory, cancellationToken);
+            var overridesDirectory = await ExtractModrinthOverridesAsync(archive, workingDirectory, cancellationToken).ConfigureAwait(false);
 
             return new PreparedModpack
             {
@@ -523,7 +544,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             var minecraftVersion = GetRequiredString(minecraft, "version");
             var (loader, loaderVersion) = ParseCurseForgeLoader(minecraft);
             var downloads = ParseCurseForgeFiles(manifest.RootElement);
-            var overridesDirectory = ExtractCurseForgeOverrides(archive, workingDirectory, cancellationToken);
+            var overridesDirectory = await ExtractCurseForgeOverridesAsync(archive, workingDirectory, cancellationToken).ConfigureAwait(false);
 
             return new PreparedModpack
             {
@@ -548,6 +569,13 @@ public sealed class LocalModpackPackageService : IModpackPackageService
 
     private static async Task<JsonDocument> ReadJsonDocumentAsync(ZipArchiveEntry entry, CancellationToken cancellationToken)
     {
+        if (entry.Length > ModpackArchiveUtility.MaxManifestBytes)
+        {
+            throw new ModpackImportException(
+                ModpackImportFailureReason.InvalidManifest,
+                $"Manifest entry is too large: {entry.FullName}");
+        }
+
         await using var stream = entry.Open();
         return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
     }
@@ -650,13 +678,14 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             completedCount * 100d / totalCount));
     }
 
-    private static string? ExtractModrinthOverrides(
+    private static async Task<string?> ExtractModrinthOverridesAsync(
         ZipArchive archive,
         string workingDirectory,
         CancellationToken cancellationToken)
     {
         var extractedAny = false;
         var overridesDirectory = Path.Combine(workingDirectory, "overrides");
+        var extractionBudget = new ZipExtractionBudget(ModpackArchiveUtility.MaxOverrideTotalBytes);
 
         foreach (var entry in archive.Entries.Where(entry => !string.IsNullOrWhiteSpace(entry.Name)))
         {
@@ -664,7 +693,12 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             var relativePath = ModpackArchiveUtility.RemovePrefix(normalizedPath, "overrides");
             if (!string.IsNullOrWhiteSpace(relativePath))
             {
-                ModpackArchiveUtility.ExtractZipEntry(entry, overridesDirectory, relativePath, cancellationToken);
+                await ModpackArchiveUtility.ExtractZipEntryAsync(
+                    entry,
+                    overridesDirectory,
+                    relativePath,
+                    extractionBudget,
+                    cancellationToken).ConfigureAwait(false);
                 extractedAny = true;
                 continue;
             }
@@ -673,20 +707,26 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             if (string.IsNullOrWhiteSpace(relativePath))
                 continue;
 
-            ModpackArchiveUtility.ExtractZipEntry(entry, overridesDirectory, relativePath, cancellationToken);
+            await ModpackArchiveUtility.ExtractZipEntryAsync(
+                entry,
+                overridesDirectory,
+                relativePath,
+                extractionBudget,
+                cancellationToken).ConfigureAwait(false);
             extractedAny = true;
         }
 
         return extractedAny ? overridesDirectory : null;
     }
 
-    private static string? ExtractCurseForgeOverrides(
+    private static async Task<string?> ExtractCurseForgeOverridesAsync(
         ZipArchive archive,
         string workingDirectory,
         CancellationToken cancellationToken)
     {
         var extractedAny = false;
         var overridesDirectory = Path.Combine(workingDirectory, "overrides");
+        var extractionBudget = new ZipExtractionBudget(ModpackArchiveUtility.MaxOverrideTotalBytes);
 
         foreach (var entry in archive.Entries.Where(entry => !string.IsNullOrWhiteSpace(entry.Name)))
         {
@@ -695,7 +735,12 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             if (string.IsNullOrWhiteSpace(relativePath))
                 continue;
 
-            ModpackArchiveUtility.ExtractZipEntry(entry, overridesDirectory, relativePath, cancellationToken);
+            await ModpackArchiveUtility.ExtractZipEntryAsync(
+                entry,
+                overridesDirectory,
+                relativePath,
+                extractionBudget,
+                cancellationToken).ConfigureAwait(false);
             extractedAny = true;
         }
 
@@ -1061,10 +1106,11 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         string? Sha1,
         string? Sha512);
 
-    private static void CopyOverrides(string sourceDirectory, string instanceDirectory)
+    private static void CopyOverrides(string sourceDirectory, string instanceDirectory, CancellationToken cancellationToken)
     {
         foreach (var sourceFilePath in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var relativePath = Path.GetRelativePath(sourceDirectory, sourceFilePath);
             var destinationPath = ModpackArchiveUtility.GetValidatedTargetPath(instanceDirectory, relativePath);
             var destinationDirectory = Path.GetDirectoryName(destinationPath);
@@ -1075,9 +1121,9 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         }
     }
 
-    private string GetCurseForgeApiKey()
+    private async Task<string> GetCurseForgeApiKeyAsync(CancellationToken cancellationToken)
     {
-        var fileApiKey = TryReadCurseForgeApiKeyFromLocalSecretFile();
+        var fileApiKey = await TryReadCurseForgeApiKeyFromLocalSecretFileAsync(cancellationToken).ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(fileApiKey))
             return fileApiKey;
 
@@ -1158,67 +1204,79 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         }
     }
 
-    private string? TryReadCurseForgeApiKeyFromLocalSecretFile()
+    private async Task<string?> TryReadCurseForgeApiKeyFromLocalSecretFileAsync(CancellationToken cancellationToken)
     {
-        foreach (var root in EnumerateCurseForgeSecretSearchRoots())
+        foreach (var dataDirectory in await EnumerateLauncherDataDirectoriesAsync(cancellationToken).ConfigureAwait(false))
         {
-            foreach (var directory in EnumerateDirectoryAndAncestors(root))
+            var keyPath = Path.Combine(dataDirectory, LocalSecretsDirectoryName, CurseForgeApiKeyFileName);
+            try
             {
-                var keyPath = Path.Combine(directory, LocalSecretsDirectoryName, CurseForgeApiKeyFileName);
-                try
-                {
-                    if (!File.Exists(keyPath))
-                        continue;
+                if (!File.Exists(keyPath))
+                    continue;
 
-                    var value = File.ReadAllText(keyPath).Trim();
-                    if (string.IsNullOrWhiteSpace(value))
-                    {
-                        logger.LogWarning(
-                            "Ignored empty CurseForge API key file. KeyPath={KeyPath}",
-                            keyPath);
-                        continue;
-                    }
-
-                    logger.LogInformation(
-                        "Resolved CurseForge API key from local secret file. KeyPath={KeyPath}",
-                        keyPath);
-                    return value;
-                }
-                catch (IOException exception)
+                var value = (await File.ReadAllTextAsync(keyPath, cancellationToken).ConfigureAwait(false)).Trim();
+                if (string.IsNullOrWhiteSpace(value))
                 {
                     logger.LogWarning(
-                        exception,
-                        "Failed to read local CurseForge API key file. KeyPath={KeyPath}",
+                        "Ignored empty CurseForge API key file. KeyPath={KeyPath}",
                         keyPath);
+                    continue;
                 }
-                catch (UnauthorizedAccessException exception)
-                {
-                    logger.LogWarning(
-                        exception,
-                        "Failed to access local CurseForge API key file. KeyPath={KeyPath}",
-                        keyPath);
-                }
+
+                logger.LogInformation(
+                    "Resolved CurseForge API key from local secret file. KeyPath={KeyPath}",
+                    keyPath);
+                return value;
+            }
+            catch (IOException exception)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Failed to read local CurseForge API key file. KeyPath={KeyPath}",
+                    keyPath);
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Failed to access local CurseForge API key file. KeyPath={KeyPath}",
+                    keyPath);
             }
         }
 
         return null;
     }
 
-    private static IEnumerable<string> EnumerateCurseForgeSecretSearchRoots()
+    private async Task<IReadOnlyList<string>> EnumerateLauncherDataDirectoriesAsync(CancellationToken cancellationToken)
     {
+        var directories = new List<string> { pathProvider.DefaultDataDirectory };
         var currentDirectory = Directory.GetCurrentDirectory();
         if (!string.IsNullOrWhiteSpace(currentDirectory))
-            yield return Path.GetFullPath(currentDirectory);
-    }
+            directories.Add(currentDirectory);
 
-    private static IEnumerable<string> EnumerateDirectoryAndAncestors(string startDirectory)
-    {
-        for (var current = new DirectoryInfo(Path.GetFullPath(startDirectory));
-             current is not null;
-             current = current.Parent)
+        var userProfileDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrWhiteSpace(userProfileDirectory))
+            directories.Add(Path.Combine(userProfileDirectory, "Documents", "launcher"));
+
+        if (settingsService is not null)
         {
-            yield return current.FullName;
+            try
+            {
+                var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(settings.DataDirectory))
+                    directories.Add(settings.DataDirectory);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                logger.LogWarning(exception, "Failed to load settings while resolving local CurseForge API key path.");
+            }
         }
+
+        return directories
+            .Where(directory => !string.IsNullOrWhiteSpace(directory))
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static (LoaderKind Loader, string? LoaderVersion) ParseModrinthLoader(JsonElement dependencies)

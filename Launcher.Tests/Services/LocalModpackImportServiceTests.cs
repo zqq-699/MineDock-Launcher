@@ -223,6 +223,7 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
             importProgress);
         await TestAsync.WaitForAsync(() => importProgress.Values.Any(value => value.Stage == InstallProgressStages.Queue));
         Assert.Equal(0, installer.InstallMinecraftBaseCallCount);
+        Assert.Equal(1, packageService.DownloadFilesCallCount);
 
         allowCreateInstall.SetResult(true);
         await Task.WhenAll(createTask, importTask);
@@ -233,6 +234,28 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
         Assert.Contains(storedInstances, instance => instance.Name == "Queued Import Pack");
         Assert.Equal(storedInstances.Count, storedInstances.Select(instance => instance.VersionName).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.DoesNotContain(storedInstances, instance => instance.Id.StartsWith("local-", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task LocalModpackImportCleansUpWithNonCanceledTokenAfterCancellation()
+    {
+        var instanceService = new FakeGameInstanceService();
+        var preparedModpack = CreatePreparedModpack("Canceled Pack");
+        var packageService = new FakeModpackPackageService(preparedModpack)
+        {
+            InstallException = new OperationCanceledException()
+        };
+        var installer = new FakeModpackGameInstaller();
+        var stagingService = new FakeModpackInstanceStagingService(TempRoot);
+        var service = new LocalModpackImportService(instanceService, packageService, installer, stagingService);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => service.ImportFromArchiveAsync(Path.Combine(TempRoot, "canceled-pack.mrpack"), progress: null));
+
+        Assert.Equal(1, packageService.CleanupCallCount);
+        Assert.Equal(1, stagingService.CleanupCallCount);
+        Assert.False(packageService.LastCleanupTokenCanBeCanceled);
+        Assert.False(stagingService.LastCleanupTokenCanBeCanceled);
     }
 
     [Fact]
@@ -486,6 +509,8 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
 
         public int RecognizeCallCount { get; private set; }
 
+        public bool? LastCleanupTokenCanBeCanceled { get; private set; }
+
         public Task<ModpackRecognitionResult> RecognizeAsync(
             string archivePath,
             CancellationToken cancellationToken = default)
@@ -568,6 +593,7 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
         public Task CleanupAsync(PreparedModpack preparedModpack, CancellationToken cancellationToken = default)
         {
             CleanupCallCount++;
+            LastCleanupTokenCanBeCanceled = cancellationToken.CanBeCanceled;
             if (Directory.Exists(preparedModpack.WorkingDirectory))
                 Directory.Delete(preparedModpack.WorkingDirectory, recursive: true);
 
@@ -682,6 +708,8 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
 
         public int CleanupCallCount { get; private set; }
 
+        public bool? LastCleanupTokenCanBeCanceled { get; private set; }
+
         public Exception? StageException { get; init; }
 
         public Task<StagedModpackInstance> StageAsync(
@@ -730,6 +758,7 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
             CancellationToken cancellationToken = default)
         {
             CleanupCallCount++;
+            LastCleanupTokenCanBeCanceled = cancellationToken.CanBeCanceled;
             if (Directory.Exists(stagedInstance.StagingContentDirectory))
                 Directory.Delete(stagedInstance.StagingContentDirectory, recursive: true);
 
