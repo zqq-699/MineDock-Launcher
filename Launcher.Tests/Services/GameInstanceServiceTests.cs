@@ -235,6 +235,38 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task InstanceServiceDoesNotDiscoverVersionMarkedBySharedInstallCoordinator()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var coordinator = new GameInstallCoordinator();
+        var versionName = "Importing Pack";
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, versionName);
+        var service = new GameInstanceService(
+            settingsService,
+            repository,
+            [new FakeLoaderProvider()],
+            installCoordinator: coordinator);
+
+        var installLease = await coordinator.AcquireInstallAsync(settings.MinecraftDirectory, versionName, progress: null);
+        await using (installLease)
+        {
+            var instancesDuringInstall = await service.GetInstancesAsync();
+            Assert.Empty(instancesDuringInstall);
+            Assert.Empty(await repository.GetAllAsync());
+        }
+
+        var instancesAfterInstall = await service.GetInstancesAsync();
+        var instance = Assert.Single(instancesAfterInstall);
+        Assert.Equal(versionName, instance.VersionName);
+    }
+
+    [Fact]
     public async Task VanillaVersionIsolatorCopiesJsonAndJarToCustomVersion()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");

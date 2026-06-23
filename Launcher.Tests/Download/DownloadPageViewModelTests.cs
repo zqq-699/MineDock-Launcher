@@ -214,6 +214,145 @@ public sealed class DownloadPageViewModelTests
     }
 
     [Fact]
+    public async Task DownloadPageLocalImportAllowsSecondImportWhileFirstImportTaskIsRunning()
+    {
+        var firstFilePath = CreateTempModpackFile(".mrpack");
+        var secondFilePath = CreateTempModpackFile(".zip");
+
+        try
+        {
+            var tasksPage = new DownloadTasksPageViewModel();
+            var releaseFirstImport = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var localModpackImportService = new FakeLocalModpackImportService
+            {
+                RecognitionResultToReturn = ModpackRecognitionResult.Success(),
+                ResultToReturn = ModpackImportResult.Success(CreateImportedInstance("Imported Pack")),
+                WaitBeforeImportByCall = [releaseFirstImport.Task, Task.CompletedTask]
+            };
+            var viewModel = CreateDownloadPageViewModel(
+                new FakeGameVersionService([]),
+                tasksPage: tasksPage,
+                localModpackImportService: localModpackImportService);
+
+            viewModel.LocalImportDialog.Open();
+            Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([firstFilePath]));
+            await viewModel.LocalImportDialog.ConfirmImportCommand.ExecuteAsync(null);
+            await TestAsync.WaitForAsync(() => localModpackImportService.ImportCallCount == 1);
+
+            viewModel.LocalImportDialog.Open();
+            Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([secondFilePath]));
+            Assert.True(viewModel.LocalImportDialog.ConfirmImportCommand.CanExecute(null));
+            await viewModel.LocalImportDialog.ConfirmImportCommand.ExecuteAsync(null);
+            await TestAsync.WaitForAsync(() => localModpackImportService.ImportCallCount == 2);
+
+            Assert.Equal(2, tasksPage.Tasks.Count);
+            Assert.Contains(Path.GetFullPath(firstFilePath), localModpackImportService.ImportedArchivePaths);
+            Assert.Contains(Path.GetFullPath(secondFilePath), localModpackImportService.ImportedArchivePaths);
+
+            releaseFirstImport.SetResult(true);
+            await TestAsync.WaitForAsync(() => tasksPage.Tasks.All(task => task.State is DownloadTaskState.Completed));
+        }
+        finally
+        {
+            File.Delete(firstFilePath);
+            File.Delete(secondFilePath);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadPageLocalImportDisablesConfirmOnlyWhileRecognizingSelectedArchive()
+    {
+        var firstFilePath = CreateTempModpackFile(".mrpack");
+        var secondFilePath = CreateTempModpackFile(".zip");
+
+        try
+        {
+            var releaseRecognition = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var localModpackImportService = new FakeLocalModpackImportService
+            {
+                RecognitionResultToReturn = ModpackRecognitionResult.Success(),
+                ResultToReturn = ModpackImportResult.Success(CreateImportedInstance("Imported Pack")),
+                WaitBeforeRecognition = releaseRecognition.Task
+            };
+            var viewModel = CreateDownloadPageViewModel(
+                new FakeGameVersionService([]),
+                localModpackImportService: localModpackImportService);
+
+            viewModel.LocalImportDialog.Open();
+            Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([firstFilePath]));
+            var confirmTask = viewModel.LocalImportDialog.ConfirmImportCommand.ExecuteAsync(null);
+            await localModpackImportService.RecognitionStarted.Task;
+
+            Assert.False(viewModel.LocalImportDialog.ConfirmImportCommand.CanExecute(null));
+            viewModel.LocalImportDialog.ConfirmImportCommand.Execute(null);
+            Assert.Equal(1, localModpackImportService.RecognizeCallCount);
+
+            releaseRecognition.SetResult(true);
+            await confirmTask;
+            await TestAsync.WaitForAsync(() => localModpackImportService.ImportCallCount == 1);
+
+            viewModel.LocalImportDialog.Open();
+            Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([secondFilePath]));
+            Assert.True(viewModel.LocalImportDialog.ConfirmImportCommand.CanExecute(null));
+        }
+        finally
+        {
+            File.Delete(firstFilePath);
+            File.Delete(secondFilePath);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadPageLocalImportQueuedProgressUpdatesItsOwnTask()
+    {
+        var firstFilePath = CreateTempModpackFile(".mrpack");
+        var secondFilePath = CreateTempModpackFile(".zip");
+
+        try
+        {
+            var tasksPage = new DownloadTasksPageViewModel();
+            var releaseFirstImport = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var releaseSecondImport = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var localModpackImportService = new FakeLocalModpackImportService
+            {
+                RecognitionResultToReturn = ModpackRecognitionResult.Success(),
+                ResultToReturn = ModpackImportResult.Success(CreateImportedInstance("Imported Pack")),
+                WaitBeforeImportByCall = [releaseFirstImport.Task, releaseSecondImport.Task],
+                ProgressReportsToEmitByImport =
+                [
+                    [],
+                    [new LauncherProgress(InstallProgressStages.Queue, string.Empty)]
+                ]
+            };
+            var viewModel = CreateDownloadPageViewModel(
+                new FakeGameVersionService([]),
+                tasksPage: tasksPage,
+                localModpackImportService: localModpackImportService);
+
+            viewModel.LocalImportDialog.Open();
+            Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([firstFilePath]));
+            await viewModel.LocalImportDialog.ConfirmImportCommand.ExecuteAsync(null);
+            await TestAsync.WaitForAsync(() => localModpackImportService.ImportCallCount == 1);
+
+            viewModel.LocalImportDialog.Open();
+            Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([secondFilePath]));
+            await viewModel.LocalImportDialog.ConfirmImportCommand.ExecuteAsync(null);
+            await TestAsync.WaitForAsync(() => tasksPage.Tasks[0].StatusMessage == Strings.Status_InstallQueued);
+
+            Assert.Equal(Path.GetFileName(secondFilePath), tasksPage.Tasks[0].Subtitle);
+            Assert.Equal(Strings.Status_InstallQueued, tasksPage.Tasks[0].StatusMessage);
+
+            releaseSecondImport.SetResult(true);
+            releaseFirstImport.SetResult(true);
+        }
+        finally
+        {
+            File.Delete(firstFilePath);
+            File.Delete(secondFilePath);
+        }
+    }
+
+    [Fact]
     public async Task DownloadPageLocalImportShowsManualDownloadsDialogWhenSomeFilesNeedManualRetry()
     {
         var tempFilePath = CreateTempModpackFile(".zip");
@@ -800,12 +939,16 @@ public sealed class DownloadPageViewModelTests
 
         Assert.True(viewModel.HasInstanceNameDuplicateMessage);
         Assert.Equal("\u5df2\u5b58\u5728\u540c\u540d\u6e38\u620f", viewModel.InstanceNameDuplicateMessage);
+        Assert.True(viewModel.InstanceOptions.HasInstanceNameDuplicateMessage);
+        Assert.Equal(viewModel.InstanceNameDuplicateMessage, viewModel.InstanceOptions.InstanceNameDuplicateMessage);
         Assert.False(viewModel.InstallCommand.CanExecute(null));
 
         viewModel.InstanceName = "1.20.1 Copy";
 
         Assert.False(viewModel.HasInstanceNameDuplicateMessage);
         Assert.Empty(viewModel.InstanceNameDuplicateMessage);
+        Assert.False(viewModel.InstanceOptions.HasInstanceNameDuplicateMessage);
+        Assert.Empty(viewModel.InstanceOptions.InstanceNameDuplicateMessage);
         Assert.True(viewModel.InstallCommand.CanExecute(null));
     }
 
@@ -1581,6 +1724,20 @@ public sealed class DownloadPageViewModelTests
         return path;
     }
 
+    private static GameInstance CreateImportedInstance(string name)
+    {
+        return new GameInstance
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Name = name,
+            VersionName = name,
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Fabric,
+            LoaderVersion = "0.16.10",
+            InstanceDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"))
+        };
+    }
+
     private static IEnumerable<ILoaderProvider> CreateLoaderProviders(
         FakeLoaderProvider? fabricProvider = null,
         FakeLoaderProvider? forgeProvider = null,
@@ -1678,6 +1835,8 @@ public sealed class DownloadPageViewModelTests
 
     private sealed class FakeLocalModpackImportService : ILocalModpackImportService
     {
+        private int importCallCount;
+
         public ModpackRecognitionResult RecognitionResultToReturn { get; init; } =
             ModpackRecognitionResult.Success();
 
@@ -1686,21 +1845,38 @@ public sealed class DownloadPageViewModelTests
 
         public Exception? ExceptionToThrow { get; init; }
 
+        public Task? WaitBeforeRecognition { get; init; }
+
+        public IReadOnlyList<Task> WaitBeforeImportByCall { get; init; } = [];
+
         public IReadOnlyList<LauncherProgress> ProgressReportsToEmit { get; init; } = [];
+
+        public IReadOnlyList<IReadOnlyList<LauncherProgress>> ProgressReportsToEmitByImport { get; init; } = [];
 
         public string? LastArchivePath { get; private set; }
 
-        public int ImportCallCount { get; private set; }
+        public int RecognizeCallCount { get; private set; }
 
-        public Task<ModpackRecognitionResult> RecognizeArchiveAsync(
+        public int ImportCallCount => Volatile.Read(ref importCallCount);
+
+        public List<string> ImportedArchivePaths { get; } = [];
+
+        public TaskCompletionSource<bool> RecognitionStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<ModpackRecognitionResult> RecognizeArchiveAsync(
             string archivePath,
             CancellationToken cancellationToken = default)
         {
+            RecognizeCallCount++;
             LastArchivePath = archivePath;
-            return Task.FromResult(RecognitionResultToReturn);
+            RecognitionStarted.TrySetResult(true);
+            if (WaitBeforeRecognition is not null)
+                await WaitBeforeRecognition.WaitAsync(cancellationToken);
+
+            return RecognitionResultToReturn;
         }
 
-        public Task<ModpackImportResult> ImportFromArchiveAsync(
+        public async Task<ModpackImportResult> ImportFromArchiveAsync(
             string archivePath,
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default,
@@ -1708,14 +1884,21 @@ public sealed class DownloadPageViewModelTests
             int downloadSpeedLimitMbPerSecond = 0)
         {
             LastArchivePath = archivePath;
-            ImportCallCount++;
-            foreach (var progressUpdate in ProgressReportsToEmit)
+            ImportedArchivePaths.Add(archivePath);
+            var importIndex = Interlocked.Increment(ref importCallCount) - 1;
+            var progressReports = importIndex < ProgressReportsToEmitByImport.Count
+                ? ProgressReportsToEmitByImport[importIndex]
+                : ProgressReportsToEmit;
+            foreach (var progressUpdate in progressReports)
                 progress?.Report(progressUpdate);
+
+            if (importIndex < WaitBeforeImportByCall.Count)
+                await WaitBeforeImportByCall[importIndex].WaitAsync(cancellationToken);
 
             if (ExceptionToThrow is not null)
                 throw ExceptionToThrow;
 
-            return Task.FromResult(ResultToReturn);
+            return ResultToReturn;
         }
     }
 

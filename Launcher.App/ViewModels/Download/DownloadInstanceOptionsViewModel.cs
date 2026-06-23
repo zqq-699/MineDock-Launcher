@@ -24,6 +24,8 @@ public sealed class DownloadInstanceOptionsViewModel : ObservableObject
 
     public string InstanceNameDuplicateMessage => parent.InstanceNameDuplicateMessage;
 
+    public bool HasInstanceNameDuplicateMessage => parent.HasInstanceNameDuplicateMessage;
+
     public ObservableCollection<DownloadLoaderOption> LoaderOptions => parent.LoaderOptions;
 
     public DownloadLoaderOption? SelectedLoaderOption

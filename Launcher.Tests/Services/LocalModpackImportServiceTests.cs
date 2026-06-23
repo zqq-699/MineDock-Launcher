@@ -1,5 +1,7 @@
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Modpacks;
+using Launcher.Infrastructure.Persistence;
 
 namespace Launcher.Tests.Services;
 
@@ -145,6 +147,92 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
 
         Assert.True(result.IsSuccess);
         Assert.Equal("Imported Pack (2)", stagingService.LastResolvedInstanceName);
+    }
+
+    [Fact]
+    public async Task LocalModpackImportDoesNotDiscoverHalfPublishedVersionDuringFinalize()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var coordinator = new GameInstallCoordinator();
+        var instanceService = new GameInstanceService(
+            settingsService,
+            repository,
+            [new FakeLoaderProvider()],
+            installCoordinator: coordinator);
+        var packageService = new FakeModpackPackageService(CreatePreparedModpack("Half Published Pack"));
+        var installer = new FakeModpackGameInstaller { WriteVersionJsonDuringLoaderInstall = true };
+        var stagingService = new ModpackInstanceStagingService(settingsService, repository, instanceService);
+        var service = new LocalModpackImportService(
+            instanceService,
+            packageService,
+            installer,
+            stagingService,
+            coordinator);
+
+        var result = await service.ImportFromArchiveAsync(Path.Combine(TempRoot, "half-published-pack.mrpack"), progress: null);
+
+        Assert.True(result.IsSuccess);
+        var storedInstance = Assert.Single(await repository.GetAllAsync());
+        Assert.Equal("Half Published Pack", storedInstance.Name);
+        Assert.Equal("Half Published Pack", storedInstance.VersionName);
+        Assert.False(storedInstance.Id.StartsWith("local-", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(result.ImportedInstance?.Id, storedInstance.Id);
+        Assert.Equal(storedInstance.Id, (await settingsService.LoadAsync()).DefaultInstanceId);
+    }
+
+    [Fact]
+    public async Task LocalModpackImportQueuesBehindGameInstanceCreateAndPersistsWithoutDuplicates()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var coordinator = new GameInstallCoordinator();
+        var allowCreateInstall = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new FakeLoaderProvider { WaitBeforeInstall = allowCreateInstall.Task };
+        var instanceService = new GameInstanceService(
+            settingsService,
+            repository,
+            [provider],
+            installCoordinator: coordinator);
+        var packageService = new FakeModpackPackageService(CreatePreparedModpack("Queued Import Pack"));
+        var installer = new FakeModpackGameInstaller { WriteVersionJsonDuringLoaderInstall = true };
+        var stagingService = new ModpackInstanceStagingService(settingsService, repository, instanceService);
+        var importService = new LocalModpackImportService(
+            instanceService,
+            packageService,
+            installer,
+            stagingService,
+            coordinator);
+        var importProgress = new ProgressCollector();
+
+        var createTask = instanceService.CreateInstanceAsync("1.20.1", LoaderKind.Vanilla, null, "Normal Install", progress: null);
+        await provider.InstallStarted.Task;
+
+        var importTask = importService.ImportFromArchiveAsync(
+            Path.Combine(TempRoot, "queued-import-pack.mrpack"),
+            importProgress);
+        await TestAsync.WaitForAsync(() => importProgress.Values.Any(value => value.Stage == InstallProgressStages.Queue));
+        Assert.Equal(0, installer.InstallMinecraftBaseCallCount);
+
+        allowCreateInstall.SetResult(true);
+        await Task.WhenAll(createTask, importTask);
+
+        var storedInstances = await repository.GetAllAsync();
+        Assert.Equal(2, storedInstances.Count);
+        Assert.Contains(storedInstances, instance => instance.Name == "Normal Install");
+        Assert.Contains(storedInstances, instance => instance.Name == "Queued Import Pack");
+        Assert.Equal(storedInstances.Count, storedInstances.Select(instance => instance.VersionName).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.DoesNotContain(storedInstances, instance => instance.Id.StartsWith("local-", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -489,11 +577,22 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
 
     private sealed class ProgressCollector : IProgress<LauncherProgress>
     {
-        public List<LauncherProgress> Values { get; } = [];
+        private readonly object syncRoot = new();
+        private readonly List<LauncherProgress> values = [];
+
+        public IReadOnlyList<LauncherProgress> Values
+        {
+            get
+            {
+                lock (syncRoot)
+                    return values.ToList();
+            }
+        }
 
         public void Report(LauncherProgress value)
         {
-            Values.Add(value);
+            lock (syncRoot)
+                values.Add(value);
         }
     }
 
@@ -506,6 +605,8 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
         public LauncherProgress? BaseInstallProgressToReport { get; init; }
 
         public LauncherProgress? LoaderInstallProgressToReport { get; init; }
+
+        public bool WriteVersionJsonDuringLoaderInstall { get; init; }
 
         public Task InstallMinecraftBaseAsync(
             string minecraftVersion,
@@ -532,6 +633,9 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
             int downloadSpeedLimitMbPerSecond = 0)
         {
             InstallLoaderCallCount++;
+            if (WriteVersionJsonDuringLoaderInstall)
+                WriteInstalledVersion(gameDirectory, isolatedVersionName, minecraftVersion);
+
             progress?.Report(LoaderInstallProgressToReport ?? new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty, 100));
             return Task.FromResult(isolatedVersionName);
         }
@@ -548,6 +652,25 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
             int downloadSpeedLimitMbPerSecond = 0)
         {
             return Task.FromResult(isolatedVersionName);
+        }
+
+        private static void WriteInstalledVersion(string minecraftDirectory, string versionName, string minecraftVersion)
+        {
+            var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+            Directory.CreateDirectory(versionDirectory);
+            File.WriteAllText(
+                Path.Combine(versionDirectory, $"{versionName}.json"),
+                $$"""
+                {
+                  "id": "{{versionName}}",
+                  "jar": "{{versionName}}",
+                  "type": "release",
+                  "launcher": {
+                    "minecraftVersion": "{{minecraftVersion}}"
+                  }
+                }
+                """);
+            File.WriteAllText(Path.Combine(versionDirectory, $"{versionName}.jar"), "fake jar");
         }
     }
 

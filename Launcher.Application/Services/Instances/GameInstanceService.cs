@@ -14,10 +14,8 @@ public sealed class GameInstanceService : IGameInstanceService
     private readonly IReadOnlyDictionary<LoaderKind, ILoaderProvider> providers;
     private readonly IModrinthService? modrinthService;
     private readonly IModpackGameInstaller modpackGameInstaller;
+    private readonly IGameInstallCoordinator installCoordinator;
     private readonly ILogger<GameInstanceService> logger;
-    private readonly SemaphoreSlim installExecutionLock = new(1, 1);
-    private readonly HashSet<string> installingVersions = new(StringComparer.OrdinalIgnoreCase);
-    private readonly object installingVersionsLock = new();
 
     public GameInstanceService(
         ISettingsService settingsService,
@@ -25,13 +23,15 @@ public sealed class GameInstanceService : IGameInstanceService
         IEnumerable<ILoaderProvider> providers,
         IModrinthService? modrinthService = null,
         IModpackGameInstaller? modpackGameInstaller = null,
-        ILogger<GameInstanceService>? logger = null)
+        ILogger<GameInstanceService>? logger = null,
+        IGameInstallCoordinator? installCoordinator = null)
     {
         this.settingsService = settingsService;
         this.repository = repository;
         this.providers = providers.ToDictionary(provider => provider.Kind);
         this.modrinthService = modrinthService;
         this.modpackGameInstaller = modpackGameInstaller ?? new FallbackModpackGameInstaller(this.providers);
+        this.installCoordinator = installCoordinator ?? new GameInstallCoordinator();
         this.logger = logger ?? NullLogger<GameInstanceService>.Instance;
     }
 
@@ -54,7 +54,7 @@ public sealed class GameInstanceService : IGameInstanceService
         var installedVersions = (await repository
             .DiscoverInstalledVersionsAsync(settings.MinecraftDirectory, cancellationToken)
             .ConfigureAwait(false))
-            .Where(version => !IsInstallingVersion(settings.MinecraftDirectory, version.VersionName))
+            .Where(version => !installCoordinator.IsInstallingVersion(settings.MinecraftDirectory, version.VersionName))
             .ToList();
         var syncedInstances = SynchronizeInstalledInstances(
             storedInstances,
@@ -118,100 +118,88 @@ public sealed class GameInstanceService : IGameInstanceService
             loaderVersion,
             name);
 
-        var lockAcquiredImmediately = installExecutionLock.Wait(0, cancellationToken);
-        if (!lockAcquiredImmediately)
-        {
-            logger.LogInformation("Game instance install queued because another install is running.");
-            progress?.Report(new LauncherProgress(InstallProgressStages.Queue, string.Empty));
-            await installExecutionLock.WaitAsync(cancellationToken);
-        }
+        var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var versionIdentity = SanitizeName(
+            string.IsNullOrWhiteSpace(name)
+                ? CreateDefaultInstanceName(minecraftVersion, loader, loaderVersion)
+                : name);
+
+        await using var installLease = await installCoordinator
+            .AcquireInstallAsync(settings.MinecraftDirectory, versionIdentity, progress, cancellationToken)
+            .ConfigureAwait(false);
+        if (progress is not null)
+            logger.LogDebug("Game instance install acquired coordinator lease. VersionIdentity={VersionIdentity}", versionIdentity);
+
+        var cleanupCandidates = CreateCleanupCandidates(settings.MinecraftDirectory, minecraftVersion, versionIdentity, loader);
+        var instances = (await GetInstancesCoreAsync(settings, cancellationToken).ConfigureAwait(false)).ToList();
+        if (instances.Any(instance => IsSameVersionIdentity(instance, versionIdentity)))
+            throw new DuplicateGameInstanceNameException(versionIdentity);
 
         try
         {
-            var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
-            var versionIdentity = SanitizeName(
-                string.IsNullOrWhiteSpace(name)
-                    ? CreateDefaultInstanceName(minecraftVersion, loader, loaderVersion)
-                    : name);
-            var cleanupCandidates = CreateCleanupCandidates(settings.MinecraftDirectory, minecraftVersion, versionIdentity, loader);
-            var instances = (await GetInstancesCoreAsync(settings, cancellationToken).ConfigureAwait(false)).ToList();
-            if (instances.Any(instance => IsSameVersionIdentity(instance, versionIdentity)))
-                throw new DuplicateGameInstanceNameException(versionIdentity);
+            var versionName = await modpackGameInstaller.InstallInstanceAsync(
+                minecraftVersion,
+                loader,
+                loaderVersion,
+                settings.MinecraftDirectory,
+                versionIdentity,
+                progress,
+                cancellationToken,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
+            logger.LogInformation(
+                "Game version installed. VersionIdentity={VersionIdentity} VersionName={VersionName} Loader={Loader}",
+                versionIdentity,
+                versionName,
+                loader);
 
-            try
+            var instanceDirectory = repository.GetVersionDirectory(settings.MinecraftDirectory, versionName);
+            repository.CreateInstanceDirectories(instanceDirectory);
+
+            var now = DateTimeOffset.UtcNow;
+            var instance = new GameInstance
             {
-                TrackInstallingVersion(settings.MinecraftDirectory, versionIdentity);
+                Name = versionIdentity,
+                MinecraftVersion = minecraftVersion,
+                Loader = loader,
+                LoaderVersion = loader == LoaderKind.Vanilla ? null : loaderVersion,
+                VersionName = versionName,
+                VersionType = string.Empty,
+                InstanceDirectory = instanceDirectory,
+                MemoryMb = settings.DefaultMemoryMb,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
 
-                var versionName = await modpackGameInstaller.InstallInstanceAsync(
-                    minecraftVersion,
-                    loader,
-                    loaderVersion,
-                    settings.MinecraftDirectory,
-                    versionIdentity,
-                    progress,
-                    cancellationToken,
-                    downloadSourcePreference,
-                    downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
-                logger.LogInformation(
-                    "Game version installed. VersionIdentity={VersionIdentity} VersionName={VersionName} Loader={Loader}",
-                    versionIdentity,
-                    versionName,
-                    loader);
+            if (loader is LoaderKind.Fabric && installFabricApi && modrinthService is not null)
+                await modrinthService.InstallFabricApiAsync(instance, progress, cancellationToken).ConfigureAwait(false);
 
-                var instanceDirectory = repository.GetVersionDirectory(settings.MinecraftDirectory, versionName);
-                repository.CreateInstanceDirectories(instanceDirectory);
+            instances.Add(instance);
+            await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
 
-                var now = DateTimeOffset.UtcNow;
-                var instance = new GameInstance
-                {
-                    Name = versionIdentity,
-                    MinecraftVersion = minecraftVersion,
-                    Loader = loader,
-                    LoaderVersion = loader == LoaderKind.Vanilla ? null : loaderVersion,
-                    VersionName = versionName,
-                    VersionType = string.Empty,
-                    InstanceDirectory = instanceDirectory,
-                    MemoryMb = settings.DefaultMemoryMb,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                };
-
-                if (loader is LoaderKind.Fabric && installFabricApi && modrinthService is not null)
-                    await modrinthService.InstallFabricApiAsync(instance, progress, cancellationToken).ConfigureAwait(false);
-
-                instances.Add(instance);
-                await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
-
-                if (string.IsNullOrWhiteSpace(settings.DefaultInstanceId))
-                {
-                    settings.DefaultInstanceId = instance.Id;
-                    await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
-                    logger.LogInformation("Default game instance initialized. InstanceId={InstanceId}", instance.Id);
-                }
-
-                UntrackInstallingVersion(settings.MinecraftDirectory, versionIdentity);
-                logger.LogInformation(
-                    "Game instance created. InstanceId={InstanceId} VersionName={VersionName} InstanceDirectory={InstanceDirectory}",
-                    instance.Id,
-                    instance.VersionName,
-                    instance.InstanceDirectory);
-                return instance;
-            }
-            catch (Exception exception)
+            if (string.IsNullOrWhiteSpace(settings.DefaultInstanceId))
             {
-                logger.LogError(
-                    exception,
-                    "Game instance creation failed. VersionIdentity={VersionIdentity} Loader={Loader}",
-                    versionIdentity,
-                    loader);
-                UntrackInstallingVersion(settings.MinecraftDirectory, versionIdentity);
-                TryCleanupCreatedVersionDirectories(settings.MinecraftDirectory, cleanupCandidates);
-                throw;
+                settings.DefaultInstanceId = instance.Id;
+                await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+                logger.LogInformation("Default game instance initialized. InstanceId={InstanceId}", instance.Id);
             }
+
+            logger.LogInformation(
+                "Game instance created. InstanceId={InstanceId} VersionName={VersionName} InstanceDirectory={InstanceDirectory}",
+                instance.Id,
+                instance.VersionName,
+                instance.InstanceDirectory);
+            return instance;
         }
-        finally
+        catch (Exception exception)
         {
-            installExecutionLock.Release();
+            logger.LogError(
+                exception,
+                "Game instance creation failed. VersionIdentity={VersionIdentity} Loader={Loader}",
+                versionIdentity,
+                loader);
+            TryCleanupCreatedVersionDirectories(settings.MinecraftDirectory, cleanupCandidates);
+            throw;
         }
     }
 
@@ -371,6 +359,15 @@ public sealed class GameInstanceService : IGameInstanceService
         foreach (var instance in instances)
         {
             var versionName = GetVersionName(instance);
+            if (!string.IsNullOrWhiteSpace(versionName)
+                && IsInstallingVersion(settings.MinecraftDirectory, versionName))
+            {
+                if (seenVersions.Add(versionName))
+                    syncedInstances.Add(instance);
+
+                continue;
+            }
+
             if (string.IsNullOrWhiteSpace(versionName)
                 || !installedByVersion.TryGetValue(versionName, out var installedVersion)
                 || !seenVersions.Add(installedVersion.VersionName))
@@ -398,6 +395,11 @@ public sealed class GameInstanceService : IGameInstanceService
         }
 
         return syncedInstances;
+    }
+
+    private bool IsInstallingVersion(string minecraftDirectory, string versionName)
+    {
+        return installCoordinator.IsInstallingVersion(minecraftDirectory, versionName);
     }
 
     private GameInstance CreateDiscoveredInstance(
@@ -532,31 +534,6 @@ public sealed class GameInstanceService : IGameInstanceService
             LoaderKind.Quilt => $"{minecraftVersion}-quilt",
             _ => minecraftVersion
         };
-    }
-
-    private void TrackInstallingVersion(string minecraftDirectory, string versionName)
-    {
-        lock (installingVersionsLock)
-            installingVersions.Add(CreateInstallingVersionKey(minecraftDirectory, versionName));
-    }
-
-    private void UntrackInstallingVersion(string minecraftDirectory, string versionName)
-    {
-        lock (installingVersionsLock)
-            installingVersions.Remove(CreateInstallingVersionKey(minecraftDirectory, versionName));
-    }
-
-    private bool IsInstallingVersion(string minecraftDirectory, string versionName)
-    {
-        lock (installingVersionsLock)
-            return installingVersions.Contains(CreateInstallingVersionKey(minecraftDirectory, versionName));
-    }
-
-    private static string CreateInstallingVersionKey(string minecraftDirectory, string versionName)
-    {
-        return Path.GetFullPath(Path.Combine(minecraftDirectory, "versions", versionName))
-            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            .ToUpperInvariant();
     }
 
     private IReadOnlyList<VersionCleanupCandidate> CreateCleanupCandidates(

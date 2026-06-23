@@ -10,6 +10,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
     private readonly IModpackPackageService modpackPackageService;
     private readonly IModpackGameInstaller modpackGameInstaller;
     private readonly IModpackInstanceStagingService stagingService;
+    private readonly IGameInstallCoordinator installCoordinator;
     private readonly ILogger<LocalModpackImportService> logger;
 
     public LocalModpackImportService(
@@ -17,12 +18,14 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         IModpackPackageService modpackPackageService,
         IModpackGameInstaller modpackGameInstaller,
         IModpackInstanceStagingService stagingService,
+        IGameInstallCoordinator? installCoordinator = null,
         ILogger<LocalModpackImportService>? logger = null)
     {
         this.instanceService = instanceService;
         this.modpackPackageService = modpackPackageService;
         this.modpackGameInstaller = modpackGameInstaller;
         this.stagingService = stagingService;
+        this.installCoordinator = installCoordinator ?? new GameInstallCoordinator();
         this.logger = logger ?? NullLogger<LocalModpackImportService>.Instance;
     }
 
@@ -91,6 +94,13 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 .ConfigureAwait(false);
             importProgress?.Report(new LauncherProgress(ImportProgressStages.CreatingInstance, string.Empty, 100));
 
+            await using var installLease = await installCoordinator
+                .AcquireInstallAsync(
+                    stagedInstance.MinecraftDirectory,
+                    stagedInstance.ResolvedInstanceName,
+                    importProgress,
+                    cancellationToken)
+                .ConfigureAwait(false);
             var minecraftBaseTask = modpackGameInstaller.InstallMinecraftBaseAsync(
                 preparedModpack.MinecraftVersion,
                 stagedInstance.MinecraftDirectory,

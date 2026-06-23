@@ -154,7 +154,6 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
 
         var importPath = SelectedFilePath;
         var importFileName = SelectedFileName;
-        DownloadTaskItem? importTask = null;
         logger.LogInformation(
             "Confirmed local modpack import. SelectedFileName={SelectedFileName}",
             importFileName);
@@ -180,14 +179,46 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
                 createdTask = downloadTasksPage.BeginTask(Strings.Download_LocalImportTaskTitle, importFileName);
                 Close(resetDialogState: true);
             });
-            importTask = createdTask;
 
+            _ = RunImportTaskAsync(
+                importPath,
+                importFileName,
+                createdTask,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Unexpected local modpack recognition failure. SelectedFileName={SelectedFileName}",
+                importFileName);
+        }
+        finally
+        {
+            ExecuteOnUiThread(() =>
+            {
+                IsImporting = false;
+                ConfirmImportCommand.NotifyCanExecuteChanged();
+            });
+        }
+    }
+
+    private async Task RunImportTaskAsync(
+        string importPath,
+        string importFileName,
+        DownloadTaskItem importTask,
+        DownloadSourcePreference taskDownloadSourcePreference,
+        int taskDownloadSpeedLimitMbPerSecond)
+    {
+        try
+        {
             var result = await modpackImportService.ImportFromArchiveAsync(
                 importPath,
                 CreateProgressReporter(importTask),
                 importTask.CancellationToken,
-                downloadSourcePreference,
-                downloadSpeedLimitMbPerSecond);
+                taskDownloadSourcePreference,
+                taskDownloadSpeedLimitMbPerSecond);
 
             if (result.IsSuccess && result.ImportedInstance is not null)
             {
@@ -207,7 +238,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
 
             importTask.Fail(MapFailureMessage(result.FailureReason));
         }
-        catch (OperationCanceledException) when (importTask?.IsCancellationRequested == true)
+        catch (OperationCanceledException) when (importTask.IsCancellationRequested)
         {
             downloadTasksPage.CancelTask(importTask);
         }
@@ -217,15 +248,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
                 exception,
                 "Unexpected local modpack import failure. SelectedFileName={SelectedFileName}",
                 importFileName);
-            importTask?.Fail(Strings.Status_ModpackImportFailed);
-        }
-        finally
-        {
-            ExecuteOnUiThread(() =>
-            {
-                IsImporting = false;
-                ConfirmImportCommand.NotifyCanExecuteChanged();
-            });
+            importTask.Fail(Strings.Status_ModpackImportFailed);
         }
     }
 
