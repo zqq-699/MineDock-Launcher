@@ -8,7 +8,7 @@
         <Border Style="{StaticResource SecondaryMenuPanelStyle}">
             <Grid>
                 <ScrollViewer behaviors:VerticalEdgeOpacityMask.IsEnabled="True"
-                              behaviors:VerticalEdgeOpacityMask.TopFadeLength="112"
+                              behaviors:VerticalEdgeOpacityMask.TopFadeLength="50"
                               behaviors:VerticalEdgeOpacityMask.BottomFadeLength="24"
                               behaviors:VerticalEdgeOpacityMask.MinimumOpacity="0">
                     <ScrollViewer.Style>
@@ -33,7 +33,7 @@
 
                 <ContentControl x:Name="DirectContentHost"
                                 behaviors:VerticalEdgeOpacityMask.IsEnabled="True"
-                                behaviors:VerticalEdgeOpacityMask.TopFadeLength="112"
+                                behaviors:VerticalEdgeOpacityMask.TopFadeLength="50"
                                 behaviors:VerticalEdgeOpacityMask.BottomFadeLength="24"
                                 behaviors:VerticalEdgeOpacityMask.MinimumOpacity="0">
                     <ContentControl.Style>

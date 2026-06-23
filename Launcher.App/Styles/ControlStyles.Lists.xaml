@@ -6,6 +6,7 @@
                     xmlns:converters="clr-namespace:Launcher.App.Converters"
                     xmlns:res="clr-namespace:Launcher.App.Resources">
     <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Resources/Themes/Shared.xaml" />
         <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Scroll.xaml" />
     </ResourceDictionary.MergedDictionaries>
 
@@ -292,6 +293,8 @@
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="Focusable" Value="False" />
+        <Setter Property="MaxWidth" Value="{StaticResource DetailPageContentMaxWidth}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
         <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
