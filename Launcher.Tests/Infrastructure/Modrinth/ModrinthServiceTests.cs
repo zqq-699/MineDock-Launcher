@@ -48,6 +48,56 @@ public sealed class ModrinthServiceTests
     }
 
     [Fact]
+    public async Task ModrinthServiceGetsFabricApiVersions()
+    {
+        var handler = new CaptureHandler("""
+            [
+              {"id":"fabric-api-new","project_id":"P7dR8mSH","name":"Fabric API 0.92.2","version_number":"0.92.2+1.20.2","version_type":"release","files":[{"filename":"fabric-api-new.jar","url":"https://cdn.modrinth.com/data/fabric-api-new.jar","primary":true}]},
+              {"id":"fabric-api-beta","project_id":"P7dR8mSH","name":"Fabric API 0.93.0-beta","version_number":"0.93.0-beta+1.20.2","version_type":"beta","files":[{"filename":"fabric-api-beta.jar","url":"https://cdn.modrinth.com/data/fabric-api-beta.jar","primary":true}]}
+            ]
+            """);
+        var service = new ModrinthService(new HttpClient(handler));
+
+        var versions = await service.GetFabricApiVersionsAsync("1.20.2");
+
+        Assert.Contains("/project/fabric-api/version", handler.LastRequest!.AbsoluteUri);
+        Assert.Contains("loaders=%5B%22fabric%22%5D", handler.LastRequest.Query);
+        Assert.Contains("game_versions=%5B%221.20.2%22%5D", handler.LastRequest.Query);
+        Assert.Equal(2, versions.Count);
+        Assert.Equal("fabric-api-new", versions[0].VersionId);
+        Assert.Equal("0.92.2+1.20.2", versions[0].VersionNumber);
+        Assert.True(versions[0].IsStable);
+        Assert.Equal("fabric-api-beta", versions[1].VersionId);
+        Assert.False(versions[1].IsStable);
+    }
+
+    [Fact]
+    public async Task ModrinthServiceInstallsSelectedFabricApiVersion()
+    {
+        var handler = new SequencedHandler(
+            """
+            {"id":"fabric-api-new","project_id":"P7dR8mSH","name":"Fabric API 0.92.2","version_number":"0.92.2+1.20.2","version_type":"release","files":[{"filename":"fabric-api-secondary.jar","url":"https://cdn.modrinth.com/data/fabric-api-secondary.jar","primary":false},{"filename":"fabric-api-primary.jar","url":"https://cdn.modrinth.com/data/fabric-api-primary.jar","primary":true}]}
+            """,
+            "fabric api bytes");
+        var service = new ModrinthService(new HttpClient(handler));
+        var instanceDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"));
+        var instance = new GameInstance
+        {
+            Name = "Fabric Pack",
+            MinecraftVersion = "1.20.2",
+            Loader = LoaderKind.Fabric,
+            InstanceDirectory = instanceDirectory
+        };
+
+        var path = await service.InstallFabricApiAsync(instance, "fabric-api-new", null);
+
+        Assert.Contains("/version/fabric-api-new", handler.RequestUris[0].AbsoluteUri);
+        Assert.Contains("fabric-api-primary.jar", handler.RequestUris[1].AbsoluteUri);
+        Assert.True(File.Exists(path));
+        Assert.Equal(Path.Combine(instanceDirectory, "mods", "fabric-api-primary.jar"), path);
+    }
+
+    [Fact]
     public async Task ModrinthServiceGetsQuiltStandardLibraryVersions()
     {
         var handler = new CaptureHandler("""

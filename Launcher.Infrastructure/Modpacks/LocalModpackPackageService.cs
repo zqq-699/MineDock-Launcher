@@ -1288,13 +1288,8 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             loaderEntries.Add((LoaderKind.Forge, forgeVersion));
         if (TryGetString(dependencies, "neoforge", out var neoForgeVersion))
             loaderEntries.Add((LoaderKind.NeoForge, neoForgeVersion));
-
-        if (TryGetString(dependencies, "quilt-loader", out _))
-        {
-            throw new ModpackImportException(
-                ModpackImportFailureReason.UnsupportedLoader,
-                "Quilt modpacks are not supported.");
-        }
+        if (TryGetString(dependencies, "quilt-loader", out var quiltVersion))
+            loaderEntries.Add((LoaderKind.Quilt, quiltVersion));
 
         return loaderEntries.Count switch
         {
@@ -1339,11 +1334,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         if (id.StartsWith("neoforge-", StringComparison.OrdinalIgnoreCase))
             return (LoaderKind.NeoForge, id["neoforge-".Length..]);
         if (id.StartsWith("quilt-", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ModpackImportException(
-                ModpackImportFailureReason.UnsupportedLoader,
-                $"Unsupported CurseForge loader: {id}");
-        }
+            return (LoaderKind.Quilt, id["quilt-".Length..]);
 
         throw new ModpackImportException(
             ModpackImportFailureReason.UnsupportedLoader,

@@ -16,6 +16,7 @@ public interface IGameInstanceService
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
         int downloadSpeedLimitMbPerSecond = 0,
         bool installFabricApi = true,
+        string? fabricApiVersionId = null,
         string? quiltStandardLibraryVersionId = null);
     Task SaveInstanceAsync(GameInstance instance, CancellationToken cancellationToken = default);
     Task<GameInstance> RenameInstanceAsync(string instanceId, string? newName, string? newIconSource, CancellationToken cancellationToken = default);

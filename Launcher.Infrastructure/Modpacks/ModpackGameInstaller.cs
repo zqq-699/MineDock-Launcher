@@ -98,6 +98,15 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 cancellationToken,
                 downloadSourcePreference,
                 downloadSpeedLimitMbPerSecond),
+            LoaderKind.Quilt => InstallQuiltInSandboxAsync(
+                minecraftVersion,
+                loaderVersion,
+                gameDirectory,
+                isolatedVersionName,
+                progress,
+                cancellationToken,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond),
             _ => InstallInstanceAsync(
                 minecraftVersion,
                 loader,
@@ -204,6 +213,56 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
             downloadSourcePreference,
             downloadSpeedLimitMbPerSecond,
             sandboxMinecraftDirectory => FabricVersionComposer.CreateFinalVersionAsync(
+                httpClient,
+                minecraftVersion,
+                selectedLoaderVersion,
+                isolatedVersionName,
+                sandboxMinecraftDirectory,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond,
+                downloadSpeedLimitState,
+                logger,
+            cancellationToken)).ConfigureAwait(false);
+    }
+
+    private async Task<string> InstallQuiltInSandboxAsync(
+        string minecraftVersion,
+        string? loaderVersion,
+        string gameDirectory,
+        string isolatedVersionName,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken,
+        DownloadSourcePreference downloadSourcePreference,
+        int downloadSpeedLimitMbPerSecond)
+    {
+        var selectedLoaderVersion = loaderVersion;
+        if (string.IsNullOrWhiteSpace(selectedLoaderVersion))
+        {
+            if (!providers.TryGetValue(LoaderKind.Quilt, out var provider))
+                throw new InvalidOperationException("Quilt loader provider is not available.");
+
+            selectedLoaderVersion = (await provider.GetLoaderVersionsAsync(
+                minecraftVersion,
+                downloadSourcePreference,
+                cancellationToken,
+                downloadSpeedLimitMbPerSecond).ConfigureAwait(false))
+                .FirstOrDefault()?
+                .Version;
+        }
+
+        if (string.IsNullOrWhiteSpace(selectedLoaderVersion))
+            throw new InvalidOperationException($"No Quilt loader version available for {minecraftVersion}.");
+
+        return await InstallComposedVersionInSandboxAsync(
+            "Quilt",
+            minecraftVersion,
+            gameDirectory,
+            isolatedVersionName,
+            progress,
+            cancellationToken,
+            downloadSourcePreference,
+            downloadSpeedLimitMbPerSecond,
+            sandboxMinecraftDirectory => QuiltVersionComposer.CreateFinalVersionAsync(
                 httpClient,
                 minecraftVersion,
                 selectedLoaderVersion,

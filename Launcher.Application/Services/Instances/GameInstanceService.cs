@@ -107,6 +107,7 @@ public sealed class GameInstanceService : IGameInstanceService
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
         int downloadSpeedLimitMbPerSecond = 0,
         bool installFabricApi = true,
+        string? fabricApiVersionId = null,
         string? quiltStandardLibraryVersionId = null)
     {
         if (!providers.TryGetValue(loader, out var provider) || !provider.IsImplemented)
@@ -172,8 +173,21 @@ public sealed class GameInstanceService : IGameInstanceService
                 UpdatedAt = now
             };
 
-            if (loader is LoaderKind.Fabric && installFabricApi && modrinthService is not null)
-                await modrinthService.InstallFabricApiAsync(instance, progress, cancellationToken).ConfigureAwait(false);
+            if (loader is LoaderKind.Fabric && installFabricApi && !string.IsNullOrWhiteSpace(fabricApiVersionId))
+            {
+                if (modrinthService is null)
+                    throw new InvalidOperationException("Modrinth service is required to install Fabric API.");
+
+                logger.LogInformation(
+                    "Installing Fabric API for game instance. InstanceId={InstanceId} VersionId={VersionId}",
+                    instance.Id,
+                    fabricApiVersionId);
+                await modrinthService.InstallFabricApiAsync(
+                    instance,
+                    fabricApiVersionId,
+                    progress,
+                    cancellationToken).ConfigureAwait(false);
+            }
 
             if (loader is LoaderKind.Quilt && !string.IsNullOrWhiteSpace(quiltStandardLibraryVersionId))
             {

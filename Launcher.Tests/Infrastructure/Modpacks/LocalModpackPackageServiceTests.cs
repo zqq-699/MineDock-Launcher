@@ -647,7 +647,7 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
                   "minecraft": {
                     "version": "1.20.1",
                     "modLoaders": [
-                      { "id": "quilt-0.26.0", "primary": true }
+                      { "id": "rift-1.0.0", "primary": true }
                     ]
                   },
                   "files": []
@@ -658,6 +658,44 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         var exception = await Assert.ThrowsAsync<ModpackImportException>(() => service.PrepareAsync(archivePath));
 
         Assert.Equal(ModpackImportFailureReason.UnsupportedLoader, exception.FailureReason);
+    }
+
+    [Fact]
+    public async Task PrepareAsyncParsesCurseForgeQuiltManifest()
+    {
+        var archivePath = Path.Combine(TempRoot, "curseforge-quilt.zip");
+        CreateArchive(
+            archivePath,
+            archive =>
+            {
+                AddEntry(
+                    archive,
+                    "manifest.json",
+                    """
+                    {
+                      "name": "Quilt Curse Pack",
+                      "minecraft": {
+                        "version": "1.20.2",
+                        "modLoaders": [
+                          { "id": "quilt-0.29.2", "primary": true }
+                        ]
+                      },
+                      "files": []
+                    }
+                    """);
+                AddEntry(archive, "overrides/config/quilt.txt", "quilt");
+            });
+        var service = CreateService();
+
+        var prepared = await service.PrepareAsync(archivePath);
+
+        Assert.Equal(ModpackPackageKind.CurseForge, prepared.PackageKind);
+        Assert.Equal("Quilt Curse Pack", prepared.PackageName);
+        Assert.Equal("1.20.2", prepared.MinecraftVersion);
+        Assert.Equal(LoaderKind.Quilt, prepared.Loader);
+        Assert.Equal("0.29.2", prepared.LoaderVersion);
+        Assert.NotNull(prepared.OverridesDirectory);
+        Assert.True(File.Exists(Path.Combine(prepared.OverridesDirectory!, "config", "quilt.txt")));
     }
 
     [Fact]
@@ -694,6 +732,42 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Equal("20.4.237", prepared.LoaderVersion);
         Assert.NotNull(prepared.OverridesDirectory);
         Assert.True(File.Exists(Path.Combine(prepared.OverridesDirectory!, "config", "neoforge-options.txt")));
+    }
+
+    [Fact]
+    public async Task PrepareAsyncParsesModrinthQuiltManifest()
+    {
+        var archivePath = Path.Combine(TempRoot, "quilt-pack.mrpack");
+        CreateArchive(
+            archivePath,
+            archive =>
+            {
+                AddEntry(
+                    archive,
+                    "modrinth.index.json",
+                    """
+                    {
+                      "name": "Quilt Pack",
+                      "dependencies": {
+                        "minecraft": "1.20.2",
+                        "quilt-loader": "0.29.2"
+                      },
+                      "files": []
+                    }
+                    """);
+                AddEntry(archive, "overrides/config/quilt-options.txt", "value=true");
+            });
+        var service = CreateService();
+
+        var prepared = await service.PrepareAsync(archivePath);
+
+        Assert.Equal(ModpackPackageKind.Modrinth, prepared.PackageKind);
+        Assert.Equal("Quilt Pack", prepared.PackageName);
+        Assert.Equal("1.20.2", prepared.MinecraftVersion);
+        Assert.Equal(LoaderKind.Quilt, prepared.Loader);
+        Assert.Equal("0.29.2", prepared.LoaderVersion);
+        Assert.NotNull(prepared.OverridesDirectory);
+        Assert.True(File.Exists(Path.Combine(prepared.OverridesDirectory!, "config", "quilt-options.txt")));
     }
 
     [Fact]

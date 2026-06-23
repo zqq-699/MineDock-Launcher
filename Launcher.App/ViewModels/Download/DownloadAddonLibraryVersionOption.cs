@@ -3,9 +3,9 @@ using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.Download;
 
-public sealed class DownloadQuiltLibraryVersionOption
+public sealed class DownloadAddonLibraryVersionOption
 {
-    public DownloadQuiltLibraryVersionOption(string title, string? versionId, string versionNumber, bool isInstallable, bool isLatest, bool isStable)
+    public DownloadAddonLibraryVersionOption(string title, string? versionId, string versionNumber, bool isInstallable, bool isLatest, bool isStable)
     {
         Title = title;
         VersionId = versionId;
@@ -30,25 +30,25 @@ public sealed class DownloadQuiltLibraryVersionOption
     public string TagText => !IsInstallable
         ? string.Empty
         : IsLatest
-            ? Strings.Download_QuiltLibraryLatestTag
+            ? Strings.Download_AddonLibraryLatestTag
             : IsStable
                 ? Strings.Download_LoaderVersionStableTag
                 : Strings.Download_LoaderVersionPreviewTag;
 
-    public static DownloadQuiltLibraryVersionOption None { get; } = new(
-        Strings.Download_QuiltLibraryNone,
+    public static DownloadAddonLibraryVersionOption None { get; } = new(
+        Strings.Download_AddonLibraryNone,
         null,
         string.Empty,
         isInstallable: false,
         isLatest: false,
         isStable: true);
 
-    public static DownloadQuiltLibraryVersionOption FromVersion(ModrinthVersionInfo version, bool isLatest)
+    public static DownloadAddonLibraryVersionOption FromVersion(ModrinthVersionInfo version, bool isLatest)
     {
         var title = string.IsNullOrWhiteSpace(version.VersionNumber)
             ? version.Name
             : version.VersionNumber;
-        return new DownloadQuiltLibraryVersionOption(
+        return new DownloadAddonLibraryVersionOption(
             title,
             version.VersionId,
             version.VersionNumber,

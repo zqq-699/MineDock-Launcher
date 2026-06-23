@@ -25,7 +25,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     private bool hasLoadedVersions;
     private int refreshRequestVersion;
     private int loaderVersionRequestVersion;
-    private int quiltLibraryVersionRequestVersion;
+    private int addonLibraryVersionRequestVersion;
     private int activeInstallCount;
     private long latestInstallSequence;
     private DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto;
@@ -73,13 +73,13 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     private string loaderVersionLoadError = string.Empty;
 
     [ObservableProperty]
-    private DownloadQuiltLibraryVersionOption? selectedQuiltLibraryVersion;
+    private DownloadAddonLibraryVersionOption? selectedAddonLibraryVersion;
 
     [ObservableProperty]
-    private bool isLoadingQuiltLibraryVersions;
+    private bool isLoadingAddonLibraryVersions;
 
     [ObservableProperty]
-    private string quiltLibraryVersionLoadError = string.Empty;
+    private string addonLibraryVersionLoadError = string.Empty;
 
     [ObservableProperty]
     private bool isInstalling;
@@ -181,13 +181,14 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             OnPropertyChanged(nameof(LoaderVersionPlaceholderText));
         };
 
-        QuiltLibraryVersions.CollectionChanged += (_, _) =>
+        AddonLibraryVersions.CollectionChanged += (_, _) =>
         {
-            OnPropertyChanged(nameof(HasQuiltLibraryVersions));
-            OnPropertyChanged(nameof(IsQuiltLibraryVersionSelectorEnabled));
-            OnPropertyChanged(nameof(QuiltLibraryVersionPlaceholderText));
+            OnPropertyChanged(nameof(HasAddonLibraryVersions));
+            OnPropertyChanged(nameof(IsAddonLibraryVersionSelectorEnabled));
+            OnPropertyChanged(nameof(AddonLibraryVersionPlaceholderText));
+            NotifyQuiltLibraryAliasPropertiesChanged();
         };
-        ClearQuiltLibraryVersionOptions();
+        ClearAddonLibraryVersionOptions();
 
         VersionCategories.Add(new DownloadVersionCategory("release", Strings.Download_ReleaseCategory, string.Empty, "instance_download_page/release"));
         VersionCategories.Add(new DownloadVersionCategory("snapshot", Strings.Download_SnapshotCategory, string.Empty, "instance_download_page/snapshot"));
@@ -218,7 +219,9 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 
     public ObservableCollection<LoaderVersionInfo> LoaderVersions { get; } = [];
 
-    public ObservableCollection<DownloadQuiltLibraryVersionOption> QuiltLibraryVersions { get; } = [];
+    public ObservableCollection<DownloadAddonLibraryVersionOption> AddonLibraryVersions { get; } = [];
+
+    public ObservableCollection<DownloadAddonLibraryVersionOption> QuiltLibraryVersions => AddonLibraryVersions;
 
     public List<DownloadMinecraftVersionItem> AllVersions { get; } = [];
 
@@ -262,21 +265,48 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 
     public bool ShouldShowLoaderVersionSelector => IsInstanceOptionsStep && RequiresLoaderVersionSelection(SelectedLoaderOption?.Kind);
 
-    public bool ShouldShowQuiltLibrarySelector => IsInstanceOptionsStep && SelectedLoaderOption?.Kind is LoaderKind.Quilt;
+    public bool ShouldShowAddonLibrarySelector => IsInstanceOptionsStep && SupportsAddonLibrarySelection(SelectedLoaderOption?.Kind);
 
-    public bool HasQuiltLibraryVersions => QuiltLibraryVersions.Count > 0;
+    public bool ShouldShowQuiltLibrarySelector => ShouldShowAddonLibrarySelector && SelectedLoaderOption?.Kind is LoaderKind.Quilt;
 
-    public bool HasQuiltLibraryVersionLoadError => !string.IsNullOrWhiteSpace(QuiltLibraryVersionLoadError);
+    public bool HasAddonLibraryVersions => AddonLibraryVersions.Count > 0;
 
-    public bool IsQuiltLibraryVersionSelectorEnabled => !IsLoadingQuiltLibraryVersions && HasQuiltLibraryVersions;
+    public bool HasQuiltLibraryVersions => HasAddonLibraryVersions;
 
-    public string QuiltLibraryVersionPlaceholderText => IsLoadingQuiltLibraryVersions
-        ? Strings.Download_QuiltLibraryLoading
-        : HasQuiltLibraryVersionLoadError
-            ? Strings.Download_QuiltLibraryLoadFailedShort
-            : !HasQuiltLibraryVersions
-                ? Strings.Download_QuiltLibraryEmpty
+    public bool HasAddonLibraryVersionLoadError => !string.IsNullOrWhiteSpace(AddonLibraryVersionLoadError);
+
+    public bool HasQuiltLibraryVersionLoadError => HasAddonLibraryVersionLoadError;
+
+    public bool IsAddonLibraryVersionSelectorEnabled => !IsLoadingAddonLibraryVersions && HasAddonLibraryVersions;
+
+    public bool IsQuiltLibraryVersionSelectorEnabled => IsAddonLibraryVersionSelectorEnabled;
+
+    public bool IsLoadingQuiltLibraryVersions => IsLoadingAddonLibraryVersions;
+
+    public string AddonLibraryLabelText => SelectedLoaderOption?.Kind switch
+    {
+        LoaderKind.Fabric => Strings.Download_FabricApiLabel,
+        LoaderKind.Quilt => Strings.Download_QuiltLibraryLabel,
+        _ => string.Empty
+    };
+
+    public string AddonLibraryVersionPlaceholderText => IsLoadingAddonLibraryVersions
+        ? Strings.Download_AddonLibraryLoading
+        : HasAddonLibraryVersionLoadError
+            ? Strings.Download_AddonLibraryLoadFailedShort
+            : !HasAddonLibraryVersions
+                ? Strings.Download_AddonLibraryEmpty
                 : string.Empty;
+
+    public string QuiltLibraryVersionPlaceholderText => AddonLibraryVersionPlaceholderText;
+
+    public DownloadAddonLibraryVersionOption? SelectedQuiltLibraryVersion
+    {
+        get => SelectedAddonLibraryVersion;
+        set => SelectedAddonLibraryVersion = value;
+    }
+
+    public string QuiltLibraryVersionLoadError => AddonLibraryVersionLoadError;
 
     public bool CanInstallSelectedVersion => CanInstall();
 
@@ -326,7 +356,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             && SelectedMinecraftVersion is not null)
         {
             _ = RefreshLoaderVersionsForSelectionAsync(SelectedLoaderOption);
-            _ = RefreshQuiltLibraryVersionsForSelectionAsync(SelectedLoaderOption);
+            _ = RefreshAddonLibraryVersionsForSelectionAsync(SelectedLoaderOption);
         }
     }
 
@@ -424,7 +454,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
             return;
 
         ResetLoaderVersionState();
-        ResetQuiltLibraryVersionState();
+        ResetAddonLibraryVersionState();
         SelectLoaderOptionCore(LoaderOptions.First(option => option.Kind is LoaderKind.Vanilla));
         ApplyAutoGeneratedInstanceName(force: true);
         await RefreshExistingInstanceNamesAsync(CancellationToken.None);
@@ -442,7 +472,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     {
         CurrentStep = DownloadPageStep.VersionList;
         ResetLoaderVersionState();
-        ResetQuiltLibraryVersionState();
+        ResetAddonLibraryVersionState();
         lastAutoGeneratedInstanceName = string.Empty;
         ClearSelectedVersion();
     }
@@ -477,8 +507,11 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         var instanceName = string.IsNullOrWhiteSpace(InstanceName) ? versionName : InstanceName.Trim();
         var selectedLoader = SelectedLoaderOption ?? LoaderOptions.First(option => option.Kind is LoaderKind.Vanilla);
         var loaderVersion = selectedLoader.Kind is LoaderKind.Vanilla ? null : SelectedLoaderVersion?.Version;
+        var fabricApiVersionId = selectedLoader.Kind is LoaderKind.Fabric
+            ? SelectedAddonLibraryVersion?.VersionId
+            : null;
         var quiltStandardLibraryVersionId = selectedLoader.Kind is LoaderKind.Quilt
-            ? SelectedQuiltLibraryVersion?.VersionId
+            ? SelectedAddonLibraryVersion?.VersionId
             : null;
         var loaderDisplayName = GetSelectedLoaderDisplayName();
         var installSequence = Interlocked.Increment(ref latestInstallSequence);
@@ -510,6 +543,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject
                 installTask.CancellationToken,
                 downloadSourcePreference: downloadSourcePreference,
                 downloadSpeedLimitMbPerSecond: downloadSpeedLimitMbPerSecond,
+                installFabricApi: fabricApiVersionId is not null,
+                fabricApiVersionId: fabricApiVersionId,
                 quiltStandardLibraryVersionId: quiltStandardLibraryVersionId);
 
             instanceNameTracker.RemovePending(instanceName);
@@ -563,7 +598,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         {
             LoaderKind.Vanilla => true,
             { } loaderKind when RequiresLoaderVersionSelection(loaderKind) => !IsLoadingLoaderVersions
-                && (loaderKind is not LoaderKind.Quilt || !IsLoadingQuiltLibraryVersions)
+                && (!SupportsAddonLibrarySelection(loaderKind) || !IsLoadingAddonLibraryVersions)
                 && string.IsNullOrWhiteSpace(LoaderVersionLoadError)
                 && SelectedLoaderVersion is not null,
             _ => false
@@ -583,11 +618,13 @@ public sealed partial class DownloadPageViewModel : ObservableObject
 
         OnPropertyChanged(nameof(HasNoLoaderVersions));
         OnPropertyChanged(nameof(ShouldShowLoaderVersionSelector));
+        OnPropertyChanged(nameof(ShouldShowAddonLibrarySelector));
         OnPropertyChanged(nameof(ShouldShowQuiltLibrarySelector));
+        OnPropertyChanged(nameof(AddonLibraryLabelText));
 
         ApplyAutoGeneratedInstanceName(force: false);
         _ = RefreshLoaderVersionsForSelectionAsync(value);
-        _ = RefreshQuiltLibraryVersionsForSelectionAsync(value);
+        _ = RefreshAddonLibraryVersionsForSelectionAsync(value);
         NotifyInstallStateChanged();
     }
 
@@ -597,8 +634,9 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         NotifyInstallStateChanged();
     }
 
-    partial void OnSelectedQuiltLibraryVersionChanged(DownloadQuiltLibraryVersionOption? value)
+    partial void OnSelectedAddonLibraryVersionChanged(DownloadAddonLibraryVersionOption? value)
     {
+        NotifyQuiltLibraryAliasPropertiesChanged();
         NotifyInstallStateChanged();
     }
 
@@ -611,6 +649,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         OnPropertyChanged(nameof(PageTitle));
         OnPropertyChanged(nameof(PageTitleIconSource));
         OnPropertyChanged(nameof(ShouldShowLoaderVersionSelector));
+        OnPropertyChanged(nameof(ShouldShowAddonLibrarySelector));
         OnPropertyChanged(nameof(ShouldShowQuiltLibrarySelector));
         NotifyInstallStateChanged();
     }
@@ -646,7 +685,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         if (value is null && CurrentStep is DownloadPageStep.InstanceOptions)
             CurrentStep = DownloadPageStep.VersionList;
         else if (CurrentStep is DownloadPageStep.InstanceOptions)
-            _ = RefreshQuiltLibraryVersionsForSelectionAsync(SelectedLoaderOption);
+            _ = RefreshAddonLibraryVersionsForSelectionAsync(SelectedLoaderOption);
     }
 
     partial void OnVisibleVersionsChanged(IReadOnlyList<DownloadMinecraftVersionItem> value)
@@ -701,17 +740,19 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         NotifyInstallStateChanged();
     }
 
-    partial void OnIsLoadingQuiltLibraryVersionsChanged(bool value)
+    partial void OnIsLoadingAddonLibraryVersionsChanged(bool value)
     {
-        OnPropertyChanged(nameof(IsQuiltLibraryVersionSelectorEnabled));
-        OnPropertyChanged(nameof(QuiltLibraryVersionPlaceholderText));
+        OnPropertyChanged(nameof(IsAddonLibraryVersionSelectorEnabled));
+        OnPropertyChanged(nameof(AddonLibraryVersionPlaceholderText));
+        NotifyQuiltLibraryAliasPropertiesChanged();
         NotifyInstallStateChanged();
     }
 
-    partial void OnQuiltLibraryVersionLoadErrorChanged(string value)
+    partial void OnAddonLibraryVersionLoadErrorChanged(string value)
     {
-        OnPropertyChanged(nameof(HasQuiltLibraryVersionLoadError));
-        OnPropertyChanged(nameof(QuiltLibraryVersionPlaceholderText));
+        OnPropertyChanged(nameof(HasAddonLibraryVersionLoadError));
+        OnPropertyChanged(nameof(AddonLibraryVersionPlaceholderText));
+        NotifyQuiltLibraryAliasPropertiesChanged();
     }
 
     private void RequestVisibleVersionsRefresh(bool defer)
@@ -835,6 +876,18 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         InstallCommand.NotifyCanExecuteChanged();
     }
 
+    private void NotifyQuiltLibraryAliasPropertiesChanged()
+    {
+        OnPropertyChanged(nameof(QuiltLibraryVersions));
+        OnPropertyChanged(nameof(SelectedQuiltLibraryVersion));
+        OnPropertyChanged(nameof(HasQuiltLibraryVersions));
+        OnPropertyChanged(nameof(HasQuiltLibraryVersionLoadError));
+        OnPropertyChanged(nameof(IsQuiltLibraryVersionSelectorEnabled));
+        OnPropertyChanged(nameof(IsLoadingQuiltLibraryVersions));
+        OnPropertyChanged(nameof(QuiltLibraryVersionPlaceholderText));
+        OnPropertyChanged(nameof(QuiltLibraryVersionLoadError));
+    }
+
     private void ReportInstallProgress(DownloadTaskItem installTask, LauncherProgress progress, long installSequence)
     {
         var displayProgress = CreateDisplayProgress(progress);
@@ -885,82 +938,103 @@ public sealed partial class DownloadPageViewModel : ObservableObject
         OnPropertyChanged(nameof(LoaderVersionPlaceholderText));
     }
 
-    private async Task RefreshQuiltLibraryVersionsForSelectionAsync(DownloadLoaderOption? loaderOption)
+    private async Task RefreshAddonLibraryVersionsForSelectionAsync(DownloadLoaderOption? loaderOption)
     {
-        if (loaderOption?.Kind is not LoaderKind.Quilt
+        if (!SupportsAddonLibrarySelection(loaderOption?.Kind)
             || SelectedMinecraftVersion is null
             || CurrentStep is not DownloadPageStep.InstanceOptions)
         {
-            ResetQuiltLibraryVersionState();
+            ResetAddonLibraryVersionState();
             return;
         }
 
-        var requestVersion = ++quiltLibraryVersionRequestVersion;
-        QuiltLibraryVersionLoadError = string.Empty;
-        IsLoadingQuiltLibraryVersions = true;
-        ClearQuiltLibraryVersionOptions();
+        var selectedLoaderOption = loaderOption!;
+        var requestVersion = ++addonLibraryVersionRequestVersion;
+        AddonLibraryVersionLoadError = string.Empty;
+        IsLoadingAddonLibraryVersions = true;
+        ClearAddonLibraryVersionOptions();
 
         if (modrinthService is null)
         {
-            IsLoadingQuiltLibraryVersions = false;
+            IsLoadingAddonLibraryVersions = false;
             return;
         }
 
         try
         {
-            var versions = await modrinthService.GetQuiltStandardLibraryVersionsAsync(SelectedMinecraftVersion.Name);
-            if (!IsQuiltLibraryVersionRequestCurrent(requestVersion, loaderOption))
+            var versions = await GetAddonLibraryVersionsAsync(selectedLoaderOption.Kind);
+            if (!IsAddonLibraryVersionRequestCurrent(requestVersion, selectedLoaderOption))
                 return;
 
-            ClearQuiltLibraryVersionOptions();
+            ClearAddonLibraryVersionOptions();
             if (versions.Count > 0)
             {
-                QuiltLibraryVersions.Add(DownloadQuiltLibraryVersionOption.None);
+                AddonLibraryVersions.Add(DownloadAddonLibraryVersionOption.None);
                 var isLatest = true;
                 foreach (var version in versions)
                 {
-                    QuiltLibraryVersions.Add(DownloadQuiltLibraryVersionOption.FromVersion(version, isLatest));
+                    AddonLibraryVersions.Add(DownloadAddonLibraryVersionOption.FromVersion(version, isLatest));
                     isLatest = false;
                 }
             }
 
-            SelectedQuiltLibraryVersion = QuiltLibraryVersions.FirstOrDefault(option => option.IsInstallable)
-                ?? QuiltLibraryVersions.FirstOrDefault();
+            SelectedAddonLibraryVersion = AddonLibraryVersions.FirstOrDefault(option => option.IsInstallable)
+                ?? AddonLibraryVersions.FirstOrDefault();
         }
         catch (Exception)
         {
-            if (!IsQuiltLibraryVersionRequestCurrent(requestVersion, loaderOption))
+            if (!IsAddonLibraryVersionRequestCurrent(requestVersion, selectedLoaderOption))
                 return;
 
-            ClearQuiltLibraryVersionOptions();
-            QuiltLibraryVersionLoadError = Strings.Status_QuiltLibraryVersionsLoadFailed;
+            ClearAddonLibraryVersionOptions();
+            AddonLibraryVersionLoadError = GetAddonLibraryVersionLoadFailedMessage(selectedLoaderOption.Kind);
         }
         finally
         {
-            if (IsQuiltLibraryVersionRequestCurrent(requestVersion, loaderOption))
-                IsLoadingQuiltLibraryVersions = false;
+            if (IsAddonLibraryVersionRequestCurrent(requestVersion, selectedLoaderOption))
+                IsLoadingAddonLibraryVersions = false;
         }
     }
 
-    private bool IsQuiltLibraryVersionRequestCurrent(int requestVersion, DownloadLoaderOption loaderOption)
+    private Task<IReadOnlyList<ModrinthVersionInfo>> GetAddonLibraryVersionsAsync(LoaderKind loaderKind)
     {
-        return requestVersion == quiltLibraryVersionRequestVersion
+        return loaderKind switch
+        {
+            LoaderKind.Fabric => modrinthService!.GetFabricApiVersionsAsync(SelectedMinecraftVersion!.Name),
+            LoaderKind.Quilt => modrinthService!.GetQuiltStandardLibraryVersionsAsync(SelectedMinecraftVersion!.Name),
+            _ => Task.FromResult<IReadOnlyList<ModrinthVersionInfo>>([])
+        };
+    }
+
+    private static string GetAddonLibraryVersionLoadFailedMessage(LoaderKind loaderKind)
+    {
+        return loaderKind switch
+        {
+            LoaderKind.Fabric => Strings.Status_FabricApiVersionsLoadFailed,
+            LoaderKind.Quilt => Strings.Status_QuiltLibraryVersionsLoadFailed,
+            _ => string.Empty
+        };
+    }
+
+    private bool IsAddonLibraryVersionRequestCurrent(int requestVersion, DownloadLoaderOption loaderOption)
+    {
+        return requestVersion == addonLibraryVersionRequestVersion
             && ReferenceEquals(SelectedLoaderOption, loaderOption)
             && CurrentStep is DownloadPageStep.InstanceOptions;
     }
 
-    private void ResetQuiltLibraryVersionState()
+    private void ResetAddonLibraryVersionState()
     {
-        quiltLibraryVersionRequestVersion++;
-        IsLoadingQuiltLibraryVersions = false;
-        QuiltLibraryVersionLoadError = string.Empty;
-        ClearQuiltLibraryVersionOptions();
+        addonLibraryVersionRequestVersion++;
+        IsLoadingAddonLibraryVersions = false;
+        AddonLibraryVersionLoadError = string.Empty;
+        ClearAddonLibraryVersionOptions();
     }
 
-    private void ClearQuiltLibraryVersionOptions()
+    private void ClearAddonLibraryVersionOptions()
     {
-        QuiltLibraryVersions.Clear();
-        SelectedQuiltLibraryVersion = null;
+        AddonLibraryVersions.Clear();
+        SelectedAddonLibraryVersion = null;
     }
 
     private void ApplyAutoGeneratedInstanceName(bool force)
@@ -1035,6 +1109,11 @@ public sealed partial class DownloadPageViewModel : ObservableObject
     private static bool RequiresLoaderVersionSelection(LoaderKind? loaderKind)
     {
         return loaderKind is LoaderKind.Fabric or LoaderKind.Forge or LoaderKind.NeoForge or LoaderKind.Quilt;
+    }
+
+    private static bool SupportsAddonLibrarySelection(LoaderKind? loaderKind)
+    {
+        return loaderKind is LoaderKind.Fabric or LoaderKind.Quilt;
     }
 
     private void ClearSelectedVersion()

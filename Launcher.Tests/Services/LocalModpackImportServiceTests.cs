@@ -92,6 +92,34 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task LocalModpackImportCreatesQuiltInstance()
+    {
+        var instanceService = new FakeGameInstanceService();
+        var packageService = new FakeModpackPackageService(CreatePreparedModpack(
+            "Quilt Pack",
+            loader: LoaderKind.Quilt,
+            loaderVersion: "0.29.2",
+            minecraftVersion: "1.20.2"));
+        var installer = new FakeModpackGameInstaller();
+        var stagingService = new FakeModpackInstanceStagingService(TempRoot);
+        var service = new LocalModpackImportService(instanceService, packageService, installer, stagingService);
+
+        var result = await service.ImportFromArchiveAsync(Path.Combine(TempRoot, "quilt-pack.mrpack"), progress: null);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Quilt Pack", stagingService.LastResolvedInstanceName);
+        Assert.Equal(1, installer.InstallMinecraftBaseCallCount);
+        Assert.Equal(1, installer.InstallLoaderCallCount);
+        Assert.Equal(LoaderKind.Quilt, installer.LastLoader);
+        Assert.Equal("0.29.2", installer.LastLoaderVersion);
+        Assert.Equal("1.20.2", installer.LastMinecraftVersion);
+        Assert.Equal(1, stagingService.FinalizeCallCount);
+        Assert.Equal(1, packageService.CleanupCallCount);
+        Assert.False(Directory.Exists(packageService.PreparedModpack.WorkingDirectory));
+        Assert.Equal(LoaderKind.Quilt, result.ImportedInstance?.Loader);
+    }
+
+    [Fact]
     public async Task LocalModpackImportReturnsSuccessWithManualDownloadsWhenCurseForgeFilesAreSkipped()
     {
         var instanceService = new FakeGameInstanceService();
@@ -628,6 +656,12 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
 
         public int InstallLoaderCallCount { get; private set; }
 
+        public string? LastMinecraftVersion { get; private set; }
+
+        public LoaderKind? LastLoader { get; private set; }
+
+        public string? LastLoaderVersion { get; private set; }
+
         public LauncherProgress? BaseInstallProgressToReport { get; init; }
 
         public LauncherProgress? LoaderInstallProgressToReport { get; init; }
@@ -659,6 +693,9 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
             int downloadSpeedLimitMbPerSecond = 0)
         {
             InstallLoaderCallCount++;
+            LastMinecraftVersion = minecraftVersion;
+            LastLoader = loader;
+            LastLoaderVersion = loaderVersion;
             if (WriteVersionJsonDuringLoaderInstall)
                 WriteInstalledVersion(gameDirectory, isolatedVersionName, minecraftVersion);
 

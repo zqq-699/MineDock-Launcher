@@ -14,6 +14,7 @@ public sealed class ModrinthService : IModrinthService
 {
     private const string BaseUrl = "https://api.modrinth.com/v2";
     private const string FabricApiProjectSlug = "fabric-api";
+    private const string FabricApiProjectId = "P7dR8mSH";
     private const string FabricApiTitle = "Fabric API";
     private const string QuiltStandardLibraryProjectSlug = "qsl";
     private const string QuiltStandardLibraryProjectId = "qvIfYCYJ";
@@ -62,6 +63,28 @@ public sealed class ModrinthService : IModrinthService
         return projects;
     }
 
+    public async Task<IReadOnlyList<ModrinthVersionInfo>> GetFabricApiVersionsAsync(
+        string minecraftVersion,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogInformation(
+            "Loading Fabric API versions. MinecraftVersion={MinecraftVersion}",
+            minecraftVersion);
+
+        var versions = await GetCompatibleVersionsAsync(
+            FabricApiProjectSlug,
+            minecraftVersion,
+            LoaderKind.Fabric,
+            cancellationToken);
+        var result = MapVersionInfos(versions);
+
+        logger.LogInformation(
+            "Loaded Fabric API versions. MinecraftVersion={MinecraftVersion} Count={Count}",
+            minecraftVersion,
+            result.Count);
+        return result;
+    }
+
     public async Task<IReadOnlyList<ModrinthVersionInfo>> GetQuiltStandardLibraryVersionsAsync(
         string minecraftVersion,
         CancellationToken cancellationToken = default)
@@ -75,16 +98,7 @@ public sealed class ModrinthService : IModrinthService
             minecraftVersion,
             LoaderKind.Quilt,
             cancellationToken);
-        var result = versions
-            .Where(version => !string.IsNullOrWhiteSpace(version.Id) && version.Files.Count > 0)
-            .Select(version => new ModrinthVersionInfo
-            {
-                VersionId = version.Id,
-                Name = string.IsNullOrWhiteSpace(version.Name) ? version.VersionNumber : version.Name,
-                VersionNumber = version.VersionNumber,
-                IsStable = string.Equals(version.VersionType, "release", StringComparison.OrdinalIgnoreCase)
-            })
-            .ToList();
+        var result = MapVersionInfos(versions);
 
         logger.LogInformation(
             "Loaded Quilt standard library versions. MinecraftVersion={MinecraftVersion} Count={Count}",
@@ -118,6 +132,40 @@ public sealed class ModrinthService : IModrinthService
                 Slug = FabricApiProjectSlug,
                 Title = FabricApiTitle
             },
+            instance,
+            progress,
+            cancellationToken);
+    }
+
+    public async Task<string> InstallFabricApiAsync(
+        GameInstance instance,
+        string versionId,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(versionId))
+            throw new InvalidOperationException("Fabric API version id is required.");
+
+        logger.LogInformation(
+            "Installing Fabric API. VersionId={VersionId} MinecraftVersion={MinecraftVersion} InstanceId={InstanceId}",
+            versionId,
+            instance.MinecraftVersion,
+            instance.Id);
+        var version = await httpClient.GetFromJsonAsync<ModrinthVersion>(
+            $"{BaseUrl}/version/{Uri.EscapeDataString(versionId)}",
+            cancellationToken)
+            ?? throw new InvalidOperationException($"Modrinth version metadata is empty: {versionId}");
+
+        if (!string.Equals(version.ProjectId, FabricApiProjectId, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(version.ProjectId, FabricApiProjectSlug, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Modrinth version is not a Fabric API version: {versionId}");
+        }
+
+        return await InstallVersionFileAsync(
+            FabricApiProjectSlug,
+            FabricApiTitle,
+            version,
             instance,
             progress,
             cancellationToken);
@@ -175,6 +223,20 @@ public sealed class ModrinthService : IModrinthService
     {
         var versionsUrl = $"{BaseUrl}/project/{Uri.EscapeDataString(projectIdOrSlug)}/version?loaders={Uri.EscapeDataString(JsonSerializer.Serialize(new[] { loader }))}&game_versions={Uri.EscapeDataString(JsonSerializer.Serialize(new[] { minecraftVersion }))}";
         return await httpClient.GetFromJsonAsync<List<ModrinthVersion>>(versionsUrl, cancellationToken) ?? [];
+    }
+
+    private static List<ModrinthVersionInfo> MapVersionInfos(IEnumerable<ModrinthVersion> versions)
+    {
+        return versions
+            .Where(version => !string.IsNullOrWhiteSpace(version.Id) && version.Files.Count > 0)
+            .Select(version => new ModrinthVersionInfo
+            {
+                VersionId = version.Id,
+                Name = string.IsNullOrWhiteSpace(version.Name) ? version.VersionNumber : version.Name,
+                VersionNumber = version.VersionNumber,
+                IsStable = string.Equals(version.VersionType, "release", StringComparison.OrdinalIgnoreCase)
+            })
+            .ToList();
     }
 
     private async Task<string> InstallVersionFileAsync(

@@ -17,6 +17,7 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public DownloadSourcePreference LastDownloadSourcePreference { get; private set; } = DownloadSourcePreference.Auto;
     public int LastDownloadSpeedLimitMbPerSecond { get; private set; }
     public bool LastInstallFabricApi { get; private set; } = true;
+    public string? LastFabricApiVersionId { get; private set; }
     public string? LastQuiltStandardLibraryVersionId { get; private set; }
     public string? LastDefaultInstanceId { get; private set; }
     public string? LastDeletedInstanceId { get; private set; }
@@ -57,6 +58,7 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
         int downloadSpeedLimitMbPerSecond = 0,
         bool installFabricApi = true,
+        string? fabricApiVersionId = null,
         string? quiltStandardLibraryVersionId = null)
     {
         LastMinecraftVersion = minecraftVersion;
@@ -66,6 +68,7 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
         LastDownloadSourcePreference = downloadSourcePreference;
         LastDownloadSpeedLimitMbPerSecond = downloadSpeedLimitMbPerSecond;
         LastInstallFabricApi = installFabricApi;
+        LastFabricApiVersionId = fabricApiVersionId;
         LastQuiltStandardLibraryVersionId = quiltStandardLibraryVersionId;
         progress?.Report(InitialProgress ?? new LauncherProgress(InstallProgressStages.Preparing, string.Empty, 25));
         CreateStarted.TrySetResult(true);

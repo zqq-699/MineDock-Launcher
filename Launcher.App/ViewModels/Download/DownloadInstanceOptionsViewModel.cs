@@ -42,9 +42,17 @@ public sealed class DownloadInstanceOptionsViewModel : ObservableObject
         set => parent.SelectedLoaderVersion = value;
     }
 
-    public ObservableCollection<DownloadQuiltLibraryVersionOption> QuiltLibraryVersions => parent.QuiltLibraryVersions;
+    public ObservableCollection<DownloadAddonLibraryVersionOption> AddonLibraryVersions => parent.AddonLibraryVersions;
 
-    public DownloadQuiltLibraryVersionOption? SelectedQuiltLibraryVersion
+    public DownloadAddonLibraryVersionOption? SelectedAddonLibraryVersion
+    {
+        get => parent.SelectedAddonLibraryVersion;
+        set => parent.SelectedAddonLibraryVersion = value;
+    }
+
+    public ObservableCollection<DownloadAddonLibraryVersionOption> QuiltLibraryVersions => parent.QuiltLibraryVersions;
+
+    public DownloadAddonLibraryVersionOption? SelectedQuiltLibraryVersion
     {
         get => parent.SelectedQuiltLibraryVersion;
         set => parent.SelectedQuiltLibraryVersion = value;
@@ -55,6 +63,20 @@ public sealed class DownloadInstanceOptionsViewModel : ObservableObject
     public bool HasLoaderVersions => parent.HasLoaderVersions;
 
     public string LoaderVersionPlaceholderText => parent.LoaderVersionPlaceholderText;
+
+    public bool ShouldShowAddonLibrarySelector => parent.ShouldShowAddonLibrarySelector;
+
+    public string AddonLibraryLabelText => parent.AddonLibraryLabelText;
+
+    public bool IsLoadingAddonLibraryVersions => parent.IsLoadingAddonLibraryVersions;
+
+    public bool IsAddonLibraryVersionSelectorEnabled => parent.IsAddonLibraryVersionSelectorEnabled;
+
+    public string AddonLibraryVersionLoadError => parent.AddonLibraryVersionLoadError;
+
+    public bool HasAddonLibraryVersionLoadError => parent.HasAddonLibraryVersionLoadError;
+
+    public string AddonLibraryVersionPlaceholderText => parent.AddonLibraryVersionPlaceholderText;
 
     public bool ShouldShowQuiltLibrarySelector => parent.ShouldShowQuiltLibrarySelector;
 

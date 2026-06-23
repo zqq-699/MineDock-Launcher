@@ -12,8 +12,11 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
     public IReadOnlyList<LoaderVersionInfo> LoaderVersions { get; init; } = [new LoaderVersionInfo("fake")];
     public Exception? GetLoaderVersionsException { get; init; }
     public Task? WaitBeforeGetLoaderVersions { get; init; }
+    public int GetLoaderVersionsCallCount { get; private set; }
+    public string? LastMinecraftVersion { get; private set; }
     public string? LastGameDirectory { get; private set; }
     public string? LastIsolatedVersionName { get; private set; }
+    public string? LastLoaderVersion { get; private set; }
     public DownloadSourcePreference LastDownloadSourcePreference { get; private set; } = DownloadSourcePreference.Auto;
     public int LastDownloadSpeedLimitMbPerSecond { get; private set; }
     public TaskCompletionSource<bool> InstallStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -28,6 +31,8 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {
+        GetLoaderVersionsCallCount++;
+        LastMinecraftVersion = minecraftVersion;
         LastDownloadSourcePreference = downloadSourcePreference;
         LastDownloadSpeedLimitMbPerSecond = downloadSpeedLimitMbPerSecond;
         if (GetLoaderVersionsException is not null)
@@ -56,6 +61,8 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
     {
         LastGameDirectory = gameDirectory;
         LastIsolatedVersionName = isolatedVersionName;
+        LastMinecraftVersion = minecraftVersion;
+        LastLoaderVersion = loaderVersion;
         LastDownloadSourcePreference = downloadSourcePreference;
         LastDownloadSpeedLimitMbPerSecond = downloadSpeedLimitMbPerSecond;
         Interlocked.Increment(ref installCallCount);

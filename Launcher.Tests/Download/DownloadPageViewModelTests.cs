@@ -20,6 +20,7 @@ public sealed class DownloadPageViewModelTests
         Assert.Same(viewModel.VisibleVersions, viewModel.VersionList.VisibleVersions);
         Assert.Same(viewModel.LoaderOptions, viewModel.InstanceOptions.LoaderOptions);
         Assert.Same(viewModel.LoaderVersions, viewModel.InstanceOptions.LoaderVersions);
+        Assert.Same(viewModel.AddonLibraryVersions, viewModel.InstanceOptions.AddonLibraryVersions);
         Assert.Same(viewModel.QuiltLibraryVersions, viewModel.InstanceOptions.QuiltLibraryVersions);
     }
 
@@ -1183,6 +1184,192 @@ public sealed class DownloadPageViewModelTests
         Assert.Equal(LoaderKind.Fabric, instanceService.LastLoader);
         Assert.Equal("0.16.10", instanceService.LastLoaderVersion);
         Assert.Equal("1.20.2-fabric-0.16.10", instanceService.LastName);
+        Assert.Null(instanceService.LastFabricApiVersionId);
+    }
+
+    [Fact]
+    public async Task DownloadPageFabricLoadsApiVersionsAndSelectsLatest()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.2", "Release", false)
+        ]);
+        var modrinthService = new FakeModrinthService
+        {
+            FabricApiVersions =
+            [
+                new ModrinthVersionInfo
+                {
+                    VersionId = "fabric-api-new",
+                    Name = "Fabric API 0.92.2",
+                    VersionNumber = "0.92.2+1.20.2",
+                    IsStable = true
+                },
+                new ModrinthVersionInfo
+                {
+                    VersionId = "fabric-api-old",
+                    Name = "Fabric API 0.91.0",
+                    VersionNumber = "0.91.0+1.20.2",
+                    IsStable = false
+                }
+            ]
+        };
+        var viewModel = CreateDownloadPageViewModel(service, modrinthService: modrinthService);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Fabric));
+
+        await TestAsync.WaitForAsync(() => viewModel.SelectedAddonLibraryVersion?.VersionId == "fabric-api-new");
+
+        Assert.True(viewModel.ShouldShowAddonLibrarySelector);
+        Assert.Equal(Strings.Download_FabricApiLabel, viewModel.AddonLibraryLabelText);
+        Assert.Equal("1.20.2", modrinthService.LastFabricApiMinecraftVersion);
+        Assert.Equal(Strings.Download_AddonLibraryNone, viewModel.AddonLibraryVersions[0].Title);
+        Assert.False(viewModel.AddonLibraryVersions[0].IsInstallable);
+        Assert.Equal("fabric-api-new", viewModel.AddonLibraryVersions[1].VersionId);
+        Assert.True(viewModel.AddonLibraryVersions[1].IsLatest);
+        Assert.Equal("fabric-api-new", viewModel.SelectedAddonLibraryVersion?.VersionId);
+    }
+
+    [Fact]
+    public async Task DownloadPageFabricApiVersionLoadFailureDoesNotBlockInstall()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.2", "Release", false)
+        ]);
+        var instanceService = new FakeGameInstanceService();
+        var modrinthService = new FakeModrinthService
+        {
+            GetFabricApiVersionsException = new InvalidOperationException("boom")
+        };
+        var viewModel = CreateDownloadPageViewModel(service, instanceService, modrinthService: modrinthService);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Fabric));
+
+        await TestAsync.WaitForAsync(() => viewModel.HasAddonLibraryVersionLoadError);
+        await TestAsync.WaitForAsync(() => viewModel.HasLoaderVersions);
+        viewModel.SelectedLoaderVersion = viewModel.LoaderVersions.Single(version => version.Version == "0.16.10");
+
+        Assert.Empty(viewModel.AddonLibraryVersions);
+        Assert.Null(viewModel.SelectedAddonLibraryVersion);
+        Assert.Equal(Strings.Download_AddonLibraryLoadFailedShort, viewModel.AddonLibraryVersionPlaceholderText);
+        Assert.True(viewModel.InstallCommand.CanExecute(null));
+
+        await viewModel.InstallCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_FabricApiVersionsLoadFailed, viewModel.AddonLibraryVersionLoadError);
+        Assert.False(instanceService.LastInstallFabricApi);
+        Assert.Null(instanceService.LastFabricApiVersionId);
+    }
+
+    [Fact]
+    public async Task DownloadPageFabricApiEmptyVersionsDoNotShowNoneOption()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.2", "Release", false)
+        ]);
+        var instanceService = new FakeGameInstanceService();
+        var modrinthService = new FakeModrinthService
+        {
+            FabricApiVersions = []
+        };
+        var viewModel = CreateDownloadPageViewModel(service, instanceService, modrinthService: modrinthService);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Fabric));
+
+        await TestAsync.WaitForAsync(() => modrinthService.GetFabricApiVersionsCallCount > 0 && !viewModel.IsLoadingAddonLibraryVersions);
+        await TestAsync.WaitForAsync(() => viewModel.HasLoaderVersions);
+        viewModel.SelectedLoaderVersion = viewModel.LoaderVersions.Single(version => version.Version == "0.16.10");
+
+        Assert.Empty(viewModel.AddonLibraryVersions);
+        Assert.Null(viewModel.SelectedAddonLibraryVersion);
+        Assert.Equal(Strings.Download_AddonLibraryEmpty, viewModel.AddonLibraryVersionPlaceholderText);
+        Assert.True(viewModel.InstallCommand.CanExecute(null));
+
+        await viewModel.InstallCommand.ExecuteAsync(null);
+
+        Assert.False(instanceService.LastInstallFabricApi);
+        Assert.Null(instanceService.LastFabricApiVersionId);
+    }
+
+    [Fact]
+    public async Task DownloadPageFabricInstallPassesSelectedApiVersion()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.2", "Release", false)
+        ]);
+        var instanceService = new FakeGameInstanceService();
+        var modrinthService = new FakeModrinthService
+        {
+            FabricApiVersions =
+            [
+                new ModrinthVersionInfo
+                {
+                    VersionId = "fabric-api-new",
+                    Name = "Fabric API 0.92.2",
+                    VersionNumber = "0.92.2+1.20.2",
+                    IsStable = true
+                }
+            ]
+        };
+        var viewModel = CreateDownloadPageViewModel(service, instanceService, modrinthService: modrinthService);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Fabric));
+        await TestAsync.WaitForAsync(() => viewModel.SelectedAddonLibraryVersion?.VersionId == "fabric-api-new");
+        await TestAsync.WaitForAsync(() => viewModel.HasLoaderVersions);
+        viewModel.SelectedLoaderVersion = viewModel.LoaderVersions.Single(version => version.Version == "0.16.10");
+
+        await viewModel.InstallCommand.ExecuteAsync(null);
+
+        Assert.True(instanceService.LastInstallFabricApi);
+        Assert.Equal("fabric-api-new", instanceService.LastFabricApiVersionId);
+    }
+
+    [Fact]
+    public async Task DownloadPageFabricInstallPassesNoApiVersionWhenNoneIsSelected()
+    {
+        var service = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.2", "Release", false)
+        ]);
+        var instanceService = new FakeGameInstanceService();
+        var modrinthService = new FakeModrinthService
+        {
+            FabricApiVersions =
+            [
+                new ModrinthVersionInfo
+                {
+                    VersionId = "fabric-api-new",
+                    Name = "Fabric API 0.92.2",
+                    VersionNumber = "0.92.2+1.20.2",
+                    IsStable = true
+                }
+            ]
+        };
+        var viewModel = CreateDownloadPageViewModel(service, instanceService, modrinthService: modrinthService);
+
+        await viewModel.EnsureVersionsLoadedAsync();
+        await viewModel.SelectMinecraftVersionCommand.ExecuteAsync(viewModel.VisibleVersions.Single());
+        viewModel.SelectLoaderOptionCommand.Execute(viewModel.LoaderOptions.Single(option => option.Kind == LoaderKind.Fabric));
+        await TestAsync.WaitForAsync(() => viewModel.SelectedAddonLibraryVersion?.VersionId == "fabric-api-new");
+        await TestAsync.WaitForAsync(() => viewModel.HasLoaderVersions);
+        viewModel.SelectedLoaderVersion = viewModel.LoaderVersions.Single(version => version.Version == "0.16.10");
+        viewModel.SelectedAddonLibraryVersion = viewModel.AddonLibraryVersions[0];
+
+        await viewModel.InstallCommand.ExecuteAsync(null);
+
+        Assert.False(instanceService.LastInstallFabricApi);
+        Assert.Null(instanceService.LastFabricApiVersionId);
     }
 
     [Fact]
@@ -2046,6 +2233,10 @@ public sealed class DownloadPageViewModelTests
 
     private sealed class FakeModrinthService : IModrinthService
     {
+        public IReadOnlyList<ModrinthVersionInfo> FabricApiVersions { get; init; } = [];
+        public Exception? GetFabricApiVersionsException { get; init; }
+        public int GetFabricApiVersionsCallCount { get; private set; }
+        public string? LastFabricApiMinecraftVersion { get; private set; }
         public IReadOnlyList<ModrinthVersionInfo> QuiltStandardLibraryVersions { get; init; } = [];
         public Exception? GetQuiltStandardLibraryVersionsException { get; init; }
         public int GetQuiltStandardLibraryVersionsCallCount { get; private set; }
@@ -2058,6 +2249,19 @@ public sealed class DownloadPageViewModelTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<ModrinthProject>>([]);
+        }
+
+        public Task<IReadOnlyList<ModrinthVersionInfo>> GetFabricApiVersionsAsync(
+            string minecraftVersion,
+            CancellationToken cancellationToken = default)
+        {
+            GetFabricApiVersionsCallCount++;
+            LastFabricApiMinecraftVersion = minecraftVersion;
+
+            if (GetFabricApiVersionsException is not null)
+                return Task.FromException<IReadOnlyList<ModrinthVersionInfo>>(GetFabricApiVersionsException);
+
+            return Task.FromResult(FabricApiVersions);
         }
 
         public Task<IReadOnlyList<ModrinthVersionInfo>> GetQuiltStandardLibraryVersionsAsync(
@@ -2084,6 +2288,15 @@ public sealed class DownloadPageViewModelTests
 
         public Task<string> InstallFabricApiAsync(
             GameInstance instance,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<string> InstallFabricApiAsync(
+            GameInstance instance,
+            string versionId,
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default)
         {

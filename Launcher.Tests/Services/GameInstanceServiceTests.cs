@@ -36,30 +36,7 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task InstanceServiceAutomaticallyInstallsFabricApiForFabricInstances()
-    {
-        var settings = new LauncherSettings
-        {
-            DataDirectory = TempRoot,
-            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
-        };
-        var settingsService = new TestSettingsService(settings);
-        var repository = new JsonGameInstanceRepository(settingsService);
-        var provider = new FakeLoaderProvider { Kind = LoaderKind.Fabric };
-        var modrinthService = new FakeModrinthService();
-        var service = new GameInstanceService(settingsService, repository, [provider], modrinthService);
-
-        var instance = await service.CreateInstanceAsync("1.20.1", LoaderKind.Fabric, "0.16.10", "Fabric Pack", null);
-
-        Assert.Equal("Fabric Pack", instance.VersionName);
-        Assert.Equal(1, modrinthService.InstallFabricApiCallCount);
-        Assert.Equal(instance.InstanceDirectory, modrinthService.LastInstance?.InstanceDirectory);
-        Assert.Equal("1.20.1", modrinthService.LastInstance?.MinecraftVersion);
-        Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "fabric-api.jar")));
-    }
-
-    [Fact]
-    public async Task InstanceServiceCanSkipFabricApiInstallWhenRequested()
+    public async Task InstanceServiceInstallsFabricApiWhenVersionIsSelected()
     {
         var settings = new LauncherSettings
         {
@@ -78,11 +55,65 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
             "0.16.10",
             "Fabric Pack",
             null,
-            installFabricApi: false);
+            fabricApiVersionId: "fabric-api-new");
+
+        Assert.Equal("Fabric Pack", instance.VersionName);
+        Assert.Equal(1, modrinthService.InstallFabricApiCallCount);
+        Assert.Equal("fabric-api-new", modrinthService.LastFabricApiVersionId);
+        Assert.Equal(instance.InstanceDirectory, modrinthService.LastInstance?.InstanceDirectory);
+        Assert.Equal("1.20.1", modrinthService.LastInstance?.MinecraftVersion);
+        Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "fabric-api.jar")));
+    }
+
+    [Fact]
+    public async Task InstanceServiceSkipsFabricApiInstallWithoutVersionSelection()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var provider = new FakeLoaderProvider { Kind = LoaderKind.Fabric };
+        var modrinthService = new FakeModrinthService();
+        var service = new GameInstanceService(settingsService, repository, [provider], modrinthService);
+
+        var instance = await service.CreateInstanceAsync(
+            "1.20.1",
+            LoaderKind.Fabric,
+            "0.16.10",
+            "Fabric Pack",
+            null);
 
         Assert.Equal("Fabric Pack", instance.VersionName);
         Assert.Equal(0, modrinthService.InstallFabricApiCallCount);
         Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "fabric-api.jar")));
+    }
+
+    [Fact]
+    public async Task InstanceServiceDoesNotInstallFabricApiForOtherLoaders()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var provider = new FakeLoaderProvider { Kind = LoaderKind.Forge };
+        var modrinthService = new FakeModrinthService();
+        var service = new GameInstanceService(settingsService, repository, [provider], modrinthService);
+
+        await service.CreateInstanceAsync(
+            "1.20.1",
+            LoaderKind.Forge,
+            "47.4.20",
+            "Forge Pack",
+            null,
+            fabricApiVersionId: "fabric-api-new");
+
+        Assert.Equal(0, modrinthService.InstallFabricApiCallCount);
     }
 
     [Fact]
@@ -154,7 +185,13 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         var service = new GameInstanceService(settingsService, repository, [provider], modrinthService);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => service.CreateInstanceAsync("1.20.1", LoaderKind.Fabric, "0.16.10", "Fabric Pack", null));
+            () => service.CreateInstanceAsync(
+                "1.20.1",
+                LoaderKind.Fabric,
+                "0.16.10",
+                "Fabric Pack",
+                null,
+                fabricApiVersionId: "fabric-api-new"));
 
         Assert.Empty(await repository.GetAllAsync());
         Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "Fabric Pack")));
@@ -1318,6 +1355,7 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         public int InstallFabricApiCallCount { get; private set; }
         public int InstallQuiltStandardLibraryCallCount { get; private set; }
         public GameInstance? LastInstance { get; private set; }
+        public string? LastFabricApiVersionId { get; private set; }
         public string? LastQuiltStandardLibraryVersionId { get; private set; }
         public Exception? InstallFabricApiException { get; init; }
         public Exception? InstallQuiltStandardLibraryException { get; init; }
@@ -1329,6 +1367,13 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<ModrinthProject>>([]);
+        }
+
+        public Task<IReadOnlyList<ModrinthVersionInfo>> GetFabricApiVersionsAsync(
+            string minecraftVersion,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<ModrinthVersionInfo>>([]);
         }
 
         public Task<IReadOnlyList<ModrinthVersionInfo>> GetQuiltStandardLibraryVersionsAsync(
@@ -1354,6 +1399,26 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         {
             InstallFabricApiCallCount++;
             LastInstance = instance;
+
+            if (InstallFabricApiException is not null)
+                throw InstallFabricApiException;
+
+            var modsDirectory = Path.Combine(instance.InstanceDirectory, "mods");
+            Directory.CreateDirectory(modsDirectory);
+            var target = Path.Combine(modsDirectory, "fabric-api.jar");
+            await File.WriteAllTextAsync(target, "fabric api", cancellationToken);
+            return target;
+        }
+
+        public async Task<string> InstallFabricApiAsync(
+            GameInstance instance,
+            string versionId,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default)
+        {
+            InstallFabricApiCallCount++;
+            LastInstance = instance;
+            LastFabricApiVersionId = versionId;
 
             if (InstallFabricApiException is not null)
                 throw InstallFabricApiException;

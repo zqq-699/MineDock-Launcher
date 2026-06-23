@@ -4067,6 +4067,7 @@ public sealed class GameSettingsPageViewModelTests
             DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
             int downloadSpeedLimitMbPerSecond = 0,
             bool installFabricApi = true,
+            string? fabricApiVersionId = null,
             string? quiltStandardLibraryVersionId = null)
         {
             throw exception;
