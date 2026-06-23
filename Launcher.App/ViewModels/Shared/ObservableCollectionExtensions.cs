@@ -10,5 +10,27 @@ internal static class ObservableCollectionExtensions
         foreach (var item in items)
             collection.Add(item);
     }
+
+    public static bool ReplaceWithIfChanged<T>(this ObservableCollection<T> collection, IReadOnlyList<T> items)
+    {
+        if (collection.Count == items.Count)
+        {
+            var isSame = true;
+            for (var index = 0; index < items.Count; index++)
+            {
+                if (!EqualityComparer<T>.Default.Equals(collection[index], items[index]))
+                {
+                    isSame = false;
+                    break;
+                }
+            }
+
+            if (isSame)
+                return false;
+        }
+
+        collection.ReplaceWith(items);
+        return true;
+    }
 }
 

@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using Launcher.App.Services;
 using Launcher.App.ViewModels.GameSettings;
 
@@ -65,9 +66,9 @@ public partial class GameSettingsDetailsView : UserControl
         if (e.PropertyName is nameof(GameSettingsDetailsViewModel.SelectedSection)
             && sender is GameSettingsDetailsViewModel viewModel)
         {
-            DetailsScrollViewer.ScrollToVerticalOffset(0);
-            DetailsScrollViewer.UpdateLayout();
-            SectionContentRoot.UpdateLayout();
+            Dispatcher.BeginInvoke(
+                () => DetailsScrollViewer.ScrollToVerticalOffset(0),
+                DispatcherPriority.Background);
             sectionTransitionService.MoveTo(viewModel.SelectedSection?.Id ?? SectionOrder[0]);
         }
     }

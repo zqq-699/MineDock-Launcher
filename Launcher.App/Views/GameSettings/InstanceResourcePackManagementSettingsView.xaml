@@ -156,6 +156,11 @@
                 </GroupBox.Header>
 
                 <Grid MinHeight="140">
+                    <TextBlock Margin="0,42,0,0"
+                               Text="{x:Static res:Strings.GameSettings_ResourcePackManagementLoading}"
+                               Style="{StaticResource PageEmptyStateTextStyle}"
+                               Visibility="{Binding CanShowResourcePackLoadingState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+
                     <ListBox ItemsSource="{Binding ResourcePacks}"
                              SelectedItem="{Binding SelectedResourcePack, Mode=OneWay}"
                              ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"

@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Shared;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -16,11 +17,18 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
     private readonly IFilePickerService filePickerService;
+    private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<InstanceModManagementSettingsViewModel> logger;
+    private readonly Dictionary<string, ModManagementModItemViewModel> allModsByPath = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> selectedModPaths = new(StringComparer.OrdinalIgnoreCase);
     private TaskCompletionSource<bool>? pendingImportConflictResolutionSource;
+    private Task? loadTask;
     private GameInstance? selectedInstance;
     private string? lastSingleSelectedModPath;
+    private bool hasPendingVisualRefresh;
+    private bool isVisibleRefreshQueued;
+    private bool isSectionActive;
+    private bool suppressLocalCollectionEvents;
 
     [ObservableProperty]
     private int installedModCount;
@@ -40,12 +48,19 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     [ObservableProperty]
     private int selectedModCount;
 
+    [ObservableProperty]
+    private bool isLoadingMods;
+
+    [ObservableProperty]
+    private bool hasLoadedMods;
+
     public InstanceModManagementSettingsViewModel(
         GameSettingsDetailsViewModel parent,
         LocalModsViewModel localModsViewModel,
         IStatusService statusService,
         IInstanceFolderService instanceFolderService,
         IFilePickerService filePickerService,
+        IUiDispatcher? uiDispatcher = null,
         ILogger<InstanceModManagementSettingsViewModel>? logger = null)
         : base(parent)
     {
@@ -53,6 +68,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
         this.filePickerService = filePickerService;
+        this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<InstanceModManagementSettingsViewModel>.Instance;
         this.localModsViewModel.ModsChanged += LocalModsViewModel_ModsChanged;
     }
@@ -70,13 +86,15 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
 
     public bool HasInstalledMods => InstalledModCount > 0;
 
-    public bool CanShowModListSection => IsModManagementSupported && HasInstalledMods;
+    public bool CanShowModListSection => IsModManagementSupported && (IsLoadingMods || HasInstalledMods);
 
-    public bool CanShowNoModsEmptyState => IsModManagementSupported && !HasInstalledMods;
+    public bool CanShowNoModsEmptyState => IsModManagementSupported && HasLoadedMods && !IsLoadingMods && !HasInstalledMods;
 
-    public bool CanShowModEmptyState => IsModManagementSupported && HasInstalledMods && !HasMods;
+    public bool CanShowModEmptyState => IsModManagementSupported && HasLoadedMods && !IsLoadingMods && HasInstalledMods && !HasMods;
 
     public bool CanShowModUnavailableState => !IsModManagementSupported;
+
+    public bool CanShowModLoadingState => IsModManagementSupported && IsLoadingMods && !HasLoadedMods;
 
     public bool HasSelectedMods => SelectedModCount > 0;
 
@@ -86,10 +104,12 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         ? Strings.GameSettings_ModManagementCancelSelectAllButton
         : Strings.GameSettings_ModManagementSelectAllButton;
 
-    public string InstalledSummaryText => string.Format(
-        Strings.GameSettings_ModManagementInstalledSummaryFormat,
-        InstalledModCount,
-        EnabledModCount);
+    public string InstalledSummaryText => IsLoadingMods && !HasLoadedMods
+        ? Strings.GameSettings_ModManagementLoading
+        : string.Format(
+            Strings.GameSettings_ModManagementInstalledSummaryFormat,
+            InstalledModCount,
+            EnabledModCount);
 
     public string ModEmptyMessage => !HasInstalledMods || string.IsNullOrWhiteSpace(ModSearchQuery)
         ? Strings.GameSettings_ModManagementEmptyMessage
@@ -97,25 +117,66 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
 
     public string ModUnavailableMessage => Strings.GameSettings_ModManagementUnavailableMessage;
 
-    public async Task SetSelectedInstanceAsync(GameInstance? instance)
+    public Task SetSelectedInstanceAsync(GameInstance? instance)
+    {
+        OnSelectedInstanceChanged(instance);
+        return EnsureLoadedForSelectedInstanceAsync();
+    }
+
+    public override void OnSelectedInstanceChanged(GameInstance? instance)
     {
         selectedInstance = instance;
-        ResetSelectionState();
-        RaiseAvailabilityPropertyChanges();
+        ResolvePendingImportConflict(false);
+        loadTask = null;
+        hasPendingVisualRefresh = false;
+        isVisibleRefreshQueued = false;
+        suppressLocalCollectionEvents = true;
         try
         {
-            await localModsViewModel.SetSelectedInstanceAsync(instance);
-            RefreshFromLocalMods();
+            localModsViewModel.SetSelectedInstance(instance);
+            localModsViewModel.SetWatcherEnabled(isSectionActive && IsModManagementSupported);
         }
-        catch (Exception)
+        finally
         {
-            Mods.Clear();
-            SelectedMod = null;
-            RefreshSummary();
-            OnPropertyChanged(nameof(HasMods));
-            RaiseAvailabilityPropertyChanges();
-            statusService.Report(Strings.Status_LoadLocalModsFailed);
+            suppressLocalCollectionEvents = false;
         }
+
+        IsLoadingMods = false;
+        HasLoadedMods = false;
+        allModsByPath.Clear();
+        ResetSelectionState();
+        ClearDisplayedMods();
+    }
+
+    public override void OnSectionDeactivated()
+    {
+        isSectionActive = false;
+        localModsViewModel.SetWatcherEnabled(false);
+    }
+
+    public override Task OnSectionActivatedAsync()
+    {
+        isSectionActive = true;
+        localModsViewModel.SetWatcherEnabled(IsModManagementSupported);
+        if (hasPendingVisualRefresh && HasLoadedMods)
+            QueueVisibleRefresh();
+
+        return EnsureLoadedForSelectedInstanceAsync();
+    }
+
+    public Task EnsureLoadedForSelectedInstanceAsync()
+    {
+        if (selectedInstance is null || !IsModManagementSupported)
+            return Task.CompletedTask;
+
+        if (loadTask is { IsCompleted: false })
+            return loadTask;
+
+        if (HasLoadedMods)
+            return Task.CompletedTask;
+
+        loadTask = LoadModsAsync();
+        return loadTask;
     }
 
     [RelayCommand]
@@ -559,35 +620,80 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         SelectAllModsCommand.NotifyCanExecuteChanged();
     }
 
+    private async Task LoadModsAsync()
+    {
+        if (selectedInstance is null || !IsModManagementSupported)
+            return;
+
+        IsLoadingMods = true;
+        OnPropertyChanged(nameof(InstalledSummaryText));
+        RaiseAvailabilityPropertyChanges();
+
+        try
+        {
+            await localModsViewModel.RefreshModsAsync();
+            HasLoadedMods = true;
+            if (!isSectionActive)
+                hasPendingVisualRefresh = true;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Failed to load mods for section activation. InstanceId={InstanceId}",
+                selectedInstance.Id);
+            HasLoadedMods = false;
+            ClearDisplayedMods();
+            statusService.Report(Strings.Status_LoadLocalModsFailed);
+        }
+        finally
+        {
+            IsLoadingMods = false;
+            loadTask = null;
+            OnPropertyChanged(nameof(InstalledSummaryText));
+            RaiseAvailabilityPropertyChanges();
+            OnPropertyChanged(nameof(ModEmptyMessage));
+        }
+    }
+
     private void RefreshSummary()
     {
-        InstalledModCount = localModsViewModel.Mods.Count;
-        EnabledModCount = localModsViewModel.Mods.Count(mod => mod.IsEnabled);
+        InstalledModCount = localModsViewModel.CurrentMods.Count;
+        EnabledModCount = localModsViewModel.CurrentMods.Count(mod => mod.IsEnabled);
     }
 
     private void LocalModsViewModel_ModsChanged(object? sender, EventArgs e)
     {
-        RefreshFromLocalMods();
+        if (suppressLocalCollectionEvents)
+            return;
+
+        if (!isSectionActive)
+        {
+            hasPendingVisualRefresh = true;
+            return;
+        }
+
+        QueueVisibleRefresh();
     }
 
     private void RefreshFromLocalMods()
     {
         var selectedFullPath = lastSingleSelectedModPath ?? SelectedMod?.FullPath;
-        var filteredMods = localModsViewModel.Mods.Where(MatchesSearch).ToArray();
+        var filteredMods = StableFilteredItemProjection.Synchronize(
+            localModsViewModel.CurrentMods,
+            allModsByPath,
+            mod => mod.FullPath,
+            mod => new ModManagementModItemViewModel(mod),
+            static (item, mod) => item.SyncFrom(mod),
+            MatchesSearch);
 
         if (IsMultiSelectMode)
             selectedModPaths.IntersectWith(filteredMods.Select(mod => mod.FullPath));
 
-        Mods.Clear();
-        foreach (var mod in filteredMods)
-        {
-            var item = new ModManagementModItemViewModel(mod)
-            {
-                IsSelected = IsMultiSelectMode
-                    && selectedModPaths.Contains(mod.FullPath)
-            };
-            Mods.Add(item);
-        }
+        foreach (var item in allModsByPath.Values)
+            item.IsSelected = IsMultiSelectMode && selectedModPaths.Contains(item.FullPath);
+
+        Mods.ReplaceWithIfChanged(filteredMods);
 
         RefreshSummary();
         OnPropertyChanged(nameof(HasMods));
@@ -607,6 +713,26 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         var restoredSelection = Mods.FirstOrDefault(mod =>
             string.Equals(mod.FullPath, selectedFullPath, StringComparison.OrdinalIgnoreCase));
         SelectMod(restoredSelection ?? Mods.FirstOrDefault());
+    }
+
+    private void QueueVisibleRefresh()
+    {
+        if (isVisibleRefreshQueued)
+            return;
+
+        isVisibleRefreshQueued = true;
+        uiDispatcher.Post(() =>
+        {
+            isVisibleRefreshQueued = false;
+            if (!isSectionActive)
+            {
+                hasPendingVisualRefresh = true;
+                return;
+            }
+
+            hasPendingVisualRefresh = false;
+            RefreshFromLocalMods();
+        });
     }
 
     private bool MatchesSearch(LocalMod mod)
@@ -642,6 +768,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         OnPropertyChanged(nameof(CanShowNoModsEmptyState));
         OnPropertyChanged(nameof(CanShowModEmptyState));
         OnPropertyChanged(nameof(CanShowModUnavailableState));
+        OnPropertyChanged(nameof(CanShowModLoadingState));
         OnPropertyChanged(nameof(ModUnavailableMessage));
     }
 
@@ -676,6 +803,21 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         SelectedModCount = 0;
     }
 
+    private void ClearDisplayedMods()
+    {
+        allModsByPath.Clear();
+        Mods.Clear();
+        SelectedMod = null;
+        RefreshSummary();
+        OnPropertyChanged(nameof(HasMods));
+        RaiseAvailabilityPropertyChanges();
+        OnPropertyChanged(nameof(ModEmptyMessage));
+        OnPropertyChanged(nameof(AreAllVisibleModsSelected));
+        OnPropertyChanged(nameof(SelectAllButtonText));
+        SelectAllModsCommand.NotifyCanExecuteChanged();
+        UpdateSelectedModState();
+    }
+
     private void ClearVisibleSelections()
     {
         foreach (var mod in Mods)
@@ -690,14 +832,14 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     private IReadOnlyList<LocalMod> ResolveLocalMods(IEnumerable<string> fullPaths)
     {
         var pathSet = new HashSet<string>(fullPaths, StringComparer.OrdinalIgnoreCase);
-        return localModsViewModel.Mods
+        return localModsViewModel.CurrentMods
             .Where(mod => pathSet.Contains(mod.FullPath))
             .ToArray();
     }
 
     private LocalMod? ResolveLocalMod(string fullPath)
     {
-        return localModsViewModel.Mods.FirstOrDefault(mod =>
+        return localModsViewModel.CurrentMods.FirstOrDefault(mod =>
             string.Equals(mod.FullPath, fullPath, StringComparison.OrdinalIgnoreCase));
     }
 

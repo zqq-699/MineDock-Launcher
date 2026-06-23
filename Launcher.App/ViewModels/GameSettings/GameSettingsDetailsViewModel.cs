@@ -432,10 +432,10 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             var javaSettingsMode = value?.Instance.JavaSettingsMode ?? LaunchSettingsMode.UseGlobal;
             SelectedInstanceJavaSettingsModeOption = ResolveLaunchSettingsModeOption(javaSettingsMode);
             ApplyJavaSettingsToEditor();
-            _ = ModManagement.SetSelectedInstanceAsync(value?.Instance);
-            _ = SaveManagement.SetSelectedInstanceAsync(value?.Instance);
-            _ = ResourcePackManagement.SetSelectedInstanceAsync(value?.Instance);
-            _ = ShaderPackManagement.SetSelectedInstanceAsync(value?.Instance);
+            ModManagement.OnSelectedInstanceChanged(value?.Instance);
+            SaveManagement.OnSelectedInstanceChanged(value?.Instance);
+            ResourcePackManagement.OnSelectedInstanceChanged(value?.Instance);
+            ShaderPackManagement.OnSelectedInstanceChanged(value?.Instance);
             _ = RefreshEnabledModCountAsync(value?.Instance);
 
             if (mode is LaunchSettingsMode.UseGlobal)
@@ -465,15 +465,20 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         RefreshSystemMemorySnapshot();
         if (IsJavaSection || InstanceJavaRuntimes.Count == 0)
             _ = InstanceJavaSettings.RefreshJavaRuntimesForDisplayAsync();
+
+        if (CurrentSectionViewModel is not null)
+            _ = CurrentSectionViewModel.OnSectionActivatedAsync();
     }
 
     partial void OnSelectedSectionChanged(GameSettingsDetailSectionItem? value)
     {
+        var previousSectionViewModel = CurrentSectionViewModel;
         OnPropertyChanged(nameof(IsGeneralSection));
         OnPropertyChanged(nameof(IsLaunchSection));
         OnPropertyChanged(nameof(IsJavaSection));
         OnPropertyChanged(nameof(SectionTitle));
         OnPropertyChanged(nameof(SectionPlaceholderBody));
+        previousSectionViewModel?.OnSectionDeactivated();
         CurrentSectionViewModel = value?.Id?.ToLowerInvariant() switch
         {
             "general" => General,
@@ -485,6 +490,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             "shaders" => ShaderPackManagement,
             _ => Placeholder
         };
+        if (CurrentSectionViewModel is not null)
+            _ = CurrentSectionViewModel.OnSectionActivatedAsync();
     }
 
     partial void OnSelectedLaunchSettingsModeOptionChanged(GameSettingsLaunchSettingsModeOption? value)

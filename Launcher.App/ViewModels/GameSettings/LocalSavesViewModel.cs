@@ -15,10 +15,13 @@ public sealed class LocalSavesViewModel : IDisposable
     private readonly IStatusService statusService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<LocalSavesViewModel> logger;
+    private CancellationTokenSource? refreshCancellationTokenSource;
     private FileSystemWatcher? savesWatcher;
     private CancellationTokenSource? watcherRefreshCancellationTokenSource;
     private GameInstance? selectedInstance;
+    private IReadOnlyList<LocalSave> currentSaves = Array.Empty<LocalSave>();
     private string? watchedSavesDirectory;
+    private bool watcherEnabled;
     private int saveRefreshVersion;
 
     public LocalSavesViewModel(
@@ -37,28 +40,42 @@ public sealed class LocalSavesViewModel : IDisposable
 
     public ObservableCollection<LocalSave> Saves { get; } = [];
 
-    public Task SetSelectedInstanceAsync(GameInstance? instance)
+    public IReadOnlyList<LocalSave> CurrentSaves => currentSaves;
+
+    public void SetSelectedInstance(GameInstance? instance)
     {
         selectedInstance = instance;
-        ResetWatcher(instance);
+        Interlocked.Increment(ref saveRefreshVersion);
+        CancelRefresh();
+        ResetWatcher();
+        ClearSaves();
         logger.LogInformation(
             "Selected instance changed for local saves view. InstanceId={InstanceId}",
             instance?.Id ?? "<none>");
+    }
+
+    public void SetWatcherEnabled(bool enabled)
+    {
+        watcherEnabled = enabled;
+        ResetWatcher();
+    }
+
+    public Task SetSelectedInstanceAsync(GameInstance? instance)
+    {
+        SetSelectedInstance(instance);
+        SetWatcherEnabled(true);
         return RefreshSavesAsync();
     }
 
     public async Task RefreshSavesAsync()
     {
         var refreshVersion = Interlocked.Increment(ref saveRefreshVersion);
+        var refreshCts = ReplaceRefreshCancellationTokenSource();
         var instance = selectedInstance;
 
         if (instance is null)
         {
-            uiDispatcher.Invoke(() =>
-            {
-                Saves.Clear();
-                SavesChanged?.Invoke(this, EventArgs.Empty);
-            });
+            ClearSaves();
             logger.LogInformation("Local saves view cleared because no instance is selected.");
             return;
         }
@@ -66,7 +83,11 @@ public sealed class LocalSavesViewModel : IDisposable
         IReadOnlyList<LocalSave> loadedSaves;
         try
         {
-            loadedSaves = await localSaveService.GetSavesAsync(instance);
+            loadedSaves = await localSaveService.GetSavesAsync(instance, refreshCts.Token);
+        }
+        catch (OperationCanceledException) when (refreshCts.IsCancellationRequested)
+        {
+            return;
         }
         catch (Exception exception)
         {
@@ -75,6 +96,10 @@ public sealed class LocalSavesViewModel : IDisposable
                 "Failed to load local saves. InstanceId={InstanceId}",
                 instance.Id);
             throw;
+        }
+        finally
+        {
+            ReleaseRefreshCancellationTokenSource(refreshCts);
         }
 
         if (refreshVersion != saveRefreshVersion
@@ -85,6 +110,7 @@ public sealed class LocalSavesViewModel : IDisposable
 
         uiDispatcher.Invoke(() =>
         {
+            currentSaves = loadedSaves;
             Saves.ReplaceWith(loadedSaves);
             SavesChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -158,12 +184,13 @@ public sealed class LocalSavesViewModel : IDisposable
     {
         savesWatcher?.Dispose();
         savesWatcher = null;
+        CancelRefresh();
         watcherRefreshCancellationTokenSource?.Cancel();
         watcherRefreshCancellationTokenSource?.Dispose();
         watcherRefreshCancellationTokenSource = null;
     }
 
-    private void ResetWatcher(GameInstance? instance)
+    private void ResetWatcher()
     {
         savesWatcher?.Dispose();
         savesWatcher = null;
@@ -172,6 +199,10 @@ public sealed class LocalSavesViewModel : IDisposable
         watcherRefreshCancellationTokenSource = null;
         watchedSavesDirectory = null;
 
+        if (!watcherEnabled)
+            return;
+
+        var instance = selectedInstance;
         if (instance is null || string.IsNullOrWhiteSpace(instance.InstanceDirectory))
             return;
 
@@ -280,5 +311,38 @@ public sealed class LocalSavesViewModel : IDisposable
     private void ReportStatus(string message)
     {
         statusService.Report(message);
+    }
+
+    private void ClearSaves()
+    {
+        uiDispatcher.Invoke(() =>
+        {
+            currentSaves = Array.Empty<LocalSave>();
+            Saves.Clear();
+            SavesChanged?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    private void CancelRefresh()
+    {
+        refreshCancellationTokenSource?.Cancel();
+        refreshCancellationTokenSource?.Dispose();
+        refreshCancellationTokenSource = null;
+    }
+
+    private CancellationTokenSource ReplaceRefreshCancellationTokenSource()
+    {
+        var next = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref refreshCancellationTokenSource, next);
+        previous?.Cancel();
+        previous?.Dispose();
+        return next;
+    }
+
+    private void ReleaseRefreshCancellationTokenSource(CancellationTokenSource refreshCts)
+    {
+        var current = Interlocked.CompareExchange(ref refreshCancellationTokenSource, null, refreshCts);
+        if (ReferenceEquals(current, refreshCts))
+            refreshCts.Dispose();
     }
 }

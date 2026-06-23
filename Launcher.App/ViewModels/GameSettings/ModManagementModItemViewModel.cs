@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using Launcher.App.Resources;
 using Launcher.Domain.Models;
 using System.IO;
@@ -9,23 +9,8 @@ public sealed partial class ModManagementModItemViewModel : ObservableObject
 {
     public ModManagementModItemViewModel(LocalMod mod)
     {
-        Title = string.IsNullOrWhiteSpace(mod.Name)
-            ? GetDisplayFileNameWithoutModExtensions(mod.FileName)
-            : mod.Name;
-        Loader = NormalizeSubtitlePart(mod.Loader);
-        ModId = NormalizeSubtitlePart(mod.ModId);
-        Version = NormalizeSubtitlePart(mod.Version);
-        FileName = mod.FileName;
-        FullPath = mod.FullPath;
-        IconSource = mod.IconSource;
-        IsEnabled = mod.IsEnabled;
+        SyncFrom(mod);
     }
-
-    public string Title { get; }
-
-    public string FileName { get; }
-
-    public string FullPath { get; }
 
     public string Subtitle
     {
@@ -44,23 +29,75 @@ public sealed partial class ModManagementModItemViewModel : ObservableObject
         ? Strings.GameSettings_ModManagementEnabledState
         : Strings.GameSettings_ModManagementDisabledState;
 
-    public string? IconSource { get; }
-
-    public string? Loader { get; }
-
-    public string? ModId { get; }
-
-    public string? Version { get; }
-
     public string IconKey => string.IsNullOrWhiteSpace(IconSource)
         ? "instance_setting_page/mod"
         : string.Empty;
+
+    [ObservableProperty]
+    private string title = string.Empty;
+
+    [ObservableProperty]
+    private string fileName = string.Empty;
+
+    [ObservableProperty]
+    private string fullPath = string.Empty;
+
+    [ObservableProperty]
+    private string? iconSource;
+
+    [ObservableProperty]
+    private string? loader;
+
+    [ObservableProperty]
+    private string? modId;
+
+    [ObservableProperty]
+    private string? version;
 
     [ObservableProperty]
     private bool isEnabled;
 
     [ObservableProperty]
     private bool isSelected;
+
+    public void SyncFrom(LocalMod mod)
+    {
+        Title = string.IsNullOrWhiteSpace(mod.Name)
+            ? GetDisplayFileNameWithoutModExtensions(mod.FileName)
+            : mod.Name;
+        Loader = NormalizeSubtitlePart(mod.Loader);
+        ModId = NormalizeSubtitlePart(mod.ModId);
+        Version = NormalizeSubtitlePart(mod.Version);
+        FileName = mod.FileName;
+        FullPath = mod.FullPath;
+        IconSource = mod.IconSource;
+        IsEnabled = mod.IsEnabled;
+    }
+
+    partial void OnFileNameChanged(string value)
+    {
+        OnPropertyChanged(nameof(Subtitle));
+    }
+
+    partial void OnIconSourceChanged(string? value)
+    {
+        OnPropertyChanged(nameof(IconKey));
+    }
+
+    partial void OnLoaderChanged(string? value)
+    {
+        OnPropertyChanged(nameof(Subtitle));
+    }
+
+    partial void OnModIdChanged(string? value)
+    {
+        OnPropertyChanged(nameof(Subtitle));
+    }
+
+    partial void OnVersionChanged(string? value)
+    {
+        OnPropertyChanged(nameof(Subtitle));
+    }
 
     partial void OnIsEnabledChanged(bool value)
     {

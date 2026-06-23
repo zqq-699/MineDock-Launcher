@@ -179,6 +179,11 @@
             </GroupBox.Header>
 
             <Grid MinHeight="140">
+                <TextBlock Margin="0,42,0,0"
+                           Text="{x:Static res:Strings.GameSettings_ModManagementLoading}"
+                           Style="{StaticResource PageEmptyStateTextStyle}"
+                           Visibility="{Binding CanShowModLoadingState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+
                 <ListBox ItemsSource="{Binding Mods}"
                          SelectedItem="{Binding SelectedMod, Mode=OneWay}"
                          ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"

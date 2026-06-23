@@ -15,10 +15,13 @@ public sealed class LocalShaderPacksViewModel : IDisposable
     private readonly IStatusService statusService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<LocalShaderPacksViewModel> logger;
+    private CancellationTokenSource? refreshCancellationTokenSource;
     private FileSystemWatcher? shaderPacksWatcher;
     private CancellationTokenSource? watcherRefreshCancellationTokenSource;
     private GameInstance? selectedInstance;
+    private IReadOnlyList<LocalShaderPack> currentShaderPacks = Array.Empty<LocalShaderPack>();
     private string? watchedShaderPacksDirectory;
+    private bool watcherEnabled;
     private int shaderPackRefreshVersion;
 
     public LocalShaderPacksViewModel(
@@ -37,28 +40,42 @@ public sealed class LocalShaderPacksViewModel : IDisposable
 
     public ObservableCollection<LocalShaderPack> ShaderPacks { get; } = [];
 
-    public Task SetSelectedInstanceAsync(GameInstance? instance)
+    public IReadOnlyList<LocalShaderPack> CurrentShaderPacks => currentShaderPacks;
+
+    public void SetSelectedInstance(GameInstance? instance)
     {
         selectedInstance = instance;
-        ResetWatcher(instance);
+        Interlocked.Increment(ref shaderPackRefreshVersion);
+        CancelRefresh();
+        ResetWatcher();
+        ClearShaderPacks();
         logger.LogInformation(
             "Selected instance changed for local shader packs view. InstanceId={InstanceId}",
             instance?.Id ?? "<none>");
+    }
+
+    public void SetWatcherEnabled(bool enabled)
+    {
+        watcherEnabled = enabled;
+        ResetWatcher();
+    }
+
+    public Task SetSelectedInstanceAsync(GameInstance? instance)
+    {
+        SetSelectedInstance(instance);
+        SetWatcherEnabled(true);
         return RefreshShaderPacksAsync();
     }
 
     public async Task RefreshShaderPacksAsync()
     {
         var refreshVersion = Interlocked.Increment(ref shaderPackRefreshVersion);
+        var refreshCts = ReplaceRefreshCancellationTokenSource();
         var instance = selectedInstance;
 
         if (instance is null)
         {
-            uiDispatcher.Invoke(() =>
-            {
-                ShaderPacks.Clear();
-                ShaderPacksChanged?.Invoke(this, EventArgs.Empty);
-            });
+            ClearShaderPacks();
             logger.LogInformation("Local shader packs view cleared because no instance is selected.");
             return;
         }
@@ -66,7 +83,11 @@ public sealed class LocalShaderPacksViewModel : IDisposable
         IReadOnlyList<LocalShaderPack> loadedShaderPacks;
         try
         {
-            loadedShaderPacks = await localShaderPackService.GetShaderPacksAsync(instance);
+            loadedShaderPacks = await localShaderPackService.GetShaderPacksAsync(instance, refreshCts.Token);
+        }
+        catch (OperationCanceledException) when (refreshCts.IsCancellationRequested)
+        {
+            return;
         }
         catch (Exception exception)
         {
@@ -75,6 +96,10 @@ public sealed class LocalShaderPacksViewModel : IDisposable
                 "Failed to load local shader packs. InstanceId={InstanceId}",
                 instance.Id);
             throw;
+        }
+        finally
+        {
+            ReleaseRefreshCancellationTokenSource(refreshCts);
         }
 
         if (refreshVersion != shaderPackRefreshVersion
@@ -85,6 +110,7 @@ public sealed class LocalShaderPacksViewModel : IDisposable
 
         uiDispatcher.Invoke(() =>
         {
+            currentShaderPacks = loadedShaderPacks;
             ShaderPacks.ReplaceWith(loadedShaderPacks);
             ShaderPacksChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -152,12 +178,13 @@ public sealed class LocalShaderPacksViewModel : IDisposable
     {
         shaderPacksWatcher?.Dispose();
         shaderPacksWatcher = null;
+        CancelRefresh();
         watcherRefreshCancellationTokenSource?.Cancel();
         watcherRefreshCancellationTokenSource?.Dispose();
         watcherRefreshCancellationTokenSource = null;
     }
 
-    private void ResetWatcher(GameInstance? instance)
+    private void ResetWatcher()
     {
         shaderPacksWatcher?.Dispose();
         shaderPacksWatcher = null;
@@ -166,6 +193,10 @@ public sealed class LocalShaderPacksViewModel : IDisposable
         watcherRefreshCancellationTokenSource = null;
         watchedShaderPacksDirectory = null;
 
+        if (!watcherEnabled)
+            return;
+
+        var instance = selectedInstance;
         if (instance is null || string.IsNullOrWhiteSpace(instance.InstanceDirectory))
             return;
 
@@ -274,5 +305,38 @@ public sealed class LocalShaderPacksViewModel : IDisposable
     private void ReportStatus(string message)
     {
         statusService.Report(message);
+    }
+
+    private void ClearShaderPacks()
+    {
+        uiDispatcher.Invoke(() =>
+        {
+            currentShaderPacks = Array.Empty<LocalShaderPack>();
+            ShaderPacks.Clear();
+            ShaderPacksChanged?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    private void CancelRefresh()
+    {
+        refreshCancellationTokenSource?.Cancel();
+        refreshCancellationTokenSource?.Dispose();
+        refreshCancellationTokenSource = null;
+    }
+
+    private CancellationTokenSource ReplaceRefreshCancellationTokenSource()
+    {
+        var next = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref refreshCancellationTokenSource, next);
+        previous?.Cancel();
+        previous?.Dispose();
+        return next;
+    }
+
+    private void ReleaseRefreshCancellationTokenSource(CancellationTokenSource refreshCts)
+    {
+        var current = Interlocked.CompareExchange(ref refreshCancellationTokenSource, null, refreshCts);
+        if (ReferenceEquals(current, refreshCts))
+            refreshCts.Dispose();
     }
 }

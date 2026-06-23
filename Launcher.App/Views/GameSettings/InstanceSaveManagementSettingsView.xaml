@@ -156,6 +156,11 @@
                 </GroupBox.Header>
 
                 <Grid MinHeight="140">
+                    <TextBlock Margin="0,42,0,0"
+                               Text="{x:Static res:Strings.GameSettings_SaveManagementLoading}"
+                               Style="{StaticResource PageEmptyStateTextStyle}"
+                               Visibility="{Binding CanShowSaveLoadingState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+
                     <ListBox ItemsSource="{Binding Saves}"
                              SelectedItem="{Binding SelectedSave, Mode=OneWay}"
                              ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"

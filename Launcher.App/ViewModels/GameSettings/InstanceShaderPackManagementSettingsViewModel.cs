@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Shared;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -16,10 +17,17 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
     private readonly IFilePickerService filePickerService;
+    private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<InstanceShaderPackManagementSettingsViewModel> logger;
+    private readonly Dictionary<string, ShaderPackManagementItemViewModel> allShaderPacksByPath = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> selectedShaderPackPaths = new(StringComparer.OrdinalIgnoreCase);
+    private Task? loadTask;
     private GameInstance? selectedInstance;
     private string? lastSingleSelectedShaderPackPath;
+    private bool hasPendingVisualRefresh;
+    private bool isVisibleRefreshQueued;
+    private bool isSectionActive;
+    private bool suppressLocalCollectionEvents;
 
     [ObservableProperty]
     private int installedShaderPackCount;
@@ -36,12 +44,19 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
     [ObservableProperty]
     private int selectedShaderPackCount;
 
+    [ObservableProperty]
+    private bool isLoadingShaderPacks;
+
+    [ObservableProperty]
+    private bool hasLoadedShaderPacks;
+
     public InstanceShaderPackManagementSettingsViewModel(
         GameSettingsDetailsViewModel parent,
         LocalShaderPacksViewModel localShaderPacksViewModel,
         IStatusService statusService,
         IInstanceFolderService instanceFolderService,
         IFilePickerService filePickerService,
+        IUiDispatcher? uiDispatcher = null,
         ILogger<InstanceShaderPackManagementSettingsViewModel>? logger = null)
         : base(parent)
     {
@@ -49,12 +64,12 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
         this.filePickerService = filePickerService;
+        this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<InstanceShaderPackManagementSettingsViewModel>.Instance;
         this.localShaderPacksViewModel.ShaderPacksChanged += LocalShaderPacksViewModel_ShaderPacksChanged;
     }
 
     public event Action<ShaderPackDeleteRequest>? DeleteShaderPacksRequested;
-
     public event Action<ShaderPackImportFailureRequest>? ShaderPackImportFailedRequested;
 
     public ObservableCollection<ShaderPackManagementItemViewModel> ShaderPacks { get; } = [];
@@ -65,11 +80,13 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
 
     public bool HasInstalledShaderPacks => InstalledShaderPackCount > 0;
 
-    public bool CanShowShaderPackListSection => selectedInstance is not null && HasInstalledShaderPacks;
+    public bool CanShowShaderPackListSection => selectedInstance is not null && (IsLoadingShaderPacks || HasInstalledShaderPacks);
 
-    public bool CanShowNoShaderPacksEmptyState => selectedInstance is not null && !HasInstalledShaderPacks;
+    public bool CanShowNoShaderPacksEmptyState => selectedInstance is not null && HasLoadedShaderPacks && !IsLoadingShaderPacks && !HasInstalledShaderPacks;
 
-    public bool CanShowShaderPackEmptyState => selectedInstance is not null && HasInstalledShaderPacks && !HasShaderPacks;
+    public bool CanShowShaderPackEmptyState => selectedInstance is not null && HasLoadedShaderPacks && !IsLoadingShaderPacks && HasInstalledShaderPacks && !HasShaderPacks;
+
+    public bool CanShowShaderPackLoadingState => selectedInstance is not null && IsLoadingShaderPacks && !HasLoadedShaderPacks;
 
     public bool HasSelectedShaderPacks => SelectedShaderPackCount > 0;
 
@@ -81,34 +98,76 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         ? Strings.GameSettings_ShaderPackManagementCancelSelectAllButton
         : Strings.GameSettings_ShaderPackManagementSelectAllButton;
 
-    public string InstalledSummaryText => string.Format(
-        Strings.GameSettings_ShaderPackManagementInstalledSummaryFormat,
-        InstalledShaderPackCount);
+    public string InstalledSummaryText => IsLoadingShaderPacks && !HasLoadedShaderPacks
+        ? Strings.GameSettings_ShaderPackManagementLoading
+        : string.Format(
+            Strings.GameSettings_ShaderPackManagementInstalledSummaryFormat,
+            InstalledShaderPackCount);
 
     public string ShaderPackEmptyMessage => !HasInstalledShaderPacks || string.IsNullOrWhiteSpace(ShaderPackSearchQuery)
         ? Strings.GameSettings_ShaderPackManagementEmptyMessage
         : Strings.GameSettings_ShaderPackManagementSearchEmptyMessage;
 
-    public async Task SetSelectedInstanceAsync(GameInstance? instance)
+    public Task SetSelectedInstanceAsync(GameInstance? instance)
+    {
+        OnSelectedInstanceChanged(instance);
+        return EnsureLoadedForSelectedInstanceAsync();
+    }
+
+    public override void OnSelectedInstanceChanged(GameInstance? instance)
     {
         selectedInstance = instance;
-        ResetSelectionState();
-        RaiseAvailabilityPropertyChanges();
-        ImportLocalShaderPackCommand.NotifyCanExecuteChanged();
+        loadTask = null;
+        hasPendingVisualRefresh = false;
+        isVisibleRefreshQueued = false;
+        suppressLocalCollectionEvents = true;
         try
         {
-            await localShaderPacksViewModel.SetSelectedInstanceAsync(instance);
-            RefreshFromLocalShaderPacks();
+            localShaderPacksViewModel.SetSelectedInstance(instance);
+            localShaderPacksViewModel.SetWatcherEnabled(isSectionActive && selectedInstance is not null);
         }
-        catch (Exception)
+        finally
         {
-            ShaderPacks.Clear();
-            SelectedShaderPack = null;
-            RefreshSummary();
-            OnPropertyChanged(nameof(HasShaderPacks));
-            RaiseAvailabilityPropertyChanges();
-            statusService.Report(Strings.Status_LoadLocalShaderPacksFailed);
+            suppressLocalCollectionEvents = false;
         }
+
+        IsLoadingShaderPacks = false;
+        HasLoadedShaderPacks = false;
+        allShaderPacksByPath.Clear();
+        ResetSelectionState();
+        ClearDisplayedShaderPacks();
+        ImportLocalShaderPackCommand.NotifyCanExecuteChanged();
+    }
+
+    public override void OnSectionDeactivated()
+    {
+        isSectionActive = false;
+        localShaderPacksViewModel.SetWatcherEnabled(false);
+    }
+
+    public override Task OnSectionActivatedAsync()
+    {
+        isSectionActive = true;
+        localShaderPacksViewModel.SetWatcherEnabled(selectedInstance is not null);
+        if (hasPendingVisualRefresh && HasLoadedShaderPacks)
+            QueueVisibleRefresh();
+
+        return EnsureLoadedForSelectedInstanceAsync();
+    }
+
+    public Task EnsureLoadedForSelectedInstanceAsync()
+    {
+        if (selectedInstance is null)
+            return Task.CompletedTask;
+
+        if (loadTask is { IsCompleted: false })
+            return loadTask;
+
+        if (HasLoadedShaderPacks)
+            return Task.CompletedTask;
+
+        loadTask = LoadShaderPacksAsync();
+        return loadTask;
     }
 
     [RelayCommand]
@@ -355,34 +414,79 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         SelectAllShaderPacksCommand.NotifyCanExecuteChanged();
     }
 
+    private async Task LoadShaderPacksAsync()
+    {
+        if (selectedInstance is null)
+            return;
+
+        IsLoadingShaderPacks = true;
+        OnPropertyChanged(nameof(InstalledSummaryText));
+        RaiseAvailabilityPropertyChanges();
+
+        try
+        {
+            await localShaderPacksViewModel.RefreshShaderPacksAsync();
+            HasLoadedShaderPacks = true;
+            if (!isSectionActive)
+                hasPendingVisualRefresh = true;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Failed to load shader packs for section activation. InstanceId={InstanceId}",
+                selectedInstance.Id);
+            HasLoadedShaderPacks = false;
+            ClearDisplayedShaderPacks();
+            statusService.Report(Strings.Status_LoadLocalShaderPacksFailed);
+        }
+        finally
+        {
+            IsLoadingShaderPacks = false;
+            loadTask = null;
+            OnPropertyChanged(nameof(InstalledSummaryText));
+            RaiseAvailabilityPropertyChanges();
+            OnPropertyChanged(nameof(ShaderPackEmptyMessage));
+        }
+    }
+
     private void RefreshSummary()
     {
-        InstalledShaderPackCount = localShaderPacksViewModel.ShaderPacks.Count;
+        InstalledShaderPackCount = localShaderPacksViewModel.CurrentShaderPacks.Count;
     }
 
     private void LocalShaderPacksViewModel_ShaderPacksChanged(object? sender, EventArgs e)
     {
-        RefreshFromLocalShaderPacks();
+        if (suppressLocalCollectionEvents)
+            return;
+
+        if (!isSectionActive)
+        {
+            hasPendingVisualRefresh = true;
+            return;
+        }
+
+        QueueVisibleRefresh();
     }
 
     private void RefreshFromLocalShaderPacks()
     {
         var selectedFullPath = lastSingleSelectedShaderPackPath ?? SelectedShaderPack?.FullPath;
-        var filteredShaderPacks = localShaderPacksViewModel.ShaderPacks.Where(MatchesSearch).ToArray();
+        var filteredShaderPacks = StableFilteredItemProjection.Synchronize(
+            localShaderPacksViewModel.CurrentShaderPacks,
+            allShaderPacksByPath,
+            shaderPack => shaderPack.FullPath,
+            shaderPack => new ShaderPackManagementItemViewModel(shaderPack),
+            static (item, shaderPack) => item.SyncFrom(shaderPack),
+            MatchesSearch);
 
         if (IsMultiSelectMode)
             selectedShaderPackPaths.IntersectWith(filteredShaderPacks.Select(shaderPack => shaderPack.FullPath));
 
-        ShaderPacks.Clear();
-        foreach (var shaderPack in filteredShaderPacks)
-        {
-            var item = new ShaderPackManagementItemViewModel(shaderPack)
-            {
-                IsSelected = IsMultiSelectMode
-                    && selectedShaderPackPaths.Contains(shaderPack.FullPath)
-            };
-            ShaderPacks.Add(item);
-        }
+        foreach (var item in allShaderPacksByPath.Values)
+            item.IsSelected = IsMultiSelectMode && selectedShaderPackPaths.Contains(item.FullPath);
+
+        ShaderPacks.ReplaceWithIfChanged(filteredShaderPacks);
 
         RefreshSummary();
         OnPropertyChanged(nameof(HasShaderPacks));
@@ -402,6 +506,26 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         var restoredSelection = ShaderPacks.FirstOrDefault(shaderPack =>
             string.Equals(shaderPack.FullPath, selectedFullPath, StringComparison.OrdinalIgnoreCase));
         SelectShaderPack(restoredSelection ?? ShaderPacks.FirstOrDefault());
+    }
+
+    private void QueueVisibleRefresh()
+    {
+        if (isVisibleRefreshQueued)
+            return;
+
+        isVisibleRefreshQueued = true;
+        uiDispatcher.Post(() =>
+        {
+            isVisibleRefreshQueued = false;
+            if (!isSectionActive)
+            {
+                hasPendingVisualRefresh = true;
+                return;
+            }
+
+            hasPendingVisualRefresh = false;
+            RefreshFromLocalShaderPacks();
+        });
     }
 
     private bool MatchesSearch(LocalShaderPack shaderPack)
@@ -432,6 +556,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         OnPropertyChanged(nameof(CanShowShaderPackListSection));
         OnPropertyChanged(nameof(CanShowNoShaderPacksEmptyState));
         OnPropertyChanged(nameof(CanShowShaderPackEmptyState));
+        OnPropertyChanged(nameof(CanShowShaderPackLoadingState));
     }
 
     private void EnterMultiSelectMode()
@@ -465,6 +590,21 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         SelectedShaderPackCount = 0;
     }
 
+    private void ClearDisplayedShaderPacks()
+    {
+        allShaderPacksByPath.Clear();
+        ShaderPacks.Clear();
+        SelectedShaderPack = null;
+        RefreshSummary();
+        OnPropertyChanged(nameof(HasShaderPacks));
+        RaiseAvailabilityPropertyChanges();
+        OnPropertyChanged(nameof(ShaderPackEmptyMessage));
+        OnPropertyChanged(nameof(AreAllVisibleShaderPacksSelected));
+        OnPropertyChanged(nameof(SelectAllButtonText));
+        SelectAllShaderPacksCommand.NotifyCanExecuteChanged();
+        UpdateSelectedShaderPackState();
+    }
+
     private void ClearVisibleSelections()
     {
         foreach (var shaderPack in ShaderPacks)
@@ -479,7 +619,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
     private IReadOnlyList<LocalShaderPack> ResolveLocalShaderPacks(IEnumerable<string> fullPaths)
     {
         var pathSet = new HashSet<string>(fullPaths, StringComparer.OrdinalIgnoreCase);
-        return localShaderPacksViewModel.ShaderPacks
+        return localShaderPacksViewModel.CurrentShaderPacks
             .Where(shaderPack => pathSet.Contains(shaderPack.FullPath))
             .ToArray();
     }

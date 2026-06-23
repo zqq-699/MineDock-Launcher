@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Shared;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -16,7 +17,9 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
     private readonly IFilePickerService filePickerService;
+    private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<InstanceSaveManagementSettingsViewModel> logger;
+    private readonly Dictionary<string, SaveManagementSaveItemViewModel> allSavesByPath = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> selectedSavePaths = new(StringComparer.OrdinalIgnoreCase);
     private static readonly string[] SupportedSaveArchiveExtensions =
     [
@@ -31,8 +34,13 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         ".tar.bz2",
         ".tbz2"
     ];
+    private Task? loadTask;
     private GameInstance? selectedInstance;
     private string? lastSingleSelectedSavePath;
+    private bool hasPendingVisualRefresh;
+    private bool isVisibleRefreshQueued;
+    private bool isSectionActive;
+    private bool suppressLocalCollectionEvents;
 
     [ObservableProperty]
     private int installedSaveCount;
@@ -49,12 +57,19 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     [ObservableProperty]
     private int selectedSaveCount;
 
+    [ObservableProperty]
+    private bool isLoadingSaves;
+
+    [ObservableProperty]
+    private bool hasLoadedSaves;
+
     public InstanceSaveManagementSettingsViewModel(
         GameSettingsDetailsViewModel parent,
         LocalSavesViewModel localSavesViewModel,
         IStatusService statusService,
         IInstanceFolderService instanceFolderService,
         IFilePickerService filePickerService,
+        IUiDispatcher? uiDispatcher = null,
         ILogger<InstanceSaveManagementSettingsViewModel>? logger = null)
         : base(parent)
     {
@@ -62,6 +77,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
         this.filePickerService = filePickerService;
+        this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<InstanceSaveManagementSettingsViewModel>.Instance;
         this.localSavesViewModel.SavesChanged += LocalSavesViewModel_SavesChanged;
     }
@@ -77,11 +93,13 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
 
     public bool HasInstalledSaves => InstalledSaveCount > 0;
 
-    public bool CanShowSaveListSection => selectedInstance is not null && HasInstalledSaves;
+    public bool CanShowSaveListSection => selectedInstance is not null && (IsLoadingSaves || HasInstalledSaves);
 
-    public bool CanShowNoSavesEmptyState => selectedInstance is not null && !HasInstalledSaves;
+    public bool CanShowNoSavesEmptyState => selectedInstance is not null && HasLoadedSaves && !IsLoadingSaves && !HasInstalledSaves;
 
-    public bool CanShowSaveEmptyState => selectedInstance is not null && HasInstalledSaves && !HasSaves;
+    public bool CanShowSaveEmptyState => selectedInstance is not null && HasLoadedSaves && !IsLoadingSaves && HasInstalledSaves && !HasSaves;
+
+    public bool CanShowSaveLoadingState => selectedInstance is not null && IsLoadingSaves && !HasLoadedSaves;
 
     public bool HasSelectedSaves => SelectedSaveCount > 0;
 
@@ -93,34 +111,76 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         ? Strings.GameSettings_SaveManagementCancelSelectAllButton
         : Strings.GameSettings_SaveManagementSelectAllButton;
 
-    public string InstalledSummaryText => string.Format(
-        Strings.GameSettings_SaveManagementInstalledSummaryFormat,
-        InstalledSaveCount);
+    public string InstalledSummaryText => IsLoadingSaves && !HasLoadedSaves
+        ? Strings.GameSettings_SaveManagementLoading
+        : string.Format(
+            Strings.GameSettings_SaveManagementInstalledSummaryFormat,
+            InstalledSaveCount);
 
     public string SaveEmptyMessage => !HasInstalledSaves || string.IsNullOrWhiteSpace(SaveSearchQuery)
         ? Strings.GameSettings_SaveManagementEmptyMessage
         : Strings.GameSettings_SaveManagementSearchEmptyMessage;
 
-    public async Task SetSelectedInstanceAsync(GameInstance? instance)
+    public Task SetSelectedInstanceAsync(GameInstance? instance)
+    {
+        OnSelectedInstanceChanged(instance);
+        return EnsureLoadedForSelectedInstanceAsync();
+    }
+
+    public override void OnSelectedInstanceChanged(GameInstance? instance)
     {
         selectedInstance = instance;
-        ResetSelectionState();
-        RaiseAvailabilityPropertyChanges();
-        ImportLocalSaveCommand.NotifyCanExecuteChanged();
+        loadTask = null;
+        hasPendingVisualRefresh = false;
+        isVisibleRefreshQueued = false;
+        suppressLocalCollectionEvents = true;
         try
         {
-            await localSavesViewModel.SetSelectedInstanceAsync(instance);
-            RefreshFromLocalSaves();
+            localSavesViewModel.SetSelectedInstance(instance);
+            localSavesViewModel.SetWatcherEnabled(isSectionActive && selectedInstance is not null);
         }
-        catch (Exception)
+        finally
         {
-            Saves.Clear();
-            SelectedSave = null;
-            RefreshSummary();
-            OnPropertyChanged(nameof(HasSaves));
-            RaiseAvailabilityPropertyChanges();
-            statusService.Report(Strings.Status_LoadLocalSavesFailed);
+            suppressLocalCollectionEvents = false;
         }
+
+        IsLoadingSaves = false;
+        HasLoadedSaves = false;
+        allSavesByPath.Clear();
+        ResetSelectionState();
+        ClearDisplayedSaves();
+        ImportLocalSaveCommand.NotifyCanExecuteChanged();
+    }
+
+    public override void OnSectionDeactivated()
+    {
+        isSectionActive = false;
+        localSavesViewModel.SetWatcherEnabled(false);
+    }
+
+    public override Task OnSectionActivatedAsync()
+    {
+        isSectionActive = true;
+        localSavesViewModel.SetWatcherEnabled(selectedInstance is not null);
+        if (hasPendingVisualRefresh && HasLoadedSaves)
+            QueueVisibleRefresh();
+
+        return EnsureLoadedForSelectedInstanceAsync();
+    }
+
+    public Task EnsureLoadedForSelectedInstanceAsync()
+    {
+        if (selectedInstance is null)
+            return Task.CompletedTask;
+
+        if (loadTask is { IsCompleted: false })
+            return loadTask;
+
+        if (HasLoadedSaves)
+            return Task.CompletedTask;
+
+        loadTask = LoadSavesAsync();
+        return loadTask;
     }
 
     [RelayCommand]
@@ -367,34 +427,79 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         SelectAllSavesCommand.NotifyCanExecuteChanged();
     }
 
+    private async Task LoadSavesAsync()
+    {
+        if (selectedInstance is null)
+            return;
+
+        IsLoadingSaves = true;
+        OnPropertyChanged(nameof(InstalledSummaryText));
+        RaiseAvailabilityPropertyChanges();
+
+        try
+        {
+            await localSavesViewModel.RefreshSavesAsync();
+            HasLoadedSaves = true;
+            if (!isSectionActive)
+                hasPendingVisualRefresh = true;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Failed to load saves for section activation. InstanceId={InstanceId}",
+                selectedInstance.Id);
+            HasLoadedSaves = false;
+            ClearDisplayedSaves();
+            statusService.Report(Strings.Status_LoadLocalSavesFailed);
+        }
+        finally
+        {
+            IsLoadingSaves = false;
+            loadTask = null;
+            OnPropertyChanged(nameof(InstalledSummaryText));
+            RaiseAvailabilityPropertyChanges();
+            OnPropertyChanged(nameof(SaveEmptyMessage));
+        }
+    }
+
     private void RefreshSummary()
     {
-        InstalledSaveCount = localSavesViewModel.Saves.Count;
+        InstalledSaveCount = localSavesViewModel.CurrentSaves.Count;
     }
 
     private void LocalSavesViewModel_SavesChanged(object? sender, EventArgs e)
     {
-        RefreshFromLocalSaves();
+        if (suppressLocalCollectionEvents)
+            return;
+
+        if (!isSectionActive)
+        {
+            hasPendingVisualRefresh = true;
+            return;
+        }
+
+        QueueVisibleRefresh();
     }
 
     private void RefreshFromLocalSaves()
     {
         var selectedFullPath = lastSingleSelectedSavePath ?? SelectedSave?.FullPath;
-        var filteredSaves = localSavesViewModel.Saves.Where(MatchesSearch).ToArray();
+        var filteredSaves = StableFilteredItemProjection.Synchronize(
+            localSavesViewModel.CurrentSaves,
+            allSavesByPath,
+            save => save.FullPath,
+            save => new SaveManagementSaveItemViewModel(save),
+            static (item, save) => item.SyncFrom(save),
+            MatchesSearch);
 
         if (IsMultiSelectMode)
             selectedSavePaths.IntersectWith(filteredSaves.Select(save => save.FullPath));
 
-        Saves.Clear();
-        foreach (var save in filteredSaves)
-        {
-            var item = new SaveManagementSaveItemViewModel(save)
-            {
-                IsSelected = IsMultiSelectMode
-                    && selectedSavePaths.Contains(save.FullPath)
-            };
-            Saves.Add(item);
-        }
+        foreach (var item in allSavesByPath.Values)
+            item.IsSelected = IsMultiSelectMode && selectedSavePaths.Contains(item.FullPath);
+
+        Saves.ReplaceWithIfChanged(filteredSaves);
 
         RefreshSummary();
         OnPropertyChanged(nameof(HasSaves));
@@ -414,6 +519,26 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         var restoredSelection = Saves.FirstOrDefault(save =>
             string.Equals(save.FullPath, selectedFullPath, StringComparison.OrdinalIgnoreCase));
         SelectSave(restoredSelection ?? Saves.FirstOrDefault());
+    }
+
+    private void QueueVisibleRefresh()
+    {
+        if (isVisibleRefreshQueued)
+            return;
+
+        isVisibleRefreshQueued = true;
+        uiDispatcher.Post(() =>
+        {
+            isVisibleRefreshQueued = false;
+            if (!isSectionActive)
+            {
+                hasPendingVisualRefresh = true;
+                return;
+            }
+
+            hasPendingVisualRefresh = false;
+            RefreshFromLocalSaves();
+        });
     }
 
     private bool MatchesSearch(LocalSave save)
@@ -444,6 +569,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         OnPropertyChanged(nameof(CanShowSaveListSection));
         OnPropertyChanged(nameof(CanShowNoSavesEmptyState));
         OnPropertyChanged(nameof(CanShowSaveEmptyState));
+        OnPropertyChanged(nameof(CanShowSaveLoadingState));
     }
 
     private void EnterMultiSelectMode()
@@ -477,6 +603,21 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         SelectedSaveCount = 0;
     }
 
+    private void ClearDisplayedSaves()
+    {
+        allSavesByPath.Clear();
+        Saves.Clear();
+        SelectedSave = null;
+        RefreshSummary();
+        OnPropertyChanged(nameof(HasSaves));
+        RaiseAvailabilityPropertyChanges();
+        OnPropertyChanged(nameof(SaveEmptyMessage));
+        OnPropertyChanged(nameof(AreAllVisibleSavesSelected));
+        OnPropertyChanged(nameof(SelectAllButtonText));
+        SelectAllSavesCommand.NotifyCanExecuteChanged();
+        UpdateSelectedSaveState();
+    }
+
     private void ClearVisibleSelections()
     {
         foreach (var save in Saves)
@@ -491,7 +632,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     private IReadOnlyList<LocalSave> ResolveLocalSaves(IEnumerable<string> fullPaths)
     {
         var pathSet = new HashSet<string>(fullPaths, StringComparer.OrdinalIgnoreCase);
-        return localSavesViewModel.Saves
+        return localSavesViewModel.CurrentSaves
             .Where(save => pathSet.Contains(save.FullPath))
             .ToArray();
     }

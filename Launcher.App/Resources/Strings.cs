@@ -181,6 +181,7 @@ public static class Strings
     public static string GameSettings_ModManagementDisableAllButton => Get(nameof(GameSettings_ModManagementDisableAllButton));
     public static string GameSettings_ModManagementModListSection => Get(nameof(GameSettings_ModManagementModListSection));
     public static string GameSettings_ModManagementEmptyMessage => Get(nameof(GameSettings_ModManagementEmptyMessage));
+    public static string GameSettings_ModManagementLoading => Get(nameof(GameSettings_ModManagementLoading));
     public static string GameSettings_ModManagementSearchEmptyMessage => Get(nameof(GameSettings_ModManagementSearchEmptyMessage));
     public static string GameSettings_ModManagementUnavailableMessage => Get(nameof(GameSettings_ModManagementUnavailableMessage));
     public static string GameSettings_ModManagementEnabledState => Get(nameof(GameSettings_ModManagementEnabledState));
@@ -197,6 +198,7 @@ public static class Strings
     public static string GameSettings_SaveManagementDeleteButton => Get(nameof(GameSettings_SaveManagementDeleteButton));
     public static string GameSettings_SaveManagementSaveListSection => Get(nameof(GameSettings_SaveManagementSaveListSection));
     public static string GameSettings_SaveManagementEmptyMessage => Get(nameof(GameSettings_SaveManagementEmptyMessage));
+    public static string GameSettings_SaveManagementLoading => Get(nameof(GameSettings_SaveManagementLoading));
     public static string GameSettings_SaveManagementSearchEmptyMessage => Get(nameof(GameSettings_SaveManagementSearchEmptyMessage));
     public static string GameSettings_ResourcePackManagementInfoSection => Get(nameof(GameSettings_ResourcePackManagementInfoSection));
     public static string GameSettings_ResourcePackManagementInstalledSummaryFormat => Get(nameof(GameSettings_ResourcePackManagementInstalledSummaryFormat));
@@ -210,6 +212,7 @@ public static class Strings
     public static string GameSettings_ResourcePackManagementDeleteButton => Get(nameof(GameSettings_ResourcePackManagementDeleteButton));
     public static string GameSettings_ResourcePackManagementListSection => Get(nameof(GameSettings_ResourcePackManagementListSection));
     public static string GameSettings_ResourcePackManagementEmptyMessage => Get(nameof(GameSettings_ResourcePackManagementEmptyMessage));
+    public static string GameSettings_ResourcePackManagementLoading => Get(nameof(GameSettings_ResourcePackManagementLoading));
     public static string GameSettings_ResourcePackManagementSearchEmptyMessage => Get(nameof(GameSettings_ResourcePackManagementSearchEmptyMessage));
     public static string GameSettings_ShaderPackManagementInfoSection => Get(nameof(GameSettings_ShaderPackManagementInfoSection));
     public static string GameSettings_ShaderPackManagementInstalledSummaryFormat => Get(nameof(GameSettings_ShaderPackManagementInstalledSummaryFormat));
@@ -223,6 +226,7 @@ public static class Strings
     public static string GameSettings_ShaderPackManagementDeleteButton => Get(nameof(GameSettings_ShaderPackManagementDeleteButton));
     public static string GameSettings_ShaderPackManagementListSection => Get(nameof(GameSettings_ShaderPackManagementListSection));
     public static string GameSettings_ShaderPackManagementEmptyMessage => Get(nameof(GameSettings_ShaderPackManagementEmptyMessage));
+    public static string GameSettings_ShaderPackManagementLoading => Get(nameof(GameSettings_ShaderPackManagementLoading));
     public static string GameSettings_ShaderPackManagementSearchEmptyMessage => Get(nameof(GameSettings_ShaderPackManagementSearchEmptyMessage));
     public static string GameSettings_DropImportModsMessage => Get(nameof(GameSettings_DropImportModsMessage));
     public static string GameSettings_DropImportSavesMessage => Get(nameof(GameSettings_DropImportSavesMessage));

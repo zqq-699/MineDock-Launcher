@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Launcher.Application;
 using Launcher.Application.Repositories;
 using Launcher.Application.Services;
@@ -14,6 +15,9 @@ namespace Launcher.Infrastructure.Persistence;
 public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly Regex NeoForgeVersionArgumentRegex = new(
+        "--fml\\.neoForgeVersion\\s+(?<version>[^\\s]+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private const string LauncherDirectoryName = LauncherApplicationIdentity.StorageDirectoryName;
     private const string InstanceSettingsFileName = "instance-settings.json";
     private readonly ISettingsService settingsService;
@@ -513,9 +517,11 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
                 GetStringProperty(root, "inheritsFrom"),
                 GetStringProperty(root, "jar"),
                 GetStringProperty(root, "type"),
+                GetStringProperty(root, "mainClass"),
                 LauncherVersionMetadata.ReadMinecraftVersion(root),
                 ReadAssetIndexMinecraftVersion(root),
                 libraryNames,
+                ReadArgumentText(root),
                 TryResolveMinecraftVersionFromLibraries(libraryNames));
         }
         catch (JsonException)
@@ -591,16 +597,30 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 
     private static LoaderInfo ResolveLoader(VersionJsonMetadata metadata)
     {
+        LoaderInfo? hintedLoader = null;
         foreach (var libraryName in metadata.LibraryNames)
         {
             var loader = ResolveLoaderFromLibraryName(libraryName);
             if (loader.Kind is not LoaderKind.Vanilla)
-                return loader;
+            {
+                if (!string.IsNullOrWhiteSpace(loader.Version))
+                    return loader;
+
+                hintedLoader ??= loader;
+            }
         }
 
-        return ResolveLoaderFromText(
-            $"{metadata.Id} {metadata.VersionName}",
+        var resolvedLoader = ResolveLoaderFromText(
+            $"{metadata.Id} {metadata.VersionName} {metadata.InheritsFrom} {metadata.Jar} {metadata.MainClass} {metadata.ArgumentText}",
             allowLooseMatch: true);
+
+        if (resolvedLoader.Kind is LoaderKind.Vanilla && hintedLoader is not null)
+            resolvedLoader = hintedLoader;
+
+        if (resolvedLoader.Kind is LoaderKind.NeoForge && string.IsNullOrWhiteSpace(resolvedLoader.Version))
+            return resolvedLoader with { Version = TryReadNeoForgeVersion(metadata.ArgumentText) };
+
+        return resolvedLoader;
     }
 
     private static LoaderInfo ResolveLoaderFromLibraryName(string value)
@@ -617,6 +637,12 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             && artifact.Equals("neoforge", StringComparison.OrdinalIgnoreCase))
         {
             return new LoaderInfo(LoaderKind.NeoForge, version);
+        }
+
+        if (group.Equals("net.neoforged.fancymodloader", StringComparison.OrdinalIgnoreCase)
+            && artifact.Equals("loader", StringComparison.OrdinalIgnoreCase))
+        {
+            return new LoaderInfo(LoaderKind.NeoForge, null);
         }
 
         if (group.Equals("org.quiltmc", StringComparison.OrdinalIgnoreCase)
@@ -689,6 +715,19 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         return parts[2];
     }
 
+    private static string? TryReadNeoForgeVersion(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var match = NeoForgeVersionArgumentRegex.Match(value);
+        if (!match.Success)
+            return null;
+
+        var version = match.Groups["version"].Value.Trim();
+        return string.IsNullOrWhiteSpace(version) ? null : version;
+    }
+
     private static string TryReadForgeVersion(string combinedVersion)
     {
         var separatorIndex = combinedVersion.IndexOf('-');
@@ -714,6 +753,42 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         }
 
         return names;
+    }
+
+    private static string ReadArgumentText(JsonElement root)
+    {
+        if (!root.TryGetProperty("arguments", out var arguments)
+            || arguments.ValueKind is not JsonValueKind.Object
+            || !arguments.TryGetProperty("game", out var gameArguments))
+        {
+            return GetStringProperty(root, "minecraftArguments");
+        }
+
+        var values = new List<string>();
+        AppendArgumentValues(gameArguments, values);
+        return values.Count == 0
+            ? GetStringProperty(root, "minecraftArguments")
+            : string.Join(' ', values);
+    }
+
+    private static void AppendArgumentValues(JsonElement element, List<string> values)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.String:
+                var value = element.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                    values.Add(value);
+                break;
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray())
+                    AppendArgumentValues(item, values);
+                break;
+            case JsonValueKind.Object:
+                if (element.TryGetProperty("value", out var nestedValue))
+                    AppendArgumentValues(nestedValue, values);
+                break;
+        }
     }
 
     private static string ReadAssetIndexMinecraftVersion(JsonElement root)
@@ -848,9 +923,11 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         string InheritsFrom,
         string Jar,
         string Type,
+        string MainClass,
         string LauncherMinecraftVersion,
         string AssetIndexId,
         IReadOnlyList<string> LibraryNames,
+        string ArgumentText,
         string? LibraryMinecraftVersion)
     {
         public string MinecraftVersion => FirstNonEmpty(

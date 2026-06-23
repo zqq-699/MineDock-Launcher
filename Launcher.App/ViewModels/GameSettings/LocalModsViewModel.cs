@@ -18,8 +18,11 @@ public sealed class LocalModsViewModel : IDisposable
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<LocalModsViewModel> logger;
     private FileSystemWatcher? modsWatcher;
+    private CancellationTokenSource? refreshCancellationTokenSource;
     private CancellationTokenSource? watcherRefreshCancellationTokenSource;
     private GameInstance? selectedInstance;
+    private IReadOnlyList<LocalMod> currentMods = Array.Empty<LocalMod>();
+    private bool watcherEnabled;
     private int modRefreshVersion;
 
     public LocalModsViewModel(
@@ -38,28 +41,42 @@ public sealed class LocalModsViewModel : IDisposable
 
     public ObservableCollection<LocalMod> Mods { get; } = [];
 
-    public Task SetSelectedInstanceAsync(GameInstance? instance)
+    public IReadOnlyList<LocalMod> CurrentMods => currentMods;
+
+    public void SetSelectedInstance(GameInstance? instance)
     {
         selectedInstance = instance;
-        ResetWatcher(instance);
+        Interlocked.Increment(ref modRefreshVersion);
+        CancelRefresh();
+        ResetWatcher();
+        ClearMods();
         logger.LogInformation(
             "Selected instance changed for local mods view. InstanceId={InstanceId}",
             instance?.Id ?? "<none>");
+    }
+
+    public void SetWatcherEnabled(bool enabled)
+    {
+        watcherEnabled = enabled;
+        ResetWatcher();
+    }
+
+    public Task SetSelectedInstanceAsync(GameInstance? instance)
+    {
+        SetSelectedInstance(instance);
+        SetWatcherEnabled(true);
         return RefreshModsAsync();
     }
 
     public async Task RefreshModsAsync()
     {
         var refreshVersion = Interlocked.Increment(ref modRefreshVersion);
+        var refreshCts = ReplaceRefreshCancellationTokenSource();
         var instance = selectedInstance;
 
         if (instance is null)
         {
-            uiDispatcher.Invoke(() =>
-            {
-                Mods.Clear();
-                ModsChanged?.Invoke(this, EventArgs.Empty);
-            });
+            ClearMods();
             logger.LogInformation("Local mods view cleared because no instance is selected.");
             return;
         }
@@ -67,7 +84,11 @@ public sealed class LocalModsViewModel : IDisposable
         IReadOnlyList<LocalMod> loadedMods;
         try
         {
-            loadedMods = await modService.GetModsAsync(instance);
+            loadedMods = await modService.GetModsAsync(instance, refreshCts.Token);
+        }
+        catch (OperationCanceledException) when (refreshCts.IsCancellationRequested)
+        {
+            return;
         }
         catch (Exception exception)
         {
@@ -76,6 +97,10 @@ public sealed class LocalModsViewModel : IDisposable
                 "Failed to load local mods. InstanceId={InstanceId}",
                 instance.Id);
             throw;
+        }
+        finally
+        {
+            ReleaseRefreshCancellationTokenSource(refreshCts);
         }
 
         if (refreshVersion != modRefreshVersion
@@ -86,6 +111,7 @@ public sealed class LocalModsViewModel : IDisposable
 
         uiDispatcher.Invoke(() =>
         {
+            currentMods = loadedMods;
             Mods.ReplaceWith(loadedMods);
             ModsChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -186,12 +212,13 @@ public sealed class LocalModsViewModel : IDisposable
     {
         modsWatcher?.Dispose();
         modsWatcher = null;
+        CancelRefresh();
         watcherRefreshCancellationTokenSource?.Cancel();
         watcherRefreshCancellationTokenSource?.Dispose();
         watcherRefreshCancellationTokenSource = null;
     }
 
-    private void ResetWatcher(GameInstance? instance)
+    private void ResetWatcher()
     {
         modsWatcher?.Dispose();
         modsWatcher = null;
@@ -199,6 +226,10 @@ public sealed class LocalModsViewModel : IDisposable
         watcherRefreshCancellationTokenSource?.Dispose();
         watcherRefreshCancellationTokenSource = null;
 
+        if (!watcherEnabled)
+            return;
+
+        var instance = selectedInstance;
         if (instance is null || string.IsNullOrWhiteSpace(instance.InstanceDirectory))
             return;
 
@@ -297,6 +328,39 @@ public sealed class LocalModsViewModel : IDisposable
     private void ReportStatus(string message)
     {
         statusService.Report(message);
+    }
+
+    private void ClearMods()
+    {
+        uiDispatcher.Invoke(() =>
+        {
+            currentMods = Array.Empty<LocalMod>();
+            Mods.Clear();
+            ModsChanged?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    private void CancelRefresh()
+    {
+        refreshCancellationTokenSource?.Cancel();
+        refreshCancellationTokenSource?.Dispose();
+        refreshCancellationTokenSource = null;
+    }
+
+    private CancellationTokenSource ReplaceRefreshCancellationTokenSource()
+    {
+        var next = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref refreshCancellationTokenSource, next);
+        previous?.Cancel();
+        previous?.Dispose();
+        return next;
+    }
+
+    private void ReleaseRefreshCancellationTokenSource(CancellationTokenSource refreshCts)
+    {
+        var current = Interlocked.CompareExchange(ref refreshCancellationTokenSource, null, refreshCts);
+        if (ReferenceEquals(current, refreshCts))
+            refreshCts.Dispose();
     }
 
     private static bool IsTrackedModPath(string? fullPath)

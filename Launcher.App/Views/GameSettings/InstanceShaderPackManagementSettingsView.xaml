@@ -156,6 +156,11 @@
                 </GroupBox.Header>
 
                 <Grid MinHeight="140">
+                    <TextBlock Margin="0,42,0,0"
+                               Text="{x:Static res:Strings.GameSettings_ShaderPackManagementLoading}"
+                               Style="{StaticResource PageEmptyStateTextStyle}"
+                               Visibility="{Binding CanShowShaderPackLoadingState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+
                     <ListBox ItemsSource="{Binding ShaderPacks}"
                              SelectedItem="{Binding SelectedShaderPack, Mode=OneWay}"
                              ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"

@@ -676,6 +676,49 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task InstanceServiceDetectsModernNeoForgeImportedModpackVersions()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(
+            settings.MinecraftDirectory,
+            "All of Create 1.21.1",
+            type: "release",
+            jar: "All of Create 1.21.1",
+            libraries:
+            [
+                "net.neoforged.fancymodloader:loader:4.0.42",
+                "net.neoforged:accesstransformers:10.0.1",
+                "cpw.mods:modlauncher:11.0.5"
+            ],
+            launcherMinecraftVersion: "1.21.1",
+            mainClass: "cpw.mods.bootstraplauncher.BootstrapLauncher",
+            gameArguments:
+            [
+                "--fml.neoForgeVersion",
+                "21.1.233",
+                "--fml.fmlVersion",
+                "4.0.42",
+                "--fml.mcVersion",
+                "1.21.1",
+                "--launchTarget",
+                "forgeclient"
+            ]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instance = (await service.GetInstancesAsync()).Single(item => item.VersionName == "All of Create 1.21.1");
+
+        Assert.Equal(LoaderKind.NeoForge, instance.Loader);
+        Assert.Equal("21.1.233", instance.LoaderVersion);
+        Assert.Equal("1.21.1", instance.MinecraftVersion);
+    }
+
+    [Fact]
     public async Task InstanceServiceInheritsVersionTypeFromParentVersion()
     {
         var settings = new LauncherSettings
@@ -1079,6 +1122,8 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         IReadOnlyList<string>? libraries = null,
         string? launcherMinecraftVersion = null,
         string? assetIndexId = null,
+        string? mainClass = null,
+        IReadOnlyList<string>? gameArguments = null,
         bool writeJar = true)
     {
         var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
@@ -1095,6 +1140,9 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         if (!string.IsNullOrWhiteSpace(inheritsFrom))
             versionJson["inheritsFrom"] = inheritsFrom;
 
+        if (!string.IsNullOrWhiteSpace(mainClass))
+            versionJson["mainClass"] = mainClass;
+
         if (libraries is { Count: > 0 })
         {
             var libraryArray = new JsonArray();
@@ -1102,6 +1150,18 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
                 libraryArray.Add(new JsonObject { ["name"] = library });
 
             versionJson["libraries"] = libraryArray;
+        }
+
+        if (gameArguments is { Count: > 0 })
+        {
+            var argumentArray = new JsonArray();
+            foreach (var argument in gameArguments)
+                argumentArray.Add(JsonValue.Create(argument));
+
+            versionJson["arguments"] = new JsonObject
+            {
+                ["game"] = argumentArray
+            };
         }
 
         if (!string.IsNullOrWhiteSpace(launcherMinecraftVersion))

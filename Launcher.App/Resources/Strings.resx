@@ -543,6 +543,7 @@
   <data name="Settings_AccentColorOrangeTitle" xml:space="preserve"><value>橙色 Orange</value></data>
   <data name="Settings_AccentColorAmberTitle" xml:space="preserve"><value>黄色 Amber</value></data>
   <data name="GameSettings_ModManagementEmptyMessage" xml:space="preserve"><value>当前没有可用mod</value></data>
+  <data name="GameSettings_ModManagementLoading" xml:space="preserve"><value>正在加载 Mods...</value></data>
   <data name="GameSettings_ModManagementSearchEmptyMessage" xml:space="preserve"><value>没有匹配的mod</value></data>
   <data name="Status_LoadLocalModsFailed" xml:space="preserve"><value>加载 Mod 列表失败，请稍后重试。</value></data>
   <data name="GameSettings_ModManagementMultiSelectButton" xml:space="preserve"><value>多选</value></data>
@@ -587,6 +588,7 @@
   <data name="GameSettings_SaveManagementDeleteButton" xml:space="preserve"><value>删除</value></data>
   <data name="GameSettings_SaveManagementSaveListSection" xml:space="preserve"><value>存档列表</value></data>
   <data name="GameSettings_SaveManagementEmptyMessage" xml:space="preserve"><value>当前没有可用存档</value></data>
+  <data name="GameSettings_SaveManagementLoading" xml:space="preserve"><value>正在加载存档...</value></data>
   <data name="GameSettings_SaveManagementSearchEmptyMessage" xml:space="preserve"><value>没有匹配的存档</value></data>
   <data name="Dialog_DeleteSavesTitle" xml:space="preserve"><value>删除存档</value></data>
   <data name="Dialog_DeleteSingleSaveMessageFormat" xml:space="preserve"><value>确认删除存档“{0}”吗？此操作不可撤销。</value></data>
@@ -623,6 +625,7 @@
   <data name="GameSettings_ResourcePackManagementCancelSelectAllButton" xml:space="preserve"><value>取消全选</value></data>
   <data name="GameSettings_ResourcePackManagementDeleteButton" xml:space="preserve"><value>删除</value></data>
   <data name="GameSettings_ResourcePackManagementEmptyMessage" xml:space="preserve"><value>当前没有可用资源包</value></data>
+  <data name="GameSettings_ResourcePackManagementLoading" xml:space="preserve"><value>正在加载资源包...</value></data>
   <data name="GameSettings_ResourcePackManagementInfoSection" xml:space="preserve"><value>资源包信息</value></data>
   <data name="GameSettings_ResourcePackManagementInstalledSummaryFormat" xml:space="preserve"><value>当前游戏有 {0} 个资源包</value></data>
   <data name="GameSettings_ResourcePackManagementListSection" xml:space="preserve"><value>资源包列表</value></data>
@@ -655,6 +658,7 @@
   <data name="GameSettings_ShaderPackManagementCancelSelectAllButton" xml:space="preserve"><value>取消全选</value></data>
   <data name="GameSettings_ShaderPackManagementDeleteButton" xml:space="preserve"><value>删除</value></data>
   <data name="GameSettings_ShaderPackManagementEmptyMessage" xml:space="preserve"><value>当前没有可用光影包</value></data>
+  <data name="GameSettings_ShaderPackManagementLoading" xml:space="preserve"><value>正在加载光影包...</value></data>
   <data name="GameSettings_ShaderPackManagementInfoSection" xml:space="preserve"><value>光影包信息</value></data>
   <data name="GameSettings_ShaderPackManagementInstalledSummaryFormat" xml:space="preserve"><value>当前游戏有 {0} 个光影包</value></data>
   <data name="GameSettings_ShaderPackManagementListSection" xml:space="preserve"><value>光影包列表</value></data>

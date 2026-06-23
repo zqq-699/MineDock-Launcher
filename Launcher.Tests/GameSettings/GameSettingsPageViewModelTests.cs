@@ -708,6 +708,37 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task SaveManagementSearchReusesVisibleItemViewModels()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var saveService = new FakeSaveService();
+        saveService.SavesByInstanceId[instance.Id] =
+        [
+            CreateLocalSave("Alpha Base", instance.InstanceDirectory),
+            CreateLocalSave("Beta Base", instance.InstanceDirectory)
+        ];
+        var viewModel = CreateViewModel([instance], saveService: saveService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var saveManagement = OpenSaveManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => saveManagement.Saves.Count == 2);
+
+        var alphaItem = saveManagement.Saves.Single(save => save.Title == "Alpha Base");
+
+        saveManagement.SaveSearchQuery = "Alpha";
+
+        Assert.Single(saveManagement.Saves);
+        Assert.Same(alphaItem, saveManagement.Saves.Single());
+        Assert.Same(alphaItem, saveManagement.SelectedSave);
+
+        saveManagement.SaveSearchQuery = string.Empty;
+
+        Assert.Equal(2, saveManagement.Saves.Count);
+        Assert.Same(alphaItem, saveManagement.Saves.Single(save => save.Title == "Alpha Base"));
+    }
+
+    [Fact]
     public async Task SaveManagementDeleteUsesConfirmationDialogBeforeRemovingSaves()
     {
         var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
@@ -1064,6 +1095,35 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task ResourcePackManagementSectionReentryReusesVisibleItemViewModelsWithoutReloading()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var resourcePackService = new FakeResourcePackService();
+        resourcePackService.ResourcePacksByInstanceId[instance.Id] =
+        [
+            CreateLocalResourcePack("Fresh Animations.zip", instance.InstanceDirectory),
+            CreateLocalResourcePack("Bare Bones.zip", instance.InstanceDirectory)
+        ];
+        var viewModel = CreateViewModel([instance], resourcePackService: resourcePackService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var resourcePackManagement = OpenResourcePackManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => resourcePackManagement.ResourcePacks.Count == 2);
+
+        var initialCallCount = resourcePackService.GetResourcePacksCallCount;
+        var firstItem = resourcePackManagement.ResourcePacks[0];
+        var secondItem = resourcePackManagement.ResourcePacks[1];
+
+        OpenShaderPackManagementSection(viewModel);
+        OpenResourcePackManagementSection(viewModel);
+
+        Assert.Equal(initialCallCount, resourcePackService.GetResourcePacksCallCount);
+        Assert.Same(firstItem, resourcePackManagement.ResourcePacks[0]);
+        Assert.Same(secondItem, resourcePackManagement.ResourcePacks[1]);
+    }
+
+    [Fact]
     public async Task ResourcePackManagementOpenFolderAndRevealUseResourcePackPaths()
     {
         var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
@@ -1260,6 +1320,35 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task ShaderPackManagementSectionReentryReusesVisibleItemViewModelsWithoutReloading()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var shaderPackService = new FakeShaderPackService();
+        shaderPackService.ShaderPacksByInstanceId[instance.Id] =
+        [
+            CreateLocalShaderPack("Complementary.zip", instance.InstanceDirectory),
+            CreateLocalShaderPack("BSL.zip", instance.InstanceDirectory)
+        ];
+        var viewModel = CreateViewModel([instance], shaderPackService: shaderPackService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var shaderPackManagement = OpenShaderPackManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => shaderPackManagement.ShaderPacks.Count == 2);
+
+        var initialCallCount = shaderPackService.GetShaderPacksCallCount;
+        var firstItem = shaderPackManagement.ShaderPacks[0];
+        var secondItem = shaderPackManagement.ShaderPacks[1];
+
+        OpenSaveManagementSection(viewModel);
+        OpenShaderPackManagementSection(viewModel);
+
+        Assert.Equal(initialCallCount, shaderPackService.GetShaderPacksCallCount);
+        Assert.Same(firstItem, shaderPackManagement.ShaderPacks[0]);
+        Assert.Same(secondItem, shaderPackManagement.ShaderPacks[1]);
+    }
+
+    [Fact]
     public async Task ShaderPackManagementOpenFolderAndRevealUseShaderPackPaths()
     {
         var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
@@ -1347,6 +1436,120 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task SelectingInstanceDoesNotPreloadLocalResourceSections()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var modService = new FakeModService();
+        var saveService = new FakeSaveService();
+        var resourcePackService = new FakeResourcePackService();
+        var shaderPackService = new FakeShaderPackService();
+        var viewModel = CreateViewModel(
+            [instance],
+            modService: modService,
+            saveService: saveService,
+            resourcePackService: resourcePackService,
+            shaderPackService: shaderPackService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+
+        Assert.Equal(0, saveService.GetSavesCallCount);
+        Assert.Equal(0, resourcePackService.GetResourcePacksCallCount);
+        Assert.Equal(0, shaderPackService.GetShaderPacksCallCount);
+        Assert.IsType<InstanceGeneralSettingsViewModel>(viewModel.Details.CurrentSectionViewModel);
+        Assert.False(viewModel.Details.ModManagement.HasLoadedMods);
+        var initialModCallCount = modService.GetModsCallCount;
+
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.HasLoadedMods);
+        Assert.Equal(initialModCallCount + 1, modService.GetModsCallCount);
+
+        var saveManagement = OpenSaveManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => saveManagement.HasLoadedSaves);
+        Assert.Equal(1, saveService.GetSavesCallCount);
+
+        var resourcePackManagement = OpenResourcePackManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => resourcePackManagement.HasLoadedResourcePacks);
+        Assert.Equal(1, resourcePackService.GetResourcePacksCallCount);
+
+        var shaderPackManagement = OpenShaderPackManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => shaderPackManagement.HasLoadedShaderPacks);
+        Assert.Equal(1, shaderPackService.GetShaderPacksCallCount);
+    }
+
+    [Fact]
+    public async Task ModManagementSectionSwitchesImmediatelyWhileModsAreStillLoading()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var modService = new FakeModService
+        {
+            GetModsBlocker = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            CreateLocalMod("sodium.jar", true, instance.InstanceDirectory, loader: "fabric", modId: "sodium", version: "1.0.0")
+        ];
+        var viewModel = CreateViewModel([instance], modService: modService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modService.GetModsCallCount == 1);
+
+        Assert.Same(modManagement, viewModel.Details.CurrentSectionViewModel);
+        Assert.True(modManagement.IsLoadingMods);
+        Assert.False(modManagement.HasLoadedMods);
+        Assert.True(modManagement.CanShowModLoadingState);
+
+        var saveManagement = OpenSaveManagementSection(viewModel);
+        Assert.Same(saveManagement, viewModel.Details.CurrentSectionViewModel);
+        Assert.True(modManagement.IsLoadingMods);
+        Assert.Empty(modManagement.Mods);
+
+        modService.GetModsBlocker.SetResult(true);
+        await TestAsync.WaitForAsync(() => modManagement.HasLoadedMods);
+
+        Assert.Empty(modManagement.Mods);
+
+        OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 1);
+
+        Assert.False(modManagement.IsLoadingMods);
+        Assert.Single(modManagement.Mods);
+        Assert.Equal("sodium", modManagement.Mods[0].Title);
+    }
+
+    [Fact]
+    public async Task ModManagementSectionReentryReusesVisibleItemViewModelsWithoutReloading()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var modService = new FakeModService();
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            CreateLocalMod("sodium.jar", true, instance.InstanceDirectory, loader: "fabric", modId: "sodium", version: "1.0.0"),
+            CreateLocalMod("lithium.jar", true, instance.InstanceDirectory, loader: "fabric", modId: "lithium", version: "1.0.0")
+        ];
+        var viewModel = CreateViewModel([instance], modService: modService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 2);
+
+        var initialCallCount = modService.GetModsCallCount;
+        var firstItem = modManagement.Mods[0];
+        var secondItem = modManagement.Mods[1];
+
+        OpenSaveManagementSection(viewModel);
+        OpenModManagementSection(viewModel);
+
+        Assert.Equal(initialCallCount, modService.GetModsCallCount);
+        Assert.Same(firstItem, modManagement.Mods[0]);
+        Assert.Same(secondItem, modManagement.Mods[1]);
+    }
+
+    [Fact]
     public async Task ModManagementViewModelLoadsRealModsForSelectedInstance()
     {
         var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
@@ -1360,9 +1563,9 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 2);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 2);
 
-        var modManagement = viewModel.Details.ModManagement;
         Assert.Equal(2, modManagement.InstalledModCount);
         Assert.Equal(1, modManagement.EnabledModCount);
         Assert.Equal(
@@ -1402,9 +1605,9 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 2);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 2);
 
-        var modManagement = viewModel.Details.ModManagement;
         modManagement.ToggleMultiSelectModeCommand.Execute(null);
         modManagement.SelectModCommand.Execute(modManagement.Mods[0]);
         modManagement.SelectModCommand.Execute(modManagement.Mods[1]);
@@ -1438,9 +1641,9 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 3);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 3);
 
-        var modManagement = viewModel.Details.ModManagement;
         modManagement.ModSearchQuery = "fabric";
         modManagement.ToggleMultiSelectModeCommand.Execute(null);
         modManagement.SelectAllModsCommand.Execute(null);
@@ -1465,9 +1668,9 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 2);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 2);
 
-        var modManagement = viewModel.Details.ModManagement;
         modManagement.ToggleMultiSelectModeCommand.Execute(null);
 
         Assert.Equal(Strings.GameSettings_ModManagementSelectAllButton, modManagement.SelectAllButtonText);
@@ -1501,9 +1704,9 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 2);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 2);
 
-        var modManagement = viewModel.Details.ModManagement;
         modManagement.ToggleMultiSelectModeCommand.Execute(null);
         modManagement.SelectAllModsCommand.Execute(null);
         await modManagement.DisableSelectedModsCommand.ExecuteAsync(null);
@@ -1533,9 +1736,9 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 2);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 2);
 
-        var modManagement = viewModel.Details.ModManagement;
         var originalOrder = modManagement.Mods.Select(mod => mod.Title).ToArray();
 
         modManagement.ToggleMultiSelectModeCommand.Execute(null);
@@ -1563,9 +1766,9 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 2);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 2);
 
-        var modManagement = viewModel.Details.ModManagement;
         modManagement.ToggleMultiSelectModeCommand.Execute(null);
         modManagement.SelectAllModsCommand.Execute(null);
         modManagement.RequestDeleteSelectedModsCommand.Execute(null);
@@ -1610,9 +1813,10 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 1);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 1);
 
-        var mod = Assert.Single(viewModel.Details.ModManagement.Mods);
+        var mod = Assert.Single(modManagement.Mods);
         Assert.Equal("Pretty Mod Name", mod.Title);
         Assert.Equal("fabric-pretty-mod-1.2.3", mod.Subtitle);
         Assert.Equal("file:///C:/launcher/cache/mod-icon.png", mod.IconSource);
@@ -1628,6 +1832,7 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenModManagementSection(viewModel);
 
         viewModel.Details.ModManagement.OpenModFolderCommand.Execute(null);
 
@@ -1651,14 +1856,15 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement is not null);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.HasLoadedMods);
 
-        await viewModel.Details.ModManagement.ImportLocalModCommand.ExecuteAsync(null);
+        await modManagement.ImportLocalModCommand.ExecuteAsync(null);
 
-        Assert.Single(viewModel.Details.ModManagement.Mods);
-        Assert.Equal("sodium", viewModel.Details.ModManagement.Mods[0].Title);
-        Assert.Equal(1, viewModel.Details.ModManagement.InstalledModCount);
-        Assert.Equal(1, viewModel.Details.ModManagement.EnabledModCount);
+        Assert.Single(modManagement.Mods);
+        Assert.Equal("sodium", modManagement.Mods[0].Title);
+        Assert.Equal(1, modManagement.InstalledModCount);
+        Assert.Equal(1, modManagement.EnabledModCount);
         Assert.Equal(Strings.Status_LocalModImported, statusService.LastMessage);
     }
 
@@ -1683,30 +1889,31 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 1);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 1);
 
-        var firstImportTask = viewModel.Details.ModManagement.ImportLocalModCommand.ExecuteAsync(null);
+        var firstImportTask = modManagement.ImportLocalModCommand.ExecuteAsync(null);
         await TestAsync.WaitForAsync(() => viewModel.IsReplaceModImportDialogOpen);
 
         Assert.True(viewModel.IsReplaceModImportDialogOpen);
         Assert.Equal(
             string.Format(Strings.Dialog_ReplaceModImportMessageFormat, "sodium.jar"),
             viewModel.ReplaceModImportDialogMessage);
-        Assert.Single(viewModel.Details.ModManagement.Mods);
+        Assert.Single(modManagement.Mods);
 
         viewModel.CancelReplaceModImportDialogCommand.Execute(null);
         await firstImportTask;
 
         Assert.False(viewModel.IsReplaceModImportDialogOpen);
-        Assert.Single(viewModel.Details.ModManagement.Mods);
+        Assert.Single(modManagement.Mods);
 
-        var secondImportTask = viewModel.Details.ModManagement.ImportLocalModCommand.ExecuteAsync(null);
+        var secondImportTask = modManagement.ImportLocalModCommand.ExecuteAsync(null);
         await TestAsync.WaitForAsync(() => viewModel.IsReplaceModImportDialogOpen);
         await viewModel.ConfirmReplaceModImportDialogCommand.ExecuteAsync(null);
         await secondImportTask;
 
         Assert.False(viewModel.IsReplaceModImportDialogOpen);
-        Assert.Single(viewModel.Details.ModManagement.Mods);
+        Assert.Single(modManagement.Mods);
         Assert.Equal(Strings.Status_LocalModImported, statusService.LastMessage);
     }
 
@@ -1812,9 +2019,9 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 2);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 2);
 
-        var modManagement = viewModel.Details.ModManagement;
         var secondMod = modManagement.Mods[1];
 
         await modManagement.ToggleModEnabledCommand.ExecuteAsync(secondMod);
@@ -1845,11 +2052,12 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 1);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 1);
 
-        viewModel.Details.ModManagement.OpenModFileLocationCommand.Execute(viewModel.Details.ModManagement.Mods[0]);
+        modManagement.OpenModFileLocationCommand.Execute(modManagement.Mods[0]);
 
-        Assert.Equal(viewModel.Details.ModManagement.Mods[0].FullPath, folderService.LastRevealedFilePath);
+        Assert.Equal(modManagement.Mods[0].FullPath, folderService.LastRevealedFilePath);
     }
 
     [Fact]
@@ -1865,10 +2073,11 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 1);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 1);
 
-        var mod = viewModel.Details.ModManagement.Mods[0];
-        viewModel.Details.ModManagement.RequestDeleteModCommand.Execute(mod);
+        var mod = modManagement.Mods[0];
+        modManagement.RequestDeleteModCommand.Execute(mod);
 
         Assert.True(viewModel.IsDeleteModsDialogOpen);
         Assert.Equal(
@@ -1892,7 +2101,8 @@ public sealed class GameSettingsPageViewModelTests
 
             await viewModel.EnsureInstancesLoadedAsync();
             viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-            await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.InstalledModCount == 0);
+            var modManagement = OpenModManagementSection(viewModel);
+            await TestAsync.WaitForAsync(() => modManagement.HasLoadedMods);
 
             CreateModJar(
                 Path.Combine(instance.InstanceDirectory, "mods", "sodium.jar"),
@@ -1906,10 +2116,10 @@ public sealed class GameSettingsPageViewModelTests
                 """);
 
             await TestAsync.WaitForAsync(() =>
-                viewModel.Details.ModManagement.Mods.Count == 1
-                && viewModel.Details.ModManagement.Mods[0].Title == "Sodium");
+                modManagement.Mods.Count == 1
+                && modManagement.Mods[0].Title == "Sodium");
 
-            var mod = Assert.Single(viewModel.Details.ModManagement.Mods);
+            var mod = Assert.Single(modManagement.Mods);
             Assert.Equal("Sodium", mod.Title);
             Assert.Equal("fabric-sodium-1.0.0", mod.Subtitle);
         }
@@ -1933,9 +2143,10 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 1);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 1);
 
-        var mod = Assert.Single(viewModel.Details.ModManagement.Mods);
+        var mod = Assert.Single(modManagement.Mods);
         Assert.Null(mod.IconSource);
         Assert.Equal("instance_setting_page/mod", mod.IconKey);
     }
@@ -1950,18 +2161,19 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.InstalledModCount == 0);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.HasLoadedMods);
 
-        Assert.Empty(viewModel.Details.ModManagement.Mods);
-        Assert.True(viewModel.Details.ModManagement.IsModManagementSupported);
-        Assert.True(viewModel.Details.ModManagement.CanShowModInfoSection);
-        Assert.False(viewModel.Details.ModManagement.HasMods);
-        Assert.False(viewModel.Details.ModManagement.HasInstalledMods);
-        Assert.False(viewModel.Details.ModManagement.CanShowModListSection);
-        Assert.True(viewModel.Details.ModManagement.CanShowNoModsEmptyState);
-        Assert.False(viewModel.Details.ModManagement.CanShowModEmptyState);
-        Assert.False(viewModel.Details.ModManagement.CanShowModUnavailableState);
-        Assert.Equal(Strings.GameSettings_ModManagementEmptyMessage, viewModel.Details.ModManagement.ModEmptyMessage);
+        Assert.Empty(modManagement.Mods);
+        Assert.True(modManagement.IsModManagementSupported);
+        Assert.True(modManagement.CanShowModInfoSection);
+        Assert.False(modManagement.HasMods);
+        Assert.False(modManagement.HasInstalledMods);
+        Assert.False(modManagement.CanShowModListSection);
+        Assert.True(modManagement.CanShowNoModsEmptyState);
+        Assert.False(modManagement.CanShowModEmptyState);
+        Assert.False(modManagement.CanShowModUnavailableState);
+        Assert.Equal(Strings.GameSettings_ModManagementEmptyMessage, modManagement.ModEmptyMessage);
     }
 
     [Fact]
@@ -1974,15 +2186,15 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.InstalledModCount == 0);
+        var modManagement = OpenModManagementSection(viewModel);
 
-        Assert.False(viewModel.Details.ModManagement.IsModManagementSupported);
-        Assert.False(viewModel.Details.ModManagement.CanShowModInfoSection);
-        Assert.False(viewModel.Details.ModManagement.CanShowModListSection);
-        Assert.False(viewModel.Details.ModManagement.CanShowNoModsEmptyState);
-        Assert.False(viewModel.Details.ModManagement.CanShowModEmptyState);
-        Assert.True(viewModel.Details.ModManagement.CanShowModUnavailableState);
-        Assert.Equal(Strings.GameSettings_ModManagementUnavailableMessage, viewModel.Details.ModManagement.ModUnavailableMessage);
+        Assert.False(modManagement.IsModManagementSupported);
+        Assert.False(modManagement.CanShowModInfoSection);
+        Assert.False(modManagement.CanShowModListSection);
+        Assert.False(modManagement.CanShowNoModsEmptyState);
+        Assert.False(modManagement.CanShowModEmptyState);
+        Assert.True(modManagement.CanShowModUnavailableState);
+        Assert.Equal(Strings.GameSettings_ModManagementUnavailableMessage, modManagement.ModUnavailableMessage);
     }
 
     [Fact]
@@ -1999,27 +2211,28 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        await TestAsync.WaitForAsync(() => viewModel.Details.ModManagement.Mods.Count == 2);
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 2);
 
-        viewModel.Details.ModManagement.ModSearchQuery = "sodium";
+        modManagement.ModSearchQuery = "sodium";
 
-        Assert.Single(viewModel.Details.ModManagement.Mods);
-        Assert.Equal("sodium-fabric-0.5.13", viewModel.Details.ModManagement.Mods[0].Title);
-        Assert.Equal(2, viewModel.Details.ModManagement.InstalledModCount);
-        Assert.Equal(1, viewModel.Details.ModManagement.EnabledModCount);
-        Assert.True(viewModel.Details.ModManagement.CanShowModListSection);
-        Assert.False(viewModel.Details.ModManagement.CanShowNoModsEmptyState);
-        Assert.False(viewModel.Details.ModManagement.CanShowModEmptyState);
+        Assert.Single(modManagement.Mods);
+        Assert.Equal("sodium-fabric-0.5.13", modManagement.Mods[0].Title);
+        Assert.Equal(2, modManagement.InstalledModCount);
+        Assert.Equal(1, modManagement.EnabledModCount);
+        Assert.True(modManagement.CanShowModListSection);
+        Assert.False(modManagement.CanShowNoModsEmptyState);
+        Assert.False(modManagement.CanShowModEmptyState);
 
-        viewModel.Details.ModManagement.ModSearchQuery = "missing-mod";
+        modManagement.ModSearchQuery = "missing-mod";
 
-        Assert.Empty(viewModel.Details.ModManagement.Mods);
-        Assert.True(viewModel.Details.ModManagement.CanShowModListSection);
-        Assert.False(viewModel.Details.ModManagement.CanShowNoModsEmptyState);
-        Assert.True(viewModel.Details.ModManagement.CanShowModEmptyState);
-        Assert.Equal(Strings.GameSettings_ModManagementSearchEmptyMessage, viewModel.Details.ModManagement.ModEmptyMessage);
-        Assert.Equal(2, viewModel.Details.ModManagement.InstalledModCount);
-        Assert.Equal(1, viewModel.Details.ModManagement.EnabledModCount);
+        Assert.Empty(modManagement.Mods);
+        Assert.True(modManagement.CanShowModListSection);
+        Assert.False(modManagement.CanShowNoModsEmptyState);
+        Assert.True(modManagement.CanShowModEmptyState);
+        Assert.Equal(Strings.GameSettings_ModManagementSearchEmptyMessage, modManagement.ModEmptyMessage);
+        Assert.Equal(2, modManagement.InstalledModCount);
+        Assert.Equal(1, modManagement.EnabledModCount);
     }
 
     [Fact]
@@ -2035,6 +2248,7 @@ public sealed class GameSettingsPageViewModelTests
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenModManagementSection(viewModel);
         await TestAsync.WaitForAsync(() => statusService.LastMessage == Strings.Status_LoadLocalModsFailed);
 
         Assert.Empty(viewModel.Details.ModManagement.Mods);
@@ -2541,6 +2755,35 @@ public sealed class GameSettingsPageViewModelTests
         Assert.True(viewModel.EditDialog.IsEditInstanceSuccessful);
     }
 
+    private static GameSettingsDetailSectionItem GetDetailSection(GameSettingsPageViewModel viewModel, string sectionId)
+    {
+        return viewModel.DetailSections.Single(section => section.Id == sectionId);
+    }
+
+    private static InstanceModManagementSettingsViewModel OpenModManagementSection(GameSettingsPageViewModel viewModel)
+    {
+        viewModel.SelectDetailsSectionCommand.Execute(GetDetailSection(viewModel, "mod_management"));
+        return viewModel.Details.ModManagement;
+    }
+
+    private static InstanceSaveManagementSettingsViewModel OpenSaveManagementSection(GameSettingsPageViewModel viewModel)
+    {
+        viewModel.SelectDetailsSectionCommand.Execute(GetDetailSection(viewModel, "saves"));
+        return viewModel.Details.SaveManagement;
+    }
+
+    private static InstanceResourcePackManagementSettingsViewModel OpenResourcePackManagementSection(GameSettingsPageViewModel viewModel)
+    {
+        viewModel.SelectDetailsSectionCommand.Execute(GetDetailSection(viewModel, "resource_packs"));
+        return viewModel.Details.ResourcePackManagement;
+    }
+
+    private static InstanceShaderPackManagementSettingsViewModel OpenShaderPackManagementSection(GameSettingsPageViewModel viewModel)
+    {
+        viewModel.SelectDetailsSectionCommand.Execute(GetDetailSection(viewModel, "shaders"));
+        return viewModel.Details.ShaderPackManagement;
+    }
+
     private static GameSettingsPageViewModel CreateViewModel(
         IReadOnlyList<GameInstance> instances,
         IReadOnlyList<MinecraftVersionInfo>? versions = null,
@@ -2880,19 +3123,27 @@ public sealed class GameSettingsPageViewModelTests
 
         public Exception? GetModsException { get; init; }
 
+        public TaskCompletionSource<bool>? GetModsBlocker { get; init; }
+
+        public int GetModsCallCount { get; private set; }
+
         public int ImportCallCount { get; private set; }
 
         public List<string> ImportedPaths { get; } = [];
 
-        public Task<IReadOnlyList<LocalMod>> GetModsAsync(GameInstance instance, CancellationToken cancellationToken = default)
+        public async Task<IReadOnlyList<LocalMod>> GetModsAsync(GameInstance instance, CancellationToken cancellationToken = default)
         {
+            GetModsCallCount++;
             if (GetModsException is not null)
                 throw GetModsException;
 
-            return Task.FromResult(
+            if (GetModsBlocker is not null)
+                await GetModsBlocker.Task.WaitAsync(cancellationToken);
+
+            return
                 ModsByInstanceId.TryGetValue(instance.Id, out var mods)
                     ? (IReadOnlyList<LocalMod>)mods.Select(CloneLocalMod).ToArray()
-                    : (IReadOnlyList<LocalMod>)[]);
+                    : (IReadOnlyList<LocalMod>)[];
         }
 
         public Task<LocalMod> ImportAsync(
@@ -2997,6 +3248,10 @@ public sealed class GameSettingsPageViewModelTests
 
         public Exception? GetSavesException { get; init; }
 
+        public TaskCompletionSource<bool>? GetSavesBlocker { get; init; }
+
+        public int GetSavesCallCount { get; private set; }
+
         public LocalSaveImportResult? NextImportResult { get; init; }
 
         public int ImportArchiveCallCount { get; private set; }
@@ -3005,15 +3260,19 @@ public sealed class GameSettingsPageViewModelTests
 
         public List<string> ImportedArchivePaths { get; } = [];
 
-        public Task<IReadOnlyList<LocalSave>> GetSavesAsync(GameInstance instance, CancellationToken cancellationToken = default)
+        public async Task<IReadOnlyList<LocalSave>> GetSavesAsync(GameInstance instance, CancellationToken cancellationToken = default)
         {
+            GetSavesCallCount++;
             if (GetSavesException is not null)
                 throw GetSavesException;
 
-            return Task.FromResult(
+            if (GetSavesBlocker is not null)
+                await GetSavesBlocker.Task.WaitAsync(cancellationToken);
+
+            return
                 SavesByInstanceId.TryGetValue(instance.Id, out var saves)
                     ? (IReadOnlyList<LocalSave>)saves.Select(CloneLocalSave).ToArray()
-                    : (IReadOnlyList<LocalSave>)[]);
+                    : (IReadOnlyList<LocalSave>)[];
         }
 
         public Task<LocalSaveImportResult> ImportFromArchiveAsync(
@@ -3127,6 +3386,10 @@ public sealed class GameSettingsPageViewModelTests
 
         public Exception? GetResourcePacksException { get; init; }
 
+        public TaskCompletionSource<bool>? GetResourcePacksBlocker { get; init; }
+
+        public int GetResourcePacksCallCount { get; private set; }
+
         public LocalResourcePackImportResult? NextImportResult { get; init; }
 
         public int ImportArchiveCallCount { get; private set; }
@@ -3135,17 +3398,21 @@ public sealed class GameSettingsPageViewModelTests
 
         public List<string> ImportedArchivePaths { get; } = [];
 
-        public Task<IReadOnlyList<LocalResourcePack>> GetResourcePacksAsync(
+        public async Task<IReadOnlyList<LocalResourcePack>> GetResourcePacksAsync(
             GameInstance instance,
             CancellationToken cancellationToken = default)
         {
+            GetResourcePacksCallCount++;
             if (GetResourcePacksException is not null)
                 throw GetResourcePacksException;
 
-            return Task.FromResult(
+            if (GetResourcePacksBlocker is not null)
+                await GetResourcePacksBlocker.Task.WaitAsync(cancellationToken);
+
+            return
                 ResourcePacksByInstanceId.TryGetValue(instance.Id, out var resourcePacks)
                     ? (IReadOnlyList<LocalResourcePack>)resourcePacks.Select(CloneLocalResourcePack).ToArray()
-                    : (IReadOnlyList<LocalResourcePack>)[]);
+                    : (IReadOnlyList<LocalResourcePack>)[];
         }
 
         public Task<LocalResourcePackImportResult> ImportAsync(
@@ -3252,6 +3519,10 @@ public sealed class GameSettingsPageViewModelTests
 
         public Exception? GetShaderPacksException { get; init; }
 
+        public TaskCompletionSource<bool>? GetShaderPacksBlocker { get; init; }
+
+        public int GetShaderPacksCallCount { get; private set; }
+
         public LocalShaderPackImportResult? NextImportResult { get; init; }
 
         public int ImportArchiveCallCount { get; private set; }
@@ -3260,17 +3531,21 @@ public sealed class GameSettingsPageViewModelTests
 
         public List<string> ImportedArchivePaths { get; } = [];
 
-        public Task<IReadOnlyList<LocalShaderPack>> GetShaderPacksAsync(
+        public async Task<IReadOnlyList<LocalShaderPack>> GetShaderPacksAsync(
             GameInstance instance,
             CancellationToken cancellationToken = default)
         {
+            GetShaderPacksCallCount++;
             if (GetShaderPacksException is not null)
                 throw GetShaderPacksException;
 
-            return Task.FromResult(
+            if (GetShaderPacksBlocker is not null)
+                await GetShaderPacksBlocker.Task.WaitAsync(cancellationToken);
+
+            return
                 ShaderPacksByInstanceId.TryGetValue(instance.Id, out var shaderPacks)
                     ? (IReadOnlyList<LocalShaderPack>)shaderPacks.Select(CloneLocalShaderPack).ToArray()
-                    : (IReadOnlyList<LocalShaderPack>)[]);
+                    : (IReadOnlyList<LocalShaderPack>)[];
         }
 
         public Task<LocalShaderPackImportResult> ImportAsync(

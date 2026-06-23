@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Shared;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -16,10 +17,17 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
     private readonly IFilePickerService filePickerService;
+    private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<InstanceResourcePackManagementSettingsViewModel> logger;
+    private readonly Dictionary<string, ResourcePackManagementItemViewModel> allResourcePacksByPath = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> selectedResourcePackPaths = new(StringComparer.OrdinalIgnoreCase);
+    private Task? loadTask;
     private GameInstance? selectedInstance;
     private string? lastSingleSelectedResourcePackPath;
+    private bool hasPendingVisualRefresh;
+    private bool isVisibleRefreshQueued;
+    private bool isSectionActive;
+    private bool suppressLocalCollectionEvents;
 
     [ObservableProperty]
     private int installedResourcePackCount;
@@ -36,12 +44,19 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     [ObservableProperty]
     private int selectedResourcePackCount;
 
+    [ObservableProperty]
+    private bool isLoadingResourcePacks;
+
+    [ObservableProperty]
+    private bool hasLoadedResourcePacks;
+
     public InstanceResourcePackManagementSettingsViewModel(
         GameSettingsDetailsViewModel parent,
         LocalResourcePacksViewModel localResourcePacksViewModel,
         IStatusService statusService,
         IInstanceFolderService instanceFolderService,
         IFilePickerService filePickerService,
+        IUiDispatcher? uiDispatcher = null,
         ILogger<InstanceResourcePackManagementSettingsViewModel>? logger = null)
         : base(parent)
     {
@@ -49,12 +64,12 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
         this.filePickerService = filePickerService;
+        this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<InstanceResourcePackManagementSettingsViewModel>.Instance;
         this.localResourcePacksViewModel.ResourcePacksChanged += LocalResourcePacksViewModel_ResourcePacksChanged;
     }
 
     public event Action<ResourcePackDeleteRequest>? DeleteResourcePacksRequested;
-
     public event Action<ResourcePackImportFailureRequest>? ResourcePackImportFailedRequested;
 
     public ObservableCollection<ResourcePackManagementItemViewModel> ResourcePacks { get; } = [];
@@ -65,11 +80,13 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
 
     public bool HasInstalledResourcePacks => InstalledResourcePackCount > 0;
 
-    public bool CanShowResourcePackListSection => selectedInstance is not null && HasInstalledResourcePacks;
+    public bool CanShowResourcePackListSection => selectedInstance is not null && (IsLoadingResourcePacks || HasInstalledResourcePacks);
 
-    public bool CanShowNoResourcePacksEmptyState => selectedInstance is not null && !HasInstalledResourcePacks;
+    public bool CanShowNoResourcePacksEmptyState => selectedInstance is not null && HasLoadedResourcePacks && !IsLoadingResourcePacks && !HasInstalledResourcePacks;
 
-    public bool CanShowResourcePackEmptyState => selectedInstance is not null && HasInstalledResourcePacks && !HasResourcePacks;
+    public bool CanShowResourcePackEmptyState => selectedInstance is not null && HasLoadedResourcePacks && !IsLoadingResourcePacks && HasInstalledResourcePacks && !HasResourcePacks;
+
+    public bool CanShowResourcePackLoadingState => selectedInstance is not null && IsLoadingResourcePacks && !HasLoadedResourcePacks;
 
     public bool HasSelectedResourcePacks => SelectedResourcePackCount > 0;
 
@@ -81,34 +98,76 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         ? Strings.GameSettings_ResourcePackManagementCancelSelectAllButton
         : Strings.GameSettings_ResourcePackManagementSelectAllButton;
 
-    public string InstalledSummaryText => string.Format(
-        Strings.GameSettings_ResourcePackManagementInstalledSummaryFormat,
-        InstalledResourcePackCount);
+    public string InstalledSummaryText => IsLoadingResourcePacks && !HasLoadedResourcePacks
+        ? Strings.GameSettings_ResourcePackManagementLoading
+        : string.Format(
+            Strings.GameSettings_ResourcePackManagementInstalledSummaryFormat,
+            InstalledResourcePackCount);
 
     public string ResourcePackEmptyMessage => !HasInstalledResourcePacks || string.IsNullOrWhiteSpace(ResourcePackSearchQuery)
         ? Strings.GameSettings_ResourcePackManagementEmptyMessage
         : Strings.GameSettings_ResourcePackManagementSearchEmptyMessage;
 
-    public async Task SetSelectedInstanceAsync(GameInstance? instance)
+    public Task SetSelectedInstanceAsync(GameInstance? instance)
+    {
+        OnSelectedInstanceChanged(instance);
+        return EnsureLoadedForSelectedInstanceAsync();
+    }
+
+    public override void OnSelectedInstanceChanged(GameInstance? instance)
     {
         selectedInstance = instance;
-        ResetSelectionState();
-        RaiseAvailabilityPropertyChanges();
-        ImportLocalResourcePackCommand.NotifyCanExecuteChanged();
+        loadTask = null;
+        hasPendingVisualRefresh = false;
+        isVisibleRefreshQueued = false;
+        suppressLocalCollectionEvents = true;
         try
         {
-            await localResourcePacksViewModel.SetSelectedInstanceAsync(instance);
-            RefreshFromLocalResourcePacks();
+            localResourcePacksViewModel.SetSelectedInstance(instance);
+            localResourcePacksViewModel.SetWatcherEnabled(isSectionActive && selectedInstance is not null);
         }
-        catch (Exception)
+        finally
         {
-            ResourcePacks.Clear();
-            SelectedResourcePack = null;
-            RefreshSummary();
-            OnPropertyChanged(nameof(HasResourcePacks));
-            RaiseAvailabilityPropertyChanges();
-            statusService.Report(Strings.Status_LoadLocalResourcePacksFailed);
+            suppressLocalCollectionEvents = false;
         }
+
+        IsLoadingResourcePacks = false;
+        HasLoadedResourcePacks = false;
+        allResourcePacksByPath.Clear();
+        ResetSelectionState();
+        ClearDisplayedResourcePacks();
+        ImportLocalResourcePackCommand.NotifyCanExecuteChanged();
+    }
+
+    public override void OnSectionDeactivated()
+    {
+        isSectionActive = false;
+        localResourcePacksViewModel.SetWatcherEnabled(false);
+    }
+
+    public override Task OnSectionActivatedAsync()
+    {
+        isSectionActive = true;
+        localResourcePacksViewModel.SetWatcherEnabled(selectedInstance is not null);
+        if (hasPendingVisualRefresh && HasLoadedResourcePacks)
+            QueueVisibleRefresh();
+
+        return EnsureLoadedForSelectedInstanceAsync();
+    }
+
+    public Task EnsureLoadedForSelectedInstanceAsync()
+    {
+        if (selectedInstance is null)
+            return Task.CompletedTask;
+
+        if (loadTask is { IsCompleted: false })
+            return loadTask;
+
+        if (HasLoadedResourcePacks)
+            return Task.CompletedTask;
+
+        loadTask = LoadResourcePacksAsync();
+        return loadTask;
     }
 
     [RelayCommand]
@@ -355,34 +414,79 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         SelectAllResourcePacksCommand.NotifyCanExecuteChanged();
     }
 
+    private async Task LoadResourcePacksAsync()
+    {
+        if (selectedInstance is null)
+            return;
+
+        IsLoadingResourcePacks = true;
+        OnPropertyChanged(nameof(InstalledSummaryText));
+        RaiseAvailabilityPropertyChanges();
+
+        try
+        {
+            await localResourcePacksViewModel.RefreshResourcePacksAsync();
+            HasLoadedResourcePacks = true;
+            if (!isSectionActive)
+                hasPendingVisualRefresh = true;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Failed to load resource packs for section activation. InstanceId={InstanceId}",
+                selectedInstance.Id);
+            HasLoadedResourcePacks = false;
+            ClearDisplayedResourcePacks();
+            statusService.Report(Strings.Status_LoadLocalResourcePacksFailed);
+        }
+        finally
+        {
+            IsLoadingResourcePacks = false;
+            loadTask = null;
+            OnPropertyChanged(nameof(InstalledSummaryText));
+            RaiseAvailabilityPropertyChanges();
+            OnPropertyChanged(nameof(ResourcePackEmptyMessage));
+        }
+    }
+
     private void RefreshSummary()
     {
-        InstalledResourcePackCount = localResourcePacksViewModel.ResourcePacks.Count;
+        InstalledResourcePackCount = localResourcePacksViewModel.CurrentResourcePacks.Count;
     }
 
     private void LocalResourcePacksViewModel_ResourcePacksChanged(object? sender, EventArgs e)
     {
-        RefreshFromLocalResourcePacks();
+        if (suppressLocalCollectionEvents)
+            return;
+
+        if (!isSectionActive)
+        {
+            hasPendingVisualRefresh = true;
+            return;
+        }
+
+        QueueVisibleRefresh();
     }
 
     private void RefreshFromLocalResourcePacks()
     {
         var selectedFullPath = lastSingleSelectedResourcePackPath ?? SelectedResourcePack?.FullPath;
-        var filteredResourcePacks = localResourcePacksViewModel.ResourcePacks.Where(MatchesSearch).ToArray();
+        var filteredResourcePacks = StableFilteredItemProjection.Synchronize(
+            localResourcePacksViewModel.CurrentResourcePacks,
+            allResourcePacksByPath,
+            resourcePack => resourcePack.FullPath,
+            resourcePack => new ResourcePackManagementItemViewModel(resourcePack),
+            static (item, resourcePack) => item.SyncFrom(resourcePack),
+            MatchesSearch);
 
         if (IsMultiSelectMode)
             selectedResourcePackPaths.IntersectWith(filteredResourcePacks.Select(resourcePack => resourcePack.FullPath));
 
-        ResourcePacks.Clear();
-        foreach (var resourcePack in filteredResourcePacks)
-        {
-            var item = new ResourcePackManagementItemViewModel(resourcePack)
-            {
-                IsSelected = IsMultiSelectMode
-                    && selectedResourcePackPaths.Contains(resourcePack.FullPath)
-            };
-            ResourcePacks.Add(item);
-        }
+        foreach (var item in allResourcePacksByPath.Values)
+            item.IsSelected = IsMultiSelectMode && selectedResourcePackPaths.Contains(item.FullPath);
+
+        ResourcePacks.ReplaceWithIfChanged(filteredResourcePacks);
 
         RefreshSummary();
         OnPropertyChanged(nameof(HasResourcePacks));
@@ -402,6 +506,26 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         var restoredSelection = ResourcePacks.FirstOrDefault(resourcePack =>
             string.Equals(resourcePack.FullPath, selectedFullPath, StringComparison.OrdinalIgnoreCase));
         SelectResourcePack(restoredSelection ?? ResourcePacks.FirstOrDefault());
+    }
+
+    private void QueueVisibleRefresh()
+    {
+        if (isVisibleRefreshQueued)
+            return;
+
+        isVisibleRefreshQueued = true;
+        uiDispatcher.Post(() =>
+        {
+            isVisibleRefreshQueued = false;
+            if (!isSectionActive)
+            {
+                hasPendingVisualRefresh = true;
+                return;
+            }
+
+            hasPendingVisualRefresh = false;
+            RefreshFromLocalResourcePacks();
+        });
     }
 
     private bool MatchesSearch(LocalResourcePack resourcePack)
@@ -432,6 +556,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         OnPropertyChanged(nameof(CanShowResourcePackListSection));
         OnPropertyChanged(nameof(CanShowNoResourcePacksEmptyState));
         OnPropertyChanged(nameof(CanShowResourcePackEmptyState));
+        OnPropertyChanged(nameof(CanShowResourcePackLoadingState));
     }
 
     private void EnterMultiSelectMode()
@@ -465,6 +590,21 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         SelectedResourcePackCount = 0;
     }
 
+    private void ClearDisplayedResourcePacks()
+    {
+        allResourcePacksByPath.Clear();
+        ResourcePacks.Clear();
+        SelectedResourcePack = null;
+        RefreshSummary();
+        OnPropertyChanged(nameof(HasResourcePacks));
+        RaiseAvailabilityPropertyChanges();
+        OnPropertyChanged(nameof(ResourcePackEmptyMessage));
+        OnPropertyChanged(nameof(AreAllVisibleResourcePacksSelected));
+        OnPropertyChanged(nameof(SelectAllButtonText));
+        SelectAllResourcePacksCommand.NotifyCanExecuteChanged();
+        UpdateSelectedResourcePackState();
+    }
+
     private void ClearVisibleSelections()
     {
         foreach (var resourcePack in ResourcePacks)
@@ -479,7 +619,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     private IReadOnlyList<LocalResourcePack> ResolveLocalResourcePacks(IEnumerable<string> fullPaths)
     {
         var pathSet = new HashSet<string>(fullPaths, StringComparer.OrdinalIgnoreCase);
-        return localResourcePacksViewModel.ResourcePacks
+        return localResourcePacksViewModel.CurrentResourcePacks
             .Where(resourcePack => pathSet.Contains(resourcePack.FullPath))
             .ToArray();
     }

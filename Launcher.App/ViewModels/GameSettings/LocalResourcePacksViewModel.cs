@@ -15,10 +15,13 @@ public sealed class LocalResourcePacksViewModel : IDisposable
     private readonly IStatusService statusService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<LocalResourcePacksViewModel> logger;
+    private CancellationTokenSource? refreshCancellationTokenSource;
     private FileSystemWatcher? resourcePacksWatcher;
     private CancellationTokenSource? watcherRefreshCancellationTokenSource;
     private GameInstance? selectedInstance;
+    private IReadOnlyList<LocalResourcePack> currentResourcePacks = Array.Empty<LocalResourcePack>();
     private string? watchedResourcePacksDirectory;
+    private bool watcherEnabled;
     private int resourcePackRefreshVersion;
 
     public LocalResourcePacksViewModel(
@@ -37,28 +40,42 @@ public sealed class LocalResourcePacksViewModel : IDisposable
 
     public ObservableCollection<LocalResourcePack> ResourcePacks { get; } = [];
 
-    public Task SetSelectedInstanceAsync(GameInstance? instance)
+    public IReadOnlyList<LocalResourcePack> CurrentResourcePacks => currentResourcePacks;
+
+    public void SetSelectedInstance(GameInstance? instance)
     {
         selectedInstance = instance;
-        ResetWatcher(instance);
+        Interlocked.Increment(ref resourcePackRefreshVersion);
+        CancelRefresh();
+        ResetWatcher();
+        ClearResourcePacks();
         logger.LogInformation(
             "Selected instance changed for local resource packs view. InstanceId={InstanceId}",
             instance?.Id ?? "<none>");
+    }
+
+    public void SetWatcherEnabled(bool enabled)
+    {
+        watcherEnabled = enabled;
+        ResetWatcher();
+    }
+
+    public Task SetSelectedInstanceAsync(GameInstance? instance)
+    {
+        SetSelectedInstance(instance);
+        SetWatcherEnabled(true);
         return RefreshResourcePacksAsync();
     }
 
     public async Task RefreshResourcePacksAsync()
     {
         var refreshVersion = Interlocked.Increment(ref resourcePackRefreshVersion);
+        var refreshCts = ReplaceRefreshCancellationTokenSource();
         var instance = selectedInstance;
 
         if (instance is null)
         {
-            uiDispatcher.Invoke(() =>
-            {
-                ResourcePacks.Clear();
-                ResourcePacksChanged?.Invoke(this, EventArgs.Empty);
-            });
+            ClearResourcePacks();
             logger.LogInformation("Local resource packs view cleared because no instance is selected.");
             return;
         }
@@ -66,7 +83,11 @@ public sealed class LocalResourcePacksViewModel : IDisposable
         IReadOnlyList<LocalResourcePack> loadedResourcePacks;
         try
         {
-            loadedResourcePacks = await localResourcePackService.GetResourcePacksAsync(instance);
+            loadedResourcePacks = await localResourcePackService.GetResourcePacksAsync(instance, refreshCts.Token);
+        }
+        catch (OperationCanceledException) when (refreshCts.IsCancellationRequested)
+        {
+            return;
         }
         catch (Exception exception)
         {
@@ -75,6 +96,10 @@ public sealed class LocalResourcePacksViewModel : IDisposable
                 "Failed to load local resource packs. InstanceId={InstanceId}",
                 instance.Id);
             throw;
+        }
+        finally
+        {
+            ReleaseRefreshCancellationTokenSource(refreshCts);
         }
 
         if (refreshVersion != resourcePackRefreshVersion
@@ -85,6 +110,7 @@ public sealed class LocalResourcePacksViewModel : IDisposable
 
         uiDispatcher.Invoke(() =>
         {
+            currentResourcePacks = loadedResourcePacks;
             ResourcePacks.ReplaceWith(loadedResourcePacks);
             ResourcePacksChanged?.Invoke(this, EventArgs.Empty);
         });
@@ -152,12 +178,13 @@ public sealed class LocalResourcePacksViewModel : IDisposable
     {
         resourcePacksWatcher?.Dispose();
         resourcePacksWatcher = null;
+        CancelRefresh();
         watcherRefreshCancellationTokenSource?.Cancel();
         watcherRefreshCancellationTokenSource?.Dispose();
         watcherRefreshCancellationTokenSource = null;
     }
 
-    private void ResetWatcher(GameInstance? instance)
+    private void ResetWatcher()
     {
         resourcePacksWatcher?.Dispose();
         resourcePacksWatcher = null;
@@ -166,6 +193,10 @@ public sealed class LocalResourcePacksViewModel : IDisposable
         watcherRefreshCancellationTokenSource = null;
         watchedResourcePacksDirectory = null;
 
+        if (!watcherEnabled)
+            return;
+
+        var instance = selectedInstance;
         if (instance is null || string.IsNullOrWhiteSpace(instance.InstanceDirectory))
             return;
 
@@ -274,5 +305,38 @@ public sealed class LocalResourcePacksViewModel : IDisposable
     private void ReportStatus(string message)
     {
         statusService.Report(message);
+    }
+
+    private void ClearResourcePacks()
+    {
+        uiDispatcher.Invoke(() =>
+        {
+            currentResourcePacks = Array.Empty<LocalResourcePack>();
+            ResourcePacks.Clear();
+            ResourcePacksChanged?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    private void CancelRefresh()
+    {
+        refreshCancellationTokenSource?.Cancel();
+        refreshCancellationTokenSource?.Dispose();
+        refreshCancellationTokenSource = null;
+    }
+
+    private CancellationTokenSource ReplaceRefreshCancellationTokenSource()
+    {
+        var next = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref refreshCancellationTokenSource, next);
+        previous?.Cancel();
+        previous?.Dispose();
+        return next;
+    }
+
+    private void ReleaseRefreshCancellationTokenSource(CancellationTokenSource refreshCts)
+    {
+        var current = Interlocked.CompareExchange(ref refreshCancellationTokenSource, null, refreshCts);
+        if (ReferenceEquals(current, refreshCts))
+            refreshCts.Dispose();
     }
 }
