@@ -223,6 +223,9 @@ public sealed class ResourceDictionaryTests
 
                 Assert.Null(FindVisualDescendantByTag<Border>(pageView, "StickyModListFloatingHost"));
 
+                detailsViewModel.SetSelectedInstance(new GameSettingsInstanceItem(
+                    CreateInstance("Fabric Pack", "1.21.4", LoaderKind.Fabric),
+                    "release"));
                 detailsViewModel.ModManagement.ModSearchQuery = "sodium";
                 var standaloneView = new InstanceModManagementSettingsView
                 {
@@ -236,9 +239,29 @@ public sealed class ResourceDictionaryTests
                 Assert.NotNull(standaloneView.Content);
                 var searchTextBoxes = FindVisualDescendants<TextBox>(standaloneView).ToArray();
                 Assert.Empty(searchTextBoxes);
+                var modInfoPanel = FindVisualDescendant<GroupBox>(
+                    standaloneView,
+                    groupBox => Equals(groupBox.Header, Strings.GameSettings_ModManagementInfoSection));
+                Assert.NotNull(modInfoPanel);
+                Assert.Equal(Visibility.Visible, modInfoPanel.Visibility);
+                Assert.NotNull(FindVisualAncestor<ListBoxItem>(modInfoPanel));
+
+                var modListBox = FindVisualDescendant<ListBox>(standaloneView);
+                Assert.NotNull(modListBox);
+                Assert.True(VirtualizingPanel.GetIsVirtualizing(modListBox));
+                Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(modListBox));
 
                 detailsViewModel.ModManagement.ModSearchQuery = "lithium";
                 standaloneView.UpdateLayout();
+
+                detailsViewModel.SetSelectedInstance(new GameSettingsInstanceItem(
+                    CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla),
+                    "release"));
+                standaloneView.UpdateLayout();
+                Assert.Null(FindVisualDescendant<GroupBox>(
+                    standaloneView,
+                    groupBox => Equals(groupBox.Header, Strings.GameSettings_ModManagementInfoSection)
+                        && groupBox.Visibility == Visibility.Visible));
 
                 detailsViewModel.SetSelectedSection(new GameSettingsDetailSectionItem(
                     "saves",
@@ -262,6 +285,17 @@ public sealed class ResourceDictionaryTests
                 Assert.NotNull(standaloneSaveView.Content);
                 var saveSearchTextBoxes = FindVisualDescendants<TextBox>(standaloneSaveView).ToArray();
                 Assert.Empty(saveSearchTextBoxes);
+                var saveInfoPanel = FindVisualDescendant<GroupBox>(
+                    standaloneSaveView,
+                    groupBox => Equals(groupBox.Header, Strings.GameSettings_SaveManagementInfoSection));
+                Assert.NotNull(saveInfoPanel);
+                Assert.Equal(Visibility.Visible, saveInfoPanel.Visibility);
+                Assert.NotNull(FindVisualAncestor<ListBoxItem>(saveInfoPanel));
+
+                var saveListBox = FindVisualDescendant<ListBox>(standaloneSaveView);
+                Assert.NotNull(saveListBox);
+                Assert.True(VirtualizingPanel.GetIsVirtualizing(saveListBox));
+                Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(saveListBox));
 
                 detailsViewModel.SetSelectedSection(new GameSettingsDetailSectionItem(
                     "resource_packs",
@@ -285,6 +319,17 @@ public sealed class ResourceDictionaryTests
                 Assert.NotNull(standaloneResourcePackView.Content);
                 var resourcePackSearchTextBoxes = FindVisualDescendants<TextBox>(standaloneResourcePackView).ToArray();
                 Assert.Empty(resourcePackSearchTextBoxes);
+                var resourcePackInfoPanel = FindVisualDescendant<GroupBox>(
+                    standaloneResourcePackView,
+                    groupBox => Equals(groupBox.Header, Strings.GameSettings_ResourcePackManagementInfoSection));
+                Assert.NotNull(resourcePackInfoPanel);
+                Assert.Equal(Visibility.Visible, resourcePackInfoPanel.Visibility);
+                Assert.NotNull(FindVisualAncestor<ListBoxItem>(resourcePackInfoPanel));
+
+                var resourcePackListBox = FindVisualDescendant<ListBox>(standaloneResourcePackView);
+                Assert.NotNull(resourcePackListBox);
+                Assert.True(VirtualizingPanel.GetIsVirtualizing(resourcePackListBox));
+                Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(resourcePackListBox));
 
                 detailsViewModel.SetSelectedSection(new GameSettingsDetailSectionItem(
                     "shaders",
@@ -308,6 +353,17 @@ public sealed class ResourceDictionaryTests
                 Assert.NotNull(standaloneShaderPackView.Content);
                 var shaderPackSearchTextBoxes = FindVisualDescendants<TextBox>(standaloneShaderPackView).ToArray();
                 Assert.Empty(shaderPackSearchTextBoxes);
+                var shaderPackInfoPanel = FindVisualDescendant<GroupBox>(
+                    standaloneShaderPackView,
+                    groupBox => Equals(groupBox.Header, Strings.GameSettings_ShaderPackManagementInfoSection));
+                Assert.NotNull(shaderPackInfoPanel);
+                Assert.Equal(Visibility.Visible, shaderPackInfoPanel.Visibility);
+                Assert.NotNull(FindVisualAncestor<ListBoxItem>(shaderPackInfoPanel));
+
+                var shaderPackListBox = FindVisualDescendant<ListBox>(standaloneShaderPackView);
+                Assert.NotNull(shaderPackListBox);
+                Assert.True(VirtualizingPanel.GetIsVirtualizing(shaderPackListBox));
+                Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(shaderPackListBox));
             }
             catch (Exception ex)
             {
@@ -503,6 +559,10 @@ public sealed class ResourceDictionaryTests
         Assert.Equal(
             "\u6253\u5f00 mod \u6587\u4ef6\u5939",
             Strings.GameSettings_ModManagementOpenFolderButton);
+        Assert.Equal("\u7b5b\u9009", Strings.GameSettings_ModManagementFilterLabel);
+        Assert.Equal("\u5168\u90e8", Strings.GameSettings_ModManagementFilterAllButton);
+        Assert.Equal("\u5df2\u542f\u7528", Strings.GameSettings_ModManagementFilterEnabledButton);
+        Assert.Equal("\u5df2\u7981\u7528", Strings.GameSettings_ModManagementFilterDisabledButton);
     }
 
     private static void EnsureApplicationResources(global::System.Windows.Application application)
@@ -683,6 +743,21 @@ public sealed class ResourceDictionaryTests
             var result = FindVisualDescendant(VisualTreeHelper.GetChild(root, index), predicate);
             if (result is not null)
                 return result;
+        }
+
+        return null;
+    }
+
+    private static T? FindVisualAncestor<T>(DependencyObject child)
+        where T : DependencyObject
+    {
+        var current = VisualTreeHelper.GetParent(child);
+        while (current is not null)
+        {
+            if (current is T typedCurrent)
+                return typedCurrent;
+
+            current = VisualTreeHelper.GetParent(current);
         }
 
         return null;

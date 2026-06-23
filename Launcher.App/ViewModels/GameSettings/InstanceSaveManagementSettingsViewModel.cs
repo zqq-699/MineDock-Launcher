@@ -6,7 +6,6 @@ using Launcher.App.ViewModels.Shared;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Collections.ObjectModel;
 using System.IO;
 
 namespace Launcher.App.ViewModels.GameSettings;
@@ -63,6 +62,15 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     [ObservableProperty]
     private bool hasLoadedSaves;
 
+    [ObservableProperty]
+    private IReadOnlyList<SaveManagementSaveItemViewModel> visibleSaves = Array.Empty<SaveManagementSaveItemViewModel>();
+
+    [ObservableProperty]
+    private IReadOnlyList<object> visibleSaveListItems = Array.Empty<object>();
+
+    [ObservableProperty]
+    private int listEntranceAnimationToken;
+
     public InstanceSaveManagementSettingsViewModel(
         GameSettingsDetailsViewModel parent,
         LocalSavesViewModel localSavesViewModel,
@@ -85,11 +93,15 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     public event Action<SaveDeleteRequest>? DeleteSavesRequested;
     public event Action<SaveImportFailureRequest>? SaveImportFailedRequested;
 
-    public ObservableCollection<SaveManagementSaveItemViewModel> Saves { get; } = [];
+    public override bool UsesFullViewportLayout => true;
+
+    public IReadOnlyList<SaveManagementSaveItemViewModel> Saves => VisibleSaves;
 
     public bool CanShowSaveInfoSection => selectedInstance is not null;
 
     public bool HasSaves => Saves.Count > 0;
+
+    public bool CanShowSaveScrollableContent => selectedInstance is not null;
 
     public bool HasInstalledSaves => InstalledSaveCount > 0;
 
@@ -147,6 +159,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         IsLoadingSaves = false;
         HasLoadedSaves = false;
         allSavesByPath.Clear();
+        ListEntranceAnimationToken = 0;
         ResetSelectionState();
         ClearDisplayedSaves();
         ImportLocalSaveCommand.NotifyCanExecuteChanged();
@@ -163,7 +176,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         isSectionActive = true;
         localSavesViewModel.SetWatcherEnabled(selectedInstance is not null);
         if (hasPendingVisualRefresh && HasLoadedSaves)
-            QueueVisibleRefresh();
+            QueueVisibleRefresh(playEntranceAnimation: true);
 
         return EnsureLoadedForSelectedInstanceAsync();
     }
@@ -440,7 +453,9 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         {
             await localSavesViewModel.RefreshSavesAsync();
             HasLoadedSaves = true;
-            if (!isSectionActive)
+            if (isSectionActive)
+                ListEntranceAnimationToken++;
+            else
                 hasPendingVisualRefresh = true;
         }
         catch (Exception exception)
@@ -499,7 +514,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         foreach (var item in allSavesByPath.Values)
             item.IsSelected = IsMultiSelectMode && selectedSavePaths.Contains(item.FullPath);
 
-        Saves.ReplaceWithIfChanged(filteredSaves);
+        SetVisibleSaves(filteredSaves);
 
         RefreshSummary();
         OnPropertyChanged(nameof(HasSaves));
@@ -521,7 +536,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         SelectSave(restoredSelection ?? Saves.FirstOrDefault());
     }
 
-    private void QueueVisibleRefresh()
+    private void QueueVisibleRefresh(bool playEntranceAnimation = false)
     {
         if (isVisibleRefreshQueued)
             return;
@@ -538,6 +553,8 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
 
             hasPendingVisualRefresh = false;
             RefreshFromLocalSaves();
+            if (playEntranceAnimation && HasSaves)
+                ListEntranceAnimationToken++;
         });
     }
 
@@ -565,6 +582,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     private void RaiseAvailabilityPropertyChanges()
     {
         OnPropertyChanged(nameof(CanShowSaveInfoSection));
+        OnPropertyChanged(nameof(CanShowSaveScrollableContent));
         OnPropertyChanged(nameof(HasInstalledSaves));
         OnPropertyChanged(nameof(CanShowSaveListSection));
         OnPropertyChanged(nameof(CanShowNoSavesEmptyState));
@@ -606,7 +624,8 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     private void ClearDisplayedSaves()
     {
         allSavesByPath.Clear();
-        Saves.Clear();
+        SetVisibleSaves(Array.Empty<SaveManagementSaveItemViewModel>());
+        RefreshVisibleSaveListItems();
         SelectedSave = null;
         RefreshSummary();
         OnPropertyChanged(nameof(HasSaves));
@@ -655,6 +674,71 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     private void UpdateSelectedSaveState()
     {
         SelectedSaveCount = Saves.Count(save => save.IsSelected);
+    }
+
+    partial void OnVisibleSavesChanged(IReadOnlyList<SaveManagementSaveItemViewModel> value)
+    {
+        OnPropertyChanged(nameof(Saves));
+        RefreshVisibleSaveListItems();
+    }
+
+    private void SetVisibleSaves(IReadOnlyList<SaveManagementSaveItemViewModel> saves)
+    {
+        if (IsSameVisibleSaves(saves))
+            return;
+
+        VisibleSaves = saves;
+    }
+
+    private bool IsSameVisibleSaves(IReadOnlyList<SaveManagementSaveItemViewModel> saves)
+    {
+        if (VisibleSaves.Count != saves.Count)
+            return false;
+
+        for (var index = 0; index < saves.Count; index++)
+        {
+            if (!ReferenceEquals(VisibleSaves[index], saves[index]))
+                return false;
+        }
+
+        return true;
+    }
+
+    private void RefreshVisibleSaveListItems()
+    {
+        if (!CanShowSaveInfoSection)
+        {
+            if (VisibleSaveListItems.Count > 0)
+                VisibleSaveListItems = Array.Empty<object>();
+            return;
+        }
+
+        if (IsSameVisibleSaveListItems())
+            return;
+
+        var items = new object[VisibleSaves.Count + 1];
+        items[0] = SaveManagementInfoPanelItem.Instance;
+        for (var index = 0; index < VisibleSaves.Count; index++)
+            items[index + 1] = VisibleSaves[index];
+
+        VisibleSaveListItems = items;
+    }
+
+    private bool IsSameVisibleSaveListItems()
+    {
+        if (VisibleSaveListItems.Count != VisibleSaves.Count + 1)
+            return false;
+
+        if (!ReferenceEquals(VisibleSaveListItems[0], SaveManagementInfoPanelItem.Instance))
+            return false;
+
+        for (var index = 0; index < VisibleSaves.Count; index++)
+        {
+            if (!ReferenceEquals(VisibleSaveListItems[index + 1], VisibleSaves[index]))
+                return false;
+        }
+
+        return true;
     }
 
     private async Task ImportSaveArchivesAsync(IReadOnlyList<string> archivePaths, ImportTriggerSource source)
@@ -757,5 +841,14 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         }
 
         return true;
+    }
+}
+
+public sealed class SaveManagementInfoPanelItem
+{
+    public static SaveManagementInfoPanelItem Instance { get; } = new();
+
+    private SaveManagementInfoPanelItem()
+    {
     }
 }

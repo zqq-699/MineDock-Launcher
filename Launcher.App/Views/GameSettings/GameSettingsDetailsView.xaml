@@ -38,17 +38,41 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <ScrollViewer x:Name="DetailsScrollViewer"
-                  Style="{StaticResource ListPageScrollViewerStyle}">
-        <StackPanel x:Name="SectionContentRoot"
-                    Margin="0,132,12,72"
-                    MaxWidth="{StaticResource DetailPageContentMaxWidth}"
-                    HorizontalAlignment="Stretch">
-            <StackPanel.RenderTransform>
-                <TranslateTransform />
-            </StackPanel.RenderTransform>
+    <Grid>
+        <ScrollViewer x:Name="DetailsScrollViewer">
+            <ScrollViewer.Style>
+                <Style TargetType="ScrollViewer" BasedOn="{StaticResource ListPageScrollViewerStyle}">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CurrentSectionViewModel.UsesFullViewportLayout}" Value="True">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ScrollViewer.Style>
+            <StackPanel x:Name="SectionContentRoot"
+                        Margin="0,132,12,72"
+                        MaxWidth="{StaticResource DetailPageContentMaxWidth}"
+                        HorizontalAlignment="Stretch">
+                <StackPanel.RenderTransform>
+                    <TranslateTransform />
+                </StackPanel.RenderTransform>
 
-            <ContentControl Content="{Binding CurrentSectionViewModel}" />
-        </StackPanel>
-    </ScrollViewer>
+                <ContentControl Content="{Binding ScrollSectionViewModel}" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <ContentControl Content="{Binding FullViewportSectionViewModel}">
+            <ContentControl.Style>
+                <Style TargetType="ContentControl">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CurrentSectionViewModel.UsesFullViewportLayout}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ContentControl.Style>
+        </ContentControl>
+    </Grid>
 </UserControl>

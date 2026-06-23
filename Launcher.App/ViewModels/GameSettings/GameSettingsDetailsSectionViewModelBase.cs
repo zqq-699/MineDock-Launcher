@@ -12,6 +12,8 @@ public abstract class GameSettingsDetailsSectionViewModelBase : ObservableObject
 
     public GameSettingsDetailsViewModel Parent { get; }
 
+    public virtual bool UsesFullViewportLayout => false;
+
     public virtual void OnSelectedInstanceChanged(GameInstance? instance)
     {
     }

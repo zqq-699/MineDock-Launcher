@@ -427,6 +427,10 @@
   <data name="GameSettings_ModManagementInfoSection" xml:space="preserve"><value>Mod信息</value></data>
   <data name="GameSettings_ModManagementInstalledSummaryFormat" xml:space="preserve"><value>当前游戏已安装 {0} 个 mods，已启用 {1} 个</value></data>
   <data name="GameSettings_ModManagementActionsLabel" xml:space="preserve"><value>操作</value></data>
+  <data name="GameSettings_ModManagementFilterLabel" xml:space="preserve"><value>筛选</value></data>
+  <data name="GameSettings_ModManagementFilterAllButton" xml:space="preserve"><value>全部</value></data>
+  <data name="GameSettings_ModManagementFilterEnabledButton" xml:space="preserve"><value>已启用</value></data>
+  <data name="GameSettings_ModManagementFilterDisabledButton" xml:space="preserve"><value>已禁用</value></data>
   <data name="GameSettings_ModManagementOpenFolderButton" xml:space="preserve"><value>打开 mod 文件夹</value></data>
   <data name="GameSettings_ModManagementLocalImportButton" xml:space="preserve"><value>本地导入</value></data>
   <data name="GameSettings_ModManagementOnlineInstallButton" xml:space="preserve"><value>在线安装</value></data>

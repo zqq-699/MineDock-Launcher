@@ -6,7 +6,6 @@ using Launcher.App.ViewModels.Shared;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Collections.ObjectModel;
 using System.IO;
 
 namespace Launcher.App.ViewModels.GameSettings;
@@ -50,6 +49,15 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
     [ObservableProperty]
     private bool hasLoadedShaderPacks;
 
+    [ObservableProperty]
+    private IReadOnlyList<ShaderPackManagementItemViewModel> visibleShaderPacks = Array.Empty<ShaderPackManagementItemViewModel>();
+
+    [ObservableProperty]
+    private IReadOnlyList<object> visibleShaderPackListItems = Array.Empty<object>();
+
+    [ObservableProperty]
+    private int listEntranceAnimationToken;
+
     public InstanceShaderPackManagementSettingsViewModel(
         GameSettingsDetailsViewModel parent,
         LocalShaderPacksViewModel localShaderPacksViewModel,
@@ -72,11 +80,15 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
     public event Action<ShaderPackDeleteRequest>? DeleteShaderPacksRequested;
     public event Action<ShaderPackImportFailureRequest>? ShaderPackImportFailedRequested;
 
-    public ObservableCollection<ShaderPackManagementItemViewModel> ShaderPacks { get; } = [];
+    public override bool UsesFullViewportLayout => true;
+
+    public IReadOnlyList<ShaderPackManagementItemViewModel> ShaderPacks => VisibleShaderPacks;
 
     public bool CanShowShaderPackInfoSection => selectedInstance is not null;
 
     public bool HasShaderPacks => ShaderPacks.Count > 0;
+
+    public bool CanShowShaderPackScrollableContent => selectedInstance is not null;
 
     public bool HasInstalledShaderPacks => InstalledShaderPackCount > 0;
 
@@ -134,6 +146,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         IsLoadingShaderPacks = false;
         HasLoadedShaderPacks = false;
         allShaderPacksByPath.Clear();
+        ListEntranceAnimationToken = 0;
         ResetSelectionState();
         ClearDisplayedShaderPacks();
         ImportLocalShaderPackCommand.NotifyCanExecuteChanged();
@@ -150,7 +163,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         isSectionActive = true;
         localShaderPacksViewModel.SetWatcherEnabled(selectedInstance is not null);
         if (hasPendingVisualRefresh && HasLoadedShaderPacks)
-            QueueVisibleRefresh();
+            QueueVisibleRefresh(playEntranceAnimation: true);
 
         return EnsureLoadedForSelectedInstanceAsync();
     }
@@ -427,7 +440,9 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         {
             await localShaderPacksViewModel.RefreshShaderPacksAsync();
             HasLoadedShaderPacks = true;
-            if (!isSectionActive)
+            if (isSectionActive)
+                ListEntranceAnimationToken++;
+            else
                 hasPendingVisualRefresh = true;
         }
         catch (Exception exception)
@@ -486,7 +501,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         foreach (var item in allShaderPacksByPath.Values)
             item.IsSelected = IsMultiSelectMode && selectedShaderPackPaths.Contains(item.FullPath);
 
-        ShaderPacks.ReplaceWithIfChanged(filteredShaderPacks);
+        SetVisibleShaderPacks(filteredShaderPacks);
 
         RefreshSummary();
         OnPropertyChanged(nameof(HasShaderPacks));
@@ -508,7 +523,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         SelectShaderPack(restoredSelection ?? ShaderPacks.FirstOrDefault());
     }
 
-    private void QueueVisibleRefresh()
+    private void QueueVisibleRefresh(bool playEntranceAnimation = false)
     {
         if (isVisibleRefreshQueued)
             return;
@@ -525,6 +540,8 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
 
             hasPendingVisualRefresh = false;
             RefreshFromLocalShaderPacks();
+            if (playEntranceAnimation && HasShaderPacks)
+                ListEntranceAnimationToken++;
         });
     }
 
@@ -552,6 +569,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
     private void RaiseAvailabilityPropertyChanges()
     {
         OnPropertyChanged(nameof(CanShowShaderPackInfoSection));
+        OnPropertyChanged(nameof(CanShowShaderPackScrollableContent));
         OnPropertyChanged(nameof(HasInstalledShaderPacks));
         OnPropertyChanged(nameof(CanShowShaderPackListSection));
         OnPropertyChanged(nameof(CanShowNoShaderPacksEmptyState));
@@ -593,7 +611,8 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
     private void ClearDisplayedShaderPacks()
     {
         allShaderPacksByPath.Clear();
-        ShaderPacks.Clear();
+        SetVisibleShaderPacks(Array.Empty<ShaderPackManagementItemViewModel>());
+        RefreshVisibleShaderPackListItems();
         SelectedShaderPack = null;
         RefreshSummary();
         OnPropertyChanged(nameof(HasShaderPacks));
@@ -642,6 +661,71 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
     private void UpdateSelectedShaderPackState()
     {
         SelectedShaderPackCount = ShaderPacks.Count(shaderPack => shaderPack.IsSelected);
+    }
+
+    partial void OnVisibleShaderPacksChanged(IReadOnlyList<ShaderPackManagementItemViewModel> value)
+    {
+        OnPropertyChanged(nameof(ShaderPacks));
+        RefreshVisibleShaderPackListItems();
+    }
+
+    private void SetVisibleShaderPacks(IReadOnlyList<ShaderPackManagementItemViewModel> shaderPacks)
+    {
+        if (IsSameVisibleShaderPacks(shaderPacks))
+            return;
+
+        VisibleShaderPacks = shaderPacks;
+    }
+
+    private bool IsSameVisibleShaderPacks(IReadOnlyList<ShaderPackManagementItemViewModel> shaderPacks)
+    {
+        if (VisibleShaderPacks.Count != shaderPacks.Count)
+            return false;
+
+        for (var index = 0; index < shaderPacks.Count; index++)
+        {
+            if (!ReferenceEquals(VisibleShaderPacks[index], shaderPacks[index]))
+                return false;
+        }
+
+        return true;
+    }
+
+    private void RefreshVisibleShaderPackListItems()
+    {
+        if (!CanShowShaderPackInfoSection)
+        {
+            if (VisibleShaderPackListItems.Count > 0)
+                VisibleShaderPackListItems = Array.Empty<object>();
+            return;
+        }
+
+        if (IsSameVisibleShaderPackListItems())
+            return;
+
+        var items = new object[VisibleShaderPacks.Count + 1];
+        items[0] = ShaderPackManagementInfoPanelItem.Instance;
+        for (var index = 0; index < VisibleShaderPacks.Count; index++)
+            items[index + 1] = VisibleShaderPacks[index];
+
+        VisibleShaderPackListItems = items;
+    }
+
+    private bool IsSameVisibleShaderPackListItems()
+    {
+        if (VisibleShaderPackListItems.Count != VisibleShaderPacks.Count + 1)
+            return false;
+
+        if (!ReferenceEquals(VisibleShaderPackListItems[0], ShaderPackManagementInfoPanelItem.Instance))
+            return false;
+
+        for (var index = 0; index < VisibleShaderPacks.Count; index++)
+        {
+            if (!ReferenceEquals(VisibleShaderPackListItems[index + 1], VisibleShaderPacks[index]))
+                return false;
+        }
+
+        return true;
     }
 
     private async Task ImportShaderPackArchivesAsync(IReadOnlyList<string> archivePaths, ImportTriggerSource source)
@@ -742,5 +826,14 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         }
 
         return true;
+    }
+}
+
+public sealed class ShaderPackManagementInfoPanelItem
+{
+    public static ShaderPackManagementInfoPanelItem Instance { get; } = new();
+
+    private ShaderPackManagementInfoPanelItem()
+    {
     }
 }

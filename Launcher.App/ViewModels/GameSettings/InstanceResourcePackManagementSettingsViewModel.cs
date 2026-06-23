@@ -6,7 +6,6 @@ using Launcher.App.ViewModels.Shared;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Collections.ObjectModel;
 using System.IO;
 
 namespace Launcher.App.ViewModels.GameSettings;
@@ -50,6 +49,15 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     [ObservableProperty]
     private bool hasLoadedResourcePacks;
 
+    [ObservableProperty]
+    private IReadOnlyList<ResourcePackManagementItemViewModel> visibleResourcePacks = Array.Empty<ResourcePackManagementItemViewModel>();
+
+    [ObservableProperty]
+    private IReadOnlyList<object> visibleResourcePackListItems = Array.Empty<object>();
+
+    [ObservableProperty]
+    private int listEntranceAnimationToken;
+
     public InstanceResourcePackManagementSettingsViewModel(
         GameSettingsDetailsViewModel parent,
         LocalResourcePacksViewModel localResourcePacksViewModel,
@@ -72,11 +80,15 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     public event Action<ResourcePackDeleteRequest>? DeleteResourcePacksRequested;
     public event Action<ResourcePackImportFailureRequest>? ResourcePackImportFailedRequested;
 
-    public ObservableCollection<ResourcePackManagementItemViewModel> ResourcePacks { get; } = [];
+    public override bool UsesFullViewportLayout => true;
+
+    public IReadOnlyList<ResourcePackManagementItemViewModel> ResourcePacks => VisibleResourcePacks;
 
     public bool CanShowResourcePackInfoSection => selectedInstance is not null;
 
     public bool HasResourcePacks => ResourcePacks.Count > 0;
+
+    public bool CanShowResourcePackScrollableContent => selectedInstance is not null;
 
     public bool HasInstalledResourcePacks => InstalledResourcePackCount > 0;
 
@@ -134,6 +146,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         IsLoadingResourcePacks = false;
         HasLoadedResourcePacks = false;
         allResourcePacksByPath.Clear();
+        ListEntranceAnimationToken = 0;
         ResetSelectionState();
         ClearDisplayedResourcePacks();
         ImportLocalResourcePackCommand.NotifyCanExecuteChanged();
@@ -150,7 +163,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         isSectionActive = true;
         localResourcePacksViewModel.SetWatcherEnabled(selectedInstance is not null);
         if (hasPendingVisualRefresh && HasLoadedResourcePacks)
-            QueueVisibleRefresh();
+            QueueVisibleRefresh(playEntranceAnimation: true);
 
         return EnsureLoadedForSelectedInstanceAsync();
     }
@@ -427,7 +440,9 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         {
             await localResourcePacksViewModel.RefreshResourcePacksAsync();
             HasLoadedResourcePacks = true;
-            if (!isSectionActive)
+            if (isSectionActive)
+                ListEntranceAnimationToken++;
+            else
                 hasPendingVisualRefresh = true;
         }
         catch (Exception exception)
@@ -486,7 +501,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         foreach (var item in allResourcePacksByPath.Values)
             item.IsSelected = IsMultiSelectMode && selectedResourcePackPaths.Contains(item.FullPath);
 
-        ResourcePacks.ReplaceWithIfChanged(filteredResourcePacks);
+        SetVisibleResourcePacks(filteredResourcePacks);
 
         RefreshSummary();
         OnPropertyChanged(nameof(HasResourcePacks));
@@ -508,7 +523,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         SelectResourcePack(restoredSelection ?? ResourcePacks.FirstOrDefault());
     }
 
-    private void QueueVisibleRefresh()
+    private void QueueVisibleRefresh(bool playEntranceAnimation = false)
     {
         if (isVisibleRefreshQueued)
             return;
@@ -525,6 +540,8 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
 
             hasPendingVisualRefresh = false;
             RefreshFromLocalResourcePacks();
+            if (playEntranceAnimation && HasResourcePacks)
+                ListEntranceAnimationToken++;
         });
     }
 
@@ -552,6 +569,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     private void RaiseAvailabilityPropertyChanges()
     {
         OnPropertyChanged(nameof(CanShowResourcePackInfoSection));
+        OnPropertyChanged(nameof(CanShowResourcePackScrollableContent));
         OnPropertyChanged(nameof(HasInstalledResourcePacks));
         OnPropertyChanged(nameof(CanShowResourcePackListSection));
         OnPropertyChanged(nameof(CanShowNoResourcePacksEmptyState));
@@ -593,7 +611,8 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     private void ClearDisplayedResourcePacks()
     {
         allResourcePacksByPath.Clear();
-        ResourcePacks.Clear();
+        SetVisibleResourcePacks(Array.Empty<ResourcePackManagementItemViewModel>());
+        RefreshVisibleResourcePackListItems();
         SelectedResourcePack = null;
         RefreshSummary();
         OnPropertyChanged(nameof(HasResourcePacks));
@@ -642,6 +661,71 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     private void UpdateSelectedResourcePackState()
     {
         SelectedResourcePackCount = ResourcePacks.Count(resourcePack => resourcePack.IsSelected);
+    }
+
+    partial void OnVisibleResourcePacksChanged(IReadOnlyList<ResourcePackManagementItemViewModel> value)
+    {
+        OnPropertyChanged(nameof(ResourcePacks));
+        RefreshVisibleResourcePackListItems();
+    }
+
+    private void SetVisibleResourcePacks(IReadOnlyList<ResourcePackManagementItemViewModel> resourcePacks)
+    {
+        if (IsSameVisibleResourcePacks(resourcePacks))
+            return;
+
+        VisibleResourcePacks = resourcePacks;
+    }
+
+    private bool IsSameVisibleResourcePacks(IReadOnlyList<ResourcePackManagementItemViewModel> resourcePacks)
+    {
+        if (VisibleResourcePacks.Count != resourcePacks.Count)
+            return false;
+
+        for (var index = 0; index < resourcePacks.Count; index++)
+        {
+            if (!ReferenceEquals(VisibleResourcePacks[index], resourcePacks[index]))
+                return false;
+        }
+
+        return true;
+    }
+
+    private void RefreshVisibleResourcePackListItems()
+    {
+        if (!CanShowResourcePackInfoSection)
+        {
+            if (VisibleResourcePackListItems.Count > 0)
+                VisibleResourcePackListItems = Array.Empty<object>();
+            return;
+        }
+
+        if (IsSameVisibleResourcePackListItems())
+            return;
+
+        var items = new object[VisibleResourcePacks.Count + 1];
+        items[0] = ResourcePackManagementInfoPanelItem.Instance;
+        for (var index = 0; index < VisibleResourcePacks.Count; index++)
+            items[index + 1] = VisibleResourcePacks[index];
+
+        VisibleResourcePackListItems = items;
+    }
+
+    private bool IsSameVisibleResourcePackListItems()
+    {
+        if (VisibleResourcePackListItems.Count != VisibleResourcePacks.Count + 1)
+            return false;
+
+        if (!ReferenceEquals(VisibleResourcePackListItems[0], ResourcePackManagementInfoPanelItem.Instance))
+            return false;
+
+        for (var index = 0; index < VisibleResourcePacks.Count; index++)
+        {
+            if (!ReferenceEquals(VisibleResourcePackListItems[index + 1], VisibleResourcePacks[index]))
+                return false;
+        }
+
+        return true;
     }
 
     private async Task ImportResourcePackArchivesAsync(IReadOnlyList<string> archivePaths, ImportTriggerSource source)
@@ -742,5 +826,14 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         }
 
         return true;
+    }
+}
+
+public sealed class ResourcePackManagementInfoPanelItem
+{
+    public static ResourcePackManagementInfoPanelItem Instance { get; } = new();
+
+    private ResourcePackManagementInfoPanelItem()
+    {
     }
 }

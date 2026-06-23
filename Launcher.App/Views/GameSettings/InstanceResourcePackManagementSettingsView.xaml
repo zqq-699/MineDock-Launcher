@@ -1,7 +1,9 @@
 <UserControl x:Class="Launcher.App.Views.GameSettings.InstanceResourcePackManagementSettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
+             xmlns:gameSettings="clr-namespace:Launcher.App.ViewModels.GameSettings"
              xmlns:res="clr-namespace:Launcher.App.Resources"
              xmlns:views="clr-namespace:Launcher.App.Views.GameSettings"
              x:Name="Root"
@@ -11,142 +13,125 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/Launcher.App;component/Views/GameSettings/GameSettingsSectionResources.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <DataTemplate DataType="{x:Type gameSettings:ResourcePackManagementInfoPanelItem}">
+                <GroupBox Header="{x:Static res:Strings.GameSettings_ResourcePackManagementInfoSection}"
+                          Margin="0,0,0,12"
+                          Style="{StaticResource LauncherContentSectionStyle}">
+                    <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                        <StackPanel>
+                            <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
+                                <TextBlock Text="{Binding DataContext.InstalledSummaryText, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceResourcePackManagementSettingsView}}}"
+                                           Style="{StaticResource ReadOnlyFieldTextStyle}" />
+                            </Border>
+
+                            <TextBlock Margin="0,12,0,8"
+                                       Text="{x:Static res:Strings.GameSettings_ResourcePackManagementActionsLabel}"
+                                       Style="{StaticResource SettingsOptionTextStyle}" />
+
+                            <WrapPanel>
+                                <Button Margin="0,0,8,4"
+                                        Content="{x:Static res:Strings.GameSettings_ResourcePackManagementOpenFolderButton}"
+                                        Command="{Binding DataContext.OpenResourcePackFolderCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceResourcePackManagementSettingsView}}}"
+                                        Style="{StaticResource LauncherDialogButtonStyle}" />
+                                <Button Margin="0,0,8,4"
+                                        Content="{x:Static res:Strings.GameSettings_ResourcePackManagementLocalImportButton}"
+                                        Command="{Binding DataContext.ImportLocalResourcePackCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceResourcePackManagementSettingsView}}}"
+                                        Style="{StaticResource LauncherDialogButtonStyle}" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+                </GroupBox>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type gameSettings:ResourcePackManagementItemViewModel}">
+                <controls:ListPageItemButton Title="{Binding Title}"
+                                             Subtitle="{Binding Subtitle}"
+                                             TrailingText="{Binding TrailingText}"
+                                             IconSource="{Binding IconSource}"
+                                             IconKey="{Binding IconKey}"
+                                             IsSelected="{Binding IsSelected}"
+                                             IsFirstVisible="{Binding Tag.IsFirstVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                             IsLastVisible="{Binding Tag.IsLastVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                             IsPreviousItemHighlighted="{Binding Tag.IsPreviousItemHighlighted, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                             ShouldPlayEnterAnimation="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}, Mode=TwoWay}"
+                                             EnterAnimationIndex="{Binding Tag.EnterAnimationIndex, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                             Command="{Binding DataContext.SelectResourcePackCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceResourcePackManagementSettingsView}}}"
+                                             CommandParameter="{Binding}"
+                                             Style="{StaticResource ListPageItemButtonEntranceStyle}">
+                    <controls:ListPageItemButton.TrailingContent>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Style="{StaticResource InlineIconButtonStyle}"
+                                    ToolTip="{x:Static res:Strings.GameSettings_OpenInstanceFolderTooltip}"
+                                    Command="{Binding DataContext.OpenResourcePackLocationCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceResourcePackManagementSettingsView}}}"
+                                    CommandParameter="{Binding}">
+                                <controls:SvgIcon Width="16"
+                                                  Height="16"
+                                                  IconKey="general/general_folder"
+                                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                            </Button>
+
+                            <Button Margin="4,0,0,0"
+                                    Style="{StaticResource SecondaryMenuDeleteButtonStyle}"
+                                    ToolTip="{x:Static res:Strings.Delete_Button}"
+                                    Command="{Binding DataContext.RequestDeleteResourcePackCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceResourcePackManagementSettingsView}}}"
+                                    CommandParameter="{Binding}">
+                                <controls:SvgIcon Width="16"
+                                                  Height="16"
+                                                  IconKey="general/general_delete"
+                                                  Style="{StaticResource DangerActionSvgIconStyle}" />
+                            </Button>
+                        </StackPanel>
+                    </controls:ListPageItemButton.TrailingContent>
+                </controls:ListPageItemButton>
+            </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid>
-        <StackPanel>
-            <GroupBox Header="{x:Static res:Strings.GameSettings_ResourcePackManagementInfoSection}">
-                <GroupBox.Style>
-                    <Style TargetType="GroupBox" BasedOn="{StaticResource LauncherContentSectionStyle}">
-                        <Setter Property="Visibility" Value="Visible" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding CanShowResourcePackInfoSection}" Value="False">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </GroupBox.Style>
-                <Border Style="{StaticResource SectionFieldSurfaceStyle}">
-                    <StackPanel>
-                        <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
-                            <TextBlock Text="{Binding InstalledSummaryText}"
-                                       Style="{StaticResource ReadOnlyFieldTextStyle}" />
-                        </Border>
+    <Grid ClipToBounds="True">
+        <ListBox ItemsSource="{Binding VisibleResourcePackListItems}"
+                 SelectedItem="{Binding SelectedResourcePack, Mode=OneWay}"
+                 ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
+                 VirtualizingPanel.IsVirtualizing="True"
+                 VirtualizingPanel.VirtualizationMode="Recycling"
+                 VirtualizingPanel.ScrollUnit="Pixel"
+                 ScrollViewer.CanContentScroll="True"
+                 behaviors:VirtualizedListItemStateBehavior.IsEnabled="True"
+                 behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding ListEntranceAnimationToken}"
+                 behaviors:VirtualizedListItemStateBehavior.ContentTopOffset="132">
+            <ListBox.Style>
+                <Style TargetType="ListBox" BasedOn="{StaticResource ListPageVirtualizedListBoxStyle}">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding CanShowResourcePackScrollableContent}" Value="False">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ListBox.Style>
+            <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel Margin="0,132,12,64"
+                                            VirtualizingPanel.IsVirtualizing="True"
+                                            VirtualizingPanel.VirtualizationMode="Recycling"
+                                            VirtualizingPanel.ScrollUnit="Pixel" />
+                </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+        </ListBox>
 
-                        <TextBlock Margin="0,18,0,10"
-                                   Text="{x:Static res:Strings.GameSettings_ResourcePackManagementActionsLabel}"
-                                   Style="{StaticResource SettingsOptionTextStyle}" />
+        <TextBlock Margin="0,260,12,0"
+                   Text="{x:Static res:Strings.GameSettings_ResourcePackManagementLoading}"
+                   Style="{StaticResource PageEmptyStateTextStyle}"
+                   Visibility="{Binding CanShowResourcePackLoadingState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
-                        <WrapPanel>
-                            <Button Margin="0,0,10,10"
-                                    Content="{x:Static res:Strings.GameSettings_ResourcePackManagementOpenFolderButton}"
-                                    Command="{Binding OpenResourcePackFolderCommand}"
-                                    Style="{StaticResource LauncherDialogButtonStyle}" />
-                            <Button Margin="0,0,10,10"
-                                    Content="{x:Static res:Strings.GameSettings_ResourcePackManagementLocalImportButton}"
-                                    Command="{Binding ImportLocalResourcePackCommand}"
-                                    Style="{StaticResource LauncherDialogButtonStyle}" />
-                        </WrapPanel>
-                    </StackPanel>
-                </Border>
-            </GroupBox>
+        <TextBlock Margin="0,260,12,0"
+                   Text="{Binding ResourcePackEmptyMessage}"
+                   Style="{StaticResource PageEmptyStateTextStyle}"
+                   Visibility="{Binding CanShowResourcePackEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
-            <GroupBox x:Name="ResourcePackListSection"
-                      Header="{x:Static res:Strings.GameSettings_ResourcePackManagementListSection}"
-                      Margin="0,26,0,0">
-                <GroupBox.Style>
-                    <Style TargetType="GroupBox" BasedOn="{StaticResource LauncherContentSectionStyle}">
-                        <Setter Property="Visibility" Value="Visible" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding CanShowResourcePackListSection}" Value="False">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </GroupBox.Style>
-                <Grid MinHeight="140">
-                    <TextBlock Margin="0,42,0,0"
-                               Text="{x:Static res:Strings.GameSettings_ResourcePackManagementLoading}"
-                               Style="{StaticResource PageEmptyStateTextStyle}"
-                               Visibility="{Binding CanShowResourcePackLoadingState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
-
-                    <ListBox ItemsSource="{Binding ResourcePacks}"
-                             SelectedItem="{Binding SelectedResourcePack, Mode=OneWay}"
-                             ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
-                             VirtualizingPanel.IsVirtualizing="True"
-                             VirtualizingPanel.VirtualizationMode="Recycling"
-                             VirtualizingPanel.ScrollUnit="Pixel"
-                             ScrollViewer.CanContentScroll="True">
-                        <ListBox.Style>
-                            <Style TargetType="ListBox" BasedOn="{StaticResource ListPageVirtualizedListBoxStyle}">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasResourcePacks}" Value="False">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ListBox.Style>
-                        <ListBox.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <VirtualizingStackPanel VirtualizingPanel.IsVirtualizing="True"
-                                                        VirtualizingPanel.VirtualizationMode="Recycling"
-                                                        VirtualizingPanel.ScrollUnit="Pixel" />
-                            </ItemsPanelTemplate>
-                        </ListBox.ItemsPanel>
-
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <controls:ListPageItemButton Title="{Binding Title}"
-                                                             Subtitle="{Binding Subtitle}"
-                                                             TrailingText="{Binding TrailingText}"
-                                                             IconSource="{Binding IconSource}"
-                                                             IconKey="{Binding IconKey}"
-                                                             ItemMargin="0"
-                                                             IsSelected="{Binding IsSelected}"
-                                                             Command="{Binding DataContext.SelectResourcePackCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceResourcePackManagementSettingsView}}}"
-                                                             CommandParameter="{Binding}">
-                                    <controls:ListPageItemButton.TrailingContent>
-                                        <StackPanel Orientation="Horizontal">
-                                            <Button Style="{StaticResource InlineIconButtonStyle}"
-                                                    ToolTip="{x:Static res:Strings.GameSettings_OpenInstanceFolderTooltip}"
-                                                    Command="{Binding DataContext.OpenResourcePackLocationCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceResourcePackManagementSettingsView}}}"
-                                                    CommandParameter="{Binding}">
-                                                <controls:SvgIcon Width="16"
-                                                                  Height="16"
-                                                                  IconKey="general/general_folder"
-                                                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
-                                            </Button>
-
-                                            <Button Margin="4,0,0,0"
-                                                    Style="{StaticResource SecondaryMenuDeleteButtonStyle}"
-                                                    ToolTip="{x:Static res:Strings.Delete_Button}"
-                                                    Command="{Binding DataContext.RequestDeleteResourcePackCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceResourcePackManagementSettingsView}}}"
-                                                    CommandParameter="{Binding}">
-                                                <controls:SvgIcon Width="16"
-                                                                  Height="16"
-                                                                  IconKey="general/general_delete"
-                                                                  Style="{StaticResource DangerActionSvgIconStyle}" />
-                                            </Button>
-                                        </StackPanel>
-                                    </controls:ListPageItemButton.TrailingContent>
-                                </controls:ListPageItemButton>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
-
-                    <TextBlock Margin="0,42,0,0"
-                               Text="{Binding ResourcePackEmptyMessage}"
-                               Style="{StaticResource PageEmptyStateTextStyle}"
-                               Visibility="{Binding CanShowResourcePackEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
-                </Grid>
-            </GroupBox>
-
-            <TextBlock Margin="0,72,0,0"
-                       Text="{Binding ResourcePackEmptyMessage}"
-                       Style="{StaticResource PageEmptyStateTextStyle}"
-                       Visibility="{Binding CanShowNoResourcePacksEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
-        </StackPanel>
+        <TextBlock Margin="0,260,12,0"
+                   Text="{Binding ResourcePackEmptyMessage}"
+                   Style="{StaticResource PageEmptyStateTextStyle}"
+                   Visibility="{Binding CanShowNoResourcePacksEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
     </Grid>
 </UserControl>

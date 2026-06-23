@@ -13,10 +13,13 @@ public sealed class LocalModsViewModel : IDisposable
 {
     private const string EnabledModExtension = ".jar";
     private const string DisabledModExtension = ".jar.disabled";
+    private static readonly TimeSpan IgnoredWatcherPathTtl = TimeSpan.FromSeconds(2);
     private readonly IModService modService;
     private readonly IStatusService statusService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<LocalModsViewModel> logger;
+    private readonly object ignoredWatcherPathsLock = new();
+    private readonly Dictionary<string, DateTimeOffset> ignoredWatcherPaths = new(StringComparer.OrdinalIgnoreCase);
     private FileSystemWatcher? modsWatcher;
     private CancellationTokenSource? refreshCancellationTokenSource;
     private CancellationTokenSource? watcherRefreshCancellationTokenSource;
@@ -123,8 +126,24 @@ public sealed class LocalModsViewModel : IDisposable
 
     public async Task ToggleModAsync(LocalMod mod)
     {
-        await modService.SetEnabledAsync(mod, !mod.IsEnabled);
-        await RefreshModsAsync();
+        ArgumentNullException.ThrowIfNull(mod);
+
+        var enabled = !mod.IsEnabled;
+        var sourcePath = mod.FullPath;
+        var targetPath = GetPathForEnabledState(sourcePath, enabled);
+        IgnoreWatcherPaths(sourcePath, targetPath);
+
+        try
+        {
+            await modService.SetEnabledAsync(mod, enabled);
+        }
+        catch
+        {
+            RemoveIgnoredWatcherPaths(sourcePath, targetPath);
+            throw;
+        }
+
+        ApplyEnabledStateLocally(mod, targetPath, enabled, raiseChanged: true);
     }
 
     public async Task DeleteModAsync(LocalMod mod)
@@ -138,16 +157,22 @@ public sealed class LocalModsViewModel : IDisposable
         ArgumentNullException.ThrowIfNull(mods);
 
         var failedCount = 0;
+        var appliedUpdates = new List<(LocalMod Mod, string TargetPath)>();
         foreach (var mod in mods
                      .Where(mod => mod.IsEnabled != enabled)
                      .DistinctBy(mod => mod.FullPath, StringComparer.OrdinalIgnoreCase))
         {
+            var sourcePath = mod.FullPath;
+            var targetPath = GetPathForEnabledState(sourcePath, enabled);
+            IgnoreWatcherPaths(sourcePath, targetPath);
             try
             {
                 await modService.SetEnabledAsync(mod, enabled);
+                appliedUpdates.Add((mod, targetPath));
             }
             catch (Exception exception)
             {
+                RemoveIgnoredWatcherPaths(sourcePath, targetPath);
                 failedCount++;
                 logger.LogWarning(
                     exception,
@@ -157,7 +182,17 @@ public sealed class LocalModsViewModel : IDisposable
             }
         }
 
-        await RefreshModsAsync();
+        if (appliedUpdates.Count > 0)
+        {
+            uiDispatcher.Invoke(() =>
+            {
+                foreach (var (mod, targetPath) in appliedUpdates)
+                    ApplyEnabledStateLocallyCore(mod, targetPath, enabled);
+
+                ModsChanged?.Invoke(this, EventArgs.Empty);
+            });
+        }
+
         return failedCount;
     }
 
@@ -275,12 +310,18 @@ public sealed class LocalModsViewModel : IDisposable
         if (!IsTrackedModPath(e.FullPath))
             return;
 
+        if (ShouldIgnoreWatcherPath(e.FullPath))
+            return;
+
         QueueWatcherRefresh(e.ChangeType.ToString(), e.FullPath);
     }
 
     private void ModsWatcher_StateRenamed(object sender, RenamedEventArgs e)
     {
         if (!IsTrackedModPath(e.FullPath) && !IsTrackedModPath(e.OldFullPath))
+            return;
+
+        if (ShouldIgnoreWatcherPath(e.FullPath) || ShouldIgnoreWatcherPath(e.OldFullPath))
             return;
 
         QueueWatcherRefresh("Renamed", e.FullPath);
@@ -368,5 +409,87 @@ public sealed class LocalModsViewModel : IDisposable
         return !string.IsNullOrWhiteSpace(fullPath)
             && (fullPath.EndsWith(EnabledModExtension, StringComparison.OrdinalIgnoreCase)
                 || fullPath.EndsWith(DisabledModExtension, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void ApplyEnabledStateLocally(LocalMod mod, string targetPath, bool enabled, bool raiseChanged)
+    {
+        uiDispatcher.Invoke(() =>
+        {
+            ApplyEnabledStateLocallyCore(mod, targetPath, enabled);
+            if (raiseChanged)
+                ModsChanged?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    private static void ApplyEnabledStateLocallyCore(LocalMod mod, string targetPath, bool enabled)
+    {
+        mod.FullPath = targetPath;
+        mod.FileName = Path.GetFileName(targetPath);
+        mod.IsEnabled = enabled;
+    }
+
+    private void IgnoreWatcherPaths(params string?[] paths)
+    {
+        var expiresAt = DateTimeOffset.UtcNow.Add(IgnoredWatcherPathTtl);
+        lock (ignoredWatcherPathsLock)
+        {
+            PruneIgnoredWatcherPaths(DateTimeOffset.UtcNow);
+            foreach (var path in paths)
+            {
+                if (string.IsNullOrWhiteSpace(path))
+                    continue;
+
+                ignoredWatcherPaths[path] = expiresAt;
+            }
+        }
+    }
+
+    private bool ShouldIgnoreWatcherPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return false;
+
+        var now = DateTimeOffset.UtcNow;
+        lock (ignoredWatcherPathsLock)
+        {
+            PruneIgnoredWatcherPaths(now);
+            return ignoredWatcherPaths.Remove(path);
+        }
+    }
+
+    private void RemoveIgnoredWatcherPaths(params string?[] paths)
+    {
+        lock (ignoredWatcherPathsLock)
+        {
+            foreach (var path in paths)
+            {
+                if (string.IsNullOrWhiteSpace(path))
+                    continue;
+
+                ignoredWatcherPaths.Remove(path);
+            }
+        }
+    }
+
+    private void PruneIgnoredWatcherPaths(DateTimeOffset now)
+    {
+        foreach (var path in ignoredWatcherPaths
+                     .Where(pair => pair.Value <= now)
+                     .Select(pair => pair.Key)
+                     .ToArray())
+        {
+            ignoredWatcherPaths.Remove(path);
+        }
+    }
+
+    private static string GetPathForEnabledState(string path, bool enabled)
+    {
+        return enabled
+            ? path.EndsWith(DisabledModExtension, StringComparison.OrdinalIgnoreCase)
+                ? path[..^".disabled".Length]
+                : path
+            : path.EndsWith(DisabledModExtension, StringComparison.OrdinalIgnoreCase)
+                ? path
+                : path + ".disabled";
     }
 }

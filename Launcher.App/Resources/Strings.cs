@@ -167,6 +167,10 @@ public static class Strings
     public static string GameSettings_ModManagementInfoSection => Get(nameof(GameSettings_ModManagementInfoSection));
     public static string GameSettings_ModManagementInstalledSummaryFormat => Get(nameof(GameSettings_ModManagementInstalledSummaryFormat));
     public static string GameSettings_ModManagementActionsLabel => Get(nameof(GameSettings_ModManagementActionsLabel));
+    public static string GameSettings_ModManagementFilterLabel => Get(nameof(GameSettings_ModManagementFilterLabel));
+    public static string GameSettings_ModManagementFilterAllButton => Get(nameof(GameSettings_ModManagementFilterAllButton));
+    public static string GameSettings_ModManagementFilterEnabledButton => Get(nameof(GameSettings_ModManagementFilterEnabledButton));
+    public static string GameSettings_ModManagementFilterDisabledButton => Get(nameof(GameSettings_ModManagementFilterDisabledButton));
     public static string GameSettings_ModManagementOpenFolderButton => Get(nameof(GameSettings_ModManagementOpenFolderButton));
     public static string GameSettings_ModManagementLocalImportButton => Get(nameof(GameSettings_ModManagementLocalImportButton));
     public static string GameSettings_ModManagementOnlineInstallButton => Get(nameof(GameSettings_ModManagementOnlineInstallButton));

@@ -195,6 +195,12 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         Strings.GameSettings_DetailPlaceholderBodyFormat,
         SectionTitle);
 
+    public GameSettingsDetailsSectionViewModelBase? ScrollSectionViewModel =>
+        CurrentSectionViewModel?.UsesFullViewportLayout is true ? null : CurrentSectionViewModel;
+
+    public GameSettingsDetailsSectionViewModelBase? FullViewportSectionViewModel =>
+        CurrentSectionViewModel?.UsesFullViewportLayout is true ? CurrentSectionViewModel : null;
+
     public bool IsGeneralSection => string.Equals(SelectedSection?.Id, "general", StringComparison.OrdinalIgnoreCase);
 
     public bool IsLaunchSection => string.Equals(SelectedSection?.Id, "launch", StringComparison.OrdinalIgnoreCase);
@@ -492,6 +498,12 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         };
         if (CurrentSectionViewModel is not null)
             _ = CurrentSectionViewModel.OnSectionActivatedAsync();
+    }
+
+    partial void OnCurrentSectionViewModelChanged(GameSettingsDetailsSectionViewModelBase? value)
+    {
+        OnPropertyChanged(nameof(ScrollSectionViewModel));
+        OnPropertyChanged(nameof(FullViewportSectionViewModel));
     }
 
     partial void OnSelectedLaunchSettingsModeOptionChanged(GameSettingsLaunchSettingsModeOption? value)
