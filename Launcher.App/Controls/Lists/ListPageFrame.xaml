@@ -11,7 +11,9 @@
 
         <Grid x:Name="PART_ListLayer"
               behaviors:VerticalEdgeOpacityMask.IsEnabled="{Binding IsListVisible, ElementName=Root}"
-              behaviors:VerticalEdgeOpacityMask.TopFadeLength="132"
+              behaviors:VerticalEdgeOpacityMask.TopFadeLength="140"
+              behaviors:VerticalEdgeOpacityMask.TopIntermediateLength="100"
+              behaviors:VerticalEdgeOpacityMask.TopIntermediateOpacity="0.1"
               behaviors:VerticalEdgeOpacityMask.BottomFadeLength="72"
               behaviors:VerticalEdgeOpacityMask.MinimumOpacity="0">
             <ScrollViewer x:Name="PART_ScrollViewer">
@@ -130,19 +132,74 @@
                         </TextBlock.Style>
                     </TextBlock>
                 </Grid>
-                <TextBox Tag="{Binding ElementName=PART_ListLayer}"
-                         Text="{Binding SearchText, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
-                    <TextBox.Style>
-                        <Style TargetType="TextBox" BasedOn="{StaticResource ListPageSearchBoxStyle}">
+                <ContentPresenter Content="{Binding DataContext, ElementName=Root}"
+                                  ContentTemplate="{Binding SearchToolbarContentTemplate, ElementName=Root}"
+                                  Height="30"
+                                  Margin="0,46,12,0"
+                                  VerticalAlignment="Top">
+                    <ContentPresenter.Style>
+                        <Style TargetType="ContentPresenter">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSearchToolbarVisible, ElementName=Root}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ContentPresenter.Style>
+                </ContentPresenter>
+
+                <Grid Height="32"
+                      VerticalAlignment="Top">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
                             <Setter Property="Visibility" Value="Visible" />
+                            <Setter Property="Margin" Value="0,58,12,0" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsSearchVisible, ElementName=Root}" Value="False">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                 </DataTrigger>
+                                <DataTrigger Binding="{Binding IsSearchToolbarVisible, ElementName=Root}" Value="True">
+                                    <Setter Property="Margin" Value="0,82,12,0" />
+                                </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </TextBox.Style>
-                </TextBox>
+                    </Grid.Style>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox Tag="{Binding ElementName=PART_ListLayer}"
+                             Text="{Binding SearchText, ElementName=Root, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox" BasedOn="{StaticResource ListPageSearchBoxStyle}">
+                                <Setter Property="Margin" Value="0" />
+                                <Setter Property="VerticalAlignment" Value="Stretch" />
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+
+                    <ContentPresenter Grid.Column="1"
+                                      Content="{Binding SearchTrailingContent, ElementName=Root}"
+                                      DataContext="{Binding DataContext, ElementName=Root}"
+                                      VerticalAlignment="Center">
+                        <ContentPresenter.Style>
+                            <Style TargetType="ContentPresenter">
+                                <Setter Property="Margin" Value="10,0,0,0" />
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SearchTrailingContent, ElementName=Root}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding SearchTrailingContent.Visibility, ElementName=Root}" Value="Collapsed">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContentPresenter.Style>
+                    </ContentPresenter>
+                </Grid>
             </Grid>
         </Border>
 

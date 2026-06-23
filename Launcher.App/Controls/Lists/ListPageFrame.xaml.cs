@@ -29,6 +29,18 @@ public partial class ListPageFrame : UserControl
     public static readonly DependencyProperty IsSearchVisibleProperty =
         DependencyProperty.Register(nameof(IsSearchVisible), typeof(bool), typeof(ListPageFrame), new PropertyMetadata(true));
 
+    public static readonly DependencyProperty SearchTrailingContentProperty =
+        DependencyProperty.Register(nameof(SearchTrailingContent), typeof(object), typeof(ListPageFrame), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty SearchToolbarContentProperty =
+        DependencyProperty.Register(nameof(SearchToolbarContent), typeof(object), typeof(ListPageFrame), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty IsSearchToolbarVisibleProperty =
+        DependencyProperty.Register(nameof(IsSearchToolbarVisible), typeof(bool), typeof(ListPageFrame), new PropertyMetadata(false));
+
+    public static readonly DependencyProperty SearchToolbarContentTemplateProperty =
+        DependencyProperty.Register(nameof(SearchToolbarContentTemplate), typeof(DataTemplate), typeof(ListPageFrame), new PropertyMetadata(null));
+
     public static readonly DependencyProperty IsListVisibleProperty =
         DependencyProperty.Register(nameof(IsListVisible), typeof(bool), typeof(ListPageFrame), new PropertyMetadata(true));
 
@@ -83,6 +95,30 @@ public partial class ListPageFrame : UserControl
     {
         get => (bool)GetValue(IsSearchVisibleProperty);
         set => SetValue(IsSearchVisibleProperty, value);
+    }
+
+    public object? SearchTrailingContent
+    {
+        get => GetValue(SearchTrailingContentProperty);
+        set => SetValue(SearchTrailingContentProperty, value);
+    }
+
+    public object? SearchToolbarContent
+    {
+        get => GetValue(SearchToolbarContentProperty);
+        set => SetValue(SearchToolbarContentProperty, value);
+    }
+
+    public bool IsSearchToolbarVisible
+    {
+        get => (bool)GetValue(IsSearchToolbarVisibleProperty);
+        set => SetValue(IsSearchToolbarVisibleProperty, value);
+    }
+
+    public DataTemplate? SearchToolbarContentTemplate
+    {
+        get => (DataTemplate?)GetValue(SearchToolbarContentTemplateProperty);
+        set => SetValue(SearchToolbarContentTemplateProperty, value);
     }
 
     public bool IsListVisible

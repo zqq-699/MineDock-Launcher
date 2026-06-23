@@ -221,7 +221,7 @@ public sealed class ResourceDictionaryTests
                 pageView.Arrange(new Rect(0, 0, 1200, 800));
                 pageView.UpdateLayout();
 
-                Assert.NotNull(FindVisualDescendantByTag<Border>(pageView, "StickyModListFloatingHost"));
+                Assert.Null(FindVisualDescendantByTag<Border>(pageView, "StickyModListFloatingHost"));
 
                 detailsViewModel.ModManagement.ModSearchQuery = "sodium";
                 var standaloneView = new InstanceModManagementSettingsView
@@ -234,16 +234,11 @@ public sealed class ResourceDictionaryTests
                 standaloneView.UpdateLayout();
 
                 Assert.NotNull(standaloneView.Content);
-                Assert.Null(standaloneView.FindName("StickyModListOverlay"));
-
                 var searchTextBoxes = FindVisualDescendants<TextBox>(standaloneView).ToArray();
-                Assert.Single(searchTextBoxes);
-                Assert.Equal("sodium", searchTextBoxes[0].Text);
+                Assert.Empty(searchTextBoxes);
 
                 detailsViewModel.ModManagement.ModSearchQuery = "lithium";
                 standaloneView.UpdateLayout();
-
-                Assert.Equal("lithium", searchTextBoxes[0].Text);
 
                 detailsViewModel.SetSelectedSection(new GameSettingsDetailSectionItem(
                     "saves",
@@ -266,8 +261,7 @@ public sealed class ResourceDictionaryTests
 
                 Assert.NotNull(standaloneSaveView.Content);
                 var saveSearchTextBoxes = FindVisualDescendants<TextBox>(standaloneSaveView).ToArray();
-                Assert.Single(saveSearchTextBoxes);
-                Assert.Equal("base", saveSearchTextBoxes[0].Text);
+                Assert.Empty(saveSearchTextBoxes);
 
                 detailsViewModel.SetSelectedSection(new GameSettingsDetailSectionItem(
                     "resource_packs",
@@ -290,8 +284,7 @@ public sealed class ResourceDictionaryTests
 
                 Assert.NotNull(standaloneResourcePackView.Content);
                 var resourcePackSearchTextBoxes = FindVisualDescendants<TextBox>(standaloneResourcePackView).ToArray();
-                Assert.Single(resourcePackSearchTextBoxes);
-                Assert.Equal("fresh", resourcePackSearchTextBoxes[0].Text);
+                Assert.Empty(resourcePackSearchTextBoxes);
 
                 detailsViewModel.SetSelectedSection(new GameSettingsDetailSectionItem(
                     "shaders",
@@ -314,8 +307,7 @@ public sealed class ResourceDictionaryTests
 
                 Assert.NotNull(standaloneShaderPackView.Content);
                 var shaderPackSearchTextBoxes = FindVisualDescendants<TextBox>(standaloneShaderPackView).ToArray();
-                Assert.Single(shaderPackSearchTextBoxes);
-                Assert.Equal("complementary", shaderPackSearchTextBoxes[0].Text);
+                Assert.Empty(shaderPackSearchTextBoxes);
             }
             catch (Exception ex)
             {
@@ -332,7 +324,7 @@ public sealed class ResourceDictionaryTests
     }
 
     [Fact]
-    public void ModManagementStickyHeaderActivatesEvenWhenFloatingLayerStartsHidden()
+    public void GameSettingsTopSearchSwitchesBetweenInstanceListAndResourceManagementSections()
     {
         Exception? exception = null;
         var thread = new Thread(() =>
@@ -345,15 +337,13 @@ public sealed class ResourceDictionaryTests
 
                 var instance = CreateInstance("Fabric Pack", "1.21.4", LoaderKind.Fabric);
                 var modService = new StubModService();
-                modService.ModsByInstanceId[instance.Id] = Enumerable.Range(1, 24)
+                modService.ModsByInstanceId[instance.Id] = Enumerable.Range(1, 4)
                     .Select(index => CreateLocalMod($"mod-{index}.jar", instance.InstanceDirectory, $"Mod {index}"))
                     .ToArray();
 
                 var pageViewModel = CreatePageViewModel([instance], modService);
                 RunSynchronously(() => pageViewModel.EnsureInstancesLoadedAsync());
-                pageViewModel.SelectInstanceCommand.Execute(pageViewModel.VisibleInstances.Single());
-                pageViewModel.SelectDetailsSectionCommand.Execute(
-                    pageViewModel.DetailSections.Single(section => section.Id == "mod_management"));
+                pageViewModel.InstanceSearchQuery = "fabric";
 
                 window = new Window
                 {
@@ -375,36 +365,104 @@ public sealed class ResourceDictionaryTests
                 pageView.UpdateLayout();
                 PumpDispatcher();
 
-                var floatingLayer = FindVisualDescendantByTag<Grid>(pageView, "StickyModListFloatingLayer");
-                var detailsView = FindVisualDescendant<GameSettingsDetailsView>(pageView);
-                var modManagementView = FindVisualDescendant<InstanceModManagementSettingsView>(pageView);
+                var searchBox = FindVisualDescendants<TextBox>(pageView)
+                    .Single(textBox => textBox.Tag is Grid);
 
-                Assert.NotNull(floatingLayer);
-                Assert.NotNull(detailsView);
-                Assert.NotNull(modManagementView);
-                Assert.Equal(Visibility.Hidden, floatingLayer.Visibility);
-                Assert.Equal(1d, modManagementView.OriginalModListHeaderElement.Opacity);
+                Assert.True(searchBox.IsVisible);
+                Assert.Equal("fabric", searchBox.Text);
 
-                var detailsScrollViewer = detailsView.ScrollViewerControl;
-                for (var offset = 0d; offset <= 1200d && floatingLayer.Visibility != Visibility.Visible; offset += 40d)
-                {
-                    detailsScrollViewer.ScrollToVerticalOffset(offset);
-                    detailsScrollViewer.UpdateLayout();
-                    pageView.UpdateLayout();
-                    PumpDispatcher();
-                }
+                pageViewModel.SelectInstanceCommand.Execute(pageViewModel.VisibleInstances.Single());
+                pageView.UpdateLayout();
+                PumpDispatcher();
 
-                Assert.Equal(Visibility.Visible, floatingLayer.Visibility);
-                Assert.True(floatingLayer.IsHitTestVisible);
-                Assert.Equal(0d, modManagementView.OriginalModListHeaderElement.Opacity);
+                Assert.False(searchBox.IsVisible);
+
+                pageViewModel.SelectDetailsSectionCommand.Execute(
+                    pageViewModel.DetailSections.Single(section => section.Id == "mod_management"));
+                pageViewModel.Details.ModManagement.ModSearchQuery = "sodium";
+                pageView.UpdateLayout();
+                PumpDispatcher();
+
+                Assert.True(searchBox.IsVisible);
+                Assert.Equal("sodium", searchBox.Text);
+                Assert.Contains(
+                    FindVisualDescendants<Button>(pageView),
+                    button => button.IsVisible
+                        && ReferenceEquals(
+                            button.Command,
+                            pageViewModel.Details.ModManagement.ToggleMultiSelectModeCommand));
+
+                searchBox.Text = "lithium";
+                PumpDispatcher();
+
+                Assert.Equal("lithium", pageViewModel.Details.ModManagement.ModSearchQuery);
+
+                pageViewModel.SelectDetailsSectionCommand.Execute(
+                    pageViewModel.DetailSections.Single(section => section.Id == "saves"));
+                pageViewModel.Details.SaveManagement.SaveSearchQuery = "base";
+                pageView.UpdateLayout();
+                PumpDispatcher();
+
+                Assert.True(searchBox.IsVisible);
+                Assert.Equal("base", searchBox.Text);
+                Assert.Contains(
+                    FindVisualDescendants<Button>(pageView),
+                    button => button.IsVisible
+                        && ReferenceEquals(
+                            button.Command,
+                            pageViewModel.Details.SaveManagement.ToggleMultiSelectModeCommand));
+
+                searchBox.Text = "world";
+                PumpDispatcher();
+
+                Assert.Equal("world", pageViewModel.Details.SaveManagement.SaveSearchQuery);
+
+                pageViewModel.SelectDetailsSectionCommand.Execute(
+                    pageViewModel.DetailSections.Single(section => section.Id == "resource_packs"));
+                pageViewModel.Details.ResourcePackManagement.ResourcePackSearchQuery = "fresh";
+                pageView.UpdateLayout();
+                PumpDispatcher();
+
+                Assert.True(searchBox.IsVisible);
+                Assert.Equal("fresh", searchBox.Text);
+                Assert.Contains(
+                    FindVisualDescendants<Button>(pageView),
+                    button => button.IsVisible
+                        && ReferenceEquals(
+                            button.Command,
+                            pageViewModel.Details.ResourcePackManagement.ToggleMultiSelectModeCommand));
+
+                searchBox.Text = "bare";
+                PumpDispatcher();
+
+                Assert.Equal("bare", pageViewModel.Details.ResourcePackManagement.ResourcePackSearchQuery);
+
+                pageViewModel.SelectDetailsSectionCommand.Execute(
+                    pageViewModel.DetailSections.Single(section => section.Id == "shaders"));
+                pageViewModel.Details.ShaderPackManagement.ShaderPackSearchQuery = "complementary";
+                pageView.UpdateLayout();
+                PumpDispatcher();
+
+                Assert.True(searchBox.IsVisible);
+                Assert.Equal("complementary", searchBox.Text);
+                Assert.Contains(
+                    FindVisualDescendants<Button>(pageView),
+                    button => button.IsVisible
+                        && ReferenceEquals(
+                            button.Command,
+                            pageViewModel.Details.ShaderPackManagement.ToggleMultiSelectModeCommand));
+
+                searchBox.Text = "bsl";
+                PumpDispatcher();
+
+                Assert.Equal("bsl", pageViewModel.Details.ShaderPackManagement.ShaderPackSearchQuery);
 
                 pageViewModel.BackToInstanceListCommand.Execute(null);
                 pageView.UpdateLayout();
                 PumpDispatcher();
 
-                Assert.Equal(Visibility.Hidden, floatingLayer.Visibility);
-                Assert.False(floatingLayer.IsHitTestVisible);
-                Assert.Equal(1d, modManagementView.OriginalModListHeaderElement.Opacity);
+                Assert.True(searchBox.IsVisible);
+                Assert.Equal("fabric", searchBox.Text);
             }
             catch (Exception ex)
             {

@@ -11,91 +11,6 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/Launcher.App;component/Views/GameSettings/GameSettingsSectionResources.xaml" />
             </ResourceDictionary.MergedDictionaries>
-
-            <Style x:Key="SaveListSectionHeaderTextStyle"
-                   TargetType="TextBlock"
-                   BasedOn="{StaticResource SettingsOptionTextStyle}">
-                <Setter Property="Foreground" Value="{DynamicResource Brush.A8FFFFFF}" />
-                <Setter Property="FontSize" Value="16" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-            </Style>
-
-            <Style x:Key="SaveListHeaderCompactButtonStyle"
-                   TargetType="Button"
-                   BasedOn="{StaticResource LauncherDialogButtonStyle}">
-                <Setter Property="MinWidth" Value="72" />
-                <Setter Property="Height" Value="30" />
-                <Setter Property="Padding" Value="14,0" />
-                <Setter Property="FontSize" Value="13" />
-            </Style>
-
-            <Style x:Key="SaveListHeaderCompactDangerButtonStyle"
-                   TargetType="Button"
-                   BasedOn="{StaticResource LauncherDangerDialogButtonStyle}">
-                <Setter Property="MinWidth" Value="72" />
-                <Setter Property="Height" Value="30" />
-                <Setter Property="Padding" Value="14,0" />
-                <Setter Property="FontSize" Value="13" />
-            </Style>
-
-            <DataTemplate x:Key="SaveListSectionHeaderTemplate">
-                <StackPanel>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Grid.Column="0"
-                                   Margin="0,0,12,0"
-                                   Text="{x:Static res:Strings.GameSettings_SaveManagementSaveListSection}"
-                                   Style="{StaticResource SaveListSectionHeaderTextStyle}"
-                                   VerticalAlignment="Center" />
-
-                        <WrapPanel Grid.Column="1"
-                                   VerticalAlignment="Center">
-                            <WrapPanel Margin="0,0,10,0"
-                                       VerticalAlignment="Center">
-                                <WrapPanel.Style>
-                                    <Style TargetType="WrapPanel">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsMultiSelectMode}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </WrapPanel.Style>
-
-                                <Button Margin="0,0,10,0"
-                                        Content="{Binding SelectAllButtonText}"
-                                        Command="{Binding SelectAllSavesCommand}"
-                                        Style="{StaticResource SaveListHeaderCompactButtonStyle}" />
-                                <Button Content="{x:Static res:Strings.GameSettings_SaveManagementDeleteButton}"
-                                        Command="{Binding RequestDeleteSelectedSavesCommand}"
-                                        Style="{StaticResource SaveListHeaderCompactDangerButtonStyle}" />
-                            </WrapPanel>
-
-                            <Button Command="{Binding ToggleMultiSelectModeCommand}">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource SaveListHeaderCompactButtonStyle}">
-                                        <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_SaveManagementMultiSelectButton}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsMultiSelectMode}" Value="True">
-                                                <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_SaveManagementCancelMultiSelectButton}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
-                        </WrapPanel>
-                    </Grid>
-
-                    <TextBox Margin="0,10,0,0"
-                             Text="{Binding SaveSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             Style="{StaticResource ListPageSearchBoxStyle}" />
-                </StackPanel>
-            </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -138,6 +53,7 @@
             </GroupBox>
 
             <GroupBox x:Name="SaveListSection"
+                      Header="{x:Static res:Strings.GameSettings_SaveManagementSaveListSection}"
                       Margin="0,26,0,0">
                 <GroupBox.Style>
                     <Style TargetType="GroupBox" BasedOn="{StaticResource LauncherContentSectionStyle}">
@@ -149,12 +65,6 @@
                         </Style.Triggers>
                     </Style>
                 </GroupBox.Style>
-                <GroupBox.Header>
-                    <ContentControl x:Name="OriginalSaveListHeaderHost"
-                                    Content="{Binding}"
-                                    ContentTemplate="{StaticResource SaveListSectionHeaderTemplate}" />
-                </GroupBox.Header>
-
                 <Grid MinHeight="140">
                     <TextBlock Margin="0,42,0,0"
                                Text="{x:Static res:Strings.GameSettings_SaveManagementLoading}"

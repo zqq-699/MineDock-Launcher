@@ -11,100 +11,6 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/Launcher.App;component/Views/GameSettings/GameSettingsSectionResources.xaml" />
             </ResourceDictionary.MergedDictionaries>
-
-            <Style x:Key="ModListSectionHeaderTextStyle"
-                   TargetType="TextBlock"
-                   BasedOn="{StaticResource SettingsOptionTextStyle}">
-                <Setter Property="Foreground" Value="{DynamicResource Brush.A8FFFFFF}" />
-                <Setter Property="FontSize" Value="16" />
-                <Setter Property="FontWeight" Value="SemiBold" />
-            </Style>
-
-            <Style x:Key="ModListHeaderCompactButtonStyle"
-                   TargetType="Button"
-                   BasedOn="{StaticResource LauncherDialogButtonStyle}">
-                <Setter Property="MinWidth" Value="72" />
-                <Setter Property="Height" Value="30" />
-                <Setter Property="Padding" Value="14,0" />
-                <Setter Property="FontSize" Value="13" />
-            </Style>
-
-            <Style x:Key="ModListHeaderCompactDangerButtonStyle"
-                   TargetType="Button"
-                   BasedOn="{StaticResource LauncherDangerDialogButtonStyle}">
-                <Setter Property="MinWidth" Value="72" />
-                <Setter Property="Height" Value="30" />
-                <Setter Property="Padding" Value="14,0" />
-                <Setter Property="FontSize" Value="13" />
-            </Style>
-
-            <DataTemplate x:Key="ModListSectionHeaderTemplate">
-                <StackPanel>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Grid.Column="0"
-                                   Margin="0,0,12,0"
-                                   Text="{x:Static res:Strings.GameSettings_ModManagementModListSection}"
-                                   Style="{StaticResource ModListSectionHeaderTextStyle}"
-                                   VerticalAlignment="Center" />
-
-                        <WrapPanel Grid.Column="1"
-                                   VerticalAlignment="Center">
-                            <WrapPanel Margin="0,0,10,0"
-                                       VerticalAlignment="Center">
-                                <WrapPanel.Style>
-                                    <Style TargetType="WrapPanel">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsMultiSelectMode}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </WrapPanel.Style>
-
-                                <Button Margin="0,0,10,0"
-                                        Content="{Binding SelectAllButtonText}"
-                                        Command="{Binding SelectAllModsCommand}"
-                                        Style="{StaticResource ModListHeaderCompactButtonStyle}" />
-                                <Button Margin="0,0,10,0"
-                                        Content="{x:Static res:Strings.GameSettings_ModManagementDisableButton}"
-                                        Command="{Binding DisableSelectedModsCommand}"
-                                        Style="{StaticResource ModListHeaderCompactButtonStyle}" />
-                                <Button Margin="0,0,10,0"
-                                        Content="{x:Static res:Strings.GameSettings_ModManagementEnableButton}"
-                                        Command="{Binding EnableSelectedModsCommand}"
-                                        Style="{StaticResource ModListHeaderCompactButtonStyle}" />
-                                <Button Content="{x:Static res:Strings.GameSettings_ModManagementDeleteButton}"
-                                        Command="{Binding RequestDeleteSelectedModsCommand}"
-                                        Style="{StaticResource ModListHeaderCompactDangerButtonStyle}" />
-                            </WrapPanel>
-
-                            <Button Command="{Binding ToggleMultiSelectModeCommand}">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource ModListHeaderCompactButtonStyle}">
-                                        <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_ModManagementMultiSelectButton}" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsMultiSelectMode}" Value="True">
-                                                <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_ModManagementCancelMultiSelectButton}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
-                        </WrapPanel>
-                    </Grid>
-
-                    <TextBox Margin="0,10,0,0"
-                             Text="{Binding ModSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                             Style="{StaticResource ListPageSearchBoxStyle}" />
-                </StackPanel>
-            </DataTemplate>
-
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -161,6 +67,7 @@
         </GroupBox>
 
         <GroupBox x:Name="ModListSection"
+                  Header="{x:Static res:Strings.GameSettings_ModManagementModListSection}"
                   Margin="0,26,0,0">
             <GroupBox.Style>
                 <Style TargetType="GroupBox" BasedOn="{StaticResource LauncherContentSectionStyle}">
@@ -172,11 +79,6 @@
                     </Style.Triggers>
                 </Style>
             </GroupBox.Style>
-            <GroupBox.Header>
-                <ContentControl x:Name="OriginalModListHeaderHost"
-                                Content="{Binding}"
-                                ContentTemplate="{StaticResource ModListSectionHeaderTemplate}" />
-            </GroupBox.Header>
 
             <Grid MinHeight="140">
                 <TextBlock Margin="0,42,0,0"

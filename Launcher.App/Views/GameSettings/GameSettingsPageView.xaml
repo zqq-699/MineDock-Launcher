@@ -5,8 +5,31 @@
              xmlns:controls="clr-namespace:Launcher.App.Controls"
              xmlns:views="clr-namespace:Launcher.App.Views.GameSettings"
              xmlns:res="clr-namespace:Launcher.App.Resources"
+             xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
              x:Name="Root"
              Focusable="False">
+    <UserControl.Resources>
+        <Style x:Key="ModTopToolbarCompactButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource LauncherDialogButtonStyle}">
+            <Setter Property="MinWidth" Value="72" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        </Style>
+
+        <Style x:Key="ModTopToolbarCompactDangerButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource LauncherDangerDialogButtonStyle}">
+            <Setter Property="MinWidth" Value="72" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        </Style>
+    </UserControl.Resources>
+
     <Grid x:Name="PageRoot">
         <controls:SecondaryMenuFrame Title="{x:Static res:Strings.Nav_GameInstanceList}">
             <controls:SecondaryMenuFrame.MenuContent>
@@ -55,30 +78,220 @@
                                 TitleIconSource="{Binding PageTitleIconSource}"
                                 IsHeaderBackButtonVisible="{Binding IsDetailsStep}"
                                 HeaderBackCommand="{Binding BackToInstanceListCommand}"
-                                SearchText="{Binding InstanceSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                IsSearchVisible="{Binding IsListStep}"
+                                SearchText="{Binding TopSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                IsSearchVisible="{Binding IsTopSearchVisible}"
+                                IsSearchToolbarVisible="{Binding IsTopResourceManagementDetailsStep}"
                                 IsListVisible="True"
                                 UseFrameScrollViewer="False">
-            <controls:ListPageFrame.FloatingContent>
-                <Grid Tag="StickyModListFloatingLayer"
-                      Visibility="Hidden"
-                      IsHitTestVisible="False">
-                    <Border Tag="StickyModListFloatingHost"
-                            Margin="0,0,12,0"
-                            Padding="0,0,0,12"
-                            MaxWidth="{StaticResource DetailPageContentMaxWidth}"
-                            HorizontalAlignment="Stretch"
-                            VerticalAlignment="Top"
-                            Background="Transparent">
-                        <Border.RenderTransform>
-                            <TranslateTransform />
-                        </Border.RenderTransform>
+            <controls:ListPageFrame.SearchToolbarContentTemplate>
+                <DataTemplate>
+                    <Grid>
+                        <WrapPanel HorizontalAlignment="Right"
+                                   VerticalAlignment="Center">
+                            <WrapPanel.Style>
+                                <Style TargetType="WrapPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsModManagementDetailsStep}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </WrapPanel.Style>
 
-                        <ContentControl Tag="StickyModListFloatingContent"
-                                        IsHitTestVisible="True" />
-                    </Border>
-                </Grid>
-            </controls:ListPageFrame.FloatingContent>
+                            <WrapPanel Margin="0,0,10,0"
+                                       VerticalAlignment="Center">
+                                <WrapPanel.Style>
+                                    <Style TargetType="WrapPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Details.ModManagement.IsMultiSelectMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </WrapPanel.Style>
+
+                                <Button Margin="0,0,10,0"
+                                        Content="{Binding Details.ModManagement.SelectAllButtonText}"
+                                        Command="{Binding Details.ModManagement.SelectAllModsCommand}"
+                                        Style="{StaticResource ModTopToolbarCompactButtonStyle}" />
+                                <Button Margin="0,0,10,0"
+                                        Content="{x:Static res:Strings.GameSettings_ModManagementDisableButton}"
+                                        Command="{Binding Details.ModManagement.DisableSelectedModsCommand}"
+                                        Style="{StaticResource ModTopToolbarCompactButtonStyle}" />
+                                <Button Margin="0,0,10,0"
+                                        Content="{x:Static res:Strings.GameSettings_ModManagementEnableButton}"
+                                        Command="{Binding Details.ModManagement.EnableSelectedModsCommand}"
+                                        Style="{StaticResource ModTopToolbarCompactButtonStyle}" />
+                                <Button Content="{x:Static res:Strings.GameSettings_ModManagementDeleteButton}"
+                                        Command="{Binding Details.ModManagement.RequestDeleteSelectedModsCommand}"
+                                        Style="{StaticResource ModTopToolbarCompactDangerButtonStyle}" />
+                            </WrapPanel>
+
+                            <Button Command="{Binding Details.ModManagement.ToggleMultiSelectModeCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ModTopToolbarCompactButtonStyle}">
+                                        <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_ModManagementMultiSelectButton}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Details.ModManagement.IsMultiSelectMode}" Value="True">
+                                                <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_ModManagementCancelMultiSelectButton}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </WrapPanel>
+
+                        <WrapPanel HorizontalAlignment="Right"
+                                   VerticalAlignment="Center">
+                            <WrapPanel.Style>
+                                <Style TargetType="WrapPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSaveManagementDetailsStep}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </WrapPanel.Style>
+
+                            <WrapPanel Margin="0,0,10,0"
+                                       VerticalAlignment="Center">
+                                <WrapPanel.Style>
+                                    <Style TargetType="WrapPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Details.SaveManagement.IsMultiSelectMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </WrapPanel.Style>
+
+                                <Button Margin="0,0,10,0"
+                                        Content="{Binding Details.SaveManagement.SelectAllButtonText}"
+                                        Command="{Binding Details.SaveManagement.SelectAllSavesCommand}"
+                                        Style="{StaticResource ModTopToolbarCompactButtonStyle}" />
+                                <Button Content="{x:Static res:Strings.GameSettings_SaveManagementDeleteButton}"
+                                        Command="{Binding Details.SaveManagement.RequestDeleteSelectedSavesCommand}"
+                                        Style="{StaticResource ModTopToolbarCompactDangerButtonStyle}" />
+                            </WrapPanel>
+
+                            <Button Command="{Binding Details.SaveManagement.ToggleMultiSelectModeCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ModTopToolbarCompactButtonStyle}">
+                                        <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_SaveManagementMultiSelectButton}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Details.SaveManagement.IsMultiSelectMode}" Value="True">
+                                                <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_SaveManagementCancelMultiSelectButton}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </WrapPanel>
+
+                        <WrapPanel HorizontalAlignment="Right"
+                                   VerticalAlignment="Center">
+                            <WrapPanel.Style>
+                                <Style TargetType="WrapPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsResourcePackManagementDetailsStep}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </WrapPanel.Style>
+
+                            <WrapPanel Margin="0,0,10,0"
+                                       VerticalAlignment="Center">
+                                <WrapPanel.Style>
+                                    <Style TargetType="WrapPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Details.ResourcePackManagement.IsMultiSelectMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </WrapPanel.Style>
+
+                                <Button Margin="0,0,10,0"
+                                        Content="{Binding Details.ResourcePackManagement.SelectAllButtonText}"
+                                        Command="{Binding Details.ResourcePackManagement.SelectAllResourcePacksCommand}"
+                                        Style="{StaticResource ModTopToolbarCompactButtonStyle}" />
+                                <Button Content="{x:Static res:Strings.GameSettings_ResourcePackManagementDeleteButton}"
+                                        Command="{Binding Details.ResourcePackManagement.RequestDeleteSelectedResourcePacksCommand}"
+                                        Style="{StaticResource ModTopToolbarCompactDangerButtonStyle}" />
+                            </WrapPanel>
+
+                            <Button Command="{Binding Details.ResourcePackManagement.ToggleMultiSelectModeCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ModTopToolbarCompactButtonStyle}">
+                                        <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_ResourcePackManagementMultiSelectButton}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Details.ResourcePackManagement.IsMultiSelectMode}" Value="True">
+                                                <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_ResourcePackManagementCancelMultiSelectButton}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </WrapPanel>
+
+                        <WrapPanel HorizontalAlignment="Right"
+                                   VerticalAlignment="Center">
+                            <WrapPanel.Style>
+                                <Style TargetType="WrapPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsShaderPackManagementDetailsStep}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </WrapPanel.Style>
+
+                            <WrapPanel Margin="0,0,10,0"
+                                       VerticalAlignment="Center">
+                                <WrapPanel.Style>
+                                    <Style TargetType="WrapPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Details.ShaderPackManagement.IsMultiSelectMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </WrapPanel.Style>
+
+                                <Button Margin="0,0,10,0"
+                                        Content="{Binding Details.ShaderPackManagement.SelectAllButtonText}"
+                                        Command="{Binding Details.ShaderPackManagement.SelectAllShaderPacksCommand}"
+                                        Style="{StaticResource ModTopToolbarCompactButtonStyle}" />
+                                <Button Content="{x:Static res:Strings.GameSettings_ShaderPackManagementDeleteButton}"
+                                        Command="{Binding Details.ShaderPackManagement.RequestDeleteSelectedShaderPacksCommand}"
+                                        Style="{StaticResource ModTopToolbarCompactDangerButtonStyle}" />
+                            </WrapPanel>
+
+                            <Button Command="{Binding Details.ShaderPackManagement.ToggleMultiSelectModeCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ModTopToolbarCompactButtonStyle}">
+                                        <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_ShaderPackManagementMultiSelectButton}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Details.ShaderPackManagement.IsMultiSelectMode}" Value="True">
+                                                <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_ShaderPackManagementCancelMultiSelectButton}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </WrapPanel>
+                    </Grid>
+                </DataTemplate>
+            </controls:ListPageFrame.SearchToolbarContentTemplate>
 
             <controls:ListPageFrame.OverlayContent>
                 <Grid>

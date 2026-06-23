@@ -132,6 +132,11 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         Details.SaveImportFailedRequested += Details_SaveImportFailedRequested;
         Details.ResourcePackImportFailedRequested += Details_ResourcePackImportFailedRequested;
         Details.ShaderPackImportFailedRequested += Details_ShaderPackImportFailedRequested;
+        Details.PropertyChanged += Details_PropertyChanged;
+        Details.ModManagement.PropertyChanged += ModManagement_PropertyChanged;
+        Details.SaveManagement.PropertyChanged += SaveManagement_PropertyChanged;
+        Details.ResourcePackManagement.PropertyChanged += ResourcePackManagement_PropertyChanged;
+        Details.ShaderPackManagement.PropertyChanged += ShaderPackManagement_PropertyChanged;
 
         InstanceCategories.Add(new GameSettingsInstanceCategory("all", Strings.GameSettings_AllCategory, string.Empty, "general/general_all_application"));
         InstanceCategories.Add(new GameSettingsInstanceCategory("mod_loader", Strings.GameSettings_ModLoaderCategory, string.Empty, "general/general_extention"));
@@ -183,6 +188,78 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     public string? PageTitleIconSource => IsDetailsStep && SelectedInstance is not null
         ? SelectedInstance.IconSource
         : null;
+
+    public bool IsModManagementDetailsStep => IsDetailsStep
+        && string.Equals(Details.SelectedSection?.Id, "mod_management", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsSaveManagementDetailsStep => IsDetailsStep
+        && string.Equals(Details.SelectedSection?.Id, "saves", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsResourcePackManagementDetailsStep => IsDetailsStep
+        && string.Equals(Details.SelectedSection?.Id, "resource_packs", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsShaderPackManagementDetailsStep => IsDetailsStep
+        && string.Equals(Details.SelectedSection?.Id, "shaders", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsTopResourceManagementDetailsStep => IsModManagementDetailsStep
+        || IsSaveManagementDetailsStep
+        || IsResourcePackManagementDetailsStep
+        || IsShaderPackManagementDetailsStep;
+
+    public bool IsTopSearchVisible => IsListStep || IsTopResourceManagementDetailsStep;
+
+    public string TopSearchQuery
+    {
+        get
+        {
+            if (IsModManagementDetailsStep)
+                return Details.ModManagement.ModSearchQuery;
+            if (IsSaveManagementDetailsStep)
+                return Details.SaveManagement.SaveSearchQuery;
+            if (IsResourcePackManagementDetailsStep)
+                return Details.ResourcePackManagement.ResourcePackSearchQuery;
+            if (IsShaderPackManagementDetailsStep)
+                return Details.ShaderPackManagement.ShaderPackSearchQuery;
+
+            return InstanceSearchQuery;
+        }
+        set
+        {
+            if (IsModManagementDetailsStep)
+            {
+                Details.ModManagement.ModSearchQuery = value;
+                OnPropertyChanged();
+                return;
+            }
+
+            if (IsSaveManagementDetailsStep)
+            {
+                Details.SaveManagement.SaveSearchQuery = value;
+                OnPropertyChanged();
+                return;
+            }
+
+            if (IsResourcePackManagementDetailsStep)
+            {
+                Details.ResourcePackManagement.ResourcePackSearchQuery = value;
+                OnPropertyChanged();
+                return;
+            }
+
+            if (IsShaderPackManagementDetailsStep)
+            {
+                Details.ShaderPackManagement.ShaderPackSearchQuery = value;
+                OnPropertyChanged();
+                return;
+            }
+
+            if (IsListStep)
+            {
+                InstanceSearchQuery = value;
+                OnPropertyChanged();
+            }
+        }
+    }
 
     public string DeleteInstanceDialogMessage => InstancePendingDelete is null
         ? string.Empty
@@ -702,6 +779,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsListStep));
         OnPropertyChanged(nameof(IsDetailsStep));
+        RaiseTopSearchPropertyChanges();
         OnPropertyChanged(nameof(CurrentSecondaryMenuItems));
         OnPropertyChanged(nameof(PageTitle));
         OnPropertyChanged(nameof(PageTitleIconSource));
@@ -761,6 +839,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     partial void OnInstanceSearchQueryChanged(string value)
     {
         RefreshVisibleInstances();
+        OnPropertyChanged(nameof(TopSearchQuery));
     }
 
     partial void OnInstanceLoadErrorChanged(string value)
@@ -982,6 +1061,50 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(PageTitle));
         OnPropertyChanged(nameof(PageTitleIconSource));
+    }
+
+    private void Details_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(GameSettingsDetailsViewModel.SelectedSection)
+            or nameof(GameSettingsDetailsViewModel.CurrentSectionViewModel))
+        {
+            RaiseTopSearchPropertyChanges();
+        }
+    }
+
+    private void ModManagement_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(InstanceModManagementSettingsViewModel.ModSearchQuery))
+            OnPropertyChanged(nameof(TopSearchQuery));
+    }
+
+    private void SaveManagement_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(InstanceSaveManagementSettingsViewModel.SaveSearchQuery))
+            OnPropertyChanged(nameof(TopSearchQuery));
+    }
+
+    private void ResourcePackManagement_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(InstanceResourcePackManagementSettingsViewModel.ResourcePackSearchQuery))
+            OnPropertyChanged(nameof(TopSearchQuery));
+    }
+
+    private void ShaderPackManagement_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(InstanceShaderPackManagementSettingsViewModel.ShaderPackSearchQuery))
+            OnPropertyChanged(nameof(TopSearchQuery));
+    }
+
+    private void RaiseTopSearchPropertyChanges()
+    {
+        OnPropertyChanged(nameof(IsModManagementDetailsStep));
+        OnPropertyChanged(nameof(IsSaveManagementDetailsStep));
+        OnPropertyChanged(nameof(IsResourcePackManagementDetailsStep));
+        OnPropertyChanged(nameof(IsShaderPackManagementDetailsStep));
+        OnPropertyChanged(nameof(IsTopResourceManagementDetailsStep));
+        OnPropertyChanged(nameof(IsTopSearchVisible));
+        OnPropertyChanged(nameof(TopSearchQuery));
     }
 
     private void EditDialog_InstanceUpdated(GameInstance updatedInstance)
