@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Launcher.App.Behaviors;
 using Launcher.App.Controls;
 using Launcher.App.Converters;
 using Launcher.App.Resources;
@@ -134,6 +135,57 @@ public sealed class ResourceDictionaryTests
                 };
 
                 comboBox.ApplyTemplate();
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (exception is not null)
+            throw exception;
+    }
+
+    [Fact]
+    public void ListPageFrameHeaderChromeFollowsSearchVisibility()
+    {
+        Exception? exception = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var application = global::System.Windows.Application.Current ?? new global::System.Windows.Application();
+                EnsureApplicationResources(application);
+                var frame = new ListPageFrame();
+
+                frame.ApplyTemplate();
+                frame.UpdateLayout();
+                PumpDispatcher();
+
+                Assert.Equal(132d, frame.HeaderOverlayElement.Height);
+                Assert.Equal(140d, VerticalEdgeOpacityMask.GetTopFadeLength(frame.ListLayerElement));
+                Assert.Equal(100d, VerticalEdgeOpacityMask.GetTopIntermediateLength(frame.ListLayerElement));
+
+                frame.IsSearchVisible = false;
+                frame.UpdateLayout();
+                PumpDispatcher();
+
+                Assert.Equal(70d, frame.HeaderOverlayElement.Height);
+                Assert.Equal(70d, VerticalEdgeOpacityMask.GetTopFadeLength(frame.ListLayerElement));
+                Assert.Equal(50d, VerticalEdgeOpacityMask.GetTopIntermediateLength(frame.ListLayerElement));
+                Assert.Equal(0.1d, VerticalEdgeOpacityMask.GetTopIntermediateOpacity(frame.ListLayerElement), 3);
+
+                frame.IsSearchVisible = true;
+                frame.UpdateLayout();
+                PumpDispatcher();
+
+                Assert.Equal(132d, frame.HeaderOverlayElement.Height);
+                Assert.Equal(140d, VerticalEdgeOpacityMask.GetTopFadeLength(frame.ListLayerElement));
+                Assert.Equal(100d, VerticalEdgeOpacityMask.GetTopIntermediateLength(frame.ListLayerElement));
             }
             catch (Exception ex)
             {

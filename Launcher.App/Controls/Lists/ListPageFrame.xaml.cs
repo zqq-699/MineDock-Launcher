@@ -155,5 +155,7 @@ public partial class ListPageFrame : UserControl
 
     internal FrameworkElement ListLayerElement => PART_ListLayer;
 
+    internal FrameworkElement HeaderOverlayElement => PART_HeaderOverlay;
+
     internal FrameworkElement HeaderTitleRowElement => PART_HeaderTitleRow;
 }

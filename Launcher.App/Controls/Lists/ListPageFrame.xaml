@@ -10,12 +10,22 @@
         <ContentPresenter Content="{Binding OverlayContent, ElementName=Root}" />
 
         <Grid x:Name="PART_ListLayer"
-              behaviors:VerticalEdgeOpacityMask.IsEnabled="{Binding IsListVisible, ElementName=Root}"
-              behaviors:VerticalEdgeOpacityMask.TopFadeLength="140"
-              behaviors:VerticalEdgeOpacityMask.TopIntermediateLength="100"
-              behaviors:VerticalEdgeOpacityMask.TopIntermediateOpacity="0.1"
-              behaviors:VerticalEdgeOpacityMask.BottomFadeLength="72"
-              behaviors:VerticalEdgeOpacityMask.MinimumOpacity="0">
+              behaviors:VerticalEdgeOpacityMask.IsEnabled="{Binding IsListVisible, ElementName=Root}">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="behaviors:VerticalEdgeOpacityMask.TopFadeLength" Value="140" />
+                    <Setter Property="behaviors:VerticalEdgeOpacityMask.TopIntermediateLength" Value="100" />
+                    <Setter Property="behaviors:VerticalEdgeOpacityMask.TopIntermediateOpacity" Value="0.1" />
+                    <Setter Property="behaviors:VerticalEdgeOpacityMask.BottomFadeLength" Value="72" />
+                    <Setter Property="behaviors:VerticalEdgeOpacityMask.MinimumOpacity" Value="0" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsSearchVisible, ElementName=Root}" Value="False">
+                            <Setter Property="behaviors:VerticalEdgeOpacityMask.TopFadeLength" Value="70" />
+                            <Setter Property="behaviors:VerticalEdgeOpacityMask.TopIntermediateLength" Value="50" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
             <ScrollViewer x:Name="PART_ScrollViewer">
                 <ScrollViewer.Style>
                     <Style TargetType="ScrollViewer" BasedOn="{StaticResource ListPageScrollViewerStyle}">
@@ -70,10 +80,13 @@
             </ContentPresenter>
         </Grid>
 
-        <Border>
+        <Border x:Name="PART_HeaderOverlay">
             <Border.Style>
                 <Style TargetType="Border" BasedOn="{StaticResource ListPageHeaderOverlayStyle}">
                     <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsSearchVisible, ElementName=Root}" Value="False">
+                            <Setter Property="Height" Value="70" />
+                        </DataTrigger>
                         <DataTrigger Binding="{Binding IsListVisible, ElementName=Root}" Value="False">
                             <Setter Property="Background" Value="Transparent" />
                         </DataTrigger>
