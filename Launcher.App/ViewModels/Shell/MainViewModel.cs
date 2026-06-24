@@ -239,6 +239,8 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnCurrentPageChanged(string value)
     {
         UpdateNavigationSelection();
+        if (NavigationCatalog.IsPage(value, NavigationCatalog.ResourcesPage))
+            ResourcesPage.BeginEnsureCurrentSectionLoaded();
         _ = SyncCurrentStateAsync();
     }
 

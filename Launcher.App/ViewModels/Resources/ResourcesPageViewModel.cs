@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
+using Launcher.App.Services;
+using Launcher.Application.Services;
 using Microsoft.Extensions.Logging;
 
 namespace Launcher.App.ViewModels.Resources;
@@ -10,7 +12,10 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
 {
     private readonly ILogger<ResourcesPageViewModel>? logger;
 
-    public ResourcesPageViewModel(ILogger<ResourcesPageViewModel>? logger = null)
+    public ResourcesPageViewModel(
+        IResourceCatalogService? resourceCatalogService = null,
+        ILogger<ResourcesPageViewModel>? logger = null,
+        IUiDispatcher? uiDispatcher = null)
     {
         this.logger = logger;
 
@@ -23,7 +28,7 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             new ResourcesSectionItem { Id = "modpacks", Title = Strings.Resources_SectionModpacks, IconKey = "general/general_extention" }
         ];
 
-        ModPage = new ResourcesModPageViewModel(this, logger);
+        ModPage = new ResourcesModPageViewModel(this, resourceCatalogService, logger, uiDispatcher);
         ResourcePacksPage = new ResourcesResourcePacksPageViewModel(this);
         ShaderPacksPage = new ResourcesShaderPacksPageViewModel(this);
         WorldsPage = new ResourcesWorldsPageViewModel(this);
@@ -56,6 +61,12 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
 
     public bool IsModsSection => SelectedSection?.Id == "mods";
 
+    public void BeginEnsureCurrentSectionLoaded()
+    {
+        if (IsModsSection)
+            ModPage.BeginEnsureProjectsLoaded();
+    }
+
     [RelayCommand]
     private void SelectSection(ResourcesSectionItem? section)
     {
@@ -83,5 +94,8 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
 
         if (logSelection)
             logger?.LogInformation("Resources section selected. SectionId={SectionId}", section.Id);
+
+        if (logSelection && section.Id == "mods")
+            ModPage.BeginEnsureProjectsLoaded();
     }
 }

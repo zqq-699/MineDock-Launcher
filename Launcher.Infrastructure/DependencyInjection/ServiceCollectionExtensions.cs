@@ -3,12 +3,14 @@ using Launcher.Application.Repositories;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Accounts;
+using Launcher.Infrastructure.CurseForge;
 using Launcher.Infrastructure.FileSystem;
 using Launcher.Infrastructure.Minecraft;
 using Launcher.Infrastructure.Modpacks;
 using Launcher.Infrastructure.Modrinth;
 using Launcher.Infrastructure.Platform;
 using Launcher.Infrastructure.Persistence;
+using Launcher.Infrastructure.Resources;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Launcher.Infrastructure.DependencyInjection;
@@ -20,6 +22,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<LauncherPathProvider>();
         services.AddSingleton<IDownloadSpeedLimitState, DownloadSpeedLimitState>();
         services.AddSingleton<IImportConcurrencyLimiter>(_ => ImportConcurrencyLimiter.Shared);
+        services.AddSingleton<ICurseForgeApiKeyResolver, CurseForgeApiKeyResolver>();
         services.AddSingleton<ISettingsService, JsonSettingsService>();
         services.AddSingleton<IGameInstanceRepository, JsonGameInstanceRepository>();
         services.AddSingleton<IGameVersionService, GameVersionService>();
@@ -40,6 +43,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILocalResourcePackService, LocalResourcePackService>();
         services.AddSingleton<ILocalShaderPackService, LocalShaderPackService>();
         services.AddSingleton<IModrinthService, ModrinthService>();
+        services.AddSingleton<IResourceCatalogService, ResourceCatalogService>();
         services.AddSingleton<ILauncherStateMonitor, LauncherStateMonitor>();
         services.AddSingleton<IMicrosoftAccountService, MicrosoftAccountService>();
         services.AddSingleton<IAccountSkinLibraryService, AccountSkinLibraryService>();

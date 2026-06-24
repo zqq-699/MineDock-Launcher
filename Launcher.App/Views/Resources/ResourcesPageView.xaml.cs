@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Launcher.App.Services;
+using Launcher.App.Utilities;
 using Launcher.App.ViewModels.Resources;
 
 namespace Launcher.App.Views.Resources;
@@ -64,10 +65,29 @@ public partial class ResourcesPageView : UserControl
             if (sectionContentRoot is null)
                 return;
 
-            ResourcesListFrame.ScrollViewer.ScrollToVerticalOffset(0);
-            ResourcesListFrame.ScrollViewer.UpdateLayout();
             sectionContentRoot.UpdateLayout();
+            ResetCurrentSectionScrollPosition();
             sectionTransitionService.MoveTo(viewModel.SelectedSection?.Id ?? SectionOrder[0]);
+        }
+    }
+
+    private void ResetCurrentSectionScrollPosition()
+    {
+        if (sectionContentRoot is null)
+            return;
+
+        var modPageView = VisualTreeSearch.FindDescendant<ResourcesModPageView>(sectionContentRoot, _ => true);
+        if (modPageView is null)
+            return;
+
+        try
+        {
+            modPageView.ScrollViewer.ScrollToVerticalOffset(0);
+            modPageView.RefreshViewport();
+        }
+        catch (InvalidOperationException)
+        {
+            // The virtualized list template may not be available before the Mod section is realized.
         }
     }
 

@@ -72,6 +72,35 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task ResourcesNavigationStartsModLoadWithoutWaitingForCompletion()
+    {
+        var dispatcher = new QueueingUiDispatcher();
+        var pendingResult = new TaskCompletionSource<ResourceCatalogSearchResult>();
+        var resourceCatalogService = new PendingResourceCatalogService(pendingResult.Task);
+        var resourcesPage = new ResourcesPageViewModel(resourceCatalogService, uiDispatcher: dispatcher);
+        var viewModel = CreateViewModel(
+            new FakeGameInstanceService(),
+            resourcesPage: resourcesPage);
+        await viewModel.InitializeAsync();
+        var resourcesItem = viewModel.NavigationItems.Single(item => item.Page == "Resources");
+
+        viewModel.SelectNavigationItem(resourcesItem);
+
+        Assert.Equal("Resources", viewModel.CurrentPage);
+        Assert.True(resourcesItem.IsSelected);
+        Assert.Equal(0, resourceCatalogService.CallCount);
+        Assert.True(resourcesPage.ModPage.IsLoadingProjects);
+        Assert.True(resourcesPage.ModPage.CanShowLoadingState);
+
+        dispatcher.RunNext();
+        await TestAsync.WaitForAsync(() => resourceCatalogService.CallCount == 1);
+        pendingResult.SetResult(new ResourceCatalogSearchResult());
+        await TestAsync.WaitForAsync(() => dispatcher.PendingCount == 1);
+        dispatcher.RunNext();
+        await TestAsync.WaitForAsync(() => !resourcesPage.ModPage.IsLoadingProjects);
+    }
+
+    [Fact]
     public void ResourcesSecondaryNavigationCatalogContainsResourceCenterSections()
     {
         var items = NavigationCatalog.CreateSecondaryItems("Resources").ToArray();
@@ -526,7 +555,8 @@ public sealed class MainViewModelTests
         FakeLaunchService? launchService = null,
         LauncherAccount? selectedAccount = null,
         FakeWindowService? windowService = null,
-        FakeFilePickerService? filePickerService = null)
+        FakeFilePickerService? filePickerService = null,
+        ResourcesPageViewModel? resourcesPage = null)
     {
         var settingsService = new TestSettingsService(settings ?? new LauncherSettings());
         statusService ??= new FakeStatusService();
@@ -571,7 +601,7 @@ public sealed class MainViewModelTests
                 new FakeJavaRuntimeDiscoveryService(),
                 filePickerService,
                 floatingMessageService),
-            new ResourcesPageViewModel(),
+            resourcesPage ?? new ResourcesPageViewModel(),
             settingsPage,
             gameManagement,
             windowService ?? new FakeWindowService(),
@@ -586,6 +616,55 @@ public sealed class MainViewModelTests
                 new FakeWindowService(),
                 ImmediateUiDispatcher.Instance),
             new LaunchStatusDialogViewModel(new FakeInstanceFolderService(), statusService));
+    }
+
+    private sealed class PendingResourceCatalogService(Task<ResourceCatalogSearchResult> resultTask) : IResourceCatalogService
+    {
+        public int CallCount { get; private set; }
+
+        public Task<ResourceCatalogSearchResult> SearchModsAsync(
+            ResourceCatalogSearchRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return resultTask;
+        }
+    }
+
+    private sealed class QueueingUiDispatcher : IUiDispatcher
+    {
+        private readonly object gate = new();
+        private readonly Queue<Action> actions = new();
+
+        public bool HasAccess => true;
+
+        public int PendingCount
+        {
+            get
+            {
+                lock (gate)
+                    return actions.Count;
+            }
+        }
+
+        public void Post(Action action)
+        {
+            lock (gate)
+                actions.Enqueue(action);
+        }
+
+        public void Invoke(Action action)
+        {
+            action();
+        }
+
+        public void RunNext()
+        {
+            Action action;
+            lock (gate)
+                action = actions.Dequeue();
+            action.Invoke();
+        }
     }
 
     private static AccountPageViewModel CreateAccountPage(

@@ -1,0 +1,20 @@
+namespace Launcher.Domain.Models;
+
+public sealed class ResourceProject
+{
+    public ResourceProjectSource Source { get; init; }
+
+    public string ProjectId { get; init; } = string.Empty;
+
+    public string Slug { get; init; } = string.Empty;
+
+    public string Title { get; init; } = string.Empty;
+
+    public string Description { get; init; } = string.Empty;
+
+    public string? IconUrl { get; init; }
+
+    public long Downloads { get; init; }
+
+    public string ProjectUrl { get; init; } = string.Empty;
+}

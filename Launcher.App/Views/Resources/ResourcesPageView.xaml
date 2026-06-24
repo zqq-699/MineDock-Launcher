@@ -59,16 +59,21 @@
                                 SearchFilterContentTemplate="{StaticResource ResourcesModFilterTemplate}"
                                 IsSearchFilterVisible="{Binding IsModsSection}"
                                 IsListVisible="True"
-                                UseFrameScrollViewer="True">
+                                UseFrameScrollViewer="False">
             <controls:ListPageFrame.ListContent>
-                <StackPanel Loaded="SectionContentRoot_OnLoaded"
-                            Unloaded="SectionContentRoot_OnUnloaded">
-                    <StackPanel.RenderTransform>
-                        <TranslateTransform />
-                    </StackPanel.RenderTransform>
+                <Grid Tag="ResourcesSectionHost"
+                      ClipToBounds="True">
+                    <Grid Loaded="SectionContentRoot_OnLoaded"
+                          Unloaded="SectionContentRoot_OnUnloaded">
+                        <Grid.RenderTransform>
+                            <TranslateTransform />
+                        </Grid.RenderTransform>
 
-                    <ContentControl Content="{Binding CurrentSectionViewModel}" />
-                </StackPanel>
+                        <ContentControl HorizontalContentAlignment="Stretch"
+                                        VerticalContentAlignment="Stretch"
+                                        Content="{Binding CurrentSectionViewModel}" />
+                    </Grid>
+                </Grid>
             </controls:ListPageFrame.ListContent>
         </controls:ListPageFrame>
     </Grid>

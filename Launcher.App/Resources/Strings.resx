@@ -44,6 +44,15 @@
   <data name="Resources_ModFilterAllSources" xml:space="preserve"><value>所有来源</value></data>
   <data name="Resources_ModFilterTypeLabel" xml:space="preserve"><value>类型</value></data>
   <data name="Resources_ModFilterAllTypes" xml:space="preserve"><value>所有类型</value></data>
+  <data name="Resources_ModSourceModrinth" xml:space="preserve"><value>Modrinth</value></data>
+  <data name="Resources_ModSourceCurseForge" xml:space="preserve"><value>CurseForge</value></data>
+  <data name="Resources_ModProjectsLoading" xml:space="preserve"><value>正在加载 Mod...</value></data>
+  <data name="Resources_ModProjectsEmpty" xml:space="preserve"><value>没有找到匹配的 Mod</value></data>
+  <data name="Resources_ModProjectsLoadError" xml:space="preserve"><value>加载 Mod 列表失败，请稍后重试。</value></data>
+  <data name="Resources_ModCurseForgeMissingApiKey" xml:space="preserve"><value>未配置 CurseForge API Key，当前仅显示 Modrinth 结果。</value></data>
+  <data name="Resources_ModDownloadsFormat" xml:space="preserve"><value>{0} 下载</value></data>
+  <data name="Resources_ModDownloadsTenThousandFormat" xml:space="preserve"><value>{0:0.##}万</value></data>
+  <data name="Resources_ModDownloadsHundredMillionFormat" xml:space="preserve"><value>{0:0.##}亿</value></data>
   <data name="Page_Settings" xml:space="preserve"><value>全局设置</value></data>
   <data name="Settings_SectionGeneral" xml:space="preserve"><value>通用</value></data>
   <data name="Settings_SectionLaunchMemory" xml:space="preserve"><value>启动与内存</value></data>
