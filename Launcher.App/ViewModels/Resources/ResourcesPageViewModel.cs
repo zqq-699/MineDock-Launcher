@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
@@ -16,7 +17,11 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
         IResourceCatalogService? resourceCatalogService = null,
         ILogger<ResourcesPageViewModel>? logger = null,
         IUiDispatcher? uiDispatcher = null,
-        IGameVersionService? gameVersionService = null)
+        IGameVersionService? gameVersionService = null,
+        IGameInstanceService? gameInstanceService = null,
+        IStatusService? statusService = null,
+        IFilePickerService? filePickerService = null,
+        IFloatingMessageService? floatingMessageService = null)
     {
         this.logger = logger;
 
@@ -29,7 +34,17 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             new ResourcesSectionItem { Id = "modpacks", Title = Strings.Resources_SectionModpacks, IconKey = "general/general_extention" }
         ];
 
-        ModPage = new ResourcesModPageViewModel(this, resourceCatalogService, logger, uiDispatcher, gameVersionService);
+        ModPage = new ResourcesModPageViewModel(
+            this,
+            resourceCatalogService,
+            logger,
+            uiDispatcher,
+            gameVersionService,
+            gameInstanceService,
+            statusService,
+            filePickerService,
+            floatingMessageService);
+        ModPage.PropertyChanged += ModPage_PropertyChanged;
         ResourcePacksPage = new ResourcesResourcePacksPageViewModel(this);
         ShaderPacksPage = new ResourcesShaderPacksPageViewModel(this);
         WorldsPage = new ResourcesWorldsPageViewModel(this);
@@ -53,14 +68,25 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PageTitle))]
     [NotifyPropertyChangedFor(nameof(IsModsSection))]
+    [NotifyPropertyChangedFor(nameof(IsModSearchVisible))]
+    [NotifyPropertyChangedFor(nameof(IsModProjectDetailsStep))]
+    [NotifyPropertyChangedFor(nameof(PageTitleIconSource))]
     private ResourcesSectionItem? selectedSection;
 
     [ObservableProperty]
     private ResourcesSectionViewModelBase? currentSectionViewModel;
 
-    public string PageTitle => SelectedSection?.Title ?? Strings.Page_Resources;
+    public string PageTitle => IsModsSection
+        ? ModPage.PageTitle
+        : SelectedSection?.Title ?? Strings.Page_Resources;
 
     public bool IsModsSection => SelectedSection?.Id == "mods";
+
+    public bool IsModSearchVisible => IsModsSection && ModPage.IsProjectListStep;
+
+    public bool IsModProjectDetailsStep => IsModsSection && ModPage.IsProjectContentStep;
+
+    public string? PageTitleIconSource => IsModsSection ? ModPage.PageTitleIconSource : null;
 
     public void BeginEnsureCurrentSectionLoaded()
     {
@@ -93,10 +119,27 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
         };
         SelectedSection = section;
 
+        if (section.Id != "mods")
+            ModPage.ResetToProjectList();
+
         if (logSelection)
             logger?.LogInformation("Resources section selected. SectionId={SectionId}", section.Id);
 
         if (logSelection && section.Id == "mods")
             ModPage.BeginEnsureProjectsLoaded();
+    }
+
+    private void ModPage_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(ResourcesModPageViewModel.CurrentStep)
+            or nameof(ResourcesModPageViewModel.SelectedProject)
+            or nameof(ResourcesModPageViewModel.PageTitle)
+            or nameof(ResourcesModPageViewModel.PageTitleIconSource))
+        {
+            OnPropertyChanged(nameof(PageTitle));
+            OnPropertyChanged(nameof(PageTitleIconSource));
+            OnPropertyChanged(nameof(IsModSearchVisible));
+            OnPropertyChanged(nameof(IsModProjectDetailsStep));
+        }
     }
 }

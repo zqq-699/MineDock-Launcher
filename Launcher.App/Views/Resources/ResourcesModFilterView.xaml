@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
              xmlns:res="clr-namespace:Launcher.App.Resources"
+             x:Name="Root"
              Focusable="False">
     <UserControl.Resources>
         <DataTemplate x:Key="ResourcesFilterOptionTemplate">
@@ -11,91 +12,127 @@
                        TextTrimming="CharacterEllipsis"
                        VerticalAlignment="Center" />
         </DataTemplate>
+
+        <Style x:Key="ResourcesFilterComboBoxStyle"
+               TargetType="controls:AnimatedComboBox"
+               BasedOn="{StaticResource LauncherComboBoxStyle}">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinWidth" Value="78" />
+            <Setter Property="MaxWidth" Value="130" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+
+        <Style x:Key="ResourcesFilterLabelStyle"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource ListPageFilterLabelStyle}">
+            <Setter Property="Margin" Value="0,0,4,0" />
+        </Style>
+
+        <Style x:Key="ResourcesCompactFilterButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource LauncherDialogButtonStyle}">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinWidth" Value="86" />
+            <Setter Property="Padding" Value="18,0" />
+        </Style>
     </UserControl.Resources>
 
-    <UniformGrid Columns="4">
-        <Grid Margin="0,0,12,0">
+    <Grid>
+        <Grid x:Name="NormalFilterGrid"
+              VerticalAlignment="Center">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <TextBlock Margin="0,0,6,0"
-                       VerticalAlignment="Center"
-                       Text="{x:Static res:Strings.Resources_ModFilterVersionLabel}"
-                       Style="{StaticResource ListPageFilterLabelStyle}" />
-
-            <controls:AnimatedComboBox Grid.Column="1"
-                                       Height="32"
-                                       MinWidth="78"
-                                       ItemsSource="{Binding VersionOptions}"
-                                       SelectedItem="{Binding SelectedVersionOption, Mode=TwoWay}"
-                                       ItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
-                                       SelectionItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
-                                       Style="{StaticResource LauncherComboBoxStyle}" />
-        </Grid>
-
-        <Grid Margin="0,0,12,0">
-            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="12" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <TextBlock Margin="0,0,6,0"
-                       VerticalAlignment="Center"
-                       Text="{x:Static res:Strings.Resources_ModFilterLoaderLabel}"
-                       Style="{StaticResource ListPageFilterLabelStyle}" />
-
-            <controls:AnimatedComboBox Grid.Column="1"
-                                       Height="32"
-                                       MinWidth="78"
-                                       ItemsSource="{Binding LoaderOptions}"
-                                       SelectedItem="{Binding SelectedLoaderOption, Mode=TwoWay}"
-                                       ItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
-                                       SelectionItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
-                                       Style="{StaticResource LauncherComboBoxStyle}" />
-        </Grid>
-
-        <Grid Margin="0,0,12,0">
-            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="12" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-
-            <TextBlock Margin="0,0,6,0"
-                       VerticalAlignment="Center"
-                       Text="{x:Static res:Strings.Resources_ModFilterSourceLabel}"
-                       Style="{StaticResource ListPageFilterLabelStyle}" />
-
-            <controls:AnimatedComboBox Grid.Column="1"
-                                       Height="32"
-                                       MinWidth="78"
-                                       ItemsSource="{Binding SourceOptions}"
-                                       SelectedItem="{Binding SelectedSourceOption, Mode=TwoWay}"
-                                       ItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
-                                       SelectionItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
-                                       Style="{StaticResource LauncherComboBoxStyle}" />
-        </Grid>
-
-        <Grid>
-            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="12" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <TextBlock Margin="0,0,6,0"
-                       VerticalAlignment="Center"
-                       Text="{x:Static res:Strings.Resources_ModFilterTypeLabel}"
-                       Style="{StaticResource ListPageFilterLabelStyle}" />
+            <Grid Grid.Column="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-            <controls:AnimatedComboBox Grid.Column="1"
-                                       Height="32"
-                                       MinWidth="78"
-                                       ItemsSource="{Binding TypeOptions}"
-                                       SelectedItem="{Binding SelectedTypeOption, Mode=TwoWay}"
-                                       ItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
-                                       SelectionItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
-                                       Style="{StaticResource LauncherComboBoxStyle}" />
+                <TextBlock x:Name="VersionFilterLabel"
+                           Text="{x:Static res:Strings.Resources_ModFilterVersionLabel}"
+                           Style="{StaticResource ResourcesFilterLabelStyle}" />
+
+                <controls:AnimatedComboBox x:Name="VersionFilterComboBox"
+                                           Grid.Column="1"
+                                           ItemsSource="{Binding VersionOptions}"
+                                           SelectedItem="{Binding SelectedVersionOption, Mode=TwoWay}"
+                                           ItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
+                                           SelectionItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
+                                           Style="{StaticResource ResourcesFilterComboBoxStyle}" />
+            </Grid>
+
+            <Grid Grid.Column="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="LoaderFilterLabel"
+                           Text="{x:Static res:Strings.Resources_ModFilterLoaderLabel}"
+                           Style="{StaticResource ResourcesFilterLabelStyle}" />
+
+                <controls:AnimatedComboBox x:Name="LoaderFilterComboBox"
+                                           Grid.Column="1"
+                                           ItemsSource="{Binding LoaderOptions}"
+                                           SelectedItem="{Binding SelectedLoaderOption, Mode=TwoWay}"
+                                           ItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
+                                           SelectionItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
+                                           Style="{StaticResource ResourcesFilterComboBoxStyle}" />
+            </Grid>
+
+            <Grid Grid.Column="4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="SourceFilterLabel"
+                           Text="{x:Static res:Strings.Resources_ModFilterSourceLabel}"
+                           Style="{StaticResource ResourcesFilterLabelStyle}" />
+
+                <controls:AnimatedComboBox x:Name="SourceFilterComboBox"
+                                           Grid.Column="1"
+                                           ItemsSource="{Binding SourceOptions}"
+                                           SelectedItem="{Binding SelectedSourceOption, Mode=TwoWay}"
+                                           ItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
+                                           SelectionItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
+                                           Style="{StaticResource ResourcesFilterComboBoxStyle}" />
+            </Grid>
+
+            <Grid Grid.Column="6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="TypeFilterLabel"
+                           Text="{x:Static res:Strings.Resources_ModFilterTypeLabel}"
+                           Style="{StaticResource ResourcesFilterLabelStyle}" />
+
+                <controls:AnimatedComboBox x:Name="TypeFilterComboBox"
+                                           Grid.Column="1"
+                                           ItemsSource="{Binding TypeOptions}"
+                                           SelectedItem="{Binding SelectedTypeOption, Mode=TwoWay}"
+                                           ItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
+                                           SelectionItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
+                                           Style="{StaticResource ResourcesFilterComboBoxStyle}" />
+            </Grid>
         </Grid>
-    </UniformGrid>
+
+        <Button x:Name="CompactFilterButton"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Center"
+                Content="{x:Static res:Strings.Resources_ModFilterButtonLabel}"
+                Style="{StaticResource ResourcesCompactFilterButtonStyle}"
+                Visibility="Collapsed"
+                Command="{Binding OpenFilterDialogCommand}" />
+    </Grid>
 </UserControl>

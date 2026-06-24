@@ -27,25 +27,35 @@ public sealed class ResourcesModProjectItemViewModel
 
     public string Title => Project.Title;
 
+    public string Description => Project.Description;
+
     public string Subtitle => string.Join("  ",
-        ResourceMinecraftVersionSupportFormatter.Format(Project.SupportedMinecraftVersions, minecraftReleaseVersionOrder),
-        FormatLoaders(Project.SupportedLoaders),
+        SupportedMinecraftVersionsText,
+        SupportedLoadersText,
         SourceText);
 
-    public string TrailingText => string.Format(Strings.Resources_ModDownloadsFormat, FormatDownloads(Project.Downloads));
+    public string TrailingText => string.Format(Strings.Resources_ModDownloadsFormat, DownloadsText);
+
+    public string SupportedMinecraftVersionsText => ResourceMinecraftVersionSupportFormatter.Format(
+        Project.SupportedMinecraftVersions,
+        minecraftReleaseVersionOrder);
+
+    public string SupportedLoadersText => FormatLoaders(Project.SupportedLoaders);
+
+    public string SourceText => Project.Source switch
+    {
+        ResourceProjectSource.Modrinth => Strings.Resources_ModSourceModrinth,
+        ResourceProjectSource.CurseForge => Strings.Resources_ModSourceCurseForge,
+        _ => string.Empty
+    };
+
+    public string DownloadsText => FormatDownloads(Project.Downloads);
 
     public string? IconSource => Project.IconUrl;
 
     public string IconKey => string.IsNullOrWhiteSpace(Project.IconUrl)
         ? "instance_setting_page/mod"
         : string.Empty;
-
-    private string SourceText => Project.Source switch
-    {
-        ResourceProjectSource.Modrinth => Strings.Resources_ModSourceModrinth,
-        ResourceProjectSource.CurseForge => Strings.Resources_ModSourceCurseForge,
-        _ => string.Empty
-    };
 
     private static string FormatLoaders(IReadOnlyList<string> loaders)
     {

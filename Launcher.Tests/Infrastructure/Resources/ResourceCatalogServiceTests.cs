@@ -170,15 +170,256 @@ public sealed class ResourceCatalogServiceTests
         Assert.DoesNotContain(handler.Requests, request => request.RequestUri!.Host == "api.curseforge.com");
     }
 
+    [Fact]
+    public async Task GetProjectVersionsQueriesModrinthWithMinecraftVersionAndLoader()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            curseForgeResponse: """{"data":[]}""",
+            modrinthVersionResponse:
+            """
+            [{"id":"v1","name":"Sodium 1.0","version_number":"1.0.0","version_type":"release","date_published":"2024-01-02T00:00:00Z","downloads":15,"game_versions":["1.18.2"],"loaders":["fabric"],"files":[{"filename":"sodium.jar","url":"https://downloads.example.test/sodium.jar","primary":true}]}]
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+
+        var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
+        {
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "sodium",
+            MinecraftVersion = "1.18.2",
+            Loader = LoaderKind.Fabric
+        });
+
+        var version = Assert.Single(result.Versions);
+        Assert.Equal("Sodium 1.0", version.Name);
+        Assert.Equal("sodium.jar", version.FileName);
+        Assert.Equal("https://downloads.example.test/sodium.jar", version.PrimaryDownloadUrl);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("api.modrinth.com", request.RequestUri!.Host);
+        Assert.Contains("/project/sodium/version", request.RequestUri.AbsolutePath);
+        Assert.Contains("game_versions=", request.RequestUri.Query);
+        Assert.Contains("1.18.2", Uri.UnescapeDataString(request.RequestUri.Query));
+        Assert.Contains("fabric", Uri.UnescapeDataString(request.RequestUri.Query));
+    }
+
+    [Fact]
+    public async Task GetProjectVersionsQueriesCurseForgeWithMinecraftVersionAndLoader()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            """
+            {"data":[{"id":101,"displayName":"JourneyMap 1.0","fileName":"journeymap.jar","releaseType":1,"downloadCount":9,"fileDate":"2024-01-02T00:00:00Z","gameVersions":["1.18.2","Fabric"],"sortableGameVersions":[{"gameVersion":"1.18.2","modLoader":4}]}],"pagination":{"index":0,"pageSize":50,"resultCount":1,"totalCount":1}}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver("test-key"));
+
+        var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            MinecraftVersion = "1.18.2",
+            Loader = LoaderKind.Fabric,
+            PageSize = 50
+        });
+
+        var version = Assert.Single(result.Versions);
+        Assert.Equal("JourneyMap 1.0", version.Name);
+        Assert.Equal("release", version.VersionType);
+        Assert.Equal(["fabric"], version.Loaders);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("api.curseforge.com", request.RequestUri!.Host);
+        Assert.Contains("/mods/1234/files", request.RequestUri.AbsolutePath);
+        Assert.Contains("gameVersion=1.18.2", request.RequestUri.Query);
+        Assert.Contains("modLoaderType=4", request.RequestUri.Query);
+        Assert.Contains("pageSize=50", request.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task GetProjectVersionsQueriesModrinthWithoutFiltersWhenIncludingAllVersions()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            modrinthVersionResponse:
+            """
+            [{"id":"v1","name":"Sodium 1.0","version_number":"1.0.0","version_type":"release","date_published":"2024-01-02T00:00:00Z","downloads":15,"game_versions":["1.18.2"],"loaders":["fabric"],"files":[{"filename":"sodium.jar","url":"https://downloads.example.test/sodium.jar","primary":true}]}]
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+
+        var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
+        {
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "sodium",
+            IncludeAllVersions = true
+        });
+
+        Assert.Single(result.Versions);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("api.modrinth.com", request.RequestUri!.Host);
+        Assert.Contains("/project/sodium/version", request.RequestUri.AbsolutePath);
+        Assert.DoesNotContain("game_versions", request.RequestUri.Query);
+        Assert.DoesNotContain("loaders", request.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task GetProjectVersionsQueriesCurseForgeWithoutFiltersWhenIncludingAllVersions()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            """
+            {"data":[{"id":101,"displayName":"JourneyMap 1.0","fileName":"journeymap.jar","releaseType":1,"downloadCount":9,"fileDate":"2024-01-02T00:00:00Z","gameVersions":["1.18.2","Fabric"],"sortableGameVersions":[{"gameVersion":"1.18.2","modLoader":4}]}],"pagination":{"index":0,"pageSize":50,"resultCount":1,"totalCount":1}}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver("test-key"));
+
+        var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            IncludeAllVersions = true,
+            PageSize = 50
+        });
+
+        Assert.Single(result.Versions);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("api.curseforge.com", request.RequestUri!.Host);
+        Assert.Contains("/mods/1234/files", request.RequestUri.AbsolutePath);
+        Assert.DoesNotContain("gameVersion=", request.RequestUri.Query);
+        Assert.DoesNotContain("modLoaderType=", request.RequestUri.Query);
+        Assert.Contains("pageSize=50", request.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task InstallProjectVersionDownloadsFileToInstanceModsDirectory()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            downloadResponses: new Dictionary<string, string>
+            {
+                ["https://downloads.example.test/mod.jar"] = "jar-content"
+            });
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+        var instanceDirectory = Path.Combine(Path.GetTempPath(), $"launcher-resource-install-{Guid.NewGuid():N}");
+        try
+        {
+            var installedPath = await service.InstallProjectVersionAsync(
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-1",
+                    FileName = "mod.jar",
+                    PrimaryDownloadUrl = "https://downloads.example.test/mod.jar"
+                },
+                new GameInstance
+                {
+                    Id = "instance",
+                    InstanceDirectory = instanceDirectory
+                });
+
+            Assert.Equal(Path.Combine(instanceDirectory, "mods", "mod.jar"), installedPath);
+            Assert.True(File.Exists(installedPath));
+            Assert.Equal("jar-content", await File.ReadAllTextAsync(installedPath));
+        }
+        finally
+        {
+            if (Directory.Exists(instanceDirectory))
+                Directory.Delete(instanceDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadProjectVersionDownloadsFileToTargetDirectory()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            downloadResponses: new Dictionary<string, string>
+            {
+                ["https://downloads.example.test/mod.jar"] = "jar-content"
+            });
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+        var targetDirectory = Path.Combine(Path.GetTempPath(), $"launcher-resource-download-{Guid.NewGuid():N}");
+        try
+        {
+            var downloadedPath = await service.DownloadProjectVersionAsync(
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-1",
+                    FileName = "mod.jar",
+                    PrimaryDownloadUrl = "https://downloads.example.test/mod.jar"
+                },
+                targetDirectory);
+
+            Assert.Equal(Path.Combine(targetDirectory, "mod.jar"), downloadedPath);
+            Assert.True(File.Exists(downloadedPath));
+            Assert.Equal("jar-content", await File.ReadAllTextAsync(downloadedPath));
+        }
+        finally
+        {
+            if (Directory.Exists(targetDirectory))
+                Directory.Delete(targetDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadProjectVersionTriesFallbackUrlWhenPrimaryFails()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            downloadResponses: new Dictionary<string, string>
+            {
+                ["https://downloads.example.test/fallback.jar"] = "fallback-content"
+            });
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+        var targetDirectory = Path.Combine(Path.GetTempPath(), $"launcher-resource-download-{Guid.NewGuid():N}");
+        try
+        {
+            var downloadedPath = await service.DownloadProjectVersionAsync(
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-1",
+                    FileName = "mod.jar",
+                    PrimaryDownloadUrl = "https://downloads.example.test/missing.jar",
+                    FallbackDownloadUrls = ["https://downloads.example.test/fallback.jar"]
+                },
+                targetDirectory);
+
+            Assert.Equal(Path.Combine(targetDirectory, "mod.jar"), downloadedPath);
+            Assert.Equal("fallback-content", await File.ReadAllTextAsync(downloadedPath));
+        }
+        finally
+        {
+            if (Directory.Exists(targetDirectory))
+                Directory.Delete(targetDirectory, recursive: true);
+        }
+    }
+
     private sealed class ResourceCatalogHandler : HttpMessageHandler
     {
         private readonly string modrinthResponse;
         private readonly string curseForgeResponse;
+        private readonly string modrinthVersionResponse;
+        private readonly IReadOnlyDictionary<string, string> downloadResponses;
 
-        public ResourceCatalogHandler(string modrinthResponse, string? curseForgeResponse = null)
+        public ResourceCatalogHandler(
+            string modrinthResponse,
+            string? curseForgeResponse = null,
+            string? modrinthVersionResponse = null,
+            IReadOnlyDictionary<string, string>? downloadResponses = null)
         {
             this.modrinthResponse = modrinthResponse;
             this.curseForgeResponse = curseForgeResponse ?? """{"data":[]}""";
+            this.modrinthVersionResponse = modrinthVersionResponse ?? "[]";
+            this.downloadResponses = downloadResponses ?? new Dictionary<string, string>();
         }
 
         public List<HttpRequestMessage> Requests { get; } = [];
@@ -186,8 +427,21 @@ public sealed class ResourceCatalogServiceTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Add(CloneRequest(request));
+            if (downloadResponses.TryGetValue(request.RequestUri!.ToString(), out var downloadBody))
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(downloadBody)
+                });
+            }
+
+            if (request.RequestUri.Host == "downloads.example.test")
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+
             var body = request.RequestUri?.Host switch
             {
+                "api.modrinth.com" when request.RequestUri.AbsolutePath.Contains("/version", StringComparison.Ordinal)
+                    => modrinthVersionResponse,
                 "api.modrinth.com" => modrinthResponse,
                 "api.curseforge.com" => curseForgeResponse,
                 _ => throw new InvalidOperationException($"Unexpected host: {request.RequestUri?.Host}")

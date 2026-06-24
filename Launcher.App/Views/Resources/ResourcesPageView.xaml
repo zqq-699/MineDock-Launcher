@@ -53,11 +53,14 @@
         <controls:ListPageFrame x:Name="ResourcesListFrame"
                                 Margin="284,36,24,8"
                                 Title="{Binding PageTitle}"
+                                TitleIconSource="{Binding PageTitleIconSource}"
+                                IsHeaderBackButtonVisible="{Binding IsModProjectDetailsStep}"
+                                HeaderBackCommand="{Binding ModPage.BackToProjectListCommand}"
                                 SearchText="{Binding ModPage.SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                IsSearchVisible="{Binding IsModsSection}"
+                                IsSearchVisible="{Binding IsModSearchVisible}"
                                 SearchFilterContent="{Binding ModPage}"
                                 SearchFilterContentTemplate="{StaticResource ResourcesModFilterTemplate}"
-                                IsSearchFilterVisible="{Binding IsModsSection}"
+                                IsSearchFilterVisible="{Binding IsModSearchVisible}"
                                 IsListVisible="True"
                                 UseFrameScrollViewer="False">
             <controls:ListPageFrame.ListContent>

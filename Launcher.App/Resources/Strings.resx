@@ -44,6 +44,7 @@
   <data name="Resources_ModFilterAllSources" xml:space="preserve"><value>所有来源</value></data>
   <data name="Resources_ModFilterTypeLabel" xml:space="preserve"><value>类型</value></data>
   <data name="Resources_ModFilterAllTypes" xml:space="preserve"><value>所有类型</value></data>
+  <data name="Resources_ModFilterButtonLabel" xml:space="preserve"><value>&#x7B5B;&#x9009;</value></data>
   <data name="Resources_ModSourceModrinth" xml:space="preserve"><value>Modrinth</value></data>
   <data name="Resources_ModSourceCurseForge" xml:space="preserve"><value>CurseForge</value></data>
   <data name="Resources_ModVersionsUnknown" xml:space="preserve"><value>未知版本</value></data>
@@ -58,6 +59,19 @@
   <data name="Resources_ModDownloadsFormat" xml:space="preserve"><value>{0} 下载</value></data>
   <data name="Resources_ModDownloadsTenThousandFormat" xml:space="preserve"><value>{0:0.##}万</value></data>
   <data name="Resources_ModDownloadsHundredMillionFormat" xml:space="preserve"><value>{0:0.##}亿</value></data>
+  <data name="Resources_ModDetailsInfoSection" xml:space="preserve"><value>Mod &#x4FE1;&#x606F;</value></data>
+  <data name="Resources_ModDetailsVersionLabel" xml:space="preserve"><value>&#x652F;&#x6301;&#x7248;&#x672C;</value></data>
+  <data name="Resources_ModDetailsLoaderLabel" xml:space="preserve"><value>&#x52A0;&#x8F7D;&#x5668;</value></data>
+  <data name="Resources_ModDetailsSourceLabel" xml:space="preserve"><value>&#x6765;&#x6E90;</value></data>
+  <data name="Resources_ModDetailsDownloadsLabel" xml:space="preserve"><value>&#x4E0B;&#x8F7D;&#x6B21;&#x6570;</value></data>
+  <data name="Resources_ModInstallTargetSection" xml:space="preserve"><value>&#x9009;&#x62E9;&#x8981;&#x5B89;&#x88C5;&#x5230;&#x7684;&#x6E38;&#x620F;</value></data>
+  <data name="Resources_ModInstallTargetLocal" xml:space="preserve"><value>&#x4E0B;&#x8F7D;&#x5230;&#x672C;&#x5730;</value></data>
+  <data name="Resources_ModInstallTargetsLoading" xml:space="preserve"><value>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x6E38;&#x620F;&#x5217;&#x8868;...</value></data>
+  <data name="Resources_ModInstallTargetsLoadError" xml:space="preserve"><value>&#x6E38;&#x620F;&#x5217;&#x8868;&#x52A0;&#x8F7D;&#x5931;&#x8D25;</value></data>
+  <data name="Resources_ModVersionsLoading" xml:space="preserve"><value>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x53EF;&#x7528; Mod &#x7248;&#x672C;...</value></data>
+  <data name="Resources_ModVersionsEmpty" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x9002;&#x7528;&#x4E8E;&#x8BE5;&#x6E38;&#x620F;&#x7684; Mod &#x7248;&#x672C;</value></data>
+  <data name="Resources_ModVersionsEmptyLocal" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x53EF;&#x7528;&#x7684; Mod &#x7248;&#x672C;</value></data>
+  <data name="Resources_ModVersionsLoadError" xml:space="preserve"><value>Mod &#x7248;&#x672C;&#x52A0;&#x8F7D;&#x5931;&#x8D25;</value></data>
   <data name="Page_Settings" xml:space="preserve"><value>全局设置</value></data>
   <data name="Settings_SectionGeneral" xml:space="preserve"><value>通用</value></data>
   <data name="Settings_SectionLaunchMemory" xml:space="preserve"><value>启动与内存</value></data>
@@ -351,6 +365,9 @@
   <data name="Status_ModCompatibleFileNotFound" xml:space="preserve"><value>没有找到与当前游戏兼容的 Mod 文件。</value></data>
   <data name="Status_ModrinthResultsFoundFormat" xml:space="preserve"><value>找到 {0} 个资源</value></data>
   <data name="Status_ModInstalledFormat" xml:space="preserve"><value>{0} 已安装</value></data>
+  <data name="Status_ModInstallFailed" xml:space="preserve"><value>Mod 安装失败</value></data>
+  <data name="Status_ModDownloadedFormat" xml:space="preserve"><value>{0} &#x5DF2;&#x4E0B;&#x8F7D;</value></data>
+  <data name="Status_ModDownloadFailed" xml:space="preserve"><value>Mod &#x4E0B;&#x8F7D;&#x5931;&#x8D25;</value></data>
   <data name="Status_SettingsSaved" xml:space="preserve"><value>启动器设置已保存</value></data>
   <data name="Status_SettingsSaveFailed" xml:space="preserve"><value>启动器设置保存失败，请稍后重试。</value></data>
   <data name="Status_JavaScanFailed" xml:space="preserve"><value>扫描本机 Java 失败，请稍后重试。</value></data>
@@ -625,6 +642,7 @@
   <data name="Status_LocalSaveImportFailed" xml:space="preserve"><value>导入本地存档失败，请稍后重试。</value></data>
   <data name="FilePicker_ModFileTitle" xml:space="preserve"><value>选择 Mod 文件</value></data>
   <data name="FilePicker_ModFileFilter" xml:space="preserve"><value>Mod 文件|*.jar|所有文件|*.*</value></data>
+  <data name="FilePicker_ModDownloadDirectoryTitle" xml:space="preserve"><value>&#x9009;&#x62E9; Mod &#x4E0B;&#x8F7D;&#x4F4D;&#x7F6E;</value></data>
   <data name="FilePicker_SaveArchiveTitle" xml:space="preserve"><value>选择存档压缩包</value></data>
   <data name="FilePicker_SaveArchiveFilter" xml:space="preserve"><value>压缩包|*.zip;*.7z;*.rar;*.tar;*.gz;*.tgz;*.bz2;*.tar.gz;*.tar.bz2;*.tbz2|所有文件|*.*</value></data>
   <data name="Dialog_ReplaceModImportTitle" xml:space="preserve"><value>替换Mod</value></data>

@@ -1012,6 +1012,29 @@ public sealed class ResourceDictionaryTests
             CallCount++;
             return resultTask;
         }
+
+        public Task<ResourceProjectVersionsResult> GetProjectVersionsAsync(
+            ResourceProjectVersionsRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ResourceProjectVersionsResult());
+        }
+
+        public Task<string> InstallProjectVersionAsync(
+            ResourceProjectVersion version,
+            GameInstance instance,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult("installed.jar");
+        }
+
+        public Task<string> DownloadProjectVersionAsync(
+            ResourceProjectVersion version,
+            string targetDirectory,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult("downloaded.jar");
+        }
     }
 
     private sealed class StubStatusService : IStatusService

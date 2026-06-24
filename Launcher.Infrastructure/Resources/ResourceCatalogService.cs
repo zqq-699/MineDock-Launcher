@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Launcher.Application.Services;
@@ -26,6 +27,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
     private const int MinecraftGameId = 432;
     private const int MinecraftModsClassId = 6;
     private const int CurseForgeSortByTotalDownloads = 6;
+    private const int CurseForgeSortByFileDate = 1;
 
     private readonly HttpClient httpClient;
     private readonly ICurseForgeApiKeyResolver curseForgeApiKeyResolver;
@@ -100,6 +102,31 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         };
     }
 
+    public async Task<ResourceProjectVersionsResult> GetProjectVersionsAsync(
+        ResourceProjectVersionsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogInformation(
+            "Loading resource project versions. Source={Source} ProjectId={ProjectId} MinecraftVersion={MinecraftVersion} Loader={Loader} IncludeAllVersions={IncludeAllVersions}",
+            request.Source,
+            request.ProjectId,
+            request.MinecraftVersion,
+            request.Loader,
+            request.IncludeAllVersions);
+
+        if (!request.IncludeAllVersions && request.Loader is LoaderKind.Vanilla)
+            return new ResourceProjectVersionsResult();
+
+        return request.Source switch
+        {
+            ResourceProjectSource.Modrinth => await GetModrinthProjectVersionsAsync(request, cancellationToken)
+                .ConfigureAwait(false),
+            ResourceProjectSource.CurseForge => await GetCurseForgeProjectVersionsAsync(request, cancellationToken)
+                .ConfigureAwait(false),
+            _ => new ResourceProjectVersionsResult()
+        };
+    }
+
     private async Task<ResourceCatalogSourceSearchResult> SearchModrinthModsAsync(
         ResourceCatalogSearchRequest request,
         CancellationToken cancellationToken)
@@ -140,6 +167,171 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         return new ResourceCatalogSourceSearchResult(
             projects,
             HasMore(response?.TotalHits, offset, projects.Count, pageSize));
+    }
+
+    private async Task<ResourceProjectVersionsResult> GetModrinthProjectVersionsAsync(
+        ResourceProjectVersionsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var projectIdOrSlug = string.IsNullOrWhiteSpace(request.ProjectId)
+            ? request.Slug
+            : request.ProjectId;
+        if (string.IsNullOrWhiteSpace(projectIdOrSlug)
+            || (!request.IncludeAllVersions && string.IsNullOrWhiteSpace(request.MinecraftVersion)))
+            return new ResourceProjectVersionsResult();
+
+        var url = $"{ModrinthBaseUrl}/project/{Uri.EscapeDataString(projectIdOrSlug)}/version";
+        if (!request.IncludeAllVersions)
+        {
+            var loader = request.Loader.ToString().ToLowerInvariant();
+            url += $"?loaders={Uri.EscapeDataString(JsonSerializer.Serialize(new[] { loader }))}&game_versions={Uri.EscapeDataString(JsonSerializer.Serialize(new[] { request.MinecraftVersion }))}";
+        }
+
+        var versions = await httpClient.GetFromJsonAsync<List<ModrinthProjectVersion>>(url, cancellationToken)
+            .ConfigureAwait(false) ?? [];
+
+        return new ResourceProjectVersionsResult
+        {
+            Versions = versions
+                .Where(version => !string.IsNullOrWhiteSpace(version.Id) && version.Files.Count > 0)
+                .Select(version =>
+                {
+                    var file = version.Files.FirstOrDefault(candidate => candidate.IsPrimary) ?? version.Files[0];
+                    return new ResourceProjectVersion
+                    {
+                        VersionId = version.Id,
+                        Name = string.IsNullOrWhiteSpace(version.Name) ? version.VersionNumber : version.Name,
+                        VersionNumber = version.VersionNumber,
+                        VersionType = version.VersionType,
+                        FileName = file.FileName,
+                        PrimaryDownloadUrl = file.Url,
+                        Downloads = version.Downloads,
+                        PublishedAt = version.DatePublished,
+                        GameVersions = NormalizeDistinct(version.GameVersions),
+                        Loaders = NormalizeDistinct(version.Loaders)
+                    };
+                })
+                .ToList()
+        };
+    }
+
+    private async Task<ResourceProjectVersionsResult> GetCurseForgeProjectVersionsAsync(
+        ResourceProjectVersionsRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!long.TryParse(request.ProjectId, out var projectId)
+            || (!request.IncludeAllVersions && string.IsNullOrWhiteSpace(request.MinecraftVersion)))
+            return new ResourceProjectVersionsResult();
+
+        var apiKey = await curseForgeApiKeyResolver.TryResolveAsync(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            logger.LogWarning("Skipping CurseForge resource versions because API key is not configured.");
+            return new ResourceProjectVersionsResult
+            {
+                IsCurseForgeUnavailable = true,
+                IsCurseForgeApiKeyMissing = true
+            };
+        }
+
+        var pageSize = NormalizePageSize(request.PageSize);
+        var offset = NormalizeOffset(request.Offset);
+        var query = new List<string>
+        {
+            $"pageSize={pageSize}",
+            $"index={offset}",
+            $"sortField={CurseForgeSortByFileDate}",
+            "sortOrder=desc"
+        };
+        if (!request.IncludeAllVersions)
+            query.Insert(0, $"gameVersion={Uri.EscapeDataString(request.MinecraftVersion)}");
+        if (!request.IncludeAllVersions && TryMapCurseForgeLoader(request.Loader, out var loaderType))
+            query.Add($"modLoaderType={(int)loaderType}");
+
+        using var httpRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"{CurseForgeBaseUrl}/mods/{projectId}/files?{string.Join("&", query)}");
+        httpRequest.Headers.TryAddWithoutValidation("Accept", "application/json");
+        httpRequest.Headers.TryAddWithoutValidation("x-api-key", apiKey);
+
+        using var response = await httpClient.SendAsync(httpRequest, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            logger.LogWarning(
+                "CurseForge resource versions were rejected. ProjectId={ProjectId} StatusCode={StatusCode}",
+                projectId,
+                (int)response.StatusCode);
+            return new ResourceProjectVersionsResult { IsCurseForgeUnavailable = true };
+        }
+
+        response.EnsureSuccessStatusCode();
+        var payload = await response.Content.ReadFromJsonAsync<CurseForgeFilesResponse>(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        var files = payload?.Data ?? [];
+
+        return new ResourceProjectVersionsResult
+        {
+            Versions = files
+                .Where(file => file.Id > 0 && !string.IsNullOrWhiteSpace(file.FileName))
+                .Select(file => new ResourceProjectVersion
+                {
+                    VersionId = file.Id.ToString(),
+                    Name = string.IsNullOrWhiteSpace(file.DisplayName) ? file.FileName : file.DisplayName,
+                    VersionNumber = string.IsNullOrWhiteSpace(file.DisplayName) ? file.FileName : file.DisplayName,
+                    VersionType = MapCurseForgeReleaseType(file.ReleaseType),
+                    FileName = file.FileName,
+                    PrimaryDownloadUrl = string.IsNullOrWhiteSpace(file.DownloadUrl)
+                        ? BuildCurseForgeCdnUrl("edge.forgecdn.net", file.Id, file.FileName)
+                        : file.DownloadUrl,
+                    FallbackDownloadUrls = CreateCurseForgeFallbackUrls(file.Id, file.FileName, file.DownloadUrl),
+                    Downloads = file.DownloadCount,
+                    PublishedAt = file.FileDate,
+                    GameVersions = NormalizeDistinct(file.GameVersions),
+                    Loaders = NormalizeDistinct(file.SortableGameVersions
+                        .Select(version => TryMapCurseForgeLoader(version.ModLoader))
+                        .Where(loader => !string.IsNullOrWhiteSpace(loader))!)
+                })
+                .ToList(),
+            HasMore = HasMore(payload?.Pagination?.TotalCount, offset, files.Count, pageSize)
+        };
+    }
+
+    public async Task<string> InstallProjectVersionAsync(
+        ResourceProjectVersion version,
+        GameInstance instance,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(instance.InstanceDirectory))
+            throw new InvalidOperationException("The target instance directory is empty.");
+
+        var modsDirectory = Path.Combine(instance.InstanceDirectory, "mods");
+        Directory.CreateDirectory(modsDirectory);
+        var target = await DownloadProjectVersionCoreAsync(version, modsDirectory, cancellationToken).ConfigureAwait(false);
+
+        logger.LogInformation(
+            "Resource project version installed. VersionId={VersionId} Target={Target}",
+            version.VersionId,
+            target);
+        return target;
+    }
+
+    public async Task<string> DownloadProjectVersionAsync(
+        ResourceProjectVersion version,
+        string targetDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(targetDirectory))
+            throw new InvalidOperationException("The target download directory is empty.");
+
+        Directory.CreateDirectory(targetDirectory);
+        var target = await DownloadProjectVersionCoreAsync(version, targetDirectory, cancellationToken)
+            .ConfigureAwait(false);
+
+        logger.LogInformation(
+            "Resource project version downloaded. VersionId={VersionId} Target={Target}",
+            version.VersionId,
+            target);
+        return target;
     }
 
     private async Task<ResourceCatalogSourceSearchResult> SearchCurseForgeModsAsync(
@@ -317,6 +509,91 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         return loader is not LoaderKind.Vanilla;
     }
 
+    private static string MapCurseForgeReleaseType(int releaseType)
+    {
+        return releaseType switch
+        {
+            1 => "release",
+            2 => "beta",
+            3 => "alpha",
+            _ => string.Empty
+        };
+    }
+
+    private async Task<string> DownloadProjectVersionCoreAsync(
+        ResourceProjectVersion version,
+        string targetDirectory,
+        CancellationToken cancellationToken)
+    {
+        var fileName = Path.GetFileName(version.FileName);
+        if (string.IsNullOrWhiteSpace(fileName))
+            fileName = $"{version.VersionId}.jar";
+
+        var target = Path.Combine(targetDirectory, fileName);
+        var urls = new[] { version.PrimaryDownloadUrl }
+            .Concat(version.FallbackDownloadUrls)
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (urls.Count == 0)
+            throw new InvalidOperationException($"Resource project version has no download URL: {version.VersionId}");
+
+        Exception? lastException = null;
+        foreach (var url in urls)
+        {
+            try
+            {
+                await DownloadFileAsync(url, target, cancellationToken).ConfigureAwait(false);
+                return target;
+            }
+            catch (Exception exception) when (exception is HttpRequestException or IOException)
+            {
+                lastException = exception;
+                logger.LogWarning(
+                    exception,
+                    "Failed to download resource project version candidate. VersionId={VersionId} Url={Url}",
+                    version.VersionId,
+                    url);
+            }
+        }
+
+        throw new InvalidOperationException($"Failed to download resource project version: {version.VersionId}", lastException);
+    }
+
+    private async Task DownloadFileAsync(string url, string target, CancellationToken cancellationToken)
+    {
+        await using var stream = await httpClient.GetStreamAsync(url, cancellationToken).ConfigureAwait(false);
+        await using var destination = File.Create(target);
+        await stream.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static IReadOnlyList<string> CreateCurseForgeFallbackUrls(long fileId, string fileName, string? primaryUrl)
+    {
+        var urls = new List<string>();
+        AddDistinctUrl(urls, BuildCurseForgeCdnUrl("edge.forgecdn.net", fileId, fileName), primaryUrl);
+        AddDistinctUrl(urls, BuildCurseForgeCdnUrl("mediafilez.forgecdn.net", fileId, fileName), primaryUrl);
+        return urls;
+    }
+
+    private static string BuildCurseForgeCdnUrl(string host, long fileId, string fileName)
+    {
+        var part1 = fileId / 1000;
+        var part2 = fileId % 1000;
+        return $"https://{host}/files/{part1}/{part2}/{Uri.EscapeDataString(fileName)}";
+    }
+
+    private static void AddDistinctUrl(ICollection<string> urls, string candidateUrl, string? primaryUrl)
+    {
+        if (string.IsNullOrWhiteSpace(candidateUrl)
+            || string.Equals(candidateUrl, primaryUrl, StringComparison.OrdinalIgnoreCase)
+            || urls.Contains(candidateUrl, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        urls.Add(candidateUrl);
+    }
+
     private enum CurseForgeModLoaderType
     {
         Any = 0,
@@ -364,10 +641,61 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         public List<string> Categories { get; init; } = [];
     }
 
+    private sealed class ModrinthProjectVersion
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; init; } = string.Empty;
+
+        [JsonPropertyName("name")]
+        public string Name { get; init; } = string.Empty;
+
+        [JsonPropertyName("version_number")]
+        public string VersionNumber { get; init; } = string.Empty;
+
+        [JsonPropertyName("version_type")]
+        public string VersionType { get; init; } = string.Empty;
+
+        [JsonPropertyName("date_published")]
+        public DateTimeOffset? DatePublished { get; init; }
+
+        [JsonPropertyName("downloads")]
+        public long Downloads { get; init; }
+
+        [JsonPropertyName("game_versions")]
+        public List<string> GameVersions { get; init; } = [];
+
+        [JsonPropertyName("loaders")]
+        public List<string> Loaders { get; init; } = [];
+
+        [JsonPropertyName("files")]
+        public List<ModrinthProjectVersionFile> Files { get; init; } = [];
+    }
+
+    private sealed class ModrinthProjectVersionFile
+    {
+        [JsonPropertyName("filename")]
+        public string FileName { get; init; } = string.Empty;
+
+        [JsonPropertyName("url")]
+        public string Url { get; init; } = string.Empty;
+
+        [JsonPropertyName("primary")]
+        public bool IsPrimary { get; init; }
+    }
+
     private sealed class CurseForgeSearchResponse
     {
         [JsonPropertyName("data")]
         public List<CurseForgeMod> Data { get; init; } = [];
+
+        [JsonPropertyName("pagination")]
+        public CurseForgePagination? Pagination { get; init; }
+    }
+
+    private sealed class CurseForgeFilesResponse
+    {
+        [JsonPropertyName("data")]
+        public List<CurseForgeFile> Data { get; init; } = [];
 
         [JsonPropertyName("pagination")]
         public CurseForgePagination? Pagination { get; init; }
@@ -431,6 +759,48 @@ public sealed class ResourceCatalogService : IResourceCatalogService
     {
         [JsonPropertyName("gameVersion")]
         public string? GameVersion { get; init; }
+
+        [JsonPropertyName("modLoader")]
+        public int? ModLoader { get; init; }
+    }
+
+    private sealed class CurseForgeFile
+    {
+        [JsonPropertyName("id")]
+        public long Id { get; init; }
+
+        [JsonPropertyName("displayName")]
+        public string DisplayName { get; init; } = string.Empty;
+
+        [JsonPropertyName("fileName")]
+        public string FileName { get; init; } = string.Empty;
+
+        [JsonPropertyName("downloadUrl")]
+        public string? DownloadUrl { get; init; }
+
+        [JsonPropertyName("releaseType")]
+        public int ReleaseType { get; init; }
+
+        [JsonPropertyName("downloadCount")]
+        public long DownloadCount { get; init; }
+
+        [JsonPropertyName("fileDate")]
+        public DateTimeOffset? FileDate { get; init; }
+
+        [JsonPropertyName("gameVersions")]
+        public List<string> GameVersions { get; init; } = [];
+
+        [JsonPropertyName("sortableGameVersions")]
+        public List<CurseForgeSortableGameVersion> SortableGameVersions { get; init; } = [];
+    }
+
+    private sealed class CurseForgeSortableGameVersion
+    {
+        [JsonPropertyName("gameVersion")]
+        public string? GameVersion { get; init; }
+
+        [JsonPropertyName("gameVersionTypeId")]
+        public int? GameVersionTypeId { get; init; }
 
         [JsonPropertyName("modLoader")]
         public int? ModLoader { get; init; }

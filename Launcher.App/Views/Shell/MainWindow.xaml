@@ -194,6 +194,129 @@
                 <downloadDialogViews:DownloadModpackManualDownloadsDialogView />
             </controls:DialogHost>
 
+            <controls:DialogHost x:Name="ResourcesModFilterDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="360"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsFilterDialogOpen}"
+                                 DataContext="{Binding ResourcesPage.ModPage}">
+                <controls:DialogHost.Resources>
+                    <DataTemplate x:Key="ResourcesModFilterDialogOptionTemplate">
+                        <TextBlock Text="{Binding Title}"
+                                   Foreground="{DynamicResource Brush.F4F4F4}"
+                                   TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center" />
+                    </DataTemplate>
+
+                    <Style x:Key="ResourcesModFilterDialogComboBoxStyle"
+                           TargetType="controls:AnimatedComboBox"
+                           BasedOn="{StaticResource LauncherComboBoxStyle}">
+                        <Setter Property="Height" Value="34" />
+                        <Setter Property="Width" Value="226" />
+                        <Setter Property="MaxWidth" Value="226" />
+                    </Style>
+
+                    <Style x:Key="ResourcesModFilterDialogFieldStyle"
+                           TargetType="Grid">
+                        <Setter Property="Margin" Value="0,0,0,14" />
+                    </Style>
+                </controls:DialogHost.Resources>
+
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Resources_ModFilterButtonLabel}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <StackPanel Grid.Row="1"
+                                Style="{StaticResource DialogFormPanelStyle}">
+                        <Grid Style="{StaticResource ResourcesModFilterDialogFieldStyle}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{x:Static res:Strings.Resources_ModFilterVersionLabel}"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource DialogFieldLabelTextStyle}" />
+                            <controls:AnimatedComboBox Grid.Column="1"
+                                                       HorizontalAlignment="Right"
+                                                       ItemsSource="{Binding VersionOptions}"
+                                                       SelectedItem="{Binding PendingVersionOption, Mode=TwoWay}"
+                                                       ItemTemplate="{StaticResource ResourcesModFilterDialogOptionTemplate}"
+                                                       SelectionItemTemplate="{StaticResource ResourcesModFilterDialogOptionTemplate}"
+                                                       Style="{StaticResource ResourcesModFilterDialogComboBoxStyle}" />
+                        </Grid>
+
+                        <Grid Style="{StaticResource ResourcesModFilterDialogFieldStyle}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{x:Static res:Strings.Resources_ModFilterLoaderLabel}"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource DialogFieldLabelTextStyle}" />
+                            <controls:AnimatedComboBox Grid.Column="1"
+                                                       HorizontalAlignment="Right"
+                                                       ItemsSource="{Binding LoaderOptions}"
+                                                       SelectedItem="{Binding PendingLoaderOption, Mode=TwoWay}"
+                                                       ItemTemplate="{StaticResource ResourcesModFilterDialogOptionTemplate}"
+                                                       SelectionItemTemplate="{StaticResource ResourcesModFilterDialogOptionTemplate}"
+                                                       Style="{StaticResource ResourcesModFilterDialogComboBoxStyle}" />
+                        </Grid>
+
+                        <Grid Style="{StaticResource ResourcesModFilterDialogFieldStyle}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{x:Static res:Strings.Resources_ModFilterSourceLabel}"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource DialogFieldLabelTextStyle}" />
+                            <controls:AnimatedComboBox Grid.Column="1"
+                                                       HorizontalAlignment="Right"
+                                                       ItemsSource="{Binding SourceOptions}"
+                                                       SelectedItem="{Binding PendingSourceOption, Mode=TwoWay}"
+                                                       ItemTemplate="{StaticResource ResourcesModFilterDialogOptionTemplate}"
+                                                       SelectionItemTemplate="{StaticResource ResourcesModFilterDialogOptionTemplate}"
+                                                       Style="{StaticResource ResourcesModFilterDialogComboBoxStyle}" />
+                        </Grid>
+
+                        <Grid Style="{StaticResource ResourcesModFilterDialogFieldStyle}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{x:Static res:Strings.Resources_ModFilterTypeLabel}"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource DialogFieldLabelTextStyle}" />
+                            <controls:AnimatedComboBox Grid.Column="1"
+                                                       HorizontalAlignment="Right"
+                                                       ItemsSource="{Binding TypeOptions}"
+                                                       SelectedItem="{Binding PendingTypeOption, Mode=TwoWay}"
+                                                       ItemTemplate="{StaticResource ResourcesModFilterDialogOptionTemplate}"
+                                                       SelectionItemTemplate="{StaticResource ResourcesModFilterDialogOptionTemplate}"
+                                                       Style="{StaticResource ResourcesModFilterDialogComboBoxStyle}" />
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                Content="{x:Static res:Strings.Cancel_Button}"
+                                Command="{Binding CancelFilterDialogCommand}" />
+                        <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                Margin="{StaticResource DialogTrailingButtonMargin}"
+                                Content="{x:Static res:Strings.Confirm_Button}"
+                                Command="{Binding ConfirmFilterDialogCommand}" />
+                    </StackPanel>
+                </Grid>
+            </controls:DialogHost>
+
             <controls:DialogHost x:Name="DeleteInstanceDialogHost"
                                  Grid.ColumnSpan="2"
                                  Grid.RowSpan="2"

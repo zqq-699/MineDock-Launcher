@@ -41,6 +41,7 @@ public static class Strings
     public static string Resources_ModFilterAllSources => Get(nameof(Resources_ModFilterAllSources));
     public static string Resources_ModFilterTypeLabel => Get(nameof(Resources_ModFilterTypeLabel));
     public static string Resources_ModFilterAllTypes => Get(nameof(Resources_ModFilterAllTypes));
+    public static string Resources_ModFilterButtonLabel => Get(nameof(Resources_ModFilterButtonLabel));
     public static string Resources_ModSourceModrinth => Get(nameof(Resources_ModSourceModrinth));
     public static string Resources_ModSourceCurseForge => Get(nameof(Resources_ModSourceCurseForge));
     public static string Resources_ModVersionsUnknown => Get(nameof(Resources_ModVersionsUnknown));
@@ -55,6 +56,19 @@ public static class Strings
     public static string Resources_ModDownloadsFormat => Get(nameof(Resources_ModDownloadsFormat));
     public static string Resources_ModDownloadsTenThousandFormat => Get(nameof(Resources_ModDownloadsTenThousandFormat));
     public static string Resources_ModDownloadsHundredMillionFormat => Get(nameof(Resources_ModDownloadsHundredMillionFormat));
+    public static string Resources_ModDetailsInfoSection => Get(nameof(Resources_ModDetailsInfoSection));
+    public static string Resources_ModDetailsVersionLabel => Get(nameof(Resources_ModDetailsVersionLabel));
+    public static string Resources_ModDetailsLoaderLabel => Get(nameof(Resources_ModDetailsLoaderLabel));
+    public static string Resources_ModDetailsSourceLabel => Get(nameof(Resources_ModDetailsSourceLabel));
+    public static string Resources_ModDetailsDownloadsLabel => Get(nameof(Resources_ModDetailsDownloadsLabel));
+    public static string Resources_ModInstallTargetSection => Get(nameof(Resources_ModInstallTargetSection));
+    public static string Resources_ModInstallTargetLocal => Get(nameof(Resources_ModInstallTargetLocal));
+    public static string Resources_ModInstallTargetsLoading => Get(nameof(Resources_ModInstallTargetsLoading));
+    public static string Resources_ModInstallTargetsLoadError => Get(nameof(Resources_ModInstallTargetsLoadError));
+    public static string Resources_ModVersionsLoading => Get(nameof(Resources_ModVersionsLoading));
+    public static string Resources_ModVersionsEmpty => Get(nameof(Resources_ModVersionsEmpty));
+    public static string Resources_ModVersionsEmptyLocal => Get(nameof(Resources_ModVersionsEmptyLocal));
+    public static string Resources_ModVersionsLoadError => Get(nameof(Resources_ModVersionsLoadError));
     public static string Page_Settings => Get(nameof(Page_Settings));
     public static string Settings_SectionGeneral => Get(nameof(Settings_SectionGeneral));
     public static string Settings_SectionLaunchMemory => Get(nameof(Settings_SectionLaunchMemory));
@@ -573,6 +587,9 @@ public static class Strings
     public static string Status_ModCompatibleFileNotFound => Get(nameof(Status_ModCompatibleFileNotFound));
     public static string Status_ModrinthResultsFoundFormat => Get(nameof(Status_ModrinthResultsFoundFormat));
     public static string Status_ModInstalledFormat => Get(nameof(Status_ModInstalledFormat));
+    public static string Status_ModInstallFailed => Get(nameof(Status_ModInstallFailed));
+    public static string Status_ModDownloadedFormat => Get(nameof(Status_ModDownloadedFormat));
+    public static string Status_ModDownloadFailed => Get(nameof(Status_ModDownloadFailed));
     public static string Status_SettingsSaved => Get(nameof(Status_SettingsSaved));
     public static string Status_SettingsSaveFailed => Get(nameof(Status_SettingsSaveFailed));
     public static string Status_JavaScanFailed => Get(nameof(Status_JavaScanFailed));
@@ -693,6 +710,7 @@ public static class Strings
     public static string FilePicker_LocalImportFileFilter => Get(nameof(FilePicker_LocalImportFileFilter));
     public static string FilePicker_ModFileTitle => Get(nameof(FilePicker_ModFileTitle));
     public static string FilePicker_ModFileFilter => Get(nameof(FilePicker_ModFileFilter));
+    public static string FilePicker_ModDownloadDirectoryTitle => Get(nameof(FilePicker_ModDownloadDirectoryTitle));
     public static string FilePicker_SaveArchiveTitle => Get(nameof(FilePicker_SaveArchiveTitle));
     public static string FilePicker_SaveArchiveFilter => Get(nameof(FilePicker_SaveArchiveFilter));
     public static string FilePicker_ResourcePackArchiveTitle => Get(nameof(FilePicker_ResourcePackArchiveTitle));
