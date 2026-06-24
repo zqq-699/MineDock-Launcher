@@ -25,23 +25,26 @@ internal static class VanillaVersionMetadataClient
             logger,
             DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
             category: DownloadConcurrencyCategory.Metadata);
-        using var manifestResponse = await executor.GetAsync(
-            VersionManifestUrl,
-            downloadSourcePreference,
-            categoryHint: "Mojang",
-            cancellationToken);
-        manifestResponse.Response.EnsureSuccessStatusCode();
+        string? versionUrl;
+        {
+            using var manifestResponse = await executor.GetAsync(
+                VersionManifestUrl,
+                downloadSourcePreference,
+                categoryHint: "Mojang",
+                cancellationToken);
+            manifestResponse.Response.EnsureSuccessStatusCode();
 
-        await using var manifestStream = await manifestResponse.Response.Content.ReadAsStreamAsync(cancellationToken);
-        var manifestNode = await JsonNode.ParseAsync(manifestStream, cancellationToken: cancellationToken)
-            ?? throw new InvalidDataException("Minecraft version manifest is empty.");
+            await using var manifestStream = await manifestResponse.Response.Content.ReadAsStreamAsync(cancellationToken);
+            var manifestNode = await JsonNode.ParseAsync(manifestStream, cancellationToken: cancellationToken)
+                ?? throw new InvalidDataException("Minecraft version manifest is empty.");
 
-        var versionEntries = manifestNode["versions"]?.AsArray()
-            ?? throw new InvalidDataException("Minecraft version manifest is missing versions.");
-        var versionUrl = versionEntries
-            .Select(entry => entry?.AsObject())
-            .FirstOrDefault(entry =>
-                string.Equals(entry?["id"]?.GetValue<string>(), minecraftVersion, StringComparison.OrdinalIgnoreCase))?["url"]?.GetValue<string>();
+            var versionEntries = manifestNode["versions"]?.AsArray()
+                ?? throw new InvalidDataException("Minecraft version manifest is missing versions.");
+            versionUrl = versionEntries
+                .Select(entry => entry?.AsObject())
+                .FirstOrDefault(entry =>
+                    string.Equals(entry?["id"]?.GetValue<string>(), minecraftVersion, StringComparison.OrdinalIgnoreCase))?["url"]?.GetValue<string>();
+        }
 
         if (string.IsNullOrWhiteSpace(versionUrl))
             throw new InvalidOperationException($"Minecraft version metadata not found: {minecraftVersion}");
