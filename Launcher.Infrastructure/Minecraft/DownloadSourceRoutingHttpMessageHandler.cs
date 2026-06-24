@@ -42,12 +42,15 @@ internal sealed class DownloadSourceRoutingHttpMessageHandler : DelegatingHandle
             var resolution = candidates[index];
             var clonedRequest = await CloneRequestAsync(request, resolution.ActualUrl, cancellationToken);
             var lease = await AcquireLeaseAsync(cancellationToken).ConfigureAwait(false);
+            var leaseTransferred = false;
+            HttpResponseMessage? response = null;
             try
             {
-                var response = await base.SendAsync(clonedRequest, cancellationToken);
+                response = await base.SendAsync(clonedRequest, cancellationToken);
                 if (response.IsSuccessStatusCode || index == candidates.Count - 1)
                 {
                     await DownloadResponseThrottler.ApplyAsync(response, bandwidthLimiter, cancellationToken, lease).ConfigureAwait(false);
+                    leaseTransferred = true;
                     logger.LogInformation(
                         "HTTP download routed. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} StatusCode={StatusCode} FallbackUsed={FallbackUsed}",
                         preference,
@@ -60,8 +63,9 @@ internal sealed class DownloadSourceRoutingHttpMessageHandler : DelegatingHandle
                     return response;
                 }
 
+                var statusCode = response.StatusCode;
                 response.Dispose();
-                await lease.DisposeAsync().ConfigureAwait(false);
+                response = null;
                 logger.LogWarning(
                     "HTTP download route failed and will fall back. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} StatusCode={StatusCode}",
                     preference,
@@ -69,11 +73,11 @@ internal sealed class DownloadSourceRoutingHttpMessageHandler : DelegatingHandle
                     resolution.OriginalUrl,
                     resolution.ActualUrl,
                     resolution.ResolvedSourceKind,
-                    (int)response.StatusCode);
+                    (int)statusCode);
             }
             catch (Exception exception) when (exception is not OperationCanceledException && index < candidates.Count - 1)
             {
-                await lease.DisposeAsync().ConfigureAwait(false);
+                response?.Dispose();
                 logger.LogWarning(
                     exception,
                     "HTTP download route threw before fallback. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind}",
@@ -82,6 +86,11 @@ internal sealed class DownloadSourceRoutingHttpMessageHandler : DelegatingHandle
                     resolution.OriginalUrl,
                     resolution.ActualUrl,
                     resolution.ResolvedSourceKind);
+            }
+            finally
+            {
+                if (!leaseTransferred)
+                    await lease.DisposeAsync().ConfigureAwait(false);
             }
         }
 

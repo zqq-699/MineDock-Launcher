@@ -43,15 +43,22 @@ internal sealed class MinecraftDownloadRequestExecutor
             var resolution = candidates[index];
             var hasFallback = index < candidates.Count - 1;
             var lease = await AcquireLeaseAsync(cancellationToken).ConfigureAwait(false);
+            var leaseTransferred = false;
+            HttpResponseMessage? response = null;
             try
             {
-                var response = await httpClient.GetAsync(resolution.ActualUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                response = await httpClient.GetAsync(resolution.ActualUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 if (response.IsSuccessStatusCode || !hasFallback)
                 {
                     await DownloadResponseThrottler.ApplyAsync(response, bandwidthLimiter, cancellationToken, lease).ConfigureAwait(false);
+                    leaseTransferred = true;
                     LogResolvedRequest(resolution, response.StatusCode, fallbackUsed: index > 0);
                     return new ResolvedHttpResponse(resolution, response);
                 }
+
+                var statusCode = response.StatusCode;
+                response.Dispose();
+                response = null;
 
                 logger.LogWarning(
                     "Download request failed and will fall back to BMCLAPI. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} StatusCode={StatusCode}",
@@ -60,13 +67,11 @@ internal sealed class MinecraftDownloadRequestExecutor
                     resolution.OriginalUrl,
                     resolution.ActualUrl,
                     resolution.ResolvedSourceKind,
-                    (int)response.StatusCode);
-                response.Dispose();
-                await lease.DisposeAsync().ConfigureAwait(false);
+                    (int)statusCode);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                await lease.DisposeAsync().ConfigureAwait(false);
+                response?.Dispose();
                 var wrapped = new DownloadSourceRequestException(resolution, exception);
                 if (!hasFallback)
                     throw wrapped;
@@ -80,6 +85,11 @@ internal sealed class MinecraftDownloadRequestExecutor
                     resolution.OriginalUrl,
                     resolution.ActualUrl,
                     resolution.ResolvedSourceKind);
+            }
+            finally
+            {
+                if (!leaseTransferred)
+                    await lease.DisposeAsync().ConfigureAwait(false);
             }
         }
 
