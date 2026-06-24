@@ -69,6 +69,10 @@ public static class Strings
     public static string Resources_ModVersionsEmpty => Get(nameof(Resources_ModVersionsEmpty));
     public static string Resources_ModVersionsEmptyLocal => Get(nameof(Resources_ModVersionsEmptyLocal));
     public static string Resources_ModVersionsLoadError => Get(nameof(Resources_ModVersionsLoadError));
+    public static string Resources_ModDownloadFileExistsTitle => Get(nameof(Resources_ModDownloadFileExistsTitle));
+    public static string Resources_ModDownloadFileExistsMessageFormat => Get(nameof(Resources_ModDownloadFileExistsMessageFormat));
+    public static string Resources_ModUnknownInstanceVersionTitle => Get(nameof(Resources_ModUnknownInstanceVersionTitle));
+    public static string Resources_ModUnknownInstanceVersionMessage => Get(nameof(Resources_ModUnknownInstanceVersionMessage));
     public static string Page_Settings => Get(nameof(Page_Settings));
     public static string Settings_SectionGeneral => Get(nameof(Settings_SectionGeneral));
     public static string Settings_SectionLaunchMemory => Get(nameof(Settings_SectionLaunchMemory));

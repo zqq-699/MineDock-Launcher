@@ -110,6 +110,24 @@ public sealed class ResourceDictionaryTests
         if (exception is not null)
             throw exception;
     }
+
+    [Fact]
+    public void ResourcesModUnknownInstanceVersionDialogResourcesAreDeclared()
+    {
+        var viewModel = new ResourcesPageViewModel();
+
+        viewModel.ModPage.IsUnknownInstanceVersionDialogOpen = true;
+        viewModel.ModPage.CloseUnknownInstanceVersionDialogCommand.Execute(null);
+
+        Assert.False(viewModel.ModPage.IsUnknownInstanceVersionDialogOpen);
+        Assert.NotEqual(
+            nameof(Strings.Resources_ModUnknownInstanceVersionTitle),
+            Strings.Resources_ModUnknownInstanceVersionTitle);
+        Assert.NotEqual(
+            nameof(Strings.Resources_ModUnknownInstanceVersionMessage),
+            Strings.Resources_ModUnknownInstanceVersionMessage);
+    }
+
     [Fact]
     public void LauncherComboBoxStyleAppliesTemplateAtRuntime()
     {
@@ -1034,6 +1052,22 @@ public sealed class ResourceDictionaryTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult("downloaded.jar");
+        }
+
+        public Task<bool> ProjectVersionDownloadExistsAsync(
+            ResourceProjectVersion version,
+            string targetDirectory,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(false);
+        }
+
+        public Task<bool> ProjectVersionInstallExistsAsync(
+            ResourceProjectVersion version,
+            GameInstance instance,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(false);
         }
     }
 

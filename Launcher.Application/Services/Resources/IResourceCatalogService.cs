@@ -21,4 +21,14 @@ public interface IResourceCatalogService
         ResourceProjectVersion version,
         string targetDirectory,
         CancellationToken cancellationToken = default);
+
+    Task<bool> ProjectVersionDownloadExistsAsync(
+        ResourceProjectVersion version,
+        string targetDirectory,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> ProjectVersionInstallExistsAsync(
+        ResourceProjectVersion version,
+        GameInstance instance,
+        CancellationToken cancellationToken = default);
 }

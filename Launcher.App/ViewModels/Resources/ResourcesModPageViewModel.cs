@@ -30,6 +30,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     private CancellationTokenSource? projectVersionsCancellationTokenSource;
     private bool hasRequestedInitialProjectLoad;
     private bool isApplyingVersionFilterOptions;
+    private bool isApplyingInstanceFilters;
     private Task<ReleaseVersionData?>? releaseVersionDataTask;
 
     public ResourcesModPageViewModel(
@@ -145,6 +146,15 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     private bool isFilterDialogOpen;
 
     [ObservableProperty]
+    private bool isProjectVersionFileExistsDialogOpen;
+
+    [ObservableProperty]
+    private string projectVersionFileExistsDialogMessage = string.Empty;
+
+    [ObservableProperty]
+    private bool isUnknownInstanceVersionDialogOpen;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanShowInstallTargetsLoadingState))]
     [NotifyPropertyChangedFor(nameof(CanShowInstallTargetsLoadErrorState))]
     private bool isLoadingInstallTargets;
@@ -236,6 +246,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     public bool CanShowAvailableVersionsLoadErrorState => !IsLoadingAvailableVersions && HasAvailableVersionsLoadErrorMessage;
 
     public string AvailableVersionsEmptyMessage => SelectedInstallTarget?.IsLocalDownload == true
+        || IsUnknownInstanceVersionTarget(SelectedInstallTarget)
         ? Strings.Resources_ModVersionsEmptyLocal
         : Strings.Resources_ModVersionsEmpty;
 
@@ -287,6 +298,19 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     }
 
     [RelayCommand]
+    private void CloseProjectVersionFileExistsDialog()
+    {
+        IsProjectVersionFileExistsDialogOpen = false;
+        ProjectVersionFileExistsDialogMessage = string.Empty;
+    }
+
+    [RelayCommand]
+    private void CloseUnknownInstanceVersionDialog()
+    {
+        IsUnknownInstanceVersionDialogOpen = false;
+    }
+
+    [RelayCommand]
     private void SelectProject(ResourcesModProjectItemViewModel? project)
     {
         if (project is null)
@@ -329,6 +353,9 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 
         SelectedInstallTarget = target;
         CurrentStep = ResourcesModPageStep.ProjectVersions;
+        if (IsUnknownInstanceVersionTarget(target))
+            IsUnknownInstanceVersionDialogOpen = true;
+
         _ = LoadAvailableVersionsAsync(target);
         if (target.Instance is null)
         {
@@ -339,9 +366,10 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         else
         {
             logger?.LogInformation(
-                "Resources mod install target selected. ProjectId={ProjectId} InstanceId={InstanceId}",
+                "Resources mod install target selected. ProjectId={ProjectId} InstanceId={InstanceId} IsUnknownMinecraftVersion={IsUnknownMinecraftVersion}",
                 SelectedProject.Project.ProjectId,
-                target.Instance.Id);
+                target.Instance.Id,
+                IsUnknownInstanceVersionTarget(target));
         }
     }
 
@@ -410,15 +438,16 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 return;
             }
 
+            var includeAllVersions = target.IsLocalDownload || IsUnknownInstanceVersionTarget(target);
             var result = await resourceCatalogService.GetProjectVersionsAsync(
                 new ResourceProjectVersionsRequest
                 {
                     Source = project.Source,
                     ProjectId = project.ProjectId,
                     Slug = project.Slug,
-                    MinecraftVersion = target.IsLocalDownload ? string.Empty : instance?.MinecraftVersion ?? string.Empty,
-                    Loader = target.IsLocalDownload ? LoaderKind.Vanilla : instance?.Loader ?? LoaderKind.Vanilla,
-                    IncludeAllVersions = target.IsLocalDownload,
+                    MinecraftVersion = includeAllVersions ? string.Empty : instance?.MinecraftVersion ?? string.Empty,
+                    Loader = includeAllVersions ? LoaderKind.Vanilla : instance?.Loader ?? LoaderKind.Vanilla,
+                    IncludeAllVersions = includeAllVersions,
                     Offset = 0,
                     PageSize = 50
                 },
@@ -435,7 +464,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 "Resources mod versions loaded. ProjectId={ProjectId} InstanceId={InstanceId} IncludeAllVersions={IncludeAllVersions} VersionCount={VersionCount}",
                 project.ProjectId,
                 instance?.Id,
-                target.IsLocalDownload,
+                includeAllVersions,
                 result.Versions.Count);
         }
         catch (OperationCanceledException)
@@ -467,13 +496,21 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 if (string.IsNullOrWhiteSpace(targetDirectory))
                     return;
 
+                if (await resourceCatalogService.ProjectVersionDownloadExistsAsync(item.Version, targetDirectory).ConfigureAwait(false))
+                {
+                    ShowProjectVersionFileExistsDialog(item);
+                    logger?.LogInformation(
+                        "Skipped resources mod local download because target file exists. ProjectId={ProjectId} VersionId={VersionId} TargetDirectory={TargetDirectory}",
+                        SelectedProject?.Project.ProjectId,
+                        item.Version.VersionId,
+                        targetDirectory);
+                    return;
+                }
+
                 floatingMessageService?.Show(Strings.Status_ModDownloading);
                 ReportStatus(string.Format(Strings.Status_ModDownloadingFormat, item.Title));
                 await resourceCatalogService.DownloadProjectVersionAsync(item.Version, targetDirectory).ConfigureAwait(false);
-                var downloadedName = string.IsNullOrWhiteSpace(item.Version.FileName)
-                    ? item.Title
-                    : item.Version.FileName;
-                ReportStatus(string.Format(Strings.Status_ModDownloadedFormat, downloadedName));
+                ReportStatus(string.Format(Strings.Status_ModDownloadedFormat, ResolveVersionFileNameForDisplay(item)));
                 logger?.LogInformation(
                     "Resources mod version downloaded locally. ProjectId={ProjectId} VersionId={VersionId} TargetDirectory={TargetDirectory}",
                     SelectedProject?.Project.ProjectId,
@@ -486,6 +523,18 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             if (instance is null)
                 return;
 
+            if (await resourceCatalogService.ProjectVersionInstallExistsAsync(item.Version, instance).ConfigureAwait(false))
+            {
+                ShowProjectVersionFileExistsDialog(item);
+                logger?.LogInformation(
+                    "Skipped resources mod version install because target file exists. ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId}",
+                    SelectedProject?.Project.ProjectId,
+                    item.Version.VersionId,
+                    instance.Id);
+                return;
+            }
+
+            floatingMessageService?.Show(Strings.Status_ModDownloading);
             ReportStatus(string.Format(Strings.Status_ModDownloadingFormat, item.Title));
             await resourceCatalogService.InstallProjectVersionAsync(item.Version, instance).ConfigureAwait(false);
             ReportStatus(string.Format(Strings.Status_ModInstalledFormat, SelectedProject?.Title ?? item.Title));
@@ -509,6 +558,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             }
             else
             {
+                floatingMessageService?.Show(Strings.Status_ModInstallFailed);
                 logger?.LogError(
                     exception,
                     "Failed to install resources mod version. ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId}",
@@ -533,6 +583,35 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         _ = RefreshProjectsCoreAsync();
     }
 
+    public async Task ApplyInstanceFiltersAsync(GameInstance instance)
+    {
+        await EnsureVersionOptionsLoadedAsync().ConfigureAwait(true);
+
+        var versionOption = ResolveVersionOptionForInstance(instance);
+        var loaderOption = ResolveLoaderOptionForInstance(instance);
+
+        try
+        {
+            isApplyingInstanceFilters = true;
+            SelectedVersionOption = versionOption;
+            SelectedLoaderOption = loaderOption;
+            ResetToProjectList();
+        }
+        finally
+        {
+            isApplyingInstanceFilters = false;
+        }
+
+        logger?.LogInformation(
+            "Applied resource mod filters from instance. InstanceId={InstanceId}, MinecraftVersion={MinecraftVersion}, VersionFilter={VersionFilter}, Loader={Loader}, LoaderFilter={LoaderFilter}",
+            instance.Id,
+            instance.MinecraftVersion,
+            SelectedVersionOption?.Id,
+            instance.Loader,
+            SelectedLoaderOption?.Id);
+        await RefreshProjectsCoreAsync().ConfigureAwait(true);
+    }
+
     public void BeginLoadMoreProjects()
     {
         if (resourceCatalogService is null
@@ -555,7 +634,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 
     partial void OnSelectedVersionOptionChanged(ResourcesFilterOptionItem? value)
     {
-        if (isApplyingVersionFilterOptions)
+        if (isApplyingVersionFilterOptions || isApplyingInstanceFilters)
             return;
 
         ResetToProjectList();
@@ -565,6 +644,9 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 
     partial void OnSelectedLoaderOptionChanged(ResourcesFilterOptionItem? value)
     {
+        if (isApplyingInstanceFilters)
+            return;
+
         ResetToProjectList();
         LogFilterSelection("loader", value);
         ScheduleProjectsRefresh();
@@ -704,6 +786,23 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         });
     }
 
+    private async Task EnsureVersionOptionsLoadedAsync()
+    {
+        if (gameVersionService is null)
+            return;
+
+        try
+        {
+            var data = await GetReleaseVersionDataAsync(CancellationToken.None).ConfigureAwait(true);
+            if (data?.VersionOptions.Count > 0)
+                uiDispatcher.Invoke(() => ApplyVersionFilterOptions(data.VersionOptions));
+        }
+        catch (Exception exception)
+        {
+            logger?.LogWarning(exception, "Failed to load Minecraft release versions before applying instance resource mod filters.");
+        }
+    }
+
     private async Task<ReleaseVersionData?> GetReleaseVersionDataAsync(CancellationToken cancellationToken)
     {
         if (gameVersionService is null)
@@ -789,6 +888,35 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         {
             isApplyingVersionFilterOptions = false;
         }
+    }
+
+    private ResourcesFilterOptionItem ResolveVersionOptionForInstance(GameInstance instance)
+    {
+        var allOption = VersionOptions.FirstOrDefault(option => option.Id == "all") ?? VersionOptions.FirstOrDefault();
+        if (allOption is null || string.IsNullOrWhiteSpace(instance.MinecraftVersion))
+            return allOption ?? new ResourcesFilterOptionItem { Id = "all", Title = Strings.Resources_ModFilterAllVersions };
+
+        var minecraftVersion = instance.MinecraftVersion.Trim();
+        return VersionOptions.FirstOrDefault(option =>
+                option.Id != "all"
+                && (string.Equals(option.Id, minecraftVersion, StringComparison.OrdinalIgnoreCase)
+                    || option.MinecraftVersions.Any(version => string.Equals(version, minecraftVersion, StringComparison.OrdinalIgnoreCase))))
+            ?? allOption;
+    }
+
+    private ResourcesFilterOptionItem ResolveLoaderOptionForInstance(GameInstance instance)
+    {
+        var loaderId = instance.Loader switch
+        {
+            LoaderKind.Fabric => "fabric",
+            LoaderKind.Forge => "forge",
+            LoaderKind.NeoForge => "neoforge",
+            LoaderKind.Quilt => "quilt",
+            _ => "all"
+        };
+
+        return LoaderOptions.FirstOrDefault(option => string.Equals(option.Id, loaderId, StringComparison.OrdinalIgnoreCase))
+            ?? LoaderOptions[0];
     }
 
     private static string? TryNormalizeMajorMinecraftVersion(string? version)
@@ -1205,6 +1333,30 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         OnPropertyChanged(nameof(CanShowAvailableVersionsEmptyState));
         OnPropertyChanged(nameof(HasAvailableVersionsLoadErrorMessage));
         OnPropertyChanged(nameof(CanShowAvailableVersionsLoadErrorState));
+    }
+
+    private static string ResolveVersionFileNameForDisplay(ResourcesModVersionItemViewModel item)
+    {
+        return string.IsNullOrWhiteSpace(item.Version.FileName)
+            ? item.Title
+            : item.Version.FileName;
+    }
+
+    private static bool IsUnknownInstanceVersionTarget(ResourcesModInstallTargetItemViewModel? target)
+    {
+        return target?.IsLocalDownload is false
+            && string.IsNullOrWhiteSpace(target.Instance?.MinecraftVersion);
+    }
+
+    private void ShowProjectVersionFileExistsDialog(ResourcesModVersionItemViewModel item)
+    {
+        uiDispatcher.Invoke(() =>
+        {
+            ProjectVersionFileExistsDialogMessage = string.Format(
+                Strings.Resources_ModDownloadFileExistsMessageFormat,
+                ResolveVersionFileNameForDisplay(item));
+            IsProjectVersionFileExistsDialogOpen = true;
+        });
     }
 
     private void LogFilterSelection(string filterId, ResourcesFilterOptionItem? option)

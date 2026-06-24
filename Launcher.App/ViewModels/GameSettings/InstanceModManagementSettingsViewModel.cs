@@ -86,6 +86,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
 
     public event Action<ModDeleteRequest>? DeleteModsRequested;
     public event Action<ModImportConflictRequest>? ImportModConflictRequested;
+    public event Action<GameInstance>? OnlineModInstallRequested;
 
     public override bool UsesFullViewportLayout => true;
 
@@ -375,6 +376,15 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     [RelayCommand]
     private void InstallOnlineMod()
     {
+        if (selectedInstance is null || !IsModManagementSupported)
+            return;
+
+        logger.LogInformation(
+            "Online mod install requested from instance mod management. InstanceId={InstanceId}, MinecraftVersion={MinecraftVersion}, Loader={Loader}",
+            selectedInstance.Id,
+            selectedInstance.MinecraftVersion,
+            selectedInstance.Loader);
+        OnlineModInstallRequested?.Invoke(selectedInstance);
     }
 
     [RelayCommand]

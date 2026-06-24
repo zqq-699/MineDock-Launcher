@@ -177,6 +177,61 @@ public sealed class ResourcesPageViewModelTests
         Assert.Equal(20, service.Requests[^1].Offset);
     }
 
+    [Theory]
+    [InlineData(LoaderKind.Fabric, "fabric")]
+    [InlineData(LoaderKind.Forge, "forge")]
+    [InlineData(LoaderKind.NeoForge, "neoforge")]
+    [InlineData(LoaderKind.Quilt, "quilt")]
+    public async Task OpenModsForInstanceAppliesKnownVersionAndLoaderFilters(
+        LoaderKind loader,
+        string expectedLoaderId)
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var versionService = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.18.2", "release", false)
+        ]);
+        var viewModel = new ResourcesPageViewModel(service, gameVersionService: versionService);
+        viewModel.SelectSectionCommand.Execute(viewModel.Sections.Single(section => section.Id == "worlds"));
+        viewModel.ModPage.CurrentStep = ResourcesModPageStep.ProjectDetails;
+        var instance = CreateInstance("Fabric Pack", "1.18.2", loader);
+
+        await viewModel.OpenModsForInstanceAsync(instance);
+
+        Assert.True(viewModel.IsModsSection);
+        Assert.Same(viewModel.ModPage, viewModel.CurrentSectionViewModel);
+        Assert.Equal(ResourcesModPageStep.ProjectList, viewModel.ModPage.CurrentStep);
+        Assert.Equal("1.18", viewModel.ModPage.SelectedVersionOption?.Id);
+        Assert.Equal(expectedLoaderId, viewModel.ModPage.SelectedLoaderOption?.Id);
+        Assert.Equal(1, service.CallCount);
+        Assert.NotNull(service.LastRequest);
+        Assert.Equal(["1.18.2"], service.LastRequest.MinecraftVersions);
+        Assert.Equal("1.18.2", service.LastRequest.MinecraftVersion);
+        Assert.Equal(loader, service.LastRequest.Loader);
+    }
+
+    [Fact]
+    public async Task OpenModsForInstanceLeavesVersionFilterAllForUnknownMinecraftVersion()
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var versionService = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.1", "release", false)
+        ]);
+        var viewModel = new ResourcesPageViewModel(service, gameVersionService: versionService);
+        var instance = CreateInstance("Unknown Pack", "custom-1.18.2", LoaderKind.Fabric);
+
+        await viewModel.OpenModsForInstanceAsync(instance);
+
+        Assert.Equal("all", viewModel.ModPage.SelectedVersionOption?.Id);
+        Assert.Equal("fabric", viewModel.ModPage.SelectedLoaderOption?.Id);
+        Assert.Equal(1, service.CallCount);
+        Assert.NotNull(service.LastRequest);
+        Assert.Empty(service.LastRequest.MinecraftVersions);
+        Assert.Equal(string.Empty, service.LastRequest.MinecraftVersion);
+        Assert.Equal(LoaderKind.Fabric, service.LastRequest.Loader);
+    }
+
     [Fact]
     public void SelectSectionCommandMapsAllSectionsToChildViewModels()
     {
@@ -829,6 +884,82 @@ public sealed class ResourcesPageViewModelTests
     }
 
     [Fact]
+    public async Task ModInstallTargetSelectionShowsDialogAndLoadsAllVersionsForUnknownInstanceVersion()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "project",
+            Slug = "project",
+            Title = "Project"
+        });
+        var instance = new GameInstance
+        {
+            Id = "unknown-version-instance",
+            Name = "Unknown Version",
+            MinecraftVersion = string.Empty,
+            Loader = LoaderKind.Fabric
+        };
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.FromInstance(instance));
+        await TestAsync.WaitForAsync(() => !viewModel.ModPage.IsLoadingAvailableVersions);
+
+        Assert.Equal(ResourcesModPageStep.ProjectVersions, viewModel.ModPage.CurrentStep);
+        Assert.True(viewModel.ModPage.IsUnknownInstanceVersionDialogOpen);
+        Assert.NotNull(catalogService.LastVersionsRequest);
+        Assert.True(catalogService.LastVersionsRequest.IncludeAllVersions);
+        Assert.Equal(string.Empty, catalogService.LastVersionsRequest.MinecraftVersion);
+        Assert.Equal(LoaderKind.Vanilla, catalogService.LastVersionsRequest.Loader);
+        Assert.Equal(Strings.Resources_ModVersionsEmptyLocal, viewModel.ModPage.AvailableVersionsEmptyMessage);
+        Assert.True(viewModel.ModPage.CanShowAvailableVersionsEmptyState);
+
+        viewModel.ModPage.CloseUnknownInstanceVersionDialogCommand.Execute(null);
+
+        Assert.False(viewModel.ModPage.IsUnknownInstanceVersionDialogOpen);
+    }
+
+    [Fact]
+    public async Task UnknownInstanceVersionStillInstallsSelectedVersionToInstance()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "project",
+            Title = "Project"
+        });
+        var instance = new GameInstance
+        {
+            Id = "unknown-version-instance",
+            Name = "Unknown Version",
+            MinecraftVersion = string.Empty,
+            Loader = LoaderKind.Fabric
+        };
+        var version = new ResourceProjectVersion
+        {
+            VersionId = "version-1",
+            Name = "Version 1",
+            VersionNumber = "1.0.0",
+            VersionType = "release",
+            FileName = "version-1.jar",
+            PrimaryDownloadUrl = "https://example.test/version-1.jar"
+        };
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.FromInstance(instance));
+        await TestAsync.WaitForAsync(() => catalogService.LastVersionsRequest is not null);
+        await viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(new ResourcesModVersionItemViewModel(version, project));
+
+        Assert.Same(version, catalogService.LastInstalledVersion);
+        Assert.Same(instance, catalogService.LastInstallInstance);
+        Assert.Null(catalogService.LastDownloadedVersion);
+    }
+
+    [Fact]
     public async Task ModInstallTargetSelectionShowsEmptyVersionsForVanillaInstance()
     {
         var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
@@ -993,6 +1124,166 @@ public sealed class ResourcesPageViewModelTests
     }
 
     [Fact]
+    public async Task ModVersionSelectionShowsDialogWhenLocalFileAlreadyExists()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
+        {
+            DownloadExists = true
+        };
+        var statusService = new FakeStatusService();
+        var floatingMessageService = new FakeFloatingMessageService();
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            statusService: statusService,
+            filePickerService: new FakeFilePickerService { FolderPath = "C:\\Downloads" },
+            floatingMessageService: floatingMessageService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "project",
+            Title = "Project"
+        });
+        var version = new ResourceProjectVersion
+        {
+            VersionId = "version-1",
+            Name = "Version 1",
+            VersionNumber = "1.0.0",
+            FileName = "version-1.jar",
+            PrimaryDownloadUrl = "https://example.test/version-1.jar"
+        };
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(new ResourcesModVersionItemViewModel(version, project));
+
+        Assert.True(viewModel.ModPage.IsProjectVersionFileExistsDialogOpen);
+        Assert.Contains("version-1.jar", viewModel.ModPage.ProjectVersionFileExistsDialogMessage);
+        Assert.Null(catalogService.LastDownloadedVersion);
+        Assert.Empty(floatingMessageService.Messages);
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionShowsFloatingMessageWhenInstallingToInstance()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var floatingMessageService = new FakeFloatingMessageService();
+        var instance = new GameInstance
+        {
+            Id = "fabric-instance",
+            MinecraftVersion = "1.18.2",
+            Loader = LoaderKind.Fabric,
+            InstanceDirectory = "C:\\Instances\\Fabric Test"
+        };
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            floatingMessageService: floatingMessageService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "project",
+            Title = "Project"
+        });
+        var version = new ResourceProjectVersion
+        {
+            VersionId = "version-1",
+            Name = "Version 1",
+            VersionNumber = "1.0.0",
+            FileName = "version-1.jar",
+            PrimaryDownloadUrl = "https://example.test/version-1.jar"
+        };
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.FromInstance(instance));
+        await viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(new ResourcesModVersionItemViewModel(version, project));
+
+        Assert.Same(version, catalogService.LastInstalledVersion);
+        Assert.Contains(Strings.Status_ModDownloading, floatingMessageService.Messages);
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionReportsFloatingFailureWhenInstanceInstallFails()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
+        {
+            ThrowOnInstall = true
+        };
+        var floatingMessageService = new FakeFloatingMessageService();
+        var instance = new GameInstance
+        {
+            Id = "fabric-instance",
+            MinecraftVersion = "1.18.2",
+            Loader = LoaderKind.Fabric,
+            InstanceDirectory = "C:\\Instances\\Fabric Test"
+        };
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            floatingMessageService: floatingMessageService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "project",
+            Title = "Project"
+        });
+        var version = new ResourceProjectVersion
+        {
+            VersionId = "version-1",
+            Name = "Version 1",
+            VersionNumber = "1.0.0",
+            FileName = "version-1.jar",
+            PrimaryDownloadUrl = "https://example.test/version-1.jar"
+        };
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.FromInstance(instance));
+        await viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(new ResourcesModVersionItemViewModel(version, project));
+
+        Assert.Contains(Strings.Status_ModInstallFailed, floatingMessageService.Messages);
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionShowsDialogWhenInstanceInstallFileAlreadyExists()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
+        {
+            InstallExists = true
+        };
+        var floatingMessageService = new FakeFloatingMessageService();
+        var instance = new GameInstance
+        {
+            Id = "fabric-instance",
+            MinecraftVersion = "1.18.2",
+            Loader = LoaderKind.Fabric,
+            InstanceDirectory = "C:\\Instances\\Fabric Test"
+        };
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            floatingMessageService: floatingMessageService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "project",
+            Title = "Project"
+        });
+        var version = new ResourceProjectVersion
+        {
+            VersionId = "version-1",
+            Name = "Version 1",
+            VersionNumber = "1.0.0",
+            FileName = "version-1.jar",
+            PrimaryDownloadUrl = "https://example.test/version-1.jar"
+        };
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.FromInstance(instance));
+        await viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(new ResourcesModVersionItemViewModel(version, project));
+
+        Assert.True(viewModel.ModPage.IsProjectVersionFileExistsDialogOpen);
+        Assert.Contains("version-1.jar", viewModel.ModPage.ProjectVersionFileExistsDialogMessage);
+        Assert.Null(catalogService.LastInstalledVersion);
+        Assert.Empty(floatingMessageService.Messages);
+    }
+
+    [Fact]
     public async Task ModVersionSelectionReportsFailureWhenLocalDownloadFails()
     {
         var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
@@ -1030,6 +1321,22 @@ public sealed class ResourcesPageViewModelTests
         Assert.Contains(Strings.Status_ModDownloadFailed, floatingMessageService.Messages);
     }
 
+    private static GameInstance CreateInstance(string name, string minecraftVersion, LoaderKind loader)
+    {
+        return new GameInstance
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Name = name,
+            MinecraftVersion = minecraftVersion,
+            VersionName = minecraftVersion,
+            Loader = loader,
+            LoaderVersion = loader is LoaderKind.Vanilla ? null : "latest",
+            CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            InstanceDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"))
+        };
+    }
+
     private sealed class FakeResourceCatalogService : IResourceCatalogService
     {
         private readonly Task<ResourceCatalogSearchResult> resultTask;
@@ -1062,6 +1369,12 @@ public sealed class ResourcesPageViewModelTests
 
         public bool ThrowOnDownload { get; init; }
 
+        public bool ThrowOnInstall { get; init; }
+
+        public bool DownloadExists { get; init; }
+
+        public bool InstallExists { get; init; }
+
         public Task<ResourceCatalogSearchResult> SearchModsAsync(
             ResourceCatalogSearchRequest request,
             CancellationToken cancellationToken = default)
@@ -1084,6 +1397,9 @@ public sealed class ResourcesPageViewModelTests
             GameInstance instance,
             CancellationToken cancellationToken = default)
         {
+            if (ThrowOnInstall)
+                return Task.FromException<string>(new InvalidOperationException("install failed"));
+
             LastInstalledVersion = version;
             LastInstallInstance = instance;
             return Task.FromResult("installed.jar");
@@ -1100,6 +1416,22 @@ public sealed class ResourcesPageViewModelTests
             LastDownloadedVersion = version;
             LastDownloadDirectory = targetDirectory;
             return Task.FromResult(Path.Combine(targetDirectory, version.FileName));
+        }
+
+        public Task<bool> ProjectVersionDownloadExistsAsync(
+            ResourceProjectVersion version,
+            string targetDirectory,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(DownloadExists);
+        }
+
+        public Task<bool> ProjectVersionInstallExistsAsync(
+            ResourceProjectVersion version,
+            GameInstance instance,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(InstallExists);
         }
     }
 
@@ -1152,6 +1484,22 @@ public sealed class ResourcesPageViewModelTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult("downloaded.jar");
+        }
+
+        public Task<bool> ProjectVersionDownloadExistsAsync(
+            ResourceProjectVersion version,
+            string targetDirectory,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(false);
+        }
+
+        public Task<bool> ProjectVersionInstallExistsAsync(
+            ResourceProjectVersion version,
+            GameInstance instance,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(false);
         }
 
         public async Task<ResourceCatalogSearchRequest> WaitForRequestAsync(int index)
@@ -1231,6 +1579,22 @@ public sealed class ResourcesPageViewModelTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult("downloaded.jar");
+        }
+
+        public Task<bool> ProjectVersionDownloadExistsAsync(
+            ResourceProjectVersion version,
+            string targetDirectory,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(false);
+        }
+
+        public Task<bool> ProjectVersionInstallExistsAsync(
+            ResourceProjectVersion version,
+            GameInstance instance,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(false);
         }
     }
 

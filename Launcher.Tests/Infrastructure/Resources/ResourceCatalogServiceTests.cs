@@ -403,6 +403,71 @@ public sealed class ResourceCatalogServiceTests
         }
     }
 
+    [Fact]
+    public async Task ProjectVersionDownloadExistsReturnsTrueWhenTargetFileExists()
+    {
+        var handler = new ResourceCatalogHandler("""{"hits":[]}""");
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+        var targetDirectory = Path.Combine(Path.GetTempPath(), $"launcher-resource-exists-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(targetDirectory);
+            await File.WriteAllTextAsync(Path.Combine(targetDirectory, "mod.jar"), "existing");
+
+            var exists = await service.ProjectVersionDownloadExistsAsync(
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-1",
+                    FileName = "mod.jar"
+                },
+                targetDirectory);
+
+            Assert.True(exists);
+        }
+        finally
+        {
+            if (Directory.Exists(targetDirectory))
+                Directory.Delete(targetDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ProjectVersionInstallExistsReturnsTrueWhenInstanceModFileExists()
+    {
+        var handler = new ResourceCatalogHandler("""{"hits":[]}""");
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+        var instanceDirectory = Path.Combine(Path.GetTempPath(), $"launcher-resource-install-exists-{Guid.NewGuid():N}");
+        try
+        {
+            var modsDirectory = Path.Combine(instanceDirectory, "mods");
+            Directory.CreateDirectory(modsDirectory);
+            await File.WriteAllTextAsync(Path.Combine(modsDirectory, "mod.jar"), "existing");
+
+            var exists = await service.ProjectVersionInstallExistsAsync(
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-1",
+                    FileName = "mod.jar"
+                },
+                new GameInstance
+                {
+                    Id = "instance",
+                    InstanceDirectory = instanceDirectory
+                });
+
+            Assert.True(exists);
+        }
+        finally
+        {
+            if (Directory.Exists(instanceDirectory))
+                Directory.Delete(instanceDirectory, recursive: true);
+        }
+    }
+
     private sealed class ResourceCatalogHandler : HttpMessageHandler
     {
         private readonly string modrinthResponse;

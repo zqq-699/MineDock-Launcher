@@ -334,6 +334,30 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         return target;
     }
 
+    public Task<bool> ProjectVersionDownloadExistsAsync(
+        ResourceProjectVersion version,
+        string targetDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(targetDirectory))
+            return Task.FromResult(false);
+
+        var target = Path.Combine(targetDirectory, ResolveProjectVersionFileName(version));
+        return Task.FromResult(File.Exists(target));
+    }
+
+    public Task<bool> ProjectVersionInstallExistsAsync(
+        ResourceProjectVersion version,
+        GameInstance instance,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(instance.InstanceDirectory))
+            return Task.FromResult(false);
+
+        var target = Path.Combine(instance.InstanceDirectory, "mods", ResolveProjectVersionFileName(version));
+        return Task.FromResult(File.Exists(target));
+    }
+
     private async Task<ResourceCatalogSourceSearchResult> SearchCurseForgeModsAsync(
         ResourceCatalogSearchRequest request,
         string apiKey,
@@ -525,10 +549,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         string targetDirectory,
         CancellationToken cancellationToken)
     {
-        var fileName = Path.GetFileName(version.FileName);
-        if (string.IsNullOrWhiteSpace(fileName))
-            fileName = $"{version.VersionId}.jar";
-
+        var fileName = ResolveProjectVersionFileName(version);
         var target = Path.Combine(targetDirectory, fileName);
         var urls = new[] { version.PrimaryDownloadUrl }
             .Concat(version.FallbackDownloadUrls)
@@ -558,6 +579,14 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         }
 
         throw new InvalidOperationException($"Failed to download resource project version: {version.VersionId}", lastException);
+    }
+
+    private static string ResolveProjectVersionFileName(ResourceProjectVersion version)
+    {
+        var fileName = Path.GetFileName(version.FileName);
+        return string.IsNullOrWhiteSpace(fileName)
+            ? $"{version.VersionId}.jar"
+            : fileName;
     }
 
     private async Task DownloadFileAsync(string url, string target, CancellationToken cancellationToken)

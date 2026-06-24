@@ -625,6 +625,36 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task ModManagementOnlineInstallRaisesRequestForSelectedModdedInstance()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var viewModel = CreateViewModel([instance]);
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        GameInstance? requestedInstance = null;
+        viewModel.OnlineModInstallRequested += instance => requestedInstance = instance;
+
+        viewModel.Details.ModManagement.InstallOnlineModCommand.Execute(null);
+
+        Assert.Same(instance, requestedInstance);
+    }
+
+    [Fact]
+    public async Task ModManagementOnlineInstallDoesNotRaiseRequestForVanillaInstance()
+    {
+        var instance = CreateInstance("Vanilla Pack", "1.20.1", LoaderKind.Vanilla);
+        var viewModel = CreateViewModel([instance]);
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var wasRequested = false;
+        viewModel.OnlineModInstallRequested += _ => wasRequested = true;
+
+        viewModel.Details.ModManagement.InstallOnlineModCommand.Execute(null);
+
+        Assert.False(wasRequested);
+    }
+
+    [Fact]
     public async Task GameSettingsDetailsRoutesLocalResourceSectionsToFullViewportLayout()
     {
         var viewModel = CreateViewModel([CreateInstance("Fabric Pack", "1.21.4", LoaderKind.Fabric)]);

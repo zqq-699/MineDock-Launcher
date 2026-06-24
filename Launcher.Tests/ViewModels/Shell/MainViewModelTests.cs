@@ -72,6 +72,33 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task GameSettingsOnlineModInstallNavigatesToResourcesModPageWithInstanceFilters()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.18.2");
+        instance.Loader = LoaderKind.Fabric;
+        instance.LoaderVersion = "latest";
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(instance);
+        var resourcesPage = new ResourcesPageViewModel(
+            gameVersionService: new FakeGameVersionService(
+            [
+                new MinecraftVersionInfo("1.18.2", "release", false)
+            ]));
+        var viewModel = CreateViewModel(instanceService, resourcesPage: resourcesPage);
+        await viewModel.InitializeAsync();
+        await viewModel.GameSettingsPage.EnsureInstancesLoadedAsync();
+        viewModel.GameSettingsPage.SelectInstanceCommand.Execute(viewModel.GameSettingsPage.VisibleInstances.Single());
+
+        viewModel.GameSettingsPage.Details.ModManagement.InstallOnlineModCommand.Execute(null);
+
+        await TestAsync.WaitForAsync(() => viewModel.CurrentPage == "Resources"
+            && resourcesPage.ModPage.SelectedLoaderOption?.Id == "fabric");
+        Assert.True(viewModel.NavigationItems.Single(item => item.Page == "Resources").IsSelected);
+        Assert.True(resourcesPage.IsModsSection);
+        Assert.Equal("1.18", resourcesPage.ModPage.SelectedVersionOption?.Id);
+    }
+
+    [Fact]
     public async Task ResourcesNavigationDoesNotStartModLoadBeforeViewActivation()
     {
         var dispatcher = new QueueingUiDispatcher();
@@ -645,6 +672,22 @@ public sealed class MainViewModelTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult("downloaded.jar");
+        }
+
+        public Task<bool> ProjectVersionDownloadExistsAsync(
+            ResourceProjectVersion version,
+            string targetDirectory,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(false);
+        }
+
+        public Task<bool> ProjectVersionInstallExistsAsync(
+            ResourceProjectVersion version,
+            GameInstance instance,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(false);
         }
     }
 

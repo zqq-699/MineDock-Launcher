@@ -97,6 +97,7 @@ public sealed partial class MainViewModel : ObservableObject
         AccountPage.PropertyChanged += AccountPage_PropertyChanged;
         GameManagement.PropertyChanged += GameManagement_PropertyChanged;
         GameSettingsPage.LaunchInstanceRequested += GameSettingsPage_LaunchInstanceRequested;
+        GameSettingsPage.OnlineModInstallRequested += GameSettingsPage_OnlineModInstallRequested;
         GameSettingsPage.InstancesChanged += GameSettingsPage_InstancesChanged;
         SettingsPage.LaunchDefaultsChanged += SettingsPage_LaunchDefaultsChanged;
         SettingsPage.DownloadSourceChanged += SettingsPage_DownloadSourceChanged;
@@ -344,6 +345,11 @@ public sealed partial class MainViewModel : ObservableObject
         _ = HandleGameSettingsLaunchRequestAsync(instance);
     }
 
+    private void GameSettingsPage_OnlineModInstallRequested(GameInstance instance)
+    {
+        _ = OpenResourcesModsForInstanceAsync(instance);
+    }
+
     private void GameSettingsPage_InstancesChanged()
     {
         _ = SyncInstancesFromGameSettingsAsync();
@@ -464,6 +470,14 @@ public sealed partial class MainViewModel : ObservableObject
         CurrentPage = NavigationCatalog.GameSettingsPage;
         UpdateSecondaryItems();
         UpdateNavigationSelection();
+    }
+
+    private async Task OpenResourcesModsForInstanceAsync(GameInstance instance)
+    {
+        CurrentPage = NavigationCatalog.ResourcesPage;
+        UpdateSecondaryItems();
+        UpdateNavigationSelection();
+        await ResourcesPage.OpenModsForInstanceAsync(instance);
     }
 
     private void ShowFloatingMessage(string message)

@@ -129,6 +129,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         Details.DeleteResourcePacksRequested += Details_DeleteResourcePacksRequested;
         Details.DeleteShaderPacksRequested += Details_DeleteShaderPacksRequested;
         Details.ImportModConflictRequested += Details_ImportModConflictRequested;
+        Details.OnlineModInstallRequested += Details_OnlineModInstallRequested;
         Details.SaveImportFailedRequested += Details_SaveImportFailedRequested;
         Details.ResourcePackImportFailedRequested += Details_ResourcePackImportFailedRequested;
         Details.ShaderPackImportFailedRequested += Details_ShaderPackImportFailedRequested;
@@ -154,6 +155,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     public event Action<GameInstance>? LaunchInstanceRequested;
 
     public event Action? InstancesChanged;
+
+    public event Action<GameInstance>? OnlineModInstallRequested;
 
     public ObservableCollection<GameSettingsInstanceCategory> InstanceCategories { get; } = [];
 
@@ -540,6 +543,11 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         PendingDeleteShaderPacks = null;
         PendingDeleteMods = request;
         IsDeleteModsDialogOpen = true;
+    }
+
+    private void Details_OnlineModInstallRequested(GameInstance instance)
+    {
+        OnlineModInstallRequested?.Invoke(instance);
     }
 
     private void Details_DeleteSavesRequested(SaveDeleteRequest request)

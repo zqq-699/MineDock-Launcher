@@ -352,6 +352,70 @@
                 </Grid>
             </controls:DialogHost>
 
+            <controls:DialogHost x:Name="ResourcesModDownloadFileExistsDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="380"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsProjectVersionFileExistsDialogOpen}"
+                                 DataContext="{Binding ResourcesPage.ModPage}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Resources_ModDownloadFileExistsTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,16,0,24"
+                               Text="{Binding ProjectVersionFileExistsDialogMessage}"
+                               Style="{StaticResource DialogBodyTextStyle}"
+                               TextWrapping="Wrap" />
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                Content="{x:Static res:Strings.Confirm_Button}"
+                                Command="{Binding CloseProjectVersionFileExistsDialogCommand}" />
+                    </StackPanel>
+                </Grid>
+            </controls:DialogHost>
+
+            <controls:DialogHost x:Name="ResourcesModUnknownInstanceVersionDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="380"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsUnknownInstanceVersionDialogOpen}"
+                                 DataContext="{Binding ResourcesPage.ModPage}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Resources_ModUnknownInstanceVersionTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,16,0,24"
+                               Text="{x:Static res:Strings.Resources_ModUnknownInstanceVersionMessage}"
+                               Style="{StaticResource DialogBodyTextStyle}"
+                               TextWrapping="Wrap" />
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                Content="{x:Static res:Strings.Confirm_Button}"
+                                Command="{Binding CloseUnknownInstanceVersionDialogCommand}" />
+                    </StackPanel>
+                </Grid>
+            </controls:DialogHost>
+
             <controls:DialogHost x:Name="DeleteModsDialogHost"
                                  Grid.ColumnSpan="2"
                                  Grid.RowSpan="2"
@@ -545,6 +609,7 @@
 
             <controls:FloatingMessage Message="{Binding FloatingMessage}"
                                       IsOpen="{Binding IsFloatingMessageOpen}"
+                                      Panel.ZIndex="9999"
                                       HorizontalAlignment="Center"
                                       VerticalAlignment="Top"
                                       Margin="0,76,0,0" />

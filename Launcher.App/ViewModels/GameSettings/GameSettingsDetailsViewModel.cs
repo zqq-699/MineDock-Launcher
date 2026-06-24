@@ -140,6 +140,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             filePickerService);
         ModManagement.DeleteModsRequested += ModManagement_DeleteModsRequested;
         ModManagement.ImportModConflictRequested += ModManagement_ImportModConflictRequested;
+        ModManagement.OnlineModInstallRequested += ModManagement_OnlineModInstallRequested;
         SaveManagement = new InstanceSaveManagementSettingsViewModel(
             this,
             localSavesViewModel,
@@ -175,6 +176,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     public event Action<ModDeleteRequest>? DeleteModsRequested;
     public event Action<SaveDeleteRequest>? DeleteSavesRequested;
     public event Action<ModImportConflictRequest>? ImportModConflictRequested;
+    public event Action<GameInstance>? OnlineModInstallRequested;
     public event Action<SaveImportFailureRequest>? SaveImportFailedRequested;
     public event Action<ResourcePackDeleteRequest>? DeleteResourcePacksRequested;
     public event Action<ResourcePackImportFailureRequest>? ResourcePackImportFailedRequested;
@@ -411,6 +413,11 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             return;
 
         DeleteInstanceRequested?.Invoke(SelectedInstance);
+    }
+
+    private void ModManagement_OnlineModInstallRequested(GameInstance instance)
+    {
+        OnlineModInstallRequested?.Invoke(instance);
     }
 
     partial void OnSelectedInstanceChanged(GameSettingsInstanceItem? value)

@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application.Services;
+using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Launcher.App.ViewModels.Resources;
@@ -92,6 +93,18 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
     {
         if (IsModsSection)
             ModPage.BeginEnsureProjectsLoaded();
+    }
+
+    public async Task OpenModsForInstanceAsync(GameInstance instance)
+    {
+        var modsSection = Sections.FirstOrDefault(section => section.Id == "mods") ?? Sections[0];
+        SelectSection(modsSection, logSelection: false);
+        logger?.LogInformation(
+            "Opening resources mod section from instance. InstanceId={InstanceId}, MinecraftVersion={MinecraftVersion}, Loader={Loader}",
+            instance.Id,
+            instance.MinecraftVersion,
+            instance.Loader);
+        await ModPage.ApplyInstanceFiltersAsync(instance);
     }
 
     [RelayCommand]
