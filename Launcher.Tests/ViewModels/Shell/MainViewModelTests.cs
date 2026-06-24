@@ -1,5 +1,6 @@
 ﻿using System.Windows;
 using Launcher.App.Controls;
+using Launcher.App.Models;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application.Accounts;
@@ -56,6 +57,34 @@ public sealed class MainViewModelTests
             && viewModel.HomePage.LaunchInstances.Count == 0);
         Assert.True(viewModel.HomePage.HasNoLaunchInstances);
         Assert.Null(viewModel.HomePage.SelectedInstance);
+    }
+
+    [Fact]
+    public void ResourcesNavigationSelectsResourcesPage()
+    {
+        var viewModel = CreateViewModel(new FakeGameInstanceService());
+        var resourcesItem = viewModel.NavigationItems.Single(item => item.Page == "Resources");
+
+        viewModel.SelectNavigationItem(resourcesItem);
+
+        Assert.Equal("Resources", viewModel.CurrentPage);
+        Assert.True(resourcesItem.IsSelected);
+    }
+
+    [Fact]
+    public void ResourcesSecondaryNavigationCatalogContainsResourceCenterSections()
+    {
+        var items = NavigationCatalog.CreateSecondaryItems("Resources").ToArray();
+
+        Assert.Equal(
+            [
+                Strings.Nav_Mod,
+                Strings.Nav_ResourcePacks,
+                Strings.Nav_ShaderPacks,
+                Strings.Nav_Worlds,
+                Strings.Nav_Modpacks
+            ],
+            items.Select(item => item.Title));
     }
 
     [Fact]
@@ -542,6 +571,7 @@ public sealed class MainViewModelTests
                 new FakeJavaRuntimeDiscoveryService(),
                 filePickerService,
                 floatingMessageService),
+            new ResourcesPageViewModel(),
             settingsPage,
             gameManagement,
             windowService ?? new FakeWindowService(),

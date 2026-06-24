@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Models;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Resources;
 using Launcher.App.ViewModels.Settings;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
@@ -59,6 +60,7 @@ public sealed partial class MainViewModel : ObservableObject
         DownloadPageViewModel downloadPage,
         DownloadTasksPageViewModel downloadTasksPage,
         GameSettingsPageViewModel gameSettingsPage,
+        ResourcesPageViewModel resourcesPage,
         SettingsPageViewModel settingsPage,
         GameManagementViewModel gameManagement,
         IWindowService windowService,
@@ -77,6 +79,7 @@ public sealed partial class MainViewModel : ObservableObject
         DownloadPage = downloadPage;
         DownloadTasksPage = downloadTasksPage;
         GameSettingsPage = gameSettingsPage;
+        ResourcesPage = resourcesPage;
         SettingsPage = settingsPage;
         GameManagement = gameManagement;
         LaunchStatusDialog = launchStatusDialog;
@@ -112,6 +115,8 @@ public sealed partial class MainViewModel : ObservableObject
     public DownloadTasksPageViewModel DownloadTasksPage { get; }
 
     public GameSettingsPageViewModel GameSettingsPage { get; }
+
+    public ResourcesPageViewModel ResourcesPage { get; }
 
     public SettingsPageViewModel SettingsPage { get; }
 

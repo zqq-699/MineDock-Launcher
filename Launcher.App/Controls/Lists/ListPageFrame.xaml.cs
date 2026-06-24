@@ -41,6 +41,15 @@ public partial class ListPageFrame : UserControl
     public static readonly DependencyProperty SearchToolbarContentTemplateProperty =
         DependencyProperty.Register(nameof(SearchToolbarContentTemplate), typeof(DataTemplate), typeof(ListPageFrame), new PropertyMetadata(null));
 
+    public static readonly DependencyProperty SearchFilterContentProperty =
+        DependencyProperty.Register(nameof(SearchFilterContent), typeof(object), typeof(ListPageFrame), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty IsSearchFilterVisibleProperty =
+        DependencyProperty.Register(nameof(IsSearchFilterVisible), typeof(bool), typeof(ListPageFrame), new PropertyMetadata(false));
+
+    public static readonly DependencyProperty SearchFilterContentTemplateProperty =
+        DependencyProperty.Register(nameof(SearchFilterContentTemplate), typeof(DataTemplate), typeof(ListPageFrame), new PropertyMetadata(null));
+
     public static readonly DependencyProperty IsListVisibleProperty =
         DependencyProperty.Register(nameof(IsListVisible), typeof(bool), typeof(ListPageFrame), new PropertyMetadata(true));
 
@@ -119,6 +128,24 @@ public partial class ListPageFrame : UserControl
     {
         get => (DataTemplate?)GetValue(SearchToolbarContentTemplateProperty);
         set => SetValue(SearchToolbarContentTemplateProperty, value);
+    }
+
+    public object? SearchFilterContent
+    {
+        get => GetValue(SearchFilterContentProperty);
+        set => SetValue(SearchFilterContentProperty, value);
+    }
+
+    public bool IsSearchFilterVisible
+    {
+        get => (bool)GetValue(IsSearchFilterVisibleProperty);
+        set => SetValue(IsSearchFilterVisibleProperty, value);
+    }
+
+    public DataTemplate? SearchFilterContentTemplate
+    {
+        get => (DataTemplate?)GetValue(SearchFilterContentTemplateProperty);
+        set => SetValue(SearchFilterContentTemplateProperty, value);
     }
 
     public bool IsListVisible

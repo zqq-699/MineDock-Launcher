@@ -52,6 +52,7 @@ public partial class App : System.Windows.Application
             services.AddSingleton<DownloadLocalImportDialogViewModel>();
             services.AddSingleton<DownloadPageViewModel>();
             services.AddSingleton<GameSettingsPageViewModel>();
+            services.AddSingleton<ResourcesPageViewModel>();
             services.AddSingleton<SettingsPageViewModel>();
             services.AddSingleton<InstanceManagementViewModel>();
             services.AddSingleton<LoaderSelectionViewModel>();

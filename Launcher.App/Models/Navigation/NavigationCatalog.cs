@@ -52,8 +52,10 @@ internal static class NavigationCatalog
             ResourcesPage =>
             [
                 new NavigationItem { Page = ResourcesPage, Title = Strings.Nav_Mod, Icon = "\uE8F1" },
-                new NavigationItem { Page = ResourcesPage, Title = Strings.Nav_Shaders, Icon = "\uE790" },
-                new NavigationItem { Page = ResourcesPage, Title = Strings.Nav_Maps, Icon = "\uE707" }
+                new NavigationItem { Page = ResourcesPage, Title = Strings.Nav_ResourcePacks, Icon = "\uE8A5" },
+                new NavigationItem { Page = ResourcesPage, Title = Strings.Nav_ShaderPacks, Icon = "\uE790" },
+                new NavigationItem { Page = ResourcesPage, Title = Strings.Nav_Worlds, Icon = "\uE707" },
+                new NavigationItem { Page = ResourcesPage, Title = Strings.Nav_Modpacks, Icon = "\uE8F1" }
             ],
             SettingsPage =>
             [

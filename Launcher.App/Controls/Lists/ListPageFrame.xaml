@@ -19,6 +19,18 @@
                     <Setter Property="behaviors:VerticalEdgeOpacityMask.BottomFadeLength" Value="72" />
                     <Setter Property="behaviors:VerticalEdgeOpacityMask.MinimumOpacity" Value="0" />
                     <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsSearchFilterVisible, ElementName=Root}" Value="True">
+                            <Setter Property="behaviors:VerticalEdgeOpacityMask.TopFadeLength" Value="172" />
+                            <Setter Property="behaviors:VerticalEdgeOpacityMask.TopIntermediateLength" Value="132" />
+                        </DataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsSearchToolbarVisible, ElementName=Root}" Value="True" />
+                                <Condition Binding="{Binding IsSearchFilterVisible, ElementName=Root}" Value="True" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="behaviors:VerticalEdgeOpacityMask.TopFadeLength" Value="196" />
+                            <Setter Property="behaviors:VerticalEdgeOpacityMask.TopIntermediateLength" Value="156" />
+                        </MultiDataTrigger>
                         <DataTrigger Binding="{Binding IsSearchVisible, ElementName=Root}" Value="False">
                             <Setter Property="behaviors:VerticalEdgeOpacityMask.TopFadeLength" Value="70" />
                             <Setter Property="behaviors:VerticalEdgeOpacityMask.TopIntermediateLength" Value="50" />
@@ -43,7 +55,27 @@
                 </ScrollViewer.Style>
 
                 <StackPanel>
-                    <Border Style="{StaticResource ListPageHeaderSpacerStyle}" />
+                    <Border>
+                        <Border.Style>
+                            <Style TargetType="Border" BasedOn="{StaticResource ListPageHeaderSpacerStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSearchFilterVisible, ElementName=Root}" Value="True">
+                                        <Setter Property="Height" Value="148" />
+                                    </DataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsSearchToolbarVisible, ElementName=Root}" Value="True" />
+                                            <Condition Binding="{Binding IsSearchFilterVisible, ElementName=Root}" Value="True" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Height" Value="172" />
+                                    </MultiDataTrigger>
+                                    <DataTrigger Binding="{Binding IsSearchVisible, ElementName=Root}" Value="False">
+                                        <Setter Property="Height" Value="70" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
                     <ContentPresenter>
                         <ContentPresenter.Style>
                             <Style TargetType="ContentPresenter">
@@ -84,6 +116,16 @@
             <Border.Style>
                 <Style TargetType="Border" BasedOn="{StaticResource ListPageHeaderOverlayStyle}">
                     <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsSearchFilterVisible, ElementName=Root}" Value="True">
+                            <Setter Property="Height" Value="148" />
+                        </DataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsSearchToolbarVisible, ElementName=Root}" Value="True" />
+                                <Condition Binding="{Binding IsSearchFilterVisible, ElementName=Root}" Value="True" />
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Height" Value="172" />
+                        </MultiDataTrigger>
                         <DataTrigger Binding="{Binding IsSearchVisible, ElementName=Root}" Value="False">
                             <Setter Property="Height" Value="70" />
                         </DataTrigger>
@@ -213,6 +255,26 @@
                         </ContentPresenter.Style>
                     </ContentPresenter>
                 </Grid>
+
+                <ContentPresenter Content="{Binding SearchFilterContent, ElementName=Root}"
+                                  ContentTemplate="{Binding SearchFilterContentTemplate, ElementName=Root}"
+                                  Height="32"
+                                  VerticalAlignment="Top">
+                    <ContentPresenter.Style>
+                        <Style TargetType="ContentPresenter">
+                            <Setter Property="Margin" Value="0,100,12,0" />
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsSearchFilterVisible, ElementName=Root}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsSearchToolbarVisible, ElementName=Root}" Value="True">
+                                    <Setter Property="Margin" Value="0,124,12,0" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ContentPresenter.Style>
+                </ContentPresenter>
             </Grid>
         </Border>
 

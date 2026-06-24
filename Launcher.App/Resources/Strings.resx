@@ -29,6 +29,21 @@
   <data name="Page_Install" xml:space="preserve"><value>下载</value></data>
   <data name="Page_GameSettings" xml:space="preserve"><value>游戏设置</value></data>
   <data name="Page_Resources" xml:space="preserve"><value>资源中心</value></data>
+  <data name="Resources_SectionMods" xml:space="preserve"><value>Mod</value></data>
+  <data name="Resources_SectionResourcePacks" xml:space="preserve"><value>资源包</value></data>
+  <data name="Resources_SectionShaderPacks" xml:space="preserve"><value>光影包</value></data>
+  <data name="Resources_SectionWorlds" xml:space="preserve"><value>世界</value></data>
+  <data name="Resources_SectionModpacks" xml:space="preserve"><value>整合包</value></data>
+  <data name="Resources_PlaceholderMessage" xml:space="preserve"><value>请选择一个资源分类。</value></data>
+  <data name="Resources_SelectedPlaceholderMessageFormat" xml:space="preserve"><value>{0} 功能即将接入。</value></data>
+  <data name="Resources_ModFilterVersionLabel" xml:space="preserve"><value>版本</value></data>
+  <data name="Resources_ModFilterAllVersions" xml:space="preserve"><value>所有版本</value></data>
+  <data name="Resources_ModFilterLoaderLabel" xml:space="preserve"><value>加载器</value></data>
+  <data name="Resources_ModFilterAllLoaders" xml:space="preserve"><value>所有加载器</value></data>
+  <data name="Resources_ModFilterSourceLabel" xml:space="preserve"><value>来源</value></data>
+  <data name="Resources_ModFilterAllSources" xml:space="preserve"><value>所有来源</value></data>
+  <data name="Resources_ModFilterTypeLabel" xml:space="preserve"><value>类型</value></data>
+  <data name="Resources_ModFilterAllTypes" xml:space="preserve"><value>所有类型</value></data>
   <data name="Page_Settings" xml:space="preserve"><value>全局设置</value></data>
   <data name="Settings_SectionGeneral" xml:space="preserve"><value>通用</value></data>
   <data name="Settings_SectionLaunchMemory" xml:space="preserve"><value>启动与内存</value></data>
@@ -140,6 +155,10 @@
   <data name="Nav_JavaMemory" xml:space="preserve"><value>Java/内存</value></data>
   <data name="Nav_DirectoryManagement" xml:space="preserve"><value>目录管理</value></data>
   <data name="Nav_Mod" xml:space="preserve"><value>Mod</value></data>
+  <data name="Nav_ResourcePacks" xml:space="preserve"><value>资源包</value></data>
+  <data name="Nav_ShaderPacks" xml:space="preserve"><value>光影包</value></data>
+  <data name="Nav_Worlds" xml:space="preserve"><value>世界</value></data>
+  <data name="Nav_Modpacks" xml:space="preserve"><value>整合包</value></data>
   <data name="Nav_Shaders" xml:space="preserve"><value>光影</value></data>
   <data name="Nav_Maps" xml:space="preserve"><value>地图</value></data>
   <data name="Nav_AppearanceTheme" xml:space="preserve"><value>外观主题</value></data>
