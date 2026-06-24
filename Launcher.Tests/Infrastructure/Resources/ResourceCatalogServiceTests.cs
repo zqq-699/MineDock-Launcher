@@ -11,7 +11,7 @@ public sealed class ResourceCatalogServiceTests
     {
         var handler = new ResourceCatalogHandler(
             """
-            {"hits":[{"project_id":"p1","slug":"sodium","title":"Sodium","description":"Fast","icon_url":null,"downloads":42,"versions":["1.20.1","1.19.4"],"categories":["fabric","optimization","forge"]}]}
+            {"hits":[{"project_id":"p1","slug":"sodium","title":"Sodium","description":"Fast","icon_url":null,"downloads":42,"versions":["1.20.1","1.19.4"],"categories":["fabric","optimization","forge"]}],"total_hits":45}
             """);
         var service = new ResourceCatalogService(
             new HttpClient(handler),
@@ -22,15 +22,19 @@ public sealed class ResourceCatalogServiceTests
             Query = "sodium",
             MinecraftVersion = "1.20.1",
             Loader = LoaderKind.Fabric,
-            Source = ResourceProjectSource.Modrinth
+            Source = ResourceProjectSource.Modrinth,
+            Offset = 20,
+            PageSize = 20
         });
 
         var project = Assert.Single(result.Projects);
         Assert.Equal(["1.20.1", "1.19.4"], project.SupportedMinecraftVersions);
         Assert.Equal(["fabric", "forge"], project.SupportedLoaders);
+        Assert.True(result.HasMore);
         var request = Assert.Single(handler.Requests);
         Assert.Equal("api.modrinth.com", request.RequestUri!.Host);
         Assert.Contains("limit=20", request.RequestUri.Query);
+        Assert.Contains("offset=20", request.RequestUri.Query);
         Assert.Contains("index=downloads", request.RequestUri.Query);
         Assert.Contains("query=sodium", request.RequestUri.Query);
         Assert.Contains("project_type%3Amod", request.RequestUri.Query);
@@ -39,12 +43,35 @@ public sealed class ResourceCatalogServiceTests
     }
 
     [Fact]
+    public async Task SearchModsAddsModrinthMultiVersionFacetGroup()
+    {
+        var handler = new ResourceCatalogHandler(
+            """
+            {"hits":[{"project_id":"p1","slug":"sodium","title":"Sodium","description":"Fast","icon_url":null,"downloads":42,"versions":["1.20.1"],"categories":["fabric"]}],"total_hits":1}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+
+        await service.SearchModsAsync(new ResourceCatalogSearchRequest
+        {
+            MinecraftVersions = ["1.20.6", "1.20.1", "1.20"],
+            Source = ResourceProjectSource.Modrinth
+        });
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Contains("versions%3A1.20.6", request.RequestUri!.Query);
+        Assert.Contains("versions%3A1.20.1", request.RequestUri.Query);
+        Assert.Contains("versions%3A1.20", request.RequestUri.Query);
+    }
+
+    [Fact]
     public async Task SearchModsAddsCurseForgeDownloadSortParameters()
     {
         var handler = new ResourceCatalogHandler(
             """{"hits":[]}""",
             """
-            {"data":[{"id":9,"name":"JourneyMap","slug":"journeymap","summary":"Map","downloadCount":120,"links":{"websiteUrl":"https://www.curseforge.com/minecraft/mc-mods/journeymap"},"logo":null,"latestFilesIndexes":[{"gameVersion":"1.20.1","modLoader":1},{"gameVersion":"1.19.4","modLoader":4}],"gameVersionLatestFiles":[{"gameVersion":"1.18.2","modLoader":6}]}]}
+            {"data":[{"id":9,"name":"JourneyMap","slug":"journeymap","summary":"Map","downloadCount":120,"links":{"websiteUrl":"https://www.curseforge.com/minecraft/mc-mods/journeymap"},"logo":null,"latestFilesIndexes":[{"gameVersion":"1.20.1","modLoader":1},{"gameVersion":"1.19.4","modLoader":4}],"gameVersionLatestFiles":[{"gameVersion":"1.18.2","modLoader":6}]}],"pagination":{"index":20,"pageSize":20,"resultCount":1,"totalCount":21}}
             """);
         var service = new ResourceCatalogService(
             new HttpClient(handler),
@@ -55,12 +82,15 @@ public sealed class ResourceCatalogServiceTests
             Query = "map",
             MinecraftVersion = "1.20.1",
             Loader = LoaderKind.Forge,
-            Source = ResourceProjectSource.CurseForge
+            Source = ResourceProjectSource.CurseForge,
+            Offset = 20,
+            PageSize = 20
         });
 
         var project = Assert.Single(result.Projects);
         Assert.Equal(["1.20.1", "1.19.4", "1.18.2"], project.SupportedMinecraftVersions);
         Assert.Equal(["forge", "fabric", "neoforge"], project.SupportedLoaders);
+        Assert.False(result.HasMore);
         var request = Assert.Single(handler.Requests);
         Assert.Equal("api.curseforge.com", request.RequestUri!.Host);
         Assert.True(request.Headers.TryGetValues("x-api-key", out var values));
@@ -70,9 +100,35 @@ public sealed class ResourceCatalogServiceTests
         Assert.Contains("sortField=6", request.RequestUri.Query);
         Assert.Contains("sortOrder=desc", request.RequestUri.Query);
         Assert.Contains("pageSize=20", request.RequestUri.Query);
+        Assert.Contains("index=20", request.RequestUri.Query);
         Assert.Contains("searchFilter=map", request.RequestUri.Query);
         Assert.Contains("gameVersion=1.20.1", request.RequestUri.Query);
         Assert.Contains("modLoaderType=1", request.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task SearchModsQueriesCurseForgeOncePerMinecraftVersionAndDeduplicates()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            """
+            {"data":[{"id":9,"name":"JourneyMap","slug":"journeymap","summary":"Map","downloadCount":120,"links":null,"logo":null}],"pagination":{"index":0,"pageSize":20,"resultCount":1,"totalCount":1}}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver("test-key"));
+
+        var result = await service.SearchModsAsync(new ResourceCatalogSearchRequest
+        {
+            MinecraftVersions = ["1.20.6", "1.20.1"],
+            Source = ResourceProjectSource.CurseForge
+        });
+
+        Assert.Single(result.Projects);
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.All(handler.Requests, request => Assert.Equal("api.curseforge.com", request.RequestUri!.Host));
+        Assert.Contains(handler.Requests, request => request.RequestUri!.Query.Contains("gameVersion=1.20.6", StringComparison.Ordinal));
+        Assert.Contains(handler.Requests, request => request.RequestUri!.Query.Contains("gameVersion=1.20.1", StringComparison.Ordinal));
     }
 
     [Fact]

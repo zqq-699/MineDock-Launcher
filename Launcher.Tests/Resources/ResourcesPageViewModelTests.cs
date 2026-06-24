@@ -101,6 +101,83 @@ public sealed class ResourcesPageViewModelTests
     }
 
     [Fact]
+    public async Task ModVersionFilterOptionsUseMajorReleaseVersions()
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var versionService = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("26.2", "release", false),
+            new MinecraftVersionInfo("26.1", "release", false),
+            new MinecraftVersionInfo("26", "release", false),
+            new MinecraftVersionInfo("1.21.8", "release", false),
+            new MinecraftVersionInfo("1.21.4", "release", false),
+            new MinecraftVersionInfo("1.20.6", "release", false),
+            new MinecraftVersionInfo("1.20.1", "release", false),
+            new MinecraftVersionInfo("1.20", "release", false),
+            new MinecraftVersionInfo("24w45a", "snapshot", false),
+            new MinecraftVersionInfo("1.19.4", "release", false)
+        ]);
+        var viewModel = new ResourcesPageViewModel(service, gameVersionService: versionService);
+
+        await viewModel.ModPage.RefreshProjectsCommand.ExecuteAsync(null);
+
+        Assert.Equal(
+            [Strings.Resources_ModFilterAllVersions, "26", "1.21", "1.20", "1.19"],
+            viewModel.ModPage.VersionOptions.Select(option => option.Title));
+        var modernOption = viewModel.ModPage.VersionOptions.Single(option => option.Id == "26");
+        Assert.Equal(["26.2", "26.1", "26"], modernOption.MinecraftVersions);
+        var option = viewModel.ModPage.VersionOptions.Single(option => option.Id == "1.20");
+        Assert.Equal(["1.20.6", "1.20.1", "1.20"], option.MinecraftVersions);
+        Assert.Equal(1, versionService.CallCount);
+    }
+
+    [Fact]
+    public async Task ModVersionFilterExpandsMajorVersionInSearchRequest()
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var versionService = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("1.20.6", "release", false),
+            new MinecraftVersionInfo("1.20.1", "release", false),
+            new MinecraftVersionInfo("1.20", "release", false)
+        ]);
+        var viewModel = new ResourcesPageViewModel(service, gameVersionService: versionService);
+
+        await viewModel.ModPage.RefreshProjectsCommand.ExecuteAsync(null);
+        viewModel.ModPage.SelectedVersionOption = viewModel.ModPage.VersionOptions.Single(option => option.Id == "1.20");
+        await viewModel.ModPage.RefreshProjectsCommand.ExecuteAsync(null);
+
+        Assert.NotNull(service.LastRequest);
+        Assert.Equal(string.Empty, service.LastRequest.MinecraftVersion);
+        Assert.Equal(["1.20.6", "1.20.1", "1.20"], service.LastRequest.MinecraftVersions);
+        Assert.Equal(0, service.LastRequest.Offset);
+        Assert.Equal(20, service.LastRequest.PageSize);
+    }
+
+    [Fact]
+    public async Task ModVersionFilterKeepsExpandedVersionsWhenLoadingMore()
+    {
+        var service = new QueueResourceCatalogService(
+            CreateProjectResult(1, "initial", hasMore: false),
+            CreateProjectResult(1, "first", hasMore: true),
+            CreateProjectResult(1, "second", hasMore: false));
+        var versionService = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("26", "release", false)
+        ]);
+        var viewModel = new ResourcesPageViewModel(service, gameVersionService: versionService);
+
+        await viewModel.ModPage.RefreshProjectsCommand.ExecuteAsync(null);
+        viewModel.ModPage.SelectedVersionOption = viewModel.ModPage.VersionOptions.Single(option => option.Id == "26");
+        await viewModel.ModPage.RefreshProjectsCommand.ExecuteAsync(null);
+        await viewModel.ModPage.LoadMoreProjectsCommand.ExecuteAsync(null);
+
+        Assert.Equal(["26"], service.Requests[^2].MinecraftVersions);
+        Assert.Equal(["26"], service.Requests[^1].MinecraftVersions);
+        Assert.Equal(20, service.Requests[^1].Offset);
+    }
+
+    [Fact]
     public void SelectSectionCommandMapsAllSectionsToChildViewModels()
     {
         var viewModel = new ResourcesPageViewModel();
@@ -328,6 +405,8 @@ public sealed class ResourcesPageViewModelTests
         dispatcher.RunNext();
         await TestAsync.WaitForAsync(() => service.CallCount == 1);
         Assert.NotNull(service.LastRequest);
+        Assert.Equal(0, service.LastRequest.Offset);
+        Assert.Equal(20, service.LastRequest.PageSize);
 
         pendingResult.SetResult(new ResourceCatalogSearchResult
         {
@@ -352,6 +431,80 @@ public sealed class ResourcesPageViewModelTests
             !viewModel.ModPage.IsLoadingProjects
             && viewModel.ModPage.VisibleProjects.Count == 1);
         Assert.Equal("Iris", viewModel.ModPage.VisibleProjects[0].Title);
+    }
+
+    [Fact]
+    public async Task ModPageLoadMoreAppendsNextPageUsingNextOffset()
+    {
+        var service = new QueueResourceCatalogService(
+            CreateProjectResult(2, "first", hasMore: true),
+            CreateProjectResult(1, "second", hasMore: false));
+        var viewModel = new ResourcesPageViewModel(service);
+
+        await viewModel.ModPage.RefreshProjectsCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, viewModel.ModPage.VisibleProjects.Count);
+        Assert.True(viewModel.ModPage.HasMoreProjects);
+        Assert.Equal(0, service.Requests[0].Offset);
+        Assert.Equal(20, service.Requests[0].PageSize);
+        var entranceAnimationToken = viewModel.ModPage.ListEntranceAnimationToken;
+
+        await viewModel.ModPage.LoadMoreProjectsCommand.ExecuteAsync(null);
+
+        Assert.Equal(3, viewModel.ModPage.VisibleProjects.Count);
+        Assert.Equal(["First 0", "First 1", "Second 0"], viewModel.ModPage.VisibleProjects.Select(project => project.Title));
+        Assert.False(viewModel.ModPage.HasMoreProjects);
+        Assert.Equal(Strings.Resources_ModProjectsNoMore, viewModel.ModPage.LoadMoreMessage);
+        Assert.Equal(entranceAnimationToken, viewModel.ModPage.ListEntranceAnimationToken);
+        Assert.Equal(20, service.Requests[1].Offset);
+        Assert.Equal(20, service.Requests[1].PageSize);
+    }
+
+    [Fact]
+    public async Task ModPageLoadMoreShowsLoadingStateWhilePending()
+    {
+        var dispatcher = new QueueingUiDispatcher();
+        var service = new ControlledResourceCatalogService();
+        var viewModel = new ResourcesPageViewModel(service, uiDispatcher: dispatcher);
+
+        var firstLoad = viewModel.ModPage.RefreshProjectsAsync();
+        dispatcher.RunNext();
+        var firstCall = await service.WaitForCallAsync(0);
+        firstCall.SetResult(CreateProjectResult(1, "first", hasMore: true));
+        await TestAsync.WaitForAsync(() => dispatcher.PendingCount == 1);
+        dispatcher.RunNext();
+        await firstLoad;
+
+        var loadMore = viewModel.ModPage.LoadMoreProjectsAsync();
+
+        Assert.True(viewModel.ModPage.IsLoadingMoreProjects);
+        Assert.True(viewModel.ModPage.CanShowLoadMoreState);
+        Assert.Equal(Strings.Resources_ModProjectsLoadingMore, viewModel.ModPage.LoadMoreMessage);
+
+        dispatcher.RunNext();
+        var request = await service.WaitForRequestAsync(1);
+        Assert.Equal(20, request.Offset);
+        var secondCall = await service.WaitForCallAsync(1);
+        secondCall.SetResult(CreateProjectResult(1, "second", hasMore: false));
+        await TestAsync.WaitForAsync(() => dispatcher.PendingCount == 1);
+        dispatcher.RunNext();
+        await loadMore;
+
+        Assert.False(viewModel.ModPage.IsLoadingMoreProjects);
+        Assert.Equal(2, viewModel.ModPage.VisibleProjects.Count);
+    }
+
+    [Fact]
+    public async Task ModPageLoadMoreDoesNotRequestWhenNoMoreProjects()
+    {
+        var service = new QueueResourceCatalogService(CreateProjectResult(1, "only", hasMore: false));
+        var viewModel = new ResourcesPageViewModel(service);
+
+        await viewModel.ModPage.RefreshProjectsCommand.ExecuteAsync(null);
+        await viewModel.ModPage.LoadMoreProjectsCommand.ExecuteAsync(null);
+
+        Assert.Single(service.Requests);
+        Assert.False(viewModel.ModPage.HasMoreProjects);
     }
 
     [Fact]
@@ -480,6 +633,7 @@ public sealed class ResourcesPageViewModelTests
 
         Assert.Equal("token", events.First());
         Assert.Contains("add", events);
+        Assert.Contains("token", events);
     }
 
     [Fact]
@@ -547,6 +701,7 @@ public sealed class ResourcesPageViewModelTests
     {
         private readonly object gate = new();
         private readonly List<TaskCompletionSource<ResourceCatalogSearchResult>> calls = [];
+        private readonly List<ResourceCatalogSearchRequest> requests = [];
 
         public int CallCount
         {
@@ -565,8 +720,26 @@ public sealed class ResourcesPageViewModelTests
             {
                 var result = new TaskCompletionSource<ResourceCatalogSearchResult>(TaskCreationOptions.RunContinuationsAsynchronously);
                 calls.Add(result);
+                requests.Add(request);
                 return result.Task;
             }
+        }
+
+        public async Task<ResourceCatalogSearchRequest> WaitForRequestAsync(int index)
+        {
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+            while (DateTimeOffset.UtcNow < deadline)
+            {
+                lock (gate)
+                {
+                    if (requests.Count > index)
+                        return requests[index];
+                }
+
+                await Task.Delay(10);
+            }
+
+            throw new TimeoutException($"Resource catalog request {index} was not observed.");
         }
 
         public async Task<TaskCompletionSource<ResourceCatalogSearchResult>> WaitForCallAsync(int index)
@@ -584,6 +757,28 @@ public sealed class ResourcesPageViewModelTests
             }
 
             throw new TimeoutException($"Resource catalog call {index} was not observed.");
+        }
+    }
+
+    private sealed class QueueResourceCatalogService : IResourceCatalogService
+    {
+        private readonly Queue<ResourceCatalogSearchResult> results;
+
+        public QueueResourceCatalogService(params ResourceCatalogSearchResult[] results)
+        {
+            this.results = new Queue<ResourceCatalogSearchResult>(results);
+        }
+
+        public List<ResourceCatalogSearchRequest> Requests { get; } = [];
+
+        public Task<ResourceCatalogSearchResult> SearchModsAsync(
+            ResourceCatalogSearchRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Requests.Add(request);
+            return Task.FromResult(results.Count == 0
+                ? new ResourceCatalogSearchResult()
+                : results.Dequeue());
         }
     }
 
@@ -655,7 +850,10 @@ public sealed class ResourcesPageViewModelTests
         };
     }
 
-    private static ResourceCatalogSearchResult CreateProjectResult(int count, string prefix = "project")
+    private static ResourceCatalogSearchResult CreateProjectResult(
+        int count,
+        string prefix = "project",
+        bool hasMore = false)
     {
         return new ResourceCatalogSearchResult
         {
@@ -670,7 +868,8 @@ public sealed class ResourcesPageViewModelTests
                     Downloads = count - index,
                     ProjectUrl = $"https://modrinth.com/mod/{prefix}-{index}"
                 })
-                .ToList()
+                .ToList(),
+            HasMore = hasMore
         };
     }
 }

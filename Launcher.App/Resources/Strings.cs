@@ -48,6 +48,9 @@ public static class Strings
     public static string Resources_ModProjectsLoading => Get(nameof(Resources_ModProjectsLoading));
     public static string Resources_ModProjectsEmpty => Get(nameof(Resources_ModProjectsEmpty));
     public static string Resources_ModProjectsLoadError => Get(nameof(Resources_ModProjectsLoadError));
+    public static string Resources_ModProjectsLoadingMore => Get(nameof(Resources_ModProjectsLoadingMore));
+    public static string Resources_ModProjectsNoMore => Get(nameof(Resources_ModProjectsNoMore));
+    public static string Resources_ModProjectsLoadMoreError => Get(nameof(Resources_ModProjectsLoadMoreError));
     public static string Resources_ModCurseForgeMissingApiKey => Get(nameof(Resources_ModCurseForgeMissingApiKey));
     public static string Resources_ModDownloadsFormat => Get(nameof(Resources_ModDownloadsFormat));
     public static string Resources_ModDownloadsTenThousandFormat => Get(nameof(Resources_ModDownloadsTenThousandFormat));

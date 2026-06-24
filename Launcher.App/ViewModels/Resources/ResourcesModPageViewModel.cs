@@ -13,6 +13,7 @@ namespace Launcher.App.ViewModels.Resources;
 public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 {
     private const int SearchDebounceMilliseconds = 350;
+    private const int CatalogPageSize = 20;
     private const int InitialProjectBatchSize = 12;
     private const int AppendProjectBatchSize = 8;
     private readonly IResourceCatalogService? resourceCatalogService;
@@ -22,8 +23,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     private readonly object releaseVersionOrderGate = new();
     private CancellationTokenSource? refreshCancellationTokenSource;
     private bool hasRequestedInitialProjectLoad;
-    private bool hasResolvedReleaseVersionOrder;
-    private IReadOnlyList<string>? releaseVersionOrder;
+    private bool isApplyingVersionFilterOptions;
+    private Task<ReleaseVersionData?>? releaseVersionDataTask;
 
     public ResourcesModPageViewModel(
         ResourcesPageViewModel parent,
@@ -78,8 +79,16 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     private bool isLoadingProjects;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanShowLoadMoreState))]
+    private bool isLoadingMoreProjects;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasLoadErrorMessage))]
     private string loadErrorMessage = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanShowLoadMoreState))]
+    private string loadMoreMessage = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPartialWarningMessage))]
@@ -100,6 +109,12 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     [ObservableProperty]
     private ResourcesFilterOptionItem? selectedTypeOption;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanShowLoadMoreState))]
+    private bool hasMoreProjects;
+
+    private int nextPageOffset;
+
     public bool HasVisibleProjects => VisibleProjects.Count > 0;
 
     public bool HasLoadErrorMessage => !string.IsNullOrWhiteSpace(LoadErrorMessage);
@@ -114,18 +129,43 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 
     public bool CanShowLoadErrorState => !IsLoadingProjects && !HasVisibleProjects && HasLoadErrorMessage;
 
+    public bool CanShowLoadMoreState => HasVisibleProjects
+        && (IsLoadingMoreProjects || !string.IsNullOrWhiteSpace(LoadMoreMessage));
+
     [RelayCommand]
     public async Task RefreshProjectsAsync()
     {
         await RefreshProjectsCoreAsync();
     }
 
+    [RelayCommand]
+    public async Task LoadMoreProjectsAsync()
+    {
+        await LoadMoreProjectsCoreAsync();
+    }
+
     public void BeginEnsureProjectsLoaded()
     {
+        BeginEnsureVersionOptionsLoaded();
+
         if (hasRequestedInitialProjectLoad || resourceCatalogService is null)
             return;
 
         _ = RefreshProjectsCoreAsync();
+    }
+
+    public void BeginLoadMoreProjects()
+    {
+        if (resourceCatalogService is null
+            || !HasVisibleProjects
+            || !HasMoreProjects
+            || IsLoadingProjects
+            || IsLoadingMoreProjects)
+        {
+            return;
+        }
+
+        _ = LoadMoreProjectsCoreAsync();
     }
 
     partial void OnSearchQueryChanged(string value)
@@ -135,6 +175,9 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 
     partial void OnSelectedVersionOptionChanged(ResourcesFilterOptionItem? value)
     {
+        if (isApplyingVersionFilterOptions)
+            return;
+
         LogFilterSelection("version", value);
         ScheduleProjectsRefresh();
     }
@@ -162,13 +205,29 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         RaiseProjectStatePropertiesChanged();
     }
 
+    partial void OnIsLoadingMoreProjectsChanged(bool value)
+    {
+        RaiseProjectStatePropertiesChanged();
+    }
+
     partial void OnLoadErrorMessageChanged(string value)
+    {
+        RaiseProjectStatePropertiesChanged();
+    }
+
+    partial void OnLoadMoreMessageChanged(string value)
+    {
+        RaiseProjectStatePropertiesChanged();
+    }
+
+    partial void OnHasMoreProjectsChanged(bool value)
     {
         RaiseProjectStatePropertiesChanged();
     }
 
     private async Task RunProjectLoadAsync(
         ResourceCatalogSearchRequest request,
+        ProjectLoadKind loadKind,
         CancellationToken cancellationToken,
         TaskCompletionSource completion)
     {
@@ -190,7 +249,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                         var items = catalogResult.Projects
                             .Select(project => new ResourcesModProjectItemViewModel(project, minecraftReleaseVersionOrder))
                             .ToList();
-                        return new ProjectLoadResult(catalogResult, items);
+                        return new ProjectLoadResult(catalogResult, items, loadKind, request.Offset);
                     },
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -201,7 +260,13 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 return;
             }
 
-            uiDispatcher.Post(() => CompleteProjectLoad(result, cancellationToken, completion));
+            uiDispatcher.Post(() =>
+            {
+                if (result.LoadKind is ProjectLoadKind.LoadMore)
+                    CompleteProjectLoadMore(result, cancellationToken, completion);
+                else
+                    CompleteProjectLoad(result, cancellationToken, completion);
+            });
         }
         catch (OperationCanceledException)
         {
@@ -215,24 +280,64 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 return;
             }
 
-            uiDispatcher.Post(() => FailProjectLoad(exception, cancellationToken, completion));
+            uiDispatcher.Post(() =>
+            {
+                if (loadKind is ProjectLoadKind.LoadMore)
+                    FailProjectLoadMore(exception, cancellationToken, completion);
+                else
+                    FailProjectLoad(exception, cancellationToken, completion);
+            });
         }
     }
 
     private async Task<IReadOnlyList<string>?> GetReleaseVersionOrderAsync(CancellationToken cancellationToken)
     {
+        var data = await GetReleaseVersionDataAsync(cancellationToken).ConfigureAwait(false);
+        return data?.ReleaseVersionOrder;
+    }
+
+    private void BeginEnsureVersionOptionsLoaded()
+    {
+        if (gameVersionService is null)
+            return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await GetReleaseVersionDataAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                logger?.LogWarning(exception, "Failed to start resource mod version filter load.");
+            }
+        });
+    }
+
+    private async Task<ReleaseVersionData?> GetReleaseVersionDataAsync(CancellationToken cancellationToken)
+    {
         if (gameVersionService is null)
             return null;
 
+        Task<ReleaseVersionData?> task;
         lock (releaseVersionOrderGate)
         {
-            if (hasResolvedReleaseVersionOrder)
-                return releaseVersionOrder;
+            releaseVersionDataTask ??= LoadReleaseVersionDataAsync();
+            task = releaseVersionDataTask;
         }
+
+        return await task.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ReleaseVersionData?> LoadReleaseVersionDataAsync()
+    {
+        var versionService = gameVersionService;
+        if (versionService is null)
+            return null;
 
         try
         {
-            var versions = await gameVersionService.GetVersionsAsync(cancellationToken: cancellationToken)
+            var versions = await versionService.GetVersionsAsync()
                 .ConfigureAwait(false);
             var resolvedOrder = versions
                 .Where(version => string.Equals(version.Type, "release", StringComparison.OrdinalIgnoreCase))
@@ -240,27 +345,90 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 .Where(version => !string.IsNullOrWhiteSpace(version))
                 .ToList();
 
-            lock (releaseVersionOrderGate)
-            {
-                releaseVersionOrder = resolvedOrder;
-                hasResolvedReleaseVersionOrder = true;
-                return releaseVersionOrder;
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
+            var options = CreateVersionFilterOptions(resolvedOrder);
+            uiDispatcher.Post(() => ApplyVersionFilterOptions(options));
+            return new ReleaseVersionData(resolvedOrder, options);
         }
         catch (Exception exception)
         {
-            logger?.LogWarning(exception, "Failed to load Minecraft release version order for resource mod subtitles.");
-            lock (releaseVersionOrderGate)
-            {
-                releaseVersionOrder = [];
-                hasResolvedReleaseVersionOrder = true;
-                return releaseVersionOrder;
-            }
+            logger?.LogWarning(exception, "Failed to load Minecraft release versions for resource mod filters.");
+            return new ReleaseVersionData([], []);
         }
+    }
+
+    private static IReadOnlyList<ResourcesFilterOptionItem> CreateVersionFilterOptions(IReadOnlyList<string> releaseVersions)
+    {
+        return releaseVersions
+            .Select(version => new
+            {
+                Original = version.Trim(),
+                Major = TryNormalizeMajorMinecraftVersion(version)
+            })
+            .Where(version => !string.IsNullOrWhiteSpace(version.Original) && version.Major is not null)
+            .GroupBy(version => version.Major!, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new ResourcesFilterOptionItem
+            {
+                Id = group.Key,
+                Title = group.Key,
+                MinecraftVersions = group
+                    .Select(version => version.Original)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+            })
+            .ToList();
+    }
+
+    private void ApplyVersionFilterOptions(IReadOnlyList<ResourcesFilterOptionItem> options)
+    {
+        if (options.Count == 0)
+            return;
+
+        var selectedId = SelectedVersionOption?.Id ?? "all";
+        VersionOptions.Clear();
+        VersionOptions.Add(new ResourcesFilterOptionItem { Id = "all", Title = Strings.Resources_ModFilterAllVersions });
+        foreach (var option in options)
+            VersionOptions.Add(option);
+
+        try
+        {
+            isApplyingVersionFilterOptions = true;
+            SelectedVersionOption = VersionOptions.FirstOrDefault(
+                option => string.Equals(option.Id, selectedId, StringComparison.OrdinalIgnoreCase)) ?? VersionOptions[0];
+        }
+        finally
+        {
+            isApplyingVersionFilterOptions = false;
+        }
+    }
+
+    private static string? TryNormalizeMajorMinecraftVersion(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+            return null;
+
+        var trimmed = version.Trim();
+        if (int.TryParse(trimmed, out var singlePartVersion))
+            return singlePartVersion.ToString();
+
+        var parts = trimmed.Split('.');
+        if (parts.Length < 2
+            || !TryParseLeadingNumber(parts[0], out var major)
+            || !TryParseLeadingNumber(parts[1], out var minor))
+        {
+            return null;
+        }
+
+        return major == 1 ? $"{major}.{minor}" : major.ToString();
+    }
+
+    private static bool TryParseLeadingNumber(string value, out int number)
+    {
+        number = 0;
+        var end = 0;
+        while (end < value.Length && char.IsDigit(value[end]))
+            end++;
+
+        return end > 0 && int.TryParse(value[..end], out number);
     }
 
     private async void ScheduleProjectsRefresh()
@@ -273,7 +441,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         try
         {
             await Task.Delay(SearchDebounceMilliseconds, cancellationToken).ConfigureAwait(true);
-            await QueueProjectLoadAsync(CreateSearchRequest(), cancellationToken).ConfigureAwait(true);
+            await QueueProjectLoadAsync(CreateSearchRequest(offset: 0), ProjectLoadKind.Refresh, cancellationToken).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
@@ -286,7 +454,24 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             return Task.CompletedTask;
 
         var cancellationToken = BeginProjectLoad();
-        return QueueProjectLoadAsync(CreateSearchRequest(), cancellationToken);
+        return QueueProjectLoadAsync(CreateSearchRequest(offset: 0), ProjectLoadKind.Refresh, cancellationToken);
+    }
+
+    private Task LoadMoreProjectsCoreAsync()
+    {
+        if (resourceCatalogService is null
+            || !HasVisibleProjects
+            || !HasMoreProjects
+            || IsLoadingProjects
+            || IsLoadingMoreProjects)
+        {
+            return Task.CompletedTask;
+        }
+
+        var cancellationToken = refreshCancellationTokenSource?.Token ?? CancellationToken.None;
+        IsLoadingMoreProjects = true;
+        LoadMoreMessage = Strings.Resources_ModProjectsLoadingMore;
+        return QueueProjectLoadAsync(CreateSearchRequest(nextPageOffset), ProjectLoadKind.LoadMore, cancellationToken);
     }
 
     private CancellationToken BeginProjectLoad()
@@ -297,13 +482,20 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         refreshCancellationTokenSource = new CancellationTokenSource();
 
         IsLoadingProjects = true;
+        IsLoadingMoreProjects = false;
+        HasMoreProjects = false;
+        nextPageOffset = 0;
         LoadErrorMessage = string.Empty;
+        LoadMoreMessage = string.Empty;
         PartialWarningMessage = string.Empty;
 
         return refreshCancellationTokenSource.Token;
     }
 
-    private Task QueueProjectLoadAsync(ResourceCatalogSearchRequest request, CancellationToken cancellationToken)
+    private Task QueueProjectLoadAsync(
+        ResourceCatalogSearchRequest request,
+        ProjectLoadKind loadKind,
+        CancellationToken cancellationToken)
     {
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         uiDispatcher.Post(() =>
@@ -314,7 +506,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 return;
             }
 
-            _ = RunProjectLoadAsync(request, cancellationToken, completion);
+            _ = RunProjectLoadAsync(request, loadKind, cancellationToken, completion);
         });
         return completion.Task;
     }
@@ -334,6 +526,11 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 
             VisibleProjects.Clear();
             PartialWarningMessage = string.Empty;
+            nextPageOffset = result.Offset + CatalogPageSize;
+            HasMoreProjects = result.CatalogResult.HasMore;
+            LoadMoreMessage = HasMoreProjects || result.Items.Count == 0
+                ? string.Empty
+                : Strings.Resources_ModProjectsNoMore;
             ListEntranceAnimationToken++;
             AddProjectBatch(result.Items, startIndex: 0, InitialProjectBatchSize);
             RaiseProjectStatePropertiesChanged();
@@ -358,6 +555,55 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         }
     }
 
+    private void CompleteProjectLoadMore(
+        ProjectLoadResult result,
+        CancellationToken cancellationToken,
+        TaskCompletionSource completion)
+    {
+        try
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                completion.TrySetResult();
+                return;
+            }
+
+            nextPageOffset = result.Offset + CatalogPageSize;
+            HasMoreProjects = result.CatalogResult.HasMore;
+            if (result.Items.Count == 0)
+                HasMoreProjects = false;
+            LoadMoreMessage = HasMoreProjects ? string.Empty : Strings.Resources_ModProjectsNoMore;
+            AddProjectBatch(result.Items, startIndex: 0, AppendProjectBatchSize);
+            RaiseProjectStatePropertiesChanged();
+            IsLoadingMoreProjects = false;
+
+            logger?.LogInformation(
+                "Resources mod projects appended. ResultCount={ResultCount} HasMore={HasMore}",
+                result.Items.Count,
+                result.CatalogResult.HasMore);
+
+            if (result.Items.Count == 0)
+            {
+                if (!HasMoreProjects)
+                    LoadMoreMessage = Strings.Resources_ModProjectsNoMore;
+                completion.TrySetResult();
+                return;
+            }
+
+            if (result.Items.Count <= AppendProjectBatchSize)
+            {
+                completion.TrySetResult();
+                return;
+            }
+
+            QueueProjectBatchAppend(result.Items, AppendProjectBatchSize, cancellationToken, completion);
+        }
+        catch (Exception exception)
+        {
+            completion.TrySetException(exception);
+        }
+    }
+
     private void FailProjectLoad(
         Exception exception,
         CancellationToken cancellationToken,
@@ -371,9 +617,30 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 
         VisibleProjects.Clear();
         LoadErrorMessage = Strings.Resources_ModProjectsLoadError;
+        LoadMoreMessage = string.Empty;
         PartialWarningMessage = string.Empty;
         IsLoadingProjects = false;
+        IsLoadingMoreProjects = false;
+        HasMoreProjects = false;
         logger?.LogError(exception, "Failed to load resources mod projects.");
+        RaiseProjectStatePropertiesChanged();
+        completion.TrySetResult();
+    }
+
+    private void FailProjectLoadMore(
+        Exception exception,
+        CancellationToken cancellationToken,
+        TaskCompletionSource completion)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            completion.TrySetResult();
+            return;
+        }
+
+        LoadMoreMessage = Strings.Resources_ModProjectsLoadMoreError;
+        IsLoadingMoreProjects = false;
+        logger?.LogError(exception, "Failed to load more resources mod projects.");
         RaiseProjectStatePropertiesChanged();
         completion.TrySetResult();
     }
@@ -416,16 +683,17 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             VisibleProjects.Add(items[index]);
     }
 
-    private sealed record ProjectLoadResult(
-        ResourceCatalogSearchResult CatalogResult,
-        IReadOnlyList<ResourcesModProjectItemViewModel> Items);
-
-    private ResourceCatalogSearchRequest CreateSearchRequest()
+    private ResourceCatalogSearchRequest CreateSearchRequest(int offset)
     {
+        var selectedMinecraftVersions = SelectedVersionOption?.Id is { } versionId && versionId != "all"
+            ? ResolveSelectedMinecraftVersions(SelectedVersionOption)
+            : Array.Empty<string>();
+
         return new ResourceCatalogSearchRequest
         {
             Query = SearchQuery,
-            MinecraftVersion = SelectedVersionOption?.Id is { } versionId && versionId != "all" ? versionId : string.Empty,
+            MinecraftVersion = selectedMinecraftVersions.Count == 1 ? selectedMinecraftVersions[0] : string.Empty,
+            MinecraftVersions = selectedMinecraftVersions,
             Loader = SelectedLoaderOption?.Id switch
             {
                 "fabric" => LoaderKind.Fabric,
@@ -439,8 +707,21 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 "modrinth" => ResourceProjectSource.Modrinth,
                 "curseforge" => ResourceProjectSource.CurseForge,
                 _ => null
-            }
+            },
+            Offset = offset,
+            PageSize = CatalogPageSize
         };
+    }
+
+    private static IReadOnlyList<string> ResolveSelectedMinecraftVersions(ResourcesFilterOptionItem? option)
+    {
+        if (option is null || option.Id == "all")
+            return [];
+
+        if (option.MinecraftVersions.Count > 0)
+            return option.MinecraftVersions;
+
+        return [option.Id];
     }
 
     private void RaiseProjectStatePropertiesChanged()
@@ -451,6 +732,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         OnPropertyChanged(nameof(CanShowLoadErrorState));
         OnPropertyChanged(nameof(HasLoadErrorMessage));
         OnPropertyChanged(nameof(HasPartialWarningMessage));
+        OnPropertyChanged(nameof(CanShowLoadMoreState));
     }
 
     private void LogFilterSelection(string filterId, ResourcesFilterOptionItem? option)
@@ -463,4 +745,20 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             filterId,
             option.Id);
     }
+
+    private enum ProjectLoadKind
+    {
+        Refresh,
+        LoadMore
+    }
+
+    private sealed record ProjectLoadResult(
+        ResourceCatalogSearchResult CatalogResult,
+        IReadOnlyList<ResourcesModProjectItemViewModel> Items,
+        ProjectLoadKind LoadKind,
+        int Offset);
+
+    private sealed record ReleaseVersionData(
+        IReadOnlyList<string> ReleaseVersionOrder,
+        IReadOnlyList<ResourcesFilterOptionItem> VersionOptions);
 }

@@ -1,11 +1,13 @@
 using System.Windows.Controls;
 using Launcher.App.Behaviors;
 using Launcher.App.Utilities;
+using Launcher.App.ViewModels.Resources;
 
 namespace Launcher.App.Views.Resources;
 
 public partial class ResourcesModPageView : UserControl
 {
+    private const double LoadMoreThreshold = 320d;
     private ScrollViewer? scrollViewer;
 
     public ResourcesModPageView()
@@ -16,6 +18,7 @@ public partial class ResourcesModPageView : UserControl
         {
             AttachScrollViewer();
         };
+        Unloaded += (_, _) => DetachScrollViewer();
     }
 
     public ScrollViewer ScrollViewer
@@ -42,6 +45,33 @@ public partial class ResourcesModPageView : UserControl
         if (ReferenceEquals(scrollViewer, nextScrollViewer))
             return;
 
+        DetachScrollViewer();
         scrollViewer = nextScrollViewer;
+        if (scrollViewer is not null)
+            scrollViewer.ScrollChanged += ScrollViewer_OnScrollChanged;
+    }
+
+    private void DetachScrollViewer()
+    {
+        if (scrollViewer is not null)
+            scrollViewer.ScrollChanged -= ScrollViewer_OnScrollChanged;
+
+        scrollViewer = null;
+    }
+
+    private void ScrollViewer_OnScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (DataContext is not ResourcesModPageViewModel viewModel
+            || sender is not ScrollViewer currentScrollViewer)
+        {
+            return;
+        }
+
+        if (currentScrollViewer.ScrollableHeight <= 0)
+            return;
+
+        var remainingDistance = currentScrollViewer.ScrollableHeight - currentScrollViewer.VerticalOffset;
+        if (remainingDistance <= LoadMoreThreshold)
+            viewModel.BeginLoadMoreProjects();
     }
 }

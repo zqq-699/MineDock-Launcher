@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -391,8 +392,22 @@ public partial class ListPageItemButton : UserControl
         isPreparingEnterAnimation = true;
         try
         {
-            ShouldPlayEnterAnimation = false;
-            IsEnterAnimationPending = false;
+            var shouldPlayEnterAnimationBinding = BindingOperations.GetBindingExpression(this, ShouldPlayEnterAnimationProperty);
+            if (shouldPlayEnterAnimationBinding?.ResolvedSource is VirtualizedListItemState state
+                && string.Equals(
+                    shouldPlayEnterAnimationBinding.ResolvedSourcePropertyName,
+                    nameof(VirtualizedListItemState.ShouldPlayEnterAnimation),
+                    StringComparison.Ordinal))
+            {
+                state.ShouldPlayEnterAnimation = false;
+            }
+            else
+            {
+                SetCurrentValue(ShouldPlayEnterAnimationProperty, false);
+                shouldPlayEnterAnimationBinding?.UpdateSource();
+            }
+
+            ClearValue(IsEnterAnimationPendingProperty);
         }
         finally
         {

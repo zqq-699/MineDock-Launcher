@@ -8,14 +8,17 @@ using Launcher.App.Converters;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.ViewModels.GameSettings;
+using Launcher.App.ViewModels.Resources;
 using Launcher.App.Views.GameSettings;
 using Launcher.App.Views.Account.Dialogs;
+using Launcher.App.Views.Resources;
 using Launcher.Application.Services;
 using Launcher.Application.Accounts;
 using Launcher.Domain.Models;
 
 namespace Launcher.Tests.Resources;
 
+[Collection(Launcher.Tests.WpfTestCollection.Name)]
 public sealed class ResourceDictionaryTests
 {
     [Fact]
@@ -63,7 +66,7 @@ public sealed class ResourceDictionaryTests
         {
             try
             {
-                _ = global::System.Windows.Application.Current ?? new global::System.Windows.Application();
+                _ = GetOrCreateApplication();
                 var shared = LoadDictionary("Resources/Themes/Shared.xaml");
                 var dark = LoadDictionary("Resources/Themes/Dark.xaml");
                 var light = LoadDictionary("Resources/Themes/Light.xaml");
@@ -158,7 +161,7 @@ public sealed class ResourceDictionaryTests
         {
             try
             {
-                var application = global::System.Windows.Application.Current ?? new global::System.Windows.Application();
+                var application = GetOrCreateApplication();
                 EnsureApplicationResources(application);
                 var frame = new ListPageFrame();
 
@@ -202,6 +205,152 @@ public sealed class ResourceDictionaryTests
     }
 
     [Fact]
+    public void ResourcesModPageKeepsVirtualizedListVisibleWhenEmpty()
+    {
+        Exception? exception = null;
+        var thread = new Thread(() =>
+        {
+            Window? window = null;
+            try
+            {
+                var application = GetOrCreateApplication();
+                EnsureApplicationResources(application);
+
+                var viewModel = new ResourcesPageViewModel();
+                var view = new ResourcesModPageView
+                {
+                    DataContext = viewModel.ModPage,
+                    Width = 900,
+                    Height = 700
+                };
+                window = new Window
+                {
+                    Width = 900,
+                    Height = 700,
+                    Content = view,
+                    ShowInTaskbar = false,
+                    WindowStyle = WindowStyle.None,
+                    AllowsTransparency = true,
+                    Opacity = 0
+                };
+
+                window.Show();
+                view.UpdateLayout();
+                PumpDispatcher();
+
+                var listBox = FindVisualDescendant<ListBox>(
+                    view,
+                    candidate => candidate.Name == "ResourcesModListBox");
+
+                Assert.NotNull(listBox);
+                Assert.Empty(viewModel.ModPage.VisibleProjects);
+                Assert.Equal(Visibility.Visible, listBox.Visibility);
+                Assert.Same(
+                    application.TryFindResource("ListPageVirtualizedListBoxStyle"),
+                    listBox.Style);
+                Assert.True(VirtualizingPanel.GetIsVirtualizing(listBox));
+                Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(listBox));
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+            finally
+            {
+                window?.Close();
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (exception is not null)
+            throw exception;
+    }
+
+    [Fact]
+    public void ResourcesPageViewStartsModLoadAfterBecomingVisible()
+    {
+        Exception? exception = null;
+        var thread = new Thread(() =>
+        {
+            Window? window = null;
+            try
+            {
+                var application = GetOrCreateApplication();
+                EnsureApplicationResources(application);
+
+                var pendingResult = new TaskCompletionSource<ResourceCatalogSearchResult>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                var service = new PendingResourceCatalogService(pendingResult.Task);
+                var viewModel = new ResourcesPageViewModel(service);
+                var view = new ResourcesPageView
+                {
+                    DataContext = viewModel,
+                    Width = 900,
+                    Height = 700,
+                    Visibility = Visibility.Collapsed
+                };
+                window = new Window
+                {
+                    Width = 900,
+                    Height = 700,
+                    Content = view,
+                    ShowInTaskbar = false,
+                    WindowStyle = WindowStyle.None,
+                    AllowsTransparency = true,
+                    Opacity = 0
+                };
+
+                window.Show();
+                window.UpdateLayout();
+                PumpDispatcher(DispatcherPriority.ApplicationIdle);
+
+                Assert.False(view.IsVisible);
+                Assert.False(viewModel.ModPage.IsLoadingProjects);
+                Assert.Equal(0, service.CallCount);
+
+                view.Visibility = Visibility.Visible;
+                window.UpdateLayout();
+                PumpDispatcher(DispatcherPriority.ApplicationIdle);
+
+                Assert.True(viewModel.ModPage.IsLoadingProjects);
+                Assert.True(viewModel.ModPage.CanShowLoadingState);
+                Assert.Equal(1, service.CallCount);
+
+                var modPageView = FindVisualDescendant<ResourcesModPageView>(view);
+                Assert.NotNull(modPageView);
+                var listBox = FindVisualDescendant<ListBox>(
+                    modPageView,
+                    candidate => candidate.Name == "ResourcesModListBox");
+                Assert.NotNull(listBox);
+                Assert.Equal(Visibility.Visible, listBox.Visibility);
+                Assert.True(VirtualizingPanel.GetIsVirtualizing(listBox));
+                Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(listBox));
+
+                pendingResult.SetResult(new ResourceCatalogSearchResult());
+                PumpDispatcher(DispatcherPriority.ApplicationIdle);
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+            finally
+            {
+                window?.Close();
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (exception is not null)
+            throw exception;
+    }
+
+    [Fact]
     public void SkinManagerDialogViewInitializesRuntimeContent()
     {
         Exception? exception = null;
@@ -209,7 +358,7 @@ public sealed class ResourceDictionaryTests
         {
             try
             {
-                var application = global::System.Windows.Application.Current ?? new global::System.Windows.Application();
+                var application = GetOrCreateApplication();
                 EnsureApplicationResources(application);
                 var view = new SkinManagerDialogView();
                 view.ApplyTemplate();
@@ -239,7 +388,7 @@ public sealed class ResourceDictionaryTests
         {
             try
             {
-                var application = global::System.Windows.Application.Current ?? new global::System.Windows.Application();
+                var application = GetOrCreateApplication();
                 EnsureApplicationResources(application);
 
                 var detailsViewModel = CreateDetailsViewModel();
@@ -440,7 +589,7 @@ public sealed class ResourceDictionaryTests
             Window? window = null;
             try
             {
-                var application = global::System.Windows.Application.Current ?? new global::System.Windows.Application();
+                var application = GetOrCreateApplication();
                 EnsureApplicationResources(application);
 
                 var instance = CreateInstance("Fabric Pack", "1.21.4", LoaderKind.Fabric);
@@ -639,7 +788,7 @@ public sealed class ResourceDictionaryTests
         {
             try
             {
-                var application = global::System.Windows.Application.Current ?? new global::System.Windows.Application();
+                var application = GetOrCreateApplication();
                 application.Resources.MergedDictionaries.Clear();
                 application.Resources.MergedDictionaries.Add(LoadDictionary("Resources/Themes/Shared.xaml"));
                 application.Resources.MergedDictionaries.Add(LoadDictionary("Resources/Themes/Dark.xaml"));
@@ -744,9 +893,14 @@ public sealed class ResourceDictionaryTests
 
     private static void PumpDispatcher()
     {
+        PumpDispatcher(DispatcherPriority.Background);
+    }
+
+    private static void PumpDispatcher(DispatcherPriority priority)
+    {
         var frame = new DispatcherFrame();
         Dispatcher.CurrentDispatcher.BeginInvoke(
-            DispatcherPriority.Background,
+            priority,
             new DispatcherOperationCallback(_ =>
             {
                 frame.Continue = false;
@@ -838,6 +992,28 @@ public sealed class ResourceDictionaryTests
                 UriKind.Absolute)
         };
     }
+
+    private static global::System.Windows.Application GetOrCreateApplication()
+    {
+        var application = global::System.Windows.Application.Current
+            ?? new global::System.Windows.Application();
+        application.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        return application;
+    }
+
+    private sealed class PendingResourceCatalogService(Task<ResourceCatalogSearchResult> resultTask) : IResourceCatalogService
+    {
+        public int CallCount { get; private set; }
+
+        public Task<ResourceCatalogSearchResult> SearchModsAsync(
+            ResourceCatalogSearchRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            return resultTask;
+        }
+    }
+
     private sealed class StubStatusService : IStatusService
     {
         public event Action<string>? MessageReported;

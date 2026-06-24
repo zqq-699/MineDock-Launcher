@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Launcher.App.Services;
 using Launcher.App.Utilities;
 using Launcher.App.ViewModels.Resources;
@@ -22,6 +23,7 @@ public partial class ResourcesPageView : UserControl
     private readonly PageTransitionService sectionTransitionService;
     private INotifyPropertyChanged? currentViewModelNotifier;
     private FrameworkElement? sectionContentRoot;
+    private bool isEnsureCurrentSectionLoadedQueued;
 
     public ResourcesPageView()
     {
@@ -34,6 +36,7 @@ public partial class ResourcesPageView : UserControl
 
         Loaded += ResourcesPageView_Loaded;
         DataContextChanged += ResourcesPageView_DataContextChanged;
+        IsVisibleChanged += ResourcesPageView_IsVisibleChanged;
     }
 
     public FrameworkElement RootElement => PageRoot;
@@ -42,6 +45,7 @@ public partial class ResourcesPageView : UserControl
     {
         sectionTransitionService.SyncTo(GetCurrentSectionId());
         ResetSectionPresentation();
+        QueueEnsureCurrentSectionLoadedIfVisible();
     }
 
     private void ResourcesPageView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -55,6 +59,12 @@ public partial class ResourcesPageView : UserControl
 
         sectionTransitionService.SyncTo(GetCurrentSectionId());
         ResetSectionPresentation();
+        QueueEnsureCurrentSectionLoadedIfVisible();
+    }
+
+    private void ResourcesPageView_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        QueueEnsureCurrentSectionLoadedIfVisible();
     }
 
     private void ResourcesPageViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -89,6 +99,30 @@ public partial class ResourcesPageView : UserControl
         {
             // The virtualized list template may not be available before the Mod section is realized.
         }
+    }
+
+    private void QueueEnsureCurrentSectionLoadedIfVisible()
+    {
+        if (!IsVisible
+            || isEnsureCurrentSectionLoadedQueued
+            || DataContext is not ResourcesPageViewModel)
+        {
+            return;
+        }
+
+        isEnsureCurrentSectionLoadedQueued = true;
+        Dispatcher.BeginInvoke(
+            () =>
+            {
+                isEnsureCurrentSectionLoadedQueued = false;
+                if (!IsVisible || DataContext is not ResourcesPageViewModel viewModel)
+                    return;
+
+                UpdateLayout();
+                ResetCurrentSectionScrollPosition();
+                viewModel.BeginEnsureCurrentSectionLoaded();
+            },
+            DispatcherPriority.ContextIdle);
     }
 
     private void ResetSectionPresentation()

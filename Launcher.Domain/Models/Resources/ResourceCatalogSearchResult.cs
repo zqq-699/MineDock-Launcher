@@ -7,4 +7,6 @@ public sealed class ResourceCatalogSearchResult
     public bool IsCurseForgeUnavailable { get; init; }
 
     public bool IsCurseForgeApiKeyMissing { get; init; }
+
+    public bool HasMore { get; init; }
 }

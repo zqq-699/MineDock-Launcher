@@ -6,7 +6,13 @@ public sealed class ResourceCatalogSearchRequest
 
     public string MinecraftVersion { get; init; } = string.Empty;
 
+    public IReadOnlyList<string> MinecraftVersions { get; init; } = [];
+
     public LoaderKind Loader { get; init; } = LoaderKind.Vanilla;
 
     public ResourceProjectSource? Source { get; init; }
+
+    public int Offset { get; init; }
+
+    public int PageSize { get; init; } = 20;
 }

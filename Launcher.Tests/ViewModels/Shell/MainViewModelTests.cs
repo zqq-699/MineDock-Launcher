@@ -72,7 +72,7 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
-    public async Task ResourcesNavigationStartsModLoadWithoutWaitingForCompletion()
+    public async Task ResourcesNavigationDoesNotStartModLoadBeforeViewActivation()
     {
         var dispatcher = new QueueingUiDispatcher();
         var pendingResult = new TaskCompletionSource<ResourceCatalogSearchResult>();
@@ -89,15 +89,9 @@ public sealed class MainViewModelTests
         Assert.Equal("Resources", viewModel.CurrentPage);
         Assert.True(resourcesItem.IsSelected);
         Assert.Equal(0, resourceCatalogService.CallCount);
-        Assert.True(resourcesPage.ModPage.IsLoadingProjects);
-        Assert.True(resourcesPage.ModPage.CanShowLoadingState);
-
-        dispatcher.RunNext();
-        await TestAsync.WaitForAsync(() => resourceCatalogService.CallCount == 1);
-        pendingResult.SetResult(new ResourceCatalogSearchResult());
-        await TestAsync.WaitForAsync(() => dispatcher.PendingCount == 1);
-        dispatcher.RunNext();
-        await TestAsync.WaitForAsync(() => !resourcesPage.ModPage.IsLoadingProjects);
+        Assert.False(resourcesPage.ModPage.IsLoadingProjects);
+        Assert.False(resourcesPage.ModPage.CanShowLoadingState);
+        Assert.Equal(0, dispatcher.PendingCount);
     }
 
     [Fact]

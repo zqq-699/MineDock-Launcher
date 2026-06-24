@@ -9,6 +9,7 @@
         <ListBox x:Name="ResourcesModListBox"
                  ItemsSource="{Binding VisibleProjects}"
                  ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
+                 Style="{StaticResource ListPageVirtualizedListBoxStyle}"
                  VirtualizingPanel.IsVirtualizing="True"
                  VirtualizingPanel.VirtualizationMode="Recycling"
                  VirtualizingPanel.ScrollUnit="Pixel"
@@ -16,16 +17,6 @@
                  behaviors:VirtualizedListItemStateBehavior.IsEnabled="True"
                  behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding ListEntranceAnimationToken}"
                  behaviors:VirtualizedListItemStateBehavior.ContentTopOffset="172">
-            <ListBox.Style>
-                <Style TargetType="ListBox" BasedOn="{StaticResource ListPageVirtualizedListBoxStyle}">
-                    <Setter Property="Visibility" Value="Visible" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding HasVisibleProjects}" Value="False">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </ListBox.Style>
             <ListBox.ItemsPanel>
                 <ItemsPanelTemplate>
                     <VirtualizingStackPanel Margin="0,172,12,64"
@@ -65,5 +56,14 @@
                    Text="{Binding LoadErrorMessage}"
                    Style="{StaticResource PageEmptyStateTextStyle}"
                    Visibility="{Binding CanShowLoadErrorState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+
+        <TextBlock Margin="0,0,12,22"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Bottom"
+                   Text="{Binding LoadMoreMessage}"
+                   Foreground="{DynamicResource Brush.B8FFFFFF}"
+                   FontSize="12"
+                   TextAlignment="Center"
+                   Visibility="{Binding CanShowLoadMoreState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
     </Grid>
 </UserControl>
