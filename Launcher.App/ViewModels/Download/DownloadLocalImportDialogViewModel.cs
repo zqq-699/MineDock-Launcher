@@ -73,6 +73,25 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
 
     public bool IsUnrecognizedState => DialogState is DownloadLocalImportDialogState.Unrecognized;
 
+    public bool CanAcceptDroppedFiles(IReadOnlyList<string> paths)
+    {
+        return !IsImporting && TryResolveSingleFile(paths, out _);
+    }
+
+    public async Task<bool> ImportDroppedFilesAsync(IReadOnlyList<string> paths)
+    {
+        if (!CanAcceptDroppedFiles(paths) || !TryResolveSingleFile(paths, out var resolvedPath))
+            return false;
+
+        Reset();
+        SetSelectedFile(resolvedPath, "page-dragdrop");
+        await ConfirmImportCommand.ExecuteAsync(null);
+        if (DialogState is DownloadLocalImportDialogState.Unrecognized)
+            IsOpen = true;
+
+        return true;
+    }
+
     public void Open()
     {
         Reset();
@@ -90,7 +109,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
 
     public bool PreviewDroppedFiles(IReadOnlyList<string> paths)
     {
-        if (DialogState is not DownloadLocalImportDialogState.Selection)
+        if (IsImporting || DialogState is not DownloadLocalImportDialogState.Selection)
         {
             IsDragOver = false;
             return false;
@@ -103,7 +122,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
 
     public bool ApplyDroppedFiles(IReadOnlyList<string> paths)
     {
-        if (DialogState is not DownloadLocalImportDialogState.Selection)
+        if (IsImporting || DialogState is not DownloadLocalImportDialogState.Selection)
         {
             IsDragOver = false;
             return false;

@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Launcher.App.Controls;
+using Launcher.App.Models;
 using Launcher.App.Services;
 using Launcher.Application.Services;
 
@@ -175,12 +176,18 @@ public partial class MainWindow : Window
         if (HandleDownloadLocalImportPreview(e))
             return;
 
+        if (HandleLocalImportPagePreview(e))
+            return;
+
         HandleFileDropPreview(e);
     }
 
     private void Window_OnPreviewDragOver(object sender, DragEventArgs e)
     {
         if (HandleDownloadLocalImportPreview(e))
+            return;
+
+        if (HandleLocalImportPagePreview(e))
             return;
 
         HandleFileDropPreview(e);
@@ -199,12 +206,18 @@ public partial class MainWindow : Window
         if (IsPointWithinWindow(e.GetPosition(this)))
             return;
 
-        viewModel.GameSettingsPage.ClearImportDropState();
+        if (IsLocalImportDropPage())
+            viewModel.DownloadPage.ClearLocalImportDropState();
+        else
+            viewModel.GameSettingsPage.ClearImportDropState();
     }
 
     private async void Window_OnPreviewDrop(object sender, DragEventArgs e)
     {
         if (HandleDownloadLocalImportDrop(e))
+            return;
+
+        if (await HandleLocalImportPageDropAsync(e))
             return;
 
         var paths = TryGetDroppedPaths(e);
@@ -228,6 +241,44 @@ public partial class MainWindow : Window
         var canAccept = viewModel.GameSettingsPage.UpdateImportDropState(paths);
         e.Effects = canAccept ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
+    }
+
+    private bool HandleLocalImportPagePreview(DragEventArgs e)
+    {
+        if (!IsLocalImportDropPage())
+            return false;
+
+        var paths = TryGetDroppedPaths(e);
+        var canAccept = false;
+        if (paths is null)
+            viewModel.DownloadPage.ClearLocalImportDropState();
+        else
+            canAccept = viewModel.DownloadPage.UpdateLocalImportDropState(paths);
+
+        e.Effects = canAccept ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Handled = true;
+        return true;
+    }
+
+    private async Task<bool> HandleLocalImportPageDropAsync(DragEventArgs e)
+    {
+        if (!IsLocalImportDropPage())
+            return false;
+
+        var paths = TryGetDroppedPaths(e);
+        e.Handled = true;
+        e.Effects = DragDropEffects.None;
+        try
+        {
+            if (paths is not null)
+                await viewModel.DownloadPage.HandleLocalImportDropAsync(paths);
+        }
+        finally
+        {
+            viewModel.DownloadPage.ClearLocalImportDropState();
+        }
+
+        return true;
     }
 
     private bool HandleDownloadLocalImportPreview(DragEventArgs e)
@@ -272,6 +323,12 @@ public partial class MainWindow : Window
             return null;
 
         return e.Data.GetData(DataFormats.FileDrop) as string[];
+    }
+
+    private bool IsLocalImportDropPage()
+    {
+        return NavigationCatalog.IsPage(viewModel.CurrentPage, NavigationCatalog.HomePage)
+            || NavigationCatalog.IsPage(viewModel.CurrentPage, NavigationCatalog.DownloadPage);
     }
 
     private bool IsPointWithinWindow(Point point)

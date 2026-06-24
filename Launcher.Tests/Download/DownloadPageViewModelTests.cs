@@ -448,6 +448,213 @@ public sealed class DownloadPageViewModelTests
     }
 
     [Fact]
+    public async Task DownloadPageLocalImportPageDropImportsSelectedModpackAndRaisesInstanceInstalled()
+    {
+        var tempFilePath = CreateTempModpackFile(".mrpack");
+
+        try
+        {
+            var tasksPage = new DownloadTasksPageViewModel();
+            var importedInstance = CreateImportedInstance("Dropped Pack");
+            var localModpackImportService = new FakeLocalModpackImportService
+            {
+                RecognitionResultToReturn = ModpackRecognitionResult.Success(),
+                ResultToReturn = ModpackImportResult.Success(importedInstance)
+            };
+            var viewModel = CreateDownloadPageViewModel(
+                new FakeGameVersionService([]),
+                tasksPage: tasksPage,
+                localModpackImportService: localModpackImportService);
+            GameInstance? installedInstance = null;
+            viewModel.InstanceInstalled += (_, instance) => installedInstance = instance;
+
+            Assert.True(viewModel.CanHandleLocalImportDrop([tempFilePath]));
+            Assert.True(await viewModel.HandleLocalImportDropAsync([tempFilePath]));
+
+            await TestAsync.WaitForAsync(() => tasksPage.Tasks.Count == 1 && tasksPage.Tasks[0].State is DownloadTaskState.Completed);
+            Assert.False(viewModel.LocalImportDialog.IsOpen);
+            Assert.False(viewModel.LocalImportDialog.HasSelectedFile);
+            Assert.Equal(Path.GetFullPath(tempFilePath), localModpackImportService.LastArchivePath);
+            Assert.Same(importedInstance, installedInstance);
+            Assert.Equal(string.Format(Strings.Status_ModpackImportedFormat, importedInstance.Name), tasksPage.Tasks[0].StatusMessage);
+        }
+        finally
+        {
+            File.Delete(tempFilePath);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadPageLocalImportPageDropShowsUnrecognizedStateWithoutCreatingTask()
+    {
+        var tempFilePath = CreateTempModpackFile(".zip");
+
+        try
+        {
+            var tasksPage = new DownloadTasksPageViewModel();
+            var localModpackImportService = new FakeLocalModpackImportService
+            {
+                RecognitionResultToReturn = ModpackRecognitionResult.Failure(ModpackRecognitionFailureReason.InvalidManifest)
+            };
+            var viewModel = CreateDownloadPageViewModel(
+                new FakeGameVersionService([]),
+                tasksPage: tasksPage,
+                localModpackImportService: localModpackImportService);
+
+            Assert.True(await viewModel.HandleLocalImportDropAsync([tempFilePath]));
+
+            Assert.True(viewModel.LocalImportDialog.IsOpen);
+            Assert.True(viewModel.LocalImportDialog.IsUnrecognizedState);
+            Assert.Empty(tasksPage.Tasks);
+            Assert.Equal(1, localModpackImportService.RecognizeCallCount);
+            Assert.Equal(0, localModpackImportService.ImportCallCount);
+        }
+        finally
+        {
+            File.Delete(tempFilePath);
+        }
+    }
+
+    [Fact]
+    public void DownloadPageLocalImportPageDropShowsReusableImportHints()
+    {
+        var supportedFilePath = CreateTempModpackFile(".mrpack");
+        var unsupportedFilePath = CreateTempModpackFile(".txt");
+
+        try
+        {
+            var floatingMessageService = new FakeFloatingMessageService();
+            var viewModel = CreateDownloadPageViewModel(
+                new FakeGameVersionService([]),
+                floatingMessageService: floatingMessageService);
+
+            Assert.True(viewModel.UpdateLocalImportDropState([supportedFilePath]));
+            Assert.Equal(Strings.GameSettings_DropReleaseToImportMessage, floatingMessageService.LastMessage);
+
+            viewModel.ClearLocalImportDropState();
+            Assert.Equal(string.Empty, floatingMessageService.LastMessage);
+
+            Assert.False(viewModel.UpdateLocalImportDropState([unsupportedFilePath]));
+            Assert.Equal(Strings.GameSettings_DropUnsupportedFileMessage, floatingMessageService.LastMessage);
+        }
+        finally
+        {
+            File.Delete(supportedFilePath);
+            File.Delete(unsupportedFilePath);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadPageLocalImportPageDropRejectsInvalidPathsWithoutChangingSelection()
+    {
+        var selectedFilePath = CreateTempModpackFile(".mrpack");
+        var secondFilePath = CreateTempModpackFile(".zip");
+        var tempDirectoryPath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDirectoryPath);
+
+        try
+        {
+            var viewModel = CreateDownloadPageViewModel(new FakeGameVersionService([]));
+            viewModel.LocalImportDialog.Open();
+            Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([selectedFilePath]));
+            var selectedFileName = Path.GetFileName(selectedFilePath);
+
+            Assert.False(viewModel.CanHandleLocalImportDrop([tempDirectoryPath]));
+            Assert.False(await viewModel.HandleLocalImportDropAsync([tempDirectoryPath]));
+            Assert.False(await viewModel.HandleLocalImportDropAsync([selectedFilePath, secondFilePath]));
+            Assert.False(await viewModel.HandleLocalImportDropAsync([]));
+
+            Assert.True(viewModel.LocalImportDialog.HasSelectedFile);
+            Assert.Equal(Path.GetFullPath(selectedFilePath), viewModel.LocalImportDialog.SelectedFilePath);
+            Assert.Equal(selectedFileName, viewModel.LocalImportDialog.SelectedFileName);
+        }
+        finally
+        {
+            File.Delete(selectedFilePath);
+            File.Delete(secondFilePath);
+            Directory.Delete(tempDirectoryPath);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadPageLocalImportPageDropDoesNotStartAnotherRecognitionWhileRecognizing()
+    {
+        var firstFilePath = CreateTempModpackFile(".mrpack");
+        var secondFilePath = CreateTempModpackFile(".zip");
+
+        try
+        {
+            var releaseRecognition = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var localModpackImportService = new FakeLocalModpackImportService
+            {
+                RecognitionResultToReturn = ModpackRecognitionResult.Success(),
+                ResultToReturn = ModpackImportResult.Success(CreateImportedInstance("Dropped Pack")),
+                WaitBeforeRecognition = releaseRecognition.Task
+            };
+            var viewModel = CreateDownloadPageViewModel(
+                new FakeGameVersionService([]),
+                localModpackImportService: localModpackImportService);
+
+            var firstDropTask = viewModel.HandleLocalImportDropAsync([firstFilePath]);
+            await localModpackImportService.RecognitionStarted.Task;
+
+            Assert.False(viewModel.CanHandleLocalImportDrop([secondFilePath]));
+            Assert.False(await viewModel.HandleLocalImportDropAsync([secondFilePath]));
+            Assert.Equal(1, localModpackImportService.RecognizeCallCount);
+
+            releaseRecognition.SetResult(true);
+            Assert.True(await firstDropTask);
+            await TestAsync.WaitForAsync(() => localModpackImportService.ImportCallCount == 1);
+            Assert.Equal(1, localModpackImportService.RecognizeCallCount);
+        }
+        finally
+        {
+            File.Delete(firstFilePath);
+            File.Delete(secondFilePath);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadPageLocalImportPageDropAllowsSecondImportWhileFirstImportTaskIsRunning()
+    {
+        var firstFilePath = CreateTempModpackFile(".mrpack");
+        var secondFilePath = CreateTempModpackFile(".zip");
+
+        try
+        {
+            var releaseFirstImport = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var releaseSecondImport = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var localModpackImportService = new FakeLocalModpackImportService
+            {
+                RecognitionResultToReturn = ModpackRecognitionResult.Success(),
+                ResultToReturn = ModpackImportResult.Success(CreateImportedInstance("Dropped Pack")),
+                WaitBeforeImportByCall = [releaseFirstImport.Task, releaseSecondImport.Task]
+            };
+            var viewModel = CreateDownloadPageViewModel(
+                new FakeGameVersionService([]),
+                localModpackImportService: localModpackImportService);
+
+            Assert.True(await viewModel.HandleLocalImportDropAsync([firstFilePath]));
+            await TestAsync.WaitForAsync(() => localModpackImportService.ImportCallCount == 1);
+
+            Assert.True(viewModel.CanHandleLocalImportDrop([secondFilePath]));
+            Assert.True(await viewModel.HandleLocalImportDropAsync([secondFilePath]));
+            await TestAsync.WaitForAsync(() => localModpackImportService.ImportCallCount == 2);
+
+            Assert.Contains(Path.GetFullPath(firstFilePath), localModpackImportService.ImportedArchivePaths);
+            Assert.Contains(Path.GetFullPath(secondFilePath), localModpackImportService.ImportedArchivePaths);
+
+            releaseSecondImport.SetResult(true);
+            releaseFirstImport.SetResult(true);
+        }
+        finally
+        {
+            File.Delete(firstFilePath);
+            File.Delete(secondFilePath);
+        }
+    }
+
+    [Fact]
     public async Task DownloadPageLocalImportConfirmShowsUnrecognizedStateWithoutCreatingTask()
     {
         var tempFilePath = CreateTempModpackFile(".txt");
