@@ -15,7 +15,8 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
     public ResourcesPageViewModel(
         IResourceCatalogService? resourceCatalogService = null,
         ILogger<ResourcesPageViewModel>? logger = null,
-        IUiDispatcher? uiDispatcher = null)
+        IUiDispatcher? uiDispatcher = null,
+        IGameVersionService? gameVersionService = null)
     {
         this.logger = logger;
 
@@ -28,7 +29,7 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             new ResourcesSectionItem { Id = "modpacks", Title = Strings.Resources_SectionModpacks, IconKey = "general/general_extention" }
         ];
 
-        ModPage = new ResourcesModPageViewModel(this, resourceCatalogService, logger, uiDispatcher);
+        ModPage = new ResourcesModPageViewModel(this, resourceCatalogService, logger, uiDispatcher, gameVersionService);
         ResourcePacksPage = new ResourcesResourcePacksPageViewModel(this);
         ShaderPacksPage = new ResourcesShaderPacksPageViewModel(this);
         WorldsPage = new ResourcesWorldsPageViewModel(this);

@@ -164,6 +164,7 @@ public static class VirtualizedListItemStateBehavior
             entranceAnimationPassesRemaining = EntranceAnimationPassCount;
             animatedEntranceItems.Clear();
             entranceAnimationTimer.Start();
+            MarkEntrancePendingContainers();
             QueueRenderedItemStateRefresh();
         }
 
@@ -190,7 +191,10 @@ public static class VirtualizedListItemStateBehavior
         private void ItemContainerGenerator_OnStatusChanged(object? sender, EventArgs e)
         {
             if (listBox?.ItemContainerGenerator.Status == GeneratorStatus.ContainersGenerated)
+            {
+                MarkEntrancePendingContainers();
                 PreparePendingEntranceAnimationStates();
+            }
 
             QueueRenderedItemStateRefresh();
         }
@@ -255,6 +259,7 @@ public static class VirtualizedListItemStateBehavior
                 return;
 
             isEntranceAnimationPending = false;
+            ClearEntrancePendingStates();
             entranceAnimationTimer.Stop();
         }
 
@@ -268,6 +273,7 @@ public static class VirtualizedListItemStateBehavior
             {
                 var container = containers[i];
                 var state = EnsureItemState(container);
+                UpdateEntrancePendingState(container, state);
                 state.IsFirstVisible = i == 0;
                 state.IsLastVisible = i == containers.Count - 1;
                 state.IsPreviousItemHighlighted = i > 0 && IsHighlighted(containers[i - 1].DataContext);
@@ -285,6 +291,7 @@ public static class VirtualizedListItemStateBehavior
             if (listBox.Items.Count == 0)
             {
                 isEntranceAnimationPending = false;
+                ClearEntrancePendingStates();
                 entranceAnimationTimer.Stop();
                 return;
             }
@@ -311,10 +318,46 @@ public static class VirtualizedListItemStateBehavior
                     continue;
 
                 var state = EnsureItemState(container);
+                state.IsEntranceAnimationPending = true;
                 state.EnterAnimationIndex = index;
                 state.ShouldPlayEnterAnimation = true;
                 animatedEntranceItems.Add(item);
             }
+        }
+
+        private void MarkEntrancePendingContainers()
+        {
+            if (!isEntranceAnimationPending || listBox is null)
+                return;
+
+            foreach (var container in FindRealizedContainers(listBox))
+                UpdateEntrancePendingState(container, EnsureItemState(container));
+        }
+
+        private void UpdateEntrancePendingState(ListBoxItem container, VirtualizedListItemState state)
+        {
+            state.IsEntranceAnimationPending = ShouldHoldForEntranceAnimation(container);
+        }
+
+        private bool ShouldHoldForEntranceAnimation(ListBoxItem container)
+        {
+            if (!isEntranceAnimationPending || listBox is null)
+                return false;
+
+            if (container.DataContext is not { } item || animatedEntranceItems.Contains(item))
+                return false;
+
+            var index = listBox.ItemContainerGenerator.IndexFromContainer(container);
+            return index >= 0 && IsContainerInUsableViewport(container);
+        }
+
+        private void ClearEntrancePendingStates()
+        {
+            if (listBox is null)
+                return;
+
+            foreach (var container in FindRealizedContainers(listBox))
+                EnsureItemState(container).IsEntranceAnimationPending = false;
         }
 
         private bool IsContainerInUsableViewport(ListBoxItem container)
@@ -406,6 +449,7 @@ public sealed class VirtualizedListItemState : INotifyPropertyChanged
     private bool isLastVisible;
     private bool isPreviousItemHighlighted;
     private bool shouldPlayEnterAnimation;
+    private bool isEntranceAnimationPending;
     private int enterAnimationIndex;
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -431,7 +475,20 @@ public sealed class VirtualizedListItemState : INotifyPropertyChanged
     public bool ShouldPlayEnterAnimation
     {
         get => shouldPlayEnterAnimation;
-        set => SetProperty(ref shouldPlayEnterAnimation, value);
+        set
+        {
+            if (!SetProperty(ref shouldPlayEnterAnimation, value))
+                return;
+
+            if (!value)
+                IsEntranceAnimationPending = false;
+        }
+    }
+
+    public bool IsEntranceAnimationPending
+    {
+        get => isEntranceAnimationPending;
+        set => SetProperty(ref isEntranceAnimationPending, value);
     }
 
     public int EnterAnimationIndex
@@ -440,12 +497,13 @@ public sealed class VirtualizedListItemState : INotifyPropertyChanged
         set => SetProperty(ref enterAnimationIndex, value);
     }
 
-    private void SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
-            return;
+            return false;
 
         field = value;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        return true;
     }
 }

@@ -13,6 +13,14 @@ namespace Launcher.Infrastructure.Resources;
 
 public sealed class ResourceCatalogService : IResourceCatalogService
 {
+    private static readonly HashSet<string> KnownModrinthLoaders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "fabric",
+        "forge",
+        "neoforge",
+        "quilt"
+    };
+
     private const string ModrinthBaseUrl = "https://api.modrinth.com/v2";
     private const string CurseForgeBaseUrl = "https://api.curseforge.com/v1";
     private const int MinecraftGameId = 432;
@@ -111,6 +119,8 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             Description = hit.Description,
             IconUrl = hit.IconUrl,
             Downloads = hit.Downloads,
+            SupportedMinecraftVersions = NormalizeDistinct(hit.Versions),
+            SupportedLoaders = NormalizeDistinct(hit.Categories.Where(KnownModrinthLoaders.Contains)),
             ProjectUrl = string.IsNullOrWhiteSpace(hit.Slug)
                 ? string.Empty
                 : $"https://modrinth.com/mod/{hit.Slug}"
@@ -164,10 +174,48 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             Description = mod.Summary,
             IconUrl = mod.Logo?.ThumbnailUrl ?? mod.Logo?.Url,
             Downloads = mod.DownloadCount,
+            SupportedMinecraftVersions = ResolveCurseForgeMinecraftVersions(mod),
+            SupportedLoaders = ResolveCurseForgeLoaders(mod),
             ProjectUrl = mod.Links?.WebsiteUrl ?? (string.IsNullOrWhiteSpace(mod.Slug)
                 ? string.Empty
                 : $"https://www.curseforge.com/minecraft/mc-mods/{mod.Slug}")
         }).ToList() ?? [];
+    }
+
+    private static IReadOnlyList<string> ResolveCurseForgeMinecraftVersions(CurseForgeMod mod)
+    {
+        return NormalizeDistinct(
+            mod.LatestFilesIndexes.Select(index => index.GameVersion)
+                .Concat(mod.GameVersionLatestFiles.Select(file => file.GameVersion)));
+    }
+
+    private static IReadOnlyList<string> ResolveCurseForgeLoaders(CurseForgeMod mod)
+    {
+        return NormalizeDistinct(
+            mod.LatestFilesIndexes.Select(index => TryMapCurseForgeLoader(index.ModLoader))
+                .Concat(mod.GameVersionLatestFiles.Select(file => TryMapCurseForgeLoader(file.ModLoader)))
+                .Where(loader => !string.IsNullOrWhiteSpace(loader))!);
+    }
+
+    private static IReadOnlyList<string> NormalizeDistinct(IEnumerable<string?> values)
+    {
+        return values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string? TryMapCurseForgeLoader(int? loader)
+    {
+        return loader switch
+        {
+            (int)CurseForgeModLoaderType.Forge => "forge",
+            (int)CurseForgeModLoaderType.Fabric => "fabric",
+            (int)CurseForgeModLoaderType.Quilt => "quilt",
+            (int)CurseForgeModLoaderType.NeoForge => "neoforge",
+            _ => null
+        };
     }
 
     private static bool TryMapCurseForgeLoader(LoaderKind loader, out CurseForgeModLoaderType loaderType)
@@ -219,6 +267,12 @@ public sealed class ResourceCatalogService : IResourceCatalogService
 
         [JsonPropertyName("downloads")]
         public long Downloads { get; init; }
+
+        [JsonPropertyName("versions")]
+        public List<string> Versions { get; init; } = [];
+
+        [JsonPropertyName("categories")]
+        public List<string> Categories { get; init; } = [];
     }
 
     private sealed class CurseForgeSearchResponse
@@ -249,6 +303,12 @@ public sealed class ResourceCatalogService : IResourceCatalogService
 
         [JsonPropertyName("logo")]
         public CurseForgeModLogo? Logo { get; init; }
+
+        [JsonPropertyName("latestFilesIndexes")]
+        public List<CurseForgeLatestFileIndex> LatestFilesIndexes { get; init; } = [];
+
+        [JsonPropertyName("gameVersionLatestFiles")]
+        public List<CurseForgeGameVersionLatestFile> GameVersionLatestFiles { get; init; } = [];
     }
 
     private sealed class CurseForgeModLinks
@@ -264,5 +324,23 @@ public sealed class ResourceCatalogService : IResourceCatalogService
 
         [JsonPropertyName("url")]
         public string? Url { get; init; }
+    }
+
+    private sealed class CurseForgeLatestFileIndex
+    {
+        [JsonPropertyName("gameVersion")]
+        public string? GameVersion { get; init; }
+
+        [JsonPropertyName("modLoader")]
+        public int? ModLoader { get; init; }
+    }
+
+    private sealed class CurseForgeGameVersionLatestFile
+    {
+        [JsonPropertyName("gameVersion")]
+        public string? GameVersion { get; init; }
+
+        [JsonPropertyName("modLoader")]
+        public int? ModLoader { get; init; }
     }
 }

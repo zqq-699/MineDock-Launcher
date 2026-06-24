@@ -16,19 +16,25 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     private const int InitialProjectBatchSize = 12;
     private const int AppendProjectBatchSize = 8;
     private readonly IResourceCatalogService? resourceCatalogService;
+    private readonly IGameVersionService? gameVersionService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger? logger;
+    private readonly object releaseVersionOrderGate = new();
     private CancellationTokenSource? refreshCancellationTokenSource;
     private bool hasRequestedInitialProjectLoad;
+    private bool hasResolvedReleaseVersionOrder;
+    private IReadOnlyList<string>? releaseVersionOrder;
 
     public ResourcesModPageViewModel(
         ResourcesPageViewModel parent,
         IResourceCatalogService? resourceCatalogService = null,
         ILogger? logger = null,
-        IUiDispatcher? uiDispatcher = null)
+        IUiDispatcher? uiDispatcher = null,
+        IGameVersionService? gameVersionService = null)
         : base(parent, Strings.Resources_SectionMods)
     {
         this.resourceCatalogService = resourceCatalogService;
+        this.gameVersionService = gameVersionService;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger;
 
@@ -178,9 +184,11 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 .Run(
                     async () =>
                     {
+                        var releaseVersionOrderTask = GetReleaseVersionOrderAsync(cancellationToken);
                         var catalogResult = await resourceCatalogService.SearchModsAsync(request, cancellationToken).ConfigureAwait(false);
+                        var minecraftReleaseVersionOrder = await releaseVersionOrderTask.ConfigureAwait(false);
                         var items = catalogResult.Projects
-                            .Select(project => new ResourcesModProjectItemViewModel(project))
+                            .Select(project => new ResourcesModProjectItemViewModel(project, minecraftReleaseVersionOrder))
                             .ToList();
                         return new ProjectLoadResult(catalogResult, items);
                     },
@@ -208,6 +216,50 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             }
 
             uiDispatcher.Post(() => FailProjectLoad(exception, cancellationToken, completion));
+        }
+    }
+
+    private async Task<IReadOnlyList<string>?> GetReleaseVersionOrderAsync(CancellationToken cancellationToken)
+    {
+        if (gameVersionService is null)
+            return null;
+
+        lock (releaseVersionOrderGate)
+        {
+            if (hasResolvedReleaseVersionOrder)
+                return releaseVersionOrder;
+        }
+
+        try
+        {
+            var versions = await gameVersionService.GetVersionsAsync(cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+            var resolvedOrder = versions
+                .Where(version => string.Equals(version.Type, "release", StringComparison.OrdinalIgnoreCase))
+                .Select(version => version.Name)
+                .Where(version => !string.IsNullOrWhiteSpace(version))
+                .ToList();
+
+            lock (releaseVersionOrderGate)
+            {
+                releaseVersionOrder = resolvedOrder;
+                hasResolvedReleaseVersionOrder = true;
+                return releaseVersionOrder;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger?.LogWarning(exception, "Failed to load Minecraft release version order for resource mod subtitles.");
+            lock (releaseVersionOrderGate)
+            {
+                releaseVersionOrder = [];
+                hasResolvedReleaseVersionOrder = true;
+                return releaseVersionOrder;
+            }
         }
     }
 

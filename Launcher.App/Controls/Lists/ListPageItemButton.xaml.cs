@@ -56,6 +56,13 @@ public partial class ListPageItemButton : UserControl
             typeof(ListPageItemButton),
             new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnShouldPlayEnterAnimationChanged));
 
+    public static readonly DependencyProperty IsEnterAnimationPendingProperty =
+        DependencyProperty.Register(
+            nameof(IsEnterAnimationPending),
+            typeof(bool),
+            typeof(ListPageItemButton),
+            new PropertyMetadata(false, OnIsEnterAnimationPendingChanged));
+
     public static readonly DependencyProperty EnterAnimationIndexProperty =
         DependencyProperty.Register(nameof(EnterAnimationIndex), typeof(int), typeof(ListPageItemButton), new PropertyMetadata(0));
 
@@ -120,6 +127,8 @@ public partial class ListPageItemButton : UserControl
     }
 
     public Button InnerButton => PART_Button;
+
+    private bool isPreparingEnterAnimation;
 
     public string Title
     {
@@ -203,6 +212,12 @@ public partial class ListPageItemButton : UserControl
     {
         get => (bool)GetValue(ShouldPlayEnterAnimationProperty);
         set => SetValue(ShouldPlayEnterAnimationProperty, value);
+    }
+
+    public bool IsEnterAnimationPending
+    {
+        get => (bool)GetValue(IsEnterAnimationPendingProperty);
+        set => SetValue(IsEnterAnimationPendingProperty, value);
     }
 
     public int EnterAnimationIndex
@@ -345,11 +360,15 @@ public partial class ListPageItemButton : UserControl
     {
         if (!ShouldPlayEnterAnimation)
         {
+            if (IsEnterAnimationPending)
+            {
+                HoldEntrancePendingVisual();
+                return;
+            }
+
             ResetVisual();
             return;
         }
-
-        ShouldPlayEnterAnimation = false;
 
         var delay = TimeSpan.FromMilliseconds(Math.Min(EnterAnimationIndex, 12) * 30);
         var duration = TimeSpan.FromMilliseconds(330);
@@ -357,6 +376,7 @@ public partial class ListPageItemButton : UserControl
 
         var scaleTransform = new ScaleTransform(0.96, 0.96);
         var translateTransform = new TranslateTransform(0, 14);
+        AnimatedRoot.BeginAnimation(OpacityProperty, null);
         AnimatedRoot.RenderTransform = new TransformGroup
         {
             Children =
@@ -367,6 +387,17 @@ public partial class ListPageItemButton : UserControl
         };
 
         AnimatedRoot.Opacity = 0;
+
+        isPreparingEnterAnimation = true;
+        try
+        {
+            ShouldPlayEnterAnimation = false;
+            IsEnterAnimationPending = false;
+        }
+        finally
+        {
+            isPreparingEnterAnimation = false;
+        }
 
         Dispatcher.BeginInvoke(
             DispatcherPriority.Background,
@@ -382,6 +413,29 @@ public partial class ListPageItemButton : UserControl
     {
         if (d is ListPageItemButton { IsLoaded: true } button && e.NewValue is true)
             button.PlayEnterAnimationIfNeeded();
+    }
+
+    private static void OnIsEnterAnimationPendingChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not ListPageItemButton button)
+            return;
+
+        if (e.NewValue is true)
+        {
+            button.HoldEntrancePendingVisual();
+            return;
+        }
+
+        if (!button.isPreparingEnterAnimation && !button.ShouldPlayEnterAnimation && button.IsLoaded)
+            button.ResetVisual();
+    }
+
+    private void HoldEntrancePendingVisual()
+    {
+        AnimatedRoot.BeginAnimation(OpacityProperty, null);
+        AnimatedRoot.Opacity = 0;
+        AnimatedRoot.RenderTransform = null;
+        TrailingContentPresenter.BeginAnimation(OpacityProperty, null);
     }
 
     private void ResetVisual()

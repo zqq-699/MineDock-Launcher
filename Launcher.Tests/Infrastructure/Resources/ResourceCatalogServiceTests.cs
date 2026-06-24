@@ -11,7 +11,7 @@ public sealed class ResourceCatalogServiceTests
     {
         var handler = new ResourceCatalogHandler(
             """
-            {"hits":[{"project_id":"p1","slug":"sodium","title":"Sodium","description":"Fast","icon_url":null,"downloads":42}]}
+            {"hits":[{"project_id":"p1","slug":"sodium","title":"Sodium","description":"Fast","icon_url":null,"downloads":42,"versions":["1.20.1","1.19.4"],"categories":["fabric","optimization","forge"]}]}
             """);
         var service = new ResourceCatalogService(
             new HttpClient(handler),
@@ -25,7 +25,9 @@ public sealed class ResourceCatalogServiceTests
             Source = ResourceProjectSource.Modrinth
         });
 
-        Assert.Single(result.Projects);
+        var project = Assert.Single(result.Projects);
+        Assert.Equal(["1.20.1", "1.19.4"], project.SupportedMinecraftVersions);
+        Assert.Equal(["fabric", "forge"], project.SupportedLoaders);
         var request = Assert.Single(handler.Requests);
         Assert.Equal("api.modrinth.com", request.RequestUri!.Host);
         Assert.Contains("limit=20", request.RequestUri.Query);
@@ -42,7 +44,7 @@ public sealed class ResourceCatalogServiceTests
         var handler = new ResourceCatalogHandler(
             """{"hits":[]}""",
             """
-            {"data":[{"id":9,"name":"JourneyMap","slug":"journeymap","summary":"Map","downloadCount":120,"links":{"websiteUrl":"https://www.curseforge.com/minecraft/mc-mods/journeymap"},"logo":null}]}
+            {"data":[{"id":9,"name":"JourneyMap","slug":"journeymap","summary":"Map","downloadCount":120,"links":{"websiteUrl":"https://www.curseforge.com/minecraft/mc-mods/journeymap"},"logo":null,"latestFilesIndexes":[{"gameVersion":"1.20.1","modLoader":1},{"gameVersion":"1.19.4","modLoader":4}],"gameVersionLatestFiles":[{"gameVersion":"1.18.2","modLoader":6}]}]}
             """);
         var service = new ResourceCatalogService(
             new HttpClient(handler),
@@ -56,7 +58,9 @@ public sealed class ResourceCatalogServiceTests
             Source = ResourceProjectSource.CurseForge
         });
 
-        Assert.Single(result.Projects);
+        var project = Assert.Single(result.Projects);
+        Assert.Equal(["1.20.1", "1.19.4", "1.18.2"], project.SupportedMinecraftVersions);
+        Assert.Equal(["forge", "fabric", "neoforge"], project.SupportedLoaders);
         var request = Assert.Single(handler.Requests);
         Assert.Equal("api.curseforge.com", request.RequestUri!.Host);
         Assert.True(request.Headers.TryGetValues("x-api-key", out var values));

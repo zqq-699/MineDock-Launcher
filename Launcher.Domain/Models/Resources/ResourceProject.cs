@@ -16,5 +16,9 @@ public sealed class ResourceProject
 
     public long Downloads { get; init; }
 
+    public IReadOnlyList<string> SupportedMinecraftVersions { get; init; } = [];
+
+    public IReadOnlyList<string> SupportedLoaders { get; init; } = [];
+
     public string ProjectUrl { get; init; } = string.Empty;
 }

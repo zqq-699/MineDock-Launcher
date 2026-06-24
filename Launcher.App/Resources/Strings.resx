@@ -46,6 +46,8 @@
   <data name="Resources_ModFilterAllTypes" xml:space="preserve"><value>所有类型</value></data>
   <data name="Resources_ModSourceModrinth" xml:space="preserve"><value>Modrinth</value></data>
   <data name="Resources_ModSourceCurseForge" xml:space="preserve"><value>CurseForge</value></data>
+  <data name="Resources_ModVersionsUnknown" xml:space="preserve"><value>未知版本</value></data>
+  <data name="Resources_ModLoadersUnknown" xml:space="preserve"><value>未知加载器</value></data>
   <data name="Resources_ModProjectsLoading" xml:space="preserve"><value>正在加载 Mod...</value></data>
   <data name="Resources_ModProjectsEmpty" xml:space="preserve"><value>没有找到匹配的 Mod</value></data>
   <data name="Resources_ModProjectsLoadError" xml:space="preserve"><value>加载 Mod 列表失败，请稍后重试。</value></data>

@@ -43,6 +43,8 @@ public static class Strings
     public static string Resources_ModFilterAllTypes => Get(nameof(Resources_ModFilterAllTypes));
     public static string Resources_ModSourceModrinth => Get(nameof(Resources_ModSourceModrinth));
     public static string Resources_ModSourceCurseForge => Get(nameof(Resources_ModSourceCurseForge));
+    public static string Resources_ModVersionsUnknown => Get(nameof(Resources_ModVersionsUnknown));
+    public static string Resources_ModLoadersUnknown => Get(nameof(Resources_ModLoadersUnknown));
     public static string Resources_ModProjectsLoading => Get(nameof(Resources_ModProjectsLoading));
     public static string Resources_ModProjectsEmpty => Get(nameof(Resources_ModProjectsEmpty));
     public static string Resources_ModProjectsLoadError => Get(nameof(Resources_ModProjectsLoadError));

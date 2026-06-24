@@ -357,13 +357,13 @@
 
     <Style x:Key="ListPageItemButtonEntranceStyle"
            TargetType="{x:Type controls:ListPageItemButton}">
-        <Setter Property="Opacity" Value="0" />
+        <Setter Property="IsEnterAnimationPending" Value="True" />
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="True">
-                <Setter Property="Opacity" Value="1" />
+            <DataTrigger Binding="{Binding Tag.IsEntranceAnimationPending, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="False">
+                <Setter Property="IsEnterAnimationPending" Value="False" />
             </DataTrigger>
-            <DataTrigger Binding="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="False">
-                <Setter Property="Opacity" Value="1" />
+            <DataTrigger Binding="{Binding Tag.IsEntranceAnimationPending, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}" Value="True">
+                <Setter Property="IsEnterAnimationPending" Value="True" />
             </DataTrigger>
         </Style.Triggers>
     </Style>

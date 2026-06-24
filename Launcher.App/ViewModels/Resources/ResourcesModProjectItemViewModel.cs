@@ -5,18 +5,32 @@ namespace Launcher.App.ViewModels.Resources;
 
 public sealed class ResourcesModProjectItemViewModel
 {
-    public ResourcesModProjectItemViewModel(ResourceProject project)
+    private static readonly string[] LoaderDisplayOrder =
+    [
+        "fabric",
+        "forge",
+        "neoforge",
+        "quilt"
+    ];
+
+    private readonly IReadOnlyList<string>? minecraftReleaseVersionOrder;
+
+    public ResourcesModProjectItemViewModel(
+        ResourceProject project,
+        IReadOnlyList<string>? minecraftReleaseVersionOrder = null)
     {
         Project = project;
+        this.minecraftReleaseVersionOrder = minecraftReleaseVersionOrder;
     }
 
     public ResourceProject Project { get; }
 
     public string Title => Project.Title;
 
-    public string Subtitle => string.IsNullOrWhiteSpace(Project.Description)
-        ? SourceText
-        : $"{SourceText} - {Project.Description}";
+    public string Subtitle => string.Join("  ",
+        ResourceMinecraftVersionSupportFormatter.Format(Project.SupportedMinecraftVersions, minecraftReleaseVersionOrder),
+        FormatLoaders(Project.SupportedLoaders),
+        SourceText);
 
     public string TrailingText => string.Format(Strings.Resources_ModDownloadsFormat, FormatDownloads(Project.Downloads));
 
@@ -32,6 +46,25 @@ public sealed class ResourcesModProjectItemViewModel
         ResourceProjectSource.CurseForge => Strings.Resources_ModSourceCurseForge,
         _ => string.Empty
     };
+
+    private static string FormatLoaders(IReadOnlyList<string> loaders)
+    {
+        var normalizedLoaders = loaders
+            .Where(loader => !string.IsNullOrWhiteSpace(loader))
+            .Select(loader => loader.Trim().ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(loader =>
+            {
+                var index = Array.IndexOf(LoaderDisplayOrder, loader);
+                return index < 0 ? int.MaxValue : index;
+            })
+            .ThenBy(loader => loader, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return normalizedLoaders.Count == 0
+            ? Strings.Resources_ModLoadersUnknown
+            : string.Join("/", normalizedLoaders);
+    }
 
     private static string FormatDownloads(long downloads)
     {

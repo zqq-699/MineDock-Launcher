@@ -46,7 +46,7 @@ public sealed class CurseForgeApiKeyResolverTests
             Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", "environment-secret");
             await WriteSecretAsync(tempRoot, "   ");
 
-            var resolver = CreateResolver(tempRoot);
+            var resolver = CreateResolver(tempRoot, environmentApiKeyProvider: () => "environment-secret");
 
             var apiKey = await resolver.TryResolveAsync();
 
@@ -130,12 +130,13 @@ public sealed class CurseForgeApiKeyResolverTests
         await File.WriteAllTextAsync(Path.Combine(secretsDirectory, "curseforge.key"), apiKey);
     }
 
-    private static CurseForgeApiKeyResolver CreateResolver(string tempRoot)
+    private static CurseForgeApiKeyResolver CreateResolver(string tempRoot, Func<string?>? environmentApiKeyProvider = null)
     {
         return new CurseForgeApiKeyResolver(
             new LauncherPathProvider(Path.Combine(tempRoot, "appdata")),
             currentDirectoryProvider: () => tempRoot,
-            userProfileDirectoryProvider: () => Path.Combine(tempRoot, "profile"));
+            userProfileDirectoryProvider: () => Path.Combine(tempRoot, "profile"),
+            environmentApiKeyProvider: environmentApiKeyProvider ?? (() => Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY")));
     }
 
     private static string CreateTempDirectory()

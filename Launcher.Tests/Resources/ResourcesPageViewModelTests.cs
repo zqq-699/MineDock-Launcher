@@ -1,6 +1,8 @@
 using Launcher.Application.Services;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.Domain.Models;
+using Launcher.Tests.Fakes;
 
 namespace Launcher.Tests.Resources;
 
@@ -135,6 +137,8 @@ public sealed class ResourcesPageViewModelTests
                     Slug = "sodium",
                     Title = "Sodium",
                     Description = "Rendering optimization",
+                    SupportedMinecraftVersions = ["1.20.1"],
+                    SupportedLoaders = ["fabric"],
                     Downloads = 2000,
                     ProjectUrl = "https://modrinth.com/mod/sodium"
                 }
@@ -147,8 +151,145 @@ public sealed class ResourcesPageViewModelTests
         Assert.True(viewModel.ModPage.HasVisibleProjects);
         Assert.False(viewModel.ModPage.CanShowEmptyState);
         Assert.Equal("Sodium", viewModel.ModPage.VisibleProjects[0].Title);
-        Assert.Contains(Strings.Resources_ModSourceModrinth, viewModel.ModPage.VisibleProjects[0].Subtitle);
+        Assert.Equal($"1.20  fabric  {Strings.Resources_ModSourceModrinth}", viewModel.ModPage.VisibleProjects[0].Subtitle);
         Assert.Equal(string.Format(Strings.Resources_ModDownloadsFormat, "2,000"), viewModel.ModPage.VisibleProjects[0].TrailingText);
+    }
+
+    [Fact]
+    public async Task ModPageRefreshProjectsUsesMinecraftReleaseOrderForVersionSummary()
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult
+        {
+            Projects =
+            [
+                new ResourceProject
+                {
+                    Source = ResourceProjectSource.Modrinth,
+                    ProjectId = "future-mod",
+                    Slug = "future-mod",
+                    Title = "Future Mod",
+                    SupportedMinecraftVersions = ["26", "1.21.4", "1.20.1", "1.12.2"],
+                    SupportedLoaders = ["fabric"],
+                    Downloads = 2000
+                }
+            ]
+        });
+        var versionService = new FakeGameVersionService(
+        [
+            new MinecraftVersionInfo("26", "release", false),
+            new MinecraftVersionInfo("1.21.8", "release", false),
+            new MinecraftVersionInfo("1.20.6", "release", false),
+            new MinecraftVersionInfo("24w45a", "snapshot", false),
+            new MinecraftVersionInfo("1.19.4", "release", false),
+            new MinecraftVersionInfo("1.18.2", "release", false),
+            new MinecraftVersionInfo("1.17.1", "release", false),
+            new MinecraftVersionInfo("1.16.5", "release", false),
+            new MinecraftVersionInfo("1.15.2", "release", false),
+            new MinecraftVersionInfo("1.14.4", "release", false),
+            new MinecraftVersionInfo("1.13.2", "release", false),
+            new MinecraftVersionInfo("1.12.2", "release", false)
+        ]);
+        var viewModel = new ResourcesPageViewModel(service, gameVersionService: versionService);
+
+        await viewModel.ModPage.RefreshProjectsCommand.ExecuteAsync(null);
+
+        Assert.Equal($"1.20+, 1.12  fabric  {Strings.Resources_ModSourceModrinth}", viewModel.ModPage.VisibleProjects[0].Subtitle);
+        Assert.Equal(1, versionService.CallCount);
+    }
+
+    [Fact]
+    public async Task ModPageRefreshProjectsFallsBackWhenMinecraftReleaseOrderFails()
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult
+        {
+            Projects =
+            [
+                new ResourceProject
+                {
+                    Source = ResourceProjectSource.Modrinth,
+                    ProjectId = "fallback-mod",
+                    Slug = "fallback-mod",
+                    Title = "Fallback Mod",
+                    SupportedMinecraftVersions = ["26", "1.21.4", "1.20.1", "1.12.2"],
+                    SupportedLoaders = ["fabric"],
+                    Downloads = 2000
+                }
+            ]
+        });
+        var viewModel = new ResourcesPageViewModel(service, gameVersionService: new ThrowingGameVersionService());
+
+        await viewModel.ModPage.RefreshProjectsCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.ModPage.HasVisibleProjects);
+        Assert.Equal($"26, 1.21, 1.20, 1.12  fabric  {Strings.Resources_ModSourceModrinth}", viewModel.ModPage.VisibleProjects[0].Subtitle);
+    }
+
+    [Fact]
+    public void ModProjectItemSubtitleShowsVersionsLoadersAndSource()
+    {
+        var item = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.Modrinth,
+            Title = "Test Mod",
+            Description = "This should not be shown",
+            SupportedMinecraftVersions = ["1.20.1", "1.19.4", "1.18.2", "1.17.1", "1.16.5", "1.12.2"],
+            SupportedLoaders = ["forge", "fabric"],
+            Downloads = 1
+        }, ["1.20", "1.19", "1.18", "1.17", "1.16", "1.15", "1.14", "1.13", "1.12"]);
+
+        Assert.Equal($"1.16+, 1.12  fabric/forge  {Strings.Resources_ModSourceModrinth}", item.Subtitle);
+        Assert.DoesNotContain("This should not be shown", item.Subtitle);
+    }
+
+    [Fact]
+    public void MinecraftVersionSupportFormatterUsesOfficialReleaseOrderForContinuity()
+    {
+        var summary = ResourceMinecraftVersionSupportFormatter.Format(
+            ["26", "1.21.4", "1.20.1", "1.12.2"],
+            ["26", "1.21.8", "1.20.6", "1.19.4", "1.18.2", "1.17.1", "1.16.5", "1.15.2", "1.14.4", "1.13.2", "1.12.2"]);
+
+        Assert.Equal("1.20+, 1.12", summary);
+    }
+
+    [Fact]
+    public void MinecraftVersionSupportFormatterSupportsSingleNumberVersion()
+    {
+        var summary = ResourceMinecraftVersionSupportFormatter.Format(["26"], ["26", "1.21.8"]);
+
+        Assert.Equal("26", summary);
+    }
+
+    [Fact]
+    public void MinecraftVersionSupportFormatterDoesNotHideVersionsWithoutOfficialOrder()
+    {
+        var summary = ResourceMinecraftVersionSupportFormatter.Format(["26", "1.21.4", "1.20.1", "1.12.2"]);
+
+        Assert.Equal("26, 1.21, 1.20, 1.12", summary);
+    }
+
+    [Fact]
+    public void MinecraftVersionSupportFormatterDeduplicatesPatchVersions()
+    {
+        var summary = ResourceMinecraftVersionSupportFormatter.Format(
+            ["1.20.6", "1.20.1"],
+            ["1.20.6", "1.20.1"]);
+
+        Assert.Equal("1.20", summary);
+    }
+
+    [Fact]
+    public void ModProjectItemSubtitleUsesFriendlyFallbacksWhenMetadataIsMissing()
+    {
+        var item = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.CurseForge,
+            Title = "Unknown Mod",
+            Downloads = 1
+        });
+
+        Assert.Equal(
+            $"{Strings.Resources_ModVersionsUnknown}  {Strings.Resources_ModLoadersUnknown}  {Strings.Resources_ModSourceCurseForge}",
+            item.Subtitle);
     }
 
     [Theory]
@@ -443,6 +584,18 @@ public sealed class ResourcesPageViewModelTests
             }
 
             throw new TimeoutException($"Resource catalog call {index} was not observed.");
+        }
+    }
+
+    private sealed class ThrowingGameVersionService : IGameVersionService
+    {
+        public Task<IReadOnlyList<MinecraftVersionInfo>> GetVersionsAsync(
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            CancellationToken cancellationToken = default,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            return Task.FromException<IReadOnlyList<MinecraftVersionInfo>>(
+                new InvalidOperationException("version order failed"));
         }
     }
 

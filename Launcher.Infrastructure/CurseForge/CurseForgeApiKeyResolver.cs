@@ -16,13 +16,15 @@ public sealed class CurseForgeApiKeyResolver : ICurseForgeApiKeyResolver
     private readonly ILogger<CurseForgeApiKeyResolver> logger;
     private readonly Func<string> currentDirectoryProvider;
     private readonly Func<string> userProfileDirectoryProvider;
+    private readonly Func<string?> environmentApiKeyProvider;
 
     public CurseForgeApiKeyResolver(
         LauncherPathProvider? pathProvider = null,
         ISettingsService? settingsService = null,
         ILogger<CurseForgeApiKeyResolver>? logger = null,
         Func<string>? currentDirectoryProvider = null,
-        Func<string>? userProfileDirectoryProvider = null)
+        Func<string>? userProfileDirectoryProvider = null,
+        Func<string?>? environmentApiKeyProvider = null)
     {
         this.pathProvider = pathProvider ?? new LauncherPathProvider();
         this.settingsService = settingsService;
@@ -30,6 +32,8 @@ public sealed class CurseForgeApiKeyResolver : ICurseForgeApiKeyResolver
         this.currentDirectoryProvider = currentDirectoryProvider ?? Directory.GetCurrentDirectory;
         this.userProfileDirectoryProvider = userProfileDirectoryProvider
             ?? (() => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        this.environmentApiKeyProvider = environmentApiKeyProvider
+            ?? (() => Environment.GetEnvironmentVariable(CurseForgeApiKeyEnvironmentVariable));
     }
 
     public async Task<string?> TryResolveAsync(CancellationToken cancellationToken = default)
@@ -62,7 +66,7 @@ public sealed class CurseForgeApiKeyResolver : ICurseForgeApiKeyResolver
             }
         }
 
-        var apiKey = Environment.GetEnvironmentVariable(CurseForgeApiKeyEnvironmentVariable);
+        var apiKey = environmentApiKeyProvider();
         if (!string.IsNullOrWhiteSpace(apiKey))
         {
             logger.LogInformation(
