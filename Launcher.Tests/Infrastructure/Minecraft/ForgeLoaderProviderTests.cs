@@ -1,4 +1,5 @@
 using System.Net;
+using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Launcher.Domain.Models;
@@ -168,6 +169,59 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ForgeLoaderProviderFallsBackForLegacyInstallerWithoutInstallClientOption()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var finalInstaller = new LegacyFallbackFinalVersionInstaller();
+        var handler = new ForgeHttpHandler(
+            include1102Html: true,
+            promotionsJson: """
+                {
+                  "promos": {
+                    "1.10.2-latest": "12.18.3.2511"
+                  }
+                }
+                """,
+            legacyInstallerBytes: CreateLegacyForgeInstallerBytes());
+        var provider = new ForgeLoaderProvider(
+            new HttpClient(handler),
+            new ScriptedForgeInstallerRunner((_, _, _) =>
+                throw new InvalidOperationException(
+                    "Forge installer exited with code 1: Exception in thread \"main\" joptsimple.UnrecognizedOptionException: 'installClient' is not a recognized option")),
+            finalInstaller,
+            TempRoot);
+
+        var finalVersionName = await provider.InstallAsync(
+            "1.10.2",
+            minecraftDirectory,
+            "1.10.2-forge-12.18.3.2511",
+            "12.18.3.2511",
+            progress: null);
+
+        var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
+        Assert.Equal("1.10.2-forge-12.18.3.2511", finalVersionName);
+        Assert.Equal(["1.10.2", "1.10.2-forge-12.18.3.2511"], finalInstaller.InstalledVersionNames);
+        Assert.False(Directory.Exists(Path.Combine(versionsDirectory, "1.10.2-forge1.10.2-12.18.3.2511")));
+        Assert.True(File.Exists(Path.Combine(
+            minecraftDirectory,
+            "libraries",
+            "net",
+            "minecraftforge",
+            "forge",
+            "1.10.2-12.18.3.2511",
+            "forge-1.10.2-12.18.3.2511.jar")));
+
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(
+            versionsDirectory,
+            "1.10.2-forge-12.18.3.2511",
+            "1.10.2-forge-12.18.3.2511.json")));
+        Assert.Equal("1.10.2-forge-12.18.3.2511", json.RootElement.GetProperty("id").GetString());
+        Assert.Equal("1.10.2-forge-12.18.3.2511", json.RootElement.GetProperty("jar").GetString());
+        Assert.False(json.RootElement.TryGetProperty("inheritsFrom", out _));
+        Assert.Equal("1.10.2", json.RootElement.GetProperty("launcher").GetProperty("minecraftVersion").GetString());
+    }
+
+    [Fact]
     public async Task ForgeLoaderProviderRunsInstallerInTempSandboxInsteadOfMainMinecraftDirectory()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -327,9 +381,9 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
         Directory.CreateDirectory(versionDirectory);
         await File.WriteAllTextAsync(
             Path.Combine(versionDirectory, $"{versionName}.json"),
-            """
+            $$"""
             {
-              "id": "1.20.1",
+              "id": "{{versionName}}",
               "type": "release",
               "mainClass": "net.minecraft.client.main.Main",
               "libraries": [
@@ -382,6 +436,49 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
             "patched forge client");
     }
 
+    private static byte[] CreateLegacyForgeInstallerBytes()
+    {
+        using var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var profileEntry = archive.CreateEntry("install_profile.json");
+            using (var writer = new StreamWriter(profileEntry.Open()))
+            {
+                writer.Write(
+                    """
+                    {
+                      "install": {
+                        "profileName": "forge",
+                        "target": "1.10.2-forge1.10.2-12.18.3.2511",
+                        "path": "net.minecraftforge:forge:1.10.2-12.18.3.2511",
+                        "version": "forge 1.10.2-12.18.3.2511",
+                        "filePath": "forge-1.10.2-12.18.3.2511-universal.jar",
+                        "minecraft": "1.10.2"
+                      },
+                      "versionInfo": {
+                        "id": "1.10.2-forge1.10.2-12.18.3.2511",
+                        "type": "release",
+                        "minecraftArguments": "--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userType ${user_type} --tweakClass net.minecraftforge.fml.common.launcher.FMLTweaker --versionType Forge",
+                        "mainClass": "net.minecraft.launchwrapper.Launch",
+                        "inheritsFrom": "1.10.2",
+                        "jar": "1.10.2",
+                        "libraries": [
+                          { "name": "net.minecraftforge:forge:1.10.2-12.18.3.2511", "url": "https://maven.minecraftforge.net/" },
+                          { "name": "net.minecraft:launchwrapper:1.12" }
+                        ]
+                      }
+                    }
+                    """);
+            }
+
+            var forgeJarEntry = archive.CreateEntry("forge-1.10.2-12.18.3.2511-universal.jar");
+            using var forgeJarWriter = new StreamWriter(forgeJarEntry.Open());
+            forgeJarWriter.Write("legacy forge universal jar");
+        }
+
+        return stream.ToArray();
+    }
+
     private sealed class NoOpForgeInstallerRunner : IForgeInstallerRunner
     {
         public Task RunInstallerAsync(string javaCommand, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken)
@@ -421,6 +518,24 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
         }
     }
 
+    private sealed class LegacyFallbackFinalVersionInstaller : IFinalVersionInstaller
+    {
+        public List<string> InstalledVersionNames { get; } = [];
+
+        public async Task InstallAsync(
+            string gameDirectory,
+            string versionName,
+            DownloadSourcePreference downloadSourcePreference,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            InstalledVersionNames.Add(versionName);
+            if (string.Equals(versionName, "1.10.2", StringComparison.OrdinalIgnoreCase))
+                await CreateVanillaVersionAsync(gameDirectory, versionName);
+        }
+    }
+
     private sealed class ScriptedForgeInstallerRunner : IForgeInstallerRunner
     {
         private readonly Func<string, string, string, Task> callback;
@@ -439,11 +554,19 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
     private sealed class ForgeHttpHandler : HttpMessageHandler
     {
         private readonly bool include1201Html;
+        private readonly bool include1102Html;
+        private readonly byte[]? legacyInstallerBytes;
         private readonly string promotionsJson;
 
-        public ForgeHttpHandler(bool include1201Html = true, string? promotionsJson = null)
+        public ForgeHttpHandler(
+            bool include1201Html = true,
+            bool include1102Html = false,
+            string? promotionsJson = null,
+            byte[]? legacyInstallerBytes = null)
         {
             this.include1201Html = include1201Html;
+            this.include1102Html = include1102Html;
+            this.legacyInstallerBytes = legacyInstallerBytes;
             this.promotionsJson = promotionsJson ?? """
                 {
                   "promos": {
@@ -486,6 +609,23 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
             if (uri == "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.10/forge-1.20.1-47.4.10-installer.jar")
                 return Task.FromResult(CreateBinaryResponse(request));
 
+            if (uri == "https://files.minecraftforge.net/net/minecraftforge/forge/index_1.10.2.html")
+            {
+                if (!include1102Html)
+                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound) { RequestMessage = request });
+
+                return Task.FromResult(CreateHtmlResponse(request, """
+                    <html>
+                      <body>
+                        <a href="https://maven.minecraftforge.net/net/minecraftforge/forge/1.10.2-12.18.3.2511/forge-1.10.2-12.18.3.2511-installer.jar">12.18.3.2511</a>
+                      </body>
+                    </html>
+                    """));
+            }
+
+            if (uri == "https://maven.minecraftforge.net/net/minecraftforge/forge/1.10.2-12.18.3.2511/forge-1.10.2-12.18.3.2511-installer.jar")
+                return Task.FromResult(CreateBinaryResponse(request, legacyInstallerBytes));
+
             throw new InvalidOperationException($"Unexpected request: {uri}");
         }
 
@@ -509,10 +649,15 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
 
         private static HttpResponseMessage CreateBinaryResponse(HttpRequestMessage request)
         {
+            return CreateBinaryResponse(request, "forge installer bytes"u8.ToArray());
+        }
+
+        private static HttpResponseMessage CreateBinaryResponse(HttpRequestMessage request, byte[]? content)
+        {
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 RequestMessage = request,
-                Content = new ByteArrayContent("forge installer bytes"u8.ToArray())
+                Content = new ByteArrayContent(content ?? "forge installer bytes"u8.ToArray())
             };
         }
     }
