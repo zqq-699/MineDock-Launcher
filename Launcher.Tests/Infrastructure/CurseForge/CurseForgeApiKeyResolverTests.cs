@@ -11,6 +11,64 @@ public sealed class CurseForgeApiKeyResolverTests
     private static readonly SemaphoreSlim EnvironmentGate = new(1, 1);
 
     [Fact]
+    public async Task TryResolveAsyncUsesEmbeddedResourceBeforeLocalSecretFileAndEnvironmentVariable()
+    {
+        await EnvironmentGate.WaitAsync();
+        var tempRoot = CreateTempDirectory();
+        var previousValue = Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
+        try
+        {
+            Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", "environment-secret");
+            await WriteSecretAsync(tempRoot, "current-directory-secret");
+            var logger = new CollectingLogger<CurseForgeApiKeyResolver>();
+            var resolver = new CurseForgeApiKeyResolver(
+                new LauncherPathProvider(Path.Combine(tempRoot, "appdata")),
+                logger: logger,
+                currentDirectoryProvider: () => tempRoot,
+                userProfileDirectoryProvider: () => Path.Combine(tempRoot, "profile"),
+                environmentApiKeyProvider: () => "environment-secret",
+                embeddedApiKeyProvider: _ => Task.FromResult<string?>("embedded-secret"));
+
+            var apiKey = await resolver.TryResolveAsync();
+
+            Assert.Equal("embedded-secret", apiKey);
+            Assert.DoesNotContain(logger.Messages, message => message.Contains("embedded-secret", StringComparison.Ordinal));
+            Assert.Single(logger.Messages.Where(message => message.Contains("embedded resource", StringComparison.Ordinal)));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", previousValue);
+            TryDeleteDirectory(tempRoot);
+            EnvironmentGate.Release();
+        }
+    }
+
+    [Fact]
+    public async Task TryResolveAsyncFallsBackToLocalSecretFileWhenEmbeddedResourceIsMissing()
+    {
+        await EnvironmentGate.WaitAsync();
+        var tempRoot = CreateTempDirectory();
+        var previousValue = Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY");
+        try
+        {
+            Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", "environment-secret");
+            await WriteSecretAsync(tempRoot, "current-directory-secret");
+
+            var resolver = CreateResolver(tempRoot, environmentApiKeyProvider: () => "environment-secret");
+
+            var apiKey = await resolver.TryResolveAsync();
+
+            Assert.Equal("current-directory-secret", apiKey);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", previousValue);
+            TryDeleteDirectory(tempRoot);
+            EnvironmentGate.Release();
+        }
+    }
+
+    [Fact]
     public async Task TryResolveAsyncUsesCurrentDirectoryLocalSecretFile()
     {
         await EnvironmentGate.WaitAsync();
@@ -107,7 +165,8 @@ public sealed class CurseForgeApiKeyResolverTests
                 settingsService,
                 logger,
                 currentDirectoryProvider: () => dataDirectory,
-                userProfileDirectoryProvider: () => Path.Combine(tempRoot, "profile"));
+                userProfileDirectoryProvider: () => Path.Combine(tempRoot, "profile"),
+                embeddedApiKeyProvider: _ => Task.FromResult<string?>(null));
 
             var apiKey = await resolver.TryResolveAsync();
 
@@ -136,7 +195,8 @@ public sealed class CurseForgeApiKeyResolverTests
             new LauncherPathProvider(Path.Combine(tempRoot, "appdata")),
             currentDirectoryProvider: () => tempRoot,
             userProfileDirectoryProvider: () => Path.Combine(tempRoot, "profile"),
-            environmentApiKeyProvider: environmentApiKeyProvider ?? (() => Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY")));
+            environmentApiKeyProvider: environmentApiKeyProvider ?? (() => Environment.GetEnvironmentVariable("CURSEFORGE_API_KEY")),
+            embeddedApiKeyProvider: _ => Task.FromResult<string?>(null));
     }
 
     private static string CreateTempDirectory()

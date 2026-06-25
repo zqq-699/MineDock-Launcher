@@ -5,6 +5,7 @@ using System.Text;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure;
+using Launcher.Infrastructure.CurseForge;
 using Launcher.Infrastructure.Modpacks;
 
 namespace Launcher.Tests.Infrastructure.Modpacks;
@@ -1103,9 +1104,13 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
 
     private LocalModpackPackageService CreateService(HttpClient? httpClient = null)
     {
+        var pathProvider = new LauncherPathProvider(TempRoot);
         return new LocalModpackPackageService(
-            new LauncherPathProvider(TempRoot),
-            httpClient: httpClient);
+            pathProvider,
+            httpClient: httpClient,
+            curseForgeApiKeyResolver: new CurseForgeApiKeyResolver(
+                pathProvider,
+                embeddedApiKeyProvider: _ => Task.FromResult<string?>(null)));
     }
 
     private async Task WriteLocalCurseForgeSecretAsync(string apiKey)

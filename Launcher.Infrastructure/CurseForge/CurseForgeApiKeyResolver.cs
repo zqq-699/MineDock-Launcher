@@ -10,6 +10,7 @@ public sealed class CurseForgeApiKeyResolver : ICurseForgeApiKeyResolver
     private const string CurseForgeApiKeyEnvironmentVariable = "CURSEFORGE_API_KEY";
     private const string LocalSecretsDirectoryName = ".local-secrets";
     private const string CurseForgeApiKeyFileName = "curseforge.key";
+    private const string EmbeddedCurseForgeApiKeyResourceName = "Launcher.Infrastructure.CurseForge.curseforge.key";
 
     private readonly LauncherPathProvider pathProvider;
     private readonly ISettingsService? settingsService;
@@ -17,6 +18,7 @@ public sealed class CurseForgeApiKeyResolver : ICurseForgeApiKeyResolver
     private readonly Func<string> currentDirectoryProvider;
     private readonly Func<string> userProfileDirectoryProvider;
     private readonly Func<string?> environmentApiKeyProvider;
+    private readonly Func<CancellationToken, Task<string?>> embeddedApiKeyProvider;
 
     public CurseForgeApiKeyResolver(
         LauncherPathProvider? pathProvider = null,
@@ -24,7 +26,8 @@ public sealed class CurseForgeApiKeyResolver : ICurseForgeApiKeyResolver
         ILogger<CurseForgeApiKeyResolver>? logger = null,
         Func<string>? currentDirectoryProvider = null,
         Func<string>? userProfileDirectoryProvider = null,
-        Func<string?>? environmentApiKeyProvider = null)
+        Func<string?>? environmentApiKeyProvider = null,
+        Func<CancellationToken, Task<string?>>? embeddedApiKeyProvider = null)
     {
         this.pathProvider = pathProvider ?? new LauncherPathProvider();
         this.settingsService = settingsService;
@@ -34,10 +37,20 @@ public sealed class CurseForgeApiKeyResolver : ICurseForgeApiKeyResolver
             ?? (() => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
         this.environmentApiKeyProvider = environmentApiKeyProvider
             ?? (() => Environment.GetEnvironmentVariable(CurseForgeApiKeyEnvironmentVariable));
+        this.embeddedApiKeyProvider = embeddedApiKeyProvider ?? ReadEmbeddedApiKeyAsync;
     }
 
     public async Task<string?> TryResolveAsync(CancellationToken cancellationToken = default)
     {
+        var embeddedApiKey = await embeddedApiKeyProvider(cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(embeddedApiKey))
+        {
+            logger.LogInformation(
+                "Resolved CurseForge API key from embedded resource. ResourceName={ResourceName}",
+                EmbeddedCurseForgeApiKeyResourceName);
+            return embeddedApiKey.Trim();
+        }
+
         foreach (var dataDirectory in await EnumerateLauncherDataDirectoriesAsync(cancellationToken).ConfigureAwait(false))
         {
             var keyPath = Path.Combine(dataDirectory, LocalSecretsDirectoryName, CurseForgeApiKeyFileName);
@@ -73,6 +86,47 @@ public sealed class CurseForgeApiKeyResolver : ICurseForgeApiKeyResolver
                 "Resolved CurseForge API key from environment variable. VariableName={VariableName}",
                 CurseForgeApiKeyEnvironmentVariable);
             return apiKey.Trim();
+        }
+
+        return null;
+    }
+
+    private async Task<string?> ReadEmbeddedApiKeyAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var stream = typeof(CurseForgeApiKeyResolver)
+                .Assembly
+                .GetManifestResourceStream(EmbeddedCurseForgeApiKeyResourceName);
+
+            if (stream is null)
+                return null;
+
+            using var reader = new StreamReader(stream);
+            var value = (await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false)).Trim();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                logger.LogWarning(
+                    "Ignored empty embedded CurseForge API key resource. ResourceName={ResourceName}",
+                    EmbeddedCurseForgeApiKeyResourceName);
+                return null;
+            }
+
+            return value;
+        }
+        catch (IOException exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Failed to read embedded CurseForge API key resource. ResourceName={ResourceName}",
+                EmbeddedCurseForgeApiKeyResourceName);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Failed to access embedded CurseForge API key resource. ResourceName={ResourceName}",
+                EmbeddedCurseForgeApiKeyResourceName);
         }
 
         return null;
