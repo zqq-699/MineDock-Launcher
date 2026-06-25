@@ -34,6 +34,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILaunchService, LaunchService>();
         services.AddSingleton<IJavaRuntimeDiscoveryService, JavaRuntimeDiscoveryService>();
         services.AddSingleton<IJavaRuntimeSelectionService, JavaRuntimeSelectionService>();
+        services.AddSingleton<IJavaRuntimeProvisioningService, CmlLibJavaRuntimeProvisioningService>();
         services.AddSingleton<ISystemMemoryService, WindowsSystemMemoryService>();
         services.AddSingleton<IModService, ModService>();
         services.AddSingleton<ILocalSaveService, LocalSaveService>();

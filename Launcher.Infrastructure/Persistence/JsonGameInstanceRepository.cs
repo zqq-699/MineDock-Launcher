@@ -1,4 +1,5 @@
 using System.IO;
+using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -16,7 +17,10 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private static readonly Regex NeoForgeVersionArgumentRegex = new(
-        "--fml\\.neoForgeVersion\\s+(?<version>[^\\s]+)",
+        "--fml\\.(?:neoForgeVersion|forgeVersion)\\s+(?<version>[^\\s]+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex MinecraftVersionRegex = new(
+        "(?<version>(?:[1-9][0-9]w[0-9]{2}[a-z])|(?:(?:1|[2-9][0-9])\\.[0-9]+(?:\\.[0-9]+)?(?:-(?:pre|rc|snapshot-?)[0-9]+| Pre-Release [0-9]+)?)|(?:[ab][0-9]\\.[0-9]+(?:\\.[0-9]+)?))",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private const string LauncherDirectoryName = LauncherApplicationIdentity.StorageDirectoryName;
     private const string InstanceSettingsFileName = "instance-settings.json";
@@ -114,15 +118,19 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             if (string.IsNullOrWhiteSpace(versionName))
                 continue;
 
-            var metadata = TryReadVersionMetadata(versionDirectory, versionName);
+            var metadata = TryReadVersionMetadata(versionDirectory, versionName, logger);
             if (metadata is null)
                 continue;
 
             var loader = ResolveLoader(metadata);
+            var minecraftVersion = ResolveMinecraftVersion(
+                metadata,
+                minecraftDirectory,
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase));
             installedVersions.Add(new InstalledGameVersion(
                 metadata.VersionName,
-                ResolveMinecraftVersion(metadata),
-                ResolveVersionType(metadata, minecraftDirectory),
+                minecraftVersion,
+                ResolveVersionType(metadata, minecraftDirectory, minecraftVersion),
                 loader.Kind,
                 loader.Version,
                 versionDirectory,
@@ -163,7 +171,7 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         if (string.IsNullOrWhiteSpace(versionName))
             return false;
 
-        return TryReadVersionMetadata(GetVersionDirectory(minecraftDirectory, versionName), versionName) is not null;
+        return TryReadVersionMetadata(GetVersionDirectory(minecraftDirectory, versionName), versionName, logger) is not null;
     }
 
     public void CreateInstanceDirectories(string directory)
@@ -499,10 +507,13 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         }
     }
 
-    private static VersionJsonMetadata? TryReadVersionMetadata(string versionDirectory, string versionName)
+    private static VersionJsonMetadata? TryReadVersionMetadata(
+        string versionDirectory,
+        string versionName,
+        ILogger? logger = null)
     {
-        var versionJsonPath = Path.Combine(versionDirectory, $"{versionName}.json");
-        if (!File.Exists(versionJsonPath))
+        var versionJsonPath = TryResolveVersionJsonPath(versionDirectory, versionName, logger);
+        if (string.IsNullOrWhiteSpace(versionJsonPath))
             return null;
 
         try
@@ -511,18 +522,23 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             using var json = JsonDocument.Parse(stream);
             var root = json.RootElement;
             var libraryNames = ReadLibraryNames(root);
+            var argumentText = ReadArgumentText(root);
             return new VersionJsonMetadata(
                 versionName,
                 GetStringProperty(root, "id"),
                 GetStringProperty(root, "inheritsFrom"),
                 GetStringProperty(root, "jar"),
                 GetStringProperty(root, "type"),
-                GetStringProperty(root, "mainClass"),
+                ReadMainClassText(root),
                 LauncherVersionMetadata.ReadMinecraftVersion(root),
+                GetStringProperty(root, "clientVersion"),
+                ReadPatchMinecraftVersion(root),
+                TryReadFmlMinecraftVersion(argumentText),
                 ReadAssetIndexMinecraftVersion(root),
                 libraryNames,
-                ReadArgumentText(root),
-                TryResolveMinecraftVersionFromLibraries(libraryNames));
+                argumentText,
+                TryResolveMinecraftVersionFromLibraries(libraryNames),
+                TryReadJarMinecraftVersion(versionDirectory, root, versionName));
         }
         catch (JsonException)
         {
@@ -538,19 +554,176 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         }
     }
 
-    private static string ResolveMinecraftVersion(VersionJsonMetadata metadata)
+    private static string? TryResolveVersionJsonPath(
+        string versionDirectory,
+        string versionName,
+        ILogger? logger)
+    {
+        var versionJsonPath = Path.Combine(versionDirectory, $"{versionName}.json");
+        if (File.Exists(versionJsonPath))
+            return versionJsonPath;
+
+        var candidates = EnumerateVersionJsonCandidates(versionDirectory).ToList();
+        if (candidates.Count == 0)
+            return null;
+
+        if (candidates.Count == 1)
+        {
+            logger?.LogDebug(
+                "Using non-matching version json file during instance discovery. VersionName={VersionName} VersionJsonPath={VersionJsonPath}",
+                versionName,
+                candidates[0]);
+            return candidates[0];
+        }
+
+        var idMatches = candidates
+            .Where(candidate => VersionJsonIdMatches(candidate, versionName))
+            .ToList();
+        if (idMatches.Count == 1)
+            return idMatches[0];
+
+        var fileNameMatches = candidates
+            .Where(candidate => string.Equals(Path.GetFileNameWithoutExtension(candidate), versionName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (fileNameMatches.Count == 1)
+            return fileNameMatches[0];
+
+        logger?.LogWarning(
+            "Skipping version directory with ambiguous json candidates. VersionName={VersionName} CandidateCount={CandidateCount} VersionDirectory={VersionDirectory}",
+            versionName,
+            candidates.Count,
+            versionDirectory);
+        return null;
+    }
+
+    private static IEnumerable<string> EnumerateVersionJsonCandidates(string versionDirectory)
+    {
+        IEnumerable<string> files;
+        try
+        {
+            files = Directory.EnumerateFiles(versionDirectory, "*.json", SearchOption.AllDirectories).ToArray();
+        }
+        catch (IOException)
+        {
+            return [];
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return [];
+        }
+
+        return files.Where(IsVersionJsonCandidate);
+    }
+
+    private static bool IsVersionJsonCandidate(string path)
+    {
+        if (string.Equals(Path.GetFileName(path), InstanceSettingsFileName, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var relativeSegments = path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (relativeSegments.Any(segment => string.Equals(segment, LauncherDirectoryName, StringComparison.OrdinalIgnoreCase)))
+            return false;
+
+        try
+        {
+            using var stream = File.OpenRead(path);
+            using var json = JsonDocument.Parse(stream);
+            var root = json.RootElement;
+            if (root.ValueKind is not JsonValueKind.Object)
+                return false;
+
+            return HasStringProperty(root, "mainClass")
+                   || HasStringProperty(root, "inheritsFrom")
+                   || HasStringProperty(root, "minecraftArguments")
+                   || HasStringProperty(root, "clientVersion")
+                   || root.TryGetProperty("arguments", out _)
+                   || root.TryGetProperty("libraries", out _)
+                   || root.TryGetProperty("downloads", out _)
+                   || root.TryGetProperty("patches", out _)
+                   || (HasStringProperty(root, "id") && HasStringProperty(root, "type"));
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static bool VersionJsonIdMatches(string path, string versionName)
+    {
+        try
+        {
+            using var stream = File.OpenRead(path);
+            using var json = JsonDocument.Parse(stream);
+            return string.Equals(GetStringProperty(json.RootElement, "id"), versionName, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static string ResolveMinecraftVersion(
+        VersionJsonMetadata metadata,
+        string minecraftDirectory,
+        HashSet<string> visitedVersions)
     {
         return FirstNonEmpty(
             metadata.LauncherMinecraftVersion,
-            metadata.InheritsFrom,
+            metadata.ClientMinecraftVersion,
+            metadata.PatchMinecraftVersion,
+            ResolveInheritedMinecraftVersion(metadata, minecraftDirectory, visitedVersions),
+            metadata.FmlMinecraftVersion,
             metadata.AssetIndexId,
             metadata.LibraryMinecraftVersion,
             GetVersionLikeValueOrEmpty(metadata.Jar),
             GetVersionLikeValueOrEmpty(metadata.Id),
-            GetVersionLikeValueOrEmpty(metadata.VersionName));
+            GetVersionLikeValueOrEmpty(metadata.VersionName),
+            metadata.JarMinecraftVersion);
     }
 
-    private static string ResolveVersionType(VersionJsonMetadata metadata, string minecraftDirectory)
+    private static string ResolveInheritedMinecraftVersion(
+        VersionJsonMetadata metadata,
+        string minecraftDirectory,
+        HashSet<string> visitedVersions)
+    {
+        if (string.IsNullOrWhiteSpace(metadata.InheritsFrom))
+            return string.Empty;
+
+        var directVersion = GetVersionLikeValueOrEmpty(metadata.InheritsFrom, requireFullValue: true);
+        if (!string.IsNullOrWhiteSpace(directVersion))
+            return directVersion;
+
+        if (!visitedVersions.Add(metadata.InheritsFrom))
+            return string.Empty;
+
+        var inheritedDirectory = Path.Combine(minecraftDirectory, "versions", metadata.InheritsFrom);
+        var inheritedMetadata = TryReadVersionMetadata(inheritedDirectory, metadata.InheritsFrom);
+        if (inheritedMetadata is null)
+            return GetVersionLikeValueOrEmpty(metadata.InheritsFrom);
+
+        return ResolveMinecraftVersion(inheritedMetadata, minecraftDirectory, visitedVersions);
+    }
+
+    private static string ResolveVersionType(
+        VersionJsonMetadata metadata,
+        string minecraftDirectory,
+        string minecraftVersion)
     {
         var versionType = NormalizeVersionType(metadata.Type);
         if (!string.IsNullOrWhiteSpace(versionType))
@@ -568,7 +741,7 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 
         return IsSnapshotVersionName(metadata.VersionName)
                || IsSnapshotVersionName(metadata.Id)
-               || IsSnapshotVersionName(metadata.MinecraftVersion)
+               || IsSnapshotVersionName(minecraftVersion)
             ? "snapshot"
             : "release";
     }
@@ -615,6 +788,8 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             allowLooseMatch: true);
 
         if (resolvedLoader.Kind is LoaderKind.Vanilla && hintedLoader is not null)
+            resolvedLoader = hintedLoader;
+        else if (resolvedLoader.Kind is LoaderKind.Forge && hintedLoader?.Kind is LoaderKind.NeoForge)
             resolvedLoader = hintedLoader;
 
         if (resolvedLoader.Kind is LoaderKind.NeoForge && string.IsNullOrWhiteSpace(resolvedLoader.Version))
@@ -728,6 +903,29 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         return string.IsNullOrWhiteSpace(version) ? null : version;
     }
 
+    private static string? TryReadArgumentValue(string value, string option)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var inlinePattern = $@"(?:^|\s){Regex.Escape(option)}=(?<value>[^\s]+)";
+        var inlineMatch = Regex.Match(
+            value,
+            inlinePattern,
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        if (inlineMatch.Success)
+            return inlineMatch.Groups["value"].Value.Trim();
+
+        var spacedPattern = $@"(?:^|\s){Regex.Escape(option)}\s+(?<value>[^\s]+)";
+        var spacedMatch = Regex.Match(
+            value,
+            spacedPattern,
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return spacedMatch.Success
+            ? spacedMatch.Groups["value"].Value.Trim()
+            : null;
+    }
+
     private static string TryReadForgeVersion(string combinedVersion)
     {
         var separatorIndex = combinedVersion.IndexOf('-');
@@ -738,37 +936,63 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 
     private static IReadOnlyList<string> ReadLibraryNames(JsonElement root)
     {
+        var names = new List<string>();
+        AppendLibraryNames(root, names);
+
+        if (root.TryGetProperty("patches", out var patches)
+            && patches.ValueKind is JsonValueKind.Array)
+        {
+            foreach (var patch in patches.EnumerateArray())
+                AppendLibraryNames(patch, names);
+        }
+
+        return names;
+    }
+
+    private static void AppendLibraryNames(JsonElement root, List<string> names)
+    {
         if (!root.TryGetProperty("libraries", out var libraries)
             || libraries.ValueKind is not JsonValueKind.Array)
         {
-            return [];
+            return;
         }
 
-        var names = new List<string>();
         foreach (var library in libraries.EnumerateArray())
         {
             var name = GetStringProperty(library, "name");
             if (!string.IsNullOrWhiteSpace(name))
                 names.Add(name);
         }
-
-        return names;
     }
 
     private static string ReadArgumentText(JsonElement root)
+    {
+        var values = new List<string>();
+        AppendArgumentText(root, values);
+
+        if (root.TryGetProperty("patches", out var patches)
+            && patches.ValueKind is JsonValueKind.Array)
+        {
+            foreach (var patch in patches.EnumerateArray())
+                AppendArgumentText(patch, values);
+        }
+
+        return values.Count == 0 ? string.Empty : string.Join(' ', values);
+    }
+
+    private static void AppendArgumentText(JsonElement root, List<string> values)
     {
         if (!root.TryGetProperty("arguments", out var arguments)
             || arguments.ValueKind is not JsonValueKind.Object
             || !arguments.TryGetProperty("game", out var gameArguments))
         {
-            return GetStringProperty(root, "minecraftArguments");
+            var minecraftArguments = GetStringProperty(root, "minecraftArguments");
+            if (!string.IsNullOrWhiteSpace(minecraftArguments))
+                values.Add(minecraftArguments);
+            return;
         }
 
-        var values = new List<string>();
         AppendArgumentValues(gameArguments, values);
-        return values.Count == 0
-            ? GetStringProperty(root, "minecraftArguments")
-            : string.Join(' ', values);
     }
 
     private static void AppendArgumentValues(JsonElement element, List<string> values)
@@ -789,6 +1013,54 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
                     AppendArgumentValues(nestedValue, values);
                 break;
         }
+    }
+
+    private static string ReadMainClassText(JsonElement root)
+    {
+        var values = new List<string>();
+        AppendMainClass(root, values);
+
+        if (root.TryGetProperty("patches", out var patches)
+            && patches.ValueKind is JsonValueKind.Array)
+        {
+            foreach (var patch in patches.EnumerateArray())
+                AppendMainClass(patch, values);
+        }
+
+        return values.Count == 0 ? string.Empty : string.Join(' ', values);
+    }
+
+    private static void AppendMainClass(JsonElement root, List<string> values)
+    {
+        var mainClass = GetStringProperty(root, "mainClass");
+        if (!string.IsNullOrWhiteSpace(mainClass))
+            values.Add(mainClass);
+    }
+
+    private static string ReadPatchMinecraftVersion(JsonElement root)
+    {
+        if (!root.TryGetProperty("patches", out var patches)
+            || patches.ValueKind is not JsonValueKind.Array)
+        {
+            return string.Empty;
+        }
+
+        foreach (var patch in patches.EnumerateArray())
+        {
+            if (string.Equals(GetStringProperty(patch, "id"), "game", StringComparison.OrdinalIgnoreCase))
+            {
+                var version = GetStringProperty(patch, "version");
+                if (!string.IsNullOrWhiteSpace(version))
+                    return version;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static string? TryReadFmlMinecraftVersion(string argumentText)
+    {
+        return TryReadArgumentValue(argumentText, "--fml.mcVersion");
     }
 
     private static string ReadAssetIndexMinecraftVersion(JsonElement root)
@@ -822,13 +1094,85 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             return null;
 
         if (parts[0].Equals("net.minecraftforge", StringComparison.OrdinalIgnoreCase)
-            && parts[1].Equals("forge", StringComparison.OrdinalIgnoreCase))
+            && (parts[1].Equals("forge", StringComparison.OrdinalIgnoreCase)
+                || parts[1].Equals("fmlloader", StringComparison.OrdinalIgnoreCase)))
         {
             var separatorIndex = parts[2].IndexOf('-');
             return separatorIndex > 0 ? parts[2][..separatorIndex] : parts[2];
         }
 
+        if ((parts[0].Equals("net.fabricmc", StringComparison.OrdinalIgnoreCase)
+                || parts[0].Equals("org.quiltmc", StringComparison.OrdinalIgnoreCase))
+            && parts[1].Equals("intermediary", StringComparison.OrdinalIgnoreCase)
+            && LooksLikeMinecraftVersion(parts[2]))
+        {
+            return parts[2];
+        }
+
         return null;
+    }
+
+    private static string TryReadJarMinecraftVersion(
+        string versionDirectory,
+        JsonElement root,
+        string versionName)
+    {
+        var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        AddJarCandidate(GetStringProperty(root, "jar"));
+        AddJarCandidate(GetStringProperty(root, "id"));
+        AddJarCandidate(versionName);
+
+        foreach (var jarPath in candidates)
+        {
+            var minecraftVersion = TryReadMinecraftVersionFromJar(jarPath);
+            if (!string.IsNullOrWhiteSpace(minecraftVersion))
+                return minecraftVersion;
+        }
+
+        return string.Empty;
+
+        void AddJarCandidate(string? candidate)
+        {
+            if (string.IsNullOrWhiteSpace(candidate))
+                return;
+
+            candidates.Add(Path.Combine(versionDirectory, $"{candidate}.jar"));
+        }
+    }
+
+    private static string TryReadMinecraftVersionFromJar(string jarPath)
+    {
+        if (!File.Exists(jarPath))
+            return string.Empty;
+
+        try
+        {
+            using var archive = ZipFile.OpenRead(jarPath);
+            var entry = archive.GetEntry("version.json");
+            if (entry is null)
+                return string.Empty;
+
+            using var stream = entry.Open();
+            using var json = JsonDocument.Parse(stream);
+            var name = GetStringProperty(json.RootElement, "name");
+            return name.Length < 32 ? GetVersionLikeValueOrEmpty(name) : string.Empty;
+        }
+        catch (InvalidDataException)
+        {
+            return string.Empty;
+        }
+        catch (JsonException)
+        {
+            return string.Empty;
+        }
+        catch (IOException)
+        {
+            return string.Empty;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return string.Empty;
+        }
     }
 
     private static string GetStringProperty(JsonElement element, string name)
@@ -839,31 +1183,37 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             : string.Empty;
     }
 
+    private static bool HasStringProperty(JsonElement element, string name)
+    {
+        return element.TryGetProperty(name, out var property)
+               && property.ValueKind is JsonValueKind.String
+               && !string.IsNullOrWhiteSpace(property.GetString());
+    }
+
     private static bool LooksLikeMinecraftVersion(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
             return false;
 
-        if (Version.TryParse(value, out _))
-            return true;
-
-        if (value.Length >= 6
-            && char.IsDigit(value[0])
-            && char.IsDigit(value[1])
-            && value[2] == 'w'
-            && char.IsDigit(value[3])
-            && char.IsDigit(value[4]))
-        {
-            return true;
-        }
-
-        return value.StartsWith("a", StringComparison.OrdinalIgnoreCase)
-               || value.StartsWith("b", StringComparison.OrdinalIgnoreCase);
+        var trimmed = value.Trim();
+        return MinecraftVersionRegex.Match(trimmed) is { Success: true } match
+               && string.Equals(match.Value, trimmed, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string GetVersionLikeValueOrEmpty(string? value)
+    private static string GetVersionLikeValueOrEmpty(string? value, bool requireFullValue = false)
     {
-        return LooksLikeMinecraftVersion(value) ? value ?? string.Empty : string.Empty;
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var trimmed = value.Trim();
+        if (LooksLikeMinecraftVersion(trimmed))
+            return trimmed;
+
+        if (requireFullValue)
+            return string.Empty;
+
+        var match = MinecraftVersionRegex.Match(trimmed);
+        return match.Success ? match.Groups["version"].Value : string.Empty;
     }
 
     private static string NormalizeVersionType(string? type)
@@ -925,20 +1275,14 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         string Type,
         string MainClass,
         string LauncherMinecraftVersion,
+        string ClientMinecraftVersion,
+        string PatchMinecraftVersion,
+        string? FmlMinecraftVersion,
         string AssetIndexId,
         IReadOnlyList<string> LibraryNames,
         string ArgumentText,
-        string? LibraryMinecraftVersion)
-    {
-        public string MinecraftVersion => FirstNonEmpty(
-            LauncherMinecraftVersion,
-            InheritsFrom,
-            AssetIndexId,
-            LibraryMinecraftVersion,
-            GetVersionLikeValueOrEmpty(Jar),
-            GetVersionLikeValueOrEmpty(Id),
-            GetVersionLikeValueOrEmpty(VersionName));
-    }
+        string? LibraryMinecraftVersion,
+        string JarMinecraftVersion);
 
     private sealed record LoaderInfo(LoaderKind Kind, string? Version);
 }

@@ -702,6 +702,187 @@ public sealed class LaunchServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task LaunchServiceProvisionsAutomaticJavaRuntimeWhenMissingAndRetriesSelection()
+    {
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var javaDirectory = Path.Combine(TempRoot, "java", "jdk-21", "bin");
+        Directory.CreateDirectory(javaDirectory);
+        var javaPath = Path.Combine(javaDirectory, "java.exe");
+        var javawPath = Path.Combine(javaDirectory, "javaw.exe");
+        await File.WriteAllTextAsync(javaPath, string.Empty);
+        await File.WriteAllTextAsync(javawPath, string.Empty);
+        var javaRuntime = new JavaRuntimeInfo(
+            "Java 21",
+            "21.0.0",
+            21,
+            "x64",
+            javaPath,
+            Path.Combine(TempRoot, "java", "jdk-21"),
+            "MinecraftRuntime");
+        var javaSelectionService = new FakeJavaRuntimeSelectionService(
+            new JavaRuntimeSelectionException(
+                "missing java",
+                JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing,
+                21),
+            javaRuntime);
+        var javaProvisioningService = new FakeJavaRuntimeProvisioningService();
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            launcherFactory,
+            new NoOpLaunchCrashMonitor(),
+            javaRuntimeSelectionService: javaSelectionService,
+            javaRuntimeProvisioningService: javaProvisioningService);
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            JavaSelectionMode = JavaSelectionMode.Auto,
+            DownloadSourcePreference = DownloadSourcePreference.BmclApi,
+            DownloadSpeedLimitMbPerSecond = 12
+        };
+        var instance = new GameInstance
+        {
+            Name = "Vanilla World",
+            MinecraftVersion = "1.21.4",
+            VersionName = "1.21.4",
+            InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "1.21.4")
+        };
+        var progress = new RecordingProgress();
+
+        await service.LaunchAsync(instance, CreateAccount(), settings, progress);
+
+        Assert.Equal(2, javaSelectionService.CallCount);
+        Assert.Equal(1, javaProvisioningService.CallCount);
+        Assert.Same(instance, javaProvisioningService.LastInstance);
+        Assert.Same(settings, javaProvisioningService.LastSettings);
+        Assert.Same(progress, javaProvisioningService.LastProgress);
+        Assert.Equal(javawPath, launcherFactory.Launcher.LastLaunchOption?.JavaPath);
+        Assert.Contains(progress.Items, item => item.Stage == LaunchProgressStages.CheckingJava);
+        AssertProgressPercentIsMonotonic(progress.Items);
+    }
+
+    [Fact]
+    public async Task LaunchServiceProvisionsAutomaticJavaRuntimeWhenNoCompatibleRuntimeIsFound()
+    {
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var javaRuntime = new JavaRuntimeInfo(
+            "Java 21",
+            "21.0.0",
+            21,
+            "x64",
+            @"C:\Java\jdk-21\bin\java.exe",
+            @"C:\Java\jdk-21",
+            "MinecraftRuntime");
+        var javaSelectionService = new FakeJavaRuntimeSelectionService(
+            new JavaRuntimeSelectionException(
+                "wrong java",
+                JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound,
+                21),
+            javaRuntime);
+        var javaProvisioningService = new FakeJavaRuntimeProvisioningService();
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            launcherFactory,
+            new NoOpLaunchCrashMonitor(),
+            javaRuntimeSelectionService: javaSelectionService,
+            javaRuntimeProvisioningService: javaProvisioningService);
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            JavaSelectionMode = JavaSelectionMode.Auto
+        };
+        var instance = CreateInstance(
+            Path.Combine(settings.MinecraftDirectory, "versions", "1.21.4"),
+            "1.21.4");
+
+        await service.LaunchAsync(instance, CreateAccount(), settings, progress: null);
+
+        Assert.Equal(2, javaSelectionService.CallCount);
+        Assert.Equal(1, javaProvisioningService.CallCount);
+        Assert.Equal(@"C:\Java\jdk-21\bin\java.exe", launcherFactory.Launcher.LastLaunchOption?.JavaPath);
+    }
+
+    [Fact]
+    public async Task LaunchServiceDoesNotProvisionManualJavaSelectionFailure()
+    {
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var javaSelectionService = new FakeJavaRuntimeSelectionService(
+            new JavaRuntimeSelectionException(
+                "manual missing",
+                JavaRuntimeSelectionFailureReason.ManualRuntimeUnavailable));
+        var javaProvisioningService = new FakeJavaRuntimeProvisioningService();
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            launcherFactory,
+            new NoOpLaunchCrashMonitor(),
+            javaRuntimeSelectionService: javaSelectionService,
+            javaRuntimeProvisioningService: javaProvisioningService);
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            JavaSelectionMode = JavaSelectionMode.Manual,
+            SelectedJavaExecutablePath = @"C:\Missing\java.exe"
+        };
+        var instance = CreateInstance(
+            Path.Combine(settings.MinecraftDirectory, "versions", "1.21.4"),
+            "1.21.4");
+
+        var exception = await Assert.ThrowsAsync<LaunchFailedException>(() => service.LaunchAsync(
+            instance,
+            CreateAccount(),
+            settings,
+            progress: null));
+
+        Assert.Equal(1, javaSelectionService.CallCount);
+        Assert.Equal(0, javaProvisioningService.CallCount);
+        Assert.IsType<JavaRuntimeSelectionException>(exception.InnerException);
+        Assert.Null(launcherFactory.Launcher.LastBuiltVersionName);
+    }
+
+    [Fact]
+    public async Task LaunchServiceStopsWhenAutomaticJavaProvisioningFails()
+    {
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var javaSelectionService = new FakeJavaRuntimeSelectionService(
+            new JavaRuntimeSelectionException(
+                "missing java",
+                JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing,
+                21));
+        var javaProvisioningService = new FakeJavaRuntimeProvisioningService
+        {
+            ExceptionToThrow = new InvalidOperationException("runtime download failed")
+        };
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            launcherFactory,
+            new NoOpLaunchCrashMonitor(),
+            javaRuntimeSelectionService: javaSelectionService,
+            javaRuntimeProvisioningService: javaProvisioningService);
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            JavaSelectionMode = JavaSelectionMode.Auto
+        };
+        var instance = CreateInstance(
+            Path.Combine(settings.MinecraftDirectory, "versions", "1.21.4"),
+            "1.21.4");
+
+        var exception = await Assert.ThrowsAsync<LaunchFailedException>(() => service.LaunchAsync(
+            instance,
+            CreateAccount(),
+            settings,
+            progress: null));
+
+        Assert.Equal(1, javaSelectionService.CallCount);
+        Assert.Equal(1, javaProvisioningService.CallCount);
+        Assert.IsType<InvalidOperationException>(exception.InnerException);
+        Assert.Null(launcherFactory.Launcher.LastBuiltVersionName);
+    }
+
+    [Fact]
     public async Task LaunchServicePassesManualJavaSelectionSettingsToSelectionService()
     {
         var launcherFactory = new FakeLaunchGameLauncherFactory();
@@ -1463,22 +1644,70 @@ public sealed class LaunchServiceTests : TestTempDirectory
 
     private sealed class FakeJavaRuntimeSelectionService : IJavaRuntimeSelectionService
     {
-        private readonly JavaRuntimeInfo runtime;
+        private readonly Queue<object> results = new();
+        private readonly JavaRuntimeInfo? fallbackRuntime;
 
         public FakeJavaRuntimeSelectionService(JavaRuntimeInfo runtime)
         {
-            this.runtime = runtime;
+            fallbackRuntime = runtime;
+        }
+
+        public FakeJavaRuntimeSelectionService(params object[] results)
+        {
+            foreach (var result in results)
+                this.results.Enqueue(result);
         }
 
         public LauncherSettings? LastSettings { get; private set; }
+
+        public int CallCount { get; private set; }
 
         public Task<JavaRuntimeInfo> SelectForLaunchAsync(
             GameInstance instance,
             LauncherSettings settings,
             CancellationToken cancellationToken = default)
         {
+            CallCount++;
             LastSettings = settings;
-            return Task.FromResult(runtime);
+            var result = results.Count > 0
+                ? results.Dequeue()
+                : fallbackRuntime ?? throw new InvalidOperationException("No fake Java runtime selection result was configured.");
+
+            if (result is Exception exception)
+                throw exception;
+
+            return Task.FromResult((JavaRuntimeInfo)result);
+        }
+    }
+
+    private sealed class FakeJavaRuntimeProvisioningService : IJavaRuntimeProvisioningService
+    {
+        public int CallCount { get; private set; }
+
+        public GameInstance? LastInstance { get; private set; }
+
+        public LauncherSettings? LastSettings { get; private set; }
+
+        public IProgress<LauncherProgress>? LastProgress { get; private set; }
+
+        public Exception? ExceptionToThrow { get; init; }
+
+        public Task EnsureForLaunchAsync(
+            GameInstance instance,
+            LauncherSettings settings,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            LastInstance = instance;
+            LastSettings = settings;
+            LastProgress = progress;
+            progress?.Report(new LauncherProgress(LaunchProgressStages.CheckingJava, string.Empty, 92));
+
+            if (ExceptionToThrow is not null)
+                throw ExceptionToThrow;
+
+            return Task.CompletedTask;
         }
     }
 

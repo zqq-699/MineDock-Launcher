@@ -19,6 +19,7 @@ public sealed class LaunchService : ILaunchService
     private readonly ILaunchCrashMonitor crashMonitor;
     private readonly ILaunchCommandRunner commandRunner;
     private readonly IJavaRuntimeSelectionService? javaRuntimeSelectionService;
+    private readonly IJavaRuntimeProvisioningService? javaRuntimeProvisioningService;
     private readonly ISystemMemoryService? systemMemoryService;
     private readonly IModService? modService;
     private readonly ILogger<LaunchService> logger;
@@ -26,6 +27,7 @@ public sealed class LaunchService : ILaunchService
     public LaunchService(
         ILaunchAccountSessionService accountSessionService,
         IJavaRuntimeSelectionService javaRuntimeSelectionService,
+        IJavaRuntimeProvisioningService? javaRuntimeProvisioningService = null,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ISystemMemoryService? systemMemoryService = null,
         IModService? modService = null,
@@ -37,6 +39,7 @@ public sealed class LaunchService : ILaunchService
             new LaunchCrashMonitor(),
             new LaunchCommandRunner(),
             javaRuntimeSelectionService,
+            javaRuntimeProvisioningService,
             systemMemoryService,
             modService,
             logger)
@@ -50,6 +53,7 @@ public sealed class LaunchService : ILaunchService
         ILaunchCrashMonitor crashMonitor,
         ILaunchCommandRunner? commandRunner = null,
         IJavaRuntimeSelectionService? javaRuntimeSelectionService = null,
+        IJavaRuntimeProvisioningService? javaRuntimeProvisioningService = null,
         ISystemMemoryService? systemMemoryService = null,
         IModService? modService = null,
         ILogger<LaunchService>? logger = null)
@@ -60,6 +64,7 @@ public sealed class LaunchService : ILaunchService
         this.crashMonitor = crashMonitor;
         this.commandRunner = commandRunner ?? new LaunchCommandRunner();
         this.javaRuntimeSelectionService = javaRuntimeSelectionService;
+        this.javaRuntimeProvisioningService = javaRuntimeProvisioningService;
         this.systemMemoryService = systemMemoryService;
         this.modService = modService;
         this.logger = logger ?? NullLogger<LaunchService>.Instance;
@@ -159,21 +164,12 @@ public sealed class LaunchService : ILaunchService
                     downloadSpeedLimitMbPerSecond: settings.DownloadSpeedLimitMbPerSecond);
             }
 
-            progress?.Report(new LauncherProgress(
-                LaunchProgressStages.PreparingProcess,
-                "Preparing launch process",
-                94));
-
-            var launcher = launcherFactory.Create(
-                settings.MinecraftDirectory,
-                progress,
-                settings.DownloadSpeedLimitMbPerSecond);
-            var isolatedPath = CreateIsolatedLaunchPath(settings.MinecraftDirectory, versionName);
-
             var accountSession = await accountSessionService.CreateSessionAsync(account, cancellationToken);
-            selectedJavaRuntime = javaRuntimeSelectionService is null
-                ? null
-                : await javaRuntimeSelectionService.SelectForLaunchAsync(instance, settings, cancellationToken);
+            selectedJavaRuntime = await ResolveJavaRuntimeForLaunchAsync(
+                instance,
+                settings,
+                progress,
+                cancellationToken);
             diagnosticContext = CreateDiagnosticContext(
                 instance,
                 settings,
@@ -188,6 +184,16 @@ public sealed class LaunchService : ILaunchService
                 selectedJavaRuntime?.ExecutablePath,
                 selectedJavaRuntime?.Version,
                 selectedJavaRuntime?.Source);
+            progress?.Report(new LauncherProgress(
+                LaunchProgressStages.PreparingProcess,
+                "Preparing launch process",
+                94));
+
+            var launcher = launcherFactory.Create(
+                settings.MinecraftDirectory,
+                progress,
+                settings.DownloadSpeedLimitMbPerSecond);
+            var isolatedPath = CreateIsolatedLaunchPath(settings.MinecraftDirectory, versionName);
             var launchOption = new MLaunchOption
             {
                 Path = isolatedPath,
@@ -304,6 +310,51 @@ public sealed class LaunchService : ILaunchService
                 cancellationToken);
             throw new LaunchFailedException(report, exception);
         }
+    }
+
+    private async Task<JavaRuntimeInfo?> ResolveJavaRuntimeForLaunchAsync(
+        GameInstance instance,
+        LauncherSettings settings,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        if (javaRuntimeSelectionService is null)
+            return null;
+
+        try
+        {
+            progress?.Report(new LauncherProgress(LaunchProgressStages.CheckingJava, string.Empty, 90));
+            return await javaRuntimeSelectionService.SelectForLaunchAsync(instance, settings, cancellationToken);
+        }
+        catch (JavaRuntimeSelectionException exception)
+            when (javaRuntimeProvisioningService is not null && IsAutomaticJavaRuntimeDiscoveryFailure(exception.Reason))
+        {
+            logger.LogInformation(
+                exception,
+                "Automatic Java runtime selection failed. Preparing bundled Java runtime before retrying. InstanceId={InstanceId} InstanceName={InstanceName} Reason={Reason} RequiredJavaMajorVersion={RequiredJavaMajorVersion}",
+                instance.Id,
+                instance.Name,
+                exception.Reason,
+                exception.RequiredMajorVersion);
+
+            await javaRuntimeProvisioningService.EnsureForLaunchAsync(
+                instance,
+                settings,
+                progress,
+                cancellationToken);
+
+            logger.LogInformation(
+                "Retrying Java runtime selection after provisioning. InstanceId={InstanceId} InstanceName={InstanceName}",
+                instance.Id,
+                instance.Name);
+            return await javaRuntimeSelectionService.SelectForLaunchAsync(instance, settings, cancellationToken);
+        }
+    }
+
+    private static bool IsAutomaticJavaRuntimeDiscoveryFailure(JavaRuntimeSelectionFailureReason reason)
+    {
+        return reason is JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing
+            or JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound;
     }
 
     private async Task<LaunchFailureReport> WriteFailureDiagnosticAsync(

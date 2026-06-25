@@ -4,6 +4,7 @@ using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
 using Launcher.Infrastructure.Persistence;
+using System.IO.Compression;
 
 namespace Launcher.Tests.Services;
 
@@ -869,6 +870,260 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task InstanceServiceDiscoversImportedVersionWhenJsonFileNameDiffersFromFolderName()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Imported Pack");
+        Directory.CreateDirectory(versionDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(versionDirectory, "actual-version.json"),
+            """
+            {
+              "id": "actual-version",
+              "type": "release",
+              "clientVersion": "1.20.1",
+              "mainClass": "net.minecraft.client.main.Main"
+            }
+            """);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instance = Assert.Single(await service.GetInstancesAsync());
+
+        Assert.Equal("Imported Pack", instance.VersionName);
+        Assert.Equal("1.20.1", instance.MinecraftVersion);
+        Assert.True(File.Exists(Path.Combine(versionDirectory, "actual-version.json")));
+        Assert.False(File.Exists(Path.Combine(versionDirectory, "Imported Pack.json")));
+    }
+
+    [Fact]
+    public async Task InstanceServiceUsesClientVersionMetadataForImportedVersion()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(
+            settings.MinecraftDirectory,
+            "client-version-pack",
+            type: "release",
+            clientVersion: "1.20.4",
+            writeJar: false);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instance = Assert.Single(await service.GetInstancesAsync());
+
+        Assert.Equal("1.20.4", instance.MinecraftVersion);
+    }
+
+    [Fact]
+    public async Task InstanceServiceReadsHmclPatchMetadataForMinecraftAndLoaderVersions()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "hmcl-patch-pack");
+        Directory.CreateDirectory(versionDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(versionDirectory, "hmcl-patch-pack.json"),
+            """
+            {
+              "id": "hmcl-patch-pack",
+              "patches": [
+                {
+                  "id": "game",
+                  "version": "1.20.1"
+                },
+                {
+                  "id": "fabric",
+                  "version": "0.16.10",
+                  "mainClass": "net.fabricmc.loader.impl.launch.knot.KnotClient",
+                  "libraries": [
+                    { "name": "net.fabricmc:fabric-loader:0.16.10" }
+                  ]
+                }
+              ]
+            }
+            """);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instance = Assert.Single(await service.GetInstancesAsync());
+
+        Assert.Equal("1.20.1", instance.MinecraftVersion);
+        Assert.Equal(LoaderKind.Fabric, instance.Loader);
+        Assert.Equal("0.16.10", instance.LoaderVersion);
+    }
+
+    [Fact]
+    public async Task InstanceServiceReadsNeoForgeMinecraftAndLoaderVersionsFromFmlArguments()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(
+            settings.MinecraftDirectory,
+            "argument-neoforge-pack",
+            type: "release",
+            libraries: ["net.neoforged.fancymodloader:loader:4.0.42"],
+            mainClass: "cpw.mods.bootstraplauncher.BootstrapLauncher",
+            gameArguments:
+            [
+                "--fml.forgeVersion",
+                "21.1.233",
+                "--fml.mcVersion",
+                "1.21.1",
+                "--launchTarget",
+                "forgeclient"
+            ],
+            writeJar: false);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instance = Assert.Single(await service.GetInstancesAsync());
+
+        Assert.Equal("1.21.1", instance.MinecraftVersion);
+        Assert.Equal(LoaderKind.NeoForge, instance.Loader);
+        Assert.Equal("21.1.233", instance.LoaderVersion);
+    }
+
+    [Fact]
+    public async Task InstanceServiceReadsMinecraftVersionFromFabricAndQuiltIntermediaryLibraries()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(
+            settings.MinecraftDirectory,
+            "fabric-intermediary-pack",
+            type: "release",
+            libraries:
+            [
+                "net.fabricmc:fabric-loader:0.16.10",
+                "net.fabricmc:intermediary:1.20.2"
+            ],
+            writeJar: false);
+        await CreateInstalledVersionAsync(
+            settings.MinecraftDirectory,
+            "quilt-intermediary-pack",
+            type: "release",
+            libraries:
+            [
+                "org.quiltmc:quilt-loader:0.26.0",
+                "org.quiltmc:intermediary:1.20.4"
+            ],
+            writeJar: false);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instances = (await service.GetInstancesAsync()).ToDictionary(instance => instance.VersionName);
+
+        Assert.Equal("1.20.2", instances["fabric-intermediary-pack"].MinecraftVersion);
+        Assert.Equal(LoaderKind.Fabric, instances["fabric-intermediary-pack"].Loader);
+        Assert.Equal("1.20.4", instances["quilt-intermediary-pack"].MinecraftVersion);
+        Assert.Equal(LoaderKind.Quilt, instances["quilt-intermediary-pack"].Loader);
+    }
+
+    [Fact]
+    public async Task InstanceServiceExtractsPreReleaseAndReleaseCandidateMinecraftVersionsFromNames()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "custom-1.20.2-rc1", type: "release", writeJar: false);
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "custom-1.20.2-pre1", type: "release", writeJar: false);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instances = (await service.GetInstancesAsync()).ToDictionary(instance => instance.VersionName);
+
+        Assert.Equal("1.20.2-rc1", instances["custom-1.20.2-rc1"].MinecraftVersion);
+        Assert.Equal("1.20.2-pre1", instances["custom-1.20.2-pre1"].MinecraftVersion);
+    }
+
+    [Fact]
+    public async Task InstanceServiceUsesJarVersionJsonNameAsFallbackMinecraftVersion()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "jar-version-pack", type: "release", writeJar: false);
+        CreateVersionJarWithVersionJson(
+            Path.Combine(settings.MinecraftDirectory, "versions", "jar-version-pack", "jar-version-pack.jar"),
+            "1.19.4");
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instance = Assert.Single(await service.GetInstancesAsync());
+
+        Assert.Equal("1.19.4", instance.MinecraftVersion);
+    }
+
+    [Fact]
+    public async Task InstanceServiceSkipsDirectoryWithAmbiguousJsonCandidates()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "ambiguous-pack");
+        Directory.CreateDirectory(versionDirectory);
+        await File.WriteAllTextAsync(Path.Combine(versionDirectory, "first.json"), """{ "id": "first", "clientVersion": "1.20.1" }""");
+        await File.WriteAllTextAsync(Path.Combine(versionDirectory, "second.json"), """{ "id": "second", "clientVersion": "1.20.2" }""");
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instances = await service.GetInstancesAsync();
+
+        Assert.Empty(instances);
+    }
+
+    [Fact]
+    public async Task InstanceServiceIgnoresNonVersionJsonCandidates()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var versionDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "not-a-version");
+        Directory.CreateDirectory(versionDirectory);
+        await File.WriteAllTextAsync(Path.Combine(versionDirectory, "metadata.json"), """{ "id": "metadata" }""");
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instances = await service.GetInstancesAsync();
+
+        Assert.Empty(instances);
+    }
+
+    [Fact]
     public async Task InstanceServiceInheritsVersionTypeFromParentVersion()
     {
         var settings = new LauncherSettings
@@ -1271,6 +1526,7 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         string? jar = null,
         IReadOnlyList<string>? libraries = null,
         string? launcherMinecraftVersion = null,
+        string? clientVersion = null,
         string? assetIndexId = null,
         string? mainClass = null,
         IReadOnlyList<string>? gameArguments = null,
@@ -1322,6 +1578,9 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
             };
         }
 
+        if (!string.IsNullOrWhiteSpace(clientVersion))
+            versionJson["clientVersion"] = clientVersion;
+
         if (!string.IsNullOrWhiteSpace(assetIndexId))
         {
             versionJson["assetIndex"] = new JsonObject
@@ -1336,6 +1595,16 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
 
         if (writeJar)
             await File.WriteAllTextAsync(Path.Combine(versionDirectory, $"{versionName}.jar"), "fake jar");
+    }
+
+    private static void CreateVersionJarWithVersionJson(string jarPath, string minecraftVersion)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(jarPath)!);
+        using var archive = ZipFile.Open(jarPath, ZipArchiveMode.Create);
+        var entry = archive.CreateEntry("version.json");
+        using var stream = entry.Open();
+        using var writer = new StreamWriter(stream);
+        writer.Write($$"""{ "name": "{{minecraftVersion}}" }""");
     }
 
     private static GameInstance CreateStoredInstance(string versionName)
