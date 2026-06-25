@@ -530,7 +530,7 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Text="{x:Static res:Strings.Dialog_JavaRequirementNotMetTitle}"
+                    <TextBlock Text="{Binding JavaRequirementDialogTitle}"
                                Style="{StaticResource DialogTitleTextStyle}" />
 
                     <TextBlock Grid.Row="1"

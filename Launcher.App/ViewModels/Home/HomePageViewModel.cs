@@ -210,12 +210,14 @@ public sealed partial class HomePageViewModel : ObservableObject
         }
         catch (LaunchFailedException exception)
         {
-            if (exception.InnerException is JavaRuntimeSelectionException
-                {
-                    Reason: JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound
-                } javaException)
+            if (exception.InnerException is JavaRuntimeSelectionException javaException
+                && IsAutomaticJavaRuntimeDiscoveryFailure(javaException.Reason))
             {
-                JavaRequirementNotMet?.Invoke(this, new JavaRequirementNotMetEventArgs(javaException.RequiredMajorVersion));
+                JavaRequirementNotMet?.Invoke(this, new JavaRequirementNotMetEventArgs(
+                    javaException.RequiredMajorVersion,
+                    javaException.Reason));
+                statusService.Report(Strings.Status_JavaSelectionFailed);
+                return;
             }
 
             ReportLaunchFailure(exception.Report);
@@ -230,8 +232,10 @@ public sealed partial class HomePageViewModel : ObservableObject
         }
         catch (JavaRuntimeSelectionException exception)
         {
-            if (exception.Reason is JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound)
-                JavaRequirementNotMet?.Invoke(this, new JavaRequirementNotMetEventArgs(exception.RequiredMajorVersion));
+            if (IsAutomaticJavaRuntimeDiscoveryFailure(exception.Reason))
+                JavaRequirementNotMet?.Invoke(this, new JavaRequirementNotMetEventArgs(
+                    exception.RequiredMajorVersion,
+                    exception.Reason));
 
             statusService.Report(Strings.Status_JavaSelectionFailed);
         }
@@ -445,15 +449,26 @@ public sealed partial class HomePageViewModel : ObservableObject
             _ => Strings.Status_LaunchFailed
         };
     }
+
+    private static bool IsAutomaticJavaRuntimeDiscoveryFailure(JavaRuntimeSelectionFailureReason reason)
+    {
+        return reason is JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing
+            or JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound;
+    }
 }
 
 public sealed class JavaRequirementNotMetEventArgs : EventArgs
 {
-    public JavaRequirementNotMetEventArgs(int? requiredMajorVersion)
+    public JavaRequirementNotMetEventArgs(
+        int? requiredMajorVersion,
+        JavaRuntimeSelectionFailureReason reason)
     {
         RequiredMajorVersion = requiredMajorVersion;
+        Reason = reason;
     }
 
     public int? RequiredMajorVersion { get; }
+
+    public JavaRuntimeSelectionFailureReason Reason { get; }
 }
 

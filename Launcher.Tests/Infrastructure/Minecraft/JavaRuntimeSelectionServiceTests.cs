@@ -175,6 +175,23 @@ public sealed class JavaRuntimeSelectionServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task AutomaticSelectionThrowsMissingReasonWhenNoRuntimeIsDiscovered()
+    {
+        var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService());
+        var settings = new LauncherSettings();
+        var instance = new GameInstance
+        {
+            MinecraftVersion = "1.20.5"
+        };
+
+        var exception = await Assert.ThrowsAsync<JavaRuntimeSelectionException>(() =>
+            service.SelectForLaunchAsync(instance, settings));
+
+        Assert.Equal(JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing, exception.Reason);
+        Assert.Equal(21, exception.RequiredMajorVersion);
+    }
+
+    [Fact]
     public async Task AutomaticSelectionThrowsReasonWhenNoCompatibleRuntimeIsFound()
     {
         var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService

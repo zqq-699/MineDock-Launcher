@@ -51,6 +51,9 @@ public sealed partial class MainViewModel : ObservableObject
     private bool isJavaRequirementDialogOpen;
 
     [ObservableProperty]
+    private string javaRequirementDialogTitle = Strings.Dialog_JavaRequirementNotMetTitle;
+
+    [ObservableProperty]
     private string javaRequirementDialogMessage = string.Empty;
 
     public MainViewModel(
@@ -386,9 +389,21 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void HomePage_JavaRequirementNotMet(object? sender, JavaRequirementNotMetEventArgs e)
     {
-        JavaRequirementDialogMessage = e.RequiredMajorVersion is int requiredMajorVersion
-            ? string.Format(Strings.Dialog_JavaRequirementNotMetMessageFormat, requiredMajorVersion)
-            : Strings.Dialog_JavaRequirementNotMetMessage;
+        if (e.Reason is JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing)
+        {
+            JavaRequirementDialogTitle = Strings.Dialog_JavaRuntimeMissingTitle;
+            JavaRequirementDialogMessage = e.RequiredMajorVersion is int missingRequiredMajorVersion
+                ? string.Format(Strings.Dialog_JavaRuntimeMissingMessageFormat, missingRequiredMajorVersion)
+                : Strings.Dialog_JavaRuntimeMissingMessage;
+        }
+        else
+        {
+            JavaRequirementDialogTitle = Strings.Dialog_JavaRequirementNotMetTitle;
+            JavaRequirementDialogMessage = e.RequiredMajorVersion is int requiredMajorVersion
+                ? string.Format(Strings.Dialog_JavaRequirementNotMetMessageFormat, requiredMajorVersion)
+                : Strings.Dialog_JavaRequirementNotMetMessage;
+        }
+
         IsJavaRequirementDialogOpen = true;
     }
 

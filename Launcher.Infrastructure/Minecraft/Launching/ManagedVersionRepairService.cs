@@ -138,7 +138,6 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             bandwidthLimiter);
 
         ReportProgress(progress, LaunchProgressStages.CheckingJava, "Checking Java runtime", 90);
-        EnsureJavaIsUsable();
     }
 
     internal async Task<ResolvedVersionMetadata> EnsureVersionIsSelfContainedAsync(
@@ -511,37 +510,6 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             cancellationToken,
             downloadSpeedLimitMbPerSecond,
             bandwidthLimiter);
-    }
-
-    private static void EnsureJavaIsUsable()
-    {
-        var command = OperatingSystem.IsWindows() ? "where" : "which";
-        var argument = OperatingSystem.IsWindows() ? "java" : "java";
-        try
-        {
-            using var process = new System.Diagnostics.Process
-            {
-                StartInfo = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = command,
-                    Arguments = argument,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-
-            process.Start();
-            process.WaitForExit();
-            if (process.ExitCode == 0)
-                return;
-        }
-        catch
-        {
-        }
-
-        throw new InstanceRepairException("No usable Java runtime was found.");
     }
 
     private IEnumerable<LibraryArtifact> EnumerateLibraryDownloads(JsonObject library)

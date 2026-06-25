@@ -554,6 +554,9 @@
   <data name="Dialog_JavaRequirementNotMetTitle" xml:space="preserve"><value>未找到满足要求的 Java</value></data>
   <data name="Dialog_JavaRequirementNotMetMessage" xml:space="preserve"><value>自动选择 Java 时没有找到满足当前版本要求的 Java。请到设置中刷新或导入合适的 Java 后再启动游戏。</value></data>
   <data name="Dialog_JavaRequirementNotMetMessageFormat" xml:space="preserve"><value>自动选择 Java 时没有找到满足当前版本要求的 Java。当前版本至少需要 Java {0}。请到设置中刷新或导入合适的 Java 后再启动游戏。</value></data>
+  <data name="Dialog_JavaRuntimeMissingTitle" xml:space="preserve"><value>未找到 Java</value></data>
+  <data name="Dialog_JavaRuntimeMissingMessage" xml:space="preserve"><value>自动选择 Java 时没有在本机找到可用的 Java。请到设置中刷新或导入合适的 Java 后再启动游戏。</value></data>
+  <data name="Dialog_JavaRuntimeMissingMessageFormat" xml:space="preserve"><value>自动选择 Java 时没有在本机找到可用的 Java。当前版本至少需要 Java {0}。请到设置中刷新或导入合适的 Java 后再启动游戏。</value></data>
   <data name="Dialog_GoToSettingsButton" xml:space="preserve"><value>转到设置</value></data>
   <data name="Dialog_LaunchStatusFailedTitle" xml:space="preserve"><value>游戏启动失败</value></data>
   <data name="Dialog_LaunchStatusExitedTitle" xml:space="preserve"><value>游戏进程已退出</value></data>

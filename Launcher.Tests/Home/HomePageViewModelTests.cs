@@ -474,6 +474,83 @@ public sealed class HomePageViewModelTests
         Assert.Equal(Strings.Status_JavaSelectionFailed, statusService.LastMessage);
         Assert.NotNull(eventArgs);
         Assert.Equal(21, eventArgs.RequiredMajorVersion);
+        Assert.Equal(JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound, eventArgs.Reason);
+        Assert.False(viewModel.IsLaunching);
+    }
+
+    [Fact]
+    public async Task HomePageLaunchRaisesJavaRequirementEventForAutomaticRuntimeMissing()
+    {
+        var statusService = new FakeStatusService();
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new JavaRuntimeSelectionException(
+                "missing java",
+                JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing,
+                21)
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "LocalUser",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+        var viewModel = CreateViewModel(statusService, launchService: launchService, selectedAccount: account);
+        viewModel.SetSelectedInstance(CreateInstance("first", "First World", "1.20.5", LoaderKind.Vanilla));
+        JavaRequirementNotMetEventArgs? eventArgs = null;
+        viewModel.JavaRequirementNotMet += (_, args) => eventArgs = args;
+
+        await viewModel.LaunchCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_JavaSelectionFailed, statusService.LastMessage);
+        Assert.NotNull(eventArgs);
+        Assert.Equal(21, eventArgs.RequiredMajorVersion);
+        Assert.Equal(JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing, eventArgs.Reason);
+        Assert.False(viewModel.IsLaunching);
+    }
+
+    [Theory]
+    [InlineData(JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound)]
+    [InlineData(JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing)]
+    public async Task HomePageLaunchSuppressesLaunchFailureDialogForWrappedAutomaticJavaFailure(
+        JavaRuntimeSelectionFailureReason reason)
+    {
+        var statusService = new FakeStatusService();
+        var report = new LaunchFailureReport(
+            LaunchFailureKind.StartupFailed,
+            "First World",
+            "1.20.5",
+            null,
+            @"C:\temp\diagnostic.log",
+            @"C:\temp");
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new LaunchFailedException(
+                report,
+                new JavaRuntimeSelectionException("missing java", reason, 21))
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "LocalUser",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+        var viewModel = CreateViewModel(statusService, launchService: launchService, selectedAccount: account);
+        viewModel.SetSelectedInstance(CreateInstance("first", "First World", "1.20.5", LoaderKind.Vanilla));
+        JavaRequirementNotMetEventArgs? eventArgs = null;
+        var launchFailureReported = false;
+        viewModel.JavaRequirementNotMet += (_, args) => eventArgs = args;
+        viewModel.LaunchFailureReported += (_, _) => launchFailureReported = true;
+
+        await viewModel.LaunchCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_JavaSelectionFailed, statusService.LastMessage);
+        Assert.NotNull(eventArgs);
+        Assert.Equal(21, eventArgs.RequiredMajorVersion);
+        Assert.Equal(reason, eventArgs.Reason);
+        Assert.False(launchFailureReported);
         Assert.False(viewModel.IsLaunching);
     }
 

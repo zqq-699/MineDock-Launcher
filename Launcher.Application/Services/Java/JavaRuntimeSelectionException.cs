@@ -31,6 +31,7 @@ public sealed class JavaRuntimeSelectionException : Exception
 public enum JavaRuntimeSelectionFailureReason
 {
     Unknown,
+    AutomaticRuntimeMissing,
     AutomaticRuntimeNotFound,
     ManualRuntimeMissing,
     ManualRuntimeUnavailable

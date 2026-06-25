@@ -439,6 +439,9 @@ public static class Strings
     public static string Dialog_JavaRequirementNotMetTitle => Get(nameof(Dialog_JavaRequirementNotMetTitle));
     public static string Dialog_JavaRequirementNotMetMessage => Get(nameof(Dialog_JavaRequirementNotMetMessage));
     public static string Dialog_JavaRequirementNotMetMessageFormat => Get(nameof(Dialog_JavaRequirementNotMetMessageFormat));
+    public static string Dialog_JavaRuntimeMissingTitle => Get(nameof(Dialog_JavaRuntimeMissingTitle));
+    public static string Dialog_JavaRuntimeMissingMessage => Get(nameof(Dialog_JavaRuntimeMissingMessage));
+    public static string Dialog_JavaRuntimeMissingMessageFormat => Get(nameof(Dialog_JavaRuntimeMissingMessageFormat));
     public static string Dialog_GoToSettingsButton => Get(nameof(Dialog_GoToSettingsButton));
     public static string Dialog_RenameAccountTitle => Get(nameof(Dialog_RenameAccountTitle));
     public static string Dialog_RenameAccountBusyTitle => Get(nameof(Dialog_RenameAccountBusyTitle));

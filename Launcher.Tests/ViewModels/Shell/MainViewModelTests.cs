@@ -334,11 +334,68 @@ public sealed class MainViewModelTests
         await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
 
         Assert.True(viewModel.IsJavaRequirementDialogOpen);
+        Assert.Equal(Strings.Dialog_JavaRequirementNotMetTitle, viewModel.JavaRequirementDialogTitle);
         Assert.Contains("Java 21", viewModel.JavaRequirementDialogMessage);
 
         viewModel.CloseJavaRequirementDialogCommand.Execute(null);
 
         Assert.False(viewModel.IsJavaRequirementDialogOpen);
+    }
+
+    [Fact]
+    public async Task AutomaticJavaMissingFailureOpensDialog()
+    {
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new JavaRuntimeSelectionException(
+                "missing java",
+                JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing,
+                21)
+        };
+        var account = CreateOfflineAccount();
+        var viewModel = CreateViewModel(
+            new FakeGameInstanceService(),
+            launchService: launchService,
+            selectedAccount: account);
+        viewModel.HomePage.SetSelectedInstance(CreateInstance("Vanilla World", "1.20.5"));
+
+        await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsJavaRequirementDialogOpen);
+        Assert.Equal(Strings.Dialog_JavaRuntimeMissingTitle, viewModel.JavaRequirementDialogTitle);
+        Assert.Contains("Java 21", viewModel.JavaRequirementDialogMessage);
+        Assert.Contains("本机", viewModel.JavaRequirementDialogMessage);
+    }
+
+    [Theory]
+    [InlineData(JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound)]
+    [InlineData(JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing)]
+    public async Task WrappedAutomaticJavaFailureOpensOnlyJavaDialog(JavaRuntimeSelectionFailureReason reason)
+    {
+        var report = new LaunchFailureReport(
+            LaunchFailureKind.StartupFailed,
+            "Vanilla World",
+            "1.20.5",
+            null,
+            @"C:\logs\launch-diagnostics.log",
+            @"C:\logs");
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new LaunchFailedException(
+                report,
+                new JavaRuntimeSelectionException("missing java", reason, 21))
+        };
+        var viewModel = CreateViewModel(
+            new FakeGameInstanceService(),
+            launchService: launchService,
+            selectedAccount: CreateOfflineAccount());
+        viewModel.HomePage.SetSelectedInstance(CreateInstance("Vanilla World", "1.20.5"));
+
+        await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsJavaRequirementDialogOpen);
+        Assert.False(viewModel.LaunchStatusDialog.IsOpen);
+        Assert.Contains("Java 21", viewModel.JavaRequirementDialogMessage);
     }
 
     [Fact]

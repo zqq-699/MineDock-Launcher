@@ -144,6 +144,17 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
             settings.MinecraftDirectory,
             cancellationToken);
         var requiredMajorVersion = ResolveRequiredMajorVersion(instance, settings);
+        if (runtimes.Count == 0)
+        {
+            var missingRequirementText = requiredMajorVersion is int missingRequired
+                ? $"Java {missingRequired} or newer"
+                : "a usable Java runtime";
+            throw new JavaRuntimeSelectionException(
+                $"No {missingRequirementText} was found.",
+                JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing,
+                requiredMajorVersion);
+        }
+
         var selectedRuntime = SelectBestRuntime(runtimes, requiredMajorVersion);
 
         if (selectedRuntime is not null)
