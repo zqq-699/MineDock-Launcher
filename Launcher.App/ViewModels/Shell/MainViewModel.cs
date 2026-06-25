@@ -353,8 +353,14 @@ public sealed partial class MainViewModel : ObservableObject
         _ = OpenResourcesModsForInstanceAsync(instance);
     }
 
-    private void GameSettingsPage_InstancesChanged()
+    private void GameSettingsPage_InstancesChanged(GameSettingsInstancesChangedEventArgs args)
     {
+        if (args.Kind is GameSettingsInstancesChangedKind.Updated && args.UpdatedInstance is not null)
+        {
+            ApplyUpdatedInstanceFromGameSettings(args.UpdatedInstance);
+            return;
+        }
+
         _ = SyncInstancesFromGameSettingsAsync();
     }
 
@@ -455,6 +461,13 @@ public sealed partial class MainViewModel : ObservableObject
         {
             statusService.Report(Strings.Status_LoadInstancesFailed);
         }
+    }
+
+    private void ApplyUpdatedInstanceFromGameSettings(GameInstance instance)
+    {
+        GameManagement.ApplyUpdatedInstance(instance);
+        HomePage.SetLaunchInstances(GameManagement.Instances);
+        HomePage.SetSelectedInstance(GameManagement.SelectedInstance);
     }
 
     private async Task RefreshMinecraftDirectoryInstancesAsync()

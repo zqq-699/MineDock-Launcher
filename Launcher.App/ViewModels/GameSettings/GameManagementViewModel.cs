@@ -126,6 +126,11 @@ public sealed partial class GameManagementViewModel : ObservableObject
         return InstancesViewModel.SelectLaunchInstanceAsync(instance);
     }
 
+    public void ApplyUpdatedInstance(GameInstance instance)
+    {
+        InstancesViewModel.ApplyUpdatedInstance(instance);
+    }
+
     [RelayCommand]
     private Task LoadMinecraftVersionsAsync()
     {

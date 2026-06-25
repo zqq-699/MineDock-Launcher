@@ -457,7 +457,7 @@ public sealed class GameSettingsPageViewModelTests
         var statusService = new FakeStatusService();
         var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), statusService, new FakeInstanceFolderService());
         var syncRequested = 0;
-        viewModel.InstancesChanged += () => syncRequested++;
+        viewModel.InstancesChanged += _ => syncRequested++;
 
         await viewModel.EnsureInstancesLoadedAsync();
         var item = viewModel.VisibleInstances.Single(instance => instance.Name == "Fabric Pack");
@@ -3124,7 +3124,12 @@ public sealed class GameSettingsPageViewModelTests
         var statusService = new FakeStatusService();
         var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), statusService, new FakeInstanceFolderService());
         var syncRequested = 0;
-        viewModel.InstancesChanged += () => syncRequested++;
+        GameSettingsInstancesChangedEventArgs? changeArgs = null;
+        viewModel.InstancesChanged += args =>
+        {
+            syncRequested++;
+            changeArgs = args;
+        };
 
         await viewModel.EnsureInstancesLoadedAsync();
         viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
@@ -3141,6 +3146,8 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Equal("Renamed World", viewModel.PageTitle);
         Assert.Equal("Renamed World", viewModel.Details.InstanceName);
         Assert.Equal(1, syncRequested);
+        Assert.Equal(GameSettingsInstancesChangedKind.Updated, changeArgs?.Kind);
+        Assert.Equal(viewModel.SelectedInstance?.Instance.Id, changeArgs?.UpdatedInstance?.Id);
         Assert.Equal(viewModel.SelectedInstance?.Instance.Id, instanceService.LastRenamedInstanceId);
         Assert.Equal("Renamed World", instanceService.LastRenamedName);
         Assert.Equal("/Assets/Icons/block/diamond_block.png", instanceService.LastRenamedIconSource);

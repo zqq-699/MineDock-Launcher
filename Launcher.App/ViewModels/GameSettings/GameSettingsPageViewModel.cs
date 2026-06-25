@@ -154,7 +154,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     public event Action<GameInstance>? LaunchInstanceRequested;
 
-    public event Action? InstancesChanged;
+    public event Action<GameSettingsInstancesChangedEventArgs>? InstancesChanged;
 
     public event Action<GameInstance>? OnlineModInstallRequested;
 
@@ -634,7 +634,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
             statusService.Report(string.Format(Strings.Status_InstanceDeletedFormat, deletedName));
             RemoveInstanceLocally(pendingDelete.Instance.Id);
-            InstancesChanged?.Invoke();
+            InstancesChanged?.Invoke(GameSettingsInstancesChangedEventArgs.Deleted(pendingDelete.Instance.Id));
         }
         catch (Exception)
         {
@@ -1127,12 +1127,12 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             CurrentStep = GameSettingsPageStep.Details;
         }
 
-        InstancesChanged?.Invoke();
+        InstancesChanged?.Invoke(GameSettingsInstancesChangedEventArgs.Updated(updatedInstance));
     }
 
     private void Details_InstanceSettingsSaved(GameInstance instance)
     {
         AddOrUpdateInstance(instance);
-        InstancesChanged?.Invoke();
+        InstancesChanged?.Invoke(GameSettingsInstancesChangedEventArgs.Updated(instance));
     }
 }

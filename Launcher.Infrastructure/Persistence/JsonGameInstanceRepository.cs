@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Text.Json;
@@ -211,9 +212,13 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
         var sourceDirectory = Path.Combine(versionsDirectory, oldVersionName);
         var destinationDirectory = Path.Combine(versionsDirectory, newVersionName);
-        var stagingDirectory = Path.Combine(versionsDirectory, $"{LauncherDirectoryName}-rename-{Guid.NewGuid():N}");
-        var backupDirectory = Path.Combine(versionsDirectory, $"{LauncherDirectoryName}-backup-{Guid.NewGuid():N}");
         var sourceJsonPath = Path.Combine(sourceDirectory, $"{oldVersionName}.json");
+        var destinationJsonPath = Path.Combine(destinationDirectory, $"{newVersionName}.json");
+        var destinationJarPath = Path.Combine(destinationDirectory, $"{newVersionName}.jar");
+        var movedJsonPath = Path.Combine(destinationDirectory, $"{oldVersionName}.json");
+        var movedJarPath = Path.Combine(destinationDirectory, $"{oldVersionName}.jar");
+        var temporaryJsonPath = Path.Combine(destinationDirectory, $"{LauncherDirectoryName}-rename-{Guid.NewGuid():N}.json.tmp");
+        var backupJsonPath = Path.Combine(destinationDirectory, $"{LauncherDirectoryName}-rename-{Guid.NewGuid():N}.json.bak");
 
         if (!Directory.Exists(sourceDirectory))
             throw new DirectoryNotFoundException($"Version directory not found: {sourceDirectory}");
@@ -226,45 +231,73 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 
         var versionJson = await ReadVersionJsonAsync(sourceJsonPath, cancellationToken);
         RewriteVersionIdentity(versionJson, oldVersionName, newVersionName);
+        var rewrittenVersionJson = versionJson.ToJsonString(JsonOptions);
+        var oldJarExists = File.Exists(Path.Combine(sourceDirectory, $"{oldVersionName}.jar"));
+        var stopwatch = Stopwatch.StartNew();
+        var directoryMoved = false;
+        var jsonMoved = false;
+        var jarMoved = false;
+        var jsonReplaced = false;
+
+        logger.LogInformation(
+            "Version directory rename started. OldVersionName={OldVersionName} NewVersionName={NewVersionName}",
+            oldVersionName,
+            newVersionName);
 
         try
         {
-            await CopyVersionDirectoryAsync(
-                sourceDirectory,
-                stagingDirectory,
+            Directory.Move(sourceDirectory, destinationDirectory);
+            directoryMoved = true;
+
+            cancellationToken.ThrowIfCancellationRequested();
+            File.Move(movedJsonPath, destinationJsonPath);
+            jsonMoved = true;
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (oldJarExists)
+            {
+                File.Move(movedJarPath, destinationJarPath);
+                jarMoved = true;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            await File.WriteAllTextAsync(temporaryJsonPath, rewrittenVersionJson, cancellationToken);
+            File.Replace(temporaryJsonPath, destinationJsonPath, backupJsonPath, ignoreMetadataErrors: true);
+            jsonReplaced = true;
+
+            if (File.Exists(backupJsonPath))
+                File.Delete(backupJsonPath);
+
+            logger.LogInformation(
+                "Version directory renamed. OldVersionName={OldVersionName} NewVersionName={NewVersionName} ElapsedMs={ElapsedMs}",
                 oldVersionName,
                 newVersionName,
-                versionJson,
-                cancellationToken);
-
-            Directory.Move(sourceDirectory, backupDirectory);
-
-            try
-            {
-                Directory.Move(stagingDirectory, destinationDirectory);
-                Directory.Delete(backupDirectory, recursive: true);
-            }
-            catch
-            {
-                if (Directory.Exists(destinationDirectory))
-                    Directory.Delete(destinationDirectory, recursive: true);
-
-                if (Directory.Exists(backupDirectory) && !Directory.Exists(sourceDirectory))
-                    Directory.Move(backupDirectory, sourceDirectory);
-
-                throw;
-            }
+                stopwatch.ElapsedMilliseconds);
         }
-        finally
+        catch (Exception exception)
         {
-            if (Directory.Exists(stagingDirectory))
-                Directory.Delete(stagingDirectory, recursive: true);
+            var rollbackSucceeded = TryRollbackRename(
+                sourceDirectory,
+                destinationDirectory,
+                movedJsonPath,
+                destinationJsonPath,
+                movedJarPath,
+                destinationJarPath,
+                temporaryJsonPath,
+                backupJsonPath,
+                directoryMoved,
+                jsonMoved,
+                jarMoved,
+                jsonReplaced);
+            logger.LogError(
+                exception,
+                "Version directory rename failed. OldVersionName={OldVersionName} NewVersionName={NewVersionName} ElapsedMs={ElapsedMs} RollbackSucceeded={RollbackSucceeded}",
+                oldVersionName,
+                newVersionName,
+                stopwatch.ElapsedMilliseconds,
+                rollbackSucceeded);
+            throw;
         }
-
-        logger.LogInformation(
-            "Version directory renamed. OldVersionName={OldVersionName} NewVersionName={NewVersionName}",
-            oldVersionName,
-            newVersionName);
     }
 
     private static string GetInstanceSettingsPath(string versionDirectory)
@@ -431,57 +464,61 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         }
     }
 
-    private static async Task CopyVersionDirectoryAsync(
+    private static bool TryRollbackRename(
         string sourceDirectory,
-        string stagingDirectory,
-        string oldVersionName,
-        string newVersionName,
-        JsonObject rewrittenVersionJson,
-        CancellationToken cancellationToken)
+        string destinationDirectory,
+        string movedJsonPath,
+        string destinationJsonPath,
+        string movedJarPath,
+        string destinationJarPath,
+        string temporaryJsonPath,
+        string backupJsonPath,
+        bool directoryMoved,
+        bool jsonMoved,
+        bool jarMoved,
+        bool jsonReplaced)
     {
-        Directory.CreateDirectory(stagingDirectory);
-
         try
         {
-            foreach (var sourceFilePath in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
+            TryDeleteFile(temporaryJsonPath);
 
-                var relativePath = Path.GetRelativePath(sourceDirectory, sourceFilePath);
-                var destinationRelativePath = RewriteTopLevelVersionFileName(relativePath, oldVersionName, newVersionName);
-                var destinationPath = Path.Combine(stagingDirectory, destinationRelativePath);
-                Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+            if (jsonReplaced)
+                RestoreReplacedJson(destinationJsonPath, backupJsonPath);
+            else
+                TryDeleteFile(backupJsonPath);
 
-                if (string.Equals(relativePath, $"{oldVersionName}.json", StringComparison.OrdinalIgnoreCase))
-                {
-                    await File.WriteAllTextAsync(
-                        destinationPath,
-                        rewrittenVersionJson.ToJsonString(JsonOptions),
-                        cancellationToken);
-                    continue;
-                }
+            if (jarMoved && File.Exists(destinationJarPath) && !File.Exists(movedJarPath))
+                File.Move(destinationJarPath, movedJarPath);
 
-                File.Copy(sourceFilePath, destinationPath, overwrite: false);
-            }
+            if (jsonMoved && File.Exists(destinationJsonPath) && !File.Exists(movedJsonPath))
+                File.Move(destinationJsonPath, movedJsonPath);
+
+            if (directoryMoved && Directory.Exists(destinationDirectory) && !Directory.Exists(sourceDirectory))
+                Directory.Move(destinationDirectory, sourceDirectory);
+
+            return true;
         }
         catch
         {
-            if (Directory.Exists(stagingDirectory))
-                Directory.Delete(stagingDirectory, recursive: true);
-
-            throw;
+            return false;
         }
     }
 
-    private static string RewriteTopLevelVersionFileName(string relativePath, string oldVersionName, string newVersionName)
+    private static void RestoreReplacedJson(string destinationJsonPath, string backupJsonPath)
     {
-        if (string.Equals(relativePath, $"{oldVersionName}.json", StringComparison.OrdinalIgnoreCase))
-            return $"{newVersionName}.json";
+        if (!File.Exists(backupJsonPath))
+            return;
 
-        if (string.Equals(relativePath, $"{oldVersionName}.jar", StringComparison.OrdinalIgnoreCase))
-            return $"{newVersionName}.jar";
+        if (File.Exists(destinationJsonPath))
+            File.Delete(destinationJsonPath);
 
-        return relativePath;
+        File.Move(backupJsonPath, destinationJsonPath);
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        if (File.Exists(path))
+            File.Delete(path);
     }
 
     private static string GetVersionName(GameInstance instance)

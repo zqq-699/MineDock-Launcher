@@ -1412,6 +1412,13 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
             "Old Pack",
             type: "release",
             launcherMinecraftVersion: "1.20.1");
+        var oldDirectoryBeforeRename = Path.Combine(settings.MinecraftDirectory, "versions", "Old Pack");
+        Directory.CreateDirectory(Path.Combine(oldDirectoryBeforeRename, "mods"));
+        Directory.CreateDirectory(Path.Combine(oldDirectoryBeforeRename, "config"));
+        Directory.CreateDirectory(Path.Combine(oldDirectoryBeforeRename, "saves", "World One"));
+        await File.WriteAllTextAsync(Path.Combine(oldDirectoryBeforeRename, "mods", "example.jar"), "mod");
+        await File.WriteAllTextAsync(Path.Combine(oldDirectoryBeforeRename, "config", "example.cfg"), "config");
+        await File.WriteAllTextAsync(Path.Combine(oldDirectoryBeforeRename, "saves", "World One", "level.dat"), "save");
         await repository.SaveAllAsync(
         [
             new GameInstance
@@ -1442,6 +1449,9 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         Assert.False(File.Exists(Path.Combine(newDirectory, "Old Pack.jar")));
         Assert.True(File.Exists(Path.Combine(newDirectory, "Renamed Pack.json")));
         Assert.True(File.Exists(Path.Combine(newDirectory, "Renamed Pack.jar")));
+        Assert.True(File.Exists(Path.Combine(newDirectory, "mods", "example.jar")));
+        Assert.True(File.Exists(Path.Combine(newDirectory, "config", "example.cfg")));
+        Assert.True(File.Exists(Path.Combine(newDirectory, "saves", "World One", "level.dat")));
 
         using var jsonDocument = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(newDirectory, "Renamed Pack.json")));
         Assert.Equal("Renamed Pack", jsonDocument.RootElement.GetProperty("id").GetString());
@@ -1454,6 +1464,47 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         Assert.Equal(
             Path.Combine(settings.MinecraftDirectory, "versions", "Renamed Pack"),
             storedInstance.InstanceDirectory);
+    }
+
+    [Fact]
+    public async Task RenameInstanceAsyncRollsBackWhenPrimaryJarRenameFails()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "Old Pack");
+        var oldDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Old Pack");
+        await File.WriteAllTextAsync(Path.Combine(oldDirectory, "Renamed Pack.jar"), "conflict");
+        await repository.SaveAllAsync(
+        [
+            new GameInstance
+            {
+                Id = "old",
+                Name = "Old Pack",
+                MinecraftVersion = "1.20.1",
+                VersionName = "Old Pack",
+                InstanceDirectory = oldDirectory
+            }
+        ]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            service.RenameInstanceAsync("old", "Renamed Pack", null));
+
+        var newDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Renamed Pack");
+        Assert.True(Directory.Exists(oldDirectory));
+        Assert.False(Directory.Exists(newDirectory));
+        Assert.True(File.Exists(Path.Combine(oldDirectory, "Old Pack.json")));
+        Assert.True(File.Exists(Path.Combine(oldDirectory, "Old Pack.jar")));
+        Assert.True(File.Exists(Path.Combine(oldDirectory, "Renamed Pack.jar")));
+
+        using var jsonDocument = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(oldDirectory, "Old Pack.json")));
+        Assert.Equal("Old Pack", jsonDocument.RootElement.GetProperty("id").GetString());
+        Assert.Equal("Old Pack", jsonDocument.RootElement.GetProperty("jar").GetString());
     }
 
     [Fact]

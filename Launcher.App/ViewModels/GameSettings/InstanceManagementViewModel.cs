@@ -158,6 +158,27 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
         return true;
     }
 
+    public void ApplyUpdatedInstance(GameInstance instance)
+    {
+        var index = FindInstanceIndex(instance.Id);
+        var wasSelected = string.Equals(SelectedInstance?.Id, instance.Id, StringComparison.OrdinalIgnoreCase);
+
+        if (index >= 0)
+            Instances[index] = instance;
+        else
+            Instances.Add(instance);
+
+        if (wasSelected || SelectedInstance is null)
+            SelectedInstance = instance;
+
+        hasLoadedInstances = true;
+        logger.LogInformation(
+            "Game management instance updated locally. InstanceId={InstanceId} Count={InstanceCount} SelectedInstanceId={SelectedInstanceId}",
+            instance.Id,
+            Instances.Count,
+            SelectedInstance?.Id);
+    }
+
     private async Task RefreshInstancesCoreAsync()
     {
         var loadedInstances = await instanceService.GetInstancesAsync();
@@ -179,6 +200,17 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
             "Game management instances refreshed. Count={InstanceCount} SelectedInstanceId={SelectedInstanceId}",
             Instances.Count,
             SelectedInstance?.Id);
+    }
+
+    private int FindInstanceIndex(string instanceId)
+    {
+        for (var index = 0; index < Instances.Count; index++)
+        {
+            if (string.Equals(Instances[index].Id, instanceId, StringComparison.OrdinalIgnoreCase))
+                return index;
+        }
+
+        return -1;
     }
 
     private void ReportStatus(string message)

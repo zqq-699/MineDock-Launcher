@@ -210,6 +210,33 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task GameSettingsRenameUpdatesHomeAndGameManagementWithoutFullRefresh()
+    {
+        var instanceService = new FakeGameInstanceService();
+        var defaultInstance = CreateInstance("Vanilla World", "1.21.4");
+        var editedInstance = CreateInstance("Fabric Pack", "1.20.1");
+        instanceService.CreatedInstances.Add(defaultInstance);
+        instanceService.CreatedInstances.Add(editedInstance);
+        var viewModel = CreateViewModel(instanceService);
+
+        await viewModel.InitializeAsync();
+        await viewModel.GameSettingsPage.EnsureInstancesLoadedAsync();
+        var getInstancesCallCount = instanceService.GetInstancesCallCount;
+        var editedItem = viewModel.GameSettingsPage.VisibleInstances.Single(instance => instance.Instance.Id == editedInstance.Id);
+        viewModel.GameSettingsPage.SelectInstanceCommand.Execute(editedItem);
+        viewModel.GameSettingsPage.Details.RequestEditInstanceCommand.Execute(null);
+        viewModel.GameSettingsPage.EditDialog.InstanceName = "Renamed Fabric";
+
+        await viewModel.GameSettingsPage.ConfirmEditInstanceDialogCommand.ExecuteAsync(null);
+
+        Assert.Equal(getInstancesCallCount, instanceService.GetInstancesCallCount);
+        Assert.Equal(defaultInstance.Id, viewModel.GameManagement.SelectedInstance?.Id);
+        Assert.Contains(viewModel.GameManagement.Instances, instance => instance.Id == editedInstance.Id && instance.Name == "Renamed Fabric");
+        Assert.Contains(viewModel.HomePage.LaunchInstances, item => item.Instance.Id == editedInstance.Id && item.Name == "Renamed Fabric");
+        Assert.Equal(defaultInstance.Id, viewModel.HomePage.SelectedInstance?.Id);
+    }
+
+    [Fact]
     public async Task GameSettingsStateSyncRefreshesInstancesWithoutReplayingEntranceAnimation()
     {
         var instanceService = new FakeGameInstanceService();
