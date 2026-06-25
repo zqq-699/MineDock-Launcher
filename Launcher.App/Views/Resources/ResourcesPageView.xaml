@@ -18,7 +18,33 @@
         </DataTemplate>
 
         <DataTemplate x:Key="ResourcesModFilterTemplate" DataType="{x:Type resources:ResourcesModPageViewModel}">
-            <views:ResourcesModFilterView />
+            <Grid>
+                <views:ResourcesModFilterView>
+                    <views:ResourcesModFilterView.Style>
+                        <Style TargetType="views:ResourcesModFilterView">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsProjectVersionsStep}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </views:ResourcesModFilterView.Style>
+                </views:ResourcesModFilterView>
+
+                <views:ResourcesModVersionFilterView>
+                    <views:ResourcesModVersionFilterView.Style>
+                        <Style TargetType="views:ResourcesModVersionFilterView">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsProjectVersionsStep}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </views:ResourcesModVersionFilterView.Style>
+                </views:ResourcesModVersionFilterView>
+            </Grid>
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type resources:ResourcesModPageViewModel}">
@@ -56,7 +82,7 @@
                                 TitleIconSource="{Binding PageTitleIconSource}"
                                 IsHeaderBackButtonVisible="{Binding IsModProjectDetailsStep}"
                                 HeaderBackCommand="{Binding ModPage.BackToProjectListCommand}"
-                                SearchText="{Binding ModPage.SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                SearchText="{Binding ActiveModSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 IsSearchVisible="{Binding IsModSearchVisible}"
                                 SearchFilterContent="{Binding ModPage}"
                                 SearchFilterContentTemplate="{StaticResource ResourcesModFilterTemplate}"

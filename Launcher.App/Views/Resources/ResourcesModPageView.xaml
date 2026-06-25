@@ -4,6 +4,7 @@
              xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
              xmlns:res="clr-namespace:Launcher.App.Resources"
+             xmlns:viewModels="clr-namespace:Launcher.App.ViewModels.Resources"
              xmlns:views="clr-namespace:Launcher.App.Views.Resources"
              x:Name="Root"
              Focusable="False">
@@ -23,6 +24,16 @@
             <Style x:Key="ResourcesModDetailTitleTextStyle" TargetType="TextBlock">
                 <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
                 <Setter Property="FontSize" Value="18" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
+            <Style x:Key="ResourcesModVersionsTitleTextStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,0,0,12" />
+                <Setter Property="MaxWidth" Value="{StaticResource DetailPageContentMaxWidth}" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="Foreground" Value="{DynamicResource Brush.A8FFFFFF}" />
+                <Setter Property="FontSize" Value="16" />
                 <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="TextTrimming" Value="CharacterEllipsis" />
             </Style>
@@ -52,6 +63,27 @@
                 <Setter Property="TextAlignment" Value="Center" />
                 <Setter Property="Margin" Value="0,12,0,12" />
             </Style>
+
+            <DataTemplate DataType="{x:Type viewModels:ResourcesModVersionListHeaderItem}">
+                <TextBlock Text="{Binding Title}"
+                           Style="{StaticResource ResourcesModVersionsTitleTextStyle}" />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type viewModels:ResourcesModVersionItemViewModel}">
+                <controls:ListPageItemButton Title="{Binding Title}"
+                                             Subtitle="{Binding Subtitle}"
+                                             TrailingText="{Binding TrailingText}"
+                                             IconSource="{Binding IconSource}"
+                                             IconKey="{Binding IconKey}"
+                                             IsFirstVisible="{Binding Tag.IsFirstVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                             IsLastVisible="{Binding Tag.IsLastVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                             IsPreviousItemHighlighted="{Binding Tag.IsPreviousItemHighlighted, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                             ShouldPlayEnterAnimation="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}, Mode=TwoWay}"
+                                             EnterAnimationIndex="{Binding Tag.EnterAnimationIndex, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                             Command="{Binding DataContext.InstallAvailableVersionCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                                             CommandParameter="{Binding}"
+                                             Style="{StaticResource ListPageItemButtonEntranceStyle}" />
+            </DataTemplate>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -144,7 +176,7 @@
                         <TranslateTransform />
                     </Grid.RenderTransform>
 
-                    <ScrollViewer Margin="0,82,12,0"
+                    <ScrollViewer Margin="0,0,12,0"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
                                   Style="{StaticResource ListPageScrollViewerStyle}"
@@ -153,7 +185,7 @@
                                   behaviors:SmoothScrollBehavior.WheelAnimationDurationMilliseconds="130">
                         <StackPanel MaxWidth="{StaticResource DetailPageContentMaxWidth}"
                                     HorizontalAlignment="Stretch"
-                                    Margin="0,0,0,64">
+                                    Margin="0,82,0,64">
                     <GroupBox Header="{x:Static res:Strings.Resources_ModDetailsInfoSection}"
                               Style="{StaticResource LauncherContentSectionStyle}">
                         <Border Style="{StaticResource SectionFieldSurfaceStyle}">
@@ -309,8 +341,8 @@
                     </Grid.RenderTransform>
 
                     <ListBox x:Name="ResourcesModVersionListBox"
-                             Margin="0,82,12,0"
-                             ItemsSource="{Binding DataContext.AvailableVersions, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                             Margin="0,0,12,0"
+                             ItemsSource="{Binding DataContext.AvailableVersionListItems, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                              ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
                              Style="{StaticResource ListPageVirtualizedListBoxStyle}"
                              VirtualizingPanel.IsVirtualizing="True"
@@ -319,45 +351,28 @@
                              ScrollViewer.CanContentScroll="True"
                              behaviors:VirtualizedListItemStateBehavior.IsEnabled="True"
                              behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding DataContext.AvailableVersionListEntranceAnimationToken, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
-                             behaviors:VirtualizedListItemStateBehavior.ContentTopOffset="0">
+                             behaviors:VirtualizedListItemStateBehavior.ContentTopOffset="172">
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <VirtualizingStackPanel Margin="0,0,0,64"
+                                <VirtualizingStackPanel Margin="0,172,0,64"
                                                         VirtualizingPanel.IsVirtualizing="True"
                                                         VirtualizingPanel.VirtualizationMode="Recycling"
                                                         VirtualizingPanel.ScrollUnit="Pixel" />
                             </ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <controls:ListPageItemButton Title="{Binding Title}"
-                                                             Subtitle="{Binding Subtitle}"
-                                                             TrailingText="{Binding TrailingText}"
-                                                             IconSource="{Binding IconSource}"
-                                                             IconKey="{Binding IconKey}"
-                                                             IsFirstVisible="{Binding Tag.IsFirstVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
-                                                             IsLastVisible="{Binding Tag.IsLastVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
-                                                             IsPreviousItemHighlighted="{Binding Tag.IsPreviousItemHighlighted, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
-                                                             ShouldPlayEnterAnimation="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}, Mode=TwoWay}"
-                                                             EnterAnimationIndex="{Binding Tag.EnterAnimationIndex, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
-                                                             Command="{Binding DataContext.InstallAvailableVersionCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
-                                                             CommandParameter="{Binding}"
-                                                             Style="{StaticResource ListPageItemButtonEntranceStyle}" />
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
                     </ListBox>
 
-                    <TextBlock Margin="0,82,12,64"
+                    <TextBlock Margin="0,260,12,64"
                                Text="{x:Static res:Strings.Resources_ModVersionsLoading}"
                                Style="{StaticResource PageEmptyStateTextStyle}"
                                Visibility="{Binding DataContext.CanShowAvailableVersionsLoadingState, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
-                    <TextBlock Margin="0,82,12,64"
+                    <TextBlock Margin="0,260,12,64"
                                Text="{Binding DataContext.AvailableVersionsEmptyMessage, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                                Style="{StaticResource PageEmptyStateTextStyle}"
                                Visibility="{Binding DataContext.CanShowAvailableVersionsEmptyState, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
-                    <TextBlock Margin="0,82,12,64"
+                    <TextBlock Margin="0,260,12,64"
                                Text="{Binding DataContext.AvailableVersionsLoadErrorMessage, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                                Style="{StaticResource PageEmptyStateTextStyle}"
                                Visibility="{Binding DataContext.CanShowAvailableVersionsLoadErrorState, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />

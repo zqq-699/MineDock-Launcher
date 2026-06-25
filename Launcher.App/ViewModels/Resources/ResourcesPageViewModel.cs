@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Download;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -22,7 +23,8 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
         IGameInstanceService? gameInstanceService = null,
         IStatusService? statusService = null,
         IFilePickerService? filePickerService = null,
-        IFloatingMessageService? floatingMessageService = null)
+        IFloatingMessageService? floatingMessageService = null,
+        DownloadTasksPageViewModel? downloadTasksPage = null)
     {
         this.logger = logger;
 
@@ -44,7 +46,8 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             gameInstanceService,
             statusService,
             filePickerService,
-            floatingMessageService);
+            floatingMessageService,
+            downloadTasksPage);
         ModPage.PropertyChanged += ModPage_PropertyChanged;
         ResourcePacksPage = new ResourcesResourcePacksPageViewModel(this);
         ShaderPacksPage = new ResourcesShaderPacksPageViewModel(this);
@@ -83,11 +86,27 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
 
     public bool IsModsSection => SelectedSection?.Id == "mods";
 
-    public bool IsModSearchVisible => IsModsSection && ModPage.IsProjectListStep;
+    public bool IsModSearchVisible => IsModsSection && (ModPage.IsProjectListStep || ModPage.IsProjectVersionsStep);
 
     public bool IsModProjectDetailsStep => IsModsSection && ModPage.IsProjectContentStep;
 
     public string? PageTitleIconSource => IsModsSection ? ModPage.PageTitleIconSource : null;
+
+    public string ActiveModSearchQuery
+    {
+        get => ModPage.IsProjectVersionsStep
+            ? ModPage.AvailableVersionSearchQuery
+            : ModPage.SearchQuery;
+        set
+        {
+            if (ModPage.IsProjectVersionsStep)
+                ModPage.AvailableVersionSearchQuery = value;
+            else
+                ModPage.SearchQuery = value;
+
+            OnPropertyChanged();
+        }
+    }
 
     public void BeginEnsureCurrentSectionLoaded()
     {
@@ -153,6 +172,13 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             OnPropertyChanged(nameof(PageTitleIconSource));
             OnPropertyChanged(nameof(IsModSearchVisible));
             OnPropertyChanged(nameof(IsModProjectDetailsStep));
+            OnPropertyChanged(nameof(ActiveModSearchQuery));
+        }
+
+        if (e.PropertyName is nameof(ResourcesModPageViewModel.SearchQuery)
+            or nameof(ResourcesModPageViewModel.AvailableVersionSearchQuery))
+        {
+            OnPropertyChanged(nameof(ActiveModSearchQuery));
         }
     }
 }

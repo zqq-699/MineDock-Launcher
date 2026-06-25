@@ -756,13 +756,35 @@ public sealed class ResourcesPageViewModelTests
         });
 
         viewModel.ModPage.SelectProjectCommand.Execute(project);
-        await TestAsync.WaitForAsync(() => viewModel.ModPage.InstallTargets.Count == 3);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.InstallTargets.Count == 2);
 
         Assert.Equal(1, instanceService.GetInstancesCallCount);
-        Assert.Equal(["Fabric Test", "Vanilla Test", Strings.Resources_ModInstallTargetLocal], viewModel.ModPage.InstallTargets.Select(target => target.Title));
+        Assert.Equal(["Fabric Test", Strings.Resources_ModInstallTargetLocal], viewModel.ModPage.InstallTargets.Select(target => target.Title));
         Assert.False(viewModel.ModPage.InstallTargets[0].IsLocalDownload);
-        Assert.False(viewModel.ModPage.InstallTargets[1].IsLocalDownload);
-        Assert.True(viewModel.ModPage.InstallTargets[2].IsLocalDownload);
+        Assert.True(viewModel.ModPage.InstallTargets[1].IsLocalDownload);
+    }
+
+    [Fact]
+    public async Task ModProjectDetailsHidesVanillaInstancesAndKeepsLocalDownload()
+    {
+        var instanceService = new FakeGameInstanceService(
+        [
+            new GameInstance
+            {
+                Id = "vanilla-instance",
+                Name = "Vanilla Test",
+                MinecraftVersion = "1.20.1",
+                Loader = LoaderKind.Vanilla,
+                VersionType = "release"
+            }
+        ]);
+        var viewModel = new ResourcesPageViewModel(gameInstanceService: instanceService);
+
+        await viewModel.ModPage.LoadInstallTargetsAsync();
+
+        var target = Assert.Single(viewModel.ModPage.InstallTargets);
+        Assert.Equal(Strings.Resources_ModInstallTargetLocal, target.Title);
+        Assert.True(target.IsLocalDownload);
     }
 
     [Fact]
@@ -804,10 +826,32 @@ public sealed class ResourcesPageViewModelTests
                     new ResourceProjectVersion
                     {
                         VersionId = "version-1",
-                        Name = "Version 1",
+                        Name = "Fabric 1.18.2",
                         VersionNumber = "1.0.0",
                         VersionType = "release",
-                        FileName = "version-1.jar"
+                        FileName = "version-1.jar",
+                        GameVersions = ["1.18.2"],
+                        Loaders = ["fabric"]
+                    },
+                    new ResourceProjectVersion
+                    {
+                        VersionId = "version-2",
+                        Name = "Forge 1.18.2",
+                        VersionNumber = "1.0.1",
+                        VersionType = "release",
+                        FileName = "version-2.jar",
+                        GameVersions = ["1.18.2"],
+                        Loaders = ["forge"]
+                    },
+                    new ResourceProjectVersion
+                    {
+                        VersionId = "version-3",
+                        Name = "Fabric 1.18.1",
+                        VersionNumber = "1.0.2",
+                        VersionType = "release",
+                        FileName = "version-3.jar",
+                        GameVersions = ["1.18.1"],
+                        Loaders = ["fabric"]
                     }
                 ]
             }
@@ -830,20 +874,251 @@ public sealed class ResourcesPageViewModelTests
         var target = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
 
         viewModel.ModPage.SelectProjectCommand.Execute(project);
+        Assert.Equal("Project", viewModel.PageTitle);
         viewModel.ModPage.SelectInstallTargetCommand.Execute(target);
-        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 1);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 3);
 
         Assert.Equal(ResourcesModPageStep.ProjectVersions, viewModel.ModPage.CurrentStep);
+        Assert.Equal("Fabric Test", viewModel.PageTitle);
         Assert.NotNull(catalogService.LastVersionsRequest);
         Assert.Equal(ResourceProjectSource.Modrinth, catalogService.LastVersionsRequest.Source);
         Assert.Equal("modrinth-project", catalogService.LastVersionsRequest.ProjectId);
-        Assert.Equal("1.18.2", catalogService.LastVersionsRequest.MinecraftVersion);
-        Assert.Equal(LoaderKind.Fabric, catalogService.LastVersionsRequest.Loader);
-        Assert.Equal("Version 1", viewModel.ModPage.AvailableVersions[0].Title);
+        Assert.True(catalogService.LastVersionsRequest.IncludeAllVersions);
+        Assert.Equal(string.Empty, catalogService.LastVersionsRequest.MinecraftVersion);
+        Assert.Equal(LoaderKind.Vanilla, catalogService.LastVersionsRequest.Loader);
+        Assert.Equal("1.18.2-fabric", viewModel.ModPage.AvailableVersionsTitle);
+        Assert.Equal("1.18.2", viewModel.ModPage.SelectedAvailableVersionFilterOption?.Id);
+        Assert.Equal("fabric", viewModel.ModPage.SelectedAvailableLoaderFilterOption?.Id);
+        Assert.Equal(["H:1.18.2-fabric", "V:Fabric 1.18.2"], FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+        Assert.Equal("Fabric 1.18.2", viewModel.ModPage.AvailableVersions[0].Title);
+        Assert.Equal(1, viewModel.ModPage.VisibleAvailableVersionCount);
+
+        viewModel.ModPage.SelectedAvailableLoaderFilterOption = viewModel.ModPage.AvailableLoaderFilterOptions.Single(option => option.Id == "forge");
+
+        Assert.Equal(["H:1.18.2-forge", "V:Forge 1.18.2"], FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
     }
 
     [Fact]
     public async Task ModInstallTargetSelectionLoadsAllVersionsForLocalDownload()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
+        {
+            VersionsResult = new ResourceProjectVersionsResult
+            {
+                Versions =
+                [
+                    new ResourceProjectVersion
+                    {
+                        VersionId = "version-1",
+                        Name = "Fabric 1.18.2",
+                        VersionNumber = "1.0.0",
+                        VersionType = "release",
+                        FileName = "fabric-1.18.2.jar",
+                        GameVersions = ["1.18.2"],
+                        Loaders = ["fabric"]
+                    },
+                    new ResourceProjectVersion
+                    {
+                        VersionId = "version-2",
+                        Name = "Forge 1.18.2",
+                        VersionNumber = "1.0.1",
+                        VersionType = "release",
+                        FileName = "forge-1.18.2.jar",
+                        GameVersions = ["1.18.2"],
+                        Loaders = ["Forge"]
+                    },
+                    new ResourceProjectVersion
+                    {
+                        VersionId = "version-3",
+                        Name = "Fabric 1.18.1",
+                        VersionNumber = "1.0.2",
+                        VersionType = "release",
+                        FileName = "fabric-1.18.1.jar",
+                        GameVersions = ["1.18.1"],
+                        Loaders = ["fabric"]
+                    }
+                ]
+            }
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "project",
+            Slug = "project",
+            Title = "Project"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 3);
+
+        Assert.Equal(ResourcesModPageStep.ProjectVersions, viewModel.ModPage.CurrentStep);
+        Assert.Equal("Project", viewModel.PageTitle);
+        Assert.NotNull(catalogService.LastVersionsRequest);
+        Assert.True(catalogService.LastVersionsRequest.IncludeAllVersions);
+        Assert.Equal(string.Empty, catalogService.LastVersionsRequest.MinecraftVersion);
+        Assert.Equal(LoaderKind.Vanilla, catalogService.LastVersionsRequest.Loader);
+        Assert.Equal(Strings.Resources_ModVersionsAllTitle, viewModel.ModPage.AvailableVersionsTitle);
+        Assert.Equal(
+            [
+                "H:1.18.2-fabric",
+                "V:Fabric 1.18.2",
+                "H:1.18.2-forge",
+                "V:Forge 1.18.2",
+                "H:1.18.1-fabric",
+                "V:Fabric 1.18.1"
+            ],
+            FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+        Assert.Equal(Strings.Resources_ModVersionsEmptyLocal, viewModel.ModPage.AvailableVersionsEmptyMessage);
+
+        viewModel.ModPage.SelectedAvailableVersionFilterOption = viewModel.ModPage.AvailableVersionFilterOptions.Single(option => option.Id == "1.18.2");
+
+        Assert.Equal(
+            [
+                "H:1.18.2-fabric",
+                "V:Fabric 1.18.2",
+                "H:1.18.2-forge",
+                "V:Forge 1.18.2"
+            ],
+            FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+        Assert.Equal(2, viewModel.ModPage.VisibleAvailableVersionCount);
+
+        viewModel.ModPage.SelectedAvailableLoaderFilterOption = viewModel.ModPage.AvailableLoaderFilterOptions.Single(option => option.Id == "forge");
+
+        Assert.Equal(
+            [
+                "H:1.18.2-forge",
+                "V:Forge 1.18.2"
+            ],
+            FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+        Assert.Equal(1, viewModel.ModPage.VisibleAvailableVersionCount);
+    }
+
+    [Fact]
+    public async Task ModAvailableVersionSearchFiltersLoadedVersionList()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
+        {
+            VersionsResult = new ResourceProjectVersionsResult
+            {
+                Versions =
+                [
+                    new ResourceProjectVersion
+                    {
+                        VersionId = "version-1",
+                        Name = "Fabric Build",
+                        VersionNumber = "1.0.0",
+                        VersionType = "release",
+                        FileName = "project-1.18.2-fabric.jar",
+                        GameVersions = ["1.18.2"],
+                        Loaders = ["fabric"]
+                    },
+                    new ResourceProjectVersion
+                    {
+                        VersionId = "version-2",
+                        Name = "Forge Build",
+                        VersionNumber = "1.0.1",
+                        VersionType = "release",
+                        FileName = "project-1.18.2-forge.jar",
+                        GameVersions = ["1.18.2"],
+                        Loaders = ["forge"]
+                    }
+                ]
+            }
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "project",
+            Slug = "project",
+            Title = "Project"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 2);
+
+        viewModel.ModPage.AvailableVersionSearchQuery = "forge.jar";
+
+        Assert.Equal(
+            [
+                "H:1.18.2-forge",
+                "V:Forge Build"
+            ],
+            FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+        Assert.Equal(1, viewModel.ModPage.VisibleAvailableVersionCount);
+
+        viewModel.ModPage.AvailableVersionSearchQuery = "missing";
+
+        Assert.Equal(0, viewModel.ModPage.VisibleAvailableVersionCount);
+        Assert.Equal(Strings.Resources_ModVersionsFilterEmpty, viewModel.ModPage.AvailableVersionsEmptyMessage);
+        Assert.True(viewModel.ModPage.CanShowAvailableVersionsEmptyState);
+    }
+
+    [Fact]
+    public async Task ModInstallTargetSelectionRepeatsAllVersionItemsForEachCompatibilityGroup()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
+        {
+            VersionsResult = new ResourceProjectVersionsResult
+            {
+                Versions =
+                [
+                    new ResourceProjectVersion
+                    {
+                        VersionId = "version-1",
+                        Name = "Multi Loader Version",
+                        VersionNumber = "1.0.0",
+                        VersionType = "release",
+                        FileName = "multi-loader.jar",
+                        GameVersions = ["1.18.2", "1.18.1"],
+                        Loaders = ["fabric", "forge"]
+                    }
+                ]
+            }
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "project",
+            Slug = "project",
+            Title = "Project"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 1);
+
+        Assert.Equal(
+            [
+                "H:1.18.2-fabric",
+                "V:Multi Loader Version",
+                "H:1.18.2-forge",
+                "V:Multi Loader Version",
+                "H:1.18.1-fabric",
+                "V:Multi Loader Version",
+                "H:1.18.1-forge",
+                "V:Multi Loader Version"
+            ],
+            FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+
+        viewModel.ModPage.SelectedAvailableVersionFilterOption = viewModel.ModPage.AvailableVersionFilterOptions.Single(option => option.Id == "1.18.1");
+        viewModel.ModPage.SelectedAvailableLoaderFilterOption = viewModel.ModPage.AvailableLoaderFilterOptions.Single(option => option.Id == "forge");
+
+        Assert.Equal(
+            [
+                "H:1.18.1-forge",
+                "V:Multi Loader Version"
+            ],
+            FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+        Assert.Equal(1, viewModel.ModPage.VisibleAvailableVersionCount);
+    }
+
+    [Fact]
+    public async Task ModInstallTargetSelectionUsesUnknownCompatibilityTitleWhenAllVersionMetadataIsMissing()
     {
         var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
         {
@@ -875,12 +1150,101 @@ public sealed class ResourcesPageViewModelTests
         viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
         await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 1);
 
-        Assert.Equal(ResourcesModPageStep.ProjectVersions, viewModel.ModPage.CurrentStep);
-        Assert.NotNull(catalogService.LastVersionsRequest);
-        Assert.True(catalogService.LastVersionsRequest.IncludeAllVersions);
-        Assert.Equal(string.Empty, catalogService.LastVersionsRequest.MinecraftVersion);
-        Assert.Equal(LoaderKind.Vanilla, catalogService.LastVersionsRequest.Loader);
-        Assert.Equal(Strings.Resources_ModVersionsEmptyLocal, viewModel.ModPage.AvailableVersionsEmptyMessage);
+        Assert.Equal(
+            [$"H:{Strings.Resources_ModVersionsUnknown}-{Strings.Resources_ModLoadersUnknown}", "V:Version 1"],
+            FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+    }
+
+    [Fact]
+    public async Task ModInstallTargetSelectionIgnoresEnvironmentTagsAndInfersLoaderFromFileName()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
+        {
+            VersionsResult = new ResourceProjectVersionsResult
+            {
+                Versions =
+                [
+                    new ResourceProjectVersion
+                    {
+                        VersionId = "version-1",
+                        Name = "30.2.0.15 for NeoForge 26.2",
+                        VersionNumber = "30.2.0.15",
+                        VersionType = "beta",
+                        FileName = "jei-26.2-neoforge-30.2.0.15.jar",
+                        GameVersions = ["Client", "Server", "26.2"]
+                    },
+                    new ResourceProjectVersion
+                    {
+                        VersionId = "version-2",
+                        Name = "30.2.0.15 for Fabric 26.2",
+                        VersionNumber = "30.2.0.15",
+                        VersionType = "beta",
+                        FileName = "jei-26.2-fabric-30.2.0.15.jar",
+                        GameVersions = ["client", "server", "26.2"]
+                    }
+                ]
+            }
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "project",
+            Slug = "project",
+            Title = "Project"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 2);
+
+        Assert.Equal(
+            [
+                "H:26.2-neoforge",
+                "V:30.2.0.15 for NeoForge 26.2",
+                "H:26.2-fabric",
+                "V:30.2.0.15 for Fabric 26.2"
+            ],
+            FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+    }
+
+    [Fact]
+    public async Task ModInstallTargetSelectionUsesLoaderTagFromGameVersionsWhenLoaderMetadataIsMissing()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
+        {
+            VersionsResult = new ResourceProjectVersionsResult
+            {
+                Versions =
+                [
+                    new ResourceProjectVersion
+                    {
+                        VersionId = "version-1",
+                        Name = "Version 1",
+                        VersionNumber = "1.0.0",
+                        VersionType = "release",
+                        FileName = "version-1.jar",
+                        GameVersions = ["1.18.2", "Fabric"]
+                    }
+                ]
+            }
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "project",
+            Slug = "project",
+            Title = "Project"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 1);
+
+        Assert.Equal(
+            ["H:1.18.2-fabric", "V:Version 1"],
+            FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
     }
 
     [Fact]
@@ -913,6 +1277,8 @@ public sealed class ResourcesPageViewModelTests
         Assert.True(catalogService.LastVersionsRequest.IncludeAllVersions);
         Assert.Equal(string.Empty, catalogService.LastVersionsRequest.MinecraftVersion);
         Assert.Equal(LoaderKind.Vanilla, catalogService.LastVersionsRequest.Loader);
+        Assert.Equal(Strings.Resources_ModVersionsAllTitle, viewModel.ModPage.AvailableVersionsTitle);
+        Assert.Equal([$"H:{Strings.Resources_ModVersionsAllTitle}"], FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
         Assert.Equal(Strings.Resources_ModVersionsEmptyLocal, viewModel.ModPage.AvailableVersionsEmptyMessage);
         Assert.True(viewModel.ModPage.CanShowAvailableVersionsEmptyState);
 
@@ -960,9 +1326,27 @@ public sealed class ResourcesPageViewModelTests
     }
 
     [Fact]
-    public async Task ModInstallTargetSelectionShowsEmptyVersionsForVanillaInstance()
+    public async Task ModInstallTargetSelectionKeepsInstanceFiltersWhenNoVersionsMatch()
     {
-        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
+        {
+            VersionsResult = new ResourceProjectVersionsResult
+            {
+                Versions =
+                [
+                    new ResourceProjectVersion
+                    {
+                        VersionId = "version-1",
+                        Name = "Forge 1.18.2",
+                        VersionNumber = "1.0.0",
+                        VersionType = "release",
+                        FileName = "forge-1.18.2.jar",
+                        GameVersions = ["1.18.2"],
+                        Loaders = ["forge"]
+                    }
+                ]
+            }
+        };
         var viewModel = new ResourcesPageViewModel(catalogService);
         var project = new ResourcesModProjectItemViewModel(new ResourceProject
         {
@@ -972,19 +1356,83 @@ public sealed class ResourcesPageViewModelTests
         });
         var target = ResourcesModInstallTargetItemViewModel.FromInstance(new GameInstance
         {
-            Id = "vanilla-instance",
-            MinecraftVersion = "1.18.2",
-            Loader = LoaderKind.Vanilla
+            Id = "fabric-instance",
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Fabric
         });
 
         viewModel.ModPage.SelectProjectCommand.Execute(project);
         viewModel.ModPage.SelectInstallTargetCommand.Execute(target);
-        await TestAsync.WaitForAsync(() => !viewModel.ModPage.IsLoadingAvailableVersions);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 1);
 
         Assert.Equal(ResourcesModPageStep.ProjectVersions, viewModel.ModPage.CurrentStep);
-        Assert.Empty(viewModel.ModPage.AvailableVersions);
+        Assert.Equal("1.20.1", viewModel.ModPage.SelectedAvailableVersionFilterOption?.Id);
+        Assert.Equal("fabric", viewModel.ModPage.SelectedAvailableLoaderFilterOption?.Id);
+        Assert.Contains(viewModel.ModPage.AvailableVersionFilterOptions, option => option.Id == "1.20.1");
+        Assert.Contains(viewModel.ModPage.AvailableLoaderFilterOptions, option => option.Id == "fabric");
+        Assert.Equal([$"H:{viewModel.ModPage.AvailableVersionsTitle}"], FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+        Assert.Equal(0, viewModel.ModPage.VisibleAvailableVersionCount);
+        Assert.Equal(Strings.Resources_ModVersionsFilterEmpty, viewModel.ModPage.AvailableVersionsEmptyMessage);
         Assert.True(viewModel.ModPage.CanShowAvailableVersionsEmptyState);
-        Assert.Null(catalogService.LastVersionsRequest);
+
+        viewModel.ModPage.SelectedAvailableVersionFilterOption = viewModel.ModPage.AvailableVersionFilterOptions.Single(option => option.Id == "1.18.2");
+        viewModel.ModPage.SelectedAvailableLoaderFilterOption = viewModel.ModPage.AvailableLoaderFilterOptions.Single(option => option.Id == "forge");
+
+        Assert.Equal(["H:1.18.2-forge", "V:Forge 1.18.2"], FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+    }
+
+    [Theory]
+    [InlineData(LoaderKind.Forge, "forge")]
+    [InlineData(LoaderKind.NeoForge, "neoforge")]
+    [InlineData(LoaderKind.Quilt, "quilt")]
+    public async Task ModInstallTargetSelectionKeepsInstanceLoaderWhenLoaderHasNoMatches(
+        LoaderKind instanceLoader,
+        string expectedLoaderId)
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
+        {
+            VersionsResult = new ResourceProjectVersionsResult
+            {
+                Versions =
+                [
+                    new ResourceProjectVersion
+                    {
+                        VersionId = "version-1",
+                        Name = "Fabric 1.18.2",
+                        VersionNumber = "1.0.0",
+                        VersionType = "release",
+                        FileName = "fabric-1.18.2.jar",
+                        GameVersions = ["1.18.2"],
+                        Loaders = ["fabric"]
+                    }
+                ]
+            }
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "project",
+            Slug = "project",
+            Title = "Project"
+        });
+        var target = ResourcesModInstallTargetItemViewModel.FromInstance(new GameInstance
+        {
+            Id = $"{expectedLoaderId}-instance",
+            MinecraftVersion = "1.18.2",
+            Loader = instanceLoader
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(target);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 1);
+
+        Assert.Equal("1.18.2", viewModel.ModPage.SelectedAvailableVersionFilterOption?.Id);
+        Assert.Equal(expectedLoaderId, viewModel.ModPage.SelectedAvailableLoaderFilterOption?.Id);
+        Assert.Contains(viewModel.ModPage.AvailableLoaderFilterOptions, option => option.Id == expectedLoaderId);
+        Assert.Equal([$"H:{viewModel.ModPage.AvailableVersionsTitle}"], FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+        Assert.Equal(0, viewModel.ModPage.VisibleAvailableVersionCount);
+        Assert.Equal(Strings.Resources_ModVersionsFilterEmpty, viewModel.ModPage.AvailableVersionsEmptyMessage);
     }
 
     [Fact]
@@ -1020,6 +1468,7 @@ public sealed class ResourcesPageViewModelTests
     {
         var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
         var statusService = new FakeStatusService();
+        var downloadTasksPage = new DownloadTasksPageViewModel();
         var instance = new GameInstance
         {
             Id = "fabric-instance",
@@ -1036,7 +1485,10 @@ public sealed class ResourcesPageViewModelTests
             FileName = "version-1.jar",
             PrimaryDownloadUrl = "https://example.test/version-1.jar"
         };
-        var viewModel = new ResourcesPageViewModel(catalogService, statusService: statusService);
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            statusService: statusService,
+            downloadTasksPage: downloadTasksPage);
         var project = new ResourcesModProjectItemViewModel(new ResourceProject
         {
             Source = ResourceProjectSource.Modrinth,
@@ -1050,6 +1502,11 @@ public sealed class ResourcesPageViewModelTests
 
         Assert.Same(version, catalogService.LastInstalledVersion);
         Assert.Same(instance, catalogService.LastInstallInstance);
+        var task = Assert.Single(downloadTasksPage.Tasks);
+        Assert.Equal("Version 1", task.Title);
+        Assert.Equal("Fabric Test", task.Subtitle);
+        Assert.Equal(DownloadTaskState.Completed, task.State);
+        Assert.Equal(100, task.ProgressPercent);
         Assert.Contains(string.Format(Strings.Status_ModDownloadingFormat, "Version 1"), statusService.Messages);
         Assert.Contains(string.Format(Strings.Status_ModInstalledFormat, "Project"), statusService.Messages);
     }
@@ -1058,9 +1515,11 @@ public sealed class ResourcesPageViewModelTests
     public async Task ModVersionSelectionDoesNothingWhenLocalFolderPickerIsCanceled()
     {
         var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var downloadTasksPage = new DownloadTasksPageViewModel();
         var viewModel = new ResourcesPageViewModel(
             catalogService,
-            filePickerService: new FakeFilePickerService());
+            filePickerService: new FakeFilePickerService(),
+            downloadTasksPage: downloadTasksPage);
         var project = new ResourcesModProjectItemViewModel(new ResourceProject
         {
             Source = ResourceProjectSource.Modrinth,
@@ -1082,6 +1541,7 @@ public sealed class ResourcesPageViewModelTests
 
         Assert.Null(catalogService.LastDownloadedVersion);
         Assert.Null(catalogService.LastDownloadDirectory);
+        Assert.Empty(downloadTasksPage.Tasks);
     }
 
     [Fact]
@@ -1091,11 +1551,13 @@ public sealed class ResourcesPageViewModelTests
         var statusService = new FakeStatusService();
         var filePickerService = new FakeFilePickerService { FolderPath = "C:\\Downloads" };
         var floatingMessageService = new FakeFloatingMessageService();
+        var downloadTasksPage = new DownloadTasksPageViewModel();
         var viewModel = new ResourcesPageViewModel(
             catalogService,
             statusService: statusService,
             filePickerService: filePickerService,
-            floatingMessageService: floatingMessageService);
+            floatingMessageService: floatingMessageService,
+            downloadTasksPage: downloadTasksPage);
         var project = new ResourcesModProjectItemViewModel(new ResourceProject
         {
             Source = ResourceProjectSource.Modrinth,
@@ -1117,6 +1579,11 @@ public sealed class ResourcesPageViewModelTests
 
         Assert.Same(version, catalogService.LastDownloadedVersion);
         Assert.Equal("C:\\Downloads", catalogService.LastDownloadDirectory);
+        var task = Assert.Single(downloadTasksPage.Tasks);
+        Assert.Equal("Version 1", task.Title);
+        Assert.Equal("C:\\Downloads", task.Subtitle);
+        Assert.Equal(DownloadTaskState.Completed, task.State);
+        Assert.Equal(100, task.ProgressPercent);
         Assert.Equal(Strings.FilePicker_ModDownloadDirectoryTitle, filePickerService.LastFolderPickerTitle);
         Assert.Contains(string.Format(Strings.Status_ModDownloadingFormat, "Version 1"), statusService.Messages);
         Assert.Contains(string.Format(Strings.Status_ModDownloadedFormat, "version-1.jar"), statusService.Messages);
@@ -1132,11 +1599,13 @@ public sealed class ResourcesPageViewModelTests
         };
         var statusService = new FakeStatusService();
         var floatingMessageService = new FakeFloatingMessageService();
+        var downloadTasksPage = new DownloadTasksPageViewModel();
         var viewModel = new ResourcesPageViewModel(
             catalogService,
             statusService: statusService,
             filePickerService: new FakeFilePickerService { FolderPath = "C:\\Downloads" },
-            floatingMessageService: floatingMessageService);
+            floatingMessageService: floatingMessageService,
+            downloadTasksPage: downloadTasksPage);
         var project = new ResourcesModProjectItemViewModel(new ResourceProject
         {
             Source = ResourceProjectSource.Modrinth,
@@ -1159,6 +1628,7 @@ public sealed class ResourcesPageViewModelTests
         Assert.True(viewModel.ModPage.IsProjectVersionFileExistsDialogOpen);
         Assert.Contains("version-1.jar", viewModel.ModPage.ProjectVersionFileExistsDialogMessage);
         Assert.Null(catalogService.LastDownloadedVersion);
+        Assert.Empty(downloadTasksPage.Tasks);
         Assert.Empty(floatingMessageService.Messages);
     }
 
@@ -1208,6 +1678,7 @@ public sealed class ResourcesPageViewModelTests
             ThrowOnInstall = true
         };
         var floatingMessageService = new FakeFloatingMessageService();
+        var downloadTasksPage = new DownloadTasksPageViewModel();
         var instance = new GameInstance
         {
             Id = "fabric-instance",
@@ -1217,7 +1688,8 @@ public sealed class ResourcesPageViewModelTests
         };
         var viewModel = new ResourcesPageViewModel(
             catalogService,
-            floatingMessageService: floatingMessageService);
+            floatingMessageService: floatingMessageService,
+            downloadTasksPage: downloadTasksPage);
         var project = new ResourcesModProjectItemViewModel(new ResourceProject
         {
             Source = ResourceProjectSource.Modrinth,
@@ -1237,6 +1709,9 @@ public sealed class ResourcesPageViewModelTests
         viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.FromInstance(instance));
         await viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(new ResourcesModVersionItemViewModel(version, project));
 
+        var task = Assert.Single(downloadTasksPage.Tasks);
+        Assert.Equal(DownloadTaskState.Failed, task.State);
+        Assert.Equal(Strings.Status_ModInstallFailed, task.StatusMessage);
         Assert.Contains(Strings.Status_ModInstallFailed, floatingMessageService.Messages);
     }
 
@@ -1248,6 +1723,7 @@ public sealed class ResourcesPageViewModelTests
             InstallExists = true
         };
         var floatingMessageService = new FakeFloatingMessageService();
+        var downloadTasksPage = new DownloadTasksPageViewModel();
         var instance = new GameInstance
         {
             Id = "fabric-instance",
@@ -1257,7 +1733,8 @@ public sealed class ResourcesPageViewModelTests
         };
         var viewModel = new ResourcesPageViewModel(
             catalogService,
-            floatingMessageService: floatingMessageService);
+            floatingMessageService: floatingMessageService,
+            downloadTasksPage: downloadTasksPage);
         var project = new ResourcesModProjectItemViewModel(new ResourceProject
         {
             Source = ResourceProjectSource.Modrinth,
@@ -1280,6 +1757,7 @@ public sealed class ResourcesPageViewModelTests
         Assert.True(viewModel.ModPage.IsProjectVersionFileExistsDialogOpen);
         Assert.Contains("version-1.jar", viewModel.ModPage.ProjectVersionFileExistsDialogMessage);
         Assert.Null(catalogService.LastInstalledVersion);
+        Assert.Empty(downloadTasksPage.Tasks);
         Assert.Empty(floatingMessageService.Messages);
     }
 
@@ -1292,11 +1770,13 @@ public sealed class ResourcesPageViewModelTests
         };
         var statusService = new FakeStatusService();
         var floatingMessageService = new FakeFloatingMessageService();
+        var downloadTasksPage = new DownloadTasksPageViewModel();
         var viewModel = new ResourcesPageViewModel(
             catalogService,
             statusService: statusService,
             filePickerService: new FakeFilePickerService { FolderPath = "C:\\Downloads" },
-            floatingMessageService: floatingMessageService);
+            floatingMessageService: floatingMessageService,
+            downloadTasksPage: downloadTasksPage);
         var project = new ResourcesModProjectItemViewModel(new ResourceProject
         {
             Source = ResourceProjectSource.Modrinth,
@@ -1317,8 +1797,59 @@ public sealed class ResourcesPageViewModelTests
         await viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(new ResourcesModVersionItemViewModel(version, project));
 
         Assert.Equal(ResourcesModPageStep.ProjectVersions, viewModel.ModPage.CurrentStep);
+        var task = Assert.Single(downloadTasksPage.Tasks);
+        Assert.Equal(DownloadTaskState.Failed, task.State);
+        Assert.Equal(Strings.Status_ModDownloadFailed, task.StatusMessage);
         Assert.Contains(Strings.Status_ModDownloadFailed, statusService.Messages);
         Assert.Contains(Strings.Status_ModDownloadFailed, floatingMessageService.Messages);
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionCancelsRunningDownloadTask()
+    {
+        var pendingDownload = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
+        {
+            PendingDownload = pendingDownload
+        };
+        var statusService = new FakeStatusService();
+        var floatingMessageService = new FakeFloatingMessageService();
+        var downloadTasksPage = new DownloadTasksPageViewModel();
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            statusService: statusService,
+            filePickerService: new FakeFilePickerService { FolderPath = "C:\\Downloads" },
+            floatingMessageService: floatingMessageService,
+            downloadTasksPage: downloadTasksPage);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "project",
+            Title = "Project"
+        });
+        var version = new ResourceProjectVersion
+        {
+            VersionId = "version-1",
+            Name = "Version 1",
+            VersionNumber = "1.0.0",
+            FileName = "version-1.jar",
+            PrimaryDownloadUrl = "https://example.test/version-1.jar"
+        };
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        var installTask = viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(new ResourcesModVersionItemViewModel(version, project));
+        await TestAsync.WaitForAsync(() => downloadTasksPage.Tasks.Count == 1);
+
+        var task = downloadTasksPage.Tasks.Single();
+        downloadTasksPage.CancelTask(task);
+        await installTask;
+
+        Assert.Empty(downloadTasksPage.Tasks);
+        Assert.True(catalogService.LastDownloadCancellationToken.IsCancellationRequested);
+        Assert.Null(catalogService.LastDownloadedVersion);
+        Assert.DoesNotContain(statusService.Messages, message => message == string.Format(Strings.Status_ModDownloadedFormat, "version-1.jar"));
+        Assert.DoesNotContain(Strings.Status_ModDownloadFailed, floatingMessageService.Messages);
     }
 
     private static GameInstance CreateInstance(string name, string minecraftVersion, LoaderKind loader)
@@ -1335,6 +1866,18 @@ public sealed class ResourcesPageViewModelTests
             UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
             InstanceDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"))
         };
+    }
+
+    private static IReadOnlyList<string> FormatAvailableVersionListItems(IEnumerable<object> items)
+    {
+        return items
+            .Select(item => item switch
+            {
+                ResourcesModVersionListHeaderItem header => $"H:{header.Title}",
+                ResourcesModVersionItemViewModel version => $"V:{version.Title}",
+                _ => item.GetType().Name
+            })
+            .ToList();
     }
 
     private sealed class FakeResourceCatalogService : IResourceCatalogService
@@ -1363,9 +1906,13 @@ public sealed class ResourcesPageViewModelTests
 
         public GameInstance? LastInstallInstance { get; private set; }
 
+        public CancellationToken LastInstallCancellationToken { get; private set; }
+
         public ResourceProjectVersion? LastDownloadedVersion { get; private set; }
 
         public string? LastDownloadDirectory { get; private set; }
+
+        public CancellationToken LastDownloadCancellationToken { get; private set; }
 
         public bool ThrowOnDownload { get; init; }
 
@@ -1374,6 +1921,10 @@ public sealed class ResourcesPageViewModelTests
         public bool DownloadExists { get; init; }
 
         public bool InstallExists { get; init; }
+
+        public TaskCompletionSource<string>? PendingInstall { get; init; }
+
+        public TaskCompletionSource<string>? PendingDownload { get; init; }
 
         public Task<ResourceCatalogSearchResult> SearchModsAsync(
             ResourceCatalogSearchRequest request,
@@ -1397,6 +1948,10 @@ public sealed class ResourcesPageViewModelTests
             GameInstance instance,
             CancellationToken cancellationToken = default)
         {
+            LastInstallCancellationToken = cancellationToken;
+            if (PendingInstall is not null)
+                return PendingInstall.Task.WaitAsync(cancellationToken);
+
             if (ThrowOnInstall)
                 return Task.FromException<string>(new InvalidOperationException("install failed"));
 
@@ -1410,6 +1965,10 @@ public sealed class ResourcesPageViewModelTests
             string targetDirectory,
             CancellationToken cancellationToken = default)
         {
+            LastDownloadCancellationToken = cancellationToken;
+            if (PendingDownload is not null)
+                return PendingDownload.Task.WaitAsync(cancellationToken);
+
             if (ThrowOnDownload)
                 return Task.FromException<string>(new InvalidOperationException("download failed"));
 
