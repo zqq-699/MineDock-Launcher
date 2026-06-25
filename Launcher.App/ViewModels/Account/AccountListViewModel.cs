@@ -9,7 +9,7 @@ namespace Launcher.App.ViewModels.Account;
 public sealed partial class AccountListViewModel : ObservableObject
 {
     private readonly IAccountStore accountStore;
-    private LauncherSettings settings = new();
+    private string? selectedAccountId;
 
     [ObservableProperty]
     private LauncherAccount? selectedAccount;
@@ -23,15 +23,18 @@ public sealed partial class AccountListViewModel : ObservableObject
 
     public async Task InitializeAsync(LauncherSettings launcherSettings)
     {
-        settings = launcherSettings;
-        var loadedAccounts = await accountStore.LoadAsync(settings);
-        ApplyAccounts(loadedAccounts);
+        var snapshot = await accountStore.LoadAsync();
+        selectedAccountId = snapshot.SelectedAccountId;
+        ApplyAccounts(snapshot.Accounts);
     }
 
     public void PrimeFromSettings(LauncherSettings launcherSettings)
     {
-        settings = launcherSettings;
-        var cachedAccounts = settings.Accounts
+        if (launcherSettings.Accounts.Count == 0 && string.IsNullOrWhiteSpace(launcherSettings.SelectedAccountId))
+            return;
+
+        selectedAccountId = launcherSettings.SelectedAccountId;
+        var cachedAccounts = launcherSettings.Accounts
             .Select(AccountMapper.FromRecord)
             .ToList();
         ApplyAccounts(cachedAccounts);
@@ -48,7 +51,7 @@ public sealed partial class AccountListViewModel : ObservableObject
         SelectedAccount = account;
         UpdateSelectionFlags();
 
-        settings.SelectedAccountId = account.Id;
+        selectedAccountId = account.Id;
         if (persistSelection)
             _ = PersistAccountOrderAsync();
     }
@@ -75,7 +78,7 @@ public sealed partial class AccountListViewModel : ObservableObject
             return;
 
         SelectedAccount = newAccount;
-        settings.SelectedAccountId = newAccount.Id;
+        selectedAccountId = newAccount.Id;
         UpdateSelectionFlags();
     }
 
@@ -106,7 +109,7 @@ public sealed partial class AccountListViewModel : ObservableObject
         if (isSelectedAccount)
         {
             SelectedAccount = newAccount;
-            settings.SelectedAccountId = newAccount.Id;
+            selectedAccountId = newAccount.Id;
         }
 
         UpdateSelectionFlags();
@@ -122,14 +125,14 @@ public sealed partial class AccountListViewModel : ObservableObject
     public void ClearSelectedAccount()
     {
         SelectedAccount = null;
-        settings.SelectedAccountId = null;
+        selectedAccountId = null;
         UpdateSelectionFlags();
     }
 
     public Task PersistAccountOrderAsync()
     {
-        settings.SelectedAccountId = SelectedAccount?.Id;
-        return accountStore.SaveOrderAsync(settings, Accounts);
+        selectedAccountId = SelectedAccount?.Id;
+        return accountStore.SaveOrderAsync(selectedAccountId, Accounts);
     }
 
     private void UpdateSelectionFlags()
@@ -145,7 +148,7 @@ public sealed partial class AccountListViewModel : ObservableObject
             Accounts.Add(account);
 
         var rememberedAccount = Accounts.FirstOrDefault(account =>
-            string.Equals(account.Id, settings.SelectedAccountId, StringComparison.Ordinal));
+            string.Equals(account.Id, selectedAccountId, StringComparison.Ordinal));
         if (rememberedAccount is not null)
             SelectAccount(rememberedAccount, persistSelection: false);
         else

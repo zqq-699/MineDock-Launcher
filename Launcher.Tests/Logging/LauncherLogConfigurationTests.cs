@@ -6,11 +6,11 @@ namespace Launcher.Tests.Logging;
 public sealed class LauncherLogConfigurationTests
 {
     [Fact]
-    public void ResolveLogDirectoryUsesApplicationDataFolder()
+    public void ResolveLogDirectoryUsesLauncherDataFolder()
     {
         var logDirectory = LauncherLogConfiguration.ResolveLogDirectory();
         var expectedDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            AppContext.BaseDirectory,
             LauncherApplicationIdentity.StorageDirectoryName,
             "log");
 

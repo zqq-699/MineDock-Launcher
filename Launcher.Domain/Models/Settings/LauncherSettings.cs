@@ -1,7 +1,10 @@
+using System.Text.Json.Serialization;
+
 namespace Launcher.Domain.Models;
 
 public sealed class LauncherSettings
 {
+    [JsonIgnore]
     public string OfflineUsername { get; set; } = LauncherDefaults.DefaultOfflineUsername;
     public bool IsMenuExpanded { get; set; }
     public string Theme { get; set; } = LauncherDefaults.DefaultTheme;
@@ -27,8 +30,12 @@ public sealed class LauncherSettings
     public string DefaultJvmArguments { get; set; } = string.Empty;
     public string DefaultGameArguments { get; set; } = string.Empty;
     public string? DefaultInstanceId { get; set; }
+    [JsonIgnore]
     public string? SelectedAccountId { get; set; }
+    [JsonIgnore]
     public bool AccountsInitialized { get; set; }
+    [JsonIgnore]
     public bool MicrosoftAccountsImported { get; set; }
+    [JsonIgnore]
     public List<LauncherAccountRecord> Accounts { get; set; } = [];
 }

@@ -1629,15 +1629,21 @@ public sealed class AccountPageViewModelTests
 
         public IReadOnlyList<LauncherAccount> LastSavedAccounts { get; private set; } = [];
 
-        public Task<IReadOnlyList<LauncherAccount>> LoadAsync(LauncherSettings settings)
+        public async Task<AccountStoreSnapshot> LoadAsync(CancellationToken cancellationToken = default)
         {
+            IReadOnlyList<LauncherAccount> accounts;
             if (loadAccountsAsync is not null)
-                return loadAccountsAsync();
+                accounts = await loadAccountsAsync();
+            else
+                accounts = accountsToLoad;
 
-            return Task.FromResult(accountsToLoad);
+            return new AccountStoreSnapshot(accounts, accounts.SingleOrDefault()?.Id);
         }
 
-        public Task SaveOrderAsync(LauncherSettings settings, IEnumerable<LauncherAccount> accounts)
+        public Task SaveOrderAsync(
+            string? selectedAccountId,
+            IEnumerable<LauncherAccount> accounts,
+            CancellationToken cancellationToken = default)
         {
             SaveCount++;
             LastSavedAccounts = accounts.ToList();

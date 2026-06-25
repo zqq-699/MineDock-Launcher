@@ -1,11 +1,12 @@
 using Launcher.Application.Accounts;
-using Launcher.Domain.Models;
-
 namespace Launcher.Application.Accounts;
 
 public interface IAccountStore
 {
-    Task<IReadOnlyList<LauncherAccount>> LoadAsync(LauncherSettings settings);
+    Task<AccountStoreSnapshot> LoadAsync(CancellationToken cancellationToken = default);
 
-    Task SaveOrderAsync(LauncherSettings settings, IEnumerable<LauncherAccount> accounts);
+    Task SaveOrderAsync(
+        string? selectedAccountId,
+        IEnumerable<LauncherAccount> accounts,
+        CancellationToken cancellationToken = default);
 }

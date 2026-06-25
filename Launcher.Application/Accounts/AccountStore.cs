@@ -8,37 +8,38 @@ namespace Launcher.Application.Accounts;
 
 public sealed class AccountStore : IAccountStore
 {
-    private readonly ISettingsService settingsService;
+    private readonly IAccountStateService accountStateService;
     private readonly IMicrosoftAccountService microsoftAccountService;
     private readonly IOfflineAccountUuidService offlineUuidService;
     private readonly ILogger<AccountStore> logger;
 
     public AccountStore(
-        ISettingsService settingsService,
+        IAccountStateService accountStateService,
         IMicrosoftAccountService microsoftAccountService,
         IOfflineAccountUuidService offlineUuidService,
         ILogger<AccountStore>? logger = null)
     {
-        this.settingsService = settingsService;
+        this.accountStateService = accountStateService;
         this.microsoftAccountService = microsoftAccountService;
         this.offlineUuidService = offlineUuidService;
         this.logger = logger ?? NullLogger<AccountStore>.Instance;
     }
 
-    public async Task<IReadOnlyList<LauncherAccount>> LoadAsync(LauncherSettings settings)
+    public async Task<AccountStoreSnapshot> LoadAsync(CancellationToken cancellationToken = default)
     {
+        var state = await accountStateService.LoadAsync(cancellationToken);
         var accounts = new List<LauncherAccount>();
         var microsoftAccounts = new Dictionary<string, LauncherAccount>(StringComparer.OrdinalIgnoreCase);
-        foreach (var account in await microsoftAccountService.GetSavedAccountsAsync())
+        foreach (var account in await microsoftAccountService.GetSavedAccountsAsync(cancellationToken))
         {
             if (!microsoftAccounts.ContainsKey(account.Id))
                 microsoftAccounts.Add(account.Id, account);
         }
 
-        var shouldImportMicrosoftAccounts = !settings.MicrosoftAccountsImported;
+        var shouldImportMicrosoftAccounts = !state.MicrosoftAccountsImported;
         var shouldPersistOrder = false;
 
-        foreach (var account in settings.Accounts)
+        foreach (var account in state.Accounts)
         {
             if (account.IsOffline)
             {
@@ -74,43 +75,49 @@ public sealed class AccountStore : IAccountStore
                 "Persisting account order after load. AccountCount={AccountCount} ImportedMicrosoftAccounts={ImportedMicrosoftAccounts}",
                 accounts.Count,
                 shouldImportMicrosoftAccounts);
-            await SaveOrderAsync(settings, accounts);
+            await SaveOrderAsync(state.SelectedAccountId, accounts, cancellationToken);
+            state = await accountStateService.LoadAsync(cancellationToken);
         }
 
         logger.LogInformation(
             "Accounts loaded. AccountCount={AccountCount} MicrosoftAccountCount={MicrosoftAccountCount}",
             accounts.Count,
             accounts.Count(account => !account.IsOffline));
-        return accounts;
+        return new AccountStoreSnapshot(accounts, state.SelectedAccountId);
     }
 
-    public async Task SaveOrderAsync(LauncherSettings settings, IEnumerable<LauncherAccount> accounts)
+    public async Task SaveOrderAsync(
+        string? selectedAccountId,
+        IEnumerable<LauncherAccount> accounts,
+        CancellationToken cancellationToken = default)
     {
-        settings.AccountsInitialized = true;
-        settings.MicrosoftAccountsImported = true;
+        var state = await accountStateService.LoadAsync(cancellationToken);
+        state.AccountsInitialized = true;
+        state.MicrosoftAccountsImported = true;
         var records = accounts
             .Select(AccountMapper.ToRecord)
             .ToList();
         foreach (var account in records.Where(account => account.IsOffline))
             EnsureOfflineUuid(account);
 
-        settings.Accounts = records;
+        state.Accounts = records;
+        state.SelectedAccountId = selectedAccountId;
 
-        if (!string.IsNullOrWhiteSpace(settings.SelectedAccountId)
-            && settings.Accounts.All(account => !string.Equals(account.Id, settings.SelectedAccountId, StringComparison.Ordinal)))
+        if (!string.IsNullOrWhiteSpace(state.SelectedAccountId)
+            && state.Accounts.All(account => !string.Equals(account.Id, state.SelectedAccountId, StringComparison.Ordinal)))
         {
-            settings.SelectedAccountId = null;
+            state.SelectedAccountId = null;
         }
 
-        var firstOfflineAccount = settings.Accounts.FirstOrDefault(account => account.IsOffline);
+        var firstOfflineAccount = state.Accounts.FirstOrDefault(account => account.IsOffline);
         if (firstOfflineAccount is not null)
-            settings.OfflineUsername = firstOfflineAccount.DisplayName;
+            state.OfflineUsername = firstOfflineAccount.DisplayName;
 
-        await settingsService.SaveAsync(settings);
+        await accountStateService.SaveAsync(state, cancellationToken);
         logger.LogInformation(
             "Account order saved. AccountCount={AccountCount} SelectedAccountId={SelectedAccountId}",
-            settings.Accounts.Count,
-            settings.SelectedAccountId);
+            state.Accounts.Count,
+            state.SelectedAccountId);
     }
 
     private bool EnsureOfflineUuid(LauncherAccountRecord account)

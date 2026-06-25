@@ -14,7 +14,7 @@ internal sealed class AccountCapeCacheService
     public AccountCapeCacheService(HttpClient httpClient, LauncherPathProvider pathProvider)
         : this(
             httpClient,
-            Path.Combine(pathProvider.DefaultDataDirectory, "accounts", "microsoft", "capes"))
+            Path.Combine(pathProvider.DefaultAccountDataDirectory, "microsoft", "capes"))
     {
     }
 

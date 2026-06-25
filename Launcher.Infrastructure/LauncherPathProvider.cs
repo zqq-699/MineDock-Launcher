@@ -5,11 +5,15 @@ namespace Launcher.Infrastructure;
 
 public sealed class LauncherPathProvider
 {
-    private readonly string applicationDataDirectory;
+    private readonly string applicationBaseDirectory;
+    private readonly string roamingApplicationDataDirectory;
 
-    public LauncherPathProvider(string? applicationDataDirectory = null)
+    public LauncherPathProvider(string? applicationBaseDirectory = null, string? applicationDataDirectory = null)
     {
-        this.applicationDataDirectory = string.IsNullOrWhiteSpace(applicationDataDirectory)
+        this.applicationBaseDirectory = string.IsNullOrWhiteSpace(applicationBaseDirectory)
+            ? AppContext.BaseDirectory
+            : Path.GetFullPath(applicationBaseDirectory);
+        roamingApplicationDataDirectory = string.IsNullOrWhiteSpace(applicationDataDirectory)
             ? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
             : Path.GetFullPath(applicationDataDirectory);
     }
@@ -17,7 +21,10 @@ public sealed class LauncherPathProvider
     public string ApplicationId => LauncherApplicationIdentity.StorageDirectoryName;
 
     public string DefaultDataDirectory =>
-        Path.Combine(applicationDataDirectory, ApplicationId);
+        Path.Combine(applicationBaseDirectory, ApplicationId);
+
+    public string DefaultAccountDataDirectory =>
+        Path.Combine(roamingApplicationDataDirectory, ApplicationId, "accounts");
 
     public string DefaultMinecraftDirectory =>
         Path.Combine(AppContext.BaseDirectory, ".minecraft");

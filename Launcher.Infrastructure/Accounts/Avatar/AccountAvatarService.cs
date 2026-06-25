@@ -24,7 +24,7 @@ internal sealed class AccountAvatarService
     public AccountAvatarService(HttpClient httpClient, LauncherPathProvider pathProvider)
         : this(
             httpClient,
-            Path.Combine(pathProvider.DefaultDataDirectory, "accounts", "microsoft", "avatars"))
+            Path.Combine(pathProvider.DefaultAccountDataDirectory, "microsoft", "avatars"))
     {
     }
 

@@ -76,9 +76,6 @@ public sealed class JsonSettingsService : ISettingsService
 
     private LauncherSettings Normalize(LauncherSettings settings)
     {
-        if (string.IsNullOrWhiteSpace(settings.OfflineUsername))
-            settings.OfflineUsername = LauncherDefaults.DefaultOfflineUsername;
-
         settings.Theme = NormalizeTheme(settings.Theme);
         var normalizedAccentColor = LauncherAccentColors.Normalize(settings.AccentColor);
         if (!string.IsNullOrWhiteSpace(settings.AccentColor)
@@ -102,33 +99,6 @@ public sealed class JsonSettingsService : ISettingsService
         settings.MinecraftDirectory = string.IsNullOrWhiteSpace(settings.MinecraftDirectory)
             ? Path.GetFullPath(pathProvider.DefaultMinecraftDirectory)
             : Path.GetFullPath(settings.MinecraftDirectory);
-
-        settings.Accounts ??= [];
-        settings.Accounts.RemoveAll(account => string.IsNullOrWhiteSpace(account.Id)
-            || string.IsNullOrWhiteSpace(account.DisplayName));
-        foreach (var account in settings.Accounts)
-        {
-            account.Capes ??= [];
-            account.Capes.RemoveAll(cape => !cape.IsNone && string.IsNullOrWhiteSpace(cape.DisplayName));
-            account.Skins ??= [];
-            account.Skins.RemoveAll(skin => string.IsNullOrWhiteSpace(skin.Id)
-                || string.IsNullOrWhiteSpace(skin.Source)
-                || string.IsNullOrWhiteSpace(skin.ContentHash));
-            if (!string.IsNullOrWhiteSpace(account.ActiveSkinId)
-                && account.Skins.All(skin => !string.Equals(skin.Id, account.ActiveSkinId, StringComparison.Ordinal)))
-            {
-                account.ActiveSkinId = null;
-            }
-        }
-
-        if (!settings.AccountsInitialized)
-            settings.AccountsInitialized = true;
-
-        if (!string.IsNullOrWhiteSpace(settings.SelectedAccountId)
-            && settings.Accounts.All(account => !string.Equals(account.Id, settings.SelectedAccountId, StringComparison.Ordinal)))
-        {
-            settings.SelectedAccountId = null;
-        }
 
         settings.DefaultMemoryMb = Math.Clamp(settings.DefaultMemoryMb, 1024, 32768);
         if (settings.DefaultMemorySettingsMode is not MemorySettingsMode.Auto

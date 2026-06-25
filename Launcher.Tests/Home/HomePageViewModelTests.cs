@@ -807,12 +807,15 @@ public sealed class HomePageViewModelTests
 
     private sealed class FakeAccountStore : IAccountStore
     {
-        public Task<IReadOnlyList<LauncherAccount>> LoadAsync(LauncherSettings settings)
+        public Task<AccountStoreSnapshot> LoadAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<LauncherAccount>>([]);
+            return Task.FromResult(new AccountStoreSnapshot([], null));
         }
 
-        public Task SaveOrderAsync(LauncherSettings settings, IEnumerable<LauncherAccount> accounts)
+        public Task SaveOrderAsync(
+            string? selectedAccountId,
+            IEnumerable<LauncherAccount> accounts,
+            CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }

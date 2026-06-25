@@ -15,17 +15,13 @@ public sealed class SettingsServiceTests : TestTempDirectory
         var service = new JsonSettingsService(TempRoot);
 
         var settings = await service.LoadAsync();
-        Assert.True(settings.AccountsInitialized);
-        Assert.Empty(settings.Accounts);
 
-        settings.OfflineUsername = "Steve";
         settings.DefaultMemorySettingsMode = MemorySettingsMode.Manual;
         settings.DefaultMemoryMb = 6144;
         await service.SaveAsync(settings);
 
         var loaded = await service.LoadAsync();
 
-        Assert.Equal("Steve", loaded.OfflineUsername);
         Assert.Equal(MemorySettingsMode.Manual, loaded.DefaultMemorySettingsMode);
         Assert.Equal(6144, loaded.DefaultMemoryMb);
         Assert.Equal(TempRoot, loaded.DataDirectory);
@@ -35,7 +31,6 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.True(loaded.ThemeFollowSystem);
         Assert.False(loaded.DisableBackgroundBlur);
         Assert.Equal(LauncherDefaults.DefaultLauncherBackgroundOpacityPercent, loaded.LauncherBackgroundOpacityPercent);
-        Assert.Empty(loaded.Accounts);
     }
 
     [Fact]
@@ -255,10 +250,14 @@ public sealed class SettingsServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task SettingsServicePersistsOfflineAccounts()
+    public async Task SettingsServiceDoesNotPersistAccountState()
     {
         var service = new JsonSettingsService(TempRoot);
         var settings = await service.LoadAsync();
+        settings.OfflineUsername = "Alex";
+        settings.SelectedAccountId = "offline-alex";
+        settings.AccountsInitialized = true;
+        settings.MicrosoftAccountsImported = true;
         settings.Accounts =
         [
             new LauncherAccountRecord
@@ -271,100 +270,17 @@ public sealed class SettingsServiceTests : TestTempDirectory
 
         await service.SaveAsync(settings);
         var loaded = await service.LoadAsync();
+        var json = await File.ReadAllTextAsync(Path.Combine(TempRoot, "settings.json"));
 
-        var account = Assert.Single(loaded.Accounts);
-        Assert.True(loaded.AccountsInitialized);
-        Assert.Equal("offline-alex", account.Id);
-        Assert.Equal("Alex", account.DisplayName);
-        Assert.True(account.IsOffline);
-    }
-
-    [Fact]
-    public async Task SettingsServiceKeepsInitializedEmptyAccountList()
-    {
-        var service = new JsonSettingsService(TempRoot);
-        var settings = await service.LoadAsync();
-        settings.AccountsInitialized = true;
-        settings.Accounts.Clear();
-
-        await service.SaveAsync(settings);
-        var loaded = await service.LoadAsync();
-
-        Assert.True(loaded.AccountsInitialized);
+        Assert.DoesNotContain("OfflineUsername", json);
+        Assert.DoesNotContain("SelectedAccountId", json);
+        Assert.DoesNotContain("AccountsInitialized", json);
+        Assert.DoesNotContain("MicrosoftAccountsImported", json);
+        Assert.DoesNotContain("Accounts", json);
+        Assert.Equal(LauncherDefaults.DefaultOfflineUsername, loaded.OfflineUsername);
+        Assert.Null(loaded.SelectedAccountId);
+        Assert.False(loaded.AccountsInitialized);
         Assert.Empty(loaded.Accounts);
-    }
-
-    [Fact]
-    public async Task SettingsServicePreservesMixedAccountOrder()
-    {
-        var service = new JsonSettingsService(TempRoot);
-        var settings = await service.LoadAsync();
-        settings.AccountsInitialized = true;
-        settings.Accounts =
-        [
-            new LauncherAccountRecord
-            {
-                Id = "offline-first",
-                DisplayName = "First",
-                IsOffline = true
-            },
-            new LauncherAccountRecord
-            {
-                Id = "microsoft-alex",
-                DisplayName = "Alex",
-                Uuid = "alexuuid",
-                IsOffline = false
-            },
-            new LauncherAccountRecord
-            {
-                Id = "offline-last",
-                DisplayName = "Last",
-                IsOffline = true
-            }
-        ];
-
-        await service.SaveAsync(settings);
-        var loaded = await service.LoadAsync();
-
-        Assert.Equal(
-            ["offline-first", "microsoft-alex", "offline-last"],
-            loaded.Accounts.Select(account => account.Id));
-    }
-
-    [Fact]
-    public async Task SettingsServicePersistsCachedAccountCapes()
-    {
-        var service = new JsonSettingsService(TempRoot);
-        var settings = await service.LoadAsync();
-        settings.AccountsInitialized = true;
-        settings.Accounts =
-        [
-            new LauncherAccountRecord
-            {
-                Id = "microsoft-alex",
-                DisplayName = "Alex",
-                Uuid = "alexuuid",
-                IsOffline = false,
-                Capes =
-                [
-                    new LauncherCapeRecord
-                    {
-                        Id = "cape-one",
-                        DisplayName = "Cape One",
-                        IsActive = true
-                    }
-                ]
-            }
-        ];
-
-        await service.SaveAsync(settings);
-        var loaded = await service.LoadAsync();
-
-        var account = Assert.Single(loaded.Accounts);
-        var cape = Assert.Single(account.Capes);
-        Assert.Equal("cape-one", cape.Id);
-        Assert.Equal("Cape One", cape.DisplayName);
-        Assert.True(cape.IsActive);
     }
 }
 

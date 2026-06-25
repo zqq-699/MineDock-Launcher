@@ -18,7 +18,7 @@ internal sealed class AccountSkinCacheService
     public AccountSkinCacheService(HttpClient httpClient, LauncherPathProvider pathProvider)
         : this(
             httpClient,
-            Path.Combine(pathProvider.DefaultDataDirectory, "accounts", "microsoft", "skins"))
+            Path.Combine(pathProvider.DefaultAccountDataDirectory, "microsoft", "skins"))
     {
     }
 

@@ -9,7 +9,7 @@ public sealed class AccountStoreTests
     [Fact]
     public async Task LoadAsync_PreservesStoredOrderAndImportsMicrosoftAccountsOnce()
     {
-        var settings = new LauncherSettings
+        var state = new LauncherAccountState
         {
             MicrosoftAccountsImported = false,
             Accounts =
@@ -30,7 +30,7 @@ public sealed class AccountStoreTests
             ]
         };
 
-        var settingsService = new FakeSettingsService();
+        var accountStateService = new FakeAccountStateService(state);
         var microsoftService = new FakeMicrosoftAccountService(
             new LauncherAccount
             {
@@ -47,9 +47,10 @@ public sealed class AccountStoreTests
                 Uuid = "imported-uuid",
                 IsOffline = false
             });
-        var store = new AccountStore(settingsService, microsoftService, new FakeOfflineAccountUuidService());
+        var store = new AccountStore(accountStateService, microsoftService, new FakeOfflineAccountUuidService());
 
-        var accounts = await store.LoadAsync(settings);
+        var snapshot = await store.LoadAsync();
+        var accounts = snapshot.Accounts;
 
         Assert.Collection(
             accounts,
@@ -74,17 +75,16 @@ public sealed class AccountStoreTests
                 Assert.Equal("Imported", account.DisplayName);
                 Assert.False(account.IsOffline);
             });
-        Assert.True(settings.MicrosoftAccountsImported);
-        Assert.Equal(1, settingsService.SaveCount);
+        Assert.True(accountStateService.State.MicrosoftAccountsImported);
+        Assert.Equal(1, accountStateService.SaveCount);
     }
 
     [Fact]
     public async Task SaveOrderAsync_WritesAccountRecordsAndFirstOfflineUsername()
     {
-        var settings = new LauncherSettings();
-        var settingsService = new FakeSettingsService();
+        var accountStateService = new FakeAccountStateService();
         var store = new AccountStore(
-            settingsService,
+            accountStateService,
             new FakeMicrosoftAccountService(),
             new FakeOfflineAccountUuidService());
         var accounts = new[]
@@ -118,13 +118,15 @@ public sealed class AccountStoreTests
             }
         };
 
-        await store.SaveOrderAsync(settings, accounts);
+        await store.SaveOrderAsync("ms-1", accounts);
 
-        Assert.True(settings.AccountsInitialized);
-        Assert.True(settings.MicrosoftAccountsImported);
-        Assert.Equal("Offline", settings.OfflineUsername);
+        var state = accountStateService.State;
+        Assert.True(state.AccountsInitialized);
+        Assert.True(state.MicrosoftAccountsImported);
+        Assert.Equal("Offline", state.OfflineUsername);
+        Assert.Equal("ms-1", state.SelectedAccountId);
         Assert.Collection(
-            settings.Accounts,
+            state.Accounts,
             account =>
             {
                 Assert.Equal("ms-1", account.Id);
@@ -141,13 +143,13 @@ public sealed class AccountStoreTests
                 Assert.Equal("Standard-Offline", account.Uuid);
                 Assert.Equal(OfflineUuidGenerationMode.Standard, account.OfflineUuidGenerationMode);
             });
-        Assert.Same(settings, settingsService.LastSavedSettings);
+        Assert.Same(state, accountStateService.LastSavedState);
     }
 
     [Fact]
     public async Task LoadAsync_PreservesRandomOfflineUuid()
     {
-        var settings = new LauncherSettings
+        var state = new LauncherAccountState
         {
             MicrosoftAccountsImported = true,
             Accounts =
@@ -162,12 +164,13 @@ public sealed class AccountStoreTests
                 }
             ]
         };
+        var accountStateService = new FakeAccountStateService(state);
         var store = new AccountStore(
-            new FakeSettingsService(),
+            accountStateService,
             new FakeMicrosoftAccountService(),
             new FakeOfflineAccountUuidService());
 
-        var accounts = await store.LoadAsync(settings);
+        var accounts = (await store.LoadAsync()).Accounts;
 
         var account = Assert.Single(accounts);
         Assert.Equal("existing-random", account.Uuid);
@@ -177,7 +180,7 @@ public sealed class AccountStoreTests
     [Fact]
     public async Task LoadAsync_PersistsMicrosoftAvatarMergedFromCache()
     {
-        var settings = new LauncherSettings
+        var state = new LauncherAccountState
         {
             MicrosoftAccountsImported = true,
             Accounts =
@@ -191,9 +194,9 @@ public sealed class AccountStoreTests
                 }
             ]
         };
-        var settingsService = new FakeSettingsService();
+        var accountStateService = new FakeAccountStateService(state);
         var store = new AccountStore(
-            settingsService,
+            accountStateService,
             new FakeMicrosoftAccountService(
                 new LauncherAccount
                 {
@@ -220,7 +223,7 @@ public sealed class AccountStoreTests
                 }),
             new FakeOfflineAccountUuidService());
 
-        var accounts = await store.LoadAsync(settings);
+        var accounts = (await store.LoadAsync()).Accounts;
 
         var account = Assert.Single(accounts);
         Assert.Equal("LiveName", account.DisplayName);
@@ -229,8 +232,8 @@ public sealed class AccountStoreTests
         Assert.Equal(MinecraftSkinModel.Slim, account.SkinModel);
         Assert.Equal("skin-1", account.ActiveSkinId);
         Assert.Single(account.SkinLibrary);
-        Assert.Equal(1, settingsService.SaveCount);
-        var savedAccount = Assert.Single(settings.Accounts);
+        Assert.Equal(1, accountStateService.SaveCount);
+        var savedAccount = Assert.Single(accountStateService.State.Accounts);
         Assert.Equal("LiveName", savedAccount.DisplayName);
         Assert.Equal("cached-avatar.png", savedAccount.AvatarSource);
         Assert.Equal("cached-skin.png", savedAccount.SkinSource);
@@ -242,7 +245,7 @@ public sealed class AccountStoreTests
     [Fact]
     public async Task LoadAsync_KeepsStoredMicrosoftSkinWhenRefreshHasNoSkin()
     {
-        var settings = new LauncherSettings
+        var state = new LauncherAccountState
         {
             MicrosoftAccountsImported = true,
             Accounts =
@@ -258,8 +261,9 @@ public sealed class AccountStoreTests
                 }
             ]
         };
+        var accountStateService = new FakeAccountStateService(state);
         var store = new AccountStore(
-            new FakeSettingsService(),
+            accountStateService,
             new FakeMicrosoftAccountService(
                 new LauncherAccount
                 {
@@ -270,7 +274,7 @@ public sealed class AccountStoreTests
                 }),
             new FakeOfflineAccountUuidService());
 
-        var accounts = await store.LoadAsync(settings);
+        var accounts = (await store.LoadAsync()).Accounts;
 
         var account = Assert.Single(accounts);
         Assert.Equal("stored-skin.png", account.SkinSource);
@@ -280,7 +284,7 @@ public sealed class AccountStoreTests
     [Fact]
     public async Task LoadAsync_KeepsStoredMicrosoftNameWhenRefreshFallsBackToCache()
     {
-        var settings = new LauncherSettings
+        var state = new LauncherAccountState
         {
             MicrosoftAccountsImported = true,
             Accounts =
@@ -294,8 +298,9 @@ public sealed class AccountStoreTests
                 }
             ]
         };
+        var accountStateService = new FakeAccountStateService(state);
         var store = new AccountStore(
-            new FakeSettingsService(),
+            accountStateService,
             new FakeMicrosoftAccountService(
                 new LauncherAccount
                 {
@@ -306,27 +311,35 @@ public sealed class AccountStoreTests
                 }),
             new FakeOfflineAccountUuidService());
 
-        var accounts = await store.LoadAsync(settings);
+        var accounts = (await store.LoadAsync()).Accounts;
 
         var account = Assert.Single(accounts);
         Assert.Equal("StoredName", account.DisplayName);
     }
 
-    private sealed class FakeSettingsService : ISettingsService
+    private sealed class FakeAccountStateService : IAccountStateService
     {
-        public int SaveCount { get; private set; }
-
-        public LauncherSettings? LastSavedSettings { get; private set; }
-
-        public Task<LauncherSettings> LoadAsync(CancellationToken cancellationToken = default)
+        public FakeAccountStateService(LauncherAccountState? state = null)
         {
-            return Task.FromResult(new LauncherSettings());
+            State = state ?? new LauncherAccountState();
         }
 
-        public Task SaveAsync(LauncherSettings settings, CancellationToken cancellationToken = default)
+        public LauncherAccountState State { get; private set; }
+
+        public int SaveCount { get; private set; }
+
+        public LauncherAccountState? LastSavedState { get; private set; }
+
+        public Task<LauncherAccountState> LoadAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(State);
+        }
+
+        public Task SaveAsync(LauncherAccountState state, CancellationToken cancellationToken = default)
         {
             SaveCount++;
-            LastSavedSettings = settings;
+            State = state;
+            LastSavedState = state;
             return Task.CompletedTask;
         }
     }

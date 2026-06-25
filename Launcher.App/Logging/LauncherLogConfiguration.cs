@@ -39,8 +39,7 @@ internal static class LauncherLogConfiguration
 
     public static string ResolveLogDirectory()
     {
-        var applicationDataDirectory = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        return Path.Combine(applicationDataDirectory, LauncherApplicationIdentity.StorageDirectoryName, LogDirectoryName);
+        return Path.Combine(AppContext.BaseDirectory, LauncherApplicationIdentity.StorageDirectoryName, LogDirectoryName);
     }
 
     public static void PruneOldLogFiles(string logDirectory, DateTimeOffset now)

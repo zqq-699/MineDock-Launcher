@@ -21,7 +21,7 @@ public sealed class CurseForgeApiKeyResolverTests
             Environment.SetEnvironmentVariable("CURSEFORGE_API_KEY", null);
             await WriteSecretAsync(tempRoot, "current-directory-secret");
 
-            var resolver = CreateResolver(tempRoot);
+            var resolver = CreateResolver(tempRoot, environmentApiKeyProvider: () => null);
 
             var apiKey = await resolver.TryResolveAsync();
 
@@ -73,7 +73,7 @@ public sealed class CurseForgeApiKeyResolverTests
             Directory.CreateDirectory(legacySecretsDirectory);
             await File.WriteAllTextAsync(Path.Combine(legacySecretsDirectory, "curseforge.key"), "legacy-secret");
 
-            var resolver = CreateResolver(tempRoot);
+            var resolver = CreateResolver(tempRoot, environmentApiKeyProvider: () => null);
 
             var apiKey = await resolver.TryResolveAsync();
 

@@ -12,7 +12,7 @@ internal sealed class MicrosoftAuthProvider
 
     public MicrosoftAuthProvider(LauncherPathProvider pathProvider)
     {
-        var accountDirectory = Path.Combine(pathProvider.DefaultDataDirectory, "accounts", "microsoft");
+        var accountDirectory = Path.Combine(pathProvider.DefaultAccountDataDirectory, "microsoft");
         var accountFile = Path.Combine(accountDirectory, "accounts.json");
         Directory.CreateDirectory(accountDirectory);
 

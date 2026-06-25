@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IImportConcurrencyLimiter>(_ => ImportConcurrencyLimiter.Shared);
         services.AddSingleton<ICurseForgeApiKeyResolver, CurseForgeApiKeyResolver>();
         services.AddSingleton<ISettingsService, JsonSettingsService>();
+        services.AddSingleton<IAccountStateService, JsonAccountStateService>();
         services.AddSingleton<IGameInstanceRepository, JsonGameInstanceRepository>();
         services.AddSingleton<IGameVersionService, GameVersionService>();
         services.AddSingleton<ILoaderProvider, VanillaLoaderProvider>();
@@ -50,7 +51,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IAccountSkinLibraryService, AccountSkinLibraryService>();
         services.AddSingleton<IMinecraftSkinFileValidator, MinecraftSkinFileValidator>();
         services.AddSingleton<IOfflineAccountUuidService, OfflineAccountUuidService>();
-        services.AddSingleton(_ => new MicrosoftAuthProvider(new LauncherPathProvider()));
+        services.AddSingleton(serviceProvider => new MicrosoftAuthProvider(serviceProvider.GetRequiredService<LauncherPathProvider>()));
         services.AddSingleton<ILaunchAccountSessionService, LaunchAccountSessionService>();
         return services;
     }

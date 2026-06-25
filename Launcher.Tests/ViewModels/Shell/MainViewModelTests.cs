@@ -15,22 +15,15 @@ public sealed class MainViewModelTests
     [Fact]
     public async Task PrimeAsyncUsesCachedSelectedAccountForHomePage()
     {
-        var settings = new LauncherSettings
+        var account = new LauncherAccount
         {
-            SelectedAccountId = "microsoft-00000000000000000000000000000001",
-            Accounts =
-            [
-                new LauncherAccountRecord
-                {
-                    Id = "microsoft-00000000000000000000000000000001",
-                    DisplayName = "CachedName",
-                    Uuid = "00000000000000000000000000000001",
-                    AvatarSource = "cached-avatar.png",
-                    IsOffline = false
-                }
-            ]
+            Id = "microsoft-00000000000000000000000000000001",
+            DisplayName = "CachedName",
+            Uuid = "00000000000000000000000000000001",
+            AvatarSource = "cached-avatar.png",
+            IsOffline = false
         };
-        var viewModel = CreateViewModel(new FakeGameInstanceService(), settings);
+        var viewModel = CreateViewModel(new FakeGameInstanceService(), selectedAccount: account);
 
         await viewModel.PrimeAsync();
 
@@ -788,7 +781,7 @@ public sealed class MainViewModelTests
         FakeStatusService statusService,
         LauncherAccount? selectedAccount = null)
     {
-        var accountList = new AccountListViewModel(new FakeAccountStore());
+        var accountList = new AccountListViewModel(new FakeAccountStore(selectedAccount));
         if (selectedAccount is not null)
         {
             accountList.Accounts.Add(selectedAccount);
@@ -1113,12 +1106,24 @@ public sealed class MainViewModelTests
 
     private sealed class FakeAccountStore : IAccountStore
     {
-        public Task<IReadOnlyList<LauncherAccount>> LoadAsync(LauncherSettings settings)
+        private readonly LauncherAccount? selectedAccount;
+
+        public FakeAccountStore(LauncherAccount? selectedAccount = null)
         {
-            return Task.FromResult<IReadOnlyList<LauncherAccount>>([]);
+            this.selectedAccount = selectedAccount;
         }
 
-        public Task SaveOrderAsync(LauncherSettings settings, IEnumerable<LauncherAccount> accounts)
+        public Task<AccountStoreSnapshot> LoadAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(selectedAccount is null
+                ? new AccountStoreSnapshot([], null)
+                : new AccountStoreSnapshot([selectedAccount], selectedAccount.Id));
+        }
+
+        public Task SaveOrderAsync(
+            string? selectedAccountId,
+            IEnumerable<LauncherAccount> accounts,
+            CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }
