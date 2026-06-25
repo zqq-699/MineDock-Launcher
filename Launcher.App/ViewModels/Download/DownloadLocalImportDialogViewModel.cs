@@ -199,12 +199,13 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
                 Close(resetDialogState: true);
             });
 
-            _ = RunImportTaskAsync(
+            var importTask = RunImportTaskAsync(
                 importPath,
                 importFileName,
                 createdTask,
                 downloadSourcePreference,
                 downloadSpeedLimitMbPerSecond);
+            downloadTasksPage.TrackBackgroundTask(importTask);
         }
         catch (Exception exception)
         {

@@ -1,5 +1,6 @@
 using System.Windows;
 using Launcher.Application.DependencyInjection;
+using Launcher.Application.Services;
 using Launcher.App.Logging;
 using Launcher.App.Services;
 using Launcher.Infrastructure.DependencyInjection;
@@ -11,6 +12,7 @@ namespace Launcher.App;
 
 public partial class App : System.Windows.Application
 {
+    private static readonly TimeSpan ExitBackgroundTaskWaitTimeout = TimeSpan.FromSeconds(5);
     private ServiceProvider? serviceProvider;
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -68,6 +70,8 @@ public partial class App : System.Windows.Application
             serviceProvider = services.BuildServiceProvider();
             Log.Information("Service provider built.");
 
+            await CleanupModpackWorkspacesOnStartupAsync();
+
             var mainViewModel = serviceProvider.GetRequiredService<MainViewModel>();
             await mainViewModel.PrimeAsync();
             serviceProvider.GetRequiredService<IThemeService>().ApplyPreference(
@@ -93,6 +97,7 @@ public partial class App : System.Windows.Application
         try
         {
             Log.Information("Launcher exit started. ExitCode={ExitCode}", e.ApplicationExitCode);
+            CancelAndCleanupBackgroundDownloadsOnExit();
             serviceProvider?.Dispose();
             LauncherLogConfiguration.PruneOldLogFiles(
                 LauncherLogConfiguration.ResolveLogDirectory(),
@@ -103,6 +108,60 @@ public partial class App : System.Windows.Application
         {
             Log.CloseAndFlush();
             base.OnExit(e);
+        }
+    }
+
+    private async Task CleanupModpackWorkspacesOnStartupAsync()
+    {
+        if (serviceProvider is null)
+            return;
+
+        try
+        {
+            await serviceProvider.GetRequiredService<IModpackWorkspaceCleanupService>()
+                .CleanupAllAsync()
+                .ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Failed to clean modpack workspace cache on startup.");
+        }
+    }
+
+    private void CancelAndCleanupBackgroundDownloadsOnExit()
+    {
+        if (serviceProvider is null)
+            return;
+
+        try
+        {
+            var downloadTasksPage = serviceProvider.GetService<DownloadTasksPageViewModel>();
+            if (downloadTasksPage is not null)
+            {
+                downloadTasksPage.CancelAllRunningTasks();
+                var completed = downloadTasksPage
+                    .WaitForTrackedBackgroundTasksAsync(ExitBackgroundTaskWaitTimeout)
+                    .GetAwaiter()
+                    .GetResult();
+                if (!completed)
+                    Log.Warning("Timed out waiting for background download tasks during launcher exit.");
+            }
+        }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Failed to cancel background download tasks during launcher exit.");
+        }
+
+        try
+        {
+            serviceProvider.GetRequiredService<IModpackWorkspaceCleanupService>()
+                .CleanupAllAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Failed to clean modpack workspace cache during launcher exit.");
         }
     }
 

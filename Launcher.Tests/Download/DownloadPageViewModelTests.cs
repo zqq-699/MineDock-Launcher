@@ -262,6 +262,48 @@ public sealed class DownloadPageViewModelTests
     }
 
     [Fact]
+    public async Task DownloadPageLocalImportTracksBackgroundTaskAndCancelsItThroughTasksPage()
+    {
+        var tempFilePath = CreateTempModpackFile(".mrpack");
+
+        try
+        {
+            var tasksPage = new DownloadTasksPageViewModel();
+            var releaseImport = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var localModpackImportService = new FakeLocalModpackImportService
+            {
+                RecognitionResultToReturn = ModpackRecognitionResult.Success(),
+                ResultToReturn = ModpackImportResult.Success(CreateImportedInstance("Imported Pack")),
+                WaitBeforeImportByCall = [releaseImport.Task]
+            };
+            var viewModel = CreateDownloadPageViewModel(
+                new FakeGameVersionService([]),
+                tasksPage: tasksPage,
+                localModpackImportService: localModpackImportService);
+
+            viewModel.LocalImportDialog.Open();
+            Assert.True(viewModel.LocalImportDialog.ApplyDroppedFiles([tempFilePath]));
+            await viewModel.LocalImportDialog.ConfirmImportCommand.ExecuteAsync(null);
+            await TestAsync.WaitForAsync(() => localModpackImportService.ImportCallCount == 1);
+
+            var importTask = Assert.Single(tasksPage.Tasks);
+            Assert.Equal(1, tasksPage.TrackedBackgroundTaskCount);
+
+            tasksPage.CancelAllRunningTasks();
+
+            Assert.True(importTask.IsCancellationRequested);
+            await TestAsync.WaitForAsync(() => localModpackImportService.LastImportCancellationToken.IsCancellationRequested);
+            Assert.True(await tasksPage.WaitForTrackedBackgroundTasksAsync(TimeSpan.FromSeconds(1)));
+            await TestAsync.WaitForAsync(() => tasksPage.TrackedBackgroundTaskCount == 0);
+            Assert.Empty(tasksPage.Tasks);
+        }
+        finally
+        {
+            File.Delete(tempFilePath);
+        }
+    }
+
+    [Fact]
     public async Task DownloadPageLocalImportDisablesConfirmOnlyWhileRecognizingSelectedArchive()
     {
         var firstFilePath = CreateTempModpackFile(".mrpack");
@@ -2600,6 +2642,8 @@ public sealed class DownloadPageViewModelTests
 
         public string? LastArchivePath { get; private set; }
 
+        public CancellationToken LastImportCancellationToken { get; private set; }
+
         public int RecognizeCallCount { get; private set; }
 
         public int ImportCallCount => Volatile.Read(ref importCallCount);
@@ -2629,6 +2673,7 @@ public sealed class DownloadPageViewModelTests
             int downloadSpeedLimitMbPerSecond = 0)
         {
             LastArchivePath = archivePath;
+            LastImportCancellationToken = cancellationToken;
             ImportedArchivePaths.Add(archivePath);
             var importIndex = Interlocked.Increment(ref importCallCount) - 1;
             var progressReports = importIndex < ProgressReportsToEmitByImport.Count

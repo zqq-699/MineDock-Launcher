@@ -13,6 +13,8 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
 {
     private static readonly TimeSpan DefaultCompletedTaskRetention = TimeSpan.FromSeconds(3);
     private readonly TimeSpan completedTaskRetention;
+    private readonly object backgroundTasksLock = new();
+    private readonly HashSet<Task> backgroundTasks = [];
     private readonly Dictionary<string, CancellationTokenSource> removalTokens = [];
     private readonly IUiDispatcher uiDispatcher;
 
@@ -42,6 +44,15 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
 
     public bool HasTasks => Tasks.Count > 0;
 
+    internal int TrackedBackgroundTaskCount
+    {
+        get
+        {
+            lock (backgroundTasksLock)
+                return backgroundTasks.Count;
+        }
+    }
+
     public event EventHandler<DownloadTaskItem>? TaskStarted;
 
     public DownloadTaskItem BeginTask(string title, string subtitle)
@@ -61,6 +72,61 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
 
         task.Cancel();
         RemoveTask(task, force: true);
+    }
+
+    public void CancelAllRunningTasks()
+    {
+        foreach (var task in Tasks.ToList())
+        {
+            if (task.State is DownloadTaskState.Running)
+                task.Cancel();
+        }
+    }
+
+    public void TrackBackgroundTask(Task task)
+    {
+        ArgumentNullException.ThrowIfNull(task);
+        if (task.IsCompleted)
+            return;
+
+        lock (backgroundTasksLock)
+        {
+            backgroundTasks.Add(task);
+        }
+
+        _ = RemoveTrackedBackgroundTaskWhenCompletedAsync(task);
+    }
+
+    public async Task<bool> WaitForTrackedBackgroundTasksAsync(
+        TimeSpan timeout,
+        CancellationToken cancellationToken = default)
+    {
+        Task[] tasks;
+        lock (backgroundTasksLock)
+            tasks = backgroundTasks.ToArray();
+
+        if (tasks.Length == 0)
+            return true;
+
+        try
+        {
+            await Task.WhenAll(tasks)
+                .WaitAsync(timeout, cancellationToken)
+                .ConfigureAwait(false);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch
+        {
+            return true;
+        }
     }
 
     private void Tasks_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -120,11 +186,27 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
         }
     }
 
+    private async Task RemoveTrackedBackgroundTaskWhenCompletedAsync(Task task)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+        finally
+        {
+            lock (backgroundTasksLock)
+                backgroundTasks.Remove(task);
+        }
+    }
+
     private void RemoveTask(DownloadTaskItem task, bool force)
     {
         if (!uiDispatcher.HasAccess)
         {
-            uiDispatcher.Invoke(() => RemoveTask(task, force));
+            uiDispatcher.Post(() => RemoveTask(task, force));
             return;
         }
 

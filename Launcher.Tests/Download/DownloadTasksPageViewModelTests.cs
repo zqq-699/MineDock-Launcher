@@ -40,6 +40,41 @@ public sealed class DownloadTasksPageViewModelTests
     }
 
     [Fact]
+    public void DownloadTasksPageCancelAllRunningTasksCancelsRunningTasks()
+    {
+        var viewModel = new DownloadTasksPageViewModel();
+        var firstTask = viewModel.BeginTask("First", "one");
+        var completedTask = viewModel.BeginTask("Completed", "done");
+        var secondTask = viewModel.BeginTask("Second", "two");
+        completedTask.Complete("done");
+
+        viewModel.CancelAllRunningTasks();
+
+        Assert.True(firstTask.IsCancellationRequested);
+        Assert.False(completedTask.IsCancellationRequested);
+        Assert.True(secondTask.IsCancellationRequested);
+        Assert.Equal(3, viewModel.Tasks.Count);
+    }
+
+    [Fact]
+    public async Task DownloadTasksPageWaitsForTrackedBackgroundTasksAndRemovesCompletedTracking()
+    {
+        var viewModel = new DownloadTasksPageViewModel();
+        var releaseTask = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        viewModel.TrackBackgroundTask(releaseTask.Task);
+
+        Assert.Equal(1, viewModel.TrackedBackgroundTaskCount);
+        var completedBeforeRelease = await viewModel.WaitForTrackedBackgroundTasksAsync(TimeSpan.FromMilliseconds(10));
+        Assert.False(completedBeforeRelease);
+
+        releaseTask.SetResult(true);
+
+        Assert.True(await viewModel.WaitForTrackedBackgroundTasksAsync(TimeSpan.FromSeconds(1)));
+        await TestAsync.WaitForAsync(() => viewModel.TrackedBackgroundTaskCount == 0);
+    }
+
+    [Fact]
     public async Task DownloadTasksPageRemovesCompletedTasksAfterRetention()
     {
         var viewModel = new DownloadTasksPageViewModel(TimeSpan.FromMilliseconds(10));

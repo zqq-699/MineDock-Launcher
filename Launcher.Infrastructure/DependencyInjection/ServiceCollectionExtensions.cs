@@ -42,6 +42,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IModpackGameInstaller, ModpackGameInstaller>();
         services.AddSingleton<IModpackInstanceStagingService, ModpackInstanceStagingService>();
         services.AddSingleton<IModpackPackageService, LocalModpackPackageService>();
+        services.AddSingleton<IModpackWorkspaceCleanupService, ModpackWorkspaceCleanupService>();
         services.AddSingleton<ILocalResourcePackService, LocalResourcePackService>();
         services.AddSingleton<ILocalShaderPackService, LocalShaderPackService>();
         services.AddSingleton<IModrinthService, ModrinthService>();
