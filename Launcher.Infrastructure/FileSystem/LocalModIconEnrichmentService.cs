@@ -21,10 +21,10 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
     private const string CurseForgeBaseUrl = "https://api.curseforge.com/v1";
     private const int MinecraftGameId = 432;
     private const long MaxIconBytes = 1024L * 1024L;
-    private const long MaxCacheBytes = 100L * 1024L * 1024L;
-    private const long TargetCacheBytes = 80L * 1024L * 1024L;
+    private const long MaxCacheBytes = 50L * 1024L * 1024L;
+    private const long TargetCacheBytes = 40L * 1024L * 1024L;
     private static readonly TimeSpan RefreshAfter = TimeSpan.FromDays(30);
-    private static readonly TimeSpan UnusedExpiration = TimeSpan.FromDays(90);
+    private static readonly TimeSpan UnusedExpiration = TimeSpan.FromDays(30);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true

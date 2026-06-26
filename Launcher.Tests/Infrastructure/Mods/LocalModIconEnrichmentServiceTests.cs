@@ -307,8 +307,8 @@ public sealed class LocalModIconEnrichmentServiceTests : TestTempDirectory
         Directory.CreateDirectory(cacheDirectory);
         var oldIconPath = Path.Combine(cacheDirectory, "old-large.png");
         var recentIconPath = Path.Combine(cacheDirectory, "recent-large.png");
-        CreateFileWithLength(oldIconPath, 60L * 1024L * 1024L);
-        CreateFileWithLength(recentIconPath, 50L * 1024L * 1024L);
+        CreateFileWithLength(oldIconPath, 25L * 1024L * 1024L);
+        CreateFileWithLength(recentIconPath, 30L * 1024L * 1024L);
         var now = DateTimeOffset.UtcNow;
         await File.WriteAllTextAsync(
             Path.Combine(cacheDirectory, "index.json"),
