@@ -584,6 +584,68 @@ public sealed class HomePageViewModelTests
     }
 
     [Fact]
+    public async Task HomePageLaunchRaisesJavaRequirementEventForManualVersionMismatch()
+    {
+        var statusService = new FakeStatusService();
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new JavaRuntimeSelectionException(
+                "manual java too low",
+                JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow,
+                21,
+                8)
+        };
+        var account = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "LocalUser",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+        var instance = CreateInstance("first", "First World", "1.20.5", LoaderKind.Vanilla);
+        var viewModel = CreateViewModel(statusService, launchService: launchService, selectedAccount: account);
+        viewModel.SetSelectedInstance(instance);
+        JavaRequirementNotMetEventArgs? eventArgs = null;
+        var launchFailureReported = false;
+        viewModel.JavaRequirementNotMet += (_, args) => eventArgs = args;
+        viewModel.LaunchFailureReported += (_, _) => launchFailureReported = true;
+
+        await viewModel.LaunchCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_JavaSelectionFailed, statusService.LastMessage);
+        Assert.NotNull(eventArgs);
+        Assert.Same(instance, eventArgs.Instance);
+        Assert.Equal(21, eventArgs.RequiredMajorVersion);
+        Assert.Equal(8, eventArgs.CurrentMajorVersion);
+        Assert.Equal(JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow, eventArgs.Reason);
+        Assert.False(launchFailureReported);
+        Assert.False(viewModel.IsLaunching);
+    }
+
+    [Fact]
+    public async Task HomePageForceLaunchIgnoresJavaVersionRequirement()
+    {
+        var statusService = new FakeStatusService();
+        var launchService = new FakeLaunchService();
+        var account = new LauncherAccount
+        {
+            Id = "offline-1",
+            DisplayName = "LocalUser",
+            Uuid = "00000000-0000-0000-0000-000000000001",
+            IsOffline = true
+        };
+        var instance = CreateInstance("first", "First World", "1.20.5", LoaderKind.Vanilla);
+        var viewModel = CreateViewModel(statusService, launchService: launchService, selectedAccount: account);
+
+        await viewModel.ForceLaunchIgnoringJavaRequirementAsync(instance);
+
+        Assert.Equal(1, launchService.LaunchCallCount);
+        Assert.Same(instance, launchService.LastInstance);
+        Assert.True(launchService.LastOptions?.IgnoreJavaVersionRequirement);
+        Assert.False(viewModel.IsLaunching);
+    }
+
+    [Fact]
     public async Task HomePageLaunchShowsFriendlyQuickExitFailure()
     {
         var statusService = new FakeStatusService();
@@ -746,6 +808,8 @@ public sealed class HomePageViewModelTests
     {
         public GameInstance? LastInstance { get; private set; }
         public LauncherAccount? LastAccount { get; private set; }
+        public LaunchRequestOptions? LastOptions { get; private set; }
+        public int LaunchCallCount { get; private set; }
         public Exception? ExceptionToThrow { get; init; }
         public Func<IProgress<LauncherProgress>?, CancellationToken, Task>? LaunchBehavior { get; init; }
 
@@ -754,10 +818,13 @@ public sealed class HomePageViewModelTests
             LauncherAccount account,
             LauncherSettings settings,
             IProgress<LauncherProgress>? progress,
+            LaunchRequestOptions? options = null,
             CancellationToken cancellationToken = default)
         {
+            LaunchCallCount++;
             LastInstance = instance;
             LastAccount = account;
+            LastOptions = options;
             if (LaunchBehavior is not null)
             {
                 await LaunchBehavior(progress, cancellationToken);

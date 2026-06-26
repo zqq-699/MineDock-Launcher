@@ -415,6 +415,16 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         CurrentStep = GameSettingsPageStep.Details;
     }
 
+    public async Task OpenInstanceJavaSettingsAsync(GameInstance instance, CancellationToken cancellationToken = default)
+    {
+        await OpenInstanceDetailsAsync(instance, cancellationToken);
+        if (!IsDetailsStep)
+            return;
+
+        SelectDetailsSectionCore(DetailSections.FirstOrDefault(section =>
+            string.Equals(section.Id, "java", StringComparison.OrdinalIgnoreCase)));
+    }
+
     private async Task RefreshInstancesCoreAsync(
         bool playEntranceAnimation,
         bool clearVisibleInstancesBeforeRefresh,

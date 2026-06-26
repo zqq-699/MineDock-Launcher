@@ -444,7 +444,11 @@ public static class Strings
     public static string Dialog_JavaRuntimeMissingTitle => Get(nameof(Dialog_JavaRuntimeMissingTitle));
     public static string Dialog_JavaRuntimeMissingMessage => Get(nameof(Dialog_JavaRuntimeMissingMessage));
     public static string Dialog_JavaRuntimeMissingMessageFormat => Get(nameof(Dialog_JavaRuntimeMissingMessageFormat));
+    public static string Dialog_JavaManualVersionTooLowTitle => Get(nameof(Dialog_JavaManualVersionTooLowTitle));
+    public static string Dialog_JavaManualVersionTooLowMessageFormat => Get(nameof(Dialog_JavaManualVersionTooLowMessageFormat));
     public static string Dialog_GoToSettingsButton => Get(nameof(Dialog_GoToSettingsButton));
+    public static string Dialog_ForceLaunchButton => Get(nameof(Dialog_ForceLaunchButton));
+    public static string Dialog_CancelLaunchButton => Get(nameof(Dialog_CancelLaunchButton));
     public static string Dialog_RenameAccountTitle => Get(nameof(Dialog_RenameAccountTitle));
     public static string Dialog_RenameAccountBusyTitle => Get(nameof(Dialog_RenameAccountBusyTitle));
     public static string Dialog_RenameAccountSuccessTitle => Get(nameof(Dialog_RenameAccountSuccessTitle));

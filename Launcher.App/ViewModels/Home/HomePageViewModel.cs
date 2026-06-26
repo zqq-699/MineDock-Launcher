@@ -172,9 +172,21 @@ public sealed partial class HomePageViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanLaunchSelectedGame))]
     private async Task LaunchAsync()
     {
+        await LaunchCoreAsync(options: null, forcedInstance: null);
+    }
+
+    public Task ForceLaunchIgnoringJavaRequirementAsync(GameInstance instance)
+    {
+        return LaunchCoreAsync(
+            new LaunchRequestOptions(IgnoreJavaVersionRequirement: true),
+            instance);
+    }
+
+    private async Task LaunchCoreAsync(LaunchRequestOptions? options, GameInstance? forcedInstance)
+    {
         var account = accountPage.SelectedAccount;
-        var launchInstance = SelectedInstance;
-        if (!CanLaunchSelectedGame || launchInstance is null || account is null)
+        var launchInstance = forcedInstance ?? SelectedInstance;
+        if (IsLaunching || launchInstance is null || account is null)
         {
             statusService.Report(Strings.Status_NoLaunchableInstance);
             return;
@@ -188,6 +200,7 @@ public sealed partial class HomePageViewModel : ObservableObject
                 account,
                 settings,
                 CreateProgress(),
+                options,
                 cancellationTokenSource.Token);
             ObserveGameExit(session);
 
@@ -211,11 +224,13 @@ public sealed partial class HomePageViewModel : ObservableObject
         catch (LaunchFailedException exception)
         {
             if (exception.InnerException is JavaRuntimeSelectionException javaException
-                && IsAutomaticJavaRuntimeDiscoveryFailure(javaException.Reason))
+                && ShouldShowJavaRequirementDialog(javaException.Reason))
             {
                 JavaRequirementNotMet?.Invoke(this, new JavaRequirementNotMetEventArgs(
                     javaException.RequiredMajorVersion,
-                    javaException.Reason));
+                    javaException.Reason,
+                    launchInstance,
+                    javaException.CurrentMajorVersion));
                 statusService.Report(Strings.Status_JavaSelectionFailed);
                 return;
             }
@@ -232,10 +247,12 @@ public sealed partial class HomePageViewModel : ObservableObject
         }
         catch (JavaRuntimeSelectionException exception)
         {
-            if (IsAutomaticJavaRuntimeDiscoveryFailure(exception.Reason))
+            if (ShouldShowJavaRequirementDialog(exception.Reason))
                 JavaRequirementNotMet?.Invoke(this, new JavaRequirementNotMetEventArgs(
                     exception.RequiredMajorVersion,
-                    exception.Reason));
+                    exception.Reason,
+                    launchInstance,
+                    exception.CurrentMajorVersion));
 
             statusService.Report(Strings.Status_JavaSelectionFailed);
         }
@@ -455,20 +472,34 @@ public sealed partial class HomePageViewModel : ObservableObject
         return reason is JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing
             or JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound;
     }
+
+    private static bool ShouldShowJavaRequirementDialog(JavaRuntimeSelectionFailureReason reason)
+    {
+        return IsAutomaticJavaRuntimeDiscoveryFailure(reason)
+            || reason is JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow;
+    }
 }
 
 public sealed class JavaRequirementNotMetEventArgs : EventArgs
 {
     public JavaRequirementNotMetEventArgs(
         int? requiredMajorVersion,
-        JavaRuntimeSelectionFailureReason reason)
+        JavaRuntimeSelectionFailureReason reason,
+        GameInstance instance,
+        int? currentMajorVersion = null)
     {
         RequiredMajorVersion = requiredMajorVersion;
         Reason = reason;
+        Instance = instance;
+        CurrentMajorVersion = currentMajorVersion;
     }
 
     public int? RequiredMajorVersion { get; }
 
     public JavaRuntimeSelectionFailureReason Reason { get; }
+
+    public GameInstance Instance { get; }
+
+    public int? CurrentMajorVersion { get; }
 }
 

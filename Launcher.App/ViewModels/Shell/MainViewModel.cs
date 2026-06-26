@@ -25,6 +25,7 @@ public sealed partial class MainViewModel : ObservableObject
     private bool hasInitialized;
     private bool isSyncingCurrentState;
     private CancellationTokenSource? floatingMessageHideCancellation;
+    private GameInstance? pendingJavaRequirementInstance;
 
     [ObservableProperty]
     private LauncherSettings settings = new();
@@ -55,6 +56,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string javaRequirementDialogMessage = string.Empty;
+
+    [ObservableProperty]
+    private bool isJavaRequirementForceLaunchAvailable;
 
     public MainViewModel(
         IDownloadSpeedLimitState downloadSpeedLimitState,
@@ -228,16 +232,45 @@ public sealed partial class MainViewModel : ObservableObject
     private void CloseJavaRequirementDialog()
     {
         IsJavaRequirementDialogOpen = false;
+        IsJavaRequirementForceLaunchAvailable = false;
+        pendingJavaRequirementInstance = null;
     }
 
     [RelayCommand]
-    private void OpenJavaSettingsFromRequirementDialog()
+    private async Task OpenJavaSettingsFromRequirementDialogAsync()
     {
+        var targetInstance = pendingJavaRequirementInstance;
         IsJavaRequirementDialogOpen = false;
-        SettingsPage.ShowJavaSection();
-        CurrentPage = NavigationCatalog.SettingsPage;
+        IsJavaRequirementForceLaunchAvailable = false;
+        pendingJavaRequirementInstance = null;
+
+        if (targetInstance?.JavaSettingsMode is LaunchSettingsMode.PerInstance)
+        {
+            await GameSettingsPage.OpenInstanceJavaSettingsAsync(targetInstance);
+            CurrentPage = NavigationCatalog.GameSettingsPage;
+        }
+        else
+        {
+            SettingsPage.ShowJavaSection();
+            CurrentPage = NavigationCatalog.SettingsPage;
+        }
+
         UpdateSecondaryItems();
         UpdateNavigationSelection();
+    }
+
+    [RelayCommand]
+    private async Task ForceLaunchFromJavaRequirementDialogAsync()
+    {
+        var targetInstance = pendingJavaRequirementInstance;
+        IsJavaRequirementDialogOpen = false;
+        IsJavaRequirementForceLaunchAvailable = false;
+        pendingJavaRequirementInstance = null;
+
+        if (targetInstance is null)
+            return;
+
+        await HomePage.ForceLaunchIgnoringJavaRequirementAsync(targetInstance);
     }
 
     partial void OnCurrentPageChanged(string value)
@@ -395,7 +428,19 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void HomePage_JavaRequirementNotMet(object? sender, JavaRequirementNotMetEventArgs e)
     {
-        if (e.Reason is JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing)
+        pendingJavaRequirementInstance = e.Instance;
+        IsJavaRequirementForceLaunchAvailable = e.Reason is JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow;
+
+        if (e.Reason is JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow)
+        {
+            JavaRequirementDialogTitle = Strings.Dialog_JavaManualVersionTooLowTitle;
+            JavaRequirementDialogMessage = string.Format(
+                Strings.Dialog_JavaManualVersionTooLowMessageFormat,
+                string.IsNullOrWhiteSpace(e.Instance.Name) ? e.Instance.VersionName : e.Instance.Name,
+                e.RequiredMajorVersion?.ToString() ?? Strings.Dialog_LaunchStatusUnknownExitCode,
+                e.CurrentMajorVersion?.ToString() ?? Strings.Dialog_LaunchStatusUnknownExitCode);
+        }
+        else if (e.Reason is JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing)
         {
             JavaRequirementDialogTitle = Strings.Dialog_JavaRuntimeMissingTitle;
             JavaRequirementDialogMessage = e.RequiredMajorVersion is int missingRequiredMajorVersion

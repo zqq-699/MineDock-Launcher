@@ -559,7 +559,11 @@
   <data name="Dialog_JavaRuntimeMissingTitle" xml:space="preserve"><value>未找到 Java</value></data>
   <data name="Dialog_JavaRuntimeMissingMessage" xml:space="preserve"><value>自动选择 Java 时没有在本机找到可用的 Java。请到设置中刷新或导入合适的 Java 后再启动游戏。</value></data>
   <data name="Dialog_JavaRuntimeMissingMessageFormat" xml:space="preserve"><value>自动选择 Java 时没有在本机找到可用的 Java。当前版本至少需要 Java {0}。请到设置中刷新或导入合适的 Java 后再启动游戏。</value></data>
+  <data name="Dialog_JavaManualVersionTooLowTitle" xml:space="preserve"><value>Java 版本不满足要求</value></data>
+  <data name="Dialog_JavaManualVersionTooLowMessageFormat" xml:space="preserve"><value>“{0}” 至少需要 Java {1}，但当前手动选择的是 Java {2}。建议转到设置选择合适的 Java；也可以强制启动，但游戏可能仍会异常退出。</value></data>
   <data name="Dialog_GoToSettingsButton" xml:space="preserve"><value>转到设置</value></data>
+  <data name="Dialog_ForceLaunchButton" xml:space="preserve"><value>强制启动</value></data>
+  <data name="Dialog_CancelLaunchButton" xml:space="preserve"><value>取消启动</value></data>
   <data name="Dialog_LaunchStatusFailedTitle" xml:space="preserve"><value>游戏启动失败</value></data>
   <data name="Dialog_LaunchStatusExitedTitle" xml:space="preserve"><value>游戏进程已退出</value></data>
   <data name="Dialog_LaunchStatusRuntimeFailedTitle" xml:space="preserve"><value>游戏异常退出</value></data>

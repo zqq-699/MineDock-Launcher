@@ -10,5 +10,6 @@ public interface ILaunchService
         LauncherAccount account,
         LauncherSettings settings,
         IProgress<LauncherProgress>? progress,
+        LaunchRequestOptions? options = null,
         CancellationToken cancellationToken = default);
 }

@@ -419,6 +419,85 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task ManualJavaVersionMismatchOpensForceLaunchDialog()
+    {
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new JavaRuntimeSelectionException(
+                "manual java too low",
+                JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow,
+                21,
+                8)
+        };
+        var viewModel = CreateViewModel(
+            new FakeGameInstanceService(),
+            launchService: launchService,
+            selectedAccount: CreateOfflineAccount());
+        viewModel.HomePage.SetSelectedInstance(CreateInstance("Vanilla World", "1.20.5"));
+
+        await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsJavaRequirementDialogOpen);
+        Assert.True(viewModel.IsJavaRequirementForceLaunchAvailable);
+        Assert.Equal(Strings.Dialog_JavaManualVersionTooLowTitle, viewModel.JavaRequirementDialogTitle);
+        Assert.Contains("Java 21", viewModel.JavaRequirementDialogMessage);
+        Assert.Contains("Java 8", viewModel.JavaRequirementDialogMessage);
+        Assert.False(viewModel.LaunchStatusDialog.IsOpen);
+    }
+
+    [Fact]
+    public async Task ManualJavaVersionMismatchForceLaunchRetriesWithIgnoredRequirement()
+    {
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new JavaRuntimeSelectionException(
+                "manual java too low",
+                JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow,
+                21,
+                8)
+        };
+        var viewModel = CreateViewModel(
+            new FakeGameInstanceService(),
+            launchService: launchService,
+            selectedAccount: CreateOfflineAccount());
+        viewModel.HomePage.SetSelectedInstance(CreateInstance("Vanilla World", "1.20.5"));
+
+        await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
+        launchService.ExceptionToThrow = null;
+        await viewModel.ForceLaunchFromJavaRequirementDialogCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsJavaRequirementDialogOpen);
+        Assert.False(viewModel.IsJavaRequirementForceLaunchAvailable);
+        Assert.Equal(2, launchService.LaunchCallCount);
+        Assert.True(launchService.LastOptions?.IgnoreJavaVersionRequirement);
+    }
+
+    [Fact]
+    public async Task ManualJavaVersionMismatchCancelDoesNotRetryLaunch()
+    {
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new JavaRuntimeSelectionException(
+                "manual java too low",
+                JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow,
+                21,
+                8)
+        };
+        var viewModel = CreateViewModel(
+            new FakeGameInstanceService(),
+            launchService: launchService,
+            selectedAccount: CreateOfflineAccount());
+        viewModel.HomePage.SetSelectedInstance(CreateInstance("Vanilla World", "1.20.5"));
+
+        await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
+        viewModel.CloseJavaRequirementDialogCommand.Execute(null);
+
+        Assert.False(viewModel.IsJavaRequirementDialogOpen);
+        Assert.False(viewModel.IsJavaRequirementForceLaunchAvailable);
+        Assert.Equal(1, launchService.LaunchCallCount);
+    }
+
+    [Fact]
     public async Task JavaRequirementDialogCanNavigateToGlobalJavaSettings()
     {
         var launchService = new FakeLaunchService
@@ -436,11 +515,43 @@ public sealed class MainViewModelTests
         viewModel.HomePage.SetSelectedInstance(CreateInstance("Vanilla World", "1.20.1"));
 
         await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
-        viewModel.OpenJavaSettingsFromRequirementDialogCommand.Execute(null);
+        await viewModel.OpenJavaSettingsFromRequirementDialogCommand.ExecuteAsync(null);
 
         Assert.False(viewModel.IsJavaRequirementDialogOpen);
         Assert.Equal("Settings", viewModel.CurrentPage);
         Assert.True(viewModel.SettingsPage.IsJavaSection);
+    }
+
+    [Fact]
+    public async Task JavaRequirementDialogCanNavigateToInstanceJavaSettings()
+    {
+        var instanceService = new FakeGameInstanceService();
+        var instance = CreateInstance("Vanilla World", "1.20.5");
+        instance.JavaSettingsMode = LaunchSettingsMode.PerInstance;
+        instance.JavaSelectionMode = JavaSelectionMode.Manual;
+        instance.SelectedJavaExecutablePath = @"C:\Java\jdk-8\bin\java.exe";
+        instanceService.CreatedInstances.Add(instance);
+        var launchService = new FakeLaunchService
+        {
+            ExceptionToThrow = new JavaRuntimeSelectionException(
+                "manual java too low",
+                JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow,
+                21,
+                8)
+        };
+        var viewModel = CreateViewModel(
+            instanceService,
+            launchService: launchService,
+            selectedAccount: CreateOfflineAccount());
+        viewModel.HomePage.SetSelectedInstance(instance);
+
+        await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
+        await viewModel.OpenJavaSettingsFromRequirementDialogCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsJavaRequirementDialogOpen);
+        Assert.Equal("GameSettings", viewModel.CurrentPage);
+        Assert.True(viewModel.GameSettingsPage.Details.IsJavaSection);
+        Assert.Equal(instance.Id, viewModel.GameSettingsPage.SelectedInstance?.Instance.Id);
     }
 
     [Fact]
@@ -941,16 +1052,21 @@ public sealed class MainViewModelTests
 
     private sealed class FakeLaunchService : ILaunchService
     {
-        public Exception? ExceptionToThrow { get; init; }
+        public Exception? ExceptionToThrow { get; set; }
         public GameLaunchSession? SessionToReturn { get; init; }
+        public LaunchRequestOptions? LastOptions { get; private set; }
+        public int LaunchCallCount { get; private set; }
 
         public Task<GameLaunchSession> LaunchAsync(
             GameInstance instance,
             LauncherAccount account,
             LauncherSettings settings,
             IProgress<LauncherProgress>? progress,
+            LaunchRequestOptions? options = null,
             CancellationToken cancellationToken = default)
         {
+            LaunchCallCount++;
+            LastOptions = options;
             if (ExceptionToThrow is not null)
                 throw ExceptionToThrow;
 

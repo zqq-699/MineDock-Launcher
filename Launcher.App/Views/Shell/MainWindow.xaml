@@ -538,16 +538,28 @@
                                Text="{Binding JavaRequirementDialogMessage}"
                                Style="{StaticResource DialogBodyTextStyle}" />
 
-                    <StackPanel Grid.Row="2"
-                                Style="{StaticResource DialogFooterStyle}">
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
                         <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                HorizontalAlignment="Left"
                                 Content="{x:Static res:Strings.Dialog_GoToSettingsButton}"
                                 Command="{Binding OpenJavaSettingsFromRequirementDialogCommand}" />
-                        <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
-                                Margin="{StaticResource DialogTrailingButtonMargin}"
-                                Content="{x:Static res:Strings.Confirm_Button}"
-                                Command="{Binding CloseJavaRequirementDialogCommand}" />
-                    </StackPanel>
+                        <StackPanel Grid.Column="1"
+                                    Style="{StaticResource DialogFooterStyle}">
+                            <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                    Content="{x:Static res:Strings.Dialog_ForceLaunchButton}"
+                                    Command="{Binding ForceLaunchFromJavaRequirementDialogCommand}"
+                                    Visibility="{Binding IsJavaRequirementForceLaunchAvailable, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                            <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                    Margin="{StaticResource DialogTrailingButtonMargin}"
+                                    Content="{x:Static res:Strings.Dialog_CancelLaunchButton}"
+                                    Command="{Binding CloseJavaRequirementDialogCommand}" />
+                        </StackPanel>
+                    </Grid>
                 </Grid>
             </controls:DialogHost>
 

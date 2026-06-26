@@ -1665,6 +1665,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
         public Task<JavaRuntimeInfo> SelectForLaunchAsync(
             GameInstance instance,
             LauncherSettings settings,
+            LaunchRequestOptions? options = null,
             CancellationToken cancellationToken = default)
         {
             CallCount++;

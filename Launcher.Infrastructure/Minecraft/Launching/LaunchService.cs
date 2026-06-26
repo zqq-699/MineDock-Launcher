@@ -75,6 +75,7 @@ public sealed class LaunchService : ILaunchService
         LauncherAccount account,
         LauncherSettings settings,
         IProgress<LauncherProgress>? progress,
+        LaunchRequestOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         var versionName = string.IsNullOrWhiteSpace(instance.VersionName) ? instance.MinecraftVersion : instance.VersionName;
@@ -168,6 +169,7 @@ public sealed class LaunchService : ILaunchService
             selectedJavaRuntime = await ResolveJavaRuntimeForLaunchAsync(
                 instance,
                 settings,
+                options,
                 progress,
                 cancellationToken);
             diagnosticContext = CreateDiagnosticContext(
@@ -315,6 +317,7 @@ public sealed class LaunchService : ILaunchService
     private async Task<JavaRuntimeInfo?> ResolveJavaRuntimeForLaunchAsync(
         GameInstance instance,
         LauncherSettings settings,
+        LaunchRequestOptions? options,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken)
     {
@@ -324,7 +327,7 @@ public sealed class LaunchService : ILaunchService
         try
         {
             progress?.Report(new LauncherProgress(LaunchProgressStages.CheckingJava, string.Empty, 90));
-            return await javaRuntimeSelectionService.SelectForLaunchAsync(instance, settings, cancellationToken);
+            return await javaRuntimeSelectionService.SelectForLaunchAsync(instance, settings, options, cancellationToken);
         }
         catch (JavaRuntimeSelectionException exception)
             when (javaRuntimeProvisioningService is not null && IsAutomaticJavaRuntimeDiscoveryFailure(exception.Reason))
@@ -347,7 +350,7 @@ public sealed class LaunchService : ILaunchService
                 "Retrying Java runtime selection after provisioning. InstanceId={InstanceId} InstanceName={InstanceName}",
                 instance.Id,
                 instance.Name);
-            return await javaRuntimeSelectionService.SelectForLaunchAsync(instance, settings, cancellationToken);
+            return await javaRuntimeSelectionService.SelectForLaunchAsync(instance, settings, options, cancellationToken);
         }
     }
 

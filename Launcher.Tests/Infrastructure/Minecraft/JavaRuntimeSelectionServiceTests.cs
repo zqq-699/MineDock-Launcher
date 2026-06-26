@@ -175,6 +175,88 @@ public sealed class JavaRuntimeSelectionServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ManualSelectionThrowsWhenRuntimeVersionIsLowerThanRequirement()
+    {
+        var executablePath = @"C:\Java\jdk-8\bin\java.exe";
+        var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService
+        {
+            ImportedRuntime = CreateRuntime(executablePath, 8, "x64")
+        });
+        var settings = new LauncherSettings
+        {
+            JavaSelectionMode = JavaSelectionMode.Manual,
+            SelectedJavaExecutablePath = executablePath
+        };
+        var instance = new GameInstance
+        {
+            MinecraftVersion = "1.20.5"
+        };
+
+        var exception = await Assert.ThrowsAsync<JavaRuntimeSelectionException>(() =>
+            service.SelectForLaunchAsync(instance, settings));
+
+        Assert.Equal(JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow, exception.Reason);
+        Assert.Equal(21, exception.RequiredMajorVersion);
+        Assert.Equal(8, exception.CurrentMajorVersion);
+    }
+
+    [Fact]
+    public async Task ManualSelectionAllowsLowerRuntimeWhenRequirementIsIgnored()
+    {
+        var executablePath = @"C:\Java\jdk-8\bin\java.exe";
+        var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService
+        {
+            ImportedRuntime = CreateRuntime(executablePath, 8, "x64")
+        });
+        var settings = new LauncherSettings
+        {
+            JavaSelectionMode = JavaSelectionMode.Manual,
+            SelectedJavaExecutablePath = executablePath
+        };
+        var instance = new GameInstance
+        {
+            MinecraftVersion = "1.20.5"
+        };
+
+        var selectedRuntime = await service.SelectForLaunchAsync(
+            instance,
+            settings,
+            new LaunchRequestOptions(IgnoreJavaVersionRequirement: true));
+
+        Assert.Equal(8, selectedRuntime.MajorVersion);
+    }
+
+    [Fact]
+    public async Task ManualSelectionAllowsRuntimeWhenMajorVersionIsUnknown()
+    {
+        var executablePath = @"C:\Java\unknown\bin\java.exe";
+        var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService
+        {
+            ImportedRuntime = new JavaRuntimeInfo(
+                "Unknown Java",
+                "unknown",
+                null,
+                "x64",
+                executablePath,
+                @"C:\Java\unknown",
+                "Test")
+        });
+        var settings = new LauncherSettings
+        {
+            JavaSelectionMode = JavaSelectionMode.Manual,
+            SelectedJavaExecutablePath = executablePath
+        };
+        var instance = new GameInstance
+        {
+            MinecraftVersion = "1.20.5"
+        };
+
+        var selectedRuntime = await service.SelectForLaunchAsync(instance, settings);
+
+        Assert.Null(selectedRuntime.MajorVersion);
+    }
+
+    [Fact]
     public async Task AutomaticSelectionThrowsMissingReasonWhenNoRuntimeIsDiscovered()
     {
         var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService());

@@ -17,11 +17,12 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
     public async Task<JavaRuntimeInfo> SelectForLaunchAsync(
         GameInstance instance,
         LauncherSettings settings,
+        LaunchRequestOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         var effectiveSelection = ResolveEffectiveSelection(instance, settings);
         if (effectiveSelection.Mode is JavaSelectionMode.Manual)
-            return await SelectManualRuntimeAsync(effectiveSelection.ExecutablePath, cancellationToken);
+            return await SelectManualRuntimeAsync(instance, settings, effectiveSelection.ExecutablePath, options, cancellationToken);
 
         return await SelectAutomaticRuntimeAsync(instance, settings, cancellationToken);
     }
@@ -110,7 +111,10 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
     }
 
     private async Task<JavaRuntimeInfo> SelectManualRuntimeAsync(
+        GameInstance instance,
+        LauncherSettings settings,
         string? executablePath,
+        LaunchRequestOptions? options,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(executablePath))
@@ -122,17 +126,45 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
 
         try
         {
-            return await javaRuntimeDiscoveryService.DiscoverExecutableAsync(
+            var runtime = await javaRuntimeDiscoveryService.DiscoverExecutableAsync(
                 executablePath,
                 cancellationToken);
+            ValidateManualRuntimeRequirement(instance, settings, runtime, options);
+            return runtime;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            if (exception is JavaRuntimeSelectionException)
+                throw;
+
             throw new JavaRuntimeSelectionException(
                 "The selected Java runtime is not available.",
                 exception,
                 JavaRuntimeSelectionFailureReason.ManualRuntimeUnavailable);
         }
+    }
+
+    private static void ValidateManualRuntimeRequirement(
+        GameInstance instance,
+        LauncherSettings settings,
+        JavaRuntimeInfo runtime,
+        LaunchRequestOptions? options)
+    {
+        if (options?.IgnoreJavaVersionRequirement == true)
+            return;
+
+        var requiredMajorVersion = ResolveRequiredMajorVersion(instance, settings);
+        if (requiredMajorVersion is not int required || runtime.MajorVersion is not int current)
+            return;
+
+        if (current >= required)
+            return;
+
+        throw new JavaRuntimeSelectionException(
+            $"The selected Java runtime does not meet the required Java version. Required: Java {required} or newer; selected: Java {current}.",
+            JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow,
+            required,
+            current);
     }
 
     private async Task<JavaRuntimeInfo> SelectAutomaticRuntimeAsync(
