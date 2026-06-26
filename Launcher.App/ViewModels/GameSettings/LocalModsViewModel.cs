@@ -15,6 +15,7 @@ public sealed class LocalModsViewModel : IDisposable
     private const string DisabledModExtension = ".jar.disabled";
     private static readonly TimeSpan IgnoredWatcherPathTtl = TimeSpan.FromSeconds(2);
     private readonly IModService modService;
+    private readonly ILocalModIconEnrichmentService? iconEnrichmentService;
     private readonly IStatusService statusService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<LocalModsViewModel> logger;
@@ -22,19 +23,23 @@ public sealed class LocalModsViewModel : IDisposable
     private readonly Dictionary<string, DateTimeOffset> ignoredWatcherPaths = new(StringComparer.OrdinalIgnoreCase);
     private FileSystemWatcher? modsWatcher;
     private CancellationTokenSource? refreshCancellationTokenSource;
+    private CancellationTokenSource? iconEnrichmentCancellationTokenSource;
     private CancellationTokenSource? watcherRefreshCancellationTokenSource;
     private GameInstance? selectedInstance;
     private IReadOnlyList<LocalMod> currentMods = Array.Empty<LocalMod>();
     private bool watcherEnabled;
+    private bool watcherSuspendedForRename;
     private int modRefreshVersion;
 
     public LocalModsViewModel(
         IModService modService,
         IStatusService statusService,
         IUiDispatcher? uiDispatcher = null,
+        ILocalModIconEnrichmentService? iconEnrichmentService = null,
         ILogger<LocalModsViewModel>? logger = null)
     {
         this.modService = modService;
+        this.iconEnrichmentService = iconEnrichmentService;
         this.statusService = statusService;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<LocalModsViewModel>.Instance;
@@ -51,6 +56,7 @@ public sealed class LocalModsViewModel : IDisposable
         selectedInstance = instance;
         Interlocked.Increment(ref modRefreshVersion);
         CancelRefresh();
+        CancelIconEnrichment();
         ResetWatcher();
         ClearMods();
         logger.LogInformation(
@@ -61,6 +67,22 @@ public sealed class LocalModsViewModel : IDisposable
     public void SetWatcherEnabled(bool enabled)
     {
         watcherEnabled = enabled;
+        ResetWatcher();
+    }
+
+    public void SuspendWatcherForInstanceRename()
+    {
+        watcherSuspendedForRename = true;
+        ResetWatcher();
+        CancelRefresh();
+    }
+
+    public void ResumeWatcherAfterInstanceRename()
+    {
+        if (!watcherSuspendedForRename)
+            return;
+
+        watcherSuspendedForRename = false;
         ResetWatcher();
     }
 
@@ -122,6 +144,7 @@ public sealed class LocalModsViewModel : IDisposable
             "Local mods view refreshed. InstanceId={InstanceId} Count={ModCount}",
             instance.Id,
             Mods.Count);
+        QueueRemoteIconEnrichment(instance, loadedMods, refreshVersion);
     }
 
     public async Task ToggleModAsync(LocalMod mod)
@@ -248,6 +271,7 @@ public sealed class LocalModsViewModel : IDisposable
         modsWatcher?.Dispose();
         modsWatcher = null;
         CancelRefresh();
+        CancelIconEnrichment();
         watcherRefreshCancellationTokenSource?.Cancel();
         watcherRefreshCancellationTokenSource?.Dispose();
         watcherRefreshCancellationTokenSource = null;
@@ -261,7 +285,7 @@ public sealed class LocalModsViewModel : IDisposable
         watcherRefreshCancellationTokenSource?.Dispose();
         watcherRefreshCancellationTokenSource = null;
 
-        if (!watcherEnabled)
+        if (!watcherEnabled || watcherSuspendedForRename)
             return;
 
         var instance = selectedInstance;
@@ -394,6 +418,7 @@ public sealed class LocalModsViewModel : IDisposable
         var previous = Interlocked.Exchange(ref refreshCancellationTokenSource, next);
         previous?.Cancel();
         previous?.Dispose();
+        CancelIconEnrichment();
         return next;
     }
 
@@ -402,6 +427,111 @@ public sealed class LocalModsViewModel : IDisposable
         var current = Interlocked.CompareExchange(ref refreshCancellationTokenSource, null, refreshCts);
         if (ReferenceEquals(current, refreshCts))
             refreshCts.Dispose();
+    }
+
+    private void QueueRemoteIconEnrichment(GameInstance instance, IReadOnlyList<LocalMod> loadedMods, int refreshVersion)
+    {
+        if (iconEnrichmentService is null)
+            return;
+
+        var missingIconMods = loadedMods
+            .Where(mod => string.IsNullOrWhiteSpace(mod.IconSource))
+            .ToArray();
+        if (missingIconMods.Length == 0)
+            return;
+
+        var enrichmentCts = ReplaceIconEnrichmentCancellationTokenSource();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var progress = new Progress<IReadOnlyDictionary<string, string>>(resolvedIcons =>
+                    ApplyResolvedIcons(instance, resolvedIcons, enrichmentCts, refreshVersion));
+                var resolvedIcons = await iconEnrichmentService
+                    .ResolveMissingIconSourcesAsync(missingIconMods, enrichmentCts.Token, progress)
+                    .ConfigureAwait(false);
+                ApplyResolvedIcons(instance, resolvedIcons, enrichmentCts, refreshVersion);
+            }
+            catch (OperationCanceledException) when (enrichmentCts.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Failed to enrich local mod icons. InstanceId={InstanceId}",
+                    instance.Id);
+            }
+            finally
+            {
+                ReleaseIconEnrichmentCancellationTokenSource(enrichmentCts);
+            }
+        });
+    }
+
+    private void ApplyResolvedIcons(
+        GameInstance instance,
+        IReadOnlyDictionary<string, string> resolvedIcons,
+        CancellationTokenSource enrichmentCts,
+        int refreshVersion)
+    {
+        if (resolvedIcons.Count == 0
+            || enrichmentCts.IsCancellationRequested
+            || refreshVersion != modRefreshVersion
+            || !string.Equals(instance.Id, selectedInstance?.Id, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        uiDispatcher.Post(() =>
+        {
+            if (enrichmentCts.IsCancellationRequested
+                || refreshVersion != modRefreshVersion
+                || !string.Equals(instance.Id, selectedInstance?.Id, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var updated = false;
+            foreach (var mod in currentMods)
+            {
+                if (!string.IsNullOrWhiteSpace(mod.IconSource)
+                    || !resolvedIcons.TryGetValue(mod.FullPath, out var iconSource)
+                    || string.IsNullOrWhiteSpace(iconSource))
+                {
+                    continue;
+                }
+
+                mod.IconSource = iconSource;
+                updated = true;
+            }
+
+            if (updated)
+                ModsChanged?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    private void CancelIconEnrichment()
+    {
+        iconEnrichmentCancellationTokenSource?.Cancel();
+        iconEnrichmentCancellationTokenSource?.Dispose();
+        iconEnrichmentCancellationTokenSource = null;
+    }
+
+    private CancellationTokenSource ReplaceIconEnrichmentCancellationTokenSource()
+    {
+        var next = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref iconEnrichmentCancellationTokenSource, next);
+        previous?.Cancel();
+        previous?.Dispose();
+        return next;
+    }
+
+    private void ReleaseIconEnrichmentCancellationTokenSource(CancellationTokenSource enrichmentCts)
+    {
+        var current = Interlocked.CompareExchange(ref iconEnrichmentCancellationTokenSource, null, enrichmentCts);
+        if (ReferenceEquals(current, enrichmentCts))
+            enrichmentCts.Dispose();
     }
 
     private static bool IsTrackedModPath(string? fullPath)

@@ -22,6 +22,7 @@ public sealed class LocalResourcePacksViewModel : IDisposable
     private IReadOnlyList<LocalResourcePack> currentResourcePacks = Array.Empty<LocalResourcePack>();
     private string? watchedResourcePacksDirectory;
     private bool watcherEnabled;
+    private bool watcherSuspendedForRename;
     private int resourcePackRefreshVersion;
 
     public LocalResourcePacksViewModel(
@@ -57,6 +58,22 @@ public sealed class LocalResourcePacksViewModel : IDisposable
     public void SetWatcherEnabled(bool enabled)
     {
         watcherEnabled = enabled;
+        ResetWatcher();
+    }
+
+    public void SuspendWatcherForInstanceRename()
+    {
+        watcherSuspendedForRename = true;
+        ResetWatcher();
+        CancelRefresh();
+    }
+
+    public void ResumeWatcherAfterInstanceRename()
+    {
+        if (!watcherSuspendedForRename)
+            return;
+
+        watcherSuspendedForRename = false;
         ResetWatcher();
     }
 
@@ -193,7 +210,7 @@ public sealed class LocalResourcePacksViewModel : IDisposable
         watcherRefreshCancellationTokenSource = null;
         watchedResourcePacksDirectory = null;
 
-        if (!watcherEnabled)
+        if (!watcherEnabled || watcherSuspendedForRename)
             return;
 
         var instance = selectedInstance;

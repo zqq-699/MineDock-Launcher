@@ -51,7 +51,7 @@ public sealed class GameSettingsPageViewModelTests
     [Fact]
     public async Task GameSettingsPageShowsInstanceDetailsBeforeInstancesAreLoaded()
     {
-        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var instance = CreateInstance("Fabric World", "1.21.4", LoaderKind.Fabric);
         var instanceService = new FakeGameInstanceService();
         instanceService.CreatedInstances.Add(instance);
         var viewModel = CreateViewModel(
@@ -1913,7 +1913,7 @@ public sealed class GameSettingsPageViewModelTests
             ["sodium-fabric-0.5.13", "lithium-fabric-0.14.7"],
             modManagement.Mods.Select(mod => mod.Title));
         Assert.Equal(
-            ["fabric-sodium-0.5.13", "forge-lithium-0.14.7"],
+            ["sodium-fabric-0.5.13.jar", "lithium-fabric-0.14.7.jar.disabled"],
             modManagement.Mods.Select(mod => mod.Subtitle));
         Assert.Equal(
             [Strings.GameSettings_ModManagementEnabledState, Strings.GameSettings_ModManagementDisabledState],
@@ -1927,6 +1927,30 @@ public sealed class GameSettingsPageViewModelTests
 
         Assert.Same(modManagement.Mods[1], modManagement.SelectedMod);
         Assert.All(modManagement.Mods, mod => Assert.False(mod.IsSelected));
+    }
+
+    [Fact]
+    public void ModManagementModItemSubtitleUsesFullLocalFileName()
+    {
+        var item = new ModManagementModItemViewModel(new LocalMod
+        {
+            Name = "Sodium",
+            Loader = "fabric",
+            ModId = "sodium",
+            Version = "0.5.13",
+            FileName = "sodium-fabric-0.5.13.jar.disabled",
+            FullPath = "C:\\Minecraft\\mods\\sodium-fabric-0.5.13.jar.disabled",
+            IsEnabled = false
+        });
+        var changedProperties = new List<string?>();
+        item.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+
+        Assert.Equal("sodium-fabric-0.5.13.jar.disabled", item.Subtitle);
+
+        item.FileName = "sodium-fabric-0.5.14.jar";
+
+        Assert.Equal("sodium-fabric-0.5.14.jar", item.Subtitle);
+        Assert.Contains(nameof(ModManagementModItemViewModel.Subtitle), changedProperties);
     }
 
     [Fact]
@@ -2165,9 +2189,128 @@ public sealed class GameSettingsPageViewModelTests
 
         var mod = Assert.Single(modManagement.Mods);
         Assert.Equal("Pretty Mod Name", mod.Title);
-        Assert.Equal("fabric-pretty-mod-1.2.3", mod.Subtitle);
+        Assert.Equal("with-icon.jar", mod.Subtitle);
         Assert.Equal("file:///C:/launcher/cache/mod-icon.png", mod.IconSource);
         Assert.Equal(string.Empty, mod.IconKey);
+    }
+
+    [Fact]
+    public async Task ModManagementViewModelUpdatesMissingIconFromRemoteEnrichment()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var modPath = Path.Combine(instance.InstanceDirectory, "mods", "remote-icon.jar");
+        var modService = new FakeModService();
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            CreateLocalMod(
+                "remote-icon.jar",
+                true,
+                instance.InstanceDirectory,
+                null,
+                "Remote Icon Mod",
+                "fabric",
+                "remote-icon",
+                "1.0.0")
+        ];
+        var iconService = new FakeLocalModIconEnrichmentService
+        {
+            ResolvedIcons =
+            {
+                [modPath] = "file:///C:/launcher/cache/remote-icon.png"
+            }
+        };
+        var viewModel = CreateViewModel(
+            [instance],
+            modService: modService,
+            modIconEnrichmentService: iconService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var modManagement = OpenModManagementSection(viewModel);
+
+        await TestAsync.WaitForAsync(() =>
+            modManagement.Mods.SingleOrDefault()?.IconSource == "file:///C:/launcher/cache/remote-icon.png");
+
+        Assert.Equal(1, iconService.ResolveCallCount);
+        Assert.Equal("file:///C:/launcher/cache/remote-icon.png", modManagement.Mods.Single().IconSource);
+        Assert.Equal(string.Empty, modManagement.Mods.Single().IconKey);
+    }
+
+    [Fact]
+    public async Task ModManagementViewModelUpdatesMissingIconFromProgressBeforeRemoteEnrichmentCompletes()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var modPath = Path.Combine(instance.InstanceDirectory, "mods", "progress-icon.jar");
+        var modService = new FakeModService();
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            CreateLocalMod(
+                "progress-icon.jar",
+                true,
+                instance.InstanceDirectory,
+                null,
+                "Progress Icon Mod",
+                "fabric",
+                "progress-icon",
+                "1.0.0")
+        ];
+        var resolveBlocker = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var iconService = new FakeLocalModIconEnrichmentService
+        {
+            ResolveBlocker = resolveBlocker,
+            ProgressIcons =
+            {
+                [modPath] = "file:///C:/launcher/cache/progress-icon.png"
+            }
+        };
+        var viewModel = CreateViewModel(
+            [instance],
+            modService: modService,
+            modIconEnrichmentService: iconService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var modManagement = OpenModManagementSection(viewModel);
+
+        await TestAsync.WaitForAsync(() =>
+            modManagement.Mods.SingleOrDefault()?.IconSource == "file:///C:/launcher/cache/progress-icon.png");
+
+        Assert.Equal(1, iconService.ResolveCallCount);
+        Assert.Equal(string.Empty, modManagement.Mods.Single().IconKey);
+
+        resolveBlocker.SetResult(true);
+    }
+
+    [Fact]
+    public async Task ModManagementViewModelDoesNotEnrichAlreadyResolvedIconSources()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var modService = new FakeModService();
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            CreateLocalMod(
+                "already-resolved-icon.jar",
+                true,
+                instance.InstanceDirectory,
+                "file:///C:/launcher/cache/already-resolved-icon.png",
+                "Already Resolved Icon Mod",
+                "fabric",
+                "already-resolved-icon",
+                "1.0.0")
+        ];
+        var iconService = new FakeLocalModIconEnrichmentService();
+        var viewModel = CreateViewModel(
+            [instance],
+            modService: modService,
+            modIconEnrichmentService: iconService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 1);
+
+        Assert.Equal(0, iconService.ResolveCallCount);
+        Assert.Equal("file:///C:/launcher/cache/already-resolved-icon.png", modManagement.Mods.Single().IconSource);
     }
 
     [Fact]
@@ -2517,7 +2660,7 @@ public sealed class GameSettingsPageViewModelTests
 
             var mod = Assert.Single(modManagement.Mods);
             Assert.Equal("Sodium", mod.Title);
-            Assert.Equal("fabric-sodium-1.0.0", mod.Subtitle);
+            Assert.Equal("sodium.jar", mod.Subtitle);
         }
         finally
         {
@@ -3286,6 +3429,85 @@ public sealed class GameSettingsPageViewModelTests
         Assert.True(viewModel.EditDialog.IsEditInstanceSuccessful);
     }
 
+    [Theory]
+    [InlineData("..")]
+    [InlineData(".dfg")]
+    [InlineData("name.")]
+    public async Task ConfirmEditInstanceDialogRejectsUnsafeInstanceName(string unsafeName)
+    {
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla));
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.Details.RequestEditInstanceCommand.Execute(null);
+        viewModel.EditDialog.InstanceName = unsafeName;
+
+        await viewModel.ConfirmEditInstanceDialogCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.EditDialog.IsEditInstanceDialogOpen);
+        Assert.True(viewModel.EditDialog.IsEditInstanceInputStep);
+        Assert.True(viewModel.EditDialog.IsInstanceNameInvalid);
+        Assert.Null(instanceService.LastRenamedInstanceId);
+        Assert.Equal("Vanilla World", viewModel.SelectedInstance?.Name);
+    }
+
+    [Fact]
+    public async Task ConfirmEditInstanceDialogSuspendsAndRestoresLocalWatchersDuringRename()
+    {
+        var instance = CreateInstance("Fabric World", "1.21.4", LoaderKind.Fabric);
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(instance);
+        GameSettingsPageViewModel? viewModel = null;
+        instanceService.RenameCallback = () =>
+        {
+            var localMods = GetPrivateField<LocalModsViewModel>(viewModel!.Details.ModManagement, "localModsViewModel");
+            Assert.Null(GetPrivateField<FileSystemWatcher?>(localMods, "modsWatcher"));
+        };
+        viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenModManagementSection(viewModel);
+        var activeLocalMods = GetPrivateField<LocalModsViewModel>(viewModel.Details.ModManagement, "localModsViewModel");
+        Assert.NotNull(GetPrivateField<FileSystemWatcher?>(activeLocalMods, "modsWatcher"));
+        viewModel.Details.RequestEditInstanceCommand.Execute(null);
+        viewModel.EditDialog.InstanceName = "Renamed World";
+
+        await viewModel.ConfirmEditInstanceDialogCommand.ExecuteAsync(null);
+
+        Assert.Equal("Renamed World", viewModel.SelectedInstance?.Name);
+        Assert.NotNull(GetPrivateField<FileSystemWatcher?>(activeLocalMods, "modsWatcher"));
+    }
+
+    [Fact]
+    public async Task ConfirmEditInstanceDialogRestoresLocalWatchersWhenRenameFails()
+    {
+        var instance = CreateInstance("Fabric World", "1.21.4", LoaderKind.Fabric);
+        var instanceService = new FakeGameInstanceService
+        {
+            RenameException = new IOException("locked")
+        };
+        instanceService.CreatedInstances.Add(instance);
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenModManagementSection(viewModel);
+        var localMods = GetPrivateField<LocalModsViewModel>(viewModel.Details.ModManagement, "localModsViewModel");
+        Assert.NotNull(GetPrivateField<FileSystemWatcher?>(localMods, "modsWatcher"));
+        viewModel.Details.RequestEditInstanceCommand.Execute(null);
+        viewModel.EditDialog.InstanceName = "Renamed World";
+
+        await viewModel.ConfirmEditInstanceDialogCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.EditDialog.IsEditInstanceDialogOpen);
+        Assert.True(viewModel.EditDialog.IsEditInstanceResultStep);
+        Assert.False(viewModel.EditDialog.IsEditInstanceSuccessful);
+        Assert.NotNull(GetPrivateField<FileSystemWatcher?>(localMods, "modsWatcher"));
+    }
+
     private static GameSettingsDetailSectionItem GetDetailSection(GameSettingsPageViewModel viewModel, string sectionId)
     {
         return viewModel.DetailSections.Single(section => section.Id == sectionId);
@@ -3315,6 +3537,15 @@ public sealed class GameSettingsPageViewModelTests
         return viewModel.Details.ShaderPackManagement;
     }
 
+    private static T GetPrivateField<T>(object instance, string fieldName)
+    {
+        var field = instance.GetType().GetField(
+            fieldName,
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException($"Field not found: {fieldName}");
+        return (T)field.GetValue(instance)!;
+    }
+
     private static GameSettingsPageViewModel CreateViewModel(
         IReadOnlyList<GameInstance> instances,
         IReadOnlyList<MinecraftVersionInfo>? versions = null,
@@ -3324,6 +3555,7 @@ public sealed class GameSettingsPageViewModelTests
         FakeFilePickerService? filePickerService = null,
         FakeFloatingMessageService? floatingMessageService = null,
         IModService? modService = null,
+        ILocalModIconEnrichmentService? modIconEnrichmentService = null,
         ILocalSaveService? saveService = null,
         ILocalResourcePackService? resourcePackService = null,
         ILocalShaderPackService? shaderPackService = null)
@@ -3339,6 +3571,7 @@ public sealed class GameSettingsPageViewModelTests
             filePickerService ?? new FakeFilePickerService(),
             floatingMessageService ?? new FakeFloatingMessageService(),
             modService ?? new FakeModService(),
+            modIconEnrichmentService,
             saveService ?? new FakeSaveService(),
             resourcePackService ?? new FakeResourcePackService(),
             shaderPackService ?? new FakeShaderPackService());
@@ -3353,6 +3586,7 @@ public sealed class GameSettingsPageViewModelTests
         FakeFilePickerService? filePickerService = null,
         FakeFloatingMessageService? floatingMessageService = null,
         IModService? modService = null,
+        ILocalModIconEnrichmentService? modIconEnrichmentService = null,
         ILocalSaveService? saveService = null,
         ILocalResourcePackService? resourcePackService = null,
         ILocalShaderPackService? shaderPackService = null)
@@ -3368,7 +3602,7 @@ public sealed class GameSettingsPageViewModelTests
             folderService,
             new FakeSystemMemoryService(),
             resolvedModService,
-            new LocalModsViewModel(resolvedModService, statusService),
+            new LocalModsViewModel(resolvedModService, statusService, iconEnrichmentService: modIconEnrichmentService),
             new LocalSavesViewModel(resolvedSaveService, statusService),
             new LocalResourcePacksViewModel(resolvedResourcePackService, statusService),
             new LocalShaderPacksViewModel(resolvedShaderPackService, statusService),
@@ -3770,6 +4004,63 @@ public sealed class GameSettingsPageViewModelTests
             }
 
             return Task.CompletedTask;
+        }
+
+        private static LocalMod CloneLocalMod(LocalMod mod)
+        {
+            return new LocalMod
+            {
+                Name = mod.Name,
+                Loader = mod.Loader,
+                ModId = mod.ModId,
+                Version = mod.Version,
+                FileName = mod.FileName,
+                FullPath = mod.FullPath,
+                IconSource = mod.IconSource,
+                IsEnabled = mod.IsEnabled,
+                SizeBytes = mod.SizeBytes,
+                Source = mod.Source
+            };
+        }
+    }
+
+    private sealed class FakeLocalModIconEnrichmentService : ILocalModIconEnrichmentService
+    {
+        public Dictionary<string, string> ResolvedIcons { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public Dictionary<string, string> ProgressIcons { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public TaskCompletionSource<bool>? ResolveBlocker { get; init; }
+
+        public int ResolveCallCount { get; private set; }
+
+        public IReadOnlyList<LocalMod> LastRequestedMods { get; private set; } = [];
+
+        public async Task<IReadOnlyDictionary<string, string>> ResolveMissingIconSourcesAsync(
+            IReadOnlyList<LocalMod> mods,
+            CancellationToken cancellationToken = default,
+            IProgress<IReadOnlyDictionary<string, string>>? progress = null)
+        {
+            ResolveCallCount++;
+            LastRequestedMods = mods.Select(CloneLocalMod).ToArray();
+            var progressIcons = FilterIcons(ProgressIcons, mods);
+            if (progressIcons.Count > 0)
+                progress?.Report(progressIcons);
+
+            if (ResolveBlocker is not null)
+                await ResolveBlocker.Task.WaitAsync(cancellationToken);
+
+            return FilterIcons(ResolvedIcons, mods);
+        }
+
+        private static IReadOnlyDictionary<string, string> FilterIcons(
+            IReadOnlyDictionary<string, string> icons,
+            IReadOnlyList<LocalMod> mods)
+        {
+            return new Dictionary<string, string>(
+                icons.Where(pair => mods.Any(mod =>
+                    string.Equals(mod.FullPath, pair.Key, StringComparison.OrdinalIgnoreCase))),
+                StringComparer.OrdinalIgnoreCase);
         }
 
         private static LocalMod CloneLocalMod(LocalMod mod)

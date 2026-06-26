@@ -24,7 +24,21 @@ public partial class ListPageItemButton : UserControl
         DependencyProperty.Register(nameof(TrailingContent), typeof(object), typeof(ListPageItemButton), new PropertyMetadata(null));
 
     public static readonly DependencyProperty IconSourceProperty =
-        DependencyProperty.Register(nameof(IconSource), typeof(ImageSource), typeof(ListPageItemButton), new PropertyMetadata(null));
+        DependencyProperty.Register(
+            nameof(IconSource),
+            typeof(object),
+            typeof(ListPageItemButton),
+            new PropertyMetadata(null, OnIconSourceChanged));
+
+    private static readonly DependencyPropertyKey ResolvedIconSourcePropertyKey =
+        DependencyProperty.RegisterReadOnly(
+            nameof(ResolvedIconSource),
+            typeof(ImageSource),
+            typeof(ListPageItemButton),
+            new PropertyMetadata(null));
+
+    public static readonly DependencyProperty ResolvedIconSourceProperty =
+        ResolvedIconSourcePropertyKey.DependencyProperty;
 
     public static readonly DependencyProperty IconKeyProperty =
         DependencyProperty.Register(nameof(IconKey), typeof(string), typeof(ListPageItemButton), new PropertyMetadata(null));
@@ -155,10 +169,16 @@ public partial class ListPageItemButton : UserControl
         set => SetValue(TrailingContentProperty, value);
     }
 
-    public ImageSource? IconSource
+    public object? IconSource
     {
-        get => (ImageSource?)GetValue(IconSourceProperty);
+        get => GetValue(IconSourceProperty);
         set => SetValue(IconSourceProperty, value);
+    }
+
+    public ImageSource? ResolvedIconSource
+    {
+        get => (ImageSource?)GetValue(ResolvedIconSourceProperty);
+        private set => SetValue(ResolvedIconSourcePropertyKey, value);
     }
 
     public string? IconKey
@@ -422,6 +442,12 @@ public partial class ListPageItemButton : UserControl
                 delay,
                 duration,
                 easing));
+    }
+
+    private static void OnIconSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is ListPageItemButton button)
+            button.ResolvedIconSource = IconSourceImageLoader.TryLoad(e.NewValue);
     }
 
     private static void OnShouldPlayEnterAnimationChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

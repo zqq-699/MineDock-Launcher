@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Launcher.Application;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure;
 using Launcher.Infrastructure.FileSystem;
@@ -75,7 +76,7 @@ public sealed class ModServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task GetModsAsyncReadsFabricStringIconAndCachesPng()
+    public async Task GetModsAsyncIgnoresFabricStringIconAndLeavesIconSourceEmpty()
     {
         var instance = CreateInstance("fabric-string-icon");
         var jarPath = Path.Combine(instance.InstanceDirectory, "mods", "fabric-api.jar");
@@ -101,12 +102,11 @@ public sealed class ModServiceTests : TestTempDirectory
         Assert.Equal("fabric", mod.Loader);
         Assert.Equal("fabric-api", mod.ModId);
         Assert.Equal("1.0.0", mod.Version);
-        Assert.False(string.IsNullOrWhiteSpace(mod.IconSource));
-        Assert.True(File.Exists(new Uri(mod.IconSource!).LocalPath));
+        Assert.True(string.IsNullOrWhiteSpace(mod.IconSource));
     }
 
     [Fact]
-    public async Task GetModsAsyncUsesLargestFabricMappedIcon()
+    public async Task GetModsAsyncIgnoresFabricMappedIconAndLeavesIconSourceEmpty()
     {
         var instance = CreateInstance("fabric-mapped-icon");
         var jarPath = Path.Combine(instance.InstanceDirectory, "mods", "mapped-icon.jar");
@@ -131,15 +131,14 @@ public sealed class ModServiceTests : TestTempDirectory
         var mods = await CreateService().GetModsAsync(instance);
 
         var mod = Assert.Single(mods);
-        Assert.False(string.IsNullOrWhiteSpace(mod.IconSource));
-        var color = ReadTopLeftPixel(new Uri(mod.IconSource!).LocalPath);
-        Assert.Equal(Colors.Lime.R, color.R);
-        Assert.Equal(Colors.Lime.G, color.G);
-        Assert.Equal(Colors.Lime.B, color.B);
+        Assert.Equal("fabric", mod.Loader);
+        Assert.Equal("mapped-icon", mod.ModId);
+        Assert.Equal("1.0.0", mod.Version);
+        Assert.True(string.IsNullOrWhiteSpace(mod.IconSource));
     }
 
     [Fact]
-    public async Task GetModsAsyncReadsForgeLogoFileIcon()
+    public async Task GetModsAsyncIgnoresForgeLogoFileAndLeavesIconSourceEmpty()
     {
         var instance = CreateInstance("forge-logo-file");
         var jarPath = Path.Combine(instance.InstanceDirectory, "mods", "forge-example.jar");
@@ -167,8 +166,7 @@ public sealed class ModServiceTests : TestTempDirectory
         Assert.Equal("forge", mod.Loader);
         Assert.Equal("forge-example", mod.ModId);
         Assert.Equal("1.0.0", mod.Version);
-        Assert.False(string.IsNullOrWhiteSpace(mod.IconSource));
-        Assert.True(File.Exists(new Uri(mod.IconSource!).LocalPath));
+        Assert.True(string.IsNullOrWhiteSpace(mod.IconSource));
     }
 
     [Fact]
@@ -251,30 +249,16 @@ public sealed class ModServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task GetModsAsyncReusesStableCachedIconPath()
+    public async Task GetModsAsyncDeletesLegacyEmbeddedIconCacheDirectory()
     {
-        var instance = CreateInstance("stable-cache");
-        var jarPath = Path.Combine(instance.InstanceDirectory, "mods", "stable-cache.jar");
-        CreateZip(
-            jarPath,
-            TextEntry(
-                "fabric.mod.json",
-                """
-                {
-                  "schemaVersion": 1,
-                  "id": "stable-cache",
-                  "version": "1.0.0",
-                  "icon": "icon.png"
-                }
-                """),
-            ("icon.png", CreatePngBytes(Colors.Gold)));
+        var instance = CreateInstance("legacy-icon-cache-cleanup");
+        var legacyCacheDirectory = Path.Combine(TempRoot, LauncherApplicationIdentity.StorageDirectoryName, "cache", "mods", "icons");
+        Directory.CreateDirectory(legacyCacheDirectory);
+        await File.WriteAllTextAsync(Path.Combine(legacyCacheDirectory, "old.png"), "old cache");
 
-        var service = CreateService();
-        var first = Assert.Single(await service.GetModsAsync(instance));
-        var second = Assert.Single(await service.GetModsAsync(instance));
+        await CreateService().GetModsAsync(instance);
 
-        Assert.Equal(first.IconSource, second.IconSource);
-        Assert.True(File.Exists(new Uri(first.IconSource!).LocalPath));
+        Assert.False(Directory.Exists(legacyCacheDirectory));
     }
 
     private ModService CreateService()
@@ -332,13 +316,4 @@ public sealed class ModServiceTests : TestTempDirectory
         return (entryName, Encoding.UTF8.GetBytes(content));
     }
 
-    private static Color ReadTopLeftPixel(string pngPath)
-    {
-        using var stream = File.OpenRead(pngPath);
-        var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
-        var frame = decoder.Frames[0];
-        var pixels = new byte[4];
-        frame.CopyPixels(pixels, 4, 0);
-        return Color.FromArgb(pixels[3], pixels[2], pixels[1], pixels[0]);
-    }
 }

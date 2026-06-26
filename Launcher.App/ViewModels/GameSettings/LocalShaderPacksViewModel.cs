@@ -22,6 +22,7 @@ public sealed class LocalShaderPacksViewModel : IDisposable
     private IReadOnlyList<LocalShaderPack> currentShaderPacks = Array.Empty<LocalShaderPack>();
     private string? watchedShaderPacksDirectory;
     private bool watcherEnabled;
+    private bool watcherSuspendedForRename;
     private int shaderPackRefreshVersion;
 
     public LocalShaderPacksViewModel(
@@ -57,6 +58,22 @@ public sealed class LocalShaderPacksViewModel : IDisposable
     public void SetWatcherEnabled(bool enabled)
     {
         watcherEnabled = enabled;
+        ResetWatcher();
+    }
+
+    public void SuspendWatcherForInstanceRename()
+    {
+        watcherSuspendedForRename = true;
+        ResetWatcher();
+        CancelRefresh();
+    }
+
+    public void ResumeWatcherAfterInstanceRename()
+    {
+        if (!watcherSuspendedForRename)
+            return;
+
+        watcherSuspendedForRename = false;
         ResetWatcher();
     }
 
@@ -193,7 +210,7 @@ public sealed class LocalShaderPacksViewModel : IDisposable
         watcherRefreshCancellationTokenSource = null;
         watchedShaderPacksDirectory = null;
 
-        if (!watcherEnabled)
+        if (!watcherEnabled || watcherSuspendedForRename)
             return;
 
         var instance = selectedInstance;

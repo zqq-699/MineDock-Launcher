@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Launcher.App.Behaviors;
 using Launcher.App.Controls;
 
@@ -35,6 +37,79 @@ public sealed class ListPageItemButtonTests
 
         Assert.NotNull(pendingSetter);
         Assert.True((bool)pendingSetter.Value);
+    }
+
+    [Fact]
+    public void IconSourceImageLoaderLoadsLocalFileUri()
+    {
+        Exception? exception = null;
+        var thread = new Thread(() =>
+        {
+            var path = Path.Combine(Path.GetTempPath(), $"launcher-list-icon-{Guid.NewGuid():N}.png");
+            try
+            {
+                WritePng(path);
+
+                Assert.NotNull(IconSourceImageLoader.TryLoad(new Uri(path).AbsoluteUri));
+                Assert.Null(IconSourceImageLoader.TryLoad(null));
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (exception is not null)
+            throw exception;
+    }
+
+    [Fact]
+    public void IconSourceImageLoaderLoadsAppResourcePath()
+    {
+        Exception? exception = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                _ = global::System.Windows.Application.Current;
+                Assert.NotNull(IconSourceImageLoader.TryLoad("/Assets/Icons/block/fabric.png"));
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (exception is not null)
+            throw exception;
+    }
+
+    [Fact]
+    public void IconSourceImageLoaderAcceptsExistingImageSource()
+    {
+        var bitmap = BitmapSource.Create(
+            1,
+            1,
+            96,
+            96,
+            PixelFormats.Bgra32,
+            null,
+            new byte[] { 0x1f, 0x77, 0xb4, 0xff },
+            4);
+
+        Assert.Same(bitmap, IconSourceImageLoader.TryLoad(bitmap));
     }
 
     [Fact]
@@ -134,5 +209,29 @@ public sealed class ListPageItemButtonTests
 
         if (exception is not null)
             throw exception;
+    }
+
+    private static void WritePng(string path)
+    {
+        var pixels = new byte[]
+        {
+            0x1f, 0x77, 0xb4, 0xff,
+            0xff, 0x7f, 0x0e, 0xff,
+            0x2c, 0xa0, 0x2c, 0xff,
+            0xd6, 0x27, 0x28, 0xff
+        };
+        var bitmap = BitmapSource.Create(
+            2,
+            2,
+            96,
+            96,
+            PixelFormats.Bgra32,
+            null,
+            pixels,
+            8);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = File.Create(path);
+        encoder.Save(stream);
     }
 }

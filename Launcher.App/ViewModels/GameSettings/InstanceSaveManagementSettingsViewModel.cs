@@ -171,6 +171,16 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         localSavesViewModel.SetWatcherEnabled(false);
     }
 
+    public void SuspendLocalWatchersForInstanceRename()
+    {
+        localSavesViewModel.SuspendWatcherForInstanceRename();
+    }
+
+    public void ResumeLocalWatchersAfterInstanceRename()
+    {
+        localSavesViewModel.ResumeWatcherAfterInstanceRename();
+    }
+
     public override Task OnSectionActivatedAsync()
     {
         isSectionActive = true;

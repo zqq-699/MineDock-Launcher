@@ -575,6 +575,36 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task LocalModpackImportSanitizesPathLikePackageNameBeforeStaging()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        Directory.CreateDirectory(Path.Combine(settings.MinecraftDirectory, "versions", "Pack"));
+        File.WriteAllText(Path.Combine(settings.MinecraftDirectory, "versions", "Pack", "existing.txt"), "keep");
+        var instanceService = new FakeGameInstanceService();
+        var packageService = new FakeModpackPackageService(CreatePreparedModpack(@"..\Pack"));
+        var stagingService = new ModpackInstanceStagingService(settingsService, repository, instanceService);
+        var service = new LocalModpackImportService(
+            instanceService,
+            packageService,
+            new FakeModpackGameInstaller(),
+            stagingService);
+
+        var result = await service.ImportFromArchiveAsync(Path.Combine(TempRoot, "path-like-pack.mrpack"), progress: null);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Pack (1)", result.ImportedInstance?.VersionName);
+        Assert.True(File.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "Pack", "existing.txt")));
+        Assert.True(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "Pack (1)")));
+        Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "Pack")));
+    }
+
+    [Fact]
     public async Task LocalModpackImportDeletesDirectVersionDirectoryWhenContentInstallFails()
     {
         var settings = new LauncherSettings

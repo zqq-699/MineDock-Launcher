@@ -177,6 +177,16 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         localModsViewModel.SetWatcherEnabled(false);
     }
 
+    public void SuspendLocalWatchersForInstanceRename()
+    {
+        localModsViewModel.SuspendWatcherForInstanceRename();
+    }
+
+    public void ResumeLocalWatchersAfterInstanceRename()
+    {
+        localModsViewModel.ResumeWatcherAfterInstanceRename();
+    }
+
     public override Task OnSectionActivatedAsync()
     {
         isSectionActive = true;

@@ -22,6 +22,7 @@ public sealed class LocalSavesViewModel : IDisposable
     private IReadOnlyList<LocalSave> currentSaves = Array.Empty<LocalSave>();
     private string? watchedSavesDirectory;
     private bool watcherEnabled;
+    private bool watcherSuspendedForRename;
     private int saveRefreshVersion;
 
     public LocalSavesViewModel(
@@ -57,6 +58,22 @@ public sealed class LocalSavesViewModel : IDisposable
     public void SetWatcherEnabled(bool enabled)
     {
         watcherEnabled = enabled;
+        ResetWatcher();
+    }
+
+    public void SuspendWatcherForInstanceRename()
+    {
+        watcherSuspendedForRename = true;
+        ResetWatcher();
+        CancelRefresh();
+    }
+
+    public void ResumeWatcherAfterInstanceRename()
+    {
+        if (!watcherSuspendedForRename)
+            return;
+
+        watcherSuspendedForRename = false;
         ResetWatcher();
     }
 
@@ -199,7 +216,7 @@ public sealed class LocalSavesViewModel : IDisposable
         watcherRefreshCancellationTokenSource = null;
         watchedSavesDirectory = null;
 
-        if (!watcherEnabled)
+        if (!watcherEnabled || watcherSuspendedForRename)
             return;
 
         var instance = selectedInstance;

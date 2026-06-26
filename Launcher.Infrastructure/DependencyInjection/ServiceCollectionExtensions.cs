@@ -38,6 +38,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IJavaRuntimeProvisioningService, CmlLibJavaRuntimeProvisioningService>();
         services.AddSingleton<ISystemMemoryService, WindowsSystemMemoryService>();
         services.AddSingleton<IModService, ModService>();
+        services.AddSingleton<ILocalModIconEnrichmentService, LocalModIconEnrichmentService>();
         services.AddSingleton<ILocalSaveService, LocalSaveService>();
         services.AddSingleton<IModpackGameInstaller, ModpackGameInstaller>();
         services.AddSingleton<IModpackInstanceStagingService, ModpackInstanceStagingService>();

@@ -46,7 +46,7 @@
                             <Style TargetType="Border">
                                 <Setter Property="Visibility" Value="Visible" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IconSource, ElementName=Root}" Value="{x:Null}">
+                                    <DataTrigger Binding="{Binding ResolvedIconSource, ElementName=Root}" Value="{x:Null}">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -58,7 +58,7 @@
                                Stretch="UniformToFill"
                                RenderOptions.BitmapScalingMode="{Binding IconScalingMode, ElementName=Root}"
                                SnapsToDevicePixels="True"
-                               Source="{Binding IconSource, ElementName=Root}" />
+                               Source="{Binding ResolvedIconSource, ElementName=Root}" />
                     </Border>
 
                     <controls:SvgIcon Width="{Binding IconWidth, ElementName=Root}"

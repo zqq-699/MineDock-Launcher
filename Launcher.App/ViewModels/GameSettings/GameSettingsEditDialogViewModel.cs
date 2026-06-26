@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Launcher.App.Resources;
 using Launcher.App.Services;
@@ -60,6 +59,10 @@ public sealed partial class GameSettingsEditDialogViewModel : ObservableObject
     }
 
     public event Action<GameInstance>? InstanceUpdated;
+
+    public event Action? InstanceRenameStarting;
+
+    public event Action? InstanceRenameFinished;
 
     public ObservableCollection<GameSettingsIconOption> IconOptions { get; } = [];
 
@@ -159,6 +162,7 @@ public sealed partial class GameSettingsEditDialogViewModel : ObservableObject
             EditInstanceGlyph = BusyGlyph;
             EditInstanceMessage = Strings.Status_RenamingInstance;
 
+            InstanceRenameStarting?.Invoke();
             var updatedInstance = await instanceService.RenameInstanceAsync(
                 pendingEdit.Instance.Id,
                 newName,
@@ -180,6 +184,7 @@ public sealed partial class GameSettingsEditDialogViewModel : ObservableObject
         }
         finally
         {
+            InstanceRenameFinished?.Invoke();
             IsEditInstanceDialogBusy = false;
         }
     }
@@ -264,10 +269,6 @@ public sealed partial class GameSettingsEditDialogViewModel : ObservableObject
 
     private static bool IsValidInstanceName(string value)
     {
-        if (string.IsNullOrWhiteSpace(value))
-            return false;
-
-        var invalidCharacters = Path.GetInvalidFileNameChars();
-        return value.All(character => !invalidCharacters.Contains(character));
+        return VersionDirectoryName.IsSafeDirectoryName(value);
     }
 }

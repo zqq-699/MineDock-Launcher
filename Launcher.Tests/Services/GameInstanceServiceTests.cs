@@ -38,6 +38,27 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task InstanceServiceRejectsPathLikeInstanceName()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var provider = new FakeLoaderProvider();
+        var service = new GameInstanceService(settingsService, repository, [provider]);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.CreateInstanceAsync("1.20.1", LoaderKind.Vanilla, null, @"..\Pack", null));
+
+        Assert.Null(provider.LastIsolatedVersionName);
+        Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "Pack")));
+        Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "Pack")));
+    }
+
+    [Fact]
     public async Task InstanceServiceInstallsFabricApiWhenVersionIsSelected()
     {
         var settings = new LauncherSettings
@@ -1509,6 +1530,40 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         Assert.Equal(
             Path.Combine(settings.MinecraftDirectory, "versions", "Renamed Pack"),
             storedInstance.InstanceDirectory);
+    }
+
+    [Fact]
+    public async Task RenameInstanceAsyncRejectsPathLikeName()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "Old Pack");
+        await repository.SaveAllAsync(
+        [
+            new GameInstance
+            {
+                Id = "old",
+                Name = "Old Pack",
+                MinecraftVersion = "1.20.1",
+                VersionName = "Old Pack",
+                InstanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Old Pack")
+            }
+        ]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.RenameInstanceAsync("old", @"..\Renamed Pack", null));
+
+        var storedInstance = Assert.Single(await repository.GetAllAsync());
+        Assert.Equal("Old Pack", storedInstance.VersionName);
+        Assert.True(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "Old Pack")));
+        Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "Renamed Pack")));
+        Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "Renamed Pack")));
     }
 
     [Fact]

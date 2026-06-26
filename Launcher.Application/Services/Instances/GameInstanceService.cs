@@ -121,10 +121,9 @@ public sealed class GameInstanceService : IGameInstanceService
             name);
 
         var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
-        var versionIdentity = SanitizeName(
-            string.IsNullOrWhiteSpace(name)
-                ? CreateDefaultInstanceName(minecraftVersion, loader, loaderVersion)
-                : name);
+        var versionIdentity = string.IsNullOrWhiteSpace(name)
+            ? SanitizeGeneratedName(CreateDefaultInstanceName(minecraftVersion, loader, loaderVersion))
+            : NormalizeUserInstanceName(name);
 
         await using var installLease = await installCoordinator
             .AcquireInstallAsync(settings.MinecraftDirectory, versionIdentity, progress, cancellationToken)
@@ -263,7 +262,7 @@ public sealed class GameInstanceService : IGameInstanceService
             string.Equals(existing.Id, instanceId, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException("Instance was not found.");
 
-        var sanitizedName = SanitizeName(newName ?? string.Empty);
+        var sanitizedName = NormalizeUserInstanceName(newName);
         var normalizedIconSource = string.IsNullOrWhiteSpace(newIconSource) ? null : newIconSource.Trim();
         var currentVersionName = GetVersionName(instance);
 
@@ -544,11 +543,14 @@ public sealed class GameInstanceService : IGameInstanceService
             : instance.VersionName;
     }
 
-    private static string SanitizeName(string value)
+    private static string SanitizeGeneratedName(string value)
     {
-        var invalid = Path.GetInvalidFileNameChars();
-        var sanitized = new string(value.Select(ch => invalid.Contains(ch) ? '-' : ch).ToArray()).Trim();
-        return string.IsNullOrWhiteSpace(sanitized) ? "Minecraft" : sanitized;
+        return VersionDirectoryName.Sanitize(value);
+    }
+
+    private static string NormalizeUserInstanceName(string? value)
+    {
+        return VersionDirectoryName.NormalizeUserInput(value);
     }
 
     private static string CreateDefaultInstanceName(string minecraftVersion, LoaderKind loader, string? loaderVersion)

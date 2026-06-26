@@ -8,6 +8,8 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     private readonly object syncRoot = new();
     public List<GameInstance> CreatedInstances { get; } = [];
     public Exception? CreateException { get; init; }
+    public Exception? RenameException { get; init; }
+    public Action? RenameCallback { get; set; }
     public TaskCompletionSource<bool> CreateStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Task? WaitBeforeCreate { get; init; }
     public TaskCompletionSource<bool> GetInstancesStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -139,6 +141,10 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
             LastRenamedInstanceId = instanceId;
             LastRenamedName = newName;
             LastRenamedIconSource = newIconSource;
+            RenameCallback?.Invoke();
+
+            if (RenameException is not null)
+                throw RenameException;
 
             var instance = CreatedInstances.First(existing => existing.Id == instanceId);
             instance.Name = string.IsNullOrWhiteSpace(newName) ? instance.Name : newName.Trim();

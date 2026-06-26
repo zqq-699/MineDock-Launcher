@@ -156,4 +156,116 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         Assert.Equal(MemorySettingsMode.Manual, loaded.MemorySettingsMode);
         Assert.Equal(4096, loaded.MemoryMb);
     }
+
+    [Theory]
+    [InlineData(".")]
+    [InlineData("..")]
+    [InlineData(".dfg")]
+    [InlineData("name.")]
+    [InlineData("../Pack")]
+    [InlineData(@"..\Pack")]
+    [InlineData(@"C:\Pack")]
+    public void GetVersionDirectoryRejectsUnsafeVersionName(string versionName)
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+
+        Assert.Throws<ArgumentException>(() => repository.GetVersionDirectory(settings.MinecraftDirectory, versionName));
+    }
+
+    [Fact]
+    public void DeleteVersionDirectoryRejectsUnsafeVersionNameAndDoesNotDeleteOutsideVersions()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var sentinelDirectory = Path.Combine(settings.MinecraftDirectory, "sentinel");
+        Directory.CreateDirectory(sentinelDirectory);
+        File.WriteAllText(Path.Combine(sentinelDirectory, "keep.txt"), "keep");
+
+        Assert.Throws<ArgumentException>(() => repository.DeleteVersionDirectory(settings.MinecraftDirectory, @"..\sentinel"));
+
+        Assert.True(File.Exists(Path.Combine(sentinelDirectory, "keep.txt")));
+    }
+
+    [Fact]
+    public async Task RenameVersionAsyncRetriesDirectoryMoveWhenAccessFailsTemporarily()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var attempts = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            moveDirectoryAsync: (source, destination, cancellationToken) =>
+            {
+                attempts++;
+                if (attempts < 3)
+                    throw new IOException("temporarily locked");
+
+                Directory.Move(source, destination);
+                return Task.CompletedTask;
+            });
+        CreateVersionDirectory(settings.MinecraftDirectory, "Old Pack");
+
+        await repository.RenameVersionAsync(settings.MinecraftDirectory, "Old Pack", "New Pack");
+
+        Assert.Equal(3, attempts);
+        Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "Old Pack")));
+        Assert.True(File.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "New Pack", "New Pack.json")));
+    }
+
+    [Fact]
+    public async Task RenameVersionAsyncPreservesSourceDirectoryWhenDirectoryMoveRetriesAreExhausted()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var attempts = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            moveDirectoryAsync: (_, _, _) =>
+            {
+                attempts++;
+                throw new IOException("still locked");
+            });
+        CreateVersionDirectory(settings.MinecraftDirectory, "Old Pack");
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            repository.RenameVersionAsync(settings.MinecraftDirectory, "Old Pack", "New Pack"));
+
+        Assert.Equal(5, attempts);
+        Assert.True(File.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "Old Pack", "Old Pack.json")));
+        Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "New Pack")));
+    }
+
+    private static void CreateVersionDirectory(string minecraftDirectory, string versionName)
+    {
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+        Directory.CreateDirectory(versionDirectory);
+        File.WriteAllText(
+            Path.Combine(versionDirectory, $"{versionName}.json"),
+            $$"""
+            {
+              "id": "{{versionName}}",
+              "jar": "{{versionName}}"
+            }
+            """);
+        File.WriteAllText(Path.Combine(versionDirectory, $"{versionName}.jar"), "fake jar");
+    }
 }

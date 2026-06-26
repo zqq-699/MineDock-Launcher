@@ -334,15 +334,15 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
 
     private static string NormalizePreferredInstanceName(string preferredName)
     {
-        var baseName = preferredName?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(baseName))
+        var normalizedName = VersionDirectoryName.Sanitize(preferredName);
+        if (string.IsNullOrWhiteSpace(normalizedName))
         {
             throw new ModpackImportException(
                 ModpackImportFailureReason.InvalidManifest,
                 "Prepared modpack package name is missing.");
         }
 
-        return baseName;
+        return normalizedName;
     }
 
     private static async Task ThrowContentFailureBeforeInstallLeaseAsync(

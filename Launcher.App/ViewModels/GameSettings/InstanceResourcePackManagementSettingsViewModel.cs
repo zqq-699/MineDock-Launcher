@@ -158,6 +158,16 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         localResourcePacksViewModel.SetWatcherEnabled(false);
     }
 
+    public void SuspendLocalWatchersForInstanceRename()
+    {
+        localResourcePacksViewModel.SuspendWatcherForInstanceRename();
+    }
+
+    public void ResumeLocalWatchersAfterInstanceRename()
+    {
+        localResourcePacksViewModel.ResumeWatcherAfterInstanceRename();
+    }
+
     public override Task OnSectionActivatedAsync()
     {
         isSectionActive = true;

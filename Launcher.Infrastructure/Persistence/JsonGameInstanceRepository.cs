@@ -16,6 +16,8 @@ namespace Launcher.Infrastructure.Persistence;
 
 public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 {
+    private const int RenameDirectoryMoveMaxAttempts = 5;
+    private static readonly TimeSpan RenameDirectoryMoveRetryDelay = TimeSpan.FromMilliseconds(150);
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private static readonly Regex NeoForgeVersionArgumentRegex = new(
         "--fml\\.(?:neoForgeVersion|forgeVersion)\\s+(?<version>[^\\s]+)",
@@ -27,14 +29,17 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
     private const string InstanceSettingsFileName = "instance-settings.json";
     private readonly ISettingsService settingsService;
     private readonly ILogger<JsonGameInstanceRepository> logger;
+    private readonly Func<string, string, CancellationToken, Task> moveDirectoryAsync;
     private readonly SemaphoreSlim ioLock = new(1, 1);
 
     public JsonGameInstanceRepository(
         ISettingsService settingsService,
-        ILogger<JsonGameInstanceRepository>? logger = null)
+        ILogger<JsonGameInstanceRepository>? logger = null,
+        Func<string, string, CancellationToken, Task>? moveDirectoryAsync = null)
     {
         this.settingsService = settingsService;
         this.logger = logger ?? NullLogger<JsonGameInstanceRepository>.Instance;
+        this.moveDirectoryAsync = moveDirectoryAsync ?? MoveDirectoryAsync;
     }
 
     public async Task<IReadOnlyList<GameInstance>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -163,7 +168,16 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 
     public string GetVersionDirectory(string minecraftDirectory, string versionName)
     {
-        return Path.Combine(minecraftDirectory, "versions", versionName);
+        if (!VersionDirectoryName.IsSafeDirectoryName(versionName))
+            throw new ArgumentException($"Version name is not a safe directory name: {versionName}", nameof(versionName));
+
+        var versionsDirectory = Path.GetFullPath(Path.Combine(minecraftDirectory, "versions"));
+        var versionDirectory = Path.GetFullPath(Path.Combine(versionsDirectory, versionName));
+        var parentDirectory = Path.GetDirectoryName(versionDirectory);
+        if (!string.Equals(parentDirectory, versionsDirectory, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException($"Version directory resolved outside the versions directory: {versionName}", nameof(versionName));
+
+        return versionDirectory;
     }
 
     public bool IsInstanceInstalled(GameInstance instance, string minecraftDirectory)
@@ -209,9 +223,8 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             return;
         }
 
-        var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
-        var sourceDirectory = Path.Combine(versionsDirectory, oldVersionName);
-        var destinationDirectory = Path.Combine(versionsDirectory, newVersionName);
+        var sourceDirectory = GetVersionDirectory(minecraftDirectory, oldVersionName);
+        var destinationDirectory = GetVersionDirectory(minecraftDirectory, newVersionName);
         var sourceJsonPath = Path.Combine(sourceDirectory, $"{oldVersionName}.json");
         var destinationJsonPath = Path.Combine(destinationDirectory, $"{newVersionName}.json");
         var destinationJarPath = Path.Combine(destinationDirectory, $"{newVersionName}.jar");
@@ -246,7 +259,7 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 
         try
         {
-            Directory.Move(sourceDirectory, destinationDirectory);
+            await MoveDirectoryWithRetryAsync(sourceDirectory, destinationDirectory, cancellationToken).ConfigureAwait(false);
             directoryMoved = true;
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -303,6 +316,45 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
     private static string GetInstanceSettingsPath(string versionDirectory)
     {
         return Path.Combine(versionDirectory, LauncherDirectoryName, InstanceSettingsFileName);
+    }
+
+    private async Task MoveDirectoryWithRetryAsync(
+        string sourceDirectory,
+        string destinationDirectory,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                await moveDirectoryAsync(sourceDirectory, destinationDirectory, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            catch (Exception exception) when (
+                attempt < RenameDirectoryMoveMaxAttempts
+                && exception is IOException or UnauthorizedAccessException)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Version directory move failed and will be retried. SourceDirectory={SourceDirectory} DestinationDirectory={DestinationDirectory} Attempt={Attempt} MaxAttempts={MaxAttempts}",
+                    sourceDirectory,
+                    destinationDirectory,
+                    attempt,
+                    RenameDirectoryMoveMaxAttempts);
+                await Task.Delay(RenameDirectoryMoveRetryDelay, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static Task MoveDirectoryAsync(
+        string sourceDirectory,
+        string destinationDirectory,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Directory.Move(sourceDirectory, destinationDirectory);
+        return Task.CompletedTask;
     }
 
     private static string ResolveVersionDirectory(string minecraftDirectory, GameInstance instance, string versionName)

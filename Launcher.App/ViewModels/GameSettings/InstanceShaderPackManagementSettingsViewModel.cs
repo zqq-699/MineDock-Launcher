@@ -158,6 +158,16 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         localShaderPacksViewModel.SetWatcherEnabled(false);
     }
 
+    public void SuspendLocalWatchersForInstanceRename()
+    {
+        localShaderPacksViewModel.SuspendWatcherForInstanceRename();
+    }
+
+    public void ResumeLocalWatchersAfterInstanceRename()
+    {
+        localShaderPacksViewModel.ResumeWatcherAfterInstanceRename();
+    }
+
     public override Task OnSectionActivatedAsync()
     {
         isSectionActive = true;

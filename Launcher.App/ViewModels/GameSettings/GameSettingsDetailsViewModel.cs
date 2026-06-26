@@ -322,6 +322,22 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         SelectedSection = section;
     }
 
+    public void SuspendLocalWatchersForInstanceRename()
+    {
+        ModManagement.SuspendLocalWatchersForInstanceRename();
+        SaveManagement.SuspendLocalWatchersForInstanceRename();
+        ResourcePackManagement.SuspendLocalWatchersForInstanceRename();
+        ShaderPackManagement.SuspendLocalWatchersForInstanceRename();
+    }
+
+    public void ResumeLocalWatchersAfterInstanceRename()
+    {
+        ModManagement.ResumeLocalWatchersAfterInstanceRename();
+        SaveManagement.ResumeLocalWatchersAfterInstanceRename();
+        ResourcePackManagement.ResumeLocalWatchersAfterInstanceRename();
+        ShaderPackManagement.ResumeLocalWatchersAfterInstanceRename();
+    }
+
     public Task DeleteModsAsync(IReadOnlyList<string> fullPaths)
     {
         return ModManagement.DeleteModsAsync(fullPaths);

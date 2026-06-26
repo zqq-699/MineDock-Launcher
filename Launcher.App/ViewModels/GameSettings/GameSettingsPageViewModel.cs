@@ -122,6 +122,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             filePickerService,
             floatingMessageService);
         EditDialog.InstanceUpdated += EditDialog_InstanceUpdated;
+        EditDialog.InstanceRenameStarting += EditDialog_InstanceRenameStarting;
+        EditDialog.InstanceRenameFinished += EditDialog_InstanceRenameFinished;
         Details.InstanceSettingsSaved += Details_InstanceSettingsSaved;
         Details.DeleteInstanceRequested += Details_DeleteInstanceRequested;
         Details.DeleteModsRequested += Details_DeleteModsRequested;
@@ -792,6 +794,16 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             item.IsSelected = ReferenceEquals(item, section);
 
         Details.SetSelectedSection(section);
+    }
+
+    private void EditDialog_InstanceRenameStarting()
+    {
+        Details.SuspendLocalWatchersForInstanceRename();
+    }
+
+    private void EditDialog_InstanceRenameFinished()
+    {
+        Details.ResumeLocalWatchersAfterInstanceRename();
     }
 
     partial void OnSelectedInstanceCategoryChanged(GameSettingsInstanceCategory? value)

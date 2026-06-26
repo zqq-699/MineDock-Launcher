@@ -12,18 +12,7 @@ public sealed partial class ModManagementModItemViewModel : ObservableObject
         SyncFrom(mod);
     }
 
-    public string Subtitle
-    {
-        get
-        {
-            var parts = new[] { Loader, ModId, Version }
-                .Where(part => !string.IsNullOrWhiteSpace(part))
-                .ToArray();
-            return parts.Length == 0
-                ? GetDisplayFileNameWithoutModExtensions(FileName)
-                : string.Join("-", parts);
-        }
-    }
+    public string Subtitle => FileName;
 
     public string TrailingText => IsEnabled
         ? Strings.GameSettings_ModManagementEnabledState
@@ -82,21 +71,6 @@ public sealed partial class ModManagementModItemViewModel : ObservableObject
     partial void OnIconSourceChanged(string? value)
     {
         OnPropertyChanged(nameof(IconKey));
-    }
-
-    partial void OnLoaderChanged(string? value)
-    {
-        OnPropertyChanged(nameof(Subtitle));
-    }
-
-    partial void OnModIdChanged(string? value)
-    {
-        OnPropertyChanged(nameof(Subtitle));
-    }
-
-    partial void OnVersionChanged(string? value)
-    {
-        OnPropertyChanged(nameof(Subtitle));
     }
 
     partial void OnIsEnabledChanged(bool value)
