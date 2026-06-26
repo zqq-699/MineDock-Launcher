@@ -53,6 +53,32 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task HomeGameSettingsButtonNavigatesImmediatelyWhileGameSettingsRefreshIsPending()
+    {
+        var instanceService = new FakeGameInstanceService();
+        var instance = CreateInstance("Vanilla World", "1.21.4");
+        instanceService.CreatedInstances.Add(instance);
+        var viewModel = CreateViewModel(instanceService);
+
+        await viewModel.InitializeAsync();
+        var refreshRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        instanceService.WaitBeforeGetInstances = refreshRelease.Task;
+
+        var commandTask = viewModel.HomePage.OpenSelectedInstanceSettingsCommand.ExecuteAsync(null);
+        await commandTask.WaitAsync(TimeSpan.FromMilliseconds(250));
+
+        Assert.Equal("GameSettings", viewModel.CurrentPage);
+        Assert.True(viewModel.GameSettingsPage.IsDetailsStep);
+        Assert.Equal(instance.Id, viewModel.GameSettingsPage.SelectedInstance?.Instance.Id);
+
+        await TestAsync.WaitForAsync(() => instanceService.GetInstancesCallCount >= 2);
+        Assert.True(instanceService.GetInstancesCallCount >= 2);
+        refreshRelease.SetResult();
+        await TestAsync.WaitForAsync(() => !viewModel.GameSettingsPage.IsLoadingInstances);
+        Assert.False(viewModel.GameSettingsPage.IsLoadingInstances);
+    }
+
+    [Fact]
     public void ResourcesNavigationSelectsResourcesPage()
     {
         var viewModel = CreateViewModel(new FakeGameInstanceService());

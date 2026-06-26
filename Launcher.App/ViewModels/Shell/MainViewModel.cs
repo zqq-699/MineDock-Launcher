@@ -237,7 +237,7 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task OpenJavaSettingsFromRequirementDialogAsync()
+    private Task OpenJavaSettingsFromRequirementDialogAsync()
     {
         var targetInstance = pendingJavaRequirementInstance;
         IsJavaRequirementDialogOpen = false;
@@ -246,7 +246,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (targetInstance?.JavaSettingsMode is LaunchSettingsMode.PerInstance)
         {
-            await GameSettingsPage.OpenInstanceJavaSettingsAsync(targetInstance);
+            GameSettingsPage.ShowInstanceDetails(targetInstance, "java");
             CurrentPage = NavigationCatalog.GameSettingsPage;
         }
         else
@@ -257,6 +257,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         UpdateSecondaryItems();
         UpdateNavigationSelection();
+        return Task.CompletedTask;
     }
 
     [RelayCommand]
@@ -537,12 +538,13 @@ public sealed partial class MainViewModel : ObservableObject
             accountItem.AvatarUrl = AccountPage.SelectedAccount?.AvatarUrl;
     }
 
-    private async Task OpenGameSettingsForInstanceAsync(GameInstance? instance)
+    private Task OpenGameSettingsForInstanceAsync(GameInstance? instance)
     {
-        await GameSettingsPage.OpenInstanceDetailsAsync(instance);
+        GameSettingsPage.ShowInstanceDetails(instance);
         CurrentPage = NavigationCatalog.GameSettingsPage;
         UpdateSecondaryItems();
         UpdateNavigationSelection();
+        return Task.CompletedTask;
     }
 
     private async Task OpenResourcesModsForInstanceAsync(GameInstance instance)

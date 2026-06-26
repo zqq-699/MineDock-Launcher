@@ -390,39 +390,44 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     public async Task OpenInstanceDetailsAsync(GameInstance? instance, CancellationToken cancellationToken = default)
     {
+        await OpenInstanceDetailsAsync(instance, sectionId: null, cancellationToken);
+    }
+
+    private async Task OpenInstanceDetailsAsync(GameInstance? instance, string? sectionId, CancellationToken cancellationToken = default)
+    {
         await RefreshInstancesCoreAsync(
             playEntranceAnimation: !hasLoadedInstances,
             clearVisibleInstancesBeforeRefresh: !hasLoadedInstances,
             logRefreshResult: true,
             cancellationToken);
 
+        ShowInstanceDetails(instance, sectionId);
+    }
+
+    public void ShowInstanceDetails(GameInstance? instance, string? sectionId = null)
+    {
         if (instance is null)
         {
             CurrentStep = GameSettingsPageStep.List;
             return;
         }
 
-        var targetItem = AllInstances.FirstOrDefault(item =>
-            string.Equals(item.Instance.Id, instance.Id, StringComparison.OrdinalIgnoreCase));
+        var targetItem = FindInstanceItem(instance.Id);
         if (targetItem is null)
         {
-            CurrentStep = GameSettingsPageStep.List;
-            return;
+            targetItem = CreateInstanceItem(instance);
+            AllInstances.Add(targetItem);
+            RefreshVisibleInstances();
         }
 
         SelectInstanceCore(targetItem);
-        SelectDetailsSectionCore(DetailSections.FirstOrDefault());
+        SelectDetailsSectionCore(ResolveDetailSection(sectionId));
         CurrentStep = GameSettingsPageStep.Details;
     }
 
     public async Task OpenInstanceJavaSettingsAsync(GameInstance instance, CancellationToken cancellationToken = default)
     {
-        await OpenInstanceDetailsAsync(instance, cancellationToken);
-        if (!IsDetailsStep)
-            return;
-
-        SelectDetailsSectionCore(DetailSections.FirstOrDefault(section =>
-            string.Equals(section.Id, "java", StringComparison.OrdinalIgnoreCase)));
+        await OpenInstanceDetailsAsync(instance, "java", cancellationToken);
     }
 
     private async Task RefreshInstancesCoreAsync(
@@ -476,16 +481,16 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task SelectInstanceCategoryAsync(GameSettingsInstanceCategory category)
+    private Task SelectInstanceCategoryAsync(GameSettingsInstanceCategory category)
     {
         var isCategorySwitch = !ReferenceEquals(SelectedInstanceCategory, category)
             && !string.Equals(SelectedInstanceCategory?.Id, category.Id, StringComparison.OrdinalIgnoreCase);
 
-        SelectInstanceCategoryCore(category, refreshVisibleInstances: false);
-        await RefreshInstancesCoreAsync(
-            playEntranceAnimation: isCategorySwitch,
-            clearVisibleInstancesBeforeRefresh: isCategorySwitch,
-            logRefreshResult: false);
+        SelectInstanceCategoryCore(category);
+        if (hasLoadedInstances && isCategorySwitch)
+            ListEntranceAnimationToken++;
+
+        return Task.CompletedTask;
     }
 
     [RelayCommand]
@@ -520,6 +525,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     private void BackToInstanceList()
     {
         CurrentStep = GameSettingsPageStep.List;
+        RefreshVisibleInstances();
     }
 
     [RelayCommand]
@@ -882,10 +888,31 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             HasInstanceLoadError);
 
         InstanceEmptyMessage = result.EmptyMessage;
-        if (result.ShouldClearSelectedInstance)
+        if (ShouldClearSelectedInstanceForCurrentStep(result.ShouldClearSelectedInstance))
             ClearSelectedInstance();
 
         ApplyVisibleInstances(result.Instances);
+    }
+
+    private bool ShouldClearSelectedInstanceForCurrentStep(bool shouldClearSelectedInstance)
+    {
+        if (!shouldClearSelectedInstance)
+            return false;
+
+        if (!IsDetailsStep)
+            return true;
+
+        return SelectedInstance is not null && !IsSelectedInstanceInAllInstances();
+    }
+
+    private bool IsSelectedInstanceInAllInstances()
+    {
+        if (SelectedInstance is null)
+            return false;
+
+        return AllInstances.Any(item => ReferenceEquals(item, SelectedInstance)
+            || (!string.IsNullOrWhiteSpace(item.Instance.Id)
+                && string.Equals(item.Instance.Id, SelectedInstance.Instance.Id, StringComparison.OrdinalIgnoreCase)));
     }
 
     private void ClearSelectedInstance()
@@ -1002,6 +1029,28 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         return new GameSettingsInstanceItem(instance, ResolveVersionType(instance));
     }
 
+    private GameSettingsInstanceItem? FindInstanceItem(string? instanceId)
+    {
+        if (string.IsNullOrWhiteSpace(instanceId))
+            return null;
+
+        return AllInstances.FirstOrDefault(item =>
+            string.Equals(item.Instance.Id, instanceId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private GameSettingsDetailSectionItem? ResolveDetailSection(string? sectionId)
+    {
+        if (!string.IsNullOrWhiteSpace(sectionId))
+        {
+            var section = DetailSections.FirstOrDefault(item =>
+                string.Equals(item.Id, sectionId, StringComparison.OrdinalIgnoreCase));
+            if (section is not null)
+                return section;
+        }
+
+        return DetailSections.FirstOrDefault();
+    }
+
     private string ResolveVersionType(GameInstance instance)
     {
         if (!string.IsNullOrWhiteSpace(instance.VersionType))
@@ -1023,8 +1072,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             return;
         }
 
-        SelectInstanceCore(AllInstances.FirstOrDefault(item =>
-            string.Equals(item.Instance.Id, selectedInstanceId, StringComparison.OrdinalIgnoreCase)));
+        SelectInstanceCore(FindInstanceItem(selectedInstanceId));
     }
 
     private void SelectInstanceCore(GameSettingsInstanceItem? instance)

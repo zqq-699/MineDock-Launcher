@@ -10,6 +10,8 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public Exception? CreateException { get; init; }
     public TaskCompletionSource<bool> CreateStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Task? WaitBeforeCreate { get; init; }
+    public TaskCompletionSource<bool> GetInstancesStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public Task? WaitBeforeGetInstances { get; set; }
     public string? LastMinecraftVersion { get; private set; }
     public LoaderKind LastLoader { get; private set; }
     public string? LastLoaderVersion { get; private set; }
@@ -31,12 +33,20 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public int SaveCallCount { get; private set; }
     public LauncherProgress? InitialProgress { get; init; }
 
-    public Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default)
     {
         lock (syncRoot)
         {
             GetInstancesCallCount++;
-            return Task.FromResult<IReadOnlyList<GameInstance>>(CreatedInstances.ToList());
+        }
+
+        GetInstancesStarted.TrySetResult(true);
+        if (WaitBeforeGetInstances is not null)
+            await WaitBeforeGetInstances.WaitAsync(cancellationToken);
+
+        lock (syncRoot)
+        {
+            return CreatedInstances.ToList();
         }
     }
 

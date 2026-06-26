@@ -49,6 +49,98 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task GameSettingsPageShowsInstanceDetailsBeforeInstancesAreLoaded()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(instance);
+        var viewModel = CreateViewModel(
+            instanceService,
+            new FakeGameVersionService([]),
+            new FakeStatusService(),
+            new FakeInstanceFolderService());
+
+        viewModel.ShowInstanceDetails(instance);
+
+        Assert.True(viewModel.IsDetailsStep);
+        Assert.Equal(instance.Id, viewModel.SelectedInstance?.Instance.Id);
+        Assert.Equal(instance.Name, viewModel.Details.InstanceName);
+
+        await viewModel.RefreshInstancesForPageActivationAsync();
+
+        Assert.True(viewModel.IsDetailsStep);
+        Assert.Equal(instance.Id, viewModel.SelectedInstance?.Instance.Id);
+    }
+
+    [Fact]
+    public async Task GameSettingsPageKeepsDetailsWhenSelectedInstanceIsHiddenByCurrentCategory()
+    {
+        var instance = CreateInstance("Release World", "1.21.4", LoaderKind.Vanilla);
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(instance);
+        var viewModel = CreateViewModel(
+            instanceService,
+            new FakeGameVersionService([new MinecraftVersionInfo("1.21.4", "release", false)]),
+            new FakeStatusService(),
+            new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        var snapshotCategory = viewModel.InstanceCategories.Single(category => category.Id == "snapshot");
+        await viewModel.SelectInstanceCategoryCommand.ExecuteAsync(snapshotCategory);
+        Assert.Empty(viewModel.VisibleInstances);
+
+        viewModel.ShowInstanceDetails(instance);
+        await viewModel.RefreshInstancesForPageActivationAsync();
+
+        Assert.True(viewModel.IsDetailsStep);
+        Assert.Same(snapshotCategory, viewModel.SelectedInstanceCategory);
+        Assert.Empty(viewModel.VisibleInstances);
+        Assert.Equal(instance.Id, viewModel.SelectedInstance?.Instance.Id);
+        Assert.Equal(instance.Name, viewModel.Details.InstanceName);
+    }
+
+    [Fact]
+    public async Task GameSettingsPageReturnsToListWhenDetailsInstanceDisappearsDuringRefresh()
+    {
+        var instance = CreateInstance("Release World", "1.21.4", LoaderKind.Vanilla);
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(instance);
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.ShowInstanceDetails(instance);
+        instanceService.CreatedInstances.Clear();
+
+        await viewModel.RefreshInstancesForPageActivationAsync();
+
+        Assert.False(viewModel.IsDetailsStep);
+        Assert.True(viewModel.IsListStep);
+        Assert.Null(viewModel.SelectedInstance);
+    }
+
+    [Fact]
+    public async Task GameSettingsPageClearsHiddenSelectionWhenReturningFromDetailsToEmptyCategory()
+    {
+        var instance = CreateInstance("Release World", "1.21.4", LoaderKind.Vanilla);
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(instance);
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        var snapshotCategory = viewModel.InstanceCategories.Single(category => category.Id == "snapshot");
+        await viewModel.SelectInstanceCategoryCommand.ExecuteAsync(snapshotCategory);
+        viewModel.ShowInstanceDetails(instance);
+
+        viewModel.BackToInstanceListCommand.Execute(null);
+
+        Assert.True(viewModel.IsListStep);
+        Assert.Same(snapshotCategory, viewModel.SelectedInstanceCategory);
+        Assert.Empty(viewModel.VisibleInstances);
+        Assert.Null(viewModel.SelectedInstance);
+        Assert.All(viewModel.AllInstances, item => Assert.False(item.IsSelected));
+    }
+
+    [Fact]
     public async Task GameSettingsPageOrdersNewlyCreatedInstancesFirst()
     {
         var older = CreateInstance("Older World", "1.20.1", LoaderKind.Vanilla);
@@ -248,7 +340,7 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
-    public async Task GameSettingsPageRefreshesInstancesWhenCategoryIsClickedAgain()
+    public async Task GameSettingsPageUpdatesCategoryFromCacheWithoutRefreshingInstances()
     {
         var instanceService = new FakeGameInstanceService();
         instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla));
@@ -260,16 +352,26 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Equal(1, instanceService.GetInstancesCallCount);
         Assert.Equal(1, viewModel.ListEntranceAnimationToken);
 
+        var modLoaderCategory = viewModel.InstanceCategories.Single(category => category.Id == "mod_loader");
         instanceService.CreatedInstances.RemoveAll(instance => instance.Name == "Fabric Pack");
-        await viewModel.SelectInstanceCategoryCommand.ExecuteAsync(viewModel.SelectedInstanceCategory);
+        await viewModel.SelectInstanceCategoryCommand.ExecuteAsync(modLoaderCategory);
 
-        Assert.Equal(["Vanilla World"], viewModel.VisibleInstances.Select(instance => instance.Name));
-        Assert.Equal(2, instanceService.GetInstancesCallCount);
-        Assert.Equal(1, viewModel.ListEntranceAnimationToken);
+        Assert.Same(modLoaderCategory, viewModel.SelectedInstanceCategory);
+        Assert.True(modLoaderCategory.IsSelected);
+        Assert.All(viewModel.InstanceCategories.Where(category => !ReferenceEquals(category, modLoaderCategory)), category => Assert.False(category.IsSelected));
+        Assert.Equal(["Fabric Pack"], viewModel.VisibleInstances.Select(instance => instance.Name));
+        Assert.Equal(1, instanceService.GetInstancesCallCount);
+        Assert.Equal(2, viewModel.ListEntranceAnimationToken);
+
+        await viewModel.SelectInstanceCategoryCommand.ExecuteAsync(modLoaderCategory);
+
+        Assert.Equal(["Fabric Pack"], viewModel.VisibleInstances.Select(instance => instance.Name));
+        Assert.Equal(1, instanceService.GetInstancesCallCount);
+        Assert.Equal(2, viewModel.ListEntranceAnimationToken);
     }
 
     [Fact]
-    public async Task GameSettingsPageClearsVisibleInstancesBeforeRequestingEntranceAnimation()
+    public async Task GameSettingsPageUpdatesVisibleInstancesBeforeRequestingEntranceAnimation()
     {
         var instanceService = new FakeGameInstanceService();
         instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla));
@@ -293,11 +395,32 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Equal(
             [
                 nameof(GameSettingsPageViewModel.VisibleInstances),
-                nameof(GameSettingsPageViewModel.ListEntranceAnimationToken),
-                nameof(GameSettingsPageViewModel.VisibleInstances)
+                nameof(GameSettingsPageViewModel.ListEntranceAnimationToken)
             ],
             changedProperties);
         Assert.Equal(["Fabric Pack"], viewModel.VisibleInstances.Select(instance => instance.Name));
+    }
+
+    [Fact]
+    public async Task GameSettingsPageSecondaryCategorySwitchDoesNotWaitForPendingInstanceRefresh()
+    {
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla));
+        instanceService.CreatedInstances.Add(CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric));
+        var viewModel = CreateViewModel(instanceService, new FakeGameVersionService([]), new FakeStatusService(), new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        var getInstancesCallCount = instanceService.GetInstancesCallCount;
+        instanceService.WaitBeforeGetInstances = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously).Task;
+        var modLoaderCategory = viewModel.InstanceCategories.Single(category => category.Id == "mod_loader");
+
+        var commandTask = viewModel.SelectSecondaryMenuItemCommand.ExecuteAsync(modLoaderCategory);
+        await commandTask.WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Same(modLoaderCategory, viewModel.SelectedInstanceCategory);
+        Assert.True(modLoaderCategory.IsSelected);
+        Assert.Equal(["Fabric Pack"], viewModel.VisibleInstances.Select(instance => instance.Name));
+        Assert.Equal(getInstancesCallCount, instanceService.GetInstancesCallCount);
     }
 
     [Fact]
@@ -1710,8 +1833,15 @@ public sealed class GameSettingsPageViewModelTests
         Assert.False(modManagement.HasLoadedMods);
         Assert.True(modManagement.CanShowModLoadingState);
 
+        var modSection = GetDetailSection(viewModel, "mod_management");
+        var saveSection = GetDetailSection(viewModel, "saves");
+        Assert.True(modSection.IsSelected);
+        Assert.False(saveSection.IsSelected);
+
         var saveManagement = OpenSaveManagementSection(viewModel);
         Assert.Same(saveManagement, viewModel.Details.CurrentSectionViewModel);
+        Assert.False(modSection.IsSelected);
+        Assert.True(saveSection.IsSelected);
         Assert.True(modManagement.IsLoadingMods);
         Assert.Empty(modManagement.Mods);
 
