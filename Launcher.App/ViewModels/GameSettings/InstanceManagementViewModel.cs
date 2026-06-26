@@ -143,18 +143,35 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
 
     public async Task<bool> SelectLaunchInstanceAsync(GameInstance instance)
     {
+        var previousSelected = SelectedInstance;
         var selected = Instances.FirstOrDefault(existing =>
             string.Equals(existing.Id, instance.Id, StringComparison.OrdinalIgnoreCase));
 
         if (selected is null)
             return false;
 
-        var saved = await instanceService.SetDefaultInstanceAsync(selected.Id);
-        if (!saved)
+        SelectedInstance = selected;
+
+        try
+        {
+            var saved = await instanceService.SetDefaultInstanceAsync(selected.Id);
+            if (!saved)
+            {
+                SelectedInstance = previousSelected;
+                return false;
+            }
+        }
+        catch (Exception exception)
+        {
+            SelectedInstance = previousSelected;
+            logger.LogWarning(
+                exception,
+                "Default game instance selection failed. InstanceId={InstanceId}",
+                selected.Id);
             return false;
+        }
 
         settings.DefaultInstanceId = selected.Id;
-        SelectedInstance = selected;
         return true;
     }
 

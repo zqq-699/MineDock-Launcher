@@ -87,11 +87,15 @@ public sealed partial class HomeLaunchGameListViewModel : ObservableObject
         if (item is null)
             return;
 
+        var previousSelectedInstance = SelectedInstance;
+        SetSelectedInstance(item.Instance);
+
         try
         {
             var saved = await selectLaunchInstance(item.Instance);
             if (!saved)
             {
+                SetSelectedInstance(previousSelectedInstance);
                 statusService.Report(Strings.Status_LaunchInstanceSelectionFailed);
                 return;
             }
@@ -101,6 +105,7 @@ public sealed partial class HomeLaunchGameListViewModel : ObservableObject
         }
         catch (Exception)
         {
+            SetSelectedInstance(previousSelectedInstance);
             statusService.Report(Strings.Status_LaunchInstanceSelectionFailed);
         }
     }

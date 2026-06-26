@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Nodes;
+using Launcher.Application.Repositories;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
@@ -1257,6 +1258,30 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task InstanceServiceSavesDefaultInstanceSelectionWithoutDiscoveringVersions()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultInstanceId = "first"
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new CountingGameInstanceRepository(
+        [
+            CreateStoredInstance("first"),
+            CreateStoredInstance("second")
+        ]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var saved = await service.SetDefaultInstanceAsync("second");
+
+        Assert.True(saved);
+        Assert.Equal("second", (await settingsService.LoadAsync()).DefaultInstanceId);
+        Assert.Equal(0, repository.DiscoverInstalledVersionsCallCount);
+    }
+
+    [Fact]
     public async Task InstanceServiceDoesNotSaveMissingDefaultInstanceSelection()
     {
         var settings = new LauncherSettings
@@ -1275,6 +1300,26 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
 
         Assert.False(saved);
         Assert.Equal("first", (await settingsService.LoadAsync()).DefaultInstanceId);
+    }
+
+    [Fact]
+    public async Task InstanceServiceDoesNotSaveMissingDefaultInstanceSelectionWithoutDiscoveringVersions()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultInstanceId = "first"
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new CountingGameInstanceRepository([CreateStoredInstance("first")]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var saved = await service.SetDefaultInstanceAsync("missing");
+
+        Assert.False(saved);
+        Assert.Equal("first", (await settingsService.LoadAsync()).DefaultInstanceId);
+        Assert.Equal(0, repository.DiscoverInstalledVersionsCallCount);
     }
 
     [Fact]
@@ -1668,6 +1713,64 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
             VersionName = versionName,
             InstanceDirectory = string.Empty
         };
+    }
+
+    private sealed class CountingGameInstanceRepository(IReadOnlyList<GameInstance> instances) : IGameInstanceRepository
+    {
+        private List<GameInstance> instances = [.. instances];
+
+        public int DiscoverInstalledVersionsCallCount { get; private set; }
+
+        public Task<IReadOnlyList<GameInstance>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<GameInstance>>(instances.ToList());
+        }
+
+        public Task SaveAllAsync(IReadOnlyCollection<GameInstance> instances, CancellationToken cancellationToken = default)
+        {
+            this.instances = instances.ToList();
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<InstalledGameVersion>> DiscoverInstalledVersionsAsync(
+            string minecraftDirectory,
+            CancellationToken cancellationToken = default)
+        {
+            DiscoverInstalledVersionsCallCount++;
+            return Task.FromResult<IReadOnlyList<InstalledGameVersion>>([]);
+        }
+
+        public string GetUniqueInstanceDirectory(string dataDirectory, string name)
+        {
+            return Path.Combine(dataDirectory, "instances", name);
+        }
+
+        public string GetVersionDirectory(string minecraftDirectory, string versionName)
+        {
+            return Path.Combine(minecraftDirectory, "versions", versionName);
+        }
+
+        public bool IsInstanceInstalled(GameInstance instance, string minecraftDirectory)
+        {
+            return true;
+        }
+
+        public void CreateInstanceDirectories(string directory)
+        {
+        }
+
+        public void DeleteVersionDirectory(string minecraftDirectory, string versionName)
+        {
+        }
+
+        public Task RenameVersionAsync(
+            string minecraftDirectory,
+            string oldVersionName,
+            string newVersionName,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
     }
     
     private sealed class FakeModrinthService : IModrinthService

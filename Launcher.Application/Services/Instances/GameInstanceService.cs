@@ -319,7 +319,7 @@ public sealed class GameInstanceService : IGameInstanceService
             return false;
 
         var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
-        var instances = await GetInstancesCoreAsync(settings, cancellationToken).ConfigureAwait(false);
+        var instances = await repository.GetAllAsync(cancellationToken).ConfigureAwait(false);
         var instance = instances.FirstOrDefault(existing =>
             string.Equals(existing.Id, instanceId, StringComparison.OrdinalIgnoreCase));
 

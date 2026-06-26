@@ -81,6 +81,33 @@ public sealed class HomePageViewModelTests
     }
 
     [Fact]
+    public async Task HomePageSelectLaunchInstanceCommandSelectsInstanceBeforePersistenceCompletes()
+    {
+        var persistenceStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var persistenceRelease = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var viewModel = CreateViewModel(
+            selectLaunchInstance: _ =>
+            {
+                persistenceStarted.SetResult();
+                return persistenceRelease.Task;
+            });
+        var first = CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla);
+        var second = CreateInstance("second", "Fabric Pack", "1.21.1", LoaderKind.Fabric);
+        viewModel.SetLaunchInstances([first, second]);
+
+        var selectTask = viewModel.SelectLaunchInstanceCommand.ExecuteAsync(viewModel.LaunchInstances[1]);
+        await persistenceStarted.Task;
+
+        Assert.Same(second, viewModel.SelectedInstance);
+        Assert.False(viewModel.LaunchInstances[0].IsSelected);
+        Assert.True(viewModel.LaunchInstances[1].IsSelected);
+        Assert.Same(viewModel.LaunchInstances[1], viewModel.SelectedLaunchInstanceItem);
+
+        persistenceRelease.SetResult(true);
+        await selectTask;
+    }
+
+    [Fact]
     public void HomePageCollapsedLaunchInstanceSelectionFollowsSelectedInstance()
     {
         var viewModel = CreateViewModel();
