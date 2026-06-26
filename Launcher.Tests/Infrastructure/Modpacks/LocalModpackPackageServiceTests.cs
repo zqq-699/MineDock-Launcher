@@ -140,9 +140,13 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Equal("0.16.10", prepared.LoaderVersion);
         var file = Assert.Single(prepared.Files);
         Assert.Equal("mods/keep.jar", file.RelativePath);
-        Assert.NotNull(prepared.OverridesDirectory);
-        Assert.True(File.Exists(Path.Combine(prepared.OverridesDirectory!, "config", "demo.txt")));
-        Assert.True(File.Exists(Path.Combine(prepared.OverridesDirectory!, "options.txt")));
+        Assert.True(prepared.HasOverrides);
+        Assert.False(Directory.Exists(Path.Combine(TempRoot, "Launcher", "cache", "modpacks")));
+
+        var instance = new GameInstance { InstanceDirectory = Path.Combine(TempRoot, "instance") };
+        await service.CopyOverridesAsync(prepared, instance, progress: null);
+        Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, "config", "demo.txt")));
+        Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, "options.txt")));
     }
 
     [Fact]
@@ -195,8 +199,13 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Equal("Wrapped Pack", prepared.PackageName);
         Assert.Equal("1.21.1", prepared.MinecraftVersion);
         Assert.Equal(LoaderKind.Fabric, prepared.Loader);
-        Assert.NotNull(prepared.OverridesDirectory);
-        Assert.True(File.Exists(Path.Combine(prepared.OverridesDirectory!, "config", "wrapped.txt")));
+        Assert.Equal("modpack.mrpack", prepared.EmbeddedModrinthEntryName);
+        Assert.True(prepared.HasOverrides);
+        Assert.False(Directory.Exists(Path.Combine(TempRoot, "Launcher", "cache", "modpacks")));
+
+        var instance = new GameInstance { InstanceDirectory = Path.Combine(TempRoot, "wrapped-instance") };
+        await service.CopyOverridesAsync(prepared, instance, progress: null);
+        Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, "config", "wrapped.txt")));
     }
 
     [Fact]
@@ -234,8 +243,11 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Equal("1.20.1", prepared.MinecraftVersion);
         Assert.Equal(LoaderKind.Forge, prepared.Loader);
         Assert.Equal("47.4.20", prepared.LoaderVersion);
-        Assert.NotNull(prepared.OverridesDirectory);
-        Assert.True(File.Exists(Path.Combine(prepared.OverridesDirectory!, "config", "curse.txt")));
+        Assert.True(prepared.HasOverrides);
+
+        var instance = new GameInstance { InstanceDirectory = Path.Combine(TempRoot, "curse-instance") };
+        await service.CopyOverridesAsync(prepared, instance, progress: null);
+        Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, "config", "curse.txt")));
     }
 
     [Fact]
@@ -299,8 +311,7 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Equal("1.20.4", prepared.MinecraftVersion);
         Assert.Equal(LoaderKind.NeoForge, prepared.Loader);
         Assert.Equal("20.4.237", prepared.LoaderVersion);
-        Assert.NotNull(prepared.OverridesDirectory);
-        Assert.True(File.Exists(Path.Combine(prepared.OverridesDirectory!, "config", "neoforge.txt")));
+        Assert.True(prepared.HasOverrides);
     }
 
     [Fact]
@@ -695,8 +706,7 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Equal("1.20.2", prepared.MinecraftVersion);
         Assert.Equal(LoaderKind.Quilt, prepared.Loader);
         Assert.Equal("0.29.2", prepared.LoaderVersion);
-        Assert.NotNull(prepared.OverridesDirectory);
-        Assert.True(File.Exists(Path.Combine(prepared.OverridesDirectory!, "config", "quilt.txt")));
+        Assert.True(prepared.HasOverrides);
     }
 
     [Fact]
@@ -731,8 +741,7 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Equal("1.20.4", prepared.MinecraftVersion);
         Assert.Equal(LoaderKind.NeoForge, prepared.Loader);
         Assert.Equal("20.4.237", prepared.LoaderVersion);
-        Assert.NotNull(prepared.OverridesDirectory);
-        Assert.True(File.Exists(Path.Combine(prepared.OverridesDirectory!, "config", "neoforge-options.txt")));
+        Assert.True(prepared.HasOverrides);
     }
 
     [Fact]
@@ -767,8 +776,7 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Equal("1.20.2", prepared.MinecraftVersion);
         Assert.Equal(LoaderKind.Quilt, prepared.Loader);
         Assert.Equal("0.29.2", prepared.LoaderVersion);
-        Assert.NotNull(prepared.OverridesDirectory);
-        Assert.True(File.Exists(Path.Combine(prepared.OverridesDirectory!, "config", "quilt-options.txt")));
+        Assert.True(prepared.HasOverrides);
     }
 
     [Fact]
@@ -839,25 +847,33 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
             service.InstallContentAsync(prepared, instance, progress: null));
 
         Assert.Equal(ModpackImportFailureReason.HashMismatch, exception.FailureReason);
+        Assert.Empty(Directory.EnumerateFiles(instanceDirectory, "*.download", SearchOption.AllDirectories));
     }
 
     [Fact]
     public async Task InstallContentAsyncCopiesOverridesIntoInstanceDirectory()
     {
         var service = CreateService();
-        var overridesDirectory = Path.Combine(TempRoot, "overrides");
-        Directory.CreateDirectory(Path.Combine(overridesDirectory, "config"));
-        await File.WriteAllTextAsync(Path.Combine(overridesDirectory, "config", "settings.txt"), "demo");
-        var prepared = new PreparedModpack
-        {
-            PackageKind = ModpackPackageKind.Modrinth,
-            SourceArchivePath = Path.Combine(TempRoot, "pack.mrpack"),
-            WorkingDirectory = Path.Combine(TempRoot, "work"),
-            PackageName = "Overrides Pack",
-            MinecraftVersion = "1.20.1",
-            Loader = LoaderKind.Vanilla,
-            OverridesDirectory = overridesDirectory
-        };
+        var archivePath = Path.Combine(TempRoot, "overrides-pack.mrpack");
+        CreateArchive(
+            archivePath,
+            archive =>
+            {
+                AddEntry(
+                    archive,
+                    "modrinth.index.json",
+                    """
+                    {
+                      "name": "Overrides Pack",
+                      "dependencies": {
+                        "minecraft": "1.20.1"
+                      },
+                      "files": []
+                    }
+                    """);
+                AddEntry(archive, "overrides/config/settings.txt", "demo");
+            });
+        var prepared = await service.PrepareAsync(archivePath);
         var instance = new GameInstance
         {
             Name = "Overrides Pack",
@@ -910,6 +926,7 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Equal(4, handler.MaxConcurrentRequests);
         Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "mod-1.jar")));
         Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "mod-5.jar")));
+        Assert.Empty(Directory.EnumerateFiles(instance.InstanceDirectory, "*.download", SearchOption.AllDirectories));
     }
 
     [Fact]

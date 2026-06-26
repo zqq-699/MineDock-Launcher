@@ -43,6 +43,36 @@ public sealed class ModpackGameInstallerTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task InstallLoaderAsyncForVanillaMergesIntoExistingModpackInstanceDirectory()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var existingConfigPath = Path.Combine(minecraftDirectory, "versions", "Vanilla Pack", "config", "pack.txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(existingConfigPath)!);
+        await File.WriteAllTextAsync(existingConfigPath, "pack");
+        var installer = new ModpackGameInstaller(
+            [],
+            new NoOpVanillaSharedRuntimePreparer(),
+            new RecordingFinalVersionInstaller(),
+            new HttpClient(new VanillaInstallHandler()),
+            tempRootDirectory: TempRoot);
+
+        var finalVersionName = await installer.InstallLoaderAsync(
+            "1.20.2",
+            LoaderKind.Vanilla,
+            loaderVersion: null,
+            minecraftDirectory,
+            "Vanilla Pack",
+            progress: null);
+
+        var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
+        Assert.Equal("Vanilla Pack", finalVersionName);
+        Assert.Equal("pack", await File.ReadAllTextAsync(existingConfigPath));
+        Assert.True(File.Exists(Path.Combine(versionsDirectory, "Vanilla Pack", "Vanilla Pack.json")));
+        Assert.True(File.Exists(Path.Combine(versionsDirectory, "Vanilla Pack", "Vanilla Pack.jar")));
+        Assert.Equal(["Vanilla Pack"], Directory.GetDirectories(versionsDirectory).Select(Path.GetFileName));
+    }
+
+    [Fact]
     public async Task InstallLoaderAsyncForFabricCreatesOnlyFinalVersionDirectory()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");

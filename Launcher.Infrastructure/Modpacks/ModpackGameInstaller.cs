@@ -317,7 +317,8 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
             MinecraftVersionDirectoryCopier.CopyVersionDirectory(
                 sandboxMinecraftDirectory,
                 targetMinecraftDirectory,
-                finalVersionName);
+                finalVersionName,
+                allowExistingDestination: true);
             var appliedRuntimeCopy = MinecraftSharedContentCopier.CopySharedRuntimeContent(
                 sandboxMinecraftDirectory,
                 targetMinecraftDirectory,

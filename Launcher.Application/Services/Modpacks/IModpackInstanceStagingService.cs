@@ -6,7 +6,7 @@ public interface IModpackInstanceStagingService
 {
     Task<StagedModpackInstance> StageAsync(
         PreparedModpack preparedModpack,
-        string resolvedInstanceName,
+        string preferredInstanceName,
         CancellationToken cancellationToken = default);
 
     Task<GameInstance> FinalizeAsync(
@@ -26,7 +26,7 @@ public sealed class StagedModpackInstance
 
     public string MinecraftDirectory { get; init; } = string.Empty;
 
-    public string StagingContentDirectory { get; init; } = string.Empty;
+    public string InstanceDirectory { get; init; } = string.Empty;
 
     public GameInstance Instance { get; init; } = new();
 }

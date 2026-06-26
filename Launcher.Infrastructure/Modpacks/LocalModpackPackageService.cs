@@ -23,7 +23,6 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         "mediafilez.forgecdn.net"
     ];
     private readonly HttpClient httpClient;
-    private readonly LauncherPathProvider pathProvider;
     private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
     private readonly IImportConcurrencyLimiter limiter;
     private readonly CurseForgeApiClient curseForgeApiClient;
@@ -40,7 +39,6 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         ILogger<LocalModpackPackageService>? logger = null,
         ISettingsService? settingsService = null)
     {
-        this.pathProvider = pathProvider;
         this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.limiter = limiter ?? ImportConcurrencyLimiter.Shared;
         this.httpClient = httpClient ?? new HttpClient();
@@ -94,34 +92,18 @@ public sealed class LocalModpackPackageService : IModpackPackageService
                 $"Modpack archive does not exist: {normalizedArchivePath}");
         }
 
-        var workingDirectory = Path.Combine(
-            pathProvider.DefaultDataDirectory,
-            "cache",
-            "modpacks",
-            Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(workingDirectory);
+        logger.LogInformation(
+            "Preparing local modpack archive. ArchivePath={ArchivePath}",
+            normalizedArchivePath);
 
-        try
+        return Path.GetExtension(normalizedArchivePath).ToLowerInvariant() switch
         {
-            logger.LogInformation(
-                "Preparing local modpack archive. ArchivePath={ArchivePath} WorkingDirectory={WorkingDirectory}",
-                normalizedArchivePath,
-                workingDirectory);
-
-            return Path.GetExtension(normalizedArchivePath).ToLowerInvariant() switch
-            {
-                ".mrpack" => await PrepareModrinthAsync(normalizedArchivePath, workingDirectory, cancellationToken).ConfigureAwait(false),
-                ".zip" => await PrepareZipAsync(normalizedArchivePath, workingDirectory, cancellationToken, progress).ConfigureAwait(false),
-                _ => throw new ModpackImportException(
-                    ModpackImportFailureReason.UnsupportedArchive,
-                    $"Unsupported modpack archive type: {normalizedArchivePath}")
-            };
-        }
-        catch
-        {
-            TryDeleteDirectory(workingDirectory);
-            throw;
-        }
+            ".mrpack" => await PrepareModrinthAsync(normalizedArchivePath, cancellationToken).ConfigureAwait(false),
+            ".zip" => await PrepareZipAsync(normalizedArchivePath, cancellationToken, progress).ConfigureAwait(false),
+            _ => throw new ModpackImportException(
+                ModpackImportFailureReason.UnsupportedArchive,
+                $"Unsupported modpack archive type: {normalizedArchivePath}")
+        };
     }
 
     public async Task<IReadOnlyList<ManualModpackDownload>> DownloadFilesAsync(
@@ -188,15 +170,11 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         ArgumentNullException.ThrowIfNull(preparedModpack);
         ArgumentNullException.ThrowIfNull(instance);
 
-        if (string.IsNullOrWhiteSpace(preparedModpack.OverridesDirectory)
-            || !Directory.Exists(preparedModpack.OverridesDirectory))
-        {
+        if (!preparedModpack.HasOverrides)
             return Task.CompletedTask;
-        }
 
         progress?.Report(new LauncherProgress(ImportProgressStages.CopyingOverrides, string.Empty, 100));
-        CopyOverrides(preparedModpack.OverridesDirectory, instance.InstanceDirectory, cancellationToken);
-        return Task.CompletedTask;
+        return CopyOverridesFromArchiveAsync(preparedModpack, instance.InstanceDirectory, cancellationToken);
     }
 
     public Task<string?> WriteManualDownloadsFileAsync(
@@ -244,6 +222,9 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(preparedModpack);
+
+        if (string.IsNullOrWhiteSpace(preparedModpack.WorkingDirectory))
+            return Task.CompletedTask;
 
         return Task.Run(
             () => TryDeleteDirectory(preparedModpack.WorkingDirectory),
@@ -299,7 +280,6 @@ public sealed class LocalModpackPackageService : IModpackPackageService
 
     private async Task<PreparedModpack> PrepareModrinthAsync(
         string archivePath,
-        string workingDirectory,
         CancellationToken cancellationToken)
     {
         using var stream = File.OpenRead(archivePath);
@@ -307,13 +287,12 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         return await PrepareModrinthArchiveAsync(
             archive,
             archivePath,
-            workingDirectory,
+            embeddedModrinthEntryName: null,
             cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<PreparedModpack> PrepareZipAsync(
         string archivePath,
-        string workingDirectory,
         CancellationToken cancellationToken,
         IProgress<LauncherProgress>? progress)
     {
@@ -329,7 +308,6 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             return await PrepareCurseForgeArchiveAsync(
                 archive,
                 archivePath,
-                workingDirectory,
                 cancellationToken,
                 progress).ConfigureAwait(false);
         }
@@ -347,7 +325,6 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             return await PrepareEmbeddedModrinthAsync(
                 embeddedMrpackEntries[0],
                 archivePath,
-                workingDirectory,
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -366,22 +343,17 @@ public sealed class LocalModpackPackageService : IModpackPackageService
     private async Task<PreparedModpack> PrepareEmbeddedModrinthAsync(
         ZipArchiveEntry mrpackEntry,
         string sourceArchivePath,
-        string workingDirectory,
         CancellationToken cancellationToken)
     {
-        var extractedMrpackPath = Path.Combine(workingDirectory, "embedded", Path.GetFileName(mrpackEntry.Name));
-        await ModpackArchiveUtility.CopyZipEntryToFileAsync(
+        await using var stream = await ModpackArchiveUtility.CopyZipEntryToMemoryAsync(
             mrpackEntry,
-            extractedMrpackPath,
             ModpackArchiveUtility.MaxEmbeddedModpackBytes,
             cancellationToken).ConfigureAwait(false);
-
-        using var stream = File.OpenRead(extractedMrpackPath);
         using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
         return await PrepareModrinthArchiveAsync(
             archive,
             sourceArchivePath,
-            workingDirectory,
+            mrpackEntry.FullName,
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -389,23 +361,12 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         ZipArchiveEntry mrpackEntry,
         CancellationToken cancellationToken)
     {
-        var tempFilePath = Path.Combine(Path.GetTempPath(), $"launcher-embedded-{Guid.NewGuid():N}.mrpack");
-        try
-        {
-            await ModpackArchiveUtility.CopyZipEntryToFileAsync(
-                mrpackEntry,
-                tempFilePath,
-                ModpackArchiveUtility.MaxEmbeddedModpackBytes,
-                cancellationToken).ConfigureAwait(false);
-
-            using var stream = File.OpenRead(tempFilePath);
-            using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
-            await ValidateModrinthArchiveAsync(archive, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            TryDeleteFile(tempFilePath);
-        }
+        await using var stream = await ModpackArchiveUtility.CopyZipEntryToMemoryAsync(
+            mrpackEntry,
+            ModpackArchiveUtility.MaxEmbeddedModpackBytes,
+            cancellationToken).ConfigureAwait(false);
+        using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
+        await ValidateModrinthArchiveAsync(archive, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task ValidateModrinthArchiveAsync(
@@ -441,7 +402,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
     private async Task<PreparedModpack> PrepareModrinthArchiveAsync(
         ZipArchive archive,
         string sourceArchivePath,
-        string workingDirectory,
+        string? embeddedModrinthEntryName,
         CancellationToken cancellationToken)
     {
         var indexEntry = archive.Entries.FirstOrDefault(entry =>
@@ -464,20 +425,20 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             var minecraftVersion = GetRequiredString(dependencies, "minecraft");
             var (loader, loaderVersion) = ParseModrinthLoader(dependencies);
             var downloads = ParseModrinthFiles(index.RootElement);
-            var overridesDirectory = await ExtractModrinthOverridesAsync(archive, workingDirectory, cancellationToken).ConfigureAwait(false);
+            var hasOverrides = ValidateModrinthOverrides(archive);
 
             return new PreparedModpack
             {
                 PackageKind = ModpackPackageKind.Modrinth,
                 SourceArchivePath = sourceArchivePath,
-                WorkingDirectory = workingDirectory,
+                EmbeddedModrinthEntryName = embeddedModrinthEntryName,
                 PackageName = string.IsNullOrWhiteSpace(packageName)
                     ? Path.GetFileNameWithoutExtension(sourceArchivePath)
                     : packageName,
                 MinecraftVersion = minecraftVersion,
                 Loader = loader,
                 LoaderVersion = loaderVersion,
-                OverridesDirectory = overridesDirectory,
+                HasOverrides = hasOverrides,
                 Files = downloads
             };
         }
@@ -520,7 +481,6 @@ public sealed class LocalModpackPackageService : IModpackPackageService
     private async Task<PreparedModpack> PrepareCurseForgeArchiveAsync(
         ZipArchive archive,
         string sourceArchivePath,
-        string workingDirectory,
         CancellationToken cancellationToken,
         IProgress<LauncherProgress>? progress)
     {
@@ -544,20 +504,19 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             var minecraftVersion = GetRequiredString(minecraft, "version");
             var (loader, loaderVersion) = ParseCurseForgeLoader(minecraft);
             var downloads = ParseCurseForgeFiles(manifest.RootElement);
-            var overridesDirectory = await ExtractCurseForgeOverridesAsync(archive, workingDirectory, cancellationToken).ConfigureAwait(false);
+            var hasOverrides = ValidateCurseForgeOverrides(archive);
 
             return new PreparedModpack
             {
                 PackageKind = ModpackPackageKind.CurseForge,
                 SourceArchivePath = sourceArchivePath,
-                WorkingDirectory = workingDirectory,
                 PackageName = string.IsNullOrWhiteSpace(packageName)
                     ? Path.GetFileNameWithoutExtension(sourceArchivePath)
                     : packageName,
                 MinecraftVersion = minecraftVersion,
                 Loader = loader,
                 LoaderVersion = loaderVersion,
-                OverridesDirectory = overridesDirectory,
+                HasOverrides = hasOverrides,
                 Files = downloads
             };
         }
@@ -678,13 +637,113 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             completedCount * 100d / totalCount));
     }
 
-    private static async Task<string?> ExtractModrinthOverridesAsync(
-        ZipArchive archive,
-        string workingDirectory,
+    private static bool ValidateModrinthOverrides(ZipArchive archive)
+    {
+        var foundAny = false;
+        var extractionBudget = new ZipExtractionBudget(ModpackArchiveUtility.MaxOverrideTotalBytes);
+
+        foreach (var entry in archive.Entries.Where(entry => !string.IsNullOrWhiteSpace(entry.Name)))
+        {
+            var normalizedPath = ModpackArchiveUtility.NormalizeArchivePath(entry.FullName);
+            var relativePath = ModpackArchiveUtility.RemovePrefix(normalizedPath, "overrides");
+            if (!string.IsNullOrWhiteSpace(relativePath))
+            {
+                ValidateOverrideEntry(entry, relativePath, extractionBudget);
+                foundAny = true;
+                continue;
+            }
+
+            relativePath = ModpackArchiveUtility.RemovePrefix(normalizedPath, "client-overrides");
+            if (string.IsNullOrWhiteSpace(relativePath))
+                continue;
+
+            ValidateOverrideEntry(entry, relativePath, extractionBudget);
+            foundAny = true;
+        }
+
+        return foundAny;
+    }
+
+    private static bool ValidateCurseForgeOverrides(ZipArchive archive)
+    {
+        var foundAny = false;
+        var extractionBudget = new ZipExtractionBudget(ModpackArchiveUtility.MaxOverrideTotalBytes);
+
+        foreach (var entry in archive.Entries.Where(entry => !string.IsNullOrWhiteSpace(entry.Name)))
+        {
+            var normalizedPath = ModpackArchiveUtility.NormalizeArchivePath(entry.FullName);
+            var relativePath = ModpackArchiveUtility.RemovePrefix(normalizedPath, "overrides");
+            if (string.IsNullOrWhiteSpace(relativePath))
+                continue;
+
+            ValidateOverrideEntry(entry, relativePath, extractionBudget);
+            foundAny = true;
+        }
+
+        return foundAny;
+    }
+
+    private static void ValidateOverrideEntry(
+        ZipArchiveEntry entry,
+        string relativePath,
+        ZipExtractionBudget extractionBudget)
+    {
+        if (entry.Length > ModpackArchiveUtility.MaxOverrideEntryBytes)
+        {
+            throw new ModpackImportException(
+                ModpackImportFailureReason.InvalidManifest,
+                $"Archive entry is too large: {entry.FullName}");
+        }
+
+        extractionBudget.Reserve(entry.Length);
+        _ = ModpackArchiveUtility.GetValidatedTargetPath(Path.GetTempPath(), relativePath);
+    }
+
+    private async Task CopyOverridesFromArchiveAsync(
+        PreparedModpack preparedModpack,
+        string instanceDirectory,
         CancellationToken cancellationToken)
     {
-        var extractedAny = false;
-        var overridesDirectory = Path.Combine(workingDirectory, "overrides");
+        if (preparedModpack.PackageKind is ModpackPackageKind.CurseForge)
+        {
+            await using var stream = File.OpenRead(preparedModpack.SourceArchivePath);
+            using var archive = new ZipArchive(stream, ZipArchiveMode.Read, leaveOpen: false);
+            await ExtractCurseForgeOverridesAsync(archive, instanceDirectory, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(preparedModpack.EmbeddedModrinthEntryName))
+        {
+            await using var outerStream = File.OpenRead(preparedModpack.SourceArchivePath);
+            using var outerArchive = new ZipArchive(outerStream, ZipArchiveMode.Read, leaveOpen: false);
+            var mrpackEntry = outerArchive.Entries.FirstOrDefault(entry =>
+                string.Equals(entry.FullName, preparedModpack.EmbeddedModrinthEntryName, StringComparison.Ordinal));
+            if (mrpackEntry is null)
+            {
+                throw new ModpackImportException(
+                    ModpackImportFailureReason.InvalidManifest,
+                    "Embedded Modrinth archive was not found.");
+            }
+
+            await using var innerStream = await ModpackArchiveUtility.CopyZipEntryToMemoryAsync(
+                mrpackEntry,
+                ModpackArchiveUtility.MaxEmbeddedModpackBytes,
+                cancellationToken).ConfigureAwait(false);
+            using var innerArchive = new ZipArchive(innerStream, ZipArchiveMode.Read, leaveOpen: false);
+            await ExtractModrinthOverridesAsync(innerArchive, instanceDirectory, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await using var modrinthStream = File.OpenRead(preparedModpack.SourceArchivePath);
+        using var modrinthArchive = new ZipArchive(modrinthStream, ZipArchiveMode.Read, leaveOpen: false);
+        await ExtractModrinthOverridesAsync(modrinthArchive, instanceDirectory, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task ExtractModrinthOverridesAsync(
+        ZipArchive archive,
+        string instanceDirectory,
+        CancellationToken cancellationToken)
+    {
         var extractionBudget = new ZipExtractionBudget(ModpackArchiveUtility.MaxOverrideTotalBytes);
 
         foreach (var entry in archive.Entries.Where(entry => !string.IsNullOrWhiteSpace(entry.Name)))
@@ -695,11 +754,10 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             {
                 await ModpackArchiveUtility.ExtractZipEntryAsync(
                     entry,
-                    overridesDirectory,
+                    instanceDirectory,
                     relativePath,
                     extractionBudget,
                     cancellationToken).ConfigureAwait(false);
-                extractedAny = true;
                 continue;
             }
 
@@ -709,23 +767,18 @@ public sealed class LocalModpackPackageService : IModpackPackageService
 
             await ModpackArchiveUtility.ExtractZipEntryAsync(
                 entry,
-                overridesDirectory,
+                instanceDirectory,
                 relativePath,
                 extractionBudget,
                 cancellationToken).ConfigureAwait(false);
-            extractedAny = true;
         }
-
-        return extractedAny ? overridesDirectory : null;
     }
 
-    private static async Task<string?> ExtractCurseForgeOverridesAsync(
+    private static async Task ExtractCurseForgeOverridesAsync(
         ZipArchive archive,
-        string workingDirectory,
+        string instanceDirectory,
         CancellationToken cancellationToken)
     {
-        var extractedAny = false;
-        var overridesDirectory = Path.Combine(workingDirectory, "overrides");
         var extractionBudget = new ZipExtractionBudget(ModpackArchiveUtility.MaxOverrideTotalBytes);
 
         foreach (var entry in archive.Entries.Where(entry => !string.IsNullOrWhiteSpace(entry.Name)))
@@ -737,14 +790,11 @@ public sealed class LocalModpackPackageService : IModpackPackageService
 
             await ModpackArchiveUtility.ExtractZipEntryAsync(
                 entry,
-                overridesDirectory,
+                instanceDirectory,
                 relativePath,
                 extractionBudget,
                 cancellationToken).ConfigureAwait(false);
-            extractedAny = true;
         }
-
-        return extractedAny ? overridesDirectory : null;
     }
 
     private async Task ProcessPackFileAsync(
@@ -907,9 +957,9 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         if (!string.IsNullOrWhiteSpace(targetDirectory))
             Directory.CreateDirectory(targetDirectory);
 
-        var downloadDirectory = Path.Combine(preparedModpack.WorkingDirectory, "downloads");
-        Directory.CreateDirectory(downloadDirectory);
-        var tempFilePath = Path.Combine(downloadDirectory, Guid.NewGuid().ToString("N"));
+        var tempFilePath = Path.Combine(
+            targetDirectory ?? instance.InstanceDirectory,
+            $"{Path.GetFileName(targetPath)}.{Guid.NewGuid():N}.download");
         var sourceUrls = new List<string> { file.PrimaryUrl };
         foreach (var fallbackSourceUrl in file.FallbackSourceUrls)
         {
@@ -1105,21 +1155,6 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         long? FileId,
         string? Sha1,
         string? Sha512);
-
-    private static void CopyOverrides(string sourceDirectory, string instanceDirectory, CancellationToken cancellationToken)
-    {
-        foreach (var sourceFilePath in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var relativePath = Path.GetRelativePath(sourceDirectory, sourceFilePath);
-            var destinationPath = ModpackArchiveUtility.GetValidatedTargetPath(instanceDirectory, relativePath);
-            var destinationDirectory = Path.GetDirectoryName(destinationPath);
-            if (!string.IsNullOrWhiteSpace(destinationDirectory))
-                Directory.CreateDirectory(destinationDirectory);
-
-            File.Copy(sourceFilePath, destinationPath, overwrite: true);
-        }
-    }
 
     private async Task<string> GetCurseForgeApiKeyAsync(CancellationToken cancellationToken)
     {

@@ -892,7 +892,11 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
         string destinationGameDirectory,
         string versionName)
     {
-        MinecraftVersionDirectoryCopier.CopyVersionDirectory(sourceGameDirectory, destinationGameDirectory, versionName);
+        MinecraftVersionDirectoryCopier.CopyVersionDirectory(
+            sourceGameDirectory,
+            destinationGameDirectory,
+            versionName,
+            allowExistingDestination: true);
     }
 
     private static void CleanupCreatedVersionDirectories(

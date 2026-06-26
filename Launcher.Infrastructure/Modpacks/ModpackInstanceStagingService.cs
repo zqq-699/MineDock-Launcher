@@ -10,6 +10,7 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
     private readonly ISettingsService settingsService;
     private readonly IGameInstanceRepository repository;
     private readonly IGameInstanceService instanceService;
+    private readonly SemaphoreSlim stagingLock = new(1, 1);
 
     public ModpackInstanceStagingService(
         ISettingsService settingsService,
@@ -23,33 +24,45 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
 
     public async Task<StagedModpackInstance> StageAsync(
         PreparedModpack preparedModpack,
-        string resolvedInstanceName,
+        string preferredInstanceName,
         CancellationToken cancellationToken = default)
     {
-        var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
-        var stagingContentDirectory = Path.Combine(preparedModpack.WorkingDirectory, "instance-content");
-        repository.CreateInstanceDirectories(stagingContentDirectory);
-
-        var now = DateTimeOffset.UtcNow;
-        return new StagedModpackInstance
+        await stagingLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            ResolvedInstanceName = resolvedInstanceName,
-            MinecraftDirectory = settings.MinecraftDirectory,
-            StagingContentDirectory = stagingContentDirectory,
-            Instance = new GameInstance
+            var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var resolvedInstanceName = await ResolveUniqueInstanceNameAsync(
+                preferredInstanceName,
+                settings.MinecraftDirectory,
+                cancellationToken).ConfigureAwait(false);
+            var instanceDirectory = repository.GetVersionDirectory(settings.MinecraftDirectory, resolvedInstanceName);
+            repository.CreateInstanceDirectories(instanceDirectory);
+
+            var now = DateTimeOffset.UtcNow;
+            return new StagedModpackInstance
             {
-                Name = resolvedInstanceName,
-                MinecraftVersion = preparedModpack.MinecraftVersion,
-                Loader = preparedModpack.Loader,
-                LoaderVersion = preparedModpack.Loader == LoaderKind.Vanilla ? null : preparedModpack.LoaderVersion,
-                VersionName = resolvedInstanceName,
-                VersionType = string.Empty,
-                InstanceDirectory = stagingContentDirectory,
-                MemoryMb = settings.DefaultMemoryMb,
-                CreatedAt = now,
-                UpdatedAt = now
-            }
-        };
+                ResolvedInstanceName = resolvedInstanceName,
+                MinecraftDirectory = settings.MinecraftDirectory,
+                InstanceDirectory = instanceDirectory,
+                Instance = new GameInstance
+                {
+                    Name = resolvedInstanceName,
+                    MinecraftVersion = preparedModpack.MinecraftVersion,
+                    Loader = preparedModpack.Loader,
+                    LoaderVersion = preparedModpack.Loader == LoaderKind.Vanilla ? null : preparedModpack.LoaderVersion,
+                    VersionName = resolvedInstanceName,
+                    VersionType = string.Empty,
+                    InstanceDirectory = instanceDirectory,
+                    MemoryMb = settings.DefaultMemoryMb,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                }
+            };
+        }
+        finally
+        {
+            stagingLock.Release();
+        }
     }
 
     public async Task<GameInstance> FinalizeAsync(
@@ -57,15 +70,12 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
         string finalVersionName,
         CancellationToken cancellationToken = default)
     {
-        var finalDirectory = repository.GetVersionDirectory(stagedInstance.MinecraftDirectory, finalVersionName);
-        repository.CreateInstanceDirectories(finalDirectory);
-        CopyDirectoryContent(stagedInstance.StagingContentDirectory, finalDirectory);
-
         var hadDefaultInstance = await instanceService.GetDefaultInstanceAsync(cancellationToken).ConfigureAwait(false) is not null;
         var instance = stagedInstance.Instance;
-        instance.VersionName = finalVersionName;
-        instance.InstanceDirectory = finalDirectory;
+        instance.VersionName = stagedInstance.ResolvedInstanceName;
+        instance.InstanceDirectory = stagedInstance.InstanceDirectory;
         instance.UpdatedAt = DateTimeOffset.UtcNow;
+        repository.CreateInstanceDirectories(instance.InstanceDirectory);
 
         await instanceService.SaveInstanceAsync(instance, cancellationToken).ConfigureAwait(false);
         if (!hadDefaultInstance)
@@ -80,27 +90,12 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
         CancellationToken cancellationToken = default)
     {
         var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
-        TryDeleteDirectory(stagedInstance.StagingContentDirectory);
 
         if (!string.IsNullOrWhiteSpace(finalVersionName))
             TryDeleteVersionDirectory(settings.MinecraftDirectory, finalVersionName);
 
         if (!string.IsNullOrWhiteSpace(stagedInstance.ResolvedInstanceName))
             TryDeleteVersionDirectory(settings.MinecraftDirectory, stagedInstance.ResolvedInstanceName);
-    }
-
-    private static void CopyDirectoryContent(string sourceDirectory, string destinationDirectory)
-    {
-        if (!Directory.Exists(sourceDirectory))
-            return;
-
-        foreach (var sourceFilePath in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
-        {
-            var relativePath = Path.GetRelativePath(sourceDirectory, sourceFilePath);
-            var destinationPath = Path.Combine(destinationDirectory, relativePath);
-            Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-            File.Copy(sourceFilePath, destinationPath, overwrite: true);
-        }
     }
 
     private void TryDeleteVersionDirectory(string minecraftDirectory, string versionName)
@@ -117,18 +112,58 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
         }
     }
 
-    private static void TryDeleteDirectory(string directory)
+    private async Task<string> ResolveUniqueInstanceNameAsync(
+        string preferredInstanceName,
+        string minecraftDirectory,
+        CancellationToken cancellationToken)
     {
-        try
+        var baseName = preferredInstanceName?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(baseName))
+            throw new ModpackImportException(ModpackImportFailureReason.InvalidManifest, "Prepared modpack package name is missing.");
+
+        var unavailableNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var instances = await instanceService.GetInstancesAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var instance in instances)
         {
-            if (Directory.Exists(directory))
-                Directory.Delete(directory, recursive: true);
+            AddUnavailableName(instance.Name);
+            AddUnavailableName(instance.VersionName);
         }
-        catch (IOException)
+
+        AddExistingVersionDirectoryNames(minecraftDirectory, unavailableNames);
+
+        if (!unavailableNames.Contains(baseName))
+            return baseName;
+
+        var suffix = 1;
+        while (true)
         {
+            var candidate = $"{baseName} ({suffix})";
+            if (!unavailableNames.Contains(candidate))
+                return candidate;
+
+            suffix++;
         }
-        catch (UnauthorizedAccessException)
+
+        void AddUnavailableName(string? name)
         {
+            if (!string.IsNullOrWhiteSpace(name))
+                unavailableNames.Add(name);
+        }
+    }
+
+    private static void AddExistingVersionDirectoryNames(
+        string minecraftDirectory,
+        HashSet<string> unavailableNames)
+    {
+        var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
+        if (!Directory.Exists(versionsDirectory))
+            return;
+
+        foreach (var versionDirectory in Directory.EnumerateDirectories(versionsDirectory))
+        {
+            var versionName = Path.GetFileName(versionDirectory);
+            if (!string.IsNullOrWhiteSpace(versionName))
+                unavailableNames.Add(versionName);
         }
     }
 }

@@ -75,23 +75,27 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
             preparedModpack = await modpackPackageService
                 .PrepareAsync(archivePath, cancellationToken, importProgress)
                 .ConfigureAwait(false);
-            var resolvedInstanceName = await ResolveUniqueInstanceNameAsync(
-                preparedModpack.PackageName,
-                cancellationToken).ConfigureAwait(false);
+            var preferredInstanceName = NormalizePreferredInstanceName(preparedModpack.PackageName);
 
             logger.LogInformation(
-                "Importing modpack. ArchivePath={ArchivePath} ModpackName={ModpackName} MinecraftVersion={MinecraftVersion} Loader={Loader} LoaderVersion={LoaderVersion} ResolvedInstanceName={ResolvedInstanceName}",
+                "Importing modpack. ArchivePath={ArchivePath} ModpackName={ModpackName} MinecraftVersion={MinecraftVersion} Loader={Loader} LoaderVersion={LoaderVersion} PreferredInstanceName={PreferredInstanceName}",
                 archivePath,
                 preparedModpack.PackageName,
                 preparedModpack.MinecraftVersion,
                 preparedModpack.Loader,
                 preparedModpack.LoaderVersion,
-                resolvedInstanceName);
+                preferredInstanceName);
 
             importProgress?.Report(new LauncherProgress(ImportProgressStages.CreatingInstance, string.Empty));
             stagedInstance = await stagingService
-                .StageAsync(preparedModpack, resolvedInstanceName, cancellationToken)
+                .StageAsync(preparedModpack, preferredInstanceName, cancellationToken)
                 .ConfigureAwait(false);
+            logger.LogInformation(
+                "Modpack instance staged. ArchivePath={ArchivePath} PreferredInstanceName={PreferredInstanceName} ResolvedInstanceName={ResolvedInstanceName} InstanceDirectory={InstanceDirectory}",
+                archivePath,
+                preferredInstanceName,
+                stagedInstance.ResolvedInstanceName,
+                stagedInstance.InstanceDirectory);
             importProgress?.Report(new LauncherProgress(ImportProgressStages.CreatingInstance, string.Empty, 100));
 
             using var importCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -107,16 +111,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                     downloadSpeedLimitMbPerSecond),
                 importProgress,
                 new LauncherProgress(ImportProgressStages.DownloadingPackFiles, string.Empty, 100));
-            var copyOverridesTask = CompleteWithProgressAsync(
-                modpackPackageService.CopyOverridesAsync(
-                    preparedModpack,
-                    stagedInstance.Instance,
-                    importProgress,
-                    importCancellationToken),
-                importProgress,
-                new LauncherProgress(ImportProgressStages.CopyingOverrides, string.Empty, 100));
-            var contentTask = Task.WhenAll(downloadModsTask, copyOverridesTask);
-            _ = CancelImportOnBranchFailureAsync(contentTask, importCancellation);
+            _ = CancelImportOnBranchFailureAsync(downloadModsTask, importCancellation);
 
             var installLeaseTask = installCoordinator
                 .AcquireInstallAsync(
@@ -127,7 +122,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 .AsTask();
 
             await ThrowContentFailureBeforeInstallLeaseAsync(
-                contentTask,
+                downloadModsTask,
                 installLeaseTask,
                 importCancellation).ConfigureAwait(false);
 
@@ -152,10 +147,18 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
             await AwaitImportBranchesAsync(
                 importCancellation,
                 loaderInstallTask,
-                contentTask).ConfigureAwait(false);
+                downloadModsTask).ConfigureAwait(false);
 
             finalVersionName = await loaderInstallTask.ConfigureAwait(false);
             var manualDownloads = await downloadModsTask.ConfigureAwait(false);
+            await CompleteWithProgressAsync(
+                modpackPackageService.CopyOverridesAsync(
+                    preparedModpack,
+                    stagedInstance.Instance,
+                    importProgress,
+                    importCancellationToken),
+                importProgress,
+                new LauncherProgress(ImportProgressStages.CopyingOverrides, string.Empty, 100)).ConfigureAwait(false);
             importedInstance = await stagingService
                 .FinalizeAsync(stagedInstance, finalVersionName, importCancellationToken)
                 .ConfigureAwait(false);
@@ -329,15 +332,8 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         progress?.Report(completionProgress);
     }
 
-    private async Task<string> ResolveUniqueInstanceNameAsync(string preferredName, CancellationToken cancellationToken)
+    private static string NormalizePreferredInstanceName(string preferredName)
     {
-        var instances = await instanceService.GetInstancesAsync(cancellationToken).ConfigureAwait(false);
-        var unavailableNames = new HashSet<string>(
-            instances
-                .SelectMany(instance => new[] { instance.Name, instance.VersionName })
-                .Where(name => !string.IsNullOrWhiteSpace(name)),
-            StringComparer.OrdinalIgnoreCase);
-
         var baseName = preferredName?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(baseName))
         {
@@ -346,18 +342,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 "Prepared modpack package name is missing.");
         }
 
-        if (!unavailableNames.Contains(baseName))
-            return baseName;
-
-        var suffix = 1;
-        while (true)
-        {
-            var candidate = $"{baseName} ({suffix})";
-            if (!unavailableNames.Contains(candidate))
-                return candidate;
-
-            suffix++;
-        }
+        return baseName;
     }
 
     private static async Task ThrowContentFailureBeforeInstallLeaseAsync(

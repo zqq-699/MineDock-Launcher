@@ -16,6 +16,8 @@ public sealed class PreparedModpack
 
     public string WorkingDirectory { get; init; } = string.Empty;
 
+    public string? EmbeddedModrinthEntryName { get; init; }
+
     public string PackageName { get; init; } = string.Empty;
 
     public string MinecraftVersion { get; init; } = string.Empty;
@@ -24,7 +26,7 @@ public sealed class PreparedModpack
 
     public string? LoaderVersion { get; init; }
 
-    public string? OverridesDirectory { get; init; }
+    public bool HasOverrides { get; init; }
 
     public IReadOnlyList<PreparedModpackDownload> Files { get; init; } = [];
 

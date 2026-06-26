@@ -76,9 +76,8 @@ internal static class ModpackArchiveUtility
             cancellationToken).ConfigureAwait(false);
     }
 
-    public static async Task CopyZipEntryToFileAsync(
+    public static async Task<MemoryStream> CopyZipEntryToMemoryAsync(
         ZipArchiveEntry entry,
-        string targetPath,
         long maxBytes,
         CancellationToken cancellationToken)
     {
@@ -89,13 +88,12 @@ internal static class ModpackArchiveUtility
                 $"Archive entry is too large: {entry.FullName}");
         }
 
-        var parentDirectory = Path.GetDirectoryName(targetPath);
-        if (!string.IsNullOrWhiteSpace(parentDirectory))
-            Directory.CreateDirectory(parentDirectory);
-
+        var capacity = entry.Length is > 0 and <= int.MaxValue ? (int)entry.Length : 0;
+        var destination = new MemoryStream(capacity);
         await using var source = entry.Open();
-        await using var destination = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
         await CopyToAsync(source, destination, maxBytes, cancellationToken).ConfigureAwait(false);
+        destination.Position = 0;
+        return destination;
     }
 
     private static async Task CopyToAsync(
