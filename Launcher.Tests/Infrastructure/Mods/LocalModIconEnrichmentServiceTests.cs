@@ -1,4 +1,5 @@
 using System.Net;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -60,6 +61,140 @@ public sealed class LocalModIconEnrichmentServiceTests : TestTempDirectory
         Assert.Equal(iconSource, Assert.Single(cachedResult).Value);
         Assert.Equal(iconSource, Assert.Single(Assert.Single(progressReports)).Value);
         Assert.Equal(0, cacheHitHandler.TotalRequestCount);
+    }
+
+    [Fact]
+    public async Task ResolveCachedIconSourcesAsyncReturnsCachedIconWithoutRemoteRequests()
+    {
+        var jarPath = await WriteModFileAsync("cached-only.jar", "cached-only-content");
+        var cacheDirectory = Path.Combine(TempRoot, LauncherApplicationIdentity.StorageDirectoryName, "cache", "mods", "remote-icons");
+        Directory.CreateDirectory(cacheDirectory);
+        var cachedIconPath = Path.Combine(cacheDirectory, "cached-only.png");
+        await File.WriteAllBytesAsync(cachedIconPath, CreatePngBytes(Colors.MediumPurple));
+        var timestamp = DateTimeOffset.UtcNow.AddDays(-7);
+        await File.WriteAllTextAsync(
+            Path.Combine(cacheDirectory, "index.json"),
+            JsonSerializer.Serialize(
+                new
+                {
+                    entries = new Dictionary<string, object>
+                    {
+                        ["modrinth:cached-only-project"] = new
+                        {
+                            source = "modrinth",
+                            projectId = "cached-only-project",
+                            iconUrl = "https://cdn.example/cached-only.png",
+                            fileName = "cached-only.png",
+                            cachedAt = timestamp,
+                            lastUsedAt = timestamp,
+                            sizeBytes = new FileInfo(cachedIconPath).Length
+                        }
+                    },
+                    aliases = new Dictionary<string, string>(),
+                    fileAliases = new Dictionary<string, string>
+                    {
+                        [CreateFileAlias(jarPath)] = "modrinth:cached-only-project"
+                    }
+                },
+                new JsonSerializerOptions { WriteIndented = true }));
+        var handler = new ModIconLookupHandler
+        {
+            ThrowOnUnexpectedRequest = true
+        };
+        var service = CreateService(handler);
+
+        var result = await service.ResolveCachedIconSourcesAsync([CreateLocalMod(jarPath)]);
+
+        var iconSource = Assert.Single(result).Value;
+        Assert.Equal(cachedIconPath, new Uri(iconSource).LocalPath);
+        Assert.Equal(0, handler.TotalRequestCount);
+    }
+
+    [Fact]
+    public async Task ResolveCachedIconSourcesAsyncIgnoresSha1OnlyCacheWithoutRemoteRequests()
+    {
+        var jarPath = await WriteModFileAsync("sha1-only.jar", "sha1-only-content");
+        var sha1 = await ComputeSha1Async(jarPath);
+        var cacheDirectory = Path.Combine(TempRoot, LauncherApplicationIdentity.StorageDirectoryName, "cache", "mods", "remote-icons");
+        Directory.CreateDirectory(cacheDirectory);
+        var cachedIconPath = Path.Combine(cacheDirectory, "sha1-only.png");
+        await File.WriteAllBytesAsync(cachedIconPath, CreatePngBytes(Colors.MediumPurple));
+        var timestamp = DateTimeOffset.UtcNow.AddDays(-7);
+        await File.WriteAllTextAsync(
+            Path.Combine(cacheDirectory, "index.json"),
+            JsonSerializer.Serialize(
+                new
+                {
+                    entries = new Dictionary<string, object>
+                    {
+                        ["modrinth:sha1-only-project"] = new
+                        {
+                            source = "modrinth",
+                            projectId = "sha1-only-project",
+                            iconUrl = "https://cdn.example/sha1-only.png",
+                            fileName = "sha1-only.png",
+                            cachedAt = timestamp,
+                            lastUsedAt = timestamp,
+                            sizeBytes = new FileInfo(cachedIconPath).Length
+                        }
+                    },
+                    aliases = new Dictionary<string, string>
+                    {
+                        [$"sha1:{sha1}"] = "modrinth:sha1-only-project"
+                    }
+                },
+                new JsonSerializerOptions { WriteIndented = true }));
+        var handler = new ModIconLookupHandler
+        {
+            ThrowOnUnexpectedRequest = true
+        };
+        var service = CreateService(handler);
+
+        var result = await service.ResolveCachedIconSourcesAsync([CreateLocalMod(jarPath)]);
+
+        Assert.Empty(result);
+        Assert.Equal(0, handler.TotalRequestCount);
+    }
+
+    [Fact]
+    public async Task ResolveMissingIconSourcesAsyncWritesFileAliasForFutureFastCacheHits()
+    {
+        var jarPath = await WriteModFileAsync("future-fast-cache.jar", "future-fast-cache-content");
+        var sha1 = await ComputeSha1Async(jarPath);
+        var iconBytes = CreatePngBytes(Colors.CornflowerBlue);
+        var handler = new ModIconLookupHandler
+        {
+            ModrinthVersionFilesResponse = $$"""
+            {
+              "{{sha1}}": { "project_id": "future-fast-cache-project" }
+            }
+            """,
+            ModrinthProjectsResponse = """
+            [
+              { "id": "future-fast-cache-project", "icon_url": "https://cdn.example/future-fast-cache.png" }
+            ]
+            """,
+            IconBytesByUrl =
+            {
+                ["https://cdn.example/future-fast-cache.png"] = iconBytes
+            }
+        };
+        var service = CreateService(handler);
+
+        var result = await service.ResolveMissingIconSourcesAsync([CreateLocalMod(jarPath)]);
+
+        Assert.NotEmpty(result);
+        var indexJson = await File.ReadAllTextAsync(Path.Combine(
+            TempRoot,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "cache",
+            "mods",
+            "remote-icons",
+            "index.json"));
+        using var document = JsonDocument.Parse(indexJson);
+        var fileAliases = document.RootElement.GetProperty("fileAliases");
+        Assert.True(fileAliases.TryGetProperty(CreateFileAlias(jarPath), out var entryKey));
+        Assert.Equal("modrinth:future-fast-cache-project", entryKey.GetString());
     }
 
     [Fact]
@@ -395,6 +530,14 @@ public sealed class LocalModIconEnrichmentServiceTests : TestTempDirectory
     {
         await using var stream = File.OpenRead(path);
         return Convert.ToHexString(await SHA1.HashDataAsync(stream)).ToLowerInvariant();
+    }
+
+    private static string CreateFileAlias(string path)
+    {
+        var fileInfo = new FileInfo(path);
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"file:{Path.GetFullPath(fileInfo.FullName)}|{fileInfo.Length}|{fileInfo.LastWriteTimeUtc.Ticks}");
     }
 
     private static byte[] CreatePngBytes(Color color)

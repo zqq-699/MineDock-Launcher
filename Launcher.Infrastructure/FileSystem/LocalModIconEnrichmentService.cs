@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Globalization;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -94,9 +95,16 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
                 if (lookup is null)
                     continue;
 
-                var cachedIcon = TryGetCachedIcon(index, lookup.Sha1Alias, now, allowStale: true, out var isStale);
+                var cachedIcon = TryGetCachedIcon(
+                    index,
+                    lookup.Sha1Alias,
+                    now,
+                    allowStale: true,
+                    updateLastUsed: true,
+                    out var isStale);
                 if (cachedIcon is not null)
                 {
+                    CacheFileAlias(index, lookup);
                     if (isStale)
                     {
                         staleResults[mod.FullPath] = cachedIcon;
@@ -154,6 +162,60 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
 
         logger.LogInformation(
             "Remote local mod icon enrichment completed. CandidateCount={CandidateCount} ResolvedCount={ResolvedCount}",
+            candidates.Count,
+            result.Count);
+        return result;
+    }
+
+    public async Task<IReadOnlyDictionary<string, string>> ResolveCachedIconSourcesAsync(
+        IReadOnlyList<LocalMod> mods,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(mods);
+
+        var candidates = mods
+            .Where(mod => string.IsNullOrWhiteSpace(mod.IconSource))
+            .Where(mod => !string.IsNullOrWhiteSpace(mod.FullPath) && File.Exists(mod.FullPath))
+            .GroupBy(mod => mod.FullPath, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+
+        if (candidates.Count == 0)
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var now = DateTimeOffset.UtcNow;
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+            foreach (var mod in candidates)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var fileAlias = TryCreateFileAlias(mod.FullPath);
+                if (fileAlias is null
+                    || !index.FileAliases.TryGetValue(fileAlias, out var entryKey))
+                    continue;
+
+                var cachedIcon = TryGetCachedIconByEntryKey(
+                    index,
+                    entryKey,
+                    now,
+                    allowStale: true,
+                    updateLastUsed: false,
+                    out _);
+                if (cachedIcon is not null)
+                    result[mod.FullPath] = cachedIcon;
+            }
+        }
+        finally
+        {
+            cacheLock.Release();
+        }
+
+        logger.LogInformation(
+            "Remote local mod icon cache checked. CandidateCount={CandidateCount} HitCount={HitCount}",
             candidates.Count,
             result.Count);
         return result;
@@ -518,6 +580,7 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
                 SizeBytes = sizeBytes
             };
             index.Aliases[lookup.Sha1Alias] = entryKey;
+            index.FileAliases[lookup.FileAlias] = entryKey;
             await SaveIndexAsync(index, cancellationToken).ConfigureAwait(false);
 
             logger.LogInformation(
@@ -538,6 +601,7 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         string alias,
         DateTimeOffset now,
         bool allowStale,
+        bool updateLastUsed,
         out bool isStale)
     {
         isStale = false;
@@ -547,11 +611,38 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
             return null;
         }
 
+        return TryGetCachedIconCore(entry, now, allowStale, updateLastUsed, out isStale);
+    }
+
+    private string? TryGetCachedIconByEntryKey(
+        RemoteIconCacheIndex index,
+        string entryKey,
+        DateTimeOffset now,
+        bool allowStale,
+        bool updateLastUsed,
+        out bool isStale)
+    {
+        isStale = false;
+        if (!index.Entries.TryGetValue(entryKey, out var entry))
+            return null;
+
+        return TryGetCachedIconCore(entry, now, allowStale, updateLastUsed, out isStale);
+    }
+
+    private string? TryGetCachedIconCore(
+        RemoteIconCacheEntry entry,
+        DateTimeOffset now,
+        bool allowStale,
+        bool updateLastUsed,
+        out bool isStale)
+    {
+        isStale = false;
         var path = Path.Combine(cacheDirectory, entry.FileName);
         if (!File.Exists(path))
             return null;
 
-        entry.LastUsedAt = now;
+        if (updateLastUsed)
+            entry.LastUsedAt = now;
         isStale = now - entry.CachedAt > RefreshAfter;
         return isStale && !allowStale ? null : new Uri(path).AbsoluteUri;
     }
@@ -611,6 +702,14 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
                 index.Aliases.Remove(alias);
             }
 
+            foreach (var alias in index.FileAliases
+                         .Where(pair => !index.Entries.ContainsKey(pair.Value))
+                         .Select(pair => pair.Key)
+                         .ToArray())
+            {
+                index.FileAliases.Remove(alias);
+            }
+
             await SaveIndexAsync(index, cancellationToken).ConfigureAwait(false);
             cleanupCompleted = true;
             logger.LogInformation(
@@ -657,9 +756,14 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
 
             sha1.TransformFinalBlock([], 0, 0);
             var sha1Text = Convert.ToHexString(sha1.Hash!).ToLowerInvariant();
+            var fileAlias = TryCreateFileAlias(mod.FullPath);
+            if (fileAlias is null)
+                return null;
+
             return new ModIconLookupCandidate(
                 mod.FullPath,
                 sha1Text,
+                fileAlias,
                 ComputeCurseForgeMurmurHash2(fingerprintBytes.GetBuffer().AsSpan(0, (int)fingerprintBytes.Length)));
         }
         catch (OperationCanceledException)
@@ -713,6 +817,34 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         }
 
         File.Move(tempPath, indexPath, overwrite: true);
+    }
+
+    private void CacheFileAlias(RemoteIconCacheIndex index, ModIconLookupCandidate lookup)
+    {
+        if (index.Aliases.TryGetValue(lookup.Sha1Alias, out var entryKey))
+            index.FileAliases[lookup.FileAlias] = entryKey;
+    }
+
+    private static string? TryCreateFileAlias(string path)
+    {
+        try
+        {
+            var fileInfo = new FileInfo(path);
+            if (!fileInfo.Exists)
+                return null;
+
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"file:{Path.GetFullPath(fileInfo.FullName)}|{fileInfo.Length}|{fileInfo.LastWriteTimeUtc.Ticks}");
+        }
+        catch (Exception exception) when (
+            exception is IOException
+            or UnauthorizedAccessException
+            or ArgumentException
+            or NotSupportedException)
+        {
+            return null;
+        }
     }
 
     private static async Task<byte[]> ReadLimitedAsync(
@@ -890,7 +1022,7 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         return hash;
     }
 
-    private sealed record ModIconLookupCandidate(string FullPath, string Sha1, long CurseForgeFingerprint)
+    private sealed record ModIconLookupCandidate(string FullPath, string Sha1, string FileAlias, long CurseForgeFingerprint)
     {
         public string Sha1Alias => $"sha1:{Sha1}";
     }
@@ -951,6 +1083,8 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         public Dictionary<string, RemoteIconCacheEntry> Entries { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 
         public Dictionary<string, string> Aliases { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public Dictionary<string, string> FileAliases { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
     private sealed class RemoteIconCacheEntry

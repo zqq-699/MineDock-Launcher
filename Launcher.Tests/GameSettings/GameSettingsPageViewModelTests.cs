@@ -2237,6 +2237,48 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
+    public async Task ModManagementViewModelAppliesCachedIconBeforePublishingMods()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var modPath = Path.Combine(instance.InstanceDirectory, "mods", "cached-icon.jar");
+        var modService = new FakeModService();
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            CreateLocalMod(
+                "cached-icon.jar",
+                true,
+                instance.InstanceDirectory,
+                null,
+                "Cached Icon Mod",
+                "fabric",
+                "cached-icon",
+                "1.0.0")
+        ];
+        var iconService = new FakeLocalModIconEnrichmentService
+        {
+            CachedIcons =
+            {
+                [modPath] = "file:///C:/launcher/cache/cached-icon.png"
+            }
+        };
+        var viewModel = CreateViewModel(
+            [instance],
+            modService: modService,
+            modIconEnrichmentService: iconService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 1);
+
+        var mod = Assert.Single(modManagement.Mods);
+        Assert.Equal("file:///C:/launcher/cache/cached-icon.png", mod.IconSource);
+        Assert.Equal(string.Empty, mod.IconKey);
+        Assert.Equal(1, iconService.ResolveCachedCallCount);
+        Assert.Equal(0, iconService.ResolveCallCount);
+    }
+
+    [Fact]
     public async Task ModManagementViewModelUpdatesMissingIconFromProgressBeforeRemoteEnrichmentCompletes()
     {
         var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
@@ -4026,15 +4068,30 @@ public sealed class GameSettingsPageViewModelTests
 
     private sealed class FakeLocalModIconEnrichmentService : ILocalModIconEnrichmentService
     {
+        public Dictionary<string, string> CachedIcons { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+
         public Dictionary<string, string> ResolvedIcons { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public Dictionary<string, string> ProgressIcons { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 
         public TaskCompletionSource<bool>? ResolveBlocker { get; init; }
 
+        public int ResolveCachedCallCount { get; private set; }
+
         public int ResolveCallCount { get; private set; }
 
+        public IReadOnlyList<LocalMod> LastCachedRequestedMods { get; private set; } = [];
+
         public IReadOnlyList<LocalMod> LastRequestedMods { get; private set; } = [];
+
+        public Task<IReadOnlyDictionary<string, string>> ResolveCachedIconSourcesAsync(
+            IReadOnlyList<LocalMod> mods,
+            CancellationToken cancellationToken = default)
+        {
+            ResolveCachedCallCount++;
+            LastCachedRequestedMods = mods.Select(CloneLocalMod).ToArray();
+            return Task.FromResult(FilterIcons(CachedIcons, mods));
+        }
 
         public async Task<IReadOnlyDictionary<string, string>> ResolveMissingIconSourcesAsync(
             IReadOnlyList<LocalMod> mods,

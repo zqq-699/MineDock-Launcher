@@ -110,6 +110,8 @@ public sealed class LocalModsViewModel : IDisposable
         try
         {
             loadedMods = await modService.GetModsAsync(instance, refreshCts.Token);
+            if (IsRefreshCurrent(instance, refreshVersion))
+                await ApplyCachedIconSourcesAsync(instance, loadedMods, refreshCts.Token);
         }
         catch (OperationCanceledException) when (refreshCts.IsCancellationRequested)
         {
@@ -128,8 +130,7 @@ public sealed class LocalModsViewModel : IDisposable
             ReleaseRefreshCancellationTokenSource(refreshCts);
         }
 
-        if (refreshVersion != modRefreshVersion
-            || !string.Equals(instance.Id, selectedInstance?.Id, StringComparison.Ordinal))
+        if (!IsRefreshCurrent(instance, refreshVersion))
         {
             return;
         }
@@ -145,6 +146,60 @@ public sealed class LocalModsViewModel : IDisposable
             instance.Id,
             Mods.Count);
         QueueRemoteIconEnrichment(instance, loadedMods, refreshVersion);
+    }
+
+    private async Task ApplyCachedIconSourcesAsync(
+        GameInstance instance,
+        IReadOnlyList<LocalMod> loadedMods,
+        CancellationToken cancellationToken)
+    {
+        if (iconEnrichmentService is null || loadedMods.Count == 0)
+            return;
+
+        IReadOnlyDictionary<string, string> cachedIcons;
+        try
+        {
+            cachedIcons = await iconEnrichmentService
+                .ResolveCachedIconSourcesAsync(loadedMods, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Failed to resolve cached local mod icons before publishing mods. InstanceId={InstanceId}",
+                instance.Id);
+            return;
+        }
+
+        if (cachedIcons.Count == 0)
+            return;
+
+        var appliedCount = 0;
+        foreach (var mod in loadedMods)
+        {
+            if (!string.IsNullOrWhiteSpace(mod.IconSource)
+                || !cachedIcons.TryGetValue(mod.FullPath, out var iconSource)
+                || string.IsNullOrWhiteSpace(iconSource))
+            {
+                continue;
+            }
+
+            mod.IconSource = iconSource;
+            appliedCount++;
+        }
+
+        if (appliedCount > 0)
+        {
+            logger.LogInformation(
+                "Applied cached local mod icons before publishing mods. InstanceId={InstanceId} Count={Count}",
+                instance.Id,
+                appliedCount);
+        }
     }
 
     public async Task ToggleModAsync(LocalMod mod)
@@ -509,6 +564,12 @@ public sealed class LocalModsViewModel : IDisposable
             if (updated)
                 ModsChanged?.Invoke(this, EventArgs.Empty);
         });
+    }
+
+    private bool IsRefreshCurrent(GameInstance instance, int refreshVersion)
+    {
+        return refreshVersion == modRefreshVersion
+            && string.Equals(instance.Id, selectedInstance?.Id, StringComparison.Ordinal);
     }
 
     private void CancelIconEnrichment()

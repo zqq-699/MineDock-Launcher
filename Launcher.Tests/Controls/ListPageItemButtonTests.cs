@@ -97,6 +97,82 @@ public sealed class ListPageItemButtonTests
     }
 
     [Fact]
+    public void IconSourceImageLoaderReusesCachedLocalFileImage()
+    {
+        Exception? exception = null;
+        var thread = new Thread(() =>
+        {
+            var path = Path.Combine(Path.GetTempPath(), $"launcher-list-icon-{Guid.NewGuid():N}.png");
+            try
+            {
+                WritePng(path);
+                var uri = new Uri(path).AbsoluteUri;
+
+                var first = IconSourceImageLoader.TryLoad(uri);
+                var second = IconSourceImageLoader.TryLoad(uri);
+
+                Assert.NotNull(first);
+                Assert.Same(first, second);
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (exception is not null)
+            throw exception;
+    }
+
+    [Fact]
+    public void IconSourceImageLoaderReloadsWhenLocalFileChanges()
+    {
+        Exception? exception = null;
+        var thread = new Thread(() =>
+        {
+            var path = Path.Combine(Path.GetTempPath(), $"launcher-list-icon-{Guid.NewGuid():N}.png");
+            try
+            {
+                WritePng(path);
+                var uri = new Uri(path).AbsoluteUri;
+                var first = IconSourceImageLoader.TryLoad(uri);
+
+                Thread.Sleep(20);
+                WritePng(path, Colors.OrangeRed);
+
+                var second = IconSourceImageLoader.TryLoad(uri);
+
+                Assert.NotNull(first);
+                Assert.NotNull(second);
+                Assert.NotSame(first, second);
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+            finally
+            {
+                File.Delete(path);
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (exception is not null)
+            throw exception;
+    }
+
+    [Fact]
     public void IconSourceImageLoaderAcceptsExistingImageSource()
     {
         var bitmap = BitmapSource.Create(
@@ -213,12 +289,17 @@ public sealed class ListPageItemButtonTests
 
     private static void WritePng(string path)
     {
+        WritePng(path, Colors.SteelBlue);
+    }
+
+    private static void WritePng(string path, Color color)
+    {
         var pixels = new byte[]
         {
-            0x1f, 0x77, 0xb4, 0xff,
-            0xff, 0x7f, 0x0e, 0xff,
-            0x2c, 0xa0, 0x2c, 0xff,
-            0xd6, 0x27, 0x28, 0xff
+            color.B, color.G, color.R, color.A,
+            color.B, color.G, color.R, color.A,
+            color.B, color.G, color.R, color.A,
+            color.B, color.G, color.R, color.A
         };
         var bitmap = BitmapSource.Create(
             2,

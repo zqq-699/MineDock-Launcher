@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -5,6 +7,8 @@ namespace Launcher.App.Controls;
 
 internal static class IconSourceImageLoader
 {
+    private static readonly ConcurrentDictionary<string, CachedImageSource> CachedImagesByKey = new(StringComparer.OrdinalIgnoreCase);
+
     public static ImageSource? TryLoad(object? source)
     {
         if (source is ImageSource imageSource)
@@ -16,6 +20,9 @@ internal static class IconSourceImageLoader
         try
         {
             var uri = CreateIconUri(text.Trim());
+            if (TryGetCachedImage(uri, out var cachedImage))
+                return cachedImage;
+
             var image = new BitmapImage();
             image.BeginInit();
             if (ShouldLoadImmediately(uri))
@@ -28,6 +35,7 @@ internal static class IconSourceImageLoader
             image.EndInit();
             if (image.CanFreeze)
                 image.Freeze();
+            CacheImage(uri, image);
             return image;
         }
         catch (Exception)
@@ -58,4 +66,74 @@ internal static class IconSourceImageLoader
         return uri.IsFile
             || string.Equals(uri.Scheme, "pack", StringComparison.OrdinalIgnoreCase);
     }
+
+    private static bool TryGetCachedImage(Uri uri, out ImageSource? imageSource)
+    {
+        imageSource = null;
+        var cacheKey = TryCreateCacheKey(uri);
+        if (string.IsNullOrWhiteSpace(cacheKey))
+            return false;
+
+        if (!CachedImagesByKey.TryGetValue(cacheKey, out var cached))
+            return false;
+
+        if (uri.IsFile && !HasMatchingFileState(uri, cached))
+        {
+            CachedImagesByKey.TryRemove(cacheKey, out _);
+            return false;
+        }
+
+        imageSource = cached.ImageSource;
+        return true;
+    }
+
+    private static void CacheImage(Uri uri, ImageSource imageSource)
+    {
+        var cacheKey = TryCreateCacheKey(uri);
+        if (string.IsNullOrWhiteSpace(cacheKey))
+            return;
+
+        if (uri.IsFile)
+        {
+            var localPath = uri.LocalPath;
+            if (!File.Exists(localPath))
+                return;
+
+            var fileInfo = new FileInfo(localPath);
+            CachedImagesByKey[cacheKey] = new CachedImageSource(
+                imageSource,
+                fileInfo.LastWriteTimeUtc.Ticks,
+                fileInfo.Length);
+            return;
+        }
+
+        CachedImagesByKey[cacheKey] = new CachedImageSource(imageSource, null, null);
+    }
+
+    private static string? TryCreateCacheKey(Uri uri)
+    {
+        if (uri.IsFile)
+            return uri.LocalPath;
+
+        if (string.Equals(uri.Scheme, "pack", StringComparison.OrdinalIgnoreCase))
+            return uri.AbsoluteUri;
+
+        return null;
+    }
+
+    private static bool HasMatchingFileState(Uri uri, CachedImageSource cached)
+    {
+        var localPath = uri.LocalPath;
+        if (!File.Exists(localPath))
+            return false;
+
+        var fileInfo = new FileInfo(localPath);
+        return cached.LastWriteTimeUtcTicks == fileInfo.LastWriteTimeUtc.Ticks
+            && cached.FileLength == fileInfo.Length;
+    }
+
+    private sealed record CachedImageSource(
+        ImageSource ImageSource,
+        long? LastWriteTimeUtcTicks,
+        long? FileLength);
 }
