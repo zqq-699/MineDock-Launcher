@@ -77,6 +77,9 @@
   <data name="Resources_ModVersionsEmptyLocal" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x53EF;&#x7528;&#x7684; Mod &#x7248;&#x672C;</value></data>
   <data name="Resources_ModVersionsFilterEmpty" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x627E;&#x5230;&#x5339;&#x914D;&#x7684; Mod &#x7248;&#x672C;</value></data>
   <data name="Resources_ModVersionsLoadError" xml:space="preserve"><value>Mod &#x7248;&#x672C;&#x52A0;&#x8F7D;&#x5931;&#x8D25;</value></data>
+  <data name="Resources_ModVersionsLoadingMore" xml:space="preserve"><value>正在加载更多 Mod 版本...</value></data>
+  <data name="Resources_ModVersionsNoMore" xml:space="preserve"><value>没有更多 Mod 版本</value></data>
+  <data name="Resources_ModVersionsLoadMoreError" xml:space="preserve"><value>加载更多 Mod 版本失败，请稍后重试。</value></data>
   <data name="Resources_ModVersionsAllTitle" xml:space="preserve"><value>&#x5168;&#x90E8;&#x7248;&#x672C;</value></data>
   <data name="Page_Settings" xml:space="preserve"><value>全局设置</value></data>
   <data name="Settings_SectionGeneral" xml:space="preserve"><value>通用</value></data>

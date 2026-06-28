@@ -70,6 +70,9 @@ public static class Strings
     public static string Resources_ModVersionsEmptyLocal => Get(nameof(Resources_ModVersionsEmptyLocal));
     public static string Resources_ModVersionsFilterEmpty => Get(nameof(Resources_ModVersionsFilterEmpty));
     public static string Resources_ModVersionsLoadError => Get(nameof(Resources_ModVersionsLoadError));
+    public static string Resources_ModVersionsLoadingMore => Get(nameof(Resources_ModVersionsLoadingMore));
+    public static string Resources_ModVersionsNoMore => Get(nameof(Resources_ModVersionsNoMore));
+    public static string Resources_ModVersionsLoadMoreError => Get(nameof(Resources_ModVersionsLoadMoreError));
     public static string Resources_ModVersionsAllTitle => Get(nameof(Resources_ModVersionsAllTitle));
     public static string Resources_ModDownloadFileExistsTitle => Get(nameof(Resources_ModDownloadFileExistsTitle));
     public static string Resources_ModDownloadFileExistsMessageFormat => Get(nameof(Resources_ModDownloadFileExistsMessageFormat));

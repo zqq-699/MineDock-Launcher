@@ -15,6 +15,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 {
     private const int SearchDebounceMilliseconds = 350;
     private const int CatalogPageSize = 20;
+    private const int AvailableVersionPageSize = 10000;
     private const int InitialProjectBatchSize = 12;
     private const int AppendProjectBatchSize = 8;
     private readonly IResourceCatalogService? resourceCatalogService;
@@ -35,6 +36,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     private bool isApplyingInstanceFilters;
     private bool isApplyingAvailableVersionFilterOptions;
     private IReadOnlyList<ResourceProjectVersion> availableVersionSourceVersions = [];
+    private readonly HashSet<string> loadedAvailableVersionIds = new(StringComparer.OrdinalIgnoreCase);
+    private int nextAvailableVersionOffset;
     private Task<ReleaseVersionData?>? releaseVersionDataTask;
 
     public ResourcesModPageViewModel(
@@ -217,7 +220,20 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanShowAvailableVersionsLoadingState))]
     [NotifyPropertyChangedFor(nameof(CanShowAvailableVersionsEmptyState))]
+    [NotifyPropertyChangedFor(nameof(CanShowAvailableVersionsLoadMoreState))]
     private int visibleAvailableVersionCount;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanShowAvailableVersionsLoadMoreState))]
+    private bool isLoadingMoreAvailableVersions;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanShowAvailableVersionsLoadMoreState))]
+    private string availableVersionsLoadMoreMessage = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanShowAvailableVersionsLoadMoreState))]
+    private bool hasMoreAvailableVersions;
 
     [ObservableProperty]
     private bool isInstallingAvailableVersion;
@@ -277,9 +293,13 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 
     public bool CanShowAvailableVersionsEmptyState => !IsLoadingAvailableVersions
         && VisibleAvailableVersionCount == 0
+        && !HasMoreAvailableVersions
         && !HasAvailableVersionsLoadErrorMessage;
 
     public bool CanShowAvailableVersionsLoadErrorState => !IsLoadingAvailableVersions && HasAvailableVersionsLoadErrorMessage;
+
+    public bool CanShowAvailableVersionsLoadMoreState => VisibleAvailableVersionCount > 0
+        && (IsLoadingMoreAvailableVersions || !string.IsNullOrWhiteSpace(AvailableVersionsLoadMoreMessage));
 
     public string AvailableVersionsEmptyMessage => HasAvailableVersionFilters
         ? Strings.Resources_ModVersionsFilterEmpty
@@ -473,44 +493,36 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             var instance = target.Instance;
             if (resourceCatalogService is null || project is null)
             {
-                uiDispatcher.Invoke(() => ApplyAvailableVersions([], Strings.Resources_ModVersionsLoadError, cancellationToken));
+                uiDispatcher.Invoke(() => ApplyAvailableVersions([], Strings.Resources_ModVersionsLoadError, hasMore: false, cancellationToken));
                 return;
             }
 
             if (!target.IsLocalDownload && instance is null)
             {
-                uiDispatcher.Invoke(() => ApplyAvailableVersions([], Strings.Resources_ModVersionsLoadError, cancellationToken));
+                uiDispatcher.Invoke(() => ApplyAvailableVersions([], Strings.Resources_ModVersionsLoadError, hasMore: false, cancellationToken));
                 return;
             }
 
-            var includeAllVersions = true;
-            var result = await resourceCatalogService.GetProjectVersionsAsync(
-                new ResourceProjectVersionsRequest
-                {
-                    Source = project.Source,
-                    ProjectId = project.ProjectId,
-                    Slug = project.Slug,
-                    MinecraftVersion = string.Empty,
-                    Loader = LoaderKind.Vanilla,
-                    IncludeAllVersions = includeAllVersions,
-                    Offset = 0,
-                    PageSize = 50
-                },
-                cancellationToken).ConfigureAwait(false);
+            BeginAvailableVersionRequestState();
+            var page = await LoadNextAvailableVersionPageAsync(project, cancellationToken)
+                .ConfigureAwait(false);
 
             if (cancellationToken.IsCancellationRequested)
                 return;
 
-            var errorMessage = result.IsCurseForgeUnavailable
+            var errorMessage = page.Result.IsCurseForgeUnavailable
                 ? Strings.Resources_ModVersionsLoadError
                 : string.Empty;
-            uiDispatcher.Invoke(() => ApplyAvailableVersions(result.Versions, errorMessage, cancellationToken));
+            uiDispatcher.Invoke(() => ApplyAvailableVersions(
+                page.Versions,
+                errorMessage,
+                hasMore: !page.Result.IsCurseForgeUnavailable && page.Result.HasMore,
+                cancellationToken));
             logger?.LogInformation(
-                "Resources mod versions loaded. ProjectId={ProjectId} InstanceId={InstanceId} IncludeAllVersions={IncludeAllVersions} VersionCount={VersionCount}",
+                "Resources mod versions loaded. ProjectId={ProjectId} InstanceId={InstanceId} VersionCount={VersionCount}",
                 project.ProjectId,
                 instance?.Id,
-                includeAllVersions,
-                result.Versions.Count);
+                page.Versions.Count);
         }
         catch (OperationCanceledException)
         {
@@ -520,8 +532,87 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             if (cancellationToken.IsCancellationRequested)
                 return;
 
-            uiDispatcher.Invoke(() => ApplyAvailableVersions([], Strings.Resources_ModVersionsLoadError, cancellationToken));
+            uiDispatcher.Invoke(() => ApplyAvailableVersions([], Strings.Resources_ModVersionsLoadError, hasMore: false, cancellationToken));
             logger?.LogError(exception, "Failed to load resources mod versions.");
+        }
+    }
+
+    public void BeginLoadMoreAvailableVersions()
+    {
+        if (resourceCatalogService is null
+            || SelectedProject is null
+            || SelectedInstallTarget is null
+            || !HasMoreAvailableVersions
+            || IsLoadingAvailableVersions
+            || IsLoadingMoreAvailableVersions)
+        {
+            return;
+        }
+
+        _ = LoadMoreAvailableVersionsAsync();
+    }
+
+    public async Task LoadMoreAvailableVersionsAsync()
+    {
+        var project = SelectedProject?.Project;
+        var target = SelectedInstallTarget;
+        if (resourceCatalogService is null
+            || project is null
+            || target is null
+            || !HasMoreAvailableVersions
+            || IsLoadingAvailableVersions
+            || IsLoadingMoreAvailableVersions)
+        {
+            return;
+        }
+
+        var cancellationToken = projectVersionsCancellationTokenSource?.Token ?? CancellationToken.None;
+
+        IsLoadingMoreAvailableVersions = true;
+        AvailableVersionsLoadMoreMessage = Strings.Resources_ModVersionsLoadingMore;
+        logger?.LogInformation(
+            "Loading more resource mod versions. ProjectId={ProjectId}",
+            project.ProjectId);
+
+        try
+        {
+            var page = await LoadNextAvailableVersionPageAsync(project, cancellationToken)
+                .ConfigureAwait(false);
+            if (cancellationToken.IsCancellationRequested)
+                return;
+
+            if (page.Result.IsCurseForgeUnavailable)
+            {
+                uiDispatcher.Invoke(() => FailAvailableVersionLoadMore(cancellationToken));
+                logger?.LogWarning(
+                    "Resource mod versions append failed because CurseForge is unavailable. ProjectId={ProjectId}",
+                    project.ProjectId);
+                return;
+            }
+
+            uiDispatcher.Invoke(() => ApplyMoreAvailableVersions(
+                page.Versions,
+                hasMore: !page.Result.IsCurseForgeUnavailable && page.Result.HasMore,
+                cancellationToken));
+            logger?.LogInformation(
+                "Resource mod versions appended. ProjectId={ProjectId} ResultCount={ResultCount} HasMore={HasMore}",
+                project.ProjectId,
+                page.Versions.Count,
+                HasMoreAvailableVersions);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                return;
+
+            uiDispatcher.Invoke(() => FailAvailableVersionLoadMore(cancellationToken));
+            logger?.LogError(
+                exception,
+                "Failed to load more resource mod versions. ProjectId={ProjectId}",
+                project.ProjectId);
         }
     }
 
@@ -797,6 +888,23 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     partial void OnHasMoreProjectsChanged(bool value)
     {
         RaiseProjectStatePropertiesChanged();
+    }
+
+    partial void OnIsLoadingMoreAvailableVersionsChanged(bool value)
+    {
+        RaiseAvailableVersionStatePropertiesChanged();
+    }
+
+    partial void OnAvailableVersionsLoadMoreMessageChanged(string value)
+    {
+        UpdateAvailableVersionFooterItem();
+        RaiseAvailableVersionStatePropertiesChanged();
+    }
+
+    partial void OnHasMoreAvailableVersionsChanged(bool value)
+    {
+        UpdateAvailableVersionFooterItem();
+        RaiseAvailableVersionStatePropertiesChanged();
     }
 
     private async Task RunProjectLoadAsync(
@@ -1345,6 +1453,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     private void ApplyAvailableVersions(
         IReadOnlyList<ResourceProjectVersion> versions,
         string loadErrorMessage,
+        bool hasMore,
         CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
@@ -1360,7 +1469,46 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         RebuildAvailableVersionListItems();
 
         AvailableVersionsLoadErrorMessage = loadErrorMessage;
+        HasMoreAvailableVersions = hasMore;
+        AvailableVersionsLoadMoreMessage = HasMoreAvailableVersions ? string.Empty : Strings.Resources_ModVersionsNoMore;
+        IsLoadingMoreAvailableVersions = false;
         IsLoadingAvailableVersions = false;
+        RaiseAvailableVersionStatePropertiesChanged();
+    }
+
+    private void ApplyMoreAvailableVersions(
+        IReadOnlyList<ResourceProjectVersion> versions,
+        bool hasMore,
+        CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+            return;
+
+        var sourceVersions = availableVersionSourceVersions.ToList();
+        sourceVersions.AddRange(versions);
+        availableVersionSourceVersions = sourceVersions;
+
+        foreach (var version in versions)
+            AvailableVersions.Add(new ResourcesModVersionItemViewModel(version, SelectedProject));
+
+        UpdateAvailableVersionFilterOptionsPreservingSelection(availableVersionSourceVersions);
+        AppendAvailableVersionListItems(versions);
+
+        HasMoreAvailableVersions = hasMore;
+        AvailableVersionsLoadMoreMessage = HasMoreAvailableVersions
+            ? string.Empty
+            : Strings.Resources_ModVersionsNoMore;
+        IsLoadingMoreAvailableVersions = false;
+        RaiseAvailableVersionStatePropertiesChanged();
+    }
+
+    private void FailAvailableVersionLoadMore(CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+            return;
+
+        IsLoadingMoreAvailableVersions = false;
+        AvailableVersionsLoadMoreMessage = Strings.Resources_ModVersionsLoadMoreError;
         RaiseAvailableVersionStatePropertiesChanged();
     }
 
@@ -1373,8 +1521,74 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         ClearAvailableVersionState(resetFilters: true);
         AddInitialAvailableVersionsHeader();
         AvailableVersionsLoadErrorMessage = string.Empty;
+        AvailableVersionsLoadMoreMessage = string.Empty;
+        HasMoreAvailableVersions = false;
+        IsLoadingMoreAvailableVersions = false;
         IsLoadingAvailableVersions = true;
         RaiseAvailableVersionStatePropertiesChanged();
+    }
+
+    private void BeginAvailableVersionRequestState()
+    {
+        nextAvailableVersionOffset = 0;
+        loadedAvailableVersionIds.Clear();
+    }
+
+    private async Task<AvailableVersionPageResult> LoadNextAvailableVersionPageAsync(
+        ResourceProject project,
+        CancellationToken cancellationToken)
+    {
+        if (resourceCatalogService is null)
+            return new AvailableVersionPageResult(new ResourceProjectVersionsResult(), []);
+
+        var request = CreateProjectVersionsRequest(project);
+        var result = await resourceCatalogService.GetProjectVersionsAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+        var versions = DeduplicateAvailableVersions(result.Versions);
+        nextAvailableVersionOffset = request.Offset + AvailableVersionPageSize;
+
+        logger?.LogInformation(
+            "Resource mod versions page loaded. ProjectId={ProjectId} Offset={Offset} PageSize={PageSize} ResultCount={ResultCount} UniqueCount={UniqueCount} HasMore={HasMore}",
+            project.ProjectId,
+            request.Offset,
+            request.PageSize,
+            result.Versions.Count,
+            versions.Count,
+            result.HasMore);
+
+        return new AvailableVersionPageResult(result, versions);
+    }
+
+    private ResourceProjectVersionsRequest CreateProjectVersionsRequest(ResourceProject project)
+    {
+        return new ResourceProjectVersionsRequest
+        {
+            Source = project.Source,
+            ProjectId = project.ProjectId,
+            Slug = project.Slug,
+            MinecraftVersion = string.Empty,
+            Loader = LoaderKind.Vanilla,
+            IncludeAllVersions = true,
+            Offset = nextAvailableVersionOffset,
+            PageSize = AvailableVersionPageSize
+        };
+    }
+
+    private IReadOnlyList<ResourceProjectVersion> DeduplicateAvailableVersions(IReadOnlyList<ResourceProjectVersion> versions)
+    {
+        var uniqueVersions = new List<ResourceProjectVersion>();
+        foreach (var version in versions)
+        {
+            var key = string.IsNullOrWhiteSpace(version.VersionId)
+                ? version.FileName
+                : version.VersionId;
+            if (string.IsNullOrWhiteSpace(key) || !loadedAvailableVersionIds.Add(key))
+                continue;
+
+            uniqueVersions.Add(version);
+        }
+
+        return uniqueVersions;
     }
 
     private ResourceCatalogSearchRequest CreateSearchRequest(int offset)
@@ -1442,6 +1656,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         OnPropertyChanged(nameof(CanShowAvailableVersionsEmptyState));
         OnPropertyChanged(nameof(HasAvailableVersionsLoadErrorMessage));
         OnPropertyChanged(nameof(CanShowAvailableVersionsLoadErrorState));
+        OnPropertyChanged(nameof(CanShowAvailableVersionsLoadMoreState));
         OnPropertyChanged(nameof(AvailableVersionsEmptyMessage));
     }
 
@@ -1474,6 +1689,11 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         availableVersionSourceVersions = [];
         AvailableVersionListItems.Clear();
         VisibleAvailableVersionCount = 0;
+        HasMoreAvailableVersions = false;
+        IsLoadingMoreAvailableVersions = false;
+        AvailableVersionsLoadMoreMessage = string.Empty;
+        nextAvailableVersionOffset = 0;
+        loadedAvailableVersionIds.Clear();
 
         if (!resetFilters)
             return;
@@ -1502,6 +1722,39 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 
         SelectedAvailableVersionFilterOption = AvailableVersionFilterOptions[0];
         SelectedAvailableLoaderFilterOption = AvailableLoaderFilterOptions[0];
+    }
+
+    private void UpdateAvailableVersionFilterOptionsPreservingSelection(IReadOnlyList<ResourceProjectVersion> versions)
+    {
+        var selectedVersionId = SelectedAvailableVersionFilterOption?.Id ?? "all";
+        var selectedLoaderId = SelectedAvailableLoaderFilterOption?.Id ?? "all";
+        var versionOptions = CreateAvailableVersionFilterOptions(versions);
+        var loaderOptions = CreateAvailableLoaderFilterOptions(versions);
+
+        try
+        {
+            isApplyingAvailableVersionFilterOptions = true;
+
+            AvailableVersionFilterOptions.Clear();
+            AvailableVersionFilterOptions.Add(CreateAllAvailableVersionFilterOption());
+            foreach (var option in versionOptions)
+                AvailableVersionFilterOptions.Add(option);
+
+            AvailableLoaderFilterOptions.Clear();
+            foreach (var option in loaderOptions)
+                AvailableLoaderFilterOptions.Add(option);
+
+            EnsureAvailableVersionFilterOption(selectedVersionId);
+            EnsureAvailableLoaderFilterOption(selectedLoaderId);
+            SelectedAvailableVersionFilterOption = AvailableVersionFilterOptions.FirstOrDefault(
+                option => string.Equals(option.Id, selectedVersionId, StringComparison.OrdinalIgnoreCase)) ?? AvailableVersionFilterOptions[0];
+            SelectedAvailableLoaderFilterOption = AvailableLoaderFilterOptions.FirstOrDefault(
+                option => string.Equals(option.Id, selectedLoaderId, StringComparison.OrdinalIgnoreCase)) ?? AvailableLoaderFilterOptions[0];
+        }
+        finally
+        {
+            isApplyingAvailableVersionFilterOptions = false;
+        }
     }
 
     private void ApplyAvailableVersionFilterOptions(
@@ -1637,7 +1890,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         };
     }
 
-    private void RebuildAvailableVersionListItems()
+    private void RebuildAvailableVersionListItems(bool playEntranceAnimation = true)
     {
         AvailableVersionListItems.Clear();
         VisibleAvailableVersionCount = 0;
@@ -1651,9 +1904,59 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         else
             AddFlatAvailableVersionItems(filteredVersions);
 
-        AvailableVersionListEntranceAnimationToken++;
+        if (playEntranceAnimation)
+            AvailableVersionListEntranceAnimationToken++;
+
+        UpdateAvailableVersionFooterItem();
         RaiseAvailableVersionStatePropertiesChanged();
         OnPropertyChanged(nameof(AvailableVersionsEmptyMessage));
+    }
+
+    private void AppendAvailableVersionListItems(IReadOnlyList<ResourceProjectVersion> versions)
+    {
+        RemoveAvailableVersionFooterItem();
+
+        var filteredVersions = versions
+            .Where(MatchesAvailableVersionFilters)
+            .ToList();
+
+        if (filteredVersions.Count == 0)
+        {
+            UpdateAvailableVersionFooterItem();
+            RaiseAvailableVersionStatePropertiesChanged();
+            OnPropertyChanged(nameof(AvailableVersionsEmptyMessage));
+            return;
+        }
+
+        if (ShouldGroupAvailableVersionsByCompatibility())
+            AppendGroupedAvailableVersionItems(filteredVersions);
+        else
+            AppendFlatAvailableVersionItems(filteredVersions);
+
+        UpdateAvailableVersionFooterItem();
+        RaiseAvailableVersionStatePropertiesChanged();
+        OnPropertyChanged(nameof(AvailableVersionsEmptyMessage));
+    }
+
+    private void UpdateAvailableVersionFooterItem()
+    {
+        RemoveAvailableVersionFooterItem();
+        if (!CanShowAvailableVersionsLoadMoreState
+            || string.IsNullOrWhiteSpace(AvailableVersionsLoadMoreMessage))
+        {
+            return;
+        }
+
+        AvailableVersionListItems.Add(new ResourcesListFooterStatusItem(AvailableVersionsLoadMoreMessage));
+    }
+
+    private void RemoveAvailableVersionFooterItem()
+    {
+        for (var index = AvailableVersionListItems.Count - 1; index >= 0; index--)
+        {
+            if (AvailableVersionListItems[index] is ResourcesListFooterStatusItem)
+                AvailableVersionListItems.RemoveAt(index);
+        }
     }
 
     private bool MatchesAvailableVersionFilters(ResourceProjectVersion version)
@@ -1678,6 +1981,11 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     private bool MatchesAvailableVersionFilter(ResourceProjectVersion version)
     {
         var selectedVersion = SelectedAvailableVersionFilterOption?.Id;
+        return MatchesAvailableVersionFilter(version, selectedVersion);
+    }
+
+    private static bool MatchesAvailableVersionFilter(ResourceProjectVersion version, string? selectedVersion)
+    {
         if (string.IsNullOrWhiteSpace(selectedVersion)
             || string.Equals(selectedVersion, "all", StringComparison.OrdinalIgnoreCase))
         {
@@ -1691,6 +1999,11 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     private bool MatchesAvailableLoaderFilter(ResourceProjectVersion version)
     {
         var selectedLoader = SelectedAvailableLoaderFilterOption?.Id;
+        return MatchesAvailableLoaderFilter(version, selectedLoader);
+    }
+
+    private static bool MatchesAvailableLoaderFilter(ResourceProjectVersion version, string? selectedLoader)
+    {
         if (string.IsNullOrWhiteSpace(selectedLoader)
             || string.Equals(selectedLoader, "all", StringComparison.OrdinalIgnoreCase))
         {
@@ -1710,6 +2023,18 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     private void AddFlatAvailableVersionItems(IReadOnlyList<ResourceProjectVersion> versions)
     {
         AvailableVersionListItems.Add(new ResourcesModVersionListHeaderItem(AvailableVersionsTitle));
+        foreach (var version in versions)
+        {
+            AvailableVersionListItems.Add(new ResourcesModVersionItemViewModel(version, SelectedProject));
+            VisibleAvailableVersionCount++;
+        }
+    }
+
+    private void AppendFlatAvailableVersionItems(IReadOnlyList<ResourceProjectVersion> versions)
+    {
+        if (!AvailableVersionListItems.OfType<ResourcesModVersionListHeaderItem>().Any())
+            AvailableVersionListItems.Add(new ResourcesModVersionListHeaderItem(AvailableVersionsTitle));
+
         foreach (var version in versions)
         {
             AvailableVersionListItems.Add(new ResourcesModVersionItemViewModel(version, SelectedProject));
@@ -1751,6 +2076,56 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 AvailableVersionListItems.Add(new ResourcesModVersionItemViewModel(version, SelectedProject));
                 VisibleAvailableVersionCount++;
             }
+        }
+    }
+
+    private void AppendGroupedAvailableVersionItems(IReadOnlyList<ResourceProjectVersion> versions)
+    {
+        RemoveEmptyAvailableVersionsPlaceholderHeader();
+
+        foreach (var version in versions)
+        {
+            foreach (var title in CreateFilteredCompatibilityGroupTitles(version))
+            {
+                var insertIndex = FindAvailableVersionGroupInsertIndex(title);
+                AvailableVersionListItems.Insert(insertIndex, new ResourcesModVersionItemViewModel(version, SelectedProject));
+                VisibleAvailableVersionCount++;
+            }
+        }
+    }
+
+    private int FindAvailableVersionGroupInsertIndex(string title)
+    {
+        for (var index = 0; index < AvailableVersionListItems.Count; index++)
+        {
+            if (AvailableVersionListItems[index] is not ResourcesModVersionListHeaderItem header
+                || !string.Equals(header.Title, title, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var insertIndex = index + 1;
+            while (insertIndex < AvailableVersionListItems.Count
+                && AvailableVersionListItems[insertIndex] is not ResourcesModVersionListHeaderItem)
+            {
+                insertIndex++;
+            }
+
+            return insertIndex;
+        }
+
+        AvailableVersionListItems.Add(new ResourcesModVersionListHeaderItem(title));
+        return AvailableVersionListItems.Count;
+    }
+
+    private void RemoveEmptyAvailableVersionsPlaceholderHeader()
+    {
+        if (VisibleAvailableVersionCount == 0
+            && AvailableVersionListItems.Count == 1
+            && AvailableVersionListItems[0] is ResourcesModVersionListHeaderItem header
+            && string.Equals(header.Title, AvailableVersionsTitle, StringComparison.OrdinalIgnoreCase))
+        {
+            AvailableVersionListItems.Clear();
         }
     }
 
@@ -2016,6 +2391,10 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     private sealed record ReleaseVersionData(
         IReadOnlyList<string> ReleaseVersionOrder,
         IReadOnlyList<ResourcesFilterOptionItem> VersionOptions);
+
+    private sealed record AvailableVersionPageResult(
+        ResourceProjectVersionsResult Result,
+        IReadOnlyList<ResourceProjectVersion> Versions);
 
     private sealed class AvailableVersionCompatibilityGroup
     {

@@ -14,7 +14,9 @@ public partial class ResourcesModPageView : UserControl
     private readonly SlidingContentTransitionCoordinator stepTransition;
     private readonly SlidingContentTransitionCoordinator detailsTransition;
     private ScrollViewer? scrollViewer;
+    private ScrollViewer? versionScrollViewer;
     private INotifyPropertyChanged? currentViewModelNotifier;
+    private bool isVersionAutoLoadQueued;
 
     public ResourcesModPageView()
     {
@@ -33,13 +35,13 @@ public partial class ResourcesModPageView : UserControl
 
         Loaded += (_, _) =>
         {
-            AttachScrollViewer();
+            AttachScrollViewers();
             stepTransition.Sync(IsProjectContentStep());
             detailsTransition.Sync(IsProjectVersionsStep());
         };
         Unloaded += (_, _) =>
         {
-            DetachScrollViewer();
+            DetachScrollViewers();
             DetachViewModelNotifier();
         };
         DataContextChanged += ResourcesModPageView_OnDataContextChanged;
@@ -73,6 +75,12 @@ public partial class ResourcesModPageView : UserControl
         detailsTransition.Sync(IsProjectVersionsStep());
     }
 
+    private void AttachScrollViewers()
+    {
+        AttachScrollViewer();
+        AttachVersionScrollViewer();
+    }
+
     private void DetachViewModelNotifier()
     {
         if (currentViewModelNotifier is not null)
@@ -88,6 +96,20 @@ public partial class ResourcesModPageView : UserControl
         {
             stepTransition.AnimateTo(viewModel.CurrentStep is not ResourcesModPageStep.ProjectList);
             detailsTransition.AnimateTo(viewModel.CurrentStep is ResourcesModPageStep.ProjectVersions);
+            if (viewModel.CurrentStep is ResourcesModPageStep.ProjectVersions)
+            {
+                AttachVersionScrollViewer();
+                QueueVersionAutoLoadIfNeeded();
+            }
+        }
+
+        if (sender is ResourcesModPageViewModel
+            && e.PropertyName is nameof(ResourcesModPageViewModel.IsLoadingAvailableVersions)
+                or nameof(ResourcesModPageViewModel.IsLoadingMoreAvailableVersions)
+                or nameof(ResourcesModPageViewModel.HasMoreAvailableVersions)
+                or nameof(ResourcesModPageViewModel.VisibleAvailableVersionCount))
+        {
+            QueueVersionAutoLoadIfNeeded();
         }
     }
 
@@ -105,12 +127,40 @@ public partial class ResourcesModPageView : UserControl
             scrollViewer.ScrollChanged += ScrollViewer_OnScrollChanged;
     }
 
+    private void AttachVersionScrollViewer()
+    {
+        ResourcesModVersionListBox.ApplyTemplate();
+
+        var nextScrollViewer = VisualTreeSearch.FindDescendant<ScrollViewer>(ResourcesModVersionListBox, _ => true);
+        if (ReferenceEquals(versionScrollViewer, nextScrollViewer))
+            return;
+
+        DetachVersionScrollViewer();
+        versionScrollViewer = nextScrollViewer;
+        if (versionScrollViewer is not null)
+            versionScrollViewer.ScrollChanged += VersionScrollViewer_OnScrollChanged;
+    }
+
     private void DetachScrollViewer()
     {
         if (scrollViewer is not null)
             scrollViewer.ScrollChanged -= ScrollViewer_OnScrollChanged;
 
         scrollViewer = null;
+    }
+
+    private void DetachVersionScrollViewer()
+    {
+        if (versionScrollViewer is not null)
+            versionScrollViewer.ScrollChanged -= VersionScrollViewer_OnScrollChanged;
+
+        versionScrollViewer = null;
+    }
+
+    private void DetachScrollViewers()
+    {
+        DetachScrollViewer();
+        DetachVersionScrollViewer();
     }
 
     private void ScrollViewer_OnScrollChanged(object sender, ScrollChangedEventArgs e)
@@ -129,6 +179,55 @@ public partial class ResourcesModPageView : UserControl
             viewModel.BeginLoadMoreProjects();
     }
 
+    private void VersionScrollViewer_OnScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (DataContext is not ResourcesModPageViewModel viewModel
+            || sender is not ScrollViewer currentScrollViewer)
+        {
+            return;
+        }
+
+        if (currentScrollViewer.ScrollableHeight <= 0)
+            return;
+
+        var remainingDistance = currentScrollViewer.ScrollableHeight - currentScrollViewer.VerticalOffset;
+        if (remainingDistance <= LoadMoreThreshold)
+            viewModel.BeginLoadMoreAvailableVersions();
+    }
+
+    private void QueueVersionAutoLoadIfNeeded()
+    {
+        if (isVersionAutoLoadQueued)
+            return;
+
+        isVersionAutoLoadQueued = true;
+        Dispatcher.BeginInvoke(() =>
+        {
+            isVersionAutoLoadQueued = false;
+            BeginVersionAutoLoadIfNeeded();
+        }, System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private void BeginVersionAutoLoadIfNeeded()
+    {
+        if (DataContext is not ResourcesModPageViewModel viewModel
+            || viewModel.CurrentStep is not ResourcesModPageStep.ProjectVersions
+            || !viewModel.HasMoreAvailableVersions
+            || viewModel.IsLoadingAvailableVersions
+            || viewModel.IsLoadingMoreAvailableVersions)
+        {
+            return;
+        }
+
+        AttachVersionScrollViewer();
+        if (versionScrollViewer is null)
+            return;
+
+        ResourcesModVersionListBox.UpdateLayout();
+        if (versionScrollViewer.ScrollableHeight <= 0)
+            viewModel.BeginLoadMoreAvailableVersions();
+    }
+
     private bool IsProjectContentStep()
     {
         return DataContext is ResourcesModPageViewModel viewModel
@@ -140,4 +239,5 @@ public partial class ResourcesModPageView : UserControl
         return DataContext is ResourcesModPageViewModel viewModel
             && viewModel.CurrentStep is ResourcesModPageStep.ProjectVersions;
     }
+
 }

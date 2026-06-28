@@ -996,6 +996,646 @@ public sealed class ResourcesPageViewModelTests
     }
 
     [Fact]
+    public async Task ModAvailableVersionsLoadMoreAppendsNextPageUsingNextOffset()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByOffset[0] = new ResourceProjectVersionsResult
+        {
+            HasMore = true,
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-1",
+                    Name = "Forge 1.18.2",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "forge-1.18.2.jar",
+                    GameVersions = ["1.18.2"],
+                    Loaders = ["forge"]
+                }
+            ]
+        };
+        catalogService.VersionsResultsByOffset[10000] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-2",
+                    Name = "Forge 1.18.1",
+                    VersionNumber = "1.0.1",
+                    VersionType = "release",
+                    FileName = "forge-1.18.1.jar",
+                    GameVersions = ["1.18.1"],
+                    Loaders = ["forge"]
+                }
+            ]
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            Slug = "project",
+            Title = "Project"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 1);
+
+        Assert.True(viewModel.ModPage.HasMoreAvailableVersions);
+        Assert.Equal(0, Assert.Single(catalogService.VersionRequests).Offset);
+        var entranceAnimationToken = viewModel.ModPage.AvailableVersionListEntranceAnimationToken;
+        var visibleItemsBeforeLoadMore = FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems);
+
+        await viewModel.ModPage.LoadMoreAvailableVersionsAsync();
+
+        Assert.Equal(2, viewModel.ModPage.AvailableVersions.Count);
+        Assert.Equal([0, 10000], catalogService.VersionRequests.Select(request => request.Offset).ToArray());
+        Assert.All(catalogService.VersionRequests, request => Assert.Equal(10000, request.PageSize));
+        Assert.All(catalogService.VersionRequests, request => Assert.True(request.IncludeAllVersions));
+        Assert.False(viewModel.ModPage.HasMoreAvailableVersions);
+        Assert.Equal(entranceAnimationToken, viewModel.ModPage.AvailableVersionListEntranceAnimationToken);
+        Assert.Equal(Strings.Resources_ModVersionsNoMore, viewModel.ModPage.AvailableVersionsLoadMoreMessage);
+        Assert.Equal(
+            $"F:{Strings.Resources_ModVersionsNoMore}",
+            FormatAvailableVersionListItemsWithFooter(viewModel.ModPage.AvailableVersionListItems).Last());
+        Assert.Equal(
+            visibleItemsBeforeLoadMore,
+            FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems).Take(visibleItemsBeforeLoadMore.Count).ToArray());
+        Assert.Equal(
+            [
+                "H:1.18.2-forge",
+                "V:Forge 1.18.2",
+                "H:1.18.1-forge",
+                "V:Forge 1.18.1"
+            ],
+            FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+    }
+
+    [Fact]
+    public async Task ModAvailableVersionsLoadMoreShowsLoadingFooterItem()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByOffset[0] = new ResourceProjectVersionsResult
+            {
+                HasMore = true,
+                Versions =
+                [
+                    new ResourceProjectVersion
+                    {
+                        VersionId = "version-1",
+                        Name = "Forge 1.18.2 One",
+                        VersionNumber = "1.0.0",
+                        VersionType = "release",
+                        FileName = "forge-1.18.2-one.jar",
+                        GameVersions = ["1.18.2"],
+                        Loaders = ["forge"]
+                    }
+                ]
+            };
+        var pendingResult = new TaskCompletionSource<ResourceProjectVersionsResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        catalogService.PendingVersionsResultsByRequestKey[
+            FakeResourceCatalogService.CreateVersionsRequestKey(string.Empty, LoaderKind.Vanilla, 10000)] = pendingResult;
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            Slug = "project",
+            Title = "Project",
+            SupportedMinecraftVersions = ["1.18.2"],
+            SupportedLoaders = ["forge"]
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 1);
+
+        var loadMore = viewModel.ModPage.LoadMoreAvailableVersionsAsync();
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsLoadingMoreAvailableVersions);
+
+        Assert.Equal(
+            $"F:{Strings.Resources_ModVersionsLoadingMore}",
+            FormatAvailableVersionListItemsWithFooter(viewModel.ModPage.AvailableVersionListItems).Last());
+
+        pendingResult.SetResult(new ResourceProjectVersionsResult());
+        await loadMore;
+    }
+
+    [Fact]
+    public async Task CurseForgeAvailableVersionsRequestsLargeUnfilteredPage()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByOffset[0] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-1",
+                    Name = "Forge 1.18.2",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "forge-1.18.2.jar",
+                    GameVersions = ["1.18.2"],
+                    Loaders = ["forge"]
+                },
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-2",
+                    Name = "Fabric 1.18.1",
+                    VersionNumber = "1.0.1",
+                    VersionType = "release",
+                    FileName = "fabric-1.18.1.jar",
+                    GameVersions = ["1.18.1"],
+                    Loaders = ["fabric"]
+                }
+            ]
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            Slug = "project",
+            Title = "Project"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 2);
+
+        var request = Assert.Single(catalogService.VersionRequests);
+        Assert.True(request.IncludeAllVersions);
+        Assert.Equal(string.Empty, request.MinecraftVersion);
+        Assert.Equal(LoaderKind.Vanilla, request.Loader);
+        Assert.Equal(0, request.Offset);
+        Assert.Equal(10000, request.PageSize);
+        Assert.Equal(
+            [
+                "H:1.18.2-forge",
+                "V:Forge 1.18.2",
+                "H:1.18.1-fabric",
+                "V:Fabric 1.18.1"
+            ],
+            FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+    }
+
+    [Fact]
+    public async Task CurseForgeInstanceTargetUsesLargePageAndFiltersLocally()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByOffset[0] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    VersionId = "forge-version",
+                    Name = "Forge 1.18.2",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "forge.jar",
+                    GameVersions = ["1.18.2"],
+                    Loaders = ["forge"]
+                },
+                new ResourceProjectVersion
+                {
+                    VersionId = "fabric-version",
+                    Name = "Fabric 1.18.2",
+                    VersionNumber = "1.0.1",
+                    VersionType = "release",
+                    FileName = "fabric.jar",
+                    GameVersions = ["1.18.2"],
+                    Loaders = ["fabric"]
+                }
+            ]
+        };
+        var instance = new GameInstance
+        {
+            Id = "fabric-instance",
+            Name = "Fabric Instance",
+            MinecraftVersion = "1.18.2",
+            Loader = LoaderKind.Fabric
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            Slug = "project",
+            Title = "Project"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.FromInstance(instance));
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 2);
+
+        var request = Assert.Single(catalogService.VersionRequests);
+        Assert.True(request.IncludeAllVersions);
+        Assert.Equal(string.Empty, request.MinecraftVersion);
+        Assert.Equal(LoaderKind.Vanilla, request.Loader);
+        Assert.Equal(10000, request.PageSize);
+        Assert.Equal("1.18.2", viewModel.ModPage.SelectedAvailableVersionFilterOption?.Id);
+        Assert.Equal("fabric", viewModel.ModPage.SelectedAvailableLoaderFilterOption?.Id);
+        Assert.Equal(["H:1.18.2-fabric", "V:Fabric 1.18.2"], FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+    }
+
+    [Fact]
+    public async Task CurseForgeLoadMoreRequestsOnlyNextLargePage()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByOffset[0] = new ResourceProjectVersionsResult
+        {
+            HasMore = true,
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-1",
+                    Name = "Forge 1.18.2",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "forge-1.18.2.jar",
+                    GameVersions = ["1.18.2"],
+                    Loaders = ["forge"]
+                }
+            ]
+        };
+        catalogService.VersionsResultsByOffset[10000] = new ResourceProjectVersionsResult
+        {
+            HasMore = true,
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-2",
+                    Name = "Forge 1.18.1",
+                    VersionNumber = "1.0.1",
+                    VersionType = "release",
+                    FileName = "forge-1.18.1.jar",
+                    GameVersions = ["1.18.1"],
+                    Loaders = ["forge"]
+                }
+            ]
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            Slug = "project",
+            Title = "Project"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 1);
+
+        await viewModel.ModPage.LoadMoreAvailableVersionsAsync();
+
+        Assert.Equal(2, viewModel.ModPage.AvailableVersions.Count);
+        Assert.Equal([0, 10000], catalogService.VersionRequests.Select(request => request.Offset).ToArray());
+        Assert.All(catalogService.VersionRequests, request => Assert.True(request.IncludeAllVersions));
+        Assert.All(catalogService.VersionRequests, request => Assert.Equal(10000, request.PageSize));
+        Assert.True(viewModel.ModPage.HasMoreAvailableVersions);
+    }
+
+    [Fact]
+    public async Task CurseForgeAvailableVersionsDeduplicateAcrossLargePages()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByOffset[0] = new ResourceProjectVersionsResult
+        {
+            HasMore = true,
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    VersionId = "duplicate-version",
+                    Name = "Forge 1.18.2",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "forge-1.18.2.jar",
+                    GameVersions = ["1.18.2"],
+                    Loaders = ["forge"]
+                }
+            ]
+        };
+        catalogService.VersionsResultsByOffset[10000] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    VersionId = "duplicate-version",
+                    Name = "Forge Duplicate",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "forge-duplicate.jar",
+                    GameVersions = ["1.18.1"],
+                    Loaders = ["forge"]
+                },
+                new ResourceProjectVersion
+                {
+                    VersionId = "new-version",
+                    Name = "Forge 1.18.0",
+                    VersionNumber = "1.0.1",
+                    VersionType = "release",
+                    FileName = "forge-1.18.0.jar",
+                    GameVersions = ["1.18.0"],
+                    Loaders = ["forge"]
+                }
+            ]
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            Slug = "project",
+            Title = "Project"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 1);
+
+        await viewModel.ModPage.LoadMoreAvailableVersionsAsync();
+
+        Assert.Equal(2, viewModel.ModPage.AvailableVersions.Count);
+        Assert.Equal(["Forge 1.18.2", "Forge 1.18.0"], viewModel.ModPage.AvailableVersions.Select(version => version.Title).ToArray());
+        Assert.False(viewModel.ModPage.HasMoreAvailableVersions);
+    }
+
+    [Fact]
+    public async Task ModAvailableVersionsLoadMoreFailureKeepsLoadedVersions()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByOffset[0] = new ResourceProjectVersionsResult
+        {
+            HasMore = true,
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-1",
+                    Name = "Forge 1.18.2",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "forge-1.18.2.jar",
+                    GameVersions = ["1.18.2"],
+                    Loaders = ["forge"]
+                }
+            ]
+        };
+        catalogService.VersionOffsetsToThrow.Add(10000);
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            Slug = "project",
+            Title = "Project"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 1);
+
+        await viewModel.ModPage.LoadMoreAvailableVersionsAsync();
+
+        Assert.Single(viewModel.ModPage.AvailableVersions);
+        Assert.False(viewModel.ModPage.IsLoadingMoreAvailableVersions);
+        Assert.Equal(Strings.Resources_ModVersionsLoadMoreError, viewModel.ModPage.AvailableVersionsLoadMoreMessage);
+        Assert.True(viewModel.ModPage.CanShowAvailableVersionsLoadMoreState);
+        Assert.Equal(
+            $"F:{Strings.Resources_ModVersionsLoadMoreError}",
+            FormatAvailableVersionListItemsWithFooter(viewModel.ModPage.AvailableVersionListItems).Last());
+    }
+
+    [Fact]
+    public async Task ModAvailableVersionsLoadMoreRebuildsExistingFiltersFromExpandedSource()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByOffset[0] = new ResourceProjectVersionsResult
+        {
+            HasMore = true,
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-1",
+                    Name = "Forge Build One",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "forge-one.jar",
+                    GameVersions = ["1.18.2"],
+                    Loaders = ["forge"]
+                },
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-2",
+                    Name = "Fabric Build",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "fabric.jar",
+                    GameVersions = ["1.18.2"],
+                    Loaders = ["fabric"]
+                }
+            ]
+        };
+        catalogService.VersionsResultsByOffset[10000] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-3",
+                    Name = "Forge Build Two",
+                    VersionNumber = "1.0.1",
+                    VersionType = "release",
+                    FileName = "forge-two.jar",
+                    GameVersions = ["1.18.2"],
+                    Loaders = ["forge"]
+                }
+            ]
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            Slug = "project",
+            Title = "Project"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 2);
+        viewModel.ModPage.SelectedAvailableLoaderFilterOption = viewModel.ModPage.AvailableLoaderFilterOptions.Single(option => option.Id == "forge");
+        viewModel.ModPage.AvailableVersionSearchQuery = "build";
+
+        await viewModel.ModPage.LoadMoreAvailableVersionsAsync();
+
+        Assert.Equal("forge", viewModel.ModPage.SelectedAvailableLoaderFilterOption?.Id);
+        Assert.Equal(
+            [
+                "H:1.18.2-forge",
+                "V:Forge Build One",
+                "V:Forge Build Two"
+            ],
+            FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+        Assert.Equal(2, viewModel.ModPage.VisibleAvailableVersionCount);
+    }
+
+    [Fact]
+    public async Task ModAvailableVersionsLoadMoreKeepsMismatchedItemsHiddenUntilFiltersChange()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByOffset[0] = new ResourceProjectVersionsResult
+        {
+            HasMore = true,
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-1",
+                    Name = "Forge Build",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "forge.jar",
+                    GameVersions = ["1.18.2"],
+                    Loaders = ["forge"]
+                }
+            ]
+        };
+        catalogService.VersionsResultsByOffset[10000] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-2",
+                    Name = "Fabric Build",
+                    VersionNumber = "1.0.1",
+                    VersionType = "release",
+                    FileName = "fabric.jar",
+                    GameVersions = ["1.18.2"],
+                    Loaders = ["fabric"]
+                }
+            ]
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            Slug = "project",
+            Title = "Project"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 1);
+        viewModel.ModPage.SelectedAvailableLoaderFilterOption = viewModel.ModPage.AvailableLoaderFilterOptions.Single(option => option.Id == "forge");
+        var visibleItemsBeforeLoadMore = FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems);
+
+        await viewModel.ModPage.LoadMoreAvailableVersionsAsync();
+
+        Assert.Equal(2, viewModel.ModPage.AvailableVersions.Count);
+        Assert.Equal(visibleItemsBeforeLoadMore, FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+        Assert.Equal(1, viewModel.ModPage.VisibleAvailableVersionCount);
+
+        viewModel.ModPage.SelectedAvailableLoaderFilterOption = viewModel.ModPage.AvailableLoaderFilterOptions.Single(option => option.Id == "fabric");
+
+        Assert.Equal(
+            [
+                "H:1.18.2-fabric",
+                "V:Fabric Build"
+            ],
+            FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+    }
+
+    [Fact]
+    public async Task ModAvailableVersionsLoadMoreAppendsExistingGroupWithoutDuplicateHeader()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByOffset[0] = new ResourceProjectVersionsResult
+        {
+            HasMore = true,
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-1",
+                    Name = "Forge 1.18.2 One",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "forge-1.18.2-one.jar",
+                    GameVersions = ["1.18.2"],
+                    Loaders = ["forge"]
+                },
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-2",
+                    Name = "Forge 1.18.1",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "forge-1.18.1.jar",
+                    GameVersions = ["1.18.1"],
+                    Loaders = ["forge"]
+                }
+            ]
+        };
+        catalogService.VersionsResultsByOffset[10000] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    VersionId = "version-3",
+                    Name = "Forge 1.18.2 Two",
+                    VersionNumber = "1.0.1",
+                    VersionType = "release",
+                    FileName = "forge-1.18.2-two.jar",
+                    GameVersions = ["1.18.2"],
+                    Loaders = ["forge"]
+                }
+            ]
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            Slug = "project",
+            Title = "Project"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.AvailableVersions.Count == 2);
+        var entranceAnimationToken = viewModel.ModPage.AvailableVersionListEntranceAnimationToken;
+
+        await viewModel.ModPage.LoadMoreAvailableVersionsAsync();
+
+        Assert.Equal(entranceAnimationToken, viewModel.ModPage.AvailableVersionListEntranceAnimationToken);
+        Assert.Equal(
+            [
+                "H:1.18.2-forge",
+                "V:Forge 1.18.2 One",
+                "V:Forge 1.18.2 Two",
+                "H:1.18.1-forge",
+                "V:Forge 1.18.1"
+            ],
+            FormatAvailableVersionListItems(viewModel.ModPage.AvailableVersionListItems));
+    }
+
+    [Fact]
     public async Task ModAvailableVersionSearchFiltersLoadedVersionList()
     {
         var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
@@ -1871,10 +2511,24 @@ public sealed class ResourcesPageViewModelTests
     private static IReadOnlyList<string> FormatAvailableVersionListItems(IEnumerable<object> items)
     {
         return items
+            .Where(item => item is not ResourcesListFooterStatusItem)
             .Select(item => item switch
             {
                 ResourcesModVersionListHeaderItem header => $"H:{header.Title}",
                 ResourcesModVersionItemViewModel version => $"V:{version.Title}",
+                _ => item.GetType().Name
+            })
+            .ToList();
+    }
+
+    private static IReadOnlyList<string> FormatAvailableVersionListItemsWithFooter(IEnumerable<object> items)
+    {
+        return items
+            .Select(item => item switch
+            {
+                ResourcesModVersionListHeaderItem header => $"H:{header.Title}",
+                ResourcesModVersionItemViewModel version => $"V:{version.Title}",
+                ResourcesListFooterStatusItem footer => $"F:{footer.Message}",
                 _ => item.GetType().Name
             })
             .ToList();
@@ -1900,7 +2554,17 @@ public sealed class ResourcesPageViewModelTests
 
         public ResourceProjectVersionsRequest? LastVersionsRequest { get; private set; }
 
+        public List<ResourceProjectVersionsRequest> VersionRequests { get; } = [];
+
         public ResourceProjectVersionsResult VersionsResult { get; init; } = new();
+
+        public Dictionary<int, ResourceProjectVersionsResult> VersionsResultsByOffset { get; } = [];
+
+        public Dictionary<string, ResourceProjectVersionsResult> VersionsResultsByRequestKey { get; } = [];
+
+        public Dictionary<string, TaskCompletionSource<ResourceProjectVersionsResult>> PendingVersionsResultsByRequestKey { get; } = [];
+
+        public HashSet<int> VersionOffsetsToThrow { get; } = [];
 
         public ResourceProjectVersion? LastInstalledVersion { get; private set; }
 
@@ -1940,7 +2604,33 @@ public sealed class ResourcesPageViewModelTests
             CancellationToken cancellationToken = default)
         {
             LastVersionsRequest = request;
+            VersionRequests.Add(request);
+            if (VersionOffsetsToThrow.Contains(request.Offset))
+                return Task.FromException<ResourceProjectVersionsResult>(new InvalidOperationException("versions failed"));
+
+            if (VersionsResultsByRequestKey.TryGetValue(CreateVersionsRequestKey(request), out var keyedResult))
+                return Task.FromResult(keyedResult);
+
+            if (PendingVersionsResultsByRequestKey.TryGetValue(CreateVersionsRequestKey(request), out var pendingResult))
+                return pendingResult.Task;
+
+            if (VersionsResultsByOffset.TryGetValue(request.Offset, out var result))
+                return Task.FromResult(result);
+
             return Task.FromResult(VersionsResult);
+        }
+
+        public static string CreateVersionsRequestKey(
+            string minecraftVersion,
+            LoaderKind loader,
+            int offset)
+        {
+            return $"{minecraftVersion}|{loader}|{offset}";
+        }
+
+        private static string CreateVersionsRequestKey(ResourceProjectVersionsRequest request)
+        {
+            return CreateVersionsRequestKey(request.MinecraftVersion, request.Loader, request.Offset);
         }
 
         public Task<string> InstallProjectVersionAsync(

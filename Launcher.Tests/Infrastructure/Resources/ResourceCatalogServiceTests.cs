@@ -210,7 +210,7 @@ public sealed class ResourceCatalogServiceTests
         var handler = new ResourceCatalogHandler(
             """{"hits":[]}""",
             """
-            {"data":[{"id":101,"displayName":"JourneyMap 1.0","fileName":"journeymap.jar","releaseType":1,"downloadCount":9,"fileDate":"2024-01-02T00:00:00Z","gameVersions":["1.18.2","Fabric"],"sortableGameVersions":[{"gameVersion":"1.18.2","modLoader":4}]}],"pagination":{"index":0,"pageSize":50,"resultCount":1,"totalCount":1}}
+            {"data":[{"id":101,"displayName":"JourneyMap 1.0","fileName":"journeymap.jar","releaseType":1,"downloadCount":9,"fileDate":"2024-01-02T00:00:00Z","gameVersions":["1.18.2","Fabric"],"sortableGameVersions":[{"gameVersion":"1.18.2","modLoader":4}]}],"pagination":{"index":0,"pageSize":10000,"resultCount":1,"totalCount":1}}
             """);
         var service = new ResourceCatalogService(
             new HttpClient(handler),
@@ -235,6 +235,35 @@ public sealed class ResourceCatalogServiceTests
         Assert.Contains("gameVersion=1.18.2", request.RequestUri.Query);
         Assert.Contains("modLoaderType=4", request.RequestUri.Query);
         Assert.Contains("pageSize=50", request.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task GetProjectVersionsQueriesCurseForgeWithOffsetAndMapsHasMore()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            """
+            {"data":[{"id":101,"displayName":"JourneyMap 1.0","fileName":"journeymap.jar","releaseType":1,"downloadCount":9,"fileDate":"2024-01-02T00:00:00Z","gameVersions":["1.18.2","Fabric"],"sortableGameVersions":[{"gameVersion":"1.18.2","modLoader":4}]}],"pagination":{"index":50,"pageSize":25,"resultCount":1,"totalCount":100}}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver("test-key"));
+
+        var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            IncludeAllVersions = true,
+            Offset = 50,
+            PageSize = 25
+        });
+
+        Assert.Single(result.Versions);
+        Assert.True(result.HasMore);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("api.curseforge.com", request.RequestUri!.Host);
+        Assert.Contains("index=50", request.RequestUri.Query);
+        Assert.Contains("pageSize=25", request.RequestUri.Query);
     }
 
     [Fact]
@@ -282,7 +311,7 @@ public sealed class ResourceCatalogServiceTests
             Source = ResourceProjectSource.CurseForge,
             ProjectId = "1234",
             IncludeAllVersions = true,
-            PageSize = 50
+            PageSize = 10000
         });
 
         Assert.Single(result.Versions);
@@ -291,7 +320,7 @@ public sealed class ResourceCatalogServiceTests
         Assert.Contains("/mods/1234/files", request.RequestUri.AbsolutePath);
         Assert.DoesNotContain("gameVersion=", request.RequestUri.Query);
         Assert.DoesNotContain("modLoaderType=", request.RequestUri.Query);
-        Assert.Contains("pageSize=50", request.RequestUri.Query);
+        Assert.Contains("pageSize=10000", request.RequestUri.Query);
     }
 
     [Fact]

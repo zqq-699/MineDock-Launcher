@@ -234,7 +234,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             };
         }
 
-        var pageSize = NormalizePageSize(request.PageSize);
+        var pageSize = NormalizeVersionPageSize(request.PageSize);
         var offset = NormalizeOffset(request.Offset);
         var query = new List<string>
         {
@@ -474,6 +474,11 @@ public sealed class ResourceCatalogService : IResourceCatalogService
     private static int NormalizePageSize(int pageSize)
     {
         return Math.Clamp(pageSize, 1, 50);
+    }
+
+    private static int NormalizeVersionPageSize(int pageSize)
+    {
+        return Math.Clamp(pageSize, 1, 10000);
     }
 
     private static bool HasMore(int? totalCount, int offset, int resultCount, int pageSize)

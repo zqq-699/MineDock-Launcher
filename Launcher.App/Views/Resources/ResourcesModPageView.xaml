@@ -69,6 +69,16 @@
                            Style="{StaticResource ResourcesModVersionsTitleTextStyle}" />
             </DataTemplate>
 
+            <DataTemplate DataType="{x:Type viewModels:ResourcesListFooterStatusItem}">
+                <TextBlock MinHeight="44"
+                           Margin="0,8,0,0"
+                           VerticalAlignment="Center"
+                           Text="{Binding Message}"
+                           Foreground="{DynamicResource Brush.B8FFFFFF}"
+                           FontSize="12"
+                           TextAlignment="Center" />
+            </DataTemplate>
+
             <DataTemplate DataType="{x:Type viewModels:ResourcesModVersionItemViewModel}">
                 <controls:ListPageItemButton Title="{Binding Title}"
                                              Subtitle="{Binding Subtitle}"
@@ -376,6 +386,7 @@
                                Text="{Binding DataContext.AvailableVersionsLoadErrorMessage, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                                Style="{StaticResource PageEmptyStateTextStyle}"
                                Visibility="{Binding DataContext.CanShowAvailableVersionsLoadErrorState, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+
                 </Grid>
             </Grid>
         </Grid>
