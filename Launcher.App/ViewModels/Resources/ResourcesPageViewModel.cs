@@ -24,7 +24,8 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
         IStatusService? statusService = null,
         IFilePickerService? filePickerService = null,
         IFloatingMessageService? floatingMessageService = null,
-        DownloadTasksPageViewModel? downloadTasksPage = null)
+        DownloadTasksPageViewModel? downloadTasksPage = null,
+        ILocalModpackImportService? localModpackImportService = null)
     {
         this.logger = logger;
 
@@ -85,7 +86,21 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             floatingMessageService,
             downloadTasksPage);
         WorldsPage.PropertyChanged += OnlineProjectPage_PropertyChanged;
-        ModpacksPage = new ResourcesModpacksPageViewModel(this);
+        ModpacksPage = new ResourcesModpacksPageViewModel(
+            this,
+            resourceCatalogService,
+            logger,
+            uiDispatcher,
+            gameVersionService,
+            gameInstanceService,
+            statusService,
+            filePickerService,
+            floatingMessageService,
+            downloadTasksPage,
+            localModpackImportService);
+        ModpacksPage.PropertyChanged += OnlineProjectPage_PropertyChanged;
+        ModpacksPage.ModpackImported += (_, instance) => ModpackImported?.Invoke(this, instance);
+        ModpacksPage.ModpackManualDownloadsRequested += (_, args) => ModpackManualDownloadsRequested?.Invoke(this, args);
 
         SelectSection(Sections[0], logSelection: false);
     }
@@ -101,6 +116,10 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
     public ResourcesWorldsPageViewModel WorldsPage { get; }
 
     public ResourcesModpacksPageViewModel ModpacksPage { get; }
+
+    public event EventHandler<GameInstance>? ModpackImported;
+
+    public event EventHandler<ResourcesModpackManualDownloadsRequestedEventArgs>? ModpackManualDownloadsRequested;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PageTitle))]
@@ -206,6 +225,8 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             ShaderPacksPage.ResetToProjectList();
         if (section.Id != "worlds")
             WorldsPage.ResetToProjectList();
+        if (section.Id != "modpacks")
+            ModpacksPage.ResetToProjectList();
 
         if (logSelection)
             logger?.LogInformation("Resources section selected. SectionId={SectionId}", section.Id);

@@ -277,6 +277,256 @@ public sealed class ResourcesPageViewModelTests
     }
 
     [Fact]
+    public async Task ModpackPageRefreshUsesModpackKindAndShowsLoaderFilters()
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult
+        {
+            Projects =
+            [
+                new ResourceProject
+                {
+                    Kind = ResourceProjectKind.Modpack,
+                    Source = ResourceProjectSource.Modrinth,
+                    ProjectId = "pack",
+                    Slug = "pack",
+                    Title = "Pack",
+                    Description = "A modpack",
+                    SupportedMinecraftVersions = ["1.20.1"],
+                    SupportedLoaders = ["fabric"],
+                    Downloads = 2000,
+                    ProjectUrl = "https://modrinth.com/modpack/pack"
+                }
+            ]
+        });
+        var viewModel = new ResourcesPageViewModel(service);
+        var modpacksSection = viewModel.Sections.Single(section => section.Id == "modpacks");
+
+        viewModel.SelectSectionCommand.Execute(modpacksSection);
+        viewModel.ModpacksPage.SelectedLoaderOption = viewModel.ModpacksPage.LoaderOptions.Single(option => option.Id == "fabric");
+        await viewModel.ModpacksPage.RefreshProjectsCommand.ExecuteAsync(null);
+
+        Assert.Same(viewModel.ModpacksPage, viewModel.CurrentSectionViewModel);
+        Assert.Same(viewModel.ModpacksPage, viewModel.CurrentOnlineProjectPage);
+        Assert.True(viewModel.IsModSearchVisible);
+        Assert.True(viewModel.ModpacksPage.ShowsLoaderFilters);
+        Assert.True(viewModel.ModpacksPage.ShowsSourceFilters);
+        Assert.Equal(
+            [
+                Strings.Resources_ModFilterAllSources,
+                Strings.Resources_ModSourceModrinth,
+                Strings.Resources_ModSourceCurseForge
+            ],
+            viewModel.ModpacksPage.SourceOptions.Select(option => option.Title));
+        Assert.Equal(Strings.Resources_ModpackProjectsLoading, viewModel.ModpacksPage.ProjectsLoadingMessage);
+        Assert.Equal(Strings.Resources_ModpackDetailsInfoSection, viewModel.ModpacksPage.DetailsInfoSectionText);
+        Assert.Equal("general/general_extention", viewModel.ModpacksPage.VisibleProjects[0].IconKey);
+        Assert.NotNull(service.LastRequest);
+        Assert.Equal(ResourceProjectKind.Modpack, service.LastRequest.Kind);
+        Assert.Equal(LoaderKind.Fabric, service.LastRequest.Loader);
+    }
+
+    [Fact]
+    public async Task ModpackTypeFilterAddsModpackCategoryToSearchRequest()
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var viewModel = new ResourcesPageViewModel(service);
+        viewModel.SelectSectionCommand.Execute(viewModel.Sections.Single(section => section.Id == "modpacks"));
+
+        viewModel.ModpacksPage.SelectedTypeOption = viewModel.ModpacksPage.TypeOptions.Single(option => option.Id == "quests");
+        await viewModel.ModpacksPage.RefreshProjectsCommand.ExecuteAsync(null);
+
+        Assert.NotNull(service.LastRequest);
+        Assert.Equal(ResourceProjectKind.Modpack, service.LastRequest.Kind);
+        Assert.Equal(ResourceProjectCategory.Quests, service.LastRequest.Category);
+    }
+
+    [Fact]
+    public async Task ModpackNewInstanceTargetDoesNotShowUnknownInstanceVersionDialog()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
+        {
+            VersionsResult = new ResourceProjectVersionsResult()
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.Modpack,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "pack",
+            Title = "Pack"
+        });
+
+        viewModel.ModpacksPage.SelectProjectCommand.Execute(project);
+        await TestAsync.WaitForAsync(() => viewModel.ModpacksPage.InstallTargets.Count == 2);
+        viewModel.ModpacksPage.SelectInstallTargetCommand.Execute(viewModel.ModpacksPage.InstallTargets.Single(item => item.IsNewInstanceInstall));
+        await TestAsync.WaitForAsync(() => !viewModel.ModpacksPage.IsLoadingAvailableVersions);
+
+        Assert.Equal(ResourcesModPageStep.ProjectVersions, viewModel.ModpacksPage.CurrentStep);
+        Assert.False(viewModel.ModpacksPage.IsUnknownInstanceVersionDialogOpen);
+        Assert.NotNull(catalogService.LastVersionsRequest);
+        Assert.True(catalogService.LastVersionsRequest.IncludeAllVersions);
+        Assert.Equal(ResourceProjectKind.Modpack, catalogService.LastVersionsRequest.Kind);
+        Assert.Equal(Strings.Resources_ModpackVersionsAllTitle, viewModel.ModpacksPage.AvailableVersionsTitle);
+    }
+
+    [Fact]
+    public async Task ModpackVersionSelectionImportsAsNewInstance()
+    {
+        var importedInstance = CreateInstance("Imported Pack", "1.20.1", LoaderKind.Fabric);
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var importService = new FakeLocalModpackImportService
+        {
+            ResultToReturn = ModpackImportResult.Success(importedInstance)
+        };
+        var statusService = new FakeStatusService();
+        var downloadTasksPage = new DownloadTasksPageViewModel();
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            statusService: statusService,
+            downloadTasksPage: downloadTasksPage,
+            localModpackImportService: importService);
+        GameInstance? importedEventInstance = null;
+        viewModel.ModpackImported += (_, instance) => importedEventInstance = instance;
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.Modpack,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "pack",
+            Title = "Pack"
+        });
+        var version = new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Modpack,
+            VersionId = "version-1",
+            Name = "Pack 1.0",
+            VersionNumber = "1.0.0",
+            FileName = "pack.mrpack",
+            PrimaryDownloadUrl = "https://example.test/pack.mrpack"
+        };
+
+        viewModel.ModpacksPage.SelectProjectCommand.Execute(project);
+        await TestAsync.WaitForAsync(() => viewModel.ModpacksPage.InstallTargets.Count == 2);
+        var target = viewModel.ModpacksPage.InstallTargets.Single(item => item.IsNewInstanceInstall);
+        viewModel.ModpacksPage.SelectInstallTargetCommand.Execute(target);
+        await viewModel.ModpacksPage.InstallAvailableVersionCommand.ExecuteAsync(new ResourcesModVersionItemViewModel(version, project));
+
+        Assert.Same(version, catalogService.LastDownloadedVersion);
+        Assert.NotNull(catalogService.LastDownloadDirectory);
+        Assert.Contains("launcher-modpack-install-", catalogService.LastDownloadDirectory);
+        Assert.Equal(1, importService.ImportCallCount);
+        Assert.Equal(Path.Combine(catalogService.LastDownloadDirectory!, "pack.mrpack"), importService.LastArchivePath);
+        Assert.False(Directory.Exists(catalogService.LastDownloadDirectory));
+        Assert.Same(importedInstance, importedEventInstance);
+        Assert.Null(catalogService.LastInstalledVersion);
+        var task = Assert.Single(downloadTasksPage.Tasks);
+        Assert.Equal(DownloadTaskState.Completed, task.State);
+        Assert.Equal(string.Format(Strings.Status_ModpackImportedFormat, importedInstance.Name), task.StatusMessage);
+        Assert.Contains(string.Format(Strings.Status_ModpackDownloadingFormat, "Pack 1.0"), statusService.Messages);
+        Assert.Contains(string.Format(Strings.Status_ModpackImportedFormat, importedInstance.Name), statusService.Messages);
+    }
+
+    [Fact]
+    public async Task ModpackVersionSelectionRequestsManualDownloadsDialogWhenImportIsPartial()
+    {
+        var importedInstance = CreateInstance("Partial Pack", "1.20.1", LoaderKind.Fabric);
+        var manualDownload = new ManualModpackDownload
+        {
+            FileName = "missing.jar",
+            DisplayName = "Missing Mod",
+            FailureSummary = "Need manual download"
+        };
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var importService = new FakeLocalModpackImportService
+        {
+            ResultToReturn = ModpackImportResult.PartialSuccess(importedInstance, [manualDownload])
+        };
+        var downloadTasksPage = new DownloadTasksPageViewModel();
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            downloadTasksPage: downloadTasksPage,
+            localModpackImportService: importService);
+        ResourcesModpackManualDownloadsRequestedEventArgs? request = null;
+        viewModel.ModpackManualDownloadsRequested += (_, args) => request = args;
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.Modpack,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "pack",
+            Title = "Pack"
+        });
+        var version = new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Modpack,
+            VersionId = "version-1",
+            Name = "Pack 1.0",
+            VersionNumber = "1.0.0",
+            FileName = "pack.mrpack",
+            PrimaryDownloadUrl = "https://example.test/pack.mrpack"
+        };
+
+        viewModel.ModpacksPage.SelectProjectCommand.Execute(project);
+        await TestAsync.WaitForAsync(() => viewModel.ModpacksPage.InstallTargets.Count == 2);
+        viewModel.ModpacksPage.SelectInstallTargetCommand.Execute(viewModel.ModpacksPage.InstallTargets.Single(item => item.IsNewInstanceInstall));
+        await viewModel.ModpacksPage.InstallAvailableVersionCommand.ExecuteAsync(new ResourcesModVersionItemViewModel(version, project));
+
+        Assert.NotNull(request);
+        Assert.Same(importedInstance, request.Instance);
+        Assert.Equal([manualDownload], request.ManualDownloads);
+        Assert.Equal(
+            string.Format(Strings.Status_ModpackImportedWithManualDownloadsFormat, importedInstance.Name),
+            Assert.Single(downloadTasksPage.Tasks).StatusMessage);
+    }
+
+    [Fact]
+    public async Task ModpackVersionSelectionReportsFriendlyImportFailure()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var importService = new FakeLocalModpackImportService
+        {
+            ResultToReturn = ModpackImportResult.Failure(ModpackImportFailureReason.InvalidManifest)
+        };
+        var statusService = new FakeStatusService();
+        var floatingMessageService = new FakeFloatingMessageService();
+        var downloadTasksPage = new DownloadTasksPageViewModel();
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            statusService: statusService,
+            floatingMessageService: floatingMessageService,
+            downloadTasksPage: downloadTasksPage,
+            localModpackImportService: importService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.Modpack,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "pack",
+            Title = "Pack"
+        });
+        var version = new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Modpack,
+            VersionId = "version-1",
+            Name = "Pack 1.0",
+            VersionNumber = "1.0.0",
+            FileName = "pack.mrpack",
+            PrimaryDownloadUrl = "https://example.test/pack.mrpack"
+        };
+
+        viewModel.ModpacksPage.SelectProjectCommand.Execute(project);
+        await TestAsync.WaitForAsync(() => viewModel.ModpacksPage.InstallTargets.Count == 2);
+        viewModel.ModpacksPage.SelectInstallTargetCommand.Execute(viewModel.ModpacksPage.InstallTargets.Single(item => item.IsNewInstanceInstall));
+        await viewModel.ModpacksPage.InstallAvailableVersionCommand.ExecuteAsync(new ResourcesModVersionItemViewModel(version, project));
+
+        Assert.Equal(1, importService.ImportCallCount);
+        Assert.Contains(Strings.Status_ModpackInvalidArchive, statusService.Messages);
+        Assert.Contains(Strings.Status_ModpackInvalidArchive, floatingMessageService.Messages);
+        var task = Assert.Single(downloadTasksPage.Tasks);
+        Assert.Equal(DownloadTaskState.Failed, task.State);
+        Assert.Equal(Strings.Status_ModpackInvalidArchive, task.StatusMessage);
+        Assert.NotNull(catalogService.LastDownloadDirectory);
+        Assert.False(Directory.Exists(catalogService.LastDownloadDirectory));
+    }
+
+    [Fact]
     public async Task ModTypeFilterKeepsCategoryWhenLoadingMore()
     {
         var service = new QueueResourceCatalogService(
@@ -2991,6 +3241,45 @@ public sealed class ResourcesPageViewModelTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult(InstallExists);
+        }
+    }
+
+    private sealed class FakeLocalModpackImportService : ILocalModpackImportService
+    {
+        public ModpackImportResult ResultToReturn { get; init; } =
+            ModpackImportResult.Failure(ModpackImportFailureReason.UnsupportedArchive);
+
+        public int ImportCallCount { get; private set; }
+
+        public string? LastArchivePath { get; private set; }
+
+        public CancellationToken LastImportCancellationToken { get; private set; }
+
+        public IProgress<LauncherProgress>? LastProgress { get; private set; }
+
+        public Task<ModpackRecognitionResult> RecognizeArchiveAsync(
+            string archivePath,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(ModpackRecognitionResult.Success());
+        }
+
+        public Task<ModpackImportResult> ImportFromArchiveAsync(
+            string archivePath,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken = default,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            ImportCallCount++;
+            LastArchivePath = archivePath;
+            LastProgress = progress;
+            LastImportCancellationToken = cancellationToken;
+            progress?.Report(new LauncherProgress(
+                ImportProgressStages.CopyingOverrides,
+                "importing",
+                50));
+            return Task.FromResult(ResultToReturn);
         }
     }
 

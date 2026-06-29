@@ -178,6 +178,39 @@
   <data name="Resources_WorldVersionsLoadMoreError" xml:space="preserve"><value>&#x52A0;&#x8F7D;&#x66F4;&#x591A;&#x4E16;&#x754C;&#x7248;&#x672C;&#x5931;&#x8D25;&#xFF0C;&#x8BF7;&#x7A0D;&#x540E;&#x91CD;&#x8BD5;&#x3002;</value></data>
   <data name="Resources_WorldVersionsAllTitle" xml:space="preserve"><value>&#x5168;&#x90E8;&#x7248;&#x672C;</value></data>
   <data name="Resources_WorldDownloadFileExistsMessageFormat" xml:space="preserve"><value>&#x4E0B;&#x8F7D;&#x4F4D;&#x7F6E;&#x5DF2;&#x5B58;&#x5728;&#x540C;&#x540D;&#x6587;&#x4EF6;&#xFF1A;{0}</value></data>
+  <data name="Resources_ModpackFilterAllLoaders" xml:space="preserve"><value>全部加载器</value></data>
+  <data name="Resources_ModpackFilterTypeAdventure" xml:space="preserve"><value>冒险</value></data>
+  <data name="Resources_ModpackFilterTypeTechnology" xml:space="preserve"><value>科技</value></data>
+  <data name="Resources_ModpackFilterTypeMagic" xml:space="preserve"><value>魔法</value></data>
+  <data name="Resources_ModpackFilterTypeOptimization" xml:space="preserve"><value>优化</value></data>
+  <data name="Resources_ModpackFilterTypeQuests" xml:space="preserve"><value>任务</value></data>
+  <data name="Resources_ModpackFilterTypeKitchenSink" xml:space="preserve"><value>综合</value></data>
+  <data name="Resources_ModpackFilterTypeLightweight" xml:space="preserve"><value>轻量</value></data>
+  <data name="Resources_ModpackFilterTypeMultiplayer" xml:space="preserve"><value>多人</value></data>
+  <data name="Resources_ModpackFilterTypeExploration" xml:space="preserve"><value>探索</value></data>
+  <data name="Resources_ModpackProjectsLoading" xml:space="preserve"><value>正在加载整合包...</value></data>
+  <data name="Resources_ModpackProjectsEmpty" xml:space="preserve"><value>没有找到匹配的整合包</value></data>
+  <data name="Resources_ModpackProjectsLoadError" xml:space="preserve"><value>加载整合包列表失败，请稍后重试。</value></data>
+  <data name="Resources_ModpackProjectsLoadingMore" xml:space="preserve"><value>正在加载更多整合包...</value></data>
+  <data name="Resources_ModpackProjectsNoMore" xml:space="preserve"><value>没有更多整合包</value></data>
+  <data name="Resources_ModpackProjectsLoadMoreError" xml:space="preserve"><value>加载更多整合包失败，请稍后重试。</value></data>
+  <data name="Resources_ModpackCurseForgeMissingApiKey" xml:space="preserve"><value>未配置 CurseForge API Key，当前仅显示 Modrinth 结果。</value></data>
+  <data name="Resources_ModpackDetailsInfoSection" xml:space="preserve"><value>整合包信息</value></data>
+  <data name="Resources_ModpackInstallTargetSection" xml:space="preserve"><value>选择安装方式</value></data>
+  <data name="Resources_ModpackInstallTargetNewInstance" xml:space="preserve"><value>安装为新游戏</value></data>
+  <data name="Resources_ModpackInstallTargetLocal" xml:space="preserve"><value>下载到本地</value></data>
+  <data name="Resources_ModpackInstallTargetsLoading" xml:space="preserve"><value>正在准备安装方式...</value></data>
+  <data name="Resources_ModpackInstallTargetsLoadError" xml:space="preserve"><value>安装方式加载失败</value></data>
+  <data name="Resources_ModpackVersionsLoading" xml:space="preserve"><value>正在加载可用整合包版本...</value></data>
+  <data name="Resources_ModpackVersionsEmpty" xml:space="preserve"><value>没有可用的整合包版本</value></data>
+  <data name="Resources_ModpackVersionsEmptyLocal" xml:space="preserve"><value>没有可下载的整合包版本</value></data>
+  <data name="Resources_ModpackVersionsFilterEmpty" xml:space="preserve"><value>没有找到匹配的整合包版本</value></data>
+  <data name="Resources_ModpackVersionsLoadError" xml:space="preserve"><value>整合包版本加载失败</value></data>
+  <data name="Resources_ModpackVersionsLoadingMore" xml:space="preserve"><value>正在加载更多整合包版本...</value></data>
+  <data name="Resources_ModpackVersionsNoMore" xml:space="preserve"><value>没有更多整合包版本</value></data>
+  <data name="Resources_ModpackVersionsLoadMoreError" xml:space="preserve"><value>加载更多整合包版本失败，请稍后重试。</value></data>
+  <data name="Resources_ModpackVersionsAllTitle" xml:space="preserve"><value>全部版本</value></data>
+  <data name="Resources_ModpackDownloadFileExistsMessageFormat" xml:space="preserve"><value>下载位置已存在同名文件：{0}</value></data>
   <data name="Page_Settings" xml:space="preserve"><value>全局设置</value></data>
   <data name="Settings_SectionGeneral" xml:space="preserve"><value>通用</value></data>
   <data name="Settings_SectionLaunchMemory" xml:space="preserve"><value>启动与内存</value></data>
@@ -529,6 +562,10 @@
   <data name="Status_ModpackInstallingLoader" xml:space="preserve"><value>正在安装 Loader</value></data>
   <data name="Status_ModpackDownloadingFiles" xml:space="preserve"><value>正在下载整合包文件</value></data>
   <data name="Status_ModpackDownloadingFileFormat" xml:space="preserve"><value>正在下载 {0}</value></data>
+  <data name="Status_ModpackDownloading" xml:space="preserve"><value>正在下载整合包...</value></data>
+  <data name="Status_ModpackDownloadingFormat" xml:space="preserve"><value>正在下载 {0}</value></data>
+  <data name="Status_ModpackDownloadedFormat" xml:space="preserve"><value>{0} 已下载</value></data>
+  <data name="Status_ModpackDownloadFailed" xml:space="preserve"><value>整合包下载失败</value></data>
   <data name="Status_ModpackCopyingOverrides" xml:space="preserve"><value>正在复制整合包覆盖文件</value></data>
   <data name="Status_ModpackCleaningUp" xml:space="preserve"><value>正在清理导入现场</value></data>
   <data name="Status_ModpackImportedFormat" xml:space="preserve"><value>{0} 已导入完成</value></data>
@@ -858,6 +895,7 @@
   <data name="FilePicker_ShaderPackArchiveTitle" xml:space="preserve"><value>选择光影包压缩包</value></data>
   <data name="FilePicker_ShaderPackDownloadDirectoryTitle" xml:space="preserve"><value>&#x9009;&#x62E9;&#x5149;&#x5F71;&#x5305;&#x4E0B;&#x8F7D;&#x76EE;&#x5F55;</value></data>
   <data name="FilePicker_WorldDownloadDirectoryTitle" xml:space="preserve"><value>&#x9009;&#x62E9;&#x4E16;&#x754C;&#x4E0B;&#x8F7D;&#x76EE;&#x5F55;</value></data>
+  <data name="FilePicker_ModpackDownloadDirectoryTitle" xml:space="preserve"><value>选择整合包下载目录</value></data>
   <data name="GameSettings_DropImportShaderPacksMessage" xml:space="preserve"><value>释放以导入光影包</value></data>
   <data name="GameSettings_DropShaderPackArchivesOnlyMessage" xml:space="preserve"><value>当前页面仅支持拖入光影包压缩包。</value></data>
   <data name="GameSettings_ShaderPackManagementActionsLabel" xml:space="preserve"><value>操作</value></data>

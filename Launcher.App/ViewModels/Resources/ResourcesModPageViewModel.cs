@@ -1,3 +1,4 @@
+using System.IO;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -25,6 +26,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private readonly IFilePickerService? filePickerService;
     private readonly IFloatingMessageService? floatingMessageService;
     private readonly DownloadTasksPageViewModel? downloadTasksPage;
+    private readonly ILocalModpackImportService? localModpackImportService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger? logger;
     private readonly ResourcesOnlineProjectPageOptions options;
@@ -51,7 +53,8 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         IStatusService? statusService = null,
         IFilePickerService? filePickerService = null,
         IFloatingMessageService? floatingMessageService = null,
-        DownloadTasksPageViewModel? downloadTasksPage = null)
+        DownloadTasksPageViewModel? downloadTasksPage = null,
+        ILocalModpackImportService? localModpackImportService = null)
         : this(
             parent,
             CreateModOptions(),
@@ -63,7 +66,8 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             statusService,
             filePickerService,
             floatingMessageService,
-            downloadTasksPage)
+            downloadTasksPage,
+            localModpackImportService)
     {
     }
 
@@ -78,7 +82,8 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         IStatusService? statusService = null,
         IFilePickerService? filePickerService = null,
         IFloatingMessageService? floatingMessageService = null,
-        DownloadTasksPageViewModel? downloadTasksPage = null)
+        DownloadTasksPageViewModel? downloadTasksPage = null,
+        ILocalModpackImportService? localModpackImportService = null)
         : base(parent, options.Title)
     {
         this.options = options;
@@ -89,6 +94,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         this.filePickerService = filePickerService;
         this.floatingMessageService = floatingMessageService;
         this.downloadTasksPage = downloadTasksPage;
+        this.localModpackImportService = localModpackImportService;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger;
 
@@ -106,6 +112,10 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         selectedAvailableVersionFilterOption = AvailableVersionFilterOptions[0];
         selectedAvailableLoaderFilterOption = AvailableLoaderFilterOptions[0];
     }
+
+    public event EventHandler<GameInstance>? ModpackImported;
+
+    public event EventHandler<ResourcesModpackManualDownloadsRequestedEventArgs>? ModpackManualDownloadsRequested;
 
     public ObservableCollection<ResourcesFilterOptionItem> VersionOptions { get; }
 
@@ -461,7 +471,14 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             IsUnknownInstanceVersionDialogOpen = true;
 
         _ = LoadAvailableVersionsAsync(target);
-        if (target.Instance is null)
+        if (target.IsNewInstanceInstall)
+        {
+            logger?.LogInformation(
+                "Resource modpack new instance install target selected. Kind={Kind}, ProjectId={ProjectId}",
+                options.Kind,
+                SelectedProject.Project.ProjectId);
+        }
+        else if (target.Instance is null)
         {
             logger?.LogInformation(
                 "Resource project local download target selected. Kind={Kind}, ProjectId={ProjectId}",
@@ -491,8 +508,11 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         try
         {
             IReadOnlyList<GameInstance> instances = [];
-            if (gameInstanceService is not null)
+            if (gameInstanceService is not null
+                && options.InstallTargetMode is ResourcesOnlineProjectInstallTargetMode.ExistingInstance)
+            {
                 instances = await gameInstanceService.GetInstancesAsync(cancellationToken).ConfigureAwait(false);
+            }
 
             if (cancellationToken.IsCancellationRequested)
                 return;
@@ -535,7 +555,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
                 return;
             }
 
-            if (!target.IsLocalDownload && instance is null)
+            if (!target.IsLocalDownload && !target.IsNewInstanceInstall && instance is null)
             {
                 uiDispatcher.Invoke(() => ApplyAvailableVersions([], options.VersionsLoadErrorText, hasMore: false, cancellationToken));
                 return;
@@ -709,6 +729,83 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
                     item.Version.VersionId,
                     targetDirectory);
                 return;
+            }
+
+            if (target.IsNewInstanceInstall)
+            {
+                if (localModpackImportService is null)
+                    throw new InvalidOperationException("The local modpack import service is unavailable.");
+
+                downloadTask = BeginModDownloadTask(item, target.Title);
+                floatingMessageService?.Show(options.DownloadingText);
+                ReportStatus(string.Format(options.DownloadingFormat, item.Title));
+
+                var tempDirectory = Path.Combine(Path.GetTempPath(), $"launcher-modpack-install-{Guid.NewGuid():N}");
+                Directory.CreateDirectory(tempDirectory);
+
+                try
+                {
+                    var archivePath = await resourceCatalogService.DownloadProjectVersionAsync(
+                            item.Version,
+                            tempDirectory,
+                            downloadTask?.CancellationToken ?? CancellationToken.None)
+                        .ConfigureAwait(false);
+                    if (CompleteCanceledModDownloadTask(downloadTask))
+                        return;
+
+                    var result = await localModpackImportService.ImportFromArchiveAsync(
+                            archivePath,
+                            CreateModpackImportProgressReporter(downloadTask),
+                            downloadTask?.CancellationToken ?? CancellationToken.None)
+                        .ConfigureAwait(false);
+                    if (CompleteCanceledModDownloadTask(downloadTask))
+                        return;
+
+                    if (result.IsSuccess && result.ImportedInstance is not null)
+                    {
+                        var importedMessage = result.HasManualDownloads
+                            ? string.Format(Strings.Status_ModpackImportedWithManualDownloadsFormat, result.ImportedInstance.Name)
+                            : string.Format(options.InstalledFormat, result.ImportedInstance.Name);
+                        CompleteModDownloadTask(downloadTask, importedMessage);
+                        ReportStatus(importedMessage);
+                        uiDispatcher.Invoke(() =>
+                        {
+                            ModpackImported?.Invoke(this, result.ImportedInstance);
+                            if (result.HasManualDownloads)
+                            {
+                                ModpackManualDownloadsRequested?.Invoke(
+                                    this,
+                                    new ResourcesModpackManualDownloadsRequestedEventArgs(
+                                        result.ImportedInstance,
+                                        result.ManualDownloads));
+                            }
+                        });
+                        logger?.LogInformation(
+                            "Resource modpack imported as new instance. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId} HasManualDownloads={HasManualDownloads}",
+                            options.Kind,
+                            SelectedProject?.Project.ProjectId,
+                            item.Version.VersionId,
+                            result.ImportedInstance.Id,
+                            result.HasManualDownloads);
+                        return;
+                    }
+
+                    var failureMessage = MapModpackImportFailureMessage(result.FailureReason);
+                    floatingMessageService?.Show(failureMessage);
+                    ReportStatus(failureMessage);
+                    FailModDownloadTask(downloadTask, failureMessage);
+                    logger?.LogWarning(
+                        "Resource modpack import failed. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId} FailureReason={FailureReason}",
+                        options.Kind,
+                        SelectedProject?.Project.ProjectId,
+                        item.Version.VersionId,
+                        result.FailureReason);
+                    return;
+                }
+                finally
+                {
+                    SafeDeleteDirectory(tempDirectory);
+                }
             }
 
             var instance = target.Instance;
@@ -1487,8 +1584,20 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         var targets = instances
             .Where(instance => instance.Loader is not LoaderKind.Vanilla)
             .Select(ResourcesModInstallTargetItemViewModel.FromInstance)
-            .Append(ResourcesModInstallTargetItemViewModel.CreateLocalDownload(options.InstallTargetLocalText))
             .ToList();
+        if (options.InstallTargetMode is ResourcesOnlineProjectInstallTargetMode.NewInstance)
+        {
+            targets =
+            [
+                ResourcesModInstallTargetItemViewModel.CreateNewInstanceInstall(
+                    options.InstallTargetNewInstanceText ?? options.InstallTargetSectionText),
+                ResourcesModInstallTargetItemViewModel.CreateLocalDownload(options.InstallTargetLocalText)
+            ];
+        }
+        else
+        {
+            targets.Add(ResourcesModInstallTargetItemViewModel.CreateLocalDownload(options.InstallTargetLocalText));
+        }
 
         for (var index = 0; index < targets.Count; index++)
             targets[index].SetVisiblePosition(index == 0, index == targets.Count - 1);
@@ -1747,6 +1856,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private static bool IsUnknownInstanceVersionTarget(ResourcesModInstallTargetItemViewModel? target)
     {
         return target?.IsLocalDownload is false
+            && !target.IsNewInstanceInstall
             && string.IsNullOrWhiteSpace(target.Instance?.MinecraftVersion);
     }
 
@@ -2444,6 +2554,48 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private bool CompleteCanceledModDownloadTask(DownloadTaskItem? task)
     {
         return task?.IsCancellationRequested == true;
+    }
+
+    private IProgress<LauncherProgress>? CreateModpackImportProgressReporter(DownloadTaskItem? task)
+    {
+        if (task is null)
+            return null;
+
+        return new Progress<LauncherProgress>(progress =>
+        {
+            task.Report(progress with { Message = LauncherProgressTextFormatter.Format(progress) });
+        });
+    }
+
+    private string MapModpackImportFailureMessage(ModpackImportFailureReason failureReason)
+    {
+        return failureReason switch
+        {
+            ModpackImportFailureReason.FileNotFound
+                or ModpackImportFailureReason.UnsupportedArchive
+                or ModpackImportFailureReason.InvalidManifest
+                => Strings.Status_ModpackInvalidArchive,
+            ModpackImportFailureReason.UnsupportedLoader
+                => Strings.Status_ModpackUnsupportedLoader,
+            ModpackImportFailureReason.MissingCurseForgeApiKey
+                => Strings.Status_ModpackMissingCurseForgeApiKey,
+            ModpackImportFailureReason.HashMismatch
+                => Strings.Status_ModpackHashMismatch,
+            _ => options.InstallFailedText
+        };
+    }
+
+    private void SafeDeleteDirectory(string directory)
+    {
+        try
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            logger?.LogWarning(exception, "Failed to delete temporary resource modpack directory. Directory={Directory}", directory);
+        }
     }
 
     private void ReportStatus(string message)

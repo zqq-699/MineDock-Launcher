@@ -29,6 +29,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
     private const int MinecraftModsClassId = 6;
     private const int MinecraftResourcePacksClassId = 12;
     private const int MinecraftWorldsClassId = 17;
+    private const int MinecraftModpacksClassId = 4471;
     private const int MinecraftShaderPacksClassId = 6552;
     private const int CurseForgeSortByTotalDownloads = 6;
     private const int CurseForgeSortByFileDate = 1;
@@ -195,7 +196,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         if (minecraftVersions.Count > 0)
             facets.Add(minecraftVersions.Select(version => $"versions:{version}").ToList());
 
-        if (request.Kind is ResourceProjectKind.Mod && request.Loader is not LoaderKind.Vanilla)
+        if (HasLoaderFacet(request.Kind) && request.Loader is not LoaderKind.Vanilla)
             facets.Add(new List<string> { $"categories:{request.Loader.ToString().ToLowerInvariant()}" });
 
         if (request.Category is { } category)
@@ -215,7 +216,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             IconUrl = hit.IconUrl,
             Downloads = hit.Downloads,
             SupportedMinecraftVersions = NormalizeDistinct(hit.Versions),
-            SupportedLoaders = request.Kind is ResourceProjectKind.Mod
+            SupportedLoaders = HasLoaderFacet(request.Kind)
                 ? NormalizeDistinct(hit.Categories.Where(KnownModrinthLoaders.Contains))
                 : [],
             ProjectUrl = string.IsNullOrWhiteSpace(hit.Slug)
@@ -246,7 +247,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             {
                 $"game_versions={Uri.EscapeDataString(JsonSerializer.Serialize(new[] { request.MinecraftVersion }))}"
             };
-            if (request.Kind is ResourceProjectKind.Mod)
+            if (HasLoaderFacet(request.Kind))
             {
                 var loader = request.Loader.ToString().ToLowerInvariant();
                 query.Insert(0, $"loaders={Uri.EscapeDataString(JsonSerializer.Serialize(new[] { loader }))}");
@@ -314,7 +315,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         };
         if (!request.IncludeAllVersions)
             query.Insert(0, $"gameVersion={Uri.EscapeDataString(request.MinecraftVersion)}");
-        if (request.Kind is ResourceProjectKind.Mod
+        if (HasLoaderFacet(request.Kind)
             && !request.IncludeAllVersions
             && TryMapCurseForgeLoader(request.Loader, out var loaderType))
         {
@@ -345,7 +346,9 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         return new ResourceProjectVersionsResult
         {
             Versions = files
-                .Where(file => file.Id > 0 && !string.IsNullOrWhiteSpace(file.FileName))
+                .Where(file => file.Id > 0
+                    && (!string.IsNullOrWhiteSpace(file.FileName)
+                        || !string.IsNullOrWhiteSpace(file.DownloadUrl)))
                 .Select(file => new ResourceProjectVersion
                 {
                     VersionId = file.Id.ToString(),
@@ -361,7 +364,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
                     Downloads = file.DownloadCount,
                     PublishedAt = file.FileDate,
                     GameVersions = NormalizeDistinct(file.GameVersions),
-                    Loaders = request.Kind is ResourceProjectKind.Mod
+                    Loaders = HasLoaderFacet(request.Kind)
                         ? NormalizeDistinct(file.SortableGameVersions
                             .Select(version => TryMapCurseForgeLoader(version.ModLoader))
                             .Where(loader => !string.IsNullOrWhiteSpace(loader))!)
@@ -497,7 +500,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             query.Add($"searchFilter={Uri.EscapeDataString(request.Query)}");
         if (!string.IsNullOrWhiteSpace(minecraftVersion))
             query.Add($"gameVersion={Uri.EscapeDataString(minecraftVersion)}");
-        if (request.Kind is ResourceProjectKind.Mod && TryMapCurseForgeLoader(request.Loader, out var loaderType))
+        if (HasLoaderFacet(request.Kind) && TryMapCurseForgeLoader(request.Loader, out var loaderType))
             query.Add($"modLoaderType={(int)loaderType}");
         if (categoryId.HasValue)
             query.Add($"categoryId={categoryId.Value}");
@@ -530,7 +533,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             IconUrl = mod.Logo?.ThumbnailUrl ?? mod.Logo?.Url,
             Downloads = mod.DownloadCount,
             SupportedMinecraftVersions = ResolveCurseForgeMinecraftVersions(mod),
-            SupportedLoaders = request.Kind is ResourceProjectKind.Mod ? ResolveCurseForgeLoaders(mod) : [],
+            SupportedLoaders = HasLoaderFacet(request.Kind) ? ResolveCurseForgeLoaders(mod) : [],
             ProjectUrl = mod.Links?.WebsiteUrl ?? (string.IsNullOrWhiteSpace(mod.Slug)
                 ? string.Empty
                 : $"https://www.curseforge.com/minecraft/{MapCurseForgeWebsitePath(request.Kind)}/{mod.Slug}")
@@ -685,6 +688,11 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             ResourceProjectCategory.Parkour => ["parkour"],
             ResourceProjectCategory.Puzzle => ["puzzle", "puzzles"],
             ResourceProjectCategory.Survival => ["survival"],
+            ResourceProjectCategory.Quests => ["quests", "questing", "quest"],
+            ResourceProjectCategory.KitchenSink => ["kitchen sink", "kitchen-sink", "kitchensink"],
+            ResourceProjectCategory.Lightweight => ["lightweight", "small", "light"],
+            ResourceProjectCategory.Multiplayer => ["multiplayer", "server", "servers"],
+            ResourceProjectCategory.Exploration => ["exploration", "explore"],
             _ => []
         };
     }
@@ -718,6 +726,11 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             ResourceProjectCategory.Parkour => "parkour",
             ResourceProjectCategory.Puzzle => "puzzle",
             ResourceProjectCategory.Survival => "survival",
+            ResourceProjectCategory.Quests => "quests",
+            ResourceProjectCategory.KitchenSink => "kitchen-sink",
+            ResourceProjectCategory.Lightweight => "lightweight",
+            ResourceProjectCategory.Multiplayer => "multiplayer",
+            ResourceProjectCategory.Exploration => "exploration",
             _ => string.Empty
         };
     }
@@ -729,6 +742,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             ResourceProjectKind.ResourcePack => "resourcepack",
             ResourceProjectKind.ShaderPack => "shader",
             ResourceProjectKind.World => "world",
+            ResourceProjectKind.Modpack => "modpack",
             _ => "mod"
         };
     }
@@ -740,6 +754,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             ResourceProjectKind.ResourcePack => MinecraftResourcePacksClassId,
             ResourceProjectKind.ShaderPack => MinecraftShaderPacksClassId,
             ResourceProjectKind.World => MinecraftWorldsClassId,
+            ResourceProjectKind.Modpack => MinecraftModpacksClassId,
             _ => MinecraftModsClassId
         };
     }
@@ -751,8 +766,14 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             ResourceProjectKind.ResourcePack => "texture-packs",
             ResourceProjectKind.ShaderPack => "shaders",
             ResourceProjectKind.World => "worlds",
+            ResourceProjectKind.Modpack => "modpacks",
             _ => "mc-mods"
         };
+    }
+
+    private static bool HasLoaderFacet(ResourceProjectKind kind)
+    {
+        return kind is ResourceProjectKind.Mod or ResourceProjectKind.Modpack;
     }
 
     private static string CreateProjectKey(ResourceProject project)
@@ -898,6 +919,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
     {
         return kind switch
         {
+            ResourceProjectKind.Modpack => ".mrpack",
             ResourceProjectKind.ResourcePack or ResourceProjectKind.ShaderPack or ResourceProjectKind.World => ".zip",
             _ => ".jar"
         };
@@ -970,6 +992,9 @@ public sealed class ResourceCatalogService : IResourceCatalogService
 
     private static IReadOnlyList<string> CreateCurseForgeFallbackUrls(long fileId, string fileName, string? primaryUrl)
     {
+        if (string.IsNullOrWhiteSpace(fileName))
+            return [];
+
         var urls = new List<string>();
         AddDistinctUrl(urls, BuildCurseForgeCdnUrl("edge.forgecdn.net", fileId, fileName), primaryUrl);
         AddDistinctUrl(urls, BuildCurseForgeCdnUrl("mediafilez.forgecdn.net", fileId, fileName), primaryUrl);

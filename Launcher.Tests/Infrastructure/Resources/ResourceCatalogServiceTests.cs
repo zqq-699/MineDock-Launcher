@@ -295,6 +295,167 @@ public sealed class ResourceCatalogServiceTests
     }
 
     [Fact]
+    public async Task SearchModpacksAddsModrinthModpackFacet()
+    {
+        var handler = new ResourceCatalogHandler(
+            """
+            {"hits":[{"project_id":"p1","slug":"pack","title":"Pack","description":"A pack","icon_url":null,"downloads":42,"versions":["1.20.1"],"categories":["fabric","quests"]}],"total_hits":1}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+
+        var result = await service.SearchProjectsAsync(new ResourceCatalogSearchRequest
+        {
+            Kind = ResourceProjectKind.Modpack,
+            Source = ResourceProjectSource.Modrinth,
+            Loader = LoaderKind.Fabric,
+            Category = ResourceProjectCategory.Quests
+        });
+
+        var project = Assert.Single(result.Projects);
+        Assert.Equal(ResourceProjectKind.Modpack, project.Kind);
+        Assert.Equal(["fabric"], project.SupportedLoaders);
+        Assert.Equal("https://modrinth.com/modpack/pack", project.ProjectUrl);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("api.modrinth.com", request.RequestUri!.Host);
+        Assert.Contains("project_type%3Amodpack", request.RequestUri.Query);
+        Assert.Contains("categories%3Afabric", request.RequestUri.Query);
+        Assert.Contains("categories%3Aquests", request.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task SearchModpacksUsesCurseForgeModpackClassIdAndWebsitePath()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            """
+            {"data":[{"id":9,"name":"Pack","slug":"pack","summary":"A pack","downloadCount":120,"links":null,"logo":null,"latestFilesIndexes":[{"gameVersion":"1.20.1","modLoader":4}],"gameVersionLatestFiles":[]}],"pagination":{"index":0,"pageSize":20,"resultCount":1,"totalCount":1}}
+            """,
+            curseForgeCategoriesResponse:
+            """
+            {"data":[{"id":4472,"name":"Quests","slug":"quests"}]}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver("test-key"));
+
+        var result = await service.SearchProjectsAsync(new ResourceCatalogSearchRequest
+        {
+            Kind = ResourceProjectKind.Modpack,
+            Source = ResourceProjectSource.CurseForge,
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Fabric,
+            Category = ResourceProjectCategory.Quests
+        });
+
+        var project = Assert.Single(result.Projects);
+        Assert.Equal(ResourceProjectKind.Modpack, project.Kind);
+        Assert.Equal(["fabric"], project.SupportedLoaders);
+        Assert.Equal("https://www.curseforge.com/minecraft/modpacks/pack", project.ProjectUrl);
+        Assert.Equal(2, handler.Requests.Count);
+
+        var categoriesRequest = handler.Requests[0];
+        Assert.Contains("/categories", categoriesRequest.RequestUri!.AbsolutePath);
+        Assert.Contains("classId=4471", categoriesRequest.RequestUri.Query);
+
+        var searchRequest = handler.Requests[1];
+        Assert.Contains("classId=4471", searchRequest.RequestUri!.Query);
+        Assert.Contains("categoryId=4472", searchRequest.RequestUri.Query);
+        Assert.Contains("modLoaderType=4", searchRequest.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task GetModpackVersionsQueriesModrinthWithMinecraftVersionAndLoader()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            modrinthVersionResponse:
+            """
+            [{"id":"v1","name":"Pack 1.0","version_number":"1.0.0","version_type":"release","date_published":"2024-01-02T00:00:00Z","downloads":15,"game_versions":["1.20.1"],"loaders":["fabric"],"files":[{"filename":"pack.mrpack","url":"https://downloads.example.test/pack.mrpack","primary":true}]}]
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+
+        var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
+        {
+            Kind = ResourceProjectKind.Modpack,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "pack",
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Fabric
+        });
+
+        var version = Assert.Single(result.Versions);
+        Assert.Equal(ResourceProjectKind.Modpack, version.Kind);
+        Assert.Equal("pack.mrpack", version.FileName);
+        Assert.Equal(["fabric"], version.Loaders);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("api.modrinth.com", request.RequestUri!.Host);
+        Assert.Contains("game_versions=", request.RequestUri.Query);
+        Assert.Contains("loaders=", request.RequestUri.Query);
+        Assert.Contains("fabric", Uri.UnescapeDataString(request.RequestUri.Query));
+    }
+
+    [Fact]
+    public async Task GetModpackVersionsQueriesCurseForgeWithMinecraftVersionAndLoader()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            """
+            {"data":[{"id":101,"displayName":"Pack 1.0","fileName":"pack.zip","releaseType":1,"downloadCount":9,"fileDate":"2024-01-02T00:00:00Z","gameVersions":["1.20.1","Fabric"],"sortableGameVersions":[{"gameVersion":"1.20.1","modLoader":4}]}],"pagination":{"index":0,"pageSize":10000,"resultCount":1,"totalCount":1}}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver("test-key"));
+
+        var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
+        {
+            Kind = ResourceProjectKind.Modpack,
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Fabric,
+            PageSize = 50
+        });
+
+        var version = Assert.Single(result.Versions);
+        Assert.Equal(ResourceProjectKind.Modpack, version.Kind);
+        Assert.Equal(["fabric"], version.Loaders);
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal("api.curseforge.com", request.RequestUri!.Host);
+        Assert.Contains("/mods/1234/files", request.RequestUri.AbsolutePath);
+        Assert.Contains("gameVersion=1.20.1", request.RequestUri.Query);
+        Assert.Contains("modLoaderType=4", request.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task GetModpackVersionsKeepsCurseForgeFileWhenNameMissingAndDownloadUrlExists()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            """
+            {"data":[{"id":101,"displayName":"Pack 1.0","fileName":"","downloadUrl":"https://downloads.example.test/modpack","releaseType":1,"downloadCount":9,"fileDate":"2024-01-02T00:00:00Z","gameVersions":["1.20.1"],"sortableGameVersions":[{"gameVersion":"1.20.1","modLoader":4}]}],"pagination":{"index":0,"pageSize":10000,"resultCount":1,"totalCount":1}}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver("test-key"));
+
+        var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
+        {
+            Kind = ResourceProjectKind.Modpack,
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            IncludeAllVersions = true
+        });
+
+        var version = Assert.Single(result.Versions);
+        Assert.Equal(string.Empty, version.FileName);
+        Assert.Equal("https://downloads.example.test/modpack", version.PrimaryDownloadUrl);
+    }
+
+    [Fact]
     public async Task SearchModsAddsCurseForgeCategoryIdWhenTypeFilterIsSelected()
     {
         var handler = new ResourceCatalogHandler(
@@ -792,6 +953,41 @@ public sealed class ResourceCatalogServiceTests
             Assert.Equal(Path.Combine(targetDirectory, "version-1.zip"), downloadedPath);
             Assert.True(File.Exists(downloadedPath));
             Assert.Equal("zip-content", await File.ReadAllTextAsync(downloadedPath));
+        }
+        finally
+        {
+            if (Directory.Exists(targetDirectory))
+                Directory.Delete(targetDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadProjectVersionUsesMrpackDefaultForModpackWhenFileNameMissing()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            downloadResponses: new Dictionary<string, string>
+            {
+                ["https://downloads.example.test/modpack"] = "pack-content"
+            });
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+        var targetDirectory = Path.Combine(Path.GetTempPath(), $"launcher-modpack-download-{Guid.NewGuid():N}");
+        try
+        {
+            var downloadedPath = await service.DownloadProjectVersionAsync(
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Modpack,
+                    VersionId = "version-1",
+                    PrimaryDownloadUrl = "https://downloads.example.test/modpack"
+                },
+                targetDirectory);
+
+            Assert.Equal(Path.Combine(targetDirectory, "version-1.mrpack"), downloadedPath);
+            Assert.True(File.Exists(downloadedPath));
+            Assert.Equal("pack-content", await File.ReadAllTextAsync(downloadedPath));
         }
         finally
         {

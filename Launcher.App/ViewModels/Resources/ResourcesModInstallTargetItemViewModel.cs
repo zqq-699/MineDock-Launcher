@@ -13,7 +13,8 @@ public sealed class ResourcesModInstallTargetItemViewModel
         string subtitle,
         string? iconSource,
         string? iconKey,
-        bool isLocalDownload)
+        bool isLocalDownload,
+        bool isNewInstanceInstall)
     {
         Instance = instance;
         Title = title;
@@ -21,6 +22,7 @@ public sealed class ResourcesModInstallTargetItemViewModel
         IconSource = iconSource;
         IconKey = iconKey;
         IsLocalDownload = isLocalDownload;
+        IsNewInstanceInstall = isNewInstanceInstall;
     }
 
     public GameInstance? Instance { get; }
@@ -34,6 +36,8 @@ public sealed class ResourcesModInstallTargetItemViewModel
     public string? IconKey { get; }
 
     public bool IsLocalDownload { get; }
+
+    public bool IsNewInstanceInstall { get; }
 
     public bool IsFirstVisible { get; private set; }
 
@@ -55,7 +59,21 @@ public sealed class ResourcesModInstallTargetItemViewModel
             GameInstanceDisplayFormatter.GetSubtitle(instance),
             MinecraftVersionIconResolver.Resolve(instance, instance.VersionType, instance.MinecraftVersion),
             iconKey: null,
-            isLocalDownload: false);
+            isLocalDownload: false,
+            isNewInstanceInstall: false);
+    }
+
+    public static ResourcesModInstallTargetItemViewModel CreateNewInstanceInstall(
+        string title)
+    {
+        return new ResourcesModInstallTargetItemViewModel(
+            instance: null,
+            title,
+            subtitle: string.Empty,
+            iconSource: null,
+            iconKey: "general/general_extention",
+            isLocalDownload: false,
+            isNewInstanceInstall: true);
     }
 
     public static ResourcesModInstallTargetItemViewModel CreateLocalDownload(
@@ -67,6 +85,7 @@ public sealed class ResourcesModInstallTargetItemViewModel
             subtitle: string.Empty,
             iconSource: null,
             iconKey: "main_menu_instance_download",
-            isLocalDownload: true);
+            isLocalDownload: true,
+            isNewInstanceInstall: false);
     }
 }

@@ -26,5 +26,10 @@ public enum ResourceProjectCategory
     GameMap,
     Parkour,
     Puzzle,
-    Survival
+    Survival,
+    Quests,
+    KitchenSink,
+    Lightweight,
+    Multiplayer,
+    Exploration
 }

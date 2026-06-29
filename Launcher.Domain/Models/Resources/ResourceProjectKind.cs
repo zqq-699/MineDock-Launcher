@@ -5,5 +5,6 @@ public enum ResourceProjectKind
     Mod,
     ResourcePack,
     ShaderPack,
-    World
+    World,
+    Modpack
 }

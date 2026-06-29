@@ -101,6 +101,8 @@ public sealed partial class MainViewModel : ObservableObject
         statusService.MessageReported += message => StatusMessage = message;
         floatingMessageService.MessageRequested += ShowFloatingMessage;
         DownloadPage.InstanceInstalled += DownloadPage_InstanceInstalled;
+        ResourcesPage.ModpackImported += DownloadPage_InstanceInstalled;
+        ResourcesPage.ModpackManualDownloadsRequested += ResourcesPage_ModpackManualDownloadsRequested;
         AccountPage.PropertyChanged += AccountPage_PropertyChanged;
         GameManagement.PropertyChanged += GameManagement_PropertyChanged;
         GameSettingsPage.LaunchInstanceRequested += GameSettingsPage_LaunchInstanceRequested;
@@ -358,6 +360,13 @@ public sealed partial class MainViewModel : ObservableObject
         GameSettingsPage.AddOrUpdateInstance(instance);
         HomePage.SetLaunchInstances(GameManagement.Instances);
         HomePage.SetSelectedInstance(instance);
+    }
+
+    private void ResourcesPage_ModpackManualDownloadsRequested(
+        object? sender,
+        ResourcesModpackManualDownloadsRequestedEventArgs args)
+    {
+        DownloadPage.ModpackManualDownloadsDialog.Show(args.Instance, args.ManualDownloads);
     }
 
     private void UpdateSecondaryItems()

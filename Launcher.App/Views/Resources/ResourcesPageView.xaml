@@ -64,7 +64,7 @@
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type resources:ResourcesModpacksPageViewModel}">
-            <views:ResourcesModpacksPageView />
+            <views:ResourcesModPageView />
         </DataTemplate>
     </UserControl.Resources>
 
