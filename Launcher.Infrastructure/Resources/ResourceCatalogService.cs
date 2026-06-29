@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.CurseForge;
+using Launcher.Infrastructure.FileSystem;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -27,12 +28,14 @@ public sealed class ResourceCatalogService : IResourceCatalogService
     private const int MinecraftGameId = 432;
     private const int MinecraftModsClassId = 6;
     private const int MinecraftResourcePacksClassId = 12;
+    private const int MinecraftWorldsClassId = 17;
     private const int MinecraftShaderPacksClassId = 6552;
     private const int CurseForgeSortByTotalDownloads = 6;
     private const int CurseForgeSortByFileDate = 1;
 
     private readonly HttpClient httpClient;
     private readonly ICurseForgeApiKeyResolver curseForgeApiKeyResolver;
+    private readonly ILocalSaveService localSaveService;
     private readonly ILogger<ResourceCatalogService> logger;
     private readonly object curseForgeCategoriesGate = new();
     private readonly Dictionary<ResourceProjectKind, Task<IReadOnlyList<CurseForgeCategory>>> curseForgeCategoriesTasks = [];
@@ -42,12 +45,16 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         LauncherPathProvider? pathProvider = null,
         ISettingsService? settingsService = null,
         ILogger<ResourceCatalogService>? logger = null,
-        ICurseForgeApiKeyResolver? curseForgeApiKeyResolver = null)
+        ICurseForgeApiKeyResolver? curseForgeApiKeyResolver = null,
+        ILocalSaveService? localSaveService = null)
     {
+        var resolvedPathProvider = pathProvider ?? new LauncherPathProvider();
         this.httpClient = httpClient ?? new HttpClient();
         this.logger = logger ?? NullLogger<ResourceCatalogService>.Instance;
         this.curseForgeApiKeyResolver = curseForgeApiKeyResolver
-            ?? new CurseForgeApiKeyResolver(pathProvider ?? new LauncherPathProvider(), settingsService);
+            ?? new CurseForgeApiKeyResolver(resolvedPathProvider, settingsService);
+        this.localSaveService = localSaveService
+            ?? new LocalSaveService(resolvedPathProvider);
 
         if (!this.httpClient.DefaultRequestHeaders.UserAgent.Any())
             this.httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Launcher/0.1 (offline-wpf-launcher)");
@@ -100,7 +107,15 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         var curseForgeUnavailable = false;
         var curseForgeApiKeyMissing = false;
 
-        if (request.Source is null or ResourceProjectSource.Modrinth)
+        if (request.Kind is ResourceProjectKind.World
+            && request.Source is ResourceProjectSource.Modrinth)
+        {
+            logger.LogInformation("Skipping Modrinth resource search because worlds are only available through CurseForge.");
+            return new ResourceCatalogSearchResult();
+        }
+
+        if (request.Kind is not ResourceProjectKind.World
+            && request.Source is null or ResourceProjectSource.Modrinth)
         {
             var modrinthResult = await SearchModrinthProjectsAsync(request, cancellationToken).ConfigureAwait(false);
             projects.AddRange(modrinthResult.Projects);
@@ -365,6 +380,9 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         if (string.IsNullOrWhiteSpace(instance.InstanceDirectory))
             throw new InvalidOperationException("The target instance directory is empty.");
 
+        if (version.Kind is ResourceProjectKind.World)
+            return await InstallWorldProjectVersionAsync(version, instance, cancellationToken).ConfigureAwait(false);
+
         var installDirectory = ResolveInstallDirectory(instance, version.Kind);
         Directory.CreateDirectory(installDirectory);
         var target = await DownloadProjectVersionCoreAsync(version, installDirectory, cancellationToken).ConfigureAwait(false);
@@ -412,6 +430,9 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         GameInstance instance,
         CancellationToken cancellationToken = default)
     {
+        if (version.Kind is ResourceProjectKind.World)
+            return Task.FromResult(false);
+
         if (string.IsNullOrWhiteSpace(instance.InstanceDirectory))
             return Task.FromResult(false);
 
@@ -659,6 +680,11 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             ResourceProjectCategory.Cursed => ["cursed"],
             ResourceProjectCategory.Fantasy => ["fantasy"],
             ResourceProjectCategory.SemiRealistic => ["semi realistic", "semi-realistic", "semirealistic"],
+            ResourceProjectCategory.Creation => ["creation", "creations", "building", "buildings", "creative"],
+            ResourceProjectCategory.GameMap => ["game map", "game maps", "minigame", "mini game", "mini games"],
+            ResourceProjectCategory.Parkour => ["parkour"],
+            ResourceProjectCategory.Puzzle => ["puzzle", "puzzles"],
+            ResourceProjectCategory.Survival => ["survival"],
             _ => []
         };
     }
@@ -687,6 +713,11 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             ResourceProjectCategory.Cursed => "cursed",
             ResourceProjectCategory.Fantasy => "fantasy",
             ResourceProjectCategory.SemiRealistic => "semi-realistic",
+            ResourceProjectCategory.Creation => "creation",
+            ResourceProjectCategory.GameMap => "game-map",
+            ResourceProjectCategory.Parkour => "parkour",
+            ResourceProjectCategory.Puzzle => "puzzle",
+            ResourceProjectCategory.Survival => "survival",
             _ => string.Empty
         };
     }
@@ -697,6 +728,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         {
             ResourceProjectKind.ResourcePack => "resourcepack",
             ResourceProjectKind.ShaderPack => "shader",
+            ResourceProjectKind.World => "world",
             _ => "mod"
         };
     }
@@ -707,6 +739,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         {
             ResourceProjectKind.ResourcePack => MinecraftResourcePacksClassId,
             ResourceProjectKind.ShaderPack => MinecraftShaderPacksClassId,
+            ResourceProjectKind.World => MinecraftWorldsClassId,
             _ => MinecraftModsClassId
         };
     }
@@ -717,6 +750,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         {
             ResourceProjectKind.ResourcePack => "texture-packs",
             ResourceProjectKind.ShaderPack => "shaders",
+            ResourceProjectKind.World => "worlds",
             _ => "mc-mods"
         };
     }
@@ -864,7 +898,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
     {
         return kind switch
         {
-            ResourceProjectKind.ResourcePack or ResourceProjectKind.ShaderPack => ".zip",
+            ResourceProjectKind.ResourcePack or ResourceProjectKind.ShaderPack or ResourceProjectKind.World => ".zip",
             _ => ".jar"
         };
     }
@@ -875,10 +909,56 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         {
             ResourceProjectKind.ResourcePack => "resourcepacks",
             ResourceProjectKind.ShaderPack => "shaderpacks",
+            ResourceProjectKind.World => "saves",
             _ => "mods"
         };
 
         return Path.Combine(instance.InstanceDirectory, directoryName);
+    }
+
+    private async Task<string> InstallWorldProjectVersionAsync(
+        ResourceProjectVersion version,
+        GameInstance instance,
+        CancellationToken cancellationToken)
+    {
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"launcher-world-install-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDirectory);
+
+        try
+        {
+            var archivePath = await DownloadProjectVersionCoreAsync(version, tempDirectory, cancellationToken)
+                .ConfigureAwait(false);
+            var result = await localSaveService.ImportFromArchiveAsync(instance, archivePath, cancellationToken)
+                .ConfigureAwait(false);
+            if (!result.IsSuccess || result.ImportedSave is null)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to import world archive. FailureReason={result.FailureReason}");
+            }
+
+            logger.LogInformation(
+                "Resource world version installed. VersionId={VersionId} SaveDirectory={SaveDirectory}",
+                version.VersionId,
+                result.ImportedSave.FullPath);
+            return result.ImportedSave.FullPath;
+        }
+        finally
+        {
+            SafeDeleteDirectory(tempDirectory);
+        }
+    }
+
+    private void SafeDeleteDirectory(string directory)
+    {
+        try
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(exception, "Failed to delete temporary resource world directory. Directory={Directory}", directory);
+        }
     }
 
     private async Task DownloadFileAsync(string url, string target, CancellationToken cancellationToken)

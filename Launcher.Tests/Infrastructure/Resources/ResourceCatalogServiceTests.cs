@@ -1,4 +1,5 @@
 using System.Net;
+using System.IO.Compression;
 using Launcher.Infrastructure.CurseForge;
 using Launcher.Infrastructure.Resources;
 
@@ -229,6 +230,68 @@ public sealed class ResourceCatalogServiceTests
         Assert.Contains("classId=6552", searchRequest.RequestUri!.Query);
         Assert.Contains("categoryId=6553", searchRequest.RequestUri.Query);
         Assert.DoesNotContain("modLoaderType=", searchRequest.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task SearchWorldsUsesCurseForgeWorldClassIdWithoutLoader()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            """
+            {"data":[{"id":9,"name":"SkyBlock","slug":"skyblock","summary":"A world","downloadCount":120,"links":null,"logo":null,"latestFilesIndexes":[{"gameVersion":"1.20.1","modLoader":4}],"gameVersionLatestFiles":[]}],"pagination":{"index":0,"pageSize":20,"resultCount":1,"totalCount":1}}
+            """,
+            curseForgeCategoriesResponse:
+            """
+            {"data":[{"id":17,"name":"Parkour","slug":"parkour"}]}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver("test-key"));
+
+        var result = await service.SearchProjectsAsync(new ResourceCatalogSearchRequest
+        {
+            Kind = ResourceProjectKind.World,
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Fabric,
+            Source = ResourceProjectSource.CurseForge,
+            Category = ResourceProjectCategory.Parkour
+        });
+
+        var project = Assert.Single(result.Projects);
+        Assert.Equal(ResourceProjectKind.World, project.Kind);
+        Assert.Empty(project.SupportedLoaders);
+        Assert.Equal("https://www.curseforge.com/minecraft/worlds/skyblock", project.ProjectUrl);
+        Assert.Equal(2, handler.Requests.Count);
+
+        var categoriesRequest = handler.Requests[0];
+        Assert.Contains("/categories", categoriesRequest.RequestUri!.AbsolutePath);
+        Assert.Contains("classId=17", categoriesRequest.RequestUri.Query);
+
+        var searchRequest = handler.Requests[1];
+        Assert.Contains("classId=17", searchRequest.RequestUri!.Query);
+        Assert.Contains("categoryId=17", searchRequest.RequestUri.Query);
+        Assert.DoesNotContain("modLoaderType=", searchRequest.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task SearchWorldsWithModrinthSourceReturnsEmptyWithoutCallingModrinth()
+    {
+        var handler = new ResourceCatalogHandler(
+            """
+            {"hits":[{"project_id":"p1","slug":"not-a-world","title":"Not A World","description":"Data","icon_url":null,"downloads":42}]}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+
+        var result = await service.SearchProjectsAsync(new ResourceCatalogSearchRequest
+        {
+            Kind = ResourceProjectKind.World,
+            Source = ResourceProjectSource.Modrinth
+        });
+
+        Assert.Empty(result.Projects);
+        Assert.Empty(handler.Requests);
     }
 
     [Fact]
@@ -703,6 +766,41 @@ public sealed class ResourceCatalogServiceTests
     }
 
     [Fact]
+    public async Task DownloadProjectVersionUsesZipDefaultForWorldWhenFileNameMissing()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            downloadResponses: new Dictionary<string, string>
+            {
+                ["https://downloads.example.test/world"] = "zip-content"
+            });
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+        var targetDirectory = Path.Combine(Path.GetTempPath(), $"launcher-world-download-{Guid.NewGuid():N}");
+        try
+        {
+            var downloadedPath = await service.DownloadProjectVersionAsync(
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.World,
+                    VersionId = "version-1",
+                    PrimaryDownloadUrl = "https://downloads.example.test/world"
+                },
+                targetDirectory);
+
+            Assert.Equal(Path.Combine(targetDirectory, "version-1.zip"), downloadedPath);
+            Assert.True(File.Exists(downloadedPath));
+            Assert.Equal("zip-content", await File.ReadAllTextAsync(downloadedPath));
+        }
+        finally
+        {
+            if (Directory.Exists(targetDirectory))
+                Directory.Delete(targetDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task DownloadProjectVersionTriesFallbackUrlWhenPrimaryFails()
     {
         var handler = new ResourceCatalogHandler(
@@ -874,6 +972,100 @@ public sealed class ResourceCatalogServiceTests
         }
     }
 
+    [Fact]
+    public async Task ProjectVersionInstallExistsReturnsFalseForWorldWhenSameSaveExists()
+    {
+        var handler = new ResourceCatalogHandler("""{"hits":[]}""");
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+        var instanceDirectory = Path.Combine(Path.GetTempPath(), $"launcher-world-install-exists-{Guid.NewGuid():N}");
+        try
+        {
+            var savesDirectory = Path.Combine(instanceDirectory, "saves", "World");
+            Directory.CreateDirectory(savesDirectory);
+            await File.WriteAllTextAsync(Path.Combine(savesDirectory, "level.dat"), "existing");
+
+            var exists = await service.ProjectVersionInstallExistsAsync(
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.World,
+                    VersionId = "version-1",
+                    FileName = "World.zip"
+                },
+                new GameInstance
+                {
+                    Id = "instance",
+                    InstanceDirectory = instanceDirectory
+                });
+
+            Assert.False(exists);
+        }
+        finally
+        {
+            if (Directory.Exists(instanceDirectory))
+                Directory.Delete(instanceDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InstallProjectVersionImportsWorldArchiveToInstanceSavesDirectory()
+    {
+        var archiveBytes = CreateWorldArchiveBytes("SkyBlock");
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            binaryDownloadResponses: new Dictionary<string, byte[]>
+            {
+                ["https://downloads.example.test/world.zip"] = archiveBytes
+            });
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+        var instanceDirectory = Path.Combine(Path.GetTempPath(), $"launcher-world-install-{Guid.NewGuid():N}");
+        try
+        {
+            var installedPath = await service.InstallProjectVersionAsync(
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.World,
+                    VersionId = "version-1",
+                    FileName = "world.zip",
+                    PrimaryDownloadUrl = "https://downloads.example.test/world.zip"
+                },
+                new GameInstance
+                {
+                    Id = "instance",
+                    InstanceDirectory = instanceDirectory
+                });
+
+            Assert.Equal(Path.Combine(instanceDirectory, "saves", "SkyBlock"), installedPath);
+            Assert.True(File.Exists(Path.Combine(installedPath, "level.dat")));
+            Assert.True(File.Exists(Path.Combine(installedPath, "region", "r.0.0.mca")));
+        }
+        finally
+        {
+            if (Directory.Exists(instanceDirectory))
+                Directory.Delete(instanceDirectory, recursive: true);
+        }
+    }
+
+    private static byte[] CreateWorldArchiveBytes(string rootDirectoryName)
+    {
+        using var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var levelEntry = archive.CreateEntry($"{rootDirectoryName}/level.dat");
+            using (var writer = new StreamWriter(levelEntry.Open()))
+                writer.Write("level");
+
+            var regionEntry = archive.CreateEntry($"{rootDirectoryName}/region/r.0.0.mca");
+            using var regionWriter = new StreamWriter(regionEntry.Open());
+            regionWriter.Write("region");
+        }
+
+        return stream.ToArray();
+    }
+
     private sealed class ResourceCatalogHandler : HttpMessageHandler
     {
         private readonly string modrinthResponse;
@@ -881,19 +1073,22 @@ public sealed class ResourceCatalogServiceTests
         private readonly string curseForgeCategoriesResponse;
         private readonly string modrinthVersionResponse;
         private readonly IReadOnlyDictionary<string, string> downloadResponses;
+        private readonly IReadOnlyDictionary<string, byte[]> binaryDownloadResponses;
 
         public ResourceCatalogHandler(
             string modrinthResponse,
             string? curseForgeResponse = null,
             string? curseForgeCategoriesResponse = null,
             string? modrinthVersionResponse = null,
-            IReadOnlyDictionary<string, string>? downloadResponses = null)
+            IReadOnlyDictionary<string, string>? downloadResponses = null,
+            IReadOnlyDictionary<string, byte[]>? binaryDownloadResponses = null)
         {
             this.modrinthResponse = modrinthResponse;
             this.curseForgeResponse = curseForgeResponse ?? """{"data":[]}""";
             this.curseForgeCategoriesResponse = curseForgeCategoriesResponse ?? """{"data":[]}""";
             this.modrinthVersionResponse = modrinthVersionResponse ?? "[]";
             this.downloadResponses = downloadResponses ?? new Dictionary<string, string>();
+            this.binaryDownloadResponses = binaryDownloadResponses ?? new Dictionary<string, byte[]>();
         }
 
         public List<HttpRequestMessage> Requests { get; } = [];
@@ -906,6 +1101,14 @@ public sealed class ResourceCatalogServiceTests
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
                 {
                     Content = new StringContent(downloadBody)
+                });
+            }
+
+            if (binaryDownloadResponses.TryGetValue(request.RequestUri.ToString(), out var binaryDownloadBody))
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(binaryDownloadBody)
                 });
             }
 

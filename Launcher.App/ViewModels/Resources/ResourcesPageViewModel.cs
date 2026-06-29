@@ -73,7 +73,18 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             floatingMessageService,
             downloadTasksPage);
         ShaderPacksPage.PropertyChanged += OnlineProjectPage_PropertyChanged;
-        WorldsPage = new ResourcesWorldsPageViewModel(this);
+        WorldsPage = new ResourcesWorldsPageViewModel(
+            this,
+            resourceCatalogService,
+            logger,
+            uiDispatcher,
+            gameVersionService,
+            gameInstanceService,
+            statusService,
+            filePickerService,
+            floatingMessageService,
+            downloadTasksPage);
+        WorldsPage.PropertyChanged += OnlineProjectPage_PropertyChanged;
         ModpacksPage = new ResourcesModpacksPageViewModel(this);
 
         SelectSection(Sections[0], logSelection: false);
@@ -193,6 +204,8 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             ResourcePacksPage.ResetToProjectList();
         if (section.Id != "shader_packs")
             ShaderPacksPage.ResetToProjectList();
+        if (section.Id != "worlds")
+            WorldsPage.ResetToProjectList();
 
         if (logSelection)
             logger?.LogInformation("Resources section selected. SectionId={SectionId}", section.Id);

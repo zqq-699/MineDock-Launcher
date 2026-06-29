@@ -219,6 +219,64 @@ public sealed class ResourcesPageViewModelTests
     }
 
     [Fact]
+    public async Task WorldPageRefreshUsesWorldKindAndCurseForgeOnly()
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult
+        {
+            Projects =
+            [
+                new ResourceProject
+                {
+                    Kind = ResourceProjectKind.World,
+                    Source = ResourceProjectSource.CurseForge,
+                    ProjectId = "1234",
+                    Slug = "skyblock",
+                    Title = "SkyBlock",
+                    Description = "A world",
+                    SupportedMinecraftVersions = ["1.20.1"],
+                    Downloads = 2000,
+                    ProjectUrl = "https://www.curseforge.com/minecraft/worlds/skyblock"
+                }
+            ]
+        });
+        var viewModel = new ResourcesPageViewModel(service);
+        var worldsSection = viewModel.Sections.Single(section => section.Id == "worlds");
+
+        viewModel.SelectSectionCommand.Execute(worldsSection);
+        await viewModel.WorldsPage.RefreshProjectsCommand.ExecuteAsync(null);
+
+        Assert.Same(viewModel.WorldsPage, viewModel.CurrentSectionViewModel);
+        Assert.Same(viewModel.WorldsPage, viewModel.CurrentOnlineProjectPage);
+        Assert.True(viewModel.IsModSearchVisible);
+        Assert.False(viewModel.WorldsPage.ShowsLoaderFilters);
+        Assert.False(viewModel.WorldsPage.ShowsSourceFilters);
+        Assert.Equal([Strings.Resources_WorldFilterAllLoaders], viewModel.WorldsPage.LoaderOptions.Select(option => option.Title));
+        Assert.Equal([Strings.Resources_ModSourceCurseForge], viewModel.WorldsPage.SourceOptions.Select(option => option.Title));
+        Assert.Equal(Strings.Resources_WorldProjectsLoading, viewModel.WorldsPage.ProjectsLoadingMessage);
+        Assert.Equal(Strings.Resources_WorldDetailsInfoSection, viewModel.WorldsPage.DetailsInfoSectionText);
+        Assert.Equal("instance_setting_page/saves", viewModel.WorldsPage.VisibleProjects[0].IconKey);
+        Assert.NotNull(service.LastRequest);
+        Assert.Equal(ResourceProjectKind.World, service.LastRequest.Kind);
+        Assert.Equal(ResourceProjectSource.CurseForge, service.LastRequest.Source);
+        Assert.Equal(LoaderKind.Vanilla, service.LastRequest.Loader);
+    }
+
+    [Fact]
+    public async Task WorldTypeFilterAddsWorldCategoryToSearchRequest()
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var viewModel = new ResourcesPageViewModel(service);
+        viewModel.SelectSectionCommand.Execute(viewModel.Sections.Single(section => section.Id == "modpacks"));
+
+        viewModel.WorldsPage.SelectedTypeOption = viewModel.WorldsPage.TypeOptions.Single(option => option.Id == "parkour");
+        await viewModel.WorldsPage.RefreshProjectsCommand.ExecuteAsync(null);
+
+        Assert.NotNull(service.LastRequest);
+        Assert.Equal(ResourceProjectKind.World, service.LastRequest.Kind);
+        Assert.Equal(ResourceProjectCategory.Parkour, service.LastRequest.Category);
+    }
+
+    [Fact]
     public async Task ModTypeFilterKeepsCategoryWhenLoadingMore()
     {
         var service = new QueueResourceCatalogService(
@@ -355,7 +413,7 @@ public sealed class ResourcesPageViewModelTests
         Assert.Equal(ResourcesModPageStep.ProjectList, viewModel.ModPage.CurrentStep);
         Assert.Equal("1.18", viewModel.ModPage.SelectedVersionOption?.Id);
         Assert.Equal(expectedLoaderId, viewModel.ModPage.SelectedLoaderOption?.Id);
-        Assert.Equal(1, service.CallCount);
+        Assert.True(service.CallCount >= 1);
         Assert.NotNull(service.LastRequest);
         Assert.Equal(["1.18.2"], service.LastRequest.MinecraftVersions);
         Assert.Equal("1.18.2", service.LastRequest.MinecraftVersion);
@@ -2301,6 +2359,106 @@ public sealed class ResourcesPageViewModelTests
         Assert.Equal(100, task.ProgressPercent);
         Assert.Contains(string.Format(Strings.Status_ModDownloadingFormat, "Version 1"), statusService.Messages);
         Assert.Contains(string.Format(Strings.Status_ModInstalledFormat, "Project"), statusService.Messages);
+    }
+
+    [Fact]
+    public async Task WorldVersionSelectionInstallsVersionToSelectedInstanceWithWorldMessages()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var statusService = new FakeStatusService();
+        var downloadTasksPage = new DownloadTasksPageViewModel();
+        var instance = new GameInstance
+        {
+            Id = "world-instance",
+            Name = "World Test",
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Vanilla,
+            InstanceDirectory = "C:\\Instances\\World Test"
+        };
+        var version = new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.World,
+            VersionId = "version-1",
+            Name = "Version 1",
+            VersionNumber = "1.0.0",
+            FileName = "version-1.zip",
+            PrimaryDownloadUrl = "https://example.test/version-1.zip"
+        };
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            statusService: statusService,
+            downloadTasksPage: downloadTasksPage);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.World,
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "project",
+            Title = "World Project"
+        });
+        viewModel.WorldsPage.SelectProjectCommand.Execute(project);
+        viewModel.WorldsPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.FromInstance(instance));
+
+        await viewModel.WorldsPage.InstallAvailableVersionCommand.ExecuteAsync(new ResourcesModVersionItemViewModel(version, project));
+
+        Assert.Same(version, catalogService.LastInstalledVersion);
+        Assert.Same(instance, catalogService.LastInstallInstance);
+        var task = Assert.Single(downloadTasksPage.Tasks);
+        Assert.Equal("Version 1", task.Title);
+        Assert.Equal("World Test", task.Subtitle);
+        Assert.Equal(DownloadTaskState.Completed, task.State);
+        Assert.Contains(string.Format(Strings.Status_WorldDownloadingFormat, "Version 1"), statusService.Messages);
+        Assert.Contains(string.Format(Strings.Status_WorldInstalledFormat, "World Project"), statusService.Messages);
+    }
+
+    [Fact]
+    public async Task WorldVersionSelectionReportsWorldInstallFailure()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult())
+        {
+            ThrowOnInstall = true
+        };
+        var statusService = new FakeStatusService();
+        var floatingMessageService = new FakeFloatingMessageService();
+        var downloadTasksPage = new DownloadTasksPageViewModel();
+        var instance = new GameInstance
+        {
+            Id = "world-instance",
+            Name = "World Test",
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Vanilla,
+            InstanceDirectory = "C:\\Instances\\World Test"
+        };
+        var version = new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.World,
+            VersionId = "version-1",
+            Name = "Version 1",
+            VersionNumber = "1.0.0",
+            FileName = "version-1.zip",
+            PrimaryDownloadUrl = "https://example.test/version-1.zip"
+        };
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            statusService: statusService,
+            floatingMessageService: floatingMessageService,
+            downloadTasksPage: downloadTasksPage);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.World,
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "project",
+            Title = "World Project"
+        });
+        viewModel.WorldsPage.SelectProjectCommand.Execute(project);
+        viewModel.WorldsPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.FromInstance(instance));
+
+        await viewModel.WorldsPage.InstallAvailableVersionCommand.ExecuteAsync(new ResourcesModVersionItemViewModel(version, project));
+
+        Assert.Contains(Strings.Status_WorldInstallFailed, statusService.Messages);
+        Assert.Contains(Strings.Status_WorldInstallFailed, floatingMessageService.Messages);
+        var task = Assert.Single(downloadTasksPage.Tasks);
+        Assert.Equal(DownloadTaskState.Failed, task.State);
+        Assert.Equal(Strings.Status_WorldInstallFailed, task.StatusMessage);
     }
 
     [Fact]

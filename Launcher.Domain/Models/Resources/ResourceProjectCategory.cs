@@ -21,5 +21,10 @@ public enum ResourceProjectCategory
     Cartoon,
     Cursed,
     Fantasy,
-    SemiRealistic
+    SemiRealistic,
+    Creation,
+    GameMap,
+    Parkour,
+    Puzzle,
+    Survival
 }

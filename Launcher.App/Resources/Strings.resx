@@ -149,6 +149,35 @@
   <data name="Resources_ShaderPackVersionsLoadMoreError" xml:space="preserve"><value>&#x52A0;&#x8F7D;&#x66F4;&#x591A;&#x5149;&#x5F71;&#x5305;&#x7248;&#x672C;&#x5931;&#x8D25;&#xFF0C;&#x8BF7;&#x7A0D;&#x540E;&#x91CD;&#x8BD5;&#x3002;</value></data>
   <data name="Resources_ShaderPackVersionsAllTitle" xml:space="preserve"><value>&#x5168;&#x90E8;&#x7248;&#x672C;</value></data>
   <data name="Resources_ShaderPackDownloadFileExistsMessageFormat" xml:space="preserve"><value>&#x4E0B;&#x8F7D;&#x4F4D;&#x7F6E;&#x5DF2;&#x5B58;&#x5728;&#x540C;&#x540D;&#x6587;&#x4EF6;&#xFF1A;{0}</value></data>
+  <data name="Resources_WorldFilterAllLoaders" xml:space="preserve"><value>&#x5168;&#x90E8;</value></data>
+  <data name="Resources_WorldFilterTypeAdventure" xml:space="preserve"><value>&#x5192;&#x9669;</value></data>
+  <data name="Resources_WorldFilterTypeCreation" xml:space="preserve"><value>&#x5EFA;&#x7B51;/&#x521B;&#x4F5C;</value></data>
+  <data name="Resources_WorldFilterTypeGameMap" xml:space="preserve"><value>&#x6E38;&#x620F;&#x5730;&#x56FE;</value></data>
+  <data name="Resources_WorldFilterTypeParkour" xml:space="preserve"><value>&#x8DD1;&#x9177;</value></data>
+  <data name="Resources_WorldFilterTypePuzzle" xml:space="preserve"><value>&#x89E3;&#x8C1C;</value></data>
+  <data name="Resources_WorldFilterTypeSurvival" xml:space="preserve"><value>&#x751F;&#x5B58;</value></data>
+  <data name="Resources_WorldProjectsLoading" xml:space="preserve"><value>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x4E16;&#x754C;...</value></data>
+  <data name="Resources_WorldProjectsEmpty" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x627E;&#x5230;&#x5339;&#x914D;&#x7684;&#x4E16;&#x754C;</value></data>
+  <data name="Resources_WorldProjectsLoadError" xml:space="preserve"><value>&#x52A0;&#x8F7D;&#x4E16;&#x754C;&#x5217;&#x8868;&#x5931;&#x8D25;&#xFF0C;&#x8BF7;&#x7A0D;&#x540E;&#x91CD;&#x8BD5;&#x3002;</value></data>
+  <data name="Resources_WorldProjectsLoadingMore" xml:space="preserve"><value>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x66F4;&#x591A;&#x4E16;&#x754C;...</value></data>
+  <data name="Resources_WorldProjectsNoMore" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x66F4;&#x591A;&#x4E16;&#x754C;</value></data>
+  <data name="Resources_WorldProjectsLoadMoreError" xml:space="preserve"><value>&#x52A0;&#x8F7D;&#x66F4;&#x591A;&#x4E16;&#x754C;&#x5931;&#x8D25;&#xFF0C;&#x8BF7;&#x7A0D;&#x540E;&#x91CD;&#x8BD5;&#x3002;</value></data>
+  <data name="Resources_WorldCurseForgeMissingApiKey" xml:space="preserve"><value>&#x672A;&#x914D;&#x7F6E; CurseForge API Key&#xFF0C;&#x65E0;&#x6CD5;&#x52A0;&#x8F7D;&#x4E16;&#x754C;&#x7ED3;&#x679C;&#x3002;</value></data>
+  <data name="Resources_WorldDetailsInfoSection" xml:space="preserve"><value>&#x4E16;&#x754C;&#x4FE1;&#x606F;</value></data>
+  <data name="Resources_WorldInstallTargetSection" xml:space="preserve"><value>&#x9009;&#x62E9;&#x8981;&#x5B89;&#x88C5;&#x5230;&#x7684;&#x6E38;&#x620F;</value></data>
+  <data name="Resources_WorldInstallTargetLocal" xml:space="preserve"><value>&#x4E0B;&#x8F7D;&#x5230;&#x672C;&#x5730;</value></data>
+  <data name="Resources_WorldInstallTargetsLoading" xml:space="preserve"><value>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x6E38;&#x620F;&#x5217;&#x8868;...</value></data>
+  <data name="Resources_WorldInstallTargetsLoadError" xml:space="preserve"><value>&#x6E38;&#x620F;&#x5217;&#x8868;&#x52A0;&#x8F7D;&#x5931;&#x8D25;</value></data>
+  <data name="Resources_WorldVersionsLoading" xml:space="preserve"><value>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x53EF;&#x7528;&#x4E16;&#x754C;&#x7248;&#x672C;...</value></data>
+  <data name="Resources_WorldVersionsEmpty" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x9002;&#x7528;&#x4E8E;&#x8BE5;&#x6E38;&#x620F;&#x7684;&#x4E16;&#x754C;&#x7248;&#x672C;</value></data>
+  <data name="Resources_WorldVersionsEmptyLocal" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x53EF;&#x7528;&#x7684;&#x4E16;&#x754C;&#x7248;&#x672C;</value></data>
+  <data name="Resources_WorldVersionsFilterEmpty" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x627E;&#x5230;&#x5339;&#x914D;&#x7684;&#x4E16;&#x754C;&#x7248;&#x672C;</value></data>
+  <data name="Resources_WorldVersionsLoadError" xml:space="preserve"><value>&#x4E16;&#x754C;&#x7248;&#x672C;&#x52A0;&#x8F7D;&#x5931;&#x8D25;</value></data>
+  <data name="Resources_WorldVersionsLoadingMore" xml:space="preserve"><value>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x66F4;&#x591A;&#x4E16;&#x754C;&#x7248;&#x672C;...</value></data>
+  <data name="Resources_WorldVersionsNoMore" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x66F4;&#x591A;&#x4E16;&#x754C;&#x7248;&#x672C;</value></data>
+  <data name="Resources_WorldVersionsLoadMoreError" xml:space="preserve"><value>&#x52A0;&#x8F7D;&#x66F4;&#x591A;&#x4E16;&#x754C;&#x7248;&#x672C;&#x5931;&#x8D25;&#xFF0C;&#x8BF7;&#x7A0D;&#x540E;&#x91CD;&#x8BD5;&#x3002;</value></data>
+  <data name="Resources_WorldVersionsAllTitle" xml:space="preserve"><value>&#x5168;&#x90E8;&#x7248;&#x672C;</value></data>
+  <data name="Resources_WorldDownloadFileExistsMessageFormat" xml:space="preserve"><value>&#x4E0B;&#x8F7D;&#x4F4D;&#x7F6E;&#x5DF2;&#x5B58;&#x5728;&#x540C;&#x540D;&#x6587;&#x4EF6;&#xFF1A;{0}</value></data>
   <data name="Page_Settings" xml:space="preserve"><value>全局设置</value></data>
   <data name="Settings_SectionGeneral" xml:space="preserve"><value>通用</value></data>
   <data name="Settings_SectionLaunchMemory" xml:space="preserve"><value>启动与内存</value></data>
@@ -457,6 +486,12 @@
   <data name="Status_ShaderPackInstallFailed" xml:space="preserve"><value>&#x5149;&#x5F71;&#x5305;&#x5B89;&#x88C5;&#x5931;&#x8D25;</value></data>
   <data name="Status_ShaderPackDownloadedFormat" xml:space="preserve"><value>{0} &#x5DF2;&#x4E0B;&#x8F7D;</value></data>
   <data name="Status_ShaderPackDownloadFailed" xml:space="preserve"><value>&#x5149;&#x5F71;&#x5305;&#x4E0B;&#x8F7D;&#x5931;&#x8D25;</value></data>
+  <data name="Status_WorldDownloading" xml:space="preserve"><value>&#x6B63;&#x5728;&#x4E0B;&#x8F7D;&#x4E16;&#x754C;...</value></data>
+  <data name="Status_WorldDownloadingFormat" xml:space="preserve"><value>&#x6B63;&#x5728;&#x4E0B;&#x8F7D; {0}</value></data>
+  <data name="Status_WorldInstalledFormat" xml:space="preserve"><value>{0} &#x5DF2;&#x5B89;&#x88C5;</value></data>
+  <data name="Status_WorldInstallFailed" xml:space="preserve"><value>&#x4E16;&#x754C;&#x5B89;&#x88C5;&#x5931;&#x8D25;</value></data>
+  <data name="Status_WorldDownloadedFormat" xml:space="preserve"><value>{0} &#x5DF2;&#x4E0B;&#x8F7D;</value></data>
+  <data name="Status_WorldDownloadFailed" xml:space="preserve"><value>&#x4E16;&#x754C;&#x4E0B;&#x8F7D;&#x5931;&#x8D25;</value></data>
   <data name="Status_SettingsSaved" xml:space="preserve"><value>启动器设置已保存</value></data>
   <data name="Status_SettingsSaveFailed" xml:space="preserve"><value>启动器设置保存失败，请稍后重试。</value></data>
   <data name="Status_JavaScanFailed" xml:space="preserve"><value>扫描本机 Java 失败，请稍后重试。</value></data>
@@ -822,6 +857,7 @@
   <data name="FilePicker_ShaderPackArchiveFilter" xml:space="preserve"><value>光影包压缩包|*.zip|所有文件|*.*</value></data>
   <data name="FilePicker_ShaderPackArchiveTitle" xml:space="preserve"><value>选择光影包压缩包</value></data>
   <data name="FilePicker_ShaderPackDownloadDirectoryTitle" xml:space="preserve"><value>&#x9009;&#x62E9;&#x5149;&#x5F71;&#x5305;&#x4E0B;&#x8F7D;&#x76EE;&#x5F55;</value></data>
+  <data name="FilePicker_WorldDownloadDirectoryTitle" xml:space="preserve"><value>&#x9009;&#x62E9;&#x4E16;&#x754C;&#x4E0B;&#x8F7D;&#x76EE;&#x5F55;</value></data>
   <data name="GameSettings_DropImportShaderPacksMessage" xml:space="preserve"><value>释放以导入光影包</value></data>
   <data name="GameSettings_DropShaderPackArchivesOnlyMessage" xml:space="preserve"><value>当前页面仅支持拖入光影包压缩包。</value></data>
   <data name="GameSettings_ShaderPackManagementActionsLabel" xml:space="preserve"><value>操作</value></data>

@@ -94,12 +94,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 
         VersionOptions = [new ResourcesFilterOptionItem { Id = "all", Title = options.AllVersionsText }];
         LoaderOptions = CreateLoaderOptions(options);
-        SourceOptions =
-        [
-            new ResourcesFilterOptionItem { Id = "all", Title = Strings.Resources_ModFilterAllSources },
-            new ResourcesFilterOptionItem { Id = "modrinth", Title = Strings.Resources_ModSourceModrinth },
-            new ResourcesFilterOptionItem { Id = "curseforge", Title = Strings.Resources_ModSourceCurseForge }
-        ];
+        SourceOptions = CreateSourceOptions(options);
         TypeOptions = CreateTypeOptions(options);
         AvailableVersionFilterOptions = [CreateAllAvailableVersionFilterOption()];
         AvailableLoaderFilterOptions = [.. CreateDefaultAvailableLoaderFilterOptions()];
@@ -125,6 +120,8 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     public ObservableCollection<ResourcesFilterOptionItem> AvailableLoaderFilterOptions { get; }
 
     public bool ShowsLoaderFilters => options.ShowsLoaderFilters;
+
+    public bool ShowsSourceFilters => SourceOptions.Count > 1;
 
     public string ProjectsLoadingMessage => options.ProjectsLoadingText;
 
@@ -2484,6 +2481,19 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             new ResourcesFilterOptionItem { Id = "forge", Title = Strings.Download_ForgeLoaderTitle },
             new ResourcesFilterOptionItem { Id = "neoforge", Title = Strings.Download_NeoForgeLoaderTitle },
             new ResourcesFilterOptionItem { Id = "quilt", Title = Strings.Download_QuiltLoaderTitle }
+        ];
+    }
+
+    private static ObservableCollection<ResourcesFilterOptionItem> CreateSourceOptions(ResourcesOnlineProjectPageOptions options)
+    {
+        if (options.SourceOptions is { Count: > 0 } sourceOptions)
+            return [.. sourceOptions];
+
+        return
+        [
+            new ResourcesFilterOptionItem { Id = "all", Title = Strings.Resources_ModFilterAllSources },
+            new ResourcesFilterOptionItem { Id = "modrinth", Title = Strings.Resources_ModSourceModrinth },
+            new ResourcesFilterOptionItem { Id = "curseforge", Title = Strings.Resources_ModSourceCurseForge }
         ];
     }
 

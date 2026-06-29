@@ -43,4 +43,5 @@ public sealed record ResourcesOnlineProjectPageOptions(
     string InstalledFormat,
     string InstallFailedText,
     string FileExistsMessageFormat,
-    IReadOnlyList<ResourcesOnlineProjectTypeOption> TypeOptions);
+    IReadOnlyList<ResourcesOnlineProjectTypeOption> TypeOptions,
+    IReadOnlyList<ResourcesFilterOptionItem>? SourceOptions = null);
