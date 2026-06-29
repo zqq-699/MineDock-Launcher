@@ -968,6 +968,12 @@ public sealed class ResourcesPageViewModelTests
 
         Assert.Equal(3, viewModel.ModPage.VisibleProjects.Count);
         Assert.Equal(["First 0", "First 1", "Second 0"], viewModel.ModPage.VisibleProjects.Select(project => project.Title));
+        Assert.Equal(
+            ["P:First 0", "P:First 1", "P:Second 0"],
+            FormatProjectListItems(viewModel.ModPage.ProjectListItems));
+        Assert.Equal(
+            ["P:First 0", "P:First 1", "P:Second 0", $"F:{Strings.Resources_ModProjectsNoMore}"],
+            FormatProjectListItemsWithFooter(viewModel.ModPage.ProjectListItems));
         Assert.False(viewModel.ModPage.HasMoreProjects);
         Assert.Equal(Strings.Resources_ModProjectsNoMore, viewModel.ModPage.LoadMoreMessage);
         Assert.Equal(entranceAnimationToken, viewModel.ModPage.ListEntranceAnimationToken);
@@ -995,6 +1001,9 @@ public sealed class ResourcesPageViewModelTests
         Assert.True(viewModel.ModPage.IsLoadingMoreProjects);
         Assert.True(viewModel.ModPage.CanShowLoadMoreState);
         Assert.Equal(Strings.Resources_ModProjectsLoadingMore, viewModel.ModPage.LoadMoreMessage);
+        Assert.Equal(
+            ["P:First 0", $"F:{Strings.Resources_ModProjectsLoadingMore}"],
+            FormatProjectListItemsWithFooter(viewModel.ModPage.ProjectListItems));
 
         dispatcher.RunNext();
         var request = await service.WaitForRequestAsync(1);
@@ -1007,6 +1016,61 @@ public sealed class ResourcesPageViewModelTests
 
         Assert.False(viewModel.ModPage.IsLoadingMoreProjects);
         Assert.Equal(2, viewModel.ModPage.VisibleProjects.Count);
+    }
+
+    [Fact]
+    public async Task ModPageLoadMoreFailureShowsFooterItemAndKeepsProjects()
+    {
+        var dispatcher = new QueueingUiDispatcher();
+        var service = new ControlledResourceCatalogService();
+        var viewModel = new ResourcesPageViewModel(service, uiDispatcher: dispatcher);
+
+        var firstLoad = viewModel.ModPage.RefreshProjectsAsync();
+        dispatcher.RunNext();
+        var firstCall = await service.WaitForCallAsync(0);
+        firstCall.SetResult(CreateProjectResult(1, "first", hasMore: true));
+        await TestAsync.WaitForAsync(() => dispatcher.PendingCount == 1);
+        dispatcher.RunNext();
+        await firstLoad;
+
+        var loadMore = viewModel.ModPage.LoadMoreProjectsAsync();
+        dispatcher.RunNext();
+        var secondCall = await service.WaitForCallAsync(1);
+        secondCall.SetException(new InvalidOperationException("load more failed"));
+        await TestAsync.WaitForAsync(() => dispatcher.PendingCount == 1);
+        dispatcher.RunNext();
+        await loadMore;
+
+        Assert.Single(viewModel.ModPage.VisibleProjects);
+        Assert.False(viewModel.ModPage.IsLoadingMoreProjects);
+        Assert.Equal(Strings.Resources_ModProjectsLoadMoreError, viewModel.ModPage.LoadMoreMessage);
+        Assert.Equal(
+            ["P:First 0", $"F:{Strings.Resources_ModProjectsLoadMoreError}"],
+            FormatProjectListItemsWithFooter(viewModel.ModPage.ProjectListItems));
+    }
+
+    [Fact]
+    public async Task OnlineProjectPagesUseTheirOwnProjectFooterMessages()
+    {
+        var cases = new (Func<ResourcesPageViewModel, ResourcesModPageViewModel> Page, string NoMoreText)[]
+        {
+            (viewModel => viewModel.ModPage, Strings.Resources_ModProjectsNoMore),
+            (viewModel => viewModel.ResourcePacksPage, Strings.Resources_ResourcePackProjectsNoMore),
+            (viewModel => viewModel.ShaderPacksPage, Strings.Resources_ShaderPackProjectsNoMore),
+            (viewModel => viewModel.WorldsPage, Strings.Resources_WorldProjectsNoMore),
+            (viewModel => viewModel.ModpacksPage, Strings.Resources_ModpackProjectsNoMore)
+        };
+
+        foreach (var (selectPage, noMoreText) in cases)
+        {
+            var service = new QueueResourceCatalogService(CreateProjectResult(1, "project", hasMore: false));
+            var viewModel = new ResourcesPageViewModel(service);
+            var page = selectPage(viewModel);
+
+            await page.RefreshProjectsCommand.ExecuteAsync(null);
+
+            Assert.Equal($"F:{noMoreText}", FormatProjectListItemsWithFooter(page.ProjectListItems).Last());
+        }
     }
 
     [Fact]
@@ -3076,6 +3140,30 @@ public sealed class ResourcesPageViewModelTests
             {
                 ResourcesModVersionListHeaderItem header => $"H:{header.Title}",
                 ResourcesModVersionItemViewModel version => $"V:{version.Title}",
+                _ => item.GetType().Name
+            })
+            .ToList();
+    }
+
+    private static IReadOnlyList<string> FormatProjectListItems(IEnumerable<object> items)
+    {
+        return items
+            .Where(item => item is not ResourcesListFooterStatusItem)
+            .Select(item => item switch
+            {
+                ResourcesModProjectItemViewModel project => $"P:{project.Title}",
+                _ => item.GetType().Name
+            })
+            .ToList();
+    }
+
+    private static IReadOnlyList<string> FormatProjectListItemsWithFooter(IEnumerable<object> items)
+    {
+        return items
+            .Select(item => item switch
+            {
+                ResourcesModProjectItemViewModel project => $"P:{project.Title}",
+                ResourcesListFooterStatusItem footer => $"F:{footer.Message}",
                 _ => item.GetType().Name
             })
             .ToList();

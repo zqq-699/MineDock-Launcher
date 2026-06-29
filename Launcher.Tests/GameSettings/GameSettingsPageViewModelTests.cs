@@ -2073,6 +2073,7 @@ public sealed class GameSettingsPageViewModelTests
         var initialVisibleModListItems = modManagement.VisibleModListItems;
         var firstItem = modManagement.Mods[0];
         var secondItem = modManagement.Mods[1];
+        var initialListEntranceAnimationToken = modManagement.ListEntranceAnimationToken;
 
         modManagement.ToggleMultiSelectModeCommand.Execute(null);
         modManagement.SelectAllModsCommand.Execute(null);
@@ -2082,6 +2083,7 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Same(initialVisibleModListItems, modManagement.VisibleModListItems);
         Assert.Same(firstItem, modManagement.Mods[0]);
         Assert.Same(secondItem, modManagement.Mods[1]);
+        Assert.Equal(initialListEntranceAnimationToken, modManagement.ListEntranceAnimationToken);
         Assert.True(modManagement.IsMultiSelectMode);
         Assert.Equal(2, modManagement.SelectedModCount);
         Assert.Equal(0, modManagement.EnabledModCount);
@@ -2558,6 +2560,7 @@ public sealed class GameSettingsPageViewModelTests
         var initialVisibleModListItems = modManagement.VisibleModListItems;
         var firstItem = modManagement.Mods[0];
         var secondItem = modManagement.Mods[1];
+        var initialListEntranceAnimationToken = modManagement.ListEntranceAnimationToken;
         var secondMod = modManagement.Mods[1];
 
         await modManagement.ToggleModEnabledCommand.ExecuteAsync(secondMod);
@@ -2566,6 +2569,7 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Same(initialVisibleModListItems, modManagement.VisibleModListItems);
         Assert.Same(firstItem, modManagement.Mods[0]);
         Assert.Same(secondItem, modManagement.Mods[1]);
+        Assert.Equal(initialListEntranceAnimationToken, modManagement.ListEntranceAnimationToken);
         Assert.Equal(["apple-skin", "zeta"], modManagement.Mods.Select(mod => mod.Title));
         Assert.True(modManagement.Mods[1].IsEnabled);
         Assert.Same(modManagement.Mods[1], modManagement.SelectedMod);
@@ -2578,10 +2582,50 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Same(initialVisibleModListItems, modManagement.VisibleModListItems);
         Assert.Same(firstItem, modManagement.Mods[0]);
         Assert.Same(secondItem, modManagement.Mods[1]);
+        Assert.Equal(initialListEntranceAnimationToken, modManagement.ListEntranceAnimationToken);
         Assert.Equal(["apple-skin", "zeta"], modManagement.Mods.Select(mod => mod.Title));
         Assert.False(modManagement.Mods[0].IsEnabled);
         Assert.Same(modManagement.Mods[0], modManagement.SelectedMod);
         Assert.EndsWith(Path.Combine("mods", "apple-skin.jar.disabled"), modManagement.Mods[0].FullPath);
+    }
+
+    [Fact]
+    public async Task ModManagementKeepsListStateWhenSelectedInstanceReferenceRefreshesWithoutDirectoryChange()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var modService = new FakeModService();
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            CreateLocalMod("apple-skin.jar", true, instance.InstanceDirectory, loader: "fabric", modId: "apple-skin", version: "1.0.0"),
+            CreateLocalMod("zeta.jar", false, instance.InstanceDirectory, loader: "fabric", modId: "zeta", version: "1.0.0")
+        ];
+        var viewModel = CreateViewModel([instance], modService: modService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var modManagement = OpenModManagementSection(viewModel);
+        await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 2);
+
+        var initialGetModsCallCount = modService.GetModsCallCount;
+        var initialVisibleModListItems = modManagement.VisibleModListItems;
+        var firstItem = modManagement.Mods[0];
+        var secondItem = modManagement.Mods[1];
+        var initialListEntranceAnimationToken = modManagement.ListEntranceAnimationToken;
+        var updatedInstance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        updatedInstance.Id = instance.Id;
+        updatedInstance.VersionName = instance.VersionName;
+        updatedInstance.InstanceDirectory = instance.InstanceDirectory;
+        updatedInstance.Description = "Updated description";
+
+        viewModel.AddOrUpdateInstance(updatedInstance);
+
+        Assert.Equal(initialGetModsCallCount, modService.GetModsCallCount);
+        Assert.Same(initialVisibleModListItems, modManagement.VisibleModListItems);
+        Assert.Same(firstItem, modManagement.Mods[0]);
+        Assert.Same(secondItem, modManagement.Mods[1]);
+        Assert.Equal(initialListEntranceAnimationToken, modManagement.ListEntranceAnimationToken);
+        Assert.True(modManagement.HasLoadedMods);
+        Assert.Equal("Updated description", viewModel.Details.DescriptionText);
     }
 
     [Fact]
@@ -3472,6 +3516,46 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Theory]
+    [InlineData("mod_management", "mods")]
+    [InlineData("saves", "saves")]
+    [InlineData("resource_packs", "resourcepacks")]
+    [InlineData("shaders", "shaderpacks")]
+    public async Task ConfirmEditInstanceDialogRefreshesResourceManagementDirectoriesAfterRename(
+        string sectionId,
+        string childDirectoryName)
+    {
+        var rootDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"));
+        var oldInstanceDirectory = Path.Combine(rootDirectory, "versions", "Old Pack");
+        var renamedInstanceDirectory = Path.Combine(rootDirectory, "versions", "Renamed Pack");
+        var instance = CreateInstance("Old Pack", "1.21.4", LoaderKind.Fabric);
+        instance.VersionName = "Old Pack";
+        instance.InstanceDirectory = oldInstanceDirectory;
+        var instanceService = new FakeGameInstanceService
+        {
+            ReturnNewInstanceOnRename = true
+        };
+        instanceService.CreatedInstances.Add(instance);
+        var folderService = new FakeInstanceFolderService();
+        var viewModel = CreateViewModel(
+            instanceService,
+            new FakeGameVersionService([]),
+            new FakeStatusService(),
+            folderService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        viewModel.Details.RequestEditInstanceCommand.Execute(null);
+        viewModel.EditDialog.InstanceName = "Renamed Pack";
+
+        await viewModel.ConfirmEditInstanceDialogCommand.ExecuteAsync(null);
+        viewModel.SelectDetailsSectionCommand.Execute(GetDetailSection(viewModel, sectionId));
+        ExecuteResourceManagementOpenFolderCommand(viewModel, sectionId);
+
+        Assert.Equal(Path.Combine(renamedInstanceDirectory, childDirectoryName), folderService.LastOpenedPath);
+        Assert.False(Directory.Exists(oldInstanceDirectory));
+    }
+
+    [Theory]
     [InlineData("..")]
     [InlineData(".dfg")]
     [InlineData("name.")]
@@ -3577,6 +3661,29 @@ public sealed class GameSettingsPageViewModelTests
     {
         viewModel.SelectDetailsSectionCommand.Execute(GetDetailSection(viewModel, "shaders"));
         return viewModel.Details.ShaderPackManagement;
+    }
+
+    private static void ExecuteResourceManagementOpenFolderCommand(
+        GameSettingsPageViewModel viewModel,
+        string sectionId)
+    {
+        switch (sectionId)
+        {
+            case "mod_management":
+                viewModel.Details.ModManagement.OpenModFolderCommand.Execute(null);
+                break;
+            case "saves":
+                viewModel.Details.SaveManagement.OpenSaveFolderCommand.Execute(null);
+                break;
+            case "resource_packs":
+                viewModel.Details.ResourcePackManagement.OpenResourcePackFolderCommand.Execute(null);
+                break;
+            case "shaders":
+                viewModel.Details.ShaderPackManagement.OpenShaderPackFolderCommand.Execute(null);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(sectionId), sectionId, null);
+        }
     }
 
     private static T GetPrivateField<T>(object instance, string fieldName)

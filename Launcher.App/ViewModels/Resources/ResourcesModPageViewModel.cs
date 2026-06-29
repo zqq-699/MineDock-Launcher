@@ -145,6 +145,8 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 
     public ObservableCollection<ResourcesModProjectItemViewModel> VisibleProjects { get; } = [];
 
+    public ObservableCollection<object> ProjectListItems { get; } = [];
+
     public ObservableCollection<ResourcesModInstallTargetItemViewModel> InstallTargets { get; } = [];
 
     public ObservableCollection<ResourcesModVersionItemViewModel> AvailableVersions { get; } = [];
@@ -1020,6 +1022,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 
     partial void OnIsLoadingMoreProjectsChanged(bool value)
     {
+        UpdateProjectFooterItem();
         RaiseProjectStatePropertiesChanged();
     }
 
@@ -1030,11 +1033,13 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 
     partial void OnLoadMoreMessageChanged(string value)
     {
+        UpdateProjectFooterItem();
         RaiseProjectStatePropertiesChanged();
     }
 
     partial void OnHasMoreProjectsChanged(bool value)
     {
+        UpdateProjectFooterItem();
         RaiseProjectStatePropertiesChanged();
     }
 
@@ -1411,6 +1416,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 
             ResetToProjectList();
             VisibleProjects.Clear();
+            ProjectListItems.Clear();
             PartialWarningMessage = string.Empty;
             nextPageOffset = result.Offset + CatalogPageSize;
             HasMoreProjects = result.CatalogResult.HasMore;
@@ -1504,6 +1510,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         }
 
         VisibleProjects.Clear();
+        ProjectListItems.Clear();
         ResetToProjectList();
         LoadErrorMessage = options.ProjectsLoadErrorText;
         LoadMoreMessage = string.Empty;
@@ -1568,8 +1575,14 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         int count)
     {
         var endIndex = Math.Min(items.Count, startIndex + count);
+        RemoveProjectFooterItem();
         for (var index = startIndex; index < endIndex; index++)
+        {
             VisibleProjects.Add(items[index]);
+            ProjectListItems.Add(items[index]);
+        }
+
+        UpdateProjectFooterItem();
     }
 
     private void ApplyInstallTargets(
@@ -1844,6 +1857,24 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         OnPropertyChanged(nameof(CanShowAvailableVersionsLoadErrorState));
         OnPropertyChanged(nameof(CanShowAvailableVersionsLoadMoreState));
         OnPropertyChanged(nameof(AvailableVersionsEmptyMessage));
+    }
+
+    private void UpdateProjectFooterItem()
+    {
+        RemoveProjectFooterItem();
+        if (!CanShowLoadMoreState || string.IsNullOrWhiteSpace(LoadMoreMessage))
+            return;
+
+        ProjectListItems.Add(new ResourcesListFooterStatusItem(LoadMoreMessage));
+    }
+
+    private void RemoveProjectFooterItem()
+    {
+        for (var index = ProjectListItems.Count - 1; index >= 0; index--)
+        {
+            if (ProjectListItems[index] is ResourcesListFooterStatusItem)
+                ProjectListItems.RemoveAt(index);
+        }
     }
 
     private static string ResolveVersionFileNameForDisplay(ResourcesModVersionItemViewModel item)

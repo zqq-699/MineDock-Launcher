@@ -314,7 +314,10 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
 
     public void SetSelectedInstance(GameSettingsInstanceItem? instance)
     {
+        var previousInstance = SelectedInstance;
         SelectedInstance = instance;
+        if (ReferenceEquals(previousInstance, instance))
+            RefreshSelectedInstanceReference(instance);
     }
 
     public void SetSelectedSection(GameSettingsDetailSectionItem? section)
@@ -445,7 +448,43 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         if (selectedInstanceNotifier is not null)
             selectedInstanceNotifier.PropertyChanged += SelectedInstance_PropertyChanged;
 
+        ApplySelectedInstanceChanged(value);
+    }
+
+    private void ApplySelectedInstanceChanged(GameSettingsInstanceItem? value)
+    {
         enabledModCount = 0;
+        ApplySelectedInstanceEditorState(value);
+        ModManagement.OnSelectedInstanceChanged(value?.Instance);
+        SaveManagement.OnSelectedInstanceChanged(value?.Instance);
+        ResourcePackManagement.OnSelectedInstanceChanged(value?.Instance);
+        ShaderPackManagement.OnSelectedInstanceChanged(value?.Instance);
+        _ = RefreshEnabledModCountAsync(value?.Instance);
+
+        RefreshSystemMemorySnapshot();
+        if (IsJavaSection || InstanceJavaRuntimes.Count == 0)
+            _ = InstanceJavaSettings.RefreshJavaRuntimesForDisplayAsync();
+
+        if (CurrentSectionViewModel is not null)
+            _ = CurrentSectionViewModel.OnSectionActivatedAsync();
+    }
+
+    private void RefreshSelectedInstanceReference(GameSettingsInstanceItem? value)
+    {
+        ApplySelectedInstanceEditorState(value);
+        var shouldReactivateCurrentSection =
+            ModManagement.RefreshSelectedInstanceReference(value?.Instance)
+            | SaveManagement.RefreshSelectedInstanceReference(value?.Instance)
+            | ResourcePackManagement.RefreshSelectedInstanceReference(value?.Instance)
+            | ShaderPackManagement.RefreshSelectedInstanceReference(value?.Instance);
+
+        RefreshSystemMemorySnapshot();
+        if (shouldReactivateCurrentSection && CurrentSectionViewModel is not null)
+            _ = CurrentSectionViewModel.OnSectionActivatedAsync();
+    }
+
+    private void ApplySelectedInstanceEditorState(GameSettingsInstanceItem? value)
+    {
         OnPropertyChanged(nameof(HasSelectedInstance));
         OnPropertyChanged(nameof(InstanceName));
         OnPropertyChanged(nameof(InstanceIconSource));
@@ -461,11 +500,6 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             var javaSettingsMode = value?.Instance.JavaSettingsMode ?? LaunchSettingsMode.UseGlobal;
             SelectedInstanceJavaSettingsModeOption = ResolveLaunchSettingsModeOption(javaSettingsMode);
             ApplyJavaSettingsToEditor();
-            ModManagement.OnSelectedInstanceChanged(value?.Instance);
-            SaveManagement.OnSelectedInstanceChanged(value?.Instance);
-            ResourcePackManagement.OnSelectedInstanceChanged(value?.Instance);
-            ShaderPackManagement.OnSelectedInstanceChanged(value?.Instance);
-            _ = RefreshEnabledModCountAsync(value?.Instance);
 
             if (mode is LaunchSettingsMode.UseGlobal)
             {
@@ -490,13 +524,6 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         {
             suppressInstanceSettingsAutoSave = false;
         }
-
-        RefreshSystemMemorySnapshot();
-        if (IsJavaSection || InstanceJavaRuntimes.Count == 0)
-            _ = InstanceJavaSettings.RefreshJavaRuntimesForDisplayAsync();
-
-        if (CurrentSectionViewModel is not null)
-            _ = CurrentSectionViewModel.OnSectionActivatedAsync();
     }
 
     partial void OnSelectedSectionChanged(GameSettingsDetailSectionItem? value)

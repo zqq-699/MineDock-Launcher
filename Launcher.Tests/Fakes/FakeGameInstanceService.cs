@@ -9,6 +9,7 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public List<GameInstance> CreatedInstances { get; } = [];
     public Exception? CreateException { get; init; }
     public Exception? RenameException { get; init; }
+    public bool ReturnNewInstanceOnRename { get; init; }
     public Action? RenameCallback { get; set; }
     public TaskCompletionSource<bool> CreateStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Task? WaitBeforeCreate { get; init; }
@@ -146,12 +147,15 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
             if (RenameException is not null)
                 throw RenameException;
 
-            var instance = CreatedInstances.First(existing => existing.Id == instanceId);
-            instance.Name = string.IsNullOrWhiteSpace(newName) ? instance.Name : newName.Trim();
-            instance.VersionName = string.IsNullOrWhiteSpace(newName) ? instance.VersionName : newName.Trim();
-            instance.IconSource = string.IsNullOrWhiteSpace(newIconSource) ? null : newIconSource.Trim();
-            instance.InstanceDirectory = Path.Combine(Path.GetDirectoryName(instance.InstanceDirectory) ?? Path.GetTempPath(), instance.VersionName);
-            return Task.FromResult(instance);
+            var index = CreatedInstances.FindIndex(existing => existing.Id == instanceId);
+            var instance = CreatedInstances[index];
+            var updated = ReturnNewInstanceOnRename ? CloneGameInstance(instance) : instance;
+            updated.Name = string.IsNullOrWhiteSpace(newName) ? updated.Name : newName.Trim();
+            updated.VersionName = string.IsNullOrWhiteSpace(newName) ? updated.VersionName : newName.Trim();
+            updated.IconSource = string.IsNullOrWhiteSpace(newIconSource) ? null : newIconSource.Trim();
+            updated.InstanceDirectory = Path.Combine(Path.GetDirectoryName(updated.InstanceDirectory) ?? Path.GetTempPath(), updated.VersionName);
+            CreatedInstances[index] = updated;
+            return Task.FromResult(updated);
         }
     }
 
@@ -174,5 +178,40 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
             return Task.FromResult(removed);
         }
     }
-}
 
+    private static GameInstance CloneGameInstance(GameInstance instance)
+    {
+        return new GameInstance
+        {
+            Id = instance.Id,
+            Name = instance.Name,
+            MinecraftVersion = instance.MinecraftVersion,
+            Loader = instance.Loader,
+            LoaderVersion = instance.LoaderVersion,
+            VersionName = instance.VersionName,
+            VersionType = instance.VersionType,
+            Description = instance.Description,
+            IconSource = instance.IconSource,
+            InstanceDirectory = instance.InstanceDirectory,
+            MemorySettingsMode = instance.MemorySettingsMode,
+            MemoryMb = instance.MemoryMb,
+            WindowWidth = instance.WindowWidth,
+            WindowHeight = instance.WindowHeight,
+            PreLaunchCommand = instance.PreLaunchCommand,
+            WaitForPreLaunchCommand = instance.WaitForPreLaunchCommand,
+            PostExitCommand = instance.PostExitCommand,
+            JvmArguments = instance.JvmArguments,
+            GameArguments = instance.GameArguments,
+            LaunchSettingsMode = instance.LaunchSettingsMode,
+            JavaSettingsMode = instance.JavaSettingsMode,
+            JavaSelectionMode = instance.JavaSelectionMode,
+            SelectedJavaExecutablePath = instance.SelectedJavaExecutablePath,
+            CheckFilesBeforeLaunch = instance.CheckFilesBeforeLaunch,
+            AutoRepairMissingFiles = instance.AutoRepairMissingFiles,
+            MinimizeLauncherAfterLaunch = instance.MinimizeLauncherAfterLaunch,
+            LaunchFullScreen = instance.LaunchFullScreen,
+            CreatedAt = instance.CreatedAt,
+            UpdatedAt = instance.UpdatedAt
+        };
+    }
+}

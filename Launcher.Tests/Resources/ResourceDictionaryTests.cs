@@ -262,6 +262,8 @@ public sealed class ResourceDictionaryTests
 
                 Assert.NotNull(listBox);
                 Assert.Empty(viewModel.ModPage.VisibleProjects);
+                Assert.Empty(viewModel.ModPage.ProjectListItems);
+                Assert.Same(viewModel.ModPage.ProjectListItems, listBox.ItemsSource);
                 Assert.Equal(Visibility.Visible, listBox.Visibility);
                 Assert.Same(
                     application.TryFindResource("ListPageVirtualizedListBoxStyle"),

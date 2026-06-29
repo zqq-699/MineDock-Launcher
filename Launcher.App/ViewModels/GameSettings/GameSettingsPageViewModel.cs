@@ -766,7 +766,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
                 || string.Equals(SelectedInstance?.Instance.Id, instance.Id, StringComparison.OrdinalIgnoreCase);
             item.Update(instance, ResolveVersionType(instance));
             if (wasSelected)
-                SelectInstanceCore(item);
+                SelectInstanceCore(item, forceRefreshDetails: true);
         }
         else
         {
@@ -1084,14 +1084,25 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             return;
         }
 
-        SelectInstanceCore(FindInstanceItem(selectedInstanceId));
+        SelectInstanceCore(FindInstanceItem(selectedInstanceId), forceRefreshDetails: true);
     }
 
-    private void SelectInstanceCore(GameSettingsInstanceItem? instance)
+    private void SelectInstanceCore(GameSettingsInstanceItem? instance, bool forceRefreshDetails = false)
     {
+        var previousInstance = SelectedInstance;
         SelectedInstance = instance;
+        if (forceRefreshDetails && ReferenceEquals(previousInstance, instance))
+            RefreshSelectedInstanceDetails();
+
         foreach (var item in AllInstances)
             item.IsSelected = ReferenceEquals(item, instance);
+    }
+
+    private void RefreshSelectedInstanceDetails()
+    {
+        Details.SetSelectedInstance(SelectedInstance);
+        OnPropertyChanged(nameof(PageTitle));
+        OnPropertyChanged(nameof(PageTitleIconSource));
     }
 
     private async Task<IReadOnlyDictionary<string, string>> LoadVersionTypesAsync(CancellationToken cancellationToken)

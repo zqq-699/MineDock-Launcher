@@ -152,6 +152,19 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         ImportLocalResourcePackCommand.NotifyCanExecuteChanged();
     }
 
+    public bool RefreshSelectedInstanceReference(GameInstance? instance)
+    {
+        if (ShouldResetForInstanceReference(instance))
+        {
+            OnSelectedInstanceChanged(instance);
+            return true;
+        }
+
+        selectedInstance = instance;
+        ImportLocalResourcePackCommand.NotifyCanExecuteChanged();
+        return false;
+    }
+
     public override void OnSectionDeactivated()
     {
         isSectionActive = false;
@@ -569,6 +582,15 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     {
         return !string.IsNullOrWhiteSpace(source)
             && source.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool ShouldResetForInstanceReference(GameInstance? instance)
+    {
+        if (selectedInstance is null || instance is null)
+            return selectedInstance is not null || instance is not null;
+
+        return !string.Equals(selectedInstance.Id, instance.Id, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(selectedInstance.InstanceDirectory, instance.InstanceDirectory, StringComparison.OrdinalIgnoreCase);
     }
 
     private bool CanToggleSelectAllResourcePacks()

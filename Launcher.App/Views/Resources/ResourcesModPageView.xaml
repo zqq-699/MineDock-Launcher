@@ -79,6 +79,22 @@
                            TextAlignment="Center" />
             </DataTemplate>
 
+            <DataTemplate DataType="{x:Type viewModels:ResourcesModProjectItemViewModel}">
+                <controls:ListPageItemButton Title="{Binding Title}"
+                                             Subtitle="{Binding Subtitle}"
+                                             TrailingText="{Binding TrailingText}"
+                                             IconSource="{Binding IconSource}"
+                                             IconKey="{Binding IconKey}"
+                                             IsFirstVisible="{Binding Tag.IsFirstVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                             IsLastVisible="{Binding Tag.IsLastVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                             IsPreviousItemHighlighted="{Binding Tag.IsPreviousItemHighlighted, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                             ShouldPlayEnterAnimation="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}, Mode=TwoWay}"
+                                             EnterAnimationIndex="{Binding Tag.EnterAnimationIndex, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                             Command="{Binding DataContext.SelectProjectCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                                             CommandParameter="{Binding}"
+                                             Style="{StaticResource ListPageItemButtonEntranceStyle}" />
+            </DataTemplate>
+
             <DataTemplate DataType="{x:Type viewModels:ResourcesModVersionItemViewModel}">
                 <controls:ListPageItemButton Title="{Binding Title}"
                                              Subtitle="{Binding Subtitle}"
@@ -107,7 +123,7 @@
             </Grid.RenderTransform>
 
             <ListBox x:Name="ResourcesModListBox"
-                     ItemsSource="{Binding VisibleProjects}"
+                     ItemsSource="{Binding ProjectListItems}"
                      ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
                      Style="{StaticResource ListPageVirtualizedListBoxStyle}"
                      VirtualizingPanel.IsVirtualizing="True"
@@ -125,23 +141,6 @@
                                                 VirtualizingPanel.ScrollUnit="Pixel" />
                     </ItemsPanelTemplate>
                 </ListBox.ItemsPanel>
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <controls:ListPageItemButton Title="{Binding Title}"
-                                                     Subtitle="{Binding Subtitle}"
-                                                     TrailingText="{Binding TrailingText}"
-                                                     IconSource="{Binding IconSource}"
-                                                     IconKey="{Binding IconKey}"
-                                                     IsFirstVisible="{Binding Tag.IsFirstVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
-                                                     IsLastVisible="{Binding Tag.IsLastVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
-                                                     IsPreviousItemHighlighted="{Binding Tag.IsPreviousItemHighlighted, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
-                                                     ShouldPlayEnterAnimation="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}, Mode=TwoWay}"
-                                                     EnterAnimationIndex="{Binding Tag.EnterAnimationIndex, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
-                                                     Command="{Binding DataContext.SelectProjectCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
-                                                     CommandParameter="{Binding}"
-                                                     Style="{StaticResource ListPageItemButtonEntranceStyle}" />
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
             </ListBox>
 
             <TextBlock Margin="0,260,12,0"
@@ -158,15 +157,6 @@
                        Text="{Binding LoadErrorMessage}"
                        Style="{StaticResource PageEmptyStateTextStyle}"
                        Visibility="{Binding CanShowLoadErrorState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
-
-            <TextBlock Margin="0,0,12,22"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Bottom"
-                       Text="{Binding LoadMoreMessage}"
-                       Foreground="{DynamicResource Brush.B8FFFFFF}"
-                       FontSize="12"
-                       TextAlignment="Center"
-                       Visibility="{Binding CanShowLoadMoreState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
         </Grid>
 
         <Grid x:Name="ProjectDetailsStep"
