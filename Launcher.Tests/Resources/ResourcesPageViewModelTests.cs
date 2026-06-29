@@ -68,7 +68,22 @@ public sealed class ResourcesPageViewModelTests
                 Strings.Resources_ModSourceCurseForge
             ],
             viewModel.ModPage.SourceOptions.Select(option => option.Title));
-        Assert.Equal([Strings.Resources_ModFilterAllTypes], viewModel.ModPage.TypeOptions.Select(option => option.Title));
+        Assert.Equal(
+            [
+                Strings.Resources_ModFilterAllTypes,
+                Strings.Resources_ModFilterTypeOptimization,
+                Strings.Resources_ModFilterTypeUtility,
+                Strings.Resources_ModFilterTypeAdventure,
+                Strings.Resources_ModFilterTypeDecoration,
+                Strings.Resources_ModFilterTypeEquipment,
+                Strings.Resources_ModFilterTypeTechnology,
+                Strings.Resources_ModFilterTypeMagic,
+                Strings.Resources_ModFilterTypeMobs,
+                Strings.Resources_ModFilterTypeWorldGeneration,
+                Strings.Resources_ModFilterTypeStorage,
+                Strings.Resources_ModFilterTypeLibrary
+            ],
+            viewModel.ModPage.TypeOptions.Select(option => option.Title));
         Assert.Same(viewModel.ModPage.VersionOptions[0], viewModel.ModPage.SelectedVersionOption);
         Assert.Same(viewModel.ModPage.LoaderOptions[0], viewModel.ModPage.SelectedLoaderOption);
         Assert.Same(viewModel.ModPage.SourceOptions[0], viewModel.ModPage.SelectedSourceOption);
@@ -98,6 +113,53 @@ public sealed class ResourcesPageViewModelTests
         Assert.Same(loaderOption, viewModel.ModPage.SelectedLoaderOption);
         Assert.Same(sourceOption, viewModel.ModPage.SelectedSourceOption);
         Assert.Same(typeOption, viewModel.ModPage.SelectedTypeOption);
+    }
+
+    [Fact]
+    public async Task ModTypeFilterAddsCategoryToSearchRequest()
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var viewModel = new ResourcesPageViewModel(service);
+
+        viewModel.ModPage.SelectedTypeOption = viewModel.ModPage.TypeOptions.Single(option => option.Id == "magic");
+        await viewModel.ModPage.RefreshProjectsCommand.ExecuteAsync(null);
+
+        Assert.NotNull(service.LastRequest);
+        Assert.Equal(ResourceProjectCategory.Magic, service.LastRequest.Category);
+    }
+
+    [Fact]
+    public async Task ModTypeFilterKeepsCategoryWhenLoadingMore()
+    {
+        var service = new QueueResourceCatalogService(
+            CreateProjectResult(1, "first", hasMore: true),
+            CreateProjectResult(1, "second", hasMore: false));
+        var viewModel = new ResourcesPageViewModel(service);
+
+        viewModel.ModPage.SelectedTypeOption = viewModel.ModPage.TypeOptions.Single(option => option.Id == "technology");
+        await viewModel.ModPage.RefreshProjectsCommand.ExecuteAsync(null);
+        await viewModel.ModPage.LoadMoreProjectsCommand.ExecuteAsync(null);
+
+        Assert.Equal(ResourceProjectCategory.Technology, service.Requests[0].Category);
+        Assert.Equal(ResourceProjectCategory.Technology, service.Requests[1].Category);
+        Assert.Equal(20, service.Requests[1].Offset);
+    }
+
+    [Fact]
+    public async Task ModFilterDialogConfirmAppliesPendingTypeFilter()
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var viewModel = new ResourcesPageViewModel(service);
+        var typeOption = viewModel.ModPage.TypeOptions.Single(option => option.Id == "storage");
+
+        viewModel.ModPage.OpenFilterDialogCommand.Execute(null);
+        viewModel.ModPage.PendingTypeOption = typeOption;
+        viewModel.ModPage.ConfirmFilterDialogCommand.Execute(null);
+        await viewModel.ModPage.RefreshProjectsCommand.ExecuteAsync(null);
+
+        Assert.Same(typeOption, viewModel.ModPage.SelectedTypeOption);
+        Assert.NotNull(service.LastRequest);
+        Assert.Equal(ResourceProjectCategory.Storage, service.LastRequest.Category);
     }
 
     [Fact]

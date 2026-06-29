@@ -32,6 +32,8 @@ public sealed class ResourceCatalogService : IResourceCatalogService
     private readonly HttpClient httpClient;
     private readonly ICurseForgeApiKeyResolver curseForgeApiKeyResolver;
     private readonly ILogger<ResourceCatalogService> logger;
+    private readonly object curseForgeCategoriesGate = new();
+    private Task<IReadOnlyList<CurseForgeCategory>>? curseForgeCategoriesTask;
 
     public ResourceCatalogService(
         HttpClient? httpClient = null,
@@ -54,12 +56,13 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         CancellationToken cancellationToken = default)
     {
         logger.LogInformation(
-            "Searching resource mods. Query={Query} MinecraftVersion={MinecraftVersion} MinecraftVersionCount={MinecraftVersionCount} Loader={Loader} Source={Source}",
+            "Searching resource mods. Query={Query} MinecraftVersion={MinecraftVersion} MinecraftVersionCount={MinecraftVersionCount} Loader={Loader} Source={Source} Category={Category}",
             request.Query,
             request.MinecraftVersion,
             ResolveMinecraftVersions(request).Count,
             request.Loader,
-            request.Source);
+            request.Source,
+            request.Category);
 
         var projects = new List<ResourceProject>();
         var hasMore = false;
@@ -144,6 +147,9 @@ public sealed class ResourceCatalogService : IResourceCatalogService
 
         if (request.Loader is not LoaderKind.Vanilla)
             facets.Add(new List<string> { $"categories:{request.Loader.ToString().ToLowerInvariant()}" });
+
+        if (request.Category is { } category)
+            facets.Add(new List<string> { $"categories:{MapModrinthCategory(category)}" });
 
         var url = $"{ModrinthBaseUrl}/search?limit={pageSize}&offset={offset}&index=downloads&query={Uri.EscapeDataString(request.Query ?? string.Empty)}&facets={Uri.EscapeDataString(JsonSerializer.Serialize(facets))}";
         var response = await httpClient.GetFromJsonAsync<ModrinthSearchResponse>(url, cancellationToken).ConfigureAwait(false);
@@ -363,16 +369,26 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         string apiKey,
         CancellationToken cancellationToken)
     {
+        var categoryId = await ResolveCurseForgeCategoryIdAsync(request.Category, apiKey, cancellationToken)
+            .ConfigureAwait(false);
+        if (request.Category.HasValue && categoryId is null)
+        {
+            logger.LogWarning(
+                "Skipping CurseForge resource search because the selected category could not be resolved. Category={Category}",
+                request.Category);
+            return new ResourceCatalogSourceSearchResult([], HasMore: false);
+        }
+
         var minecraftVersions = ResolveMinecraftVersions(request);
         if (minecraftVersions.Count == 0)
-            return await SearchCurseForgeModsAsync(request, apiKey, minecraftVersion: null, cancellationToken)
+            return await SearchCurseForgeModsAsync(request, apiKey, null, categoryId, cancellationToken)
                 .ConfigureAwait(false);
 
         var projects = new Dictionary<string, ResourceProject>(StringComparer.OrdinalIgnoreCase);
         var hasMore = false;
         foreach (var minecraftVersion in minecraftVersions)
         {
-            var result = await SearchCurseForgeModsAsync(request, apiKey, minecraftVersion, cancellationToken)
+            var result = await SearchCurseForgeModsAsync(request, apiKey, minecraftVersion, categoryId, cancellationToken)
                 .ConfigureAwait(false);
             hasMore |= result.HasMore;
             foreach (var project in result.Projects)
@@ -386,6 +402,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         ResourceCatalogSearchRequest request,
         string apiKey,
         string? minecraftVersion,
+        int? categoryId,
         CancellationToken cancellationToken)
     {
         var pageSize = NormalizePageSize(request.PageSize);
@@ -406,6 +423,8 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             query.Add($"gameVersion={Uri.EscapeDataString(minecraftVersion)}");
         if (TryMapCurseForgeLoader(request.Loader, out var loaderType))
             query.Add($"modLoaderType={(int)loaderType}");
+        if (categoryId.HasValue)
+            query.Add($"categoryId={categoryId.Value}");
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"{CurseForgeBaseUrl}/mods/search?{string.Join("&", query)}");
         httpRequest.Headers.TryAddWithoutValidation("Accept", "application/json");
@@ -453,6 +472,145 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         return string.IsNullOrWhiteSpace(request.MinecraftVersion)
             ? []
             : [request.MinecraftVersion.Trim()];
+    }
+
+    private async Task<int?> ResolveCurseForgeCategoryIdAsync(
+        ResourceProjectCategory? category,
+        string apiKey,
+        CancellationToken cancellationToken)
+    {
+        if (!category.HasValue)
+            return null;
+
+        var aliases = ResolveCurseForgeCategoryAliases(category.Value)
+            .Select(NormalizeCurseForgeCategoryText)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (aliases.Count == 0)
+            return null;
+
+        var categories = await GetCurseForgeCategoriesAsync(apiKey, cancellationToken).ConfigureAwait(false);
+        foreach (var candidate in categories)
+        {
+            if (ResolveCurseForgeCategoryCandidateKeys(candidate).Any(aliases.Contains))
+                return candidate.Id;
+        }
+
+        return null;
+    }
+
+    private Task<IReadOnlyList<CurseForgeCategory>> GetCurseForgeCategoriesAsync(
+        string apiKey,
+        CancellationToken cancellationToken)
+    {
+        lock (curseForgeCategoriesGate)
+        {
+            if (curseForgeCategoriesTask is null
+                || curseForgeCategoriesTask.IsCanceled
+                || curseForgeCategoriesTask.IsFaulted)
+            {
+                curseForgeCategoriesTask = LoadCurseForgeCategoriesAsync(apiKey, cancellationToken);
+            }
+
+            return curseForgeCategoriesTask;
+        }
+    }
+
+    private async Task<IReadOnlyList<CurseForgeCategory>> LoadCurseForgeCategoriesAsync(
+        string apiKey,
+        CancellationToken cancellationToken)
+    {
+        using var httpRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"{CurseForgeBaseUrl}/categories?gameId={MinecraftGameId}&classId={MinecraftModsClassId}");
+        httpRequest.Headers.TryAddWithoutValidation("Accept", "application/json");
+        httpRequest.Headers.TryAddWithoutValidation("x-api-key", apiKey);
+
+        using var response = await httpClient.SendAsync(httpRequest, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            logger.LogWarning(
+                "CurseForge resource categories were rejected. StatusCode={StatusCode}",
+                (int)response.StatusCode);
+            return [];
+        }
+
+        response.EnsureSuccessStatusCode();
+        var payload = await response.Content.ReadFromJsonAsync<CurseForgeCategoriesResponse>(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+        return payload?.Data ?? [];
+    }
+
+    private static IEnumerable<string> ResolveCurseForgeCategoryCandidateKeys(CurseForgeCategory category)
+    {
+        foreach (var value in new[] { category.Slug, category.Name })
+        {
+            var normalized = NormalizeCurseForgeCategoryText(value);
+            if (!string.IsNullOrWhiteSpace(normalized))
+                yield return normalized;
+
+            var lastSegment = ResolveLastCategorySegment(value);
+            normalized = NormalizeCurseForgeCategoryText(lastSegment);
+            if (!string.IsNullOrWhiteSpace(normalized))
+                yield return normalized;
+        }
+    }
+
+    private static string ResolveLastCategorySegment(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var segments = value.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length == 0 ? value : segments[^1];
+    }
+
+    private static string NormalizeCurseForgeCategoryText(string value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : new string(value
+                .Where(char.IsLetterOrDigit)
+                .Select(char.ToLowerInvariant)
+                .ToArray());
+    }
+
+    private static IReadOnlyList<string> ResolveCurseForgeCategoryAliases(ResourceProjectCategory category)
+    {
+        return category switch
+        {
+            ResourceProjectCategory.Optimization => ["optimization", "performance"],
+            ResourceProjectCategory.Utility => ["utility", "utilities", "qol", "quality of life", "miscellaneous"],
+            ResourceProjectCategory.Adventure => ["adventure", "rpg", "adventure rpg", "adventure and rpg"],
+            ResourceProjectCategory.Decoration => ["decoration", "decorative", "cosmetic"],
+            ResourceProjectCategory.Equipment => ["equipment", "armor weapons tools", "armor", "weapons", "tools"],
+            ResourceProjectCategory.Technology => ["technology", "tech"],
+            ResourceProjectCategory.Magic => ["magic"],
+            ResourceProjectCategory.Mobs => ["mobs", "creatures"],
+            ResourceProjectCategory.WorldGeneration => ["worldgen", "world gen", "world generation", "biomes", "dimensions"],
+            ResourceProjectCategory.Storage => ["storage"],
+            ResourceProjectCategory.Library => ["library", "api", "library api", "api and library"],
+            _ => []
+        };
+    }
+
+    private static string MapModrinthCategory(ResourceProjectCategory category)
+    {
+        return category switch
+        {
+            ResourceProjectCategory.Optimization => "optimization",
+            ResourceProjectCategory.Utility => "utility",
+            ResourceProjectCategory.Adventure => "adventure",
+            ResourceProjectCategory.Decoration => "decoration",
+            ResourceProjectCategory.Equipment => "equipment",
+            ResourceProjectCategory.Technology => "technology",
+            ResourceProjectCategory.Magic => "magic",
+            ResourceProjectCategory.Mobs => "mobs",
+            ResourceProjectCategory.WorldGeneration => "worldgen",
+            ResourceProjectCategory.Storage => "storage",
+            ResourceProjectCategory.Library => "library",
+            _ => string.Empty
+        };
     }
 
     private static string CreateProjectKey(ResourceProject project)
@@ -733,6 +891,24 @@ public sealed class ResourceCatalogService : IResourceCatalogService
 
         [JsonPropertyName("pagination")]
         public CurseForgePagination? Pagination { get; init; }
+    }
+
+    private sealed class CurseForgeCategoriesResponse
+    {
+        [JsonPropertyName("data")]
+        public List<CurseForgeCategory> Data { get; init; } = [];
+    }
+
+    private sealed class CurseForgeCategory
+    {
+        [JsonPropertyName("id")]
+        public int Id { get; init; }
+
+        [JsonPropertyName("name")]
+        public string Name { get; init; } = string.Empty;
+
+        [JsonPropertyName("slug")]
+        public string Slug { get; init; } = string.Empty;
     }
 
     private sealed class CurseForgeMod

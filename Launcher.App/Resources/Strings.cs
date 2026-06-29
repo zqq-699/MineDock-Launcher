@@ -41,6 +41,17 @@ public static class Strings
     public static string Resources_ModFilterAllSources => Get(nameof(Resources_ModFilterAllSources));
     public static string Resources_ModFilterTypeLabel => Get(nameof(Resources_ModFilterTypeLabel));
     public static string Resources_ModFilterAllTypes => Get(nameof(Resources_ModFilterAllTypes));
+    public static string Resources_ModFilterTypeOptimization => Get(nameof(Resources_ModFilterTypeOptimization));
+    public static string Resources_ModFilterTypeUtility => Get(nameof(Resources_ModFilterTypeUtility));
+    public static string Resources_ModFilterTypeAdventure => Get(nameof(Resources_ModFilterTypeAdventure));
+    public static string Resources_ModFilterTypeDecoration => Get(nameof(Resources_ModFilterTypeDecoration));
+    public static string Resources_ModFilterTypeEquipment => Get(nameof(Resources_ModFilterTypeEquipment));
+    public static string Resources_ModFilterTypeTechnology => Get(nameof(Resources_ModFilterTypeTechnology));
+    public static string Resources_ModFilterTypeMagic => Get(nameof(Resources_ModFilterTypeMagic));
+    public static string Resources_ModFilterTypeMobs => Get(nameof(Resources_ModFilterTypeMobs));
+    public static string Resources_ModFilterTypeWorldGeneration => Get(nameof(Resources_ModFilterTypeWorldGeneration));
+    public static string Resources_ModFilterTypeStorage => Get(nameof(Resources_ModFilterTypeStorage));
+    public static string Resources_ModFilterTypeLibrary => Get(nameof(Resources_ModFilterTypeLibrary));
     public static string Resources_ModFilterButtonLabel => Get(nameof(Resources_ModFilterButtonLabel));
     public static string Resources_ModSourceModrinth => Get(nameof(Resources_ModSourceModrinth));
     public static string Resources_ModSourceCurseForge => Get(nameof(Resources_ModSourceCurseForge));

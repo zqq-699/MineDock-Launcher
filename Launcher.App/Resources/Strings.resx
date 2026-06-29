@@ -48,6 +48,17 @@
   <data name="Resources_ModFilterAllSources" xml:space="preserve"><value>所有来源</value></data>
   <data name="Resources_ModFilterTypeLabel" xml:space="preserve"><value>类型</value></data>
   <data name="Resources_ModFilterAllTypes" xml:space="preserve"><value>所有类型</value></data>
+  <data name="Resources_ModFilterTypeOptimization" xml:space="preserve"><value>&#x4F18;&#x5316;</value></data>
+  <data name="Resources_ModFilterTypeUtility" xml:space="preserve"><value>&#x5B9E;&#x7528;</value></data>
+  <data name="Resources_ModFilterTypeAdventure" xml:space="preserve"><value>&#x5192;&#x9669;/RPG</value></data>
+  <data name="Resources_ModFilterTypeDecoration" xml:space="preserve"><value>&#x88C5;&#x9970;</value></data>
+  <data name="Resources_ModFilterTypeEquipment" xml:space="preserve"><value>&#x88C5;&#x5907;</value></data>
+  <data name="Resources_ModFilterTypeTechnology" xml:space="preserve"><value>&#x79D1;&#x6280;</value></data>
+  <data name="Resources_ModFilterTypeMagic" xml:space="preserve"><value>&#x9B54;&#x6CD5;</value></data>
+  <data name="Resources_ModFilterTypeMobs" xml:space="preserve"><value>&#x751F;&#x7269;</value></data>
+  <data name="Resources_ModFilterTypeWorldGeneration" xml:space="preserve"><value>&#x4E16;&#x754C;&#x751F;&#x6210;</value></data>
+  <data name="Resources_ModFilterTypeStorage" xml:space="preserve"><value>&#x5B58;&#x50A8;</value></data>
+  <data name="Resources_ModFilterTypeLibrary" xml:space="preserve"><value>&#x5E93;/API</value></data>
   <data name="Resources_ModFilterButtonLabel" xml:space="preserve"><value>&#x7B5B;&#x9009;</value></data>
   <data name="Resources_ModSourceModrinth" xml:space="preserve"><value>Modrinth</value></data>
   <data name="Resources_ModSourceCurseForge" xml:space="preserve"><value>CurseForge</value></data>

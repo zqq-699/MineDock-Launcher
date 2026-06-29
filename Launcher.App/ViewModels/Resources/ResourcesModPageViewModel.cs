@@ -78,7 +78,21 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             new ResourcesFilterOptionItem { Id = "modrinth", Title = Strings.Resources_ModSourceModrinth },
             new ResourcesFilterOptionItem { Id = "curseforge", Title = Strings.Resources_ModSourceCurseForge }
         ];
-        TypeOptions = [new ResourcesFilterOptionItem { Id = "all", Title = Strings.Resources_ModFilterAllTypes }];
+        TypeOptions =
+        [
+            new ResourcesFilterOptionItem { Id = "all", Title = Strings.Resources_ModFilterAllTypes },
+            new ResourcesFilterOptionItem { Id = "optimization", Title = Strings.Resources_ModFilterTypeOptimization },
+            new ResourcesFilterOptionItem { Id = "utility", Title = Strings.Resources_ModFilterTypeUtility },
+            new ResourcesFilterOptionItem { Id = "adventure", Title = Strings.Resources_ModFilterTypeAdventure },
+            new ResourcesFilterOptionItem { Id = "decoration", Title = Strings.Resources_ModFilterTypeDecoration },
+            new ResourcesFilterOptionItem { Id = "equipment", Title = Strings.Resources_ModFilterTypeEquipment },
+            new ResourcesFilterOptionItem { Id = "technology", Title = Strings.Resources_ModFilterTypeTechnology },
+            new ResourcesFilterOptionItem { Id = "magic", Title = Strings.Resources_ModFilterTypeMagic },
+            new ResourcesFilterOptionItem { Id = "mobs", Title = Strings.Resources_ModFilterTypeMobs },
+            new ResourcesFilterOptionItem { Id = "worldgen", Title = Strings.Resources_ModFilterTypeWorldGeneration },
+            new ResourcesFilterOptionItem { Id = "storage", Title = Strings.Resources_ModFilterTypeStorage },
+            new ResourcesFilterOptionItem { Id = "library", Title = Strings.Resources_ModFilterTypeLibrary }
+        ];
         AvailableVersionFilterOptions = [CreateAllAvailableVersionFilterOption()];
         AvailableLoaderFilterOptions = [.. CreateDefaultAvailableLoaderFilterOptions()];
 
@@ -1614,6 +1628,21 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             {
                 "modrinth" => ResourceProjectSource.Modrinth,
                 "curseforge" => ResourceProjectSource.CurseForge,
+                _ => null
+            },
+            Category = SelectedTypeOption?.Id switch
+            {
+                "optimization" => ResourceProjectCategory.Optimization,
+                "utility" => ResourceProjectCategory.Utility,
+                "adventure" => ResourceProjectCategory.Adventure,
+                "decoration" => ResourceProjectCategory.Decoration,
+                "equipment" => ResourceProjectCategory.Equipment,
+                "technology" => ResourceProjectCategory.Technology,
+                "magic" => ResourceProjectCategory.Magic,
+                "mobs" => ResourceProjectCategory.Mobs,
+                "worldgen" => ResourceProjectCategory.WorldGeneration,
+                "storage" => ResourceProjectCategory.Storage,
+                "library" => ResourceProjectCategory.Library,
                 _ => null
             },
             Offset = offset,

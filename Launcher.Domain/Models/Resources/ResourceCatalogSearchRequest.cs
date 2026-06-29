@@ -12,6 +12,8 @@ public sealed class ResourceCatalogSearchRequest
 
     public ResourceProjectSource? Source { get; init; }
 
+    public ResourceProjectCategory? Category { get; init; }
+
     public int Offset { get; init; }
 
     public int PageSize { get; init; } = 20;

@@ -23,6 +23,7 @@ public sealed class ResourceCatalogServiceTests
             MinecraftVersion = "1.20.1",
             Loader = LoaderKind.Fabric,
             Source = ResourceProjectSource.Modrinth,
+            Category = ResourceProjectCategory.Optimization,
             Offset = 20,
             PageSize = 20
         });
@@ -40,6 +41,7 @@ public sealed class ResourceCatalogServiceTests
         Assert.Contains("project_type%3Amod", request.RequestUri.Query);
         Assert.Contains("versions%3A1.20.1", request.RequestUri.Query);
         Assert.Contains("categories%3Afabric", request.RequestUri.Query);
+        Assert.Contains("categories%3Aoptimization", request.RequestUri.Query);
     }
 
     [Fact]
@@ -104,6 +106,71 @@ public sealed class ResourceCatalogServiceTests
         Assert.Contains("searchFilter=map", request.RequestUri.Query);
         Assert.Contains("gameVersion=1.20.1", request.RequestUri.Query);
         Assert.Contains("modLoaderType=1", request.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task SearchModsAddsCurseForgeCategoryIdWhenTypeFilterIsSelected()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            """
+            {"data":[{"id":9,"name":"Tech Mod","slug":"tech-mod","summary":"Tech","downloadCount":120,"links":null,"logo":null}],"pagination":{"index":0,"pageSize":20,"resultCount":1,"totalCount":1}}
+            """,
+            curseForgeCategoriesResponse:
+            """
+            {"data":[{"id":4471,"name":"Technology","slug":"technology"},{"id":4472,"name":"Magic","slug":"magic"}]}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver("test-key"));
+
+        var result = await service.SearchModsAsync(new ResourceCatalogSearchRequest
+        {
+            Source = ResourceProjectSource.CurseForge,
+            Category = ResourceProjectCategory.Technology
+        });
+
+        Assert.Single(result.Projects);
+        Assert.Equal(2, handler.Requests.Count);
+        var categoriesRequest = handler.Requests[0];
+        Assert.Equal("api.curseforge.com", categoriesRequest.RequestUri!.Host);
+        Assert.Contains("/categories", categoriesRequest.RequestUri.AbsolutePath);
+        Assert.Contains("gameId=432", categoriesRequest.RequestUri.Query);
+        Assert.Contains("classId=6", categoriesRequest.RequestUri.Query);
+        Assert.True(categoriesRequest.Headers.TryGetValues("x-api-key", out var categoryHeaderValues));
+        Assert.Equal("test-key", Assert.Single(categoryHeaderValues));
+
+        var searchRequest = handler.Requests[1];
+        Assert.Contains("/mods/search", searchRequest.RequestUri!.AbsolutePath);
+        Assert.Contains("categoryId=4471", searchRequest.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task SearchModsSkipsCurseForgeWhenSelectedCategoryCannotBeResolved()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            """
+            {"data":[{"id":9,"name":"Magic Mod","slug":"magic-mod","summary":"Magic","downloadCount":120,"links":null,"logo":null}]}
+            """,
+            curseForgeCategoriesResponse:
+            """
+            {"data":[{"id":4471,"name":"Technology","slug":"technology"}]}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver("test-key"));
+
+        var result = await service.SearchModsAsync(new ResourceCatalogSearchRequest
+        {
+            Source = ResourceProjectSource.CurseForge,
+            Category = ResourceProjectCategory.Magic
+        });
+
+        Assert.Empty(result.Projects);
+        Assert.Single(handler.Requests);
+        Assert.Contains("/categories", handler.Requests[0].RequestUri!.AbsolutePath);
+        Assert.DoesNotContain(handler.Requests, request => request.RequestUri!.AbsolutePath.Contains("/mods/search", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -501,17 +568,20 @@ public sealed class ResourceCatalogServiceTests
     {
         private readonly string modrinthResponse;
         private readonly string curseForgeResponse;
+        private readonly string curseForgeCategoriesResponse;
         private readonly string modrinthVersionResponse;
         private readonly IReadOnlyDictionary<string, string> downloadResponses;
 
         public ResourceCatalogHandler(
             string modrinthResponse,
             string? curseForgeResponse = null,
+            string? curseForgeCategoriesResponse = null,
             string? modrinthVersionResponse = null,
             IReadOnlyDictionary<string, string>? downloadResponses = null)
         {
             this.modrinthResponse = modrinthResponse;
             this.curseForgeResponse = curseForgeResponse ?? """{"data":[]}""";
+            this.curseForgeCategoriesResponse = curseForgeCategoriesResponse ?? """{"data":[]}""";
             this.modrinthVersionResponse = modrinthVersionResponse ?? "[]";
             this.downloadResponses = downloadResponses ?? new Dictionary<string, string>();
         }
@@ -537,6 +607,8 @@ public sealed class ResourceCatalogServiceTests
                 "api.modrinth.com" when request.RequestUri.AbsolutePath.Contains("/version", StringComparison.Ordinal)
                     => modrinthVersionResponse,
                 "api.modrinth.com" => modrinthResponse,
+                "api.curseforge.com" when request.RequestUri.AbsolutePath.Contains("/categories", StringComparison.Ordinal)
+                    => curseForgeCategoriesResponse,
                 "api.curseforge.com" => curseForgeResponse,
                 _ => throw new InvalidOperationException($"Unexpected host: {request.RequestUri?.Host}")
             };
