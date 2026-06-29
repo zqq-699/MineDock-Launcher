@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.App.ViewModels.Resources;
 
-public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
+public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 {
     private const int SearchDebounceMilliseconds = 350;
     private const int CatalogPageSize = 20;
@@ -27,6 +27,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     private readonly DownloadTasksPageViewModel? downloadTasksPage;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger? logger;
+    private readonly ResourcesOnlineProjectPageOptions options;
     private readonly object releaseVersionOrderGate = new();
     private CancellationTokenSource? refreshCancellationTokenSource;
     private CancellationTokenSource? installTargetsCancellationTokenSource;
@@ -51,8 +52,36 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         IFilePickerService? filePickerService = null,
         IFloatingMessageService? floatingMessageService = null,
         DownloadTasksPageViewModel? downloadTasksPage = null)
-        : base(parent, Strings.Resources_SectionMods)
+        : this(
+            parent,
+            CreateModOptions(),
+            resourceCatalogService,
+            logger,
+            uiDispatcher,
+            gameVersionService,
+            gameInstanceService,
+            statusService,
+            filePickerService,
+            floatingMessageService,
+            downloadTasksPage)
     {
+    }
+
+    protected ResourcesModPageViewModel(
+        ResourcesPageViewModel parent,
+        ResourcesOnlineProjectPageOptions options,
+        IResourceCatalogService? resourceCatalogService = null,
+        ILogger? logger = null,
+        IUiDispatcher? uiDispatcher = null,
+        IGameVersionService? gameVersionService = null,
+        IGameInstanceService? gameInstanceService = null,
+        IStatusService? statusService = null,
+        IFilePickerService? filePickerService = null,
+        IFloatingMessageService? floatingMessageService = null,
+        DownloadTasksPageViewModel? downloadTasksPage = null)
+        : base(parent, options.Title)
+    {
+        this.options = options;
         this.resourceCatalogService = resourceCatalogService;
         this.gameVersionService = gameVersionService;
         this.gameInstanceService = gameInstanceService;
@@ -63,36 +92,15 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger;
 
-        VersionOptions = [new ResourcesFilterOptionItem { Id = "all", Title = Strings.Resources_ModFilterAllVersions }];
-        LoaderOptions =
-        [
-            new ResourcesFilterOptionItem { Id = "all", Title = Strings.Resources_ModFilterAllLoaders },
-            new ResourcesFilterOptionItem { Id = "fabric", Title = Strings.Download_FabricLoaderTitle },
-            new ResourcesFilterOptionItem { Id = "forge", Title = Strings.Download_ForgeLoaderTitle },
-            new ResourcesFilterOptionItem { Id = "neoforge", Title = Strings.Download_NeoForgeLoaderTitle },
-            new ResourcesFilterOptionItem { Id = "quilt", Title = Strings.Download_QuiltLoaderTitle }
-        ];
+        VersionOptions = [new ResourcesFilterOptionItem { Id = "all", Title = options.AllVersionsText }];
+        LoaderOptions = CreateLoaderOptions(options);
         SourceOptions =
         [
             new ResourcesFilterOptionItem { Id = "all", Title = Strings.Resources_ModFilterAllSources },
             new ResourcesFilterOptionItem { Id = "modrinth", Title = Strings.Resources_ModSourceModrinth },
             new ResourcesFilterOptionItem { Id = "curseforge", Title = Strings.Resources_ModSourceCurseForge }
         ];
-        TypeOptions =
-        [
-            new ResourcesFilterOptionItem { Id = "all", Title = Strings.Resources_ModFilterAllTypes },
-            new ResourcesFilterOptionItem { Id = "optimization", Title = Strings.Resources_ModFilterTypeOptimization },
-            new ResourcesFilterOptionItem { Id = "utility", Title = Strings.Resources_ModFilterTypeUtility },
-            new ResourcesFilterOptionItem { Id = "adventure", Title = Strings.Resources_ModFilterTypeAdventure },
-            new ResourcesFilterOptionItem { Id = "decoration", Title = Strings.Resources_ModFilterTypeDecoration },
-            new ResourcesFilterOptionItem { Id = "equipment", Title = Strings.Resources_ModFilterTypeEquipment },
-            new ResourcesFilterOptionItem { Id = "technology", Title = Strings.Resources_ModFilterTypeTechnology },
-            new ResourcesFilterOptionItem { Id = "magic", Title = Strings.Resources_ModFilterTypeMagic },
-            new ResourcesFilterOptionItem { Id = "mobs", Title = Strings.Resources_ModFilterTypeMobs },
-            new ResourcesFilterOptionItem { Id = "worldgen", Title = Strings.Resources_ModFilterTypeWorldGeneration },
-            new ResourcesFilterOptionItem { Id = "storage", Title = Strings.Resources_ModFilterTypeStorage },
-            new ResourcesFilterOptionItem { Id = "library", Title = Strings.Resources_ModFilterTypeLibrary }
-        ];
+        TypeOptions = CreateTypeOptions(options);
         AvailableVersionFilterOptions = [CreateAllAvailableVersionFilterOption()];
         AvailableLoaderFilterOptions = [.. CreateDefaultAvailableLoaderFilterOptions()];
 
@@ -115,6 +123,18 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     public ObservableCollection<ResourcesFilterOptionItem> AvailableVersionFilterOptions { get; }
 
     public ObservableCollection<ResourcesFilterOptionItem> AvailableLoaderFilterOptions { get; }
+
+    public bool ShowsLoaderFilters => options.ShowsLoaderFilters;
+
+    public string ProjectsLoadingMessage => options.ProjectsLoadingText;
+
+    public string DetailsInfoSectionText => options.DetailsInfoSectionText;
+
+    public string InstallTargetSectionText => options.InstallTargetSectionText;
+
+    public string InstallTargetsLoadingMessage => options.InstallTargetsLoadingText;
+
+    public string VersionsLoadingMessage => options.VersionsLoadingText;
 
     public ObservableCollection<ResourcesModProjectItemViewModel> VisibleProjects { get; } = [];
 
@@ -276,7 +296,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 
     public bool HasPartialWarningMessage => !string.IsNullOrWhiteSpace(PartialWarningMessage);
 
-    public string EmptyMessage => Strings.Resources_ModProjectsEmpty;
+    public string EmptyMessage => options.ProjectsEmptyText;
 
     public bool CanShowLoadingState => IsLoadingProjects && !HasVisibleProjects;
 
@@ -316,15 +336,16 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         && (IsLoadingMoreAvailableVersions || !string.IsNullOrWhiteSpace(AvailableVersionsLoadMoreMessage));
 
     public string AvailableVersionsEmptyMessage => HasAvailableVersionFilters
-        ? Strings.Resources_ModVersionsFilterEmpty
+        ? options.VersionsFilterEmptyText
         : SelectedInstallTarget?.IsLocalDownload == true || IsUnknownInstanceVersionTarget(SelectedInstallTarget)
-            ? Strings.Resources_ModVersionsEmptyLocal
-            : Strings.Resources_ModVersionsEmpty;
+            ? options.VersionsEmptyLocalText
+            : options.VersionsEmptyText;
 
     public bool HasAvailableVersionFilters => !string.IsNullOrWhiteSpace(AvailableVersionSearchQuery)
         || (SelectedAvailableVersionFilterOption?.Id is { } versionId
             && !string.Equals(versionId, "all", StringComparison.OrdinalIgnoreCase))
-        || (SelectedAvailableLoaderFilterOption?.Id is { } loaderId
+        || (options.ShowsLoaderFilters
+            && SelectedAvailableLoaderFilterOption?.Id is { } loaderId
             && !string.Equals(loaderId, "all", StringComparison.OrdinalIgnoreCase));
 
     public string AvailableVersionsTitle => FormatAvailableVersionsTitle(SelectedInstallTarget);
@@ -361,7 +382,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         PendingSourceOption = SelectedSourceOption;
         PendingTypeOption = SelectedTypeOption;
         IsFilterDialogOpen = true;
-        logger?.LogDebug("Resources mod filter dialog opened.");
+        logger?.LogDebug("Resource project filter dialog opened. Kind={Kind}", options.Kind);
     }
 
     [RelayCommand]
@@ -408,7 +429,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         AvailableVersionsLoadErrorMessage = string.Empty;
         _ = LoadInstallTargetsAsync();
         logger?.LogInformation(
-            "Resources mod project selected. Source={Source}, ProjectId={ProjectId}",
+            "Resource project selected. Kind={Kind}, Source={Source}, ProjectId={ProjectId}",
+            options.Kind,
             project.Project.Source,
             project.Project.ProjectId);
     }
@@ -445,13 +467,15 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         if (target.Instance is null)
         {
             logger?.LogInformation(
-                "Resources mod local download target selected. ProjectId={ProjectId}",
+                "Resource project local download target selected. Kind={Kind}, ProjectId={ProjectId}",
+                options.Kind,
                 SelectedProject.Project.ProjectId);
         }
         else
         {
             logger?.LogInformation(
-                "Resources mod install target selected. ProjectId={ProjectId} InstanceId={InstanceId} IsUnknownMinecraftVersion={IsUnknownMinecraftVersion}",
+                "Resource project install target selected. Kind={Kind}, ProjectId={ProjectId} InstanceId={InstanceId} IsUnknownMinecraftVersion={IsUnknownMinecraftVersion}",
+                options.Kind,
                 SelectedProject.Project.ProjectId,
                 target.Instance.Id,
                 IsUnknownInstanceVersionTarget(target));
@@ -477,7 +501,10 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 return;
 
             uiDispatcher.Invoke(() => ApplyInstallTargets(instances, loadErrorMessage: string.Empty, cancellationToken));
-            logger?.LogInformation("Resources mod install targets loaded. InstanceCount={InstanceCount}", instances.Count);
+            logger?.LogInformation(
+                "Resource project install targets loaded. Kind={Kind}, InstanceCount={InstanceCount}",
+                options.Kind,
+                instances.Count);
         }
         catch (OperationCanceledException)
         {
@@ -487,8 +514,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             if (cancellationToken.IsCancellationRequested)
                 return;
 
-            uiDispatcher.Invoke(() => ApplyInstallTargets([], Strings.Resources_ModInstallTargetsLoadError, cancellationToken));
-            logger?.LogError(exception, "Failed to load resources mod install targets.");
+            uiDispatcher.Invoke(() => ApplyInstallTargets([], options.InstallTargetsLoadErrorText, cancellationToken));
+            logger?.LogError(exception, "Failed to load resource project install targets. Kind={Kind}", options.Kind);
         }
     }
 
@@ -507,13 +534,13 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             var instance = target.Instance;
             if (resourceCatalogService is null || project is null)
             {
-                uiDispatcher.Invoke(() => ApplyAvailableVersions([], Strings.Resources_ModVersionsLoadError, hasMore: false, cancellationToken));
+                uiDispatcher.Invoke(() => ApplyAvailableVersions([], options.VersionsLoadErrorText, hasMore: false, cancellationToken));
                 return;
             }
 
             if (!target.IsLocalDownload && instance is null)
             {
-                uiDispatcher.Invoke(() => ApplyAvailableVersions([], Strings.Resources_ModVersionsLoadError, hasMore: false, cancellationToken));
+                uiDispatcher.Invoke(() => ApplyAvailableVersions([], options.VersionsLoadErrorText, hasMore: false, cancellationToken));
                 return;
             }
 
@@ -525,7 +552,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 return;
 
             var errorMessage = page.Result.IsCurseForgeUnavailable
-                ? Strings.Resources_ModVersionsLoadError
+                ? options.VersionsLoadErrorText
                 : string.Empty;
             uiDispatcher.Invoke(() => ApplyAvailableVersions(
                 page.Versions,
@@ -533,7 +560,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 hasMore: !page.Result.IsCurseForgeUnavailable && page.Result.HasMore,
                 cancellationToken));
             logger?.LogInformation(
-                "Resources mod versions loaded. ProjectId={ProjectId} InstanceId={InstanceId} VersionCount={VersionCount}",
+                "Resource project versions loaded. Kind={Kind}, ProjectId={ProjectId} InstanceId={InstanceId} VersionCount={VersionCount}",
+                options.Kind,
                 project.ProjectId,
                 instance?.Id,
                 page.Versions.Count);
@@ -546,8 +574,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             if (cancellationToken.IsCancellationRequested)
                 return;
 
-            uiDispatcher.Invoke(() => ApplyAvailableVersions([], Strings.Resources_ModVersionsLoadError, hasMore: false, cancellationToken));
-            logger?.LogError(exception, "Failed to load resources mod versions.");
+            uiDispatcher.Invoke(() => ApplyAvailableVersions([], options.VersionsLoadErrorText, hasMore: false, cancellationToken));
+            logger?.LogError(exception, "Failed to load resource project versions. Kind={Kind}", options.Kind);
         }
     }
 
@@ -583,9 +611,10 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         var cancellationToken = projectVersionsCancellationTokenSource?.Token ?? CancellationToken.None;
 
         IsLoadingMoreAvailableVersions = true;
-        AvailableVersionsLoadMoreMessage = Strings.Resources_ModVersionsLoadingMore;
+        AvailableVersionsLoadMoreMessage = options.VersionsLoadingMoreText;
         logger?.LogInformation(
-            "Loading more resource mod versions. ProjectId={ProjectId}",
+            "Loading more resource project versions. Kind={Kind}, ProjectId={ProjectId}",
+            options.Kind,
             project.ProjectId);
 
         try
@@ -599,7 +628,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             {
                 uiDispatcher.Invoke(() => FailAvailableVersionLoadMore(cancellationToken));
                 logger?.LogWarning(
-                    "Resource mod versions append failed because CurseForge is unavailable. ProjectId={ProjectId}",
+                    "Resource project versions append failed because CurseForge is unavailable. Kind={Kind}, ProjectId={ProjectId}",
+                    options.Kind,
                     project.ProjectId);
                 return;
             }
@@ -609,7 +639,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 hasMore: !page.Result.IsCurseForgeUnavailable && page.Result.HasMore,
                 cancellationToken));
             logger?.LogInformation(
-                "Resource mod versions appended. ProjectId={ProjectId} ResultCount={ResultCount} HasMore={HasMore}",
+                "Resource project versions appended. Kind={Kind}, ProjectId={ProjectId} ResultCount={ResultCount} HasMore={HasMore}",
+                options.Kind,
                 project.ProjectId,
                 page.Versions.Count,
                 HasMoreAvailableVersions);
@@ -625,7 +656,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             uiDispatcher.Invoke(() => FailAvailableVersionLoadMore(cancellationToken));
             logger?.LogError(
                 exception,
-                "Failed to load more resource mod versions. ProjectId={ProjectId}",
+                "Failed to load more resource project versions. Kind={Kind}, ProjectId={ProjectId}",
+                options.Kind,
                 project.ProjectId);
         }
     }
@@ -643,7 +675,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         {
             if (target.IsLocalDownload)
             {
-                var targetDirectory = filePickerService?.PickFolder(Strings.FilePicker_ModDownloadDirectoryTitle);
+                var targetDirectory = filePickerService?.PickFolder(options.DownloadDirectoryPickerTitle);
                 if (string.IsNullOrWhiteSpace(targetDirectory))
                     return;
 
@@ -651,7 +683,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 {
                     ShowProjectVersionFileExistsDialog(item);
                     logger?.LogInformation(
-                        "Skipped resources mod local download because target file exists. ProjectId={ProjectId} VersionId={VersionId} TargetDirectory={TargetDirectory}",
+                        "Skipped resource project local download because target file exists. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId} TargetDirectory={TargetDirectory}",
+                        options.Kind,
                         SelectedProject?.Project.ProjectId,
                         item.Version.VersionId,
                         targetDirectory);
@@ -659,8 +692,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 }
 
                 downloadTask = BeginModDownloadTask(item, targetDirectory);
-                floatingMessageService?.Show(Strings.Status_ModDownloading);
-                ReportStatus(string.Format(Strings.Status_ModDownloadingFormat, item.Title));
+                floatingMessageService?.Show(options.DownloadingText);
+                ReportStatus(string.Format(options.DownloadingFormat, item.Title));
                 await resourceCatalogService.DownloadProjectVersionAsync(
                         item.Version,
                         targetDirectory,
@@ -669,11 +702,12 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 if (CompleteCanceledModDownloadTask(downloadTask))
                     return;
 
-                var downloadedMessage = string.Format(Strings.Status_ModDownloadedFormat, ResolveVersionFileNameForDisplay(item));
+                var downloadedMessage = string.Format(options.DownloadedFormat, ResolveVersionFileNameForDisplay(item));
                 CompleteModDownloadTask(downloadTask, downloadedMessage);
                 ReportStatus(downloadedMessage);
                 logger?.LogInformation(
-                    "Resources mod version downloaded locally. ProjectId={ProjectId} VersionId={VersionId} TargetDirectory={TargetDirectory}",
+                    "Resource project version downloaded locally. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId} TargetDirectory={TargetDirectory}",
+                    options.Kind,
                     SelectedProject?.Project.ProjectId,
                     item.Version.VersionId,
                     targetDirectory);
@@ -688,7 +722,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             {
                 ShowProjectVersionFileExistsDialog(item);
                 logger?.LogInformation(
-                    "Skipped resources mod version install because target file exists. ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId}",
+                    "Skipped resource project version install because target file exists. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId}",
+                    options.Kind,
                     SelectedProject?.Project.ProjectId,
                     item.Version.VersionId,
                     instance.Id);
@@ -696,8 +731,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             }
 
             downloadTask = BeginModDownloadTask(item, target.Title);
-            floatingMessageService?.Show(Strings.Status_ModDownloading);
-            ReportStatus(string.Format(Strings.Status_ModDownloadingFormat, item.Title));
+            floatingMessageService?.Show(options.DownloadingText);
+            ReportStatus(string.Format(options.DownloadingFormat, item.Title));
             await resourceCatalogService.InstallProjectVersionAsync(
                     item.Version,
                     instance,
@@ -706,11 +741,12 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             if (CompleteCanceledModDownloadTask(downloadTask))
                 return;
 
-            var installedMessage = string.Format(Strings.Status_ModInstalledFormat, SelectedProject?.Title ?? item.Title);
+            var installedMessage = string.Format(options.InstalledFormat, SelectedProject?.Title ?? item.Title);
             CompleteModDownloadTask(downloadTask, installedMessage);
             ReportStatus(installedMessage);
             logger?.LogInformation(
-                "Resources mod version installed. ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId}",
+                "Resource project version installed. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId}",
+                options.Kind,
                 SelectedProject?.Project.ProjectId,
                 item.Version.VersionId,
                 instance.Id);
@@ -719,30 +755,33 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         {
             CompleteCanceledModDownloadTask(downloadTask);
             logger?.LogInformation(
-                "Resources mod version download canceled. ProjectId={ProjectId} VersionId={VersionId}",
+                "Resource project version download canceled. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId}",
+                options.Kind,
                 SelectedProject?.Project.ProjectId,
                 item.Version.VersionId);
         }
         catch (Exception exception)
         {
-            ReportStatus(target.IsLocalDownload ? Strings.Status_ModDownloadFailed : Strings.Status_ModInstallFailed);
+            ReportStatus(target.IsLocalDownload ? options.DownloadFailedText : options.InstallFailedText);
             if (target.IsLocalDownload)
             {
-                floatingMessageService?.Show(Strings.Status_ModDownloadFailed);
-                FailModDownloadTask(downloadTask, Strings.Status_ModDownloadFailed);
+                floatingMessageService?.Show(options.DownloadFailedText);
+                FailModDownloadTask(downloadTask, options.DownloadFailedText);
                 logger?.LogError(
                     exception,
-                    "Failed to download resources mod version locally. ProjectId={ProjectId} VersionId={VersionId}",
+                    "Failed to download resource project version locally. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId}",
+                    options.Kind,
                     SelectedProject?.Project.ProjectId,
                     item.Version.VersionId);
             }
             else
             {
-                floatingMessageService?.Show(Strings.Status_ModInstallFailed);
-                FailModDownloadTask(downloadTask, Strings.Status_ModInstallFailed);
+                floatingMessageService?.Show(options.InstallFailedText);
+                FailModDownloadTask(downloadTask, options.InstallFailedText);
                 logger?.LogError(
                     exception,
-                    "Failed to install resources mod version. ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId}",
+                    "Failed to install resource project version. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId}",
+                    options.Kind,
                     SelectedProject?.Project.ProjectId,
                     item.Version.VersionId,
                     target.Instance?.Id);
@@ -784,7 +823,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         }
 
         logger?.LogInformation(
-            "Applied resource mod filters from instance. InstanceId={InstanceId}, MinecraftVersion={MinecraftVersion}, VersionFilter={VersionFilter}, Loader={Loader}, LoaderFilter={LoaderFilter}",
+            "Applied resource project filters from instance. Kind={Kind}, InstanceId={InstanceId}, MinecraftVersion={MinecraftVersion}, VersionFilter={VersionFilter}, Loader={Loader}, LoaderFilter={LoaderFilter}",
+            options.Kind,
             instance.Id,
             instance.MinecraftVersion,
             SelectedVersionOption?.Id,
@@ -940,10 +980,10 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                     async () =>
                     {
                         var releaseVersionOrderTask = GetReleaseVersionOrderAsync(cancellationToken);
-                        var catalogResult = await resourceCatalogService.SearchModsAsync(request, cancellationToken).ConfigureAwait(false);
+                        var catalogResult = await resourceCatalogService.SearchProjectsAsync(request, cancellationToken).ConfigureAwait(false);
                         var minecraftReleaseVersionOrder = await releaseVersionOrderTask.ConfigureAwait(false);
                         var items = catalogResult.Projects
-                            .Select(project => new ResourcesModProjectItemViewModel(project, minecraftReleaseVersionOrder))
+                            .Select(project => new ResourcesModProjectItemViewModel(project, minecraftReleaseVersionOrder, options.FallbackIconKey))
                             .ToList();
                         return new ProjectLoadResult(catalogResult, items, loadKind, request.Offset);
                     },
@@ -1005,7 +1045,10 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             }
             catch (Exception exception)
             {
-                logger?.LogWarning(exception, "Failed to start resource mod version filter load.");
+                logger?.LogWarning(
+                    exception,
+                    "Failed to start resource project version filter load. Kind={Kind}",
+                    options.Kind);
             }
         });
     }
@@ -1023,7 +1066,10 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         }
         catch (Exception exception)
         {
-            logger?.LogWarning(exception, "Failed to load Minecraft release versions before applying instance resource mod filters.");
+            logger?.LogWarning(
+                exception,
+                "Failed to load Minecraft release versions before applying instance resource project filters. Kind={Kind}",
+                options.Kind);
         }
     }
 
@@ -1064,7 +1110,10 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         }
         catch (Exception exception)
         {
-            logger?.LogWarning(exception, "Failed to load Minecraft release versions for resource mod filters.");
+            logger?.LogWarning(
+                exception,
+                "Failed to load Minecraft release versions for resource project filters. Kind={Kind}",
+                options.Kind);
             return new ReleaseVersionData([], []);
         }
     }
@@ -1098,7 +1147,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 
         var selectedId = SelectedVersionOption?.Id ?? "all";
         VersionOptions.Clear();
-        VersionOptions.Add(new ResourcesFilterOptionItem { Id = "all", Title = Strings.Resources_ModFilterAllVersions });
+        VersionOptions.Add(new ResourcesFilterOptionItem { Id = "all", Title = this.options.AllVersionsText });
         foreach (var option in options)
             VersionOptions.Add(option);
 
@@ -1118,7 +1167,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     {
         var allOption = VersionOptions.FirstOrDefault(option => option.Id == "all") ?? VersionOptions.FirstOrDefault();
         if (allOption is null || string.IsNullOrWhiteSpace(instance.MinecraftVersion))
-            return allOption ?? new ResourcesFilterOptionItem { Id = "all", Title = Strings.Resources_ModFilterAllVersions };
+            return allOption ?? new ResourcesFilterOptionItem { Id = "all", Title = options.AllVersionsText };
 
         var minecraftVersion = instance.MinecraftVersion.Trim();
         return VersionOptions.FirstOrDefault(option =>
@@ -1212,7 +1261,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 
         var cancellationToken = refreshCancellationTokenSource?.Token ?? CancellationToken.None;
         IsLoadingMoreProjects = true;
-        LoadMoreMessage = Strings.Resources_ModProjectsLoadingMore;
+        LoadMoreMessage = options.ProjectsLoadingMoreText;
         return QueueProjectLoadAsync(CreateSearchRequest(nextPageOffset), ProjectLoadKind.LoadMore, cancellationToken);
     }
 
@@ -1273,14 +1322,15 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             HasMoreProjects = result.CatalogResult.HasMore;
             LoadMoreMessage = HasMoreProjects || result.Items.Count == 0
                 ? string.Empty
-                : Strings.Resources_ModProjectsNoMore;
+                : options.ProjectsNoMoreText;
             ListEntranceAnimationToken++;
             AddProjectBatch(result.Items, startIndex: 0, InitialProjectBatchSize);
             RaiseProjectStatePropertiesChanged();
             IsLoadingProjects = false;
 
             logger?.LogInformation(
-                "Resources mod projects loaded. ResultCount={ResultCount} IsCurseForgeUnavailable={IsCurseForgeUnavailable}",
+                "Resource projects loaded. Kind={Kind}, ResultCount={ResultCount} IsCurseForgeUnavailable={IsCurseForgeUnavailable}",
+                options.Kind,
                 result.Items.Count,
                 result.CatalogResult.IsCurseForgeUnavailable);
 
@@ -1315,20 +1365,21 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             HasMoreProjects = result.CatalogResult.HasMore;
             if (result.Items.Count == 0)
                 HasMoreProjects = false;
-            LoadMoreMessage = HasMoreProjects ? string.Empty : Strings.Resources_ModProjectsNoMore;
+            LoadMoreMessage = HasMoreProjects ? string.Empty : options.ProjectsNoMoreText;
             AddProjectBatch(result.Items, startIndex: 0, AppendProjectBatchSize);
             RaiseProjectStatePropertiesChanged();
             IsLoadingMoreProjects = false;
 
             logger?.LogInformation(
-                "Resources mod projects appended. ResultCount={ResultCount} HasMore={HasMore}",
+                "Resource projects appended. Kind={Kind}, ResultCount={ResultCount} HasMore={HasMore}",
+                options.Kind,
                 result.Items.Count,
                 result.CatalogResult.HasMore);
 
             if (result.Items.Count == 0)
             {
                 if (!HasMoreProjects)
-                    LoadMoreMessage = Strings.Resources_ModProjectsNoMore;
+                    LoadMoreMessage = options.ProjectsNoMoreText;
                 completion.TrySetResult();
                 return;
             }
@@ -1360,13 +1411,13 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 
         VisibleProjects.Clear();
         ResetToProjectList();
-        LoadErrorMessage = Strings.Resources_ModProjectsLoadError;
+        LoadErrorMessage = options.ProjectsLoadErrorText;
         LoadMoreMessage = string.Empty;
         PartialWarningMessage = string.Empty;
         IsLoadingProjects = false;
         IsLoadingMoreProjects = false;
         HasMoreProjects = false;
-        logger?.LogError(exception, "Failed to load resources mod projects.");
+        logger?.LogError(exception, "Failed to load resource projects. Kind={Kind}", options.Kind);
         RaiseProjectStatePropertiesChanged();
         completion.TrySetResult();
     }
@@ -1382,9 +1433,9 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             return;
         }
 
-        LoadMoreMessage = Strings.Resources_ModProjectsLoadMoreError;
+        LoadMoreMessage = options.ProjectsLoadMoreErrorText;
         IsLoadingMoreProjects = false;
-        logger?.LogError(exception, "Failed to load more resources mod projects.");
+        logger?.LogError(exception, "Failed to load more resource projects. Kind={Kind}", options.Kind);
         RaiseProjectStatePropertiesChanged();
         completion.TrySetResult();
     }
@@ -1439,7 +1490,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         var targets = instances
             .Where(instance => instance.Loader is not LoaderKind.Vanilla)
             .Select(ResourcesModInstallTargetItemViewModel.FromInstance)
-            .Append(ResourcesModInstallTargetItemViewModel.CreateLocalDownload())
+            .Append(ResourcesModInstallTargetItemViewModel.CreateLocalDownload(options.InstallTargetLocalText))
             .ToList();
 
         for (var index = 0; index < targets.Count; index++)
@@ -1477,14 +1528,14 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         AvailableVersionListItems.Clear();
         availableVersionSourceVersions = versions.ToList();
         foreach (var version in versions)
-            AvailableVersions.Add(new ResourcesModVersionItemViewModel(version, SelectedProject));
+            AvailableVersions.Add(new ResourcesModVersionItemViewModel(version, SelectedProject, options.FallbackIconKey));
 
         ApplyAvailableVersionFilterOptions(versions, SelectedInstallTarget);
         RebuildAvailableVersionListItems();
 
         AvailableVersionsLoadErrorMessage = loadErrorMessage;
         HasMoreAvailableVersions = hasMore;
-        AvailableVersionsLoadMoreMessage = HasMoreAvailableVersions ? string.Empty : Strings.Resources_ModVersionsNoMore;
+        AvailableVersionsLoadMoreMessage = HasMoreAvailableVersions ? string.Empty : options.VersionsNoMoreText;
         IsLoadingMoreAvailableVersions = false;
         IsLoadingAvailableVersions = false;
         RaiseAvailableVersionStatePropertiesChanged();
@@ -1503,7 +1554,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         availableVersionSourceVersions = sourceVersions;
 
         foreach (var version in versions)
-            AvailableVersions.Add(new ResourcesModVersionItemViewModel(version, SelectedProject));
+            AvailableVersions.Add(new ResourcesModVersionItemViewModel(version, SelectedProject, options.FallbackIconKey));
 
         UpdateAvailableVersionFilterOptionsPreservingSelection(availableVersionSourceVersions);
         AppendAvailableVersionListItems(versions);
@@ -1511,7 +1562,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         HasMoreAvailableVersions = hasMore;
         AvailableVersionsLoadMoreMessage = HasMoreAvailableVersions
             ? string.Empty
-            : Strings.Resources_ModVersionsNoMore;
+            : options.VersionsNoMoreText;
         IsLoadingMoreAvailableVersions = false;
         RaiseAvailableVersionStatePropertiesChanged();
     }
@@ -1522,7 +1573,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             return;
 
         IsLoadingMoreAvailableVersions = false;
-        AvailableVersionsLoadMoreMessage = Strings.Resources_ModVersionsLoadMoreError;
+        AvailableVersionsLoadMoreMessage = options.VersionsLoadMoreErrorText;
         RaiseAvailableVersionStatePropertiesChanged();
     }
 
@@ -1562,7 +1613,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         nextAvailableVersionOffset = request.Offset + AvailableVersionPageSize;
 
         logger?.LogInformation(
-            "Resource mod versions page loaded. ProjectId={ProjectId} Offset={Offset} PageSize={PageSize} ResultCount={ResultCount} UniqueCount={UniqueCount} HasMore={HasMore}",
+            "Resource project versions page loaded. Kind={Kind}, ProjectId={ProjectId} Offset={Offset} PageSize={PageSize} ResultCount={ResultCount} UniqueCount={UniqueCount} HasMore={HasMore}",
+            options.Kind,
             project.ProjectId,
             request.Offset,
             request.PageSize,
@@ -1577,6 +1629,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     {
         return new ResourceProjectVersionsRequest
         {
+            Kind = options.Kind,
             Source = project.Source,
             ProjectId = project.ProjectId,
             Slug = project.Slug,
@@ -1613,10 +1666,11 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 
         return new ResourceCatalogSearchRequest
         {
+            Kind = options.Kind,
             Query = SearchQuery,
             MinecraftVersion = selectedMinecraftVersions.Count == 1 ? selectedMinecraftVersions[0] : string.Empty,
             MinecraftVersions = selectedMinecraftVersions,
-            Loader = SelectedLoaderOption?.Id switch
+            Loader = !options.ShowsLoaderFilters ? LoaderKind.Vanilla : SelectedLoaderOption?.Id switch
             {
                 "fabric" => LoaderKind.Fabric,
                 "forge" => LoaderKind.Forge,
@@ -1630,21 +1684,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 "curseforge" => ResourceProjectSource.CurseForge,
                 _ => null
             },
-            Category = SelectedTypeOption?.Id switch
-            {
-                "optimization" => ResourceProjectCategory.Optimization,
-                "utility" => ResourceProjectCategory.Utility,
-                "adventure" => ResourceProjectCategory.Adventure,
-                "decoration" => ResourceProjectCategory.Decoration,
-                "equipment" => ResourceProjectCategory.Equipment,
-                "technology" => ResourceProjectCategory.Technology,
-                "magic" => ResourceProjectCategory.Magic,
-                "mobs" => ResourceProjectCategory.Mobs,
-                "worldgen" => ResourceProjectCategory.WorldGeneration,
-                "storage" => ResourceProjectCategory.Storage,
-                "library" => ResourceProjectCategory.Library,
-                _ => null
-            },
+            Category = ResolveSelectedCategory(),
             Offset = offset,
             PageSize = CatalogPageSize
         };
@@ -1659,6 +1699,17 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             return option.MinecraftVersions;
 
         return [option.Id];
+    }
+
+    private ResourceProjectCategory? ResolveSelectedCategory()
+    {
+        var selectedId = SelectedTypeOption?.Id;
+        if (string.IsNullOrWhiteSpace(selectedId) || string.Equals(selectedId, "all", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        return options.TypeOptions
+            .FirstOrDefault(option => string.Equals(option.Id, selectedId, StringComparison.OrdinalIgnoreCase))
+            ?.Category;
     }
 
     private void RaiseProjectStatePropertiesChanged()
@@ -1877,9 +1928,12 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             .ToList();
     }
 
-    private static IReadOnlyList<ResourcesFilterOptionItem> CreateAvailableLoaderFilterOptions(IReadOnlyList<ResourceProjectVersion> versions)
+    private IReadOnlyList<ResourcesFilterOptionItem> CreateAvailableLoaderFilterOptions(IReadOnlyList<ResourceProjectVersion> versions)
     {
         var options = CreateDefaultAvailableLoaderFilterOptions();
+        if (!this.options.ShowsLoaderFilters)
+            return options;
+
         var loaderIds = versions
             .SelectMany(ResolveCompatibilityLoaders)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -1894,16 +1948,16 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             .ToList();
     }
 
-    private static ResourcesFilterOptionItem CreateAllAvailableVersionFilterOption()
+    private ResourcesFilterOptionItem CreateAllAvailableVersionFilterOption()
     {
-        return new ResourcesFilterOptionItem { Id = "all", Title = Strings.Resources_ModFilterAllVersions };
+        return new ResourcesFilterOptionItem { Id = "all", Title = options.AllVersionsText };
     }
 
-    private static List<ResourcesFilterOptionItem> CreateDefaultAvailableLoaderFilterOptions()
+    private List<ResourcesFilterOptionItem> CreateDefaultAvailableLoaderFilterOptions()
     {
         return
         [
-            new ResourcesFilterOptionItem { Id = "all", Title = Strings.Resources_ModFilterAllLoaders }
+            new ResourcesFilterOptionItem { Id = "all", Title = options.AllLoadersText }
         ];
     }
 
@@ -2031,13 +2085,16 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         return MatchesAvailableLoaderFilter(version, selectedLoader);
     }
 
-    private static bool MatchesAvailableLoaderFilter(ResourceProjectVersion version, string? selectedLoader)
+    private bool MatchesAvailableLoaderFilter(ResourceProjectVersion version, string? selectedLoader)
     {
         if (string.IsNullOrWhiteSpace(selectedLoader)
             || string.Equals(selectedLoader, "all", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
+
+        if (!options.ShowsLoaderFilters)
+            return true;
 
         return ResolveCompatibilityLoaders(version)
             .Any(loader => string.Equals(loader, selectedLoader, StringComparison.OrdinalIgnoreCase));
@@ -2054,7 +2111,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         AvailableVersionListItems.Add(new ResourcesModVersionListHeaderItem(AvailableVersionsTitle));
         foreach (var version in versions)
         {
-            AvailableVersionListItems.Add(new ResourcesModVersionItemViewModel(version, SelectedProject));
+            AvailableVersionListItems.Add(new ResourcesModVersionItemViewModel(version, SelectedProject, options.FallbackIconKey));
             VisibleAvailableVersionCount++;
         }
     }
@@ -2066,7 +2123,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
 
         foreach (var version in versions)
         {
-            AvailableVersionListItems.Add(new ResourcesModVersionItemViewModel(version, SelectedProject));
+            AvailableVersionListItems.Add(new ResourcesModVersionItemViewModel(version, SelectedProject, options.FallbackIconKey));
             VisibleAvailableVersionCount++;
         }
     }
@@ -2102,7 +2159,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             AvailableVersionListItems.Add(new ResourcesModVersionListHeaderItem(group.Title));
             foreach (var version in group.Versions)
             {
-                AvailableVersionListItems.Add(new ResourcesModVersionItemViewModel(version, SelectedProject));
+                AvailableVersionListItems.Add(new ResourcesModVersionItemViewModel(version, SelectedProject, options.FallbackIconKey));
                 VisibleAvailableVersionCount++;
             }
         }
@@ -2117,7 +2174,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             foreach (var title in CreateFilteredCompatibilityGroupTitles(version))
             {
                 var insertIndex = FindAvailableVersionGroupInsertIndex(title);
-                AvailableVersionListItems.Insert(insertIndex, new ResourcesModVersionItemViewModel(version, SelectedProject));
+                AvailableVersionListItems.Insert(insertIndex, new ResourcesModVersionItemViewModel(version, SelectedProject, options.FallbackIconKey));
                 VisibleAvailableVersionCount++;
             }
         }
@@ -2161,7 +2218,9 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
     private IEnumerable<string> CreateFilteredCompatibilityGroupTitles(ResourceProjectVersion version)
     {
         var gameVersions = NormalizeGameVersionCompatibilityValues(version.GameVersions);
-        var loaders = ResolveCompatibilityLoaders(version);
+        var loaders = options.ShowsLoaderFilters
+            ? ResolveCompatibilityLoaders(version)
+            : [string.Empty];
         var selectedVersion = SelectedAvailableVersionFilterOption?.Id;
         var selectedLoader = SelectedAvailableLoaderFilterOption?.Id;
 
@@ -2173,7 +2232,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
                 .ToList();
         }
 
-        if (!string.IsNullOrWhiteSpace(selectedLoader)
+        if (options.ShowsLoaderFilters
+            && !string.IsNullOrWhiteSpace(selectedLoader)
             && !string.Equals(selectedLoader, "all", StringComparison.OrdinalIgnoreCase))
         {
             loaders = loaders
@@ -2184,7 +2244,11 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         foreach (var gameVersion in gameVersions)
         {
             foreach (var loader in loaders)
-                yield return $"{gameVersion}-{loader}";
+            {
+                yield return string.IsNullOrWhiteSpace(loader)
+                    ? gameVersion
+                    : $"{gameVersion}-{loader}";
+            }
         }
     }
 
@@ -2303,19 +2367,21 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         };
     }
 
-    private static string FormatAvailableVersionsTitle(ResourcesModInstallTargetItemViewModel? target)
+    private string FormatAvailableVersionsTitle(ResourcesModInstallTargetItemViewModel? target)
     {
         if (target?.IsLocalDownload != false || IsUnknownInstanceVersionTarget(target))
-            return Strings.Resources_ModVersionsAllTitle;
+            return options.VersionsAllTitleText;
 
         if (target.Instance is not { } instance)
-            return Strings.Resources_ModVersionsAllTitle;
+            return options.VersionsAllTitleText;
 
         var minecraftVersion = instance.MinecraftVersion?.Trim();
         if (string.IsNullOrWhiteSpace(minecraftVersion))
-            return Strings.Resources_ModVersionsAllTitle;
+            return options.VersionsAllTitleText;
 
-        return $"{minecraftVersion}-{GetLoaderId(instance.Loader)}";
+        return options.ShowsLoaderFilters
+            ? $"{minecraftVersion}-{GetLoaderId(instance.Loader)}"
+            : minecraftVersion;
     }
 
     private static string GetLoaderId(LoaderKind loader)
@@ -2335,7 +2401,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         uiDispatcher.Invoke(() =>
         {
             ProjectVersionFileExistsDialogMessage = string.Format(
-                Strings.Resources_ModDownloadFileExistsMessageFormat,
+                options.FileExistsMessageFormat,
                 ResolveVersionFileNameForDisplay(item));
             IsProjectVersionFileExistsDialogOpen = true;
         });
@@ -2347,7 +2413,8 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
             return;
 
         logger?.LogInformation(
-            "Resources mod filter selected. FilterId={FilterId}, OptionId={OptionId}",
+            "Resource project filter selected. Kind={Kind}, FilterId={FilterId}, OptionId={OptionId}",
+            options.Kind,
             filterId,
             option.Id);
     }
@@ -2357,7 +2424,7 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         var task = downloadTasksPage?.BeginTask(item.Title, subtitle);
         task?.Report(new LauncherProgress(
             ModProgressStages.DownloadingFile,
-            string.Format(Strings.Status_ModDownloadingFormat, item.Title)));
+            string.Format(options.DownloadingFormat, item.Title)));
         return task;
     }
 
@@ -2403,6 +2470,87 @@ public sealed partial class ResourcesModPageViewModel : ResourcesSectionViewMode
         PendingLoaderOption = null;
         PendingSourceOption = null;
         PendingTypeOption = null;
+    }
+
+    private static ObservableCollection<ResourcesFilterOptionItem> CreateLoaderOptions(ResourcesOnlineProjectPageOptions options)
+    {
+        if (!options.ShowsLoaderFilters)
+            return [new ResourcesFilterOptionItem { Id = "all", Title = options.AllLoadersText }];
+
+        return
+        [
+            new ResourcesFilterOptionItem { Id = "all", Title = options.AllLoadersText },
+            new ResourcesFilterOptionItem { Id = "fabric", Title = Strings.Download_FabricLoaderTitle },
+            new ResourcesFilterOptionItem { Id = "forge", Title = Strings.Download_ForgeLoaderTitle },
+            new ResourcesFilterOptionItem { Id = "neoforge", Title = Strings.Download_NeoForgeLoaderTitle },
+            new ResourcesFilterOptionItem { Id = "quilt", Title = Strings.Download_QuiltLoaderTitle }
+        ];
+    }
+
+    private static ObservableCollection<ResourcesFilterOptionItem> CreateTypeOptions(ResourcesOnlineProjectPageOptions options)
+    {
+        var typeOptions = new ObservableCollection<ResourcesFilterOptionItem>
+        {
+            new() { Id = "all", Title = Strings.Resources_ModFilterAllTypes }
+        };
+
+        foreach (var option in options.TypeOptions)
+            typeOptions.Add(new ResourcesFilterOptionItem { Id = option.Id, Title = option.Title });
+
+        return typeOptions;
+    }
+
+    protected static ResourcesOnlineProjectPageOptions CreateModOptions()
+    {
+        return new ResourcesOnlineProjectPageOptions(
+            ResourceProjectKind.Mod,
+            Strings.Resources_SectionMods,
+            "instance_setting_page/mod",
+            ShowsLoaderFilters: true,
+            Strings.Resources_ModFilterAllVersions,
+            Strings.Resources_ModFilterAllLoaders,
+            Strings.Resources_ModProjectsLoading,
+            Strings.Resources_ModProjectsEmpty,
+            Strings.Resources_ModProjectsLoadError,
+            Strings.Resources_ModProjectsLoadingMore,
+            Strings.Resources_ModProjectsNoMore,
+            Strings.Resources_ModProjectsLoadMoreError,
+            Strings.Resources_ModCurseForgeMissingApiKey,
+            Strings.Resources_ModDetailsInfoSection,
+            Strings.Resources_ModInstallTargetSection,
+            Strings.Resources_ModInstallTargetLocal,
+            Strings.Resources_ModInstallTargetsLoading,
+            Strings.Resources_ModInstallTargetsLoadError,
+            Strings.Resources_ModVersionsLoading,
+            Strings.Resources_ModVersionsEmpty,
+            Strings.Resources_ModVersionsEmptyLocal,
+            Strings.Resources_ModVersionsFilterEmpty,
+            Strings.Resources_ModVersionsLoadError,
+            Strings.Resources_ModVersionsLoadingMore,
+            Strings.Resources_ModVersionsNoMore,
+            Strings.Resources_ModVersionsLoadMoreError,
+            Strings.Resources_ModVersionsAllTitle,
+            Strings.FilePicker_ModDownloadDirectoryTitle,
+            Strings.Status_ModDownloading,
+            Strings.Status_ModDownloadingFormat,
+            Strings.Status_ModDownloadedFormat,
+            Strings.Status_ModDownloadFailed,
+            Strings.Status_ModInstalledFormat,
+            Strings.Status_ModInstallFailed,
+            Strings.Resources_ModDownloadFileExistsMessageFormat,
+            [
+                new("optimization", Strings.Resources_ModFilterTypeOptimization, ResourceProjectCategory.Optimization),
+                new("utility", Strings.Resources_ModFilterTypeUtility, ResourceProjectCategory.Utility),
+                new("adventure", Strings.Resources_ModFilterTypeAdventure, ResourceProjectCategory.Adventure),
+                new("decoration", Strings.Resources_ModFilterTypeDecoration, ResourceProjectCategory.Decoration),
+                new("equipment", Strings.Resources_ModFilterTypeEquipment, ResourceProjectCategory.Equipment),
+                new("technology", Strings.Resources_ModFilterTypeTechnology, ResourceProjectCategory.Technology),
+                new("magic", Strings.Resources_ModFilterTypeMagic, ResourceProjectCategory.Magic),
+                new("mobs", Strings.Resources_ModFilterTypeMobs, ResourceProjectCategory.Mobs),
+                new("worldgen", Strings.Resources_ModFilterTypeWorldGeneration, ResourceProjectCategory.WorldGeneration),
+                new("storage", Strings.Resources_ModFilterTypeStorage, ResourceProjectCategory.Storage),
+                new("library", Strings.Resources_ModFilterTypeLibrary, ResourceProjectCategory.Library)
+            ]);
     }
 
     private enum ProjectLoadKind

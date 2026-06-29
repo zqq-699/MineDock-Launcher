@@ -69,7 +69,9 @@
                                            Style="{StaticResource ResourcesFilterComboBoxStyle}" />
             </Grid>
 
-            <Grid Grid.Column="2">
+            <Grid x:Name="LoaderFilterGroup"
+                  Grid.Column="2"
+                  Visibility="{Binding ShowsLoaderFilters, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
@@ -88,7 +90,8 @@
                                            Style="{StaticResource ResourcesFilterComboBoxStyle}" />
             </Grid>
 
-            <Grid Grid.Column="4">
+            <Grid x:Name="SourceFilterGroup"
+                  Grid.Column="4">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
@@ -107,7 +110,8 @@
                                            Style="{StaticResource ResourcesFilterComboBoxStyle}" />
             </Grid>
 
-            <Grid Grid.Column="6">
+            <Grid x:Name="TypeFilterGroup"
+                  Grid.Column="6">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />

@@ -2,6 +2,8 @@ namespace Launcher.Domain.Models;
 
 public sealed class ResourceCatalogSearchRequest
 {
+    public ResourceProjectKind Kind { get; init; } = ResourceProjectKind.Mod;
+
     public string Query { get; init; } = string.Empty;
 
     public string MinecraftVersion { get; init; } = string.Empty;

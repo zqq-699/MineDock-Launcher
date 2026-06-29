@@ -200,7 +200,7 @@
                                  DialogWidth="360"
                                  UseIntegratedOverlay="True"
                                  IsOpen="{Binding IsFilterDialogOpen}"
-                                 DataContext="{Binding ResourcesPage.ModPage}">
+                                 DataContext="{Binding ResourcesPage.CurrentOnlineProjectPage}">
                 <controls:DialogHost.Resources>
                     <DataTemplate x:Key="ResourcesModFilterDialogOptionTemplate">
                         <TextBlock Text="{Binding Title}"
@@ -252,7 +252,8 @@
                                                        Style="{StaticResource ResourcesModFilterDialogComboBoxStyle}" />
                         </Grid>
 
-                        <Grid Style="{StaticResource ResourcesModFilterDialogFieldStyle}">
+                        <Grid Style="{StaticResource ResourcesModFilterDialogFieldStyle}"
+                              Visibility="{Binding ShowsLoaderFilters, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
@@ -358,7 +359,7 @@
                                  DialogWidth="380"
                                  UseIntegratedOverlay="True"
                                  IsOpen="{Binding IsProjectVersionFileExistsDialogOpen}"
-                                 DataContext="{Binding ResourcesPage.ModPage}">
+                                 DataContext="{Binding ResourcesPage.CurrentOnlineProjectPage}">
                 <Grid Style="{StaticResource DialogContentGridStyle}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -390,7 +391,7 @@
                                  DialogWidth="380"
                                  UseIntegratedOverlay="True"
                                  IsOpen="{Binding IsUnknownInstanceVersionDialogOpen}"
-                                 DataContext="{Binding ResourcesPage.ModPage}">
+                                 DataContext="{Binding ResourcesPage.CurrentOnlineProjectPage}">
                 <Grid Style="{StaticResource DialogContentGridStyle}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />

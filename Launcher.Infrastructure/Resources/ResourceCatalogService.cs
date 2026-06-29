@@ -26,6 +26,8 @@ public sealed class ResourceCatalogService : IResourceCatalogService
     private const string CurseForgeBaseUrl = "https://api.curseforge.com/v1";
     private const int MinecraftGameId = 432;
     private const int MinecraftModsClassId = 6;
+    private const int MinecraftResourcePacksClassId = 12;
+    private const int MinecraftShaderPacksClassId = 6552;
     private const int CurseForgeSortByTotalDownloads = 6;
     private const int CurseForgeSortByFileDate = 1;
 
@@ -33,7 +35,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
     private readonly ICurseForgeApiKeyResolver curseForgeApiKeyResolver;
     private readonly ILogger<ResourceCatalogService> logger;
     private readonly object curseForgeCategoriesGate = new();
-    private Task<IReadOnlyList<CurseForgeCategory>>? curseForgeCategoriesTask;
+    private readonly Dictionary<ResourceProjectKind, Task<IReadOnlyList<CurseForgeCategory>>> curseForgeCategoriesTasks = [];
 
     public ResourceCatalogService(
         HttpClient? httpClient = null,
@@ -55,8 +57,37 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         ResourceCatalogSearchRequest request,
         CancellationToken cancellationToken = default)
     {
+        return await SearchProjectsAsync(
+                WithKind(request, ResourceProjectKind.Mod),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        static ResourceCatalogSearchRequest WithKind(
+            ResourceCatalogSearchRequest request,
+            ResourceProjectKind kind)
+        {
+            return new ResourceCatalogSearchRequest
+            {
+                Kind = kind,
+                Query = request.Query,
+                MinecraftVersion = request.MinecraftVersion,
+                MinecraftVersions = request.MinecraftVersions,
+                Loader = request.Loader,
+                Source = request.Source,
+                Category = request.Category,
+                Offset = request.Offset,
+                PageSize = request.PageSize
+            };
+        }
+    }
+
+    public async Task<ResourceCatalogSearchResult> SearchProjectsAsync(
+        ResourceCatalogSearchRequest request,
+        CancellationToken cancellationToken = default)
+    {
         logger.LogInformation(
-            "Searching resource mods. Query={Query} MinecraftVersion={MinecraftVersion} MinecraftVersionCount={MinecraftVersionCount} Loader={Loader} Source={Source} Category={Category}",
+            "Searching resource projects. Kind={Kind} Query={Query} MinecraftVersion={MinecraftVersion} MinecraftVersionCount={MinecraftVersionCount} Loader={Loader} Source={Source} Category={Category}",
+            request.Kind,
             request.Query,
             request.MinecraftVersion,
             ResolveMinecraftVersions(request).Count,
@@ -71,7 +102,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
 
         if (request.Source is null or ResourceProjectSource.Modrinth)
         {
-            var modrinthResult = await SearchModrinthModsAsync(request, cancellationToken).ConfigureAwait(false);
+            var modrinthResult = await SearchModrinthProjectsAsync(request, cancellationToken).ConfigureAwait(false);
             projects.AddRange(modrinthResult.Projects);
             hasMore |= modrinthResult.HasMore;
         }
@@ -87,7 +118,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             }
             else
             {
-                var curseForgeResult = await SearchCurseForgeModsAsync(request, apiKey, cancellationToken).ConfigureAwait(false);
+                var curseForgeResult = await SearchCurseForgeProjectsAsync(request, apiKey, cancellationToken).ConfigureAwait(false);
                 projects.AddRange(curseForgeResult.Projects);
                 hasMore |= curseForgeResult.HasMore;
             }
@@ -117,8 +148,12 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             request.Loader,
             request.IncludeAllVersions);
 
-        if (!request.IncludeAllVersions && request.Loader is LoaderKind.Vanilla)
+        if (request.Kind is ResourceProjectKind.Mod
+            && !request.IncludeAllVersions
+            && request.Loader is LoaderKind.Vanilla)
+        {
             return new ResourceProjectVersionsResult();
+        }
 
         return request.Source switch
         {
@@ -130,7 +165,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         };
     }
 
-    private async Task<ResourceCatalogSourceSearchResult> SearchModrinthModsAsync(
+    private async Task<ResourceCatalogSourceSearchResult> SearchModrinthProjectsAsync(
         ResourceCatalogSearchRequest request,
         CancellationToken cancellationToken)
     {
@@ -138,14 +173,14 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         var offset = NormalizeOffset(request.Offset);
         var facets = new List<List<string>>
         {
-            new() { "project_type:mod" }
+            new() { $"project_type:{MapModrinthProjectType(request.Kind)}" }
         };
 
         var minecraftVersions = ResolveMinecraftVersions(request);
         if (minecraftVersions.Count > 0)
             facets.Add(minecraftVersions.Select(version => $"versions:{version}").ToList());
 
-        if (request.Loader is not LoaderKind.Vanilla)
+        if (request.Kind is ResourceProjectKind.Mod && request.Loader is not LoaderKind.Vanilla)
             facets.Add(new List<string> { $"categories:{request.Loader.ToString().ToLowerInvariant()}" });
 
         if (request.Category is { } category)
@@ -157,6 +192,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         var projects = response?.Hits.Select(hit => new ResourceProject
         {
             Source = ResourceProjectSource.Modrinth,
+            Kind = request.Kind,
             ProjectId = hit.ProjectId,
             Slug = hit.Slug,
             Title = hit.Title,
@@ -164,10 +200,12 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             IconUrl = hit.IconUrl,
             Downloads = hit.Downloads,
             SupportedMinecraftVersions = NormalizeDistinct(hit.Versions),
-            SupportedLoaders = NormalizeDistinct(hit.Categories.Where(KnownModrinthLoaders.Contains)),
+            SupportedLoaders = request.Kind is ResourceProjectKind.Mod
+                ? NormalizeDistinct(hit.Categories.Where(KnownModrinthLoaders.Contains))
+                : [],
             ProjectUrl = string.IsNullOrWhiteSpace(hit.Slug)
                 ? string.Empty
-                : $"https://modrinth.com/mod/{hit.Slug}"
+                : $"https://modrinth.com/{MapModrinthProjectType(request.Kind)}/{hit.Slug}"
         }).ToList() ?? [];
 
         return new ResourceCatalogSourceSearchResult(
@@ -189,8 +227,17 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         var url = $"{ModrinthBaseUrl}/project/{Uri.EscapeDataString(projectIdOrSlug)}/version";
         if (!request.IncludeAllVersions)
         {
-            var loader = request.Loader.ToString().ToLowerInvariant();
-            url += $"?loaders={Uri.EscapeDataString(JsonSerializer.Serialize(new[] { loader }))}&game_versions={Uri.EscapeDataString(JsonSerializer.Serialize(new[] { request.MinecraftVersion }))}";
+            var query = new List<string>
+            {
+                $"game_versions={Uri.EscapeDataString(JsonSerializer.Serialize(new[] { request.MinecraftVersion }))}"
+            };
+            if (request.Kind is ResourceProjectKind.Mod)
+            {
+                var loader = request.Loader.ToString().ToLowerInvariant();
+                query.Insert(0, $"loaders={Uri.EscapeDataString(JsonSerializer.Serialize(new[] { loader }))}");
+            }
+
+            url += $"?{string.Join("&", query)}";
         }
 
         var versions = await httpClient.GetFromJsonAsync<List<ModrinthProjectVersion>>(url, cancellationToken)
@@ -206,6 +253,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
                     return new ResourceProjectVersion
                     {
                         VersionId = version.Id,
+                        Kind = request.Kind,
                         Name = string.IsNullOrWhiteSpace(version.Name) ? version.VersionNumber : version.Name,
                         VersionNumber = version.VersionNumber,
                         VersionType = version.VersionType,
@@ -251,8 +299,12 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         };
         if (!request.IncludeAllVersions)
             query.Insert(0, $"gameVersion={Uri.EscapeDataString(request.MinecraftVersion)}");
-        if (!request.IncludeAllVersions && TryMapCurseForgeLoader(request.Loader, out var loaderType))
+        if (request.Kind is ResourceProjectKind.Mod
+            && !request.IncludeAllVersions
+            && TryMapCurseForgeLoader(request.Loader, out var loaderType))
+        {
             query.Add($"modLoaderType={(int)loaderType}");
+        }
 
         using var httpRequest = new HttpRequestMessage(
             HttpMethod.Get,
@@ -282,6 +334,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
                 .Select(file => new ResourceProjectVersion
                 {
                     VersionId = file.Id.ToString(),
+                    Kind = request.Kind,
                     Name = string.IsNullOrWhiteSpace(file.DisplayName) ? file.FileName : file.DisplayName,
                     VersionNumber = string.IsNullOrWhiteSpace(file.DisplayName) ? file.FileName : file.DisplayName,
                     VersionType = MapCurseForgeReleaseType(file.ReleaseType),
@@ -293,9 +346,11 @@ public sealed class ResourceCatalogService : IResourceCatalogService
                     Downloads = file.DownloadCount,
                     PublishedAt = file.FileDate,
                     GameVersions = NormalizeDistinct(file.GameVersions),
-                    Loaders = NormalizeDistinct(file.SortableGameVersions
-                        .Select(version => TryMapCurseForgeLoader(version.ModLoader))
-                        .Where(loader => !string.IsNullOrWhiteSpace(loader))!)
+                    Loaders = request.Kind is ResourceProjectKind.Mod
+                        ? NormalizeDistinct(file.SortableGameVersions
+                            .Select(version => TryMapCurseForgeLoader(version.ModLoader))
+                            .Where(loader => !string.IsNullOrWhiteSpace(loader))!)
+                        : []
                 })
                 .ToList(),
             HasMore = HasMore(payload?.Pagination?.TotalCount, offset, files.Count, pageSize)
@@ -310,9 +365,9 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         if (string.IsNullOrWhiteSpace(instance.InstanceDirectory))
             throw new InvalidOperationException("The target instance directory is empty.");
 
-        var modsDirectory = Path.Combine(instance.InstanceDirectory, "mods");
-        Directory.CreateDirectory(modsDirectory);
-        var target = await DownloadProjectVersionCoreAsync(version, modsDirectory, cancellationToken).ConfigureAwait(false);
+        var installDirectory = ResolveInstallDirectory(instance, version.Kind);
+        Directory.CreateDirectory(installDirectory);
+        var target = await DownloadProjectVersionCoreAsync(version, installDirectory, cancellationToken).ConfigureAwait(false);
 
         logger.LogInformation(
             "Resource project version installed. VersionId={VersionId} Target={Target}",
@@ -360,16 +415,16 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         if (string.IsNullOrWhiteSpace(instance.InstanceDirectory))
             return Task.FromResult(false);
 
-        var target = Path.Combine(instance.InstanceDirectory, "mods", ResolveProjectVersionFileName(version));
+        var target = Path.Combine(ResolveInstallDirectory(instance, version.Kind), ResolveProjectVersionFileName(version));
         return Task.FromResult(File.Exists(target));
     }
 
-    private async Task<ResourceCatalogSourceSearchResult> SearchCurseForgeModsAsync(
+    private async Task<ResourceCatalogSourceSearchResult> SearchCurseForgeProjectsAsync(
         ResourceCatalogSearchRequest request,
         string apiKey,
         CancellationToken cancellationToken)
     {
-        var categoryId = await ResolveCurseForgeCategoryIdAsync(request.Category, apiKey, cancellationToken)
+        var categoryId = await ResolveCurseForgeCategoryIdAsync(request.Category, request.Kind, apiKey, cancellationToken)
             .ConfigureAwait(false);
         if (request.Category.HasValue && categoryId is null)
         {
@@ -381,14 +436,14 @@ public sealed class ResourceCatalogService : IResourceCatalogService
 
         var minecraftVersions = ResolveMinecraftVersions(request);
         if (minecraftVersions.Count == 0)
-            return await SearchCurseForgeModsAsync(request, apiKey, null, categoryId, cancellationToken)
+            return await SearchCurseForgeProjectsAsync(request, apiKey, null, categoryId, cancellationToken)
                 .ConfigureAwait(false);
 
         var projects = new Dictionary<string, ResourceProject>(StringComparer.OrdinalIgnoreCase);
         var hasMore = false;
         foreach (var minecraftVersion in minecraftVersions)
         {
-            var result = await SearchCurseForgeModsAsync(request, apiKey, minecraftVersion, categoryId, cancellationToken)
+            var result = await SearchCurseForgeProjectsAsync(request, apiKey, minecraftVersion, categoryId, cancellationToken)
                 .ConfigureAwait(false);
             hasMore |= result.HasMore;
             foreach (var project in result.Projects)
@@ -398,7 +453,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         return new ResourceCatalogSourceSearchResult(projects.Values.ToList(), hasMore);
     }
 
-    private async Task<ResourceCatalogSourceSearchResult> SearchCurseForgeModsAsync(
+    private async Task<ResourceCatalogSourceSearchResult> SearchCurseForgeProjectsAsync(
         ResourceCatalogSearchRequest request,
         string apiKey,
         string? minecraftVersion,
@@ -410,7 +465,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         var query = new List<string>
         {
             $"gameId={MinecraftGameId}",
-            $"classId={MinecraftModsClassId}",
+            $"classId={MapCurseForgeClassId(request.Kind)}",
             $"sortField={CurseForgeSortByTotalDownloads}",
             "sortOrder=desc",
             $"pageSize={pageSize}",
@@ -421,7 +476,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             query.Add($"searchFilter={Uri.EscapeDataString(request.Query)}");
         if (!string.IsNullOrWhiteSpace(minecraftVersion))
             query.Add($"gameVersion={Uri.EscapeDataString(minecraftVersion)}");
-        if (TryMapCurseForgeLoader(request.Loader, out var loaderType))
+        if (request.Kind is ResourceProjectKind.Mod && TryMapCurseForgeLoader(request.Loader, out var loaderType))
             query.Add($"modLoaderType={(int)loaderType}");
         if (categoryId.HasValue)
             query.Add($"categoryId={categoryId.Value}");
@@ -446,6 +501,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         var projects = payload?.Data.Select(mod => new ResourceProject
         {
             Source = ResourceProjectSource.CurseForge,
+            Kind = request.Kind,
             ProjectId = mod.Id.ToString(),
             Slug = mod.Slug,
             Title = mod.Name,
@@ -453,10 +509,10 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             IconUrl = mod.Logo?.ThumbnailUrl ?? mod.Logo?.Url,
             Downloads = mod.DownloadCount,
             SupportedMinecraftVersions = ResolveCurseForgeMinecraftVersions(mod),
-            SupportedLoaders = ResolveCurseForgeLoaders(mod),
+            SupportedLoaders = request.Kind is ResourceProjectKind.Mod ? ResolveCurseForgeLoaders(mod) : [],
             ProjectUrl = mod.Links?.WebsiteUrl ?? (string.IsNullOrWhiteSpace(mod.Slug)
                 ? string.Empty
-                : $"https://www.curseforge.com/minecraft/mc-mods/{mod.Slug}")
+                : $"https://www.curseforge.com/minecraft/{MapCurseForgeWebsitePath(request.Kind)}/{mod.Slug}")
         }).ToList() ?? [];
 
         return new ResourceCatalogSourceSearchResult(
@@ -476,6 +532,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
 
     private async Task<int?> ResolveCurseForgeCategoryIdAsync(
         ResourceProjectCategory? category,
+        ResourceProjectKind kind,
         string apiKey,
         CancellationToken cancellationToken)
     {
@@ -489,7 +546,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         if (aliases.Count == 0)
             return null;
 
-        var categories = await GetCurseForgeCategoriesAsync(apiKey, cancellationToken).ConfigureAwait(false);
+        var categories = await GetCurseForgeCategoriesAsync(kind, apiKey, cancellationToken).ConfigureAwait(false);
         foreach (var candidate in categories)
         {
             if (ResolveCurseForgeCategoryCandidateKeys(candidate).Any(aliases.Contains))
@@ -500,29 +557,32 @@ public sealed class ResourceCatalogService : IResourceCatalogService
     }
 
     private Task<IReadOnlyList<CurseForgeCategory>> GetCurseForgeCategoriesAsync(
+        ResourceProjectKind kind,
         string apiKey,
         CancellationToken cancellationToken)
     {
         lock (curseForgeCategoriesGate)
         {
-            if (curseForgeCategoriesTask is null
-                || curseForgeCategoriesTask.IsCanceled
-                || curseForgeCategoriesTask.IsFaulted)
+            if (!curseForgeCategoriesTasks.TryGetValue(kind, out var task)
+                || task.IsCanceled
+                || task.IsFaulted)
             {
-                curseForgeCategoriesTask = LoadCurseForgeCategoriesAsync(apiKey, cancellationToken);
+                task = LoadCurseForgeCategoriesAsync(kind, apiKey, cancellationToken);
+                curseForgeCategoriesTasks[kind] = task;
             }
 
-            return curseForgeCategoriesTask;
+            return task;
         }
     }
 
     private async Task<IReadOnlyList<CurseForgeCategory>> LoadCurseForgeCategoriesAsync(
+        ResourceProjectKind kind,
         string apiKey,
         CancellationToken cancellationToken)
     {
         using var httpRequest = new HttpRequestMessage(
             HttpMethod.Get,
-            $"{CurseForgeBaseUrl}/categories?gameId={MinecraftGameId}&classId={MinecraftModsClassId}");
+            $"{CurseForgeBaseUrl}/categories?gameId={MinecraftGameId}&classId={MapCurseForgeClassId(kind)}");
         httpRequest.Headers.TryAddWithoutValidation("Accept", "application/json");
         httpRequest.Headers.TryAddWithoutValidation("x-api-key", apiKey);
 
@@ -590,6 +650,15 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             ResourceProjectCategory.WorldGeneration => ["worldgen", "world gen", "world generation", "biomes", "dimensions"],
             ResourceProjectCategory.Storage => ["storage"],
             ResourceProjectCategory.Library => ["library", "api", "library api", "api and library"],
+            ResourceProjectCategory.Simplistic => ["simplistic", "simple", "16x"],
+            ResourceProjectCategory.Themed => ["themed", "theme", "medieval", "modern", "fantasy"],
+            ResourceProjectCategory.Realistic => ["realistic", "realism", "photorealistic", "128x", "256x", "512x"],
+            ResourceProjectCategory.VanillaLike => ["vanilla like", "vanilla-like", "vanilla"],
+            ResourceProjectCategory.Audio => ["audio", "sound", "music"],
+            ResourceProjectCategory.Cartoon => ["cartoon"],
+            ResourceProjectCategory.Cursed => ["cursed"],
+            ResourceProjectCategory.Fantasy => ["fantasy"],
+            ResourceProjectCategory.SemiRealistic => ["semi realistic", "semi-realistic", "semirealistic"],
             _ => []
         };
     }
@@ -609,7 +678,46 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             ResourceProjectCategory.WorldGeneration => "worldgen",
             ResourceProjectCategory.Storage => "storage",
             ResourceProjectCategory.Library => "library",
+            ResourceProjectCategory.Simplistic => "simplistic",
+            ResourceProjectCategory.Themed => "themed",
+            ResourceProjectCategory.Realistic => "realistic",
+            ResourceProjectCategory.VanillaLike => "vanilla-like",
+            ResourceProjectCategory.Audio => "audio",
+            ResourceProjectCategory.Cartoon => "cartoon",
+            ResourceProjectCategory.Cursed => "cursed",
+            ResourceProjectCategory.Fantasy => "fantasy",
+            ResourceProjectCategory.SemiRealistic => "semi-realistic",
             _ => string.Empty
+        };
+    }
+
+    private static string MapModrinthProjectType(ResourceProjectKind kind)
+    {
+        return kind switch
+        {
+            ResourceProjectKind.ResourcePack => "resourcepack",
+            ResourceProjectKind.ShaderPack => "shader",
+            _ => "mod"
+        };
+    }
+
+    private static int MapCurseForgeClassId(ResourceProjectKind kind)
+    {
+        return kind switch
+        {
+            ResourceProjectKind.ResourcePack => MinecraftResourcePacksClassId,
+            ResourceProjectKind.ShaderPack => MinecraftShaderPacksClassId,
+            _ => MinecraftModsClassId
+        };
+    }
+
+    private static string MapCurseForgeWebsitePath(ResourceProjectKind kind)
+    {
+        return kind switch
+        {
+            ResourceProjectKind.ResourcePack => "texture-packs",
+            ResourceProjectKind.ShaderPack => "shaders",
+            _ => "mc-mods"
         };
     }
 
@@ -748,8 +856,29 @@ public sealed class ResourceCatalogService : IResourceCatalogService
     {
         var fileName = Path.GetFileName(version.FileName);
         return string.IsNullOrWhiteSpace(fileName)
-            ? $"{version.VersionId}.jar"
+            ? $"{version.VersionId}{ResolveDefaultFileExtension(version.Kind)}"
             : fileName;
+    }
+
+    private static string ResolveDefaultFileExtension(ResourceProjectKind kind)
+    {
+        return kind switch
+        {
+            ResourceProjectKind.ResourcePack or ResourceProjectKind.ShaderPack => ".zip",
+            _ => ".jar"
+        };
+    }
+
+    private static string ResolveInstallDirectory(GameInstance instance, ResourceProjectKind kind)
+    {
+        var directoryName = kind switch
+        {
+            ResourceProjectKind.ResourcePack => "resourcepacks",
+            ResourceProjectKind.ShaderPack => "shaderpacks",
+            _ => "mods"
+        };
+
+        return Path.Combine(instance.InstanceDirectory, directoryName);
     }
 
     private async Task DownloadFileAsync(string url, string target, CancellationToken cancellationToken)

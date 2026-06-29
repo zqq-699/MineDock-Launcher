@@ -52,11 +52,11 @@
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type resources:ResourcesResourcePacksPageViewModel}">
-            <views:ResourcesResourcePacksPageView />
+            <views:ResourcesModPageView />
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type resources:ResourcesShaderPacksPageViewModel}">
-            <views:ResourcesShaderPacksPageView />
+            <views:ResourcesModPageView />
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type resources:ResourcesWorldsPageViewModel}">
@@ -81,10 +81,10 @@
                                 Title="{Binding PageTitle}"
                                 TitleIconSource="{Binding PageTitleIconSource}"
                                 IsHeaderBackButtonVisible="{Binding IsModProjectDetailsStep}"
-                                HeaderBackCommand="{Binding ModPage.BackToProjectListCommand}"
+                                HeaderBackCommand="{Binding CurrentOnlineProjectPage.BackToProjectListCommand}"
                                 SearchText="{Binding ActiveModSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 IsSearchVisible="{Binding IsModSearchVisible}"
-                                SearchFilterContent="{Binding ModPage}"
+                                SearchFilterContent="{Binding CurrentOnlineProjectPage}"
                                 SearchFilterContentTemplate="{StaticResource ResourcesModFilterTemplate}"
                                 IsSearchFilterVisible="{Binding IsModSearchVisible}"
                                 IsListVisible="True"

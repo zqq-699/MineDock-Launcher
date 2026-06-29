@@ -58,11 +58,12 @@ public sealed class ResourcesModInstallTargetItemViewModel
             isLocalDownload: false);
     }
 
-    public static ResourcesModInstallTargetItemViewModel CreateLocalDownload()
+    public static ResourcesModInstallTargetItemViewModel CreateLocalDownload(
+        string? title = null)
     {
         return new ResourcesModInstallTargetItemViewModel(
             instance: null,
-            Strings.Resources_ModInstallTargetLocal,
+            title ?? Strings.Resources_ModInstallTargetLocal,
             subtitle: string.Empty,
             iconSource: null,
             iconKey: "main_menu_instance_download",

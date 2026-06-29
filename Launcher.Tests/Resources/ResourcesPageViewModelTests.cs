@@ -129,6 +129,96 @@ public sealed class ResourcesPageViewModelTests
     }
 
     [Fact]
+    public async Task ResourcePackPageRefreshUsesResourcePackKindAndHidesLoaderFilters()
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var viewModel = new ResourcesPageViewModel(service);
+        var resourcePacksSection = viewModel.Sections.Single(section => section.Id == "resource_packs");
+
+        viewModel.SelectSectionCommand.Execute(resourcePacksSection);
+        await viewModel.ResourcePacksPage.RefreshProjectsCommand.ExecuteAsync(null);
+
+        Assert.Same(viewModel.ResourcePacksPage, viewModel.CurrentSectionViewModel);
+        Assert.Same(viewModel.ResourcePacksPage, viewModel.CurrentOnlineProjectPage);
+        Assert.True(viewModel.IsModSearchVisible);
+        Assert.False(viewModel.ResourcePacksPage.ShowsLoaderFilters);
+        Assert.Equal([Strings.Resources_ResourcePackFilterAllLoaders], viewModel.ResourcePacksPage.LoaderOptions.Select(option => option.Title));
+        Assert.NotNull(service.LastRequest);
+        Assert.Equal(ResourceProjectKind.ResourcePack, service.LastRequest.Kind);
+        Assert.Equal(LoaderKind.Vanilla, service.LastRequest.Loader);
+    }
+
+    [Fact]
+    public async Task ResourcePackTypeFilterAddsResourcePackCategoryToSearchRequest()
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var viewModel = new ResourcesPageViewModel(service);
+        viewModel.SelectSectionCommand.Execute(viewModel.Sections.Single(section => section.Id == "resource_packs"));
+
+        viewModel.ResourcePacksPage.SelectedTypeOption = viewModel.ResourcePacksPage.TypeOptions.Single(option => option.Id == "vanilla-like");
+        await viewModel.ResourcePacksPage.RefreshProjectsCommand.ExecuteAsync(null);
+
+        Assert.NotNull(service.LastRequest);
+        Assert.Equal(ResourceProjectKind.ResourcePack, service.LastRequest.Kind);
+        Assert.Equal(ResourceProjectCategory.VanillaLike, service.LastRequest.Category);
+    }
+
+    [Fact]
+    public async Task ShaderPackPageRefreshUsesShaderPackKindAndHidesLoaderFilters()
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult
+        {
+            Projects =
+            [
+                new ResourceProject
+                {
+                    Kind = ResourceProjectKind.ShaderPack,
+                    Source = ResourceProjectSource.Modrinth,
+                    ProjectId = "complementary",
+                    Slug = "complementary",
+                    Title = "Complementary",
+                    Description = "Nice shaders",
+                    SupportedMinecraftVersions = ["1.20.1"],
+                    Downloads = 2000,
+                    ProjectUrl = "https://modrinth.com/shader/complementary"
+                }
+            ]
+        });
+        var viewModel = new ResourcesPageViewModel(service);
+        var shaderPacksSection = viewModel.Sections.Single(section => section.Id == "shader_packs");
+
+        viewModel.SelectSectionCommand.Execute(shaderPacksSection);
+        await viewModel.ShaderPacksPage.RefreshProjectsCommand.ExecuteAsync(null);
+
+        Assert.Same(viewModel.ShaderPacksPage, viewModel.CurrentSectionViewModel);
+        Assert.Same(viewModel.ShaderPacksPage, viewModel.CurrentOnlineProjectPage);
+        Assert.True(viewModel.IsModSearchVisible);
+        Assert.False(viewModel.ShaderPacksPage.ShowsLoaderFilters);
+        Assert.Equal([Strings.Resources_ShaderPackFilterAllLoaders], viewModel.ShaderPacksPage.LoaderOptions.Select(option => option.Title));
+        Assert.Equal(Strings.Resources_ShaderPackProjectsLoading, viewModel.ShaderPacksPage.ProjectsLoadingMessage);
+        Assert.Equal(Strings.Resources_ShaderPackDetailsInfoSection, viewModel.ShaderPacksPage.DetailsInfoSectionText);
+        Assert.Equal("instance_setting_page/shader", viewModel.ShaderPacksPage.VisibleProjects[0].IconKey);
+        Assert.NotNull(service.LastRequest);
+        Assert.Equal(ResourceProjectKind.ShaderPack, service.LastRequest.Kind);
+        Assert.Equal(LoaderKind.Vanilla, service.LastRequest.Loader);
+    }
+
+    [Fact]
+    public async Task ShaderPackTypeFilterAddsShaderPackCategoryToSearchRequest()
+    {
+        var service = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var viewModel = new ResourcesPageViewModel(service);
+        viewModel.SelectSectionCommand.Execute(viewModel.Sections.Single(section => section.Id == "shader_packs"));
+
+        viewModel.ShaderPacksPage.SelectedTypeOption = viewModel.ShaderPacksPage.TypeOptions.Single(option => option.Id == "semi-realistic");
+        await viewModel.ShaderPacksPage.RefreshProjectsCommand.ExecuteAsync(null);
+
+        Assert.NotNull(service.LastRequest);
+        Assert.Equal(ResourceProjectKind.ShaderPack, service.LastRequest.Kind);
+        Assert.Equal(ResourceProjectCategory.SemiRealistic, service.LastRequest.Category);
+    }
+
+    [Fact]
     public async Task ModTypeFilterKeepsCategoryWhenLoadingMore()
     {
         var service = new QueueResourceCatalogService(

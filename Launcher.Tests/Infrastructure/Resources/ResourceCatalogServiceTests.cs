@@ -68,6 +68,60 @@ public sealed class ResourceCatalogServiceTests
     }
 
     [Fact]
+    public async Task SearchResourcePacksAddsModrinthResourcePackFacet()
+    {
+        var handler = new ResourceCatalogHandler(
+            """
+            {"hits":[{"project_id":"p1","slug":"fresh-animations","title":"Fresh Animations","description":"Animated mobs","icon_url":null,"downloads":42,"versions":["1.20.1"],"categories":["vanilla-like"]}],"total_hits":1}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+
+        var result = await service.SearchProjectsAsync(new ResourceCatalogSearchRequest
+        {
+            Kind = ResourceProjectKind.ResourcePack,
+            Source = ResourceProjectSource.Modrinth,
+            Category = ResourceProjectCategory.VanillaLike
+        });
+
+        var project = Assert.Single(result.Projects);
+        Assert.Equal(ResourceProjectKind.ResourcePack, project.Kind);
+        Assert.Empty(project.SupportedLoaders);
+        Assert.Equal("https://modrinth.com/resourcepack/fresh-animations", project.ProjectUrl);
+        var request = Assert.Single(handler.Requests);
+        Assert.Contains("project_type%3Aresourcepack", request.RequestUri!.Query);
+        Assert.Contains("categories%3Avanilla-like", request.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task SearchShaderPacksAddsModrinthShaderFacet()
+    {
+        var handler = new ResourceCatalogHandler(
+            """
+            {"hits":[{"project_id":"p1","slug":"complementary","title":"Complementary","description":"Nice shaders","icon_url":null,"downloads":42,"versions":["1.20.1"],"categories":["fantasy"]}],"total_hits":1}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+
+        var result = await service.SearchProjectsAsync(new ResourceCatalogSearchRequest
+        {
+            Kind = ResourceProjectKind.ShaderPack,
+            Source = ResourceProjectSource.Modrinth,
+            Category = ResourceProjectCategory.Fantasy
+        });
+
+        var project = Assert.Single(result.Projects);
+        Assert.Equal(ResourceProjectKind.ShaderPack, project.Kind);
+        Assert.Empty(project.SupportedLoaders);
+        Assert.Equal("https://modrinth.com/shader/complementary", project.ProjectUrl);
+        var request = Assert.Single(handler.Requests);
+        Assert.Contains("project_type%3Ashader", request.RequestUri!.Query);
+        Assert.Contains("categories%3Afantasy", request.RequestUri.Query);
+    }
+
+    [Fact]
     public async Task SearchModsAddsCurseForgeDownloadSortParameters()
     {
         var handler = new ResourceCatalogHandler(
@@ -106,6 +160,75 @@ public sealed class ResourceCatalogServiceTests
         Assert.Contains("searchFilter=map", request.RequestUri.Query);
         Assert.Contains("gameVersion=1.20.1", request.RequestUri.Query);
         Assert.Contains("modLoaderType=1", request.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task SearchResourcePacksUsesCurseForgeResourcePackClassIdWithoutLoader()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            """
+            {"data":[{"id":9,"name":"Faithful","slug":"faithful","summary":"Clean textures","downloadCount":120,"links":{"websiteUrl":"https://www.curseforge.com/minecraft/texture-packs/faithful"},"logo":null,"latestFilesIndexes":[{"gameVersion":"1.20.1","modLoader":1}],"gameVersionLatestFiles":[]}],"pagination":{"index":0,"pageSize":20,"resultCount":1,"totalCount":1}}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver("test-key"));
+
+        var result = await service.SearchProjectsAsync(new ResourceCatalogSearchRequest
+        {
+            Kind = ResourceProjectKind.ResourcePack,
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Fabric,
+            Source = ResourceProjectSource.CurseForge
+        });
+
+        var project = Assert.Single(result.Projects);
+        Assert.Equal(ResourceProjectKind.ResourcePack, project.Kind);
+        Assert.Empty(project.SupportedLoaders);
+        var request = Assert.Single(handler.Requests);
+        Assert.Contains("classId=12", request.RequestUri!.Query);
+        Assert.DoesNotContain("modLoaderType=", request.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task SearchShaderPacksUsesCurseForgeShaderClassIdWithoutLoader()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            """
+            {"data":[{"id":9,"name":"Complementary","slug":"complementary","summary":"Nice shaders","downloadCount":120,"links":null,"logo":null,"latestFilesIndexes":[{"gameVersion":"1.20.1","modLoader":4}],"gameVersionLatestFiles":[]}],"pagination":{"index":0,"pageSize":20,"resultCount":1,"totalCount":1}}
+            """,
+            curseForgeCategoriesResponse:
+            """
+            {"data":[{"id":6553,"name":"Fantasy","slug":"fantasy"}]}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver("test-key"));
+
+        var result = await service.SearchProjectsAsync(new ResourceCatalogSearchRequest
+        {
+            Kind = ResourceProjectKind.ShaderPack,
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Fabric,
+            Source = ResourceProjectSource.CurseForge,
+            Category = ResourceProjectCategory.Fantasy
+        });
+
+        var project = Assert.Single(result.Projects);
+        Assert.Equal(ResourceProjectKind.ShaderPack, project.Kind);
+        Assert.Empty(project.SupportedLoaders);
+        Assert.Equal("https://www.curseforge.com/minecraft/shaders/complementary", project.ProjectUrl);
+        Assert.Equal(2, handler.Requests.Count);
+
+        var categoriesRequest = handler.Requests[0];
+        Assert.Contains("/categories", categoriesRequest.RequestUri!.AbsolutePath);
+        Assert.Contains("classId=6552", categoriesRequest.RequestUri.Query);
+
+        var searchRequest = handler.Requests[1];
+        Assert.Contains("classId=6552", searchRequest.RequestUri!.Query);
+        Assert.Contains("categoryId=6553", searchRequest.RequestUri.Query);
+        Assert.DoesNotContain("modLoaderType=", searchRequest.RequestUri.Query);
     }
 
     [Fact]
@@ -430,6 +553,86 @@ public sealed class ResourceCatalogServiceTests
     }
 
     [Fact]
+    public async Task InstallProjectVersionDownloadsResourcePackToInstanceResourcePacksDirectory()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            downloadResponses: new Dictionary<string, string>
+            {
+                ["https://downloads.example.test/resourcepack.zip"] = "zip-content"
+            });
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+        var instanceDirectory = Path.Combine(Path.GetTempPath(), $"launcher-resourcepack-install-{Guid.NewGuid():N}");
+        try
+        {
+            var installedPath = await service.InstallProjectVersionAsync(
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.ResourcePack,
+                    VersionId = "version-1",
+                    FileName = "resourcepack.zip",
+                    PrimaryDownloadUrl = "https://downloads.example.test/resourcepack.zip"
+                },
+                new GameInstance
+                {
+                    Id = "instance",
+                    InstanceDirectory = instanceDirectory
+                });
+
+            Assert.Equal(Path.Combine(instanceDirectory, "resourcepacks", "resourcepack.zip"), installedPath);
+            Assert.True(File.Exists(installedPath));
+            Assert.Equal("zip-content", await File.ReadAllTextAsync(installedPath));
+        }
+        finally
+        {
+            if (Directory.Exists(instanceDirectory))
+                Directory.Delete(instanceDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task InstallProjectVersionDownloadsShaderPackToInstanceShaderPacksDirectory()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            downloadResponses: new Dictionary<string, string>
+            {
+                ["https://downloads.example.test/shaderpack.zip"] = "zip-content"
+            });
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+        var instanceDirectory = Path.Combine(Path.GetTempPath(), $"launcher-shaderpack-install-{Guid.NewGuid():N}");
+        try
+        {
+            var installedPath = await service.InstallProjectVersionAsync(
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.ShaderPack,
+                    VersionId = "version-1",
+                    FileName = "shaderpack.zip",
+                    PrimaryDownloadUrl = "https://downloads.example.test/shaderpack.zip"
+                },
+                new GameInstance
+                {
+                    Id = "instance",
+                    InstanceDirectory = instanceDirectory
+                });
+
+            Assert.Equal(Path.Combine(instanceDirectory, "shaderpacks", "shaderpack.zip"), installedPath);
+            Assert.True(File.Exists(installedPath));
+            Assert.Equal("zip-content", await File.ReadAllTextAsync(installedPath));
+        }
+        finally
+        {
+            if (Directory.Exists(instanceDirectory))
+                Directory.Delete(instanceDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task DownloadProjectVersionDownloadsFileToTargetDirectory()
     {
         var handler = new ResourceCatalogHandler(
@@ -456,6 +659,41 @@ public sealed class ResourceCatalogServiceTests
             Assert.Equal(Path.Combine(targetDirectory, "mod.jar"), downloadedPath);
             Assert.True(File.Exists(downloadedPath));
             Assert.Equal("jar-content", await File.ReadAllTextAsync(downloadedPath));
+        }
+        finally
+        {
+            if (Directory.Exists(targetDirectory))
+                Directory.Delete(targetDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task DownloadProjectVersionUsesZipDefaultForShaderPackWhenFileNameMissing()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            downloadResponses: new Dictionary<string, string>
+            {
+                ["https://downloads.example.test/shader"] = "zip-content"
+            });
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+        var targetDirectory = Path.Combine(Path.GetTempPath(), $"launcher-shaderpack-download-{Guid.NewGuid():N}");
+        try
+        {
+            var downloadedPath = await service.DownloadProjectVersionAsync(
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.ShaderPack,
+                    VersionId = "version-1",
+                    PrimaryDownloadUrl = "https://downloads.example.test/shader"
+                },
+                targetDirectory);
+
+            Assert.Equal(Path.Combine(targetDirectory, "version-1.zip"), downloadedPath);
+            Assert.True(File.Exists(downloadedPath));
+            Assert.Equal("zip-content", await File.ReadAllTextAsync(downloadedPath));
         }
         finally
         {
@@ -548,6 +786,78 @@ public sealed class ResourceCatalogServiceTests
                 {
                     VersionId = "version-1",
                     FileName = "mod.jar"
+                },
+                new GameInstance
+                {
+                    Id = "instance",
+                    InstanceDirectory = instanceDirectory
+                });
+
+            Assert.True(exists);
+        }
+        finally
+        {
+            if (Directory.Exists(instanceDirectory))
+                Directory.Delete(instanceDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ProjectVersionInstallExistsReturnsTrueWhenInstanceResourcePackFileExists()
+    {
+        var handler = new ResourceCatalogHandler("""{"hits":[]}""");
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+        var instanceDirectory = Path.Combine(Path.GetTempPath(), $"launcher-resourcepack-install-exists-{Guid.NewGuid():N}");
+        try
+        {
+            var resourcePacksDirectory = Path.Combine(instanceDirectory, "resourcepacks");
+            Directory.CreateDirectory(resourcePacksDirectory);
+            await File.WriteAllTextAsync(Path.Combine(resourcePacksDirectory, "pack.zip"), "existing");
+
+            var exists = await service.ProjectVersionInstallExistsAsync(
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.ResourcePack,
+                    VersionId = "version-1",
+                    FileName = "pack.zip"
+                },
+                new GameInstance
+                {
+                    Id = "instance",
+                    InstanceDirectory = instanceDirectory
+                });
+
+            Assert.True(exists);
+        }
+        finally
+        {
+            if (Directory.Exists(instanceDirectory))
+                Directory.Delete(instanceDirectory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ProjectVersionInstallExistsReturnsTrueWhenInstanceShaderPackFileExists()
+    {
+        var handler = new ResourceCatalogHandler("""{"hits":[]}""");
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+        var instanceDirectory = Path.Combine(Path.GetTempPath(), $"launcher-shaderpack-install-exists-{Guid.NewGuid():N}");
+        try
+        {
+            var shaderPacksDirectory = Path.Combine(instanceDirectory, "shaderpacks");
+            Directory.CreateDirectory(shaderPacksDirectory);
+            await File.WriteAllTextAsync(Path.Combine(shaderPacksDirectory, "pack.zip"), "existing");
+
+            var exists = await service.ProjectVersionInstallExistsAsync(
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.ShaderPack,
+                    VersionId = "version-1",
+                    FileName = "pack.zip"
                 },
                 new GameInstance
                 {

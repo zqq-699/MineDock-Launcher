@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using Launcher.App.ViewModels.Resources;
 
 namespace Launcher.App.Views.Resources;
 
@@ -17,6 +18,7 @@ public partial class ResourcesModFilterView : UserControl
         InitializeComponent();
         Loaded += ResourcesModFilterView_OnLoaded;
         SizeChanged += ResourcesModFilterView_OnSizeChanged;
+        DataContextChanged += ResourcesModFilterView_OnDataContextChanged;
     }
 
     private void ResourcesModFilterView_OnLoaded(object sender, RoutedEventArgs e)
@@ -25,6 +27,11 @@ public partial class ResourcesModFilterView : UserControl
     }
 
     private void ResourcesModFilterView_OnSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        ScheduleLayoutUpdate();
+    }
+
+    private void ResourcesModFilterView_OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         ScheduleLayoutUpdate();
     }
@@ -49,7 +56,11 @@ public partial class ResourcesModFilterView : UserControl
             return;
         }
 
-        var labelWidthTotal = MeasureLabelWidthTotal();
+        var showsLoaderFilters = ShowsLoaderFilters();
+        ApplyFilterColumnLayout(showsLoaderFilters);
+
+        var visibleGroupCount = showsLoaderFilters ? 4 : 3;
+        var labelWidthTotal = MeasureLabelWidthTotal(showsLoaderFilters);
         if (labelWidthTotal > 0)
         {
             cachedLabelWidthTotal = labelWidthTotal;
@@ -59,7 +70,7 @@ public partial class ResourcesModFilterView : UserControl
             labelWidthTotal = cachedLabelWidthTotal;
         }
 
-        var comboWidth = (ActualWidth - labelWidthTotal - (MinimumGroupGap * 3)) / 4;
+        var comboWidth = (ActualWidth - labelWidthTotal - (MinimumGroupGap * (visibleGroupCount - 1))) / visibleGroupCount;
         if (comboWidth < CompactThreshold)
         {
             ShowCompactLayout();
@@ -69,10 +80,38 @@ public partial class ResourcesModFilterView : UserControl
         ShowNormalLayout(Math.Min(MaxComboWidth, comboWidth));
     }
 
-    private double MeasureLabelWidthTotal()
+    private bool ShowsLoaderFilters()
+    {
+        return DataContext is not ResourcesModPageViewModel viewModel || viewModel.ShowsLoaderFilters;
+    }
+
+    private void ApplyFilterColumnLayout(bool showsLoaderFilters)
+    {
+        if (NormalFilterGrid.ColumnDefinitions.Count < 7)
+            return;
+
+        Grid.SetColumn(SourceFilterGroup, showsLoaderFilters ? 4 : 2);
+        Grid.SetColumn(TypeFilterGroup, showsLoaderFilters ? 6 : 4);
+
+        SetColumnWidth(1, new GridLength(1, GridUnitType.Star), MinimumGroupGap);
+        SetColumnWidth(2, GridLength.Auto, 0);
+        SetColumnWidth(3, new GridLength(1, GridUnitType.Star), MinimumGroupGap);
+        SetColumnWidth(4, GridLength.Auto, 0);
+        SetColumnWidth(5, showsLoaderFilters ? new GridLength(1, GridUnitType.Star) : new GridLength(0), showsLoaderFilters ? MinimumGroupGap : 0);
+        SetColumnWidth(6, showsLoaderFilters ? GridLength.Auto : new GridLength(0), 0);
+    }
+
+    private void SetColumnWidth(int index, GridLength width, double minWidth)
+    {
+        var column = NormalFilterGrid.ColumnDefinitions[index];
+        column.Width = width;
+        column.MinWidth = minWidth;
+    }
+
+    private double MeasureLabelWidthTotal(bool showsLoaderFilters)
     {
         return MeasureLabelWidth(VersionFilterLabel)
-            + MeasureLabelWidth(LoaderFilterLabel)
+            + (showsLoaderFilters ? MeasureLabelWidth(LoaderFilterLabel) : 0)
             + MeasureLabelWidth(SourceFilterLabel)
             + MeasureLabelWidth(TypeFilterLabel);
     }

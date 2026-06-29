@@ -5,12 +5,15 @@ namespace Launcher.App.ViewModels.Resources;
 
 public sealed class ResourcesModVersionItemViewModel
 {
-    public ResourcesModVersionItemViewModel(ResourceProjectVersion version, ResourcesModProjectItemViewModel? project)
+    public ResourcesModVersionItemViewModel(
+        ResourceProjectVersion version,
+        ResourcesModProjectItemViewModel? project,
+        string fallbackIconKey = "instance_setting_page/mod")
     {
         Version = version;
         IconSource = project?.IconSource;
         IconKey = string.IsNullOrWhiteSpace(IconSource)
-            ? "instance_setting_page/mod"
+            ? fallbackIconKey
             : string.Empty;
     }
 

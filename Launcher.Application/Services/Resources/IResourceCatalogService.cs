@@ -4,6 +4,13 @@ namespace Launcher.Application.Services;
 
 public interface IResourceCatalogService
 {
+    Task<ResourceCatalogSearchResult> SearchProjectsAsync(
+        ResourceCatalogSearchRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return SearchModsAsync(request, cancellationToken);
+    }
+
     Task<ResourceCatalogSearchResult> SearchModsAsync(
         ResourceCatalogSearchRequest request,
         CancellationToken cancellationToken = default);

@@ -17,6 +17,7 @@
   <data name="Resources_ModDownloadFileExistsMessageFormat" xml:space="preserve"><value>下载位置已存在同名文件：{0}</value></data>
   <data name="Resources_ModUnknownInstanceVersionTitle" xml:space="preserve"><value>无法识别游戏版本</value></data>
   <data name="Resources_ModUnknownInstanceVersionMessage" xml:space="preserve"><value>无法识别这个游戏的版本，请手动选择</value></data>
+  <data name="Resources_ResourcePackDownloadFileExistsMessageFormat" xml:space="preserve"><value>下载位置已存在同名文件：{0}</value></data>
   <data name="Menu_Button" xml:space="preserve"><value>菜单</value></data>
   <data name="Search_Placeholder" xml:space="preserve"><value>搜索</value></data>
   <data name="Back_Button" xml:space="preserve"><value>上一步</value></data>
@@ -92,6 +93,62 @@
   <data name="Resources_ModVersionsNoMore" xml:space="preserve"><value>没有更多 Mod 版本</value></data>
   <data name="Resources_ModVersionsLoadMoreError" xml:space="preserve"><value>加载更多 Mod 版本失败，请稍后重试。</value></data>
   <data name="Resources_ModVersionsAllTitle" xml:space="preserve"><value>&#x5168;&#x90E8;&#x7248;&#x672C;</value></data>
+  <data name="Resources_ResourcePackFilterAllLoaders" xml:space="preserve"><value>全部</value></data>
+  <data name="Resources_ResourcePackFilterTypeSimplistic" xml:space="preserve"><value>简洁</value></data>
+  <data name="Resources_ResourcePackFilterTypeThemed" xml:space="preserve"><value>主题</value></data>
+  <data name="Resources_ResourcePackFilterTypeRealistic" xml:space="preserve"><value>真实</value></data>
+  <data name="Resources_ResourcePackFilterTypeVanillaLike" xml:space="preserve"><value>原版风格</value></data>
+  <data name="Resources_ResourcePackFilterTypeAudio" xml:space="preserve"><value>音效</value></data>
+  <data name="Resources_ResourcePackProjectsLoading" xml:space="preserve"><value>正在加载资源包...</value></data>
+  <data name="Resources_ResourcePackProjectsEmpty" xml:space="preserve"><value>没有找到匹配的资源包</value></data>
+  <data name="Resources_ResourcePackProjectsLoadError" xml:space="preserve"><value>加载资源包列表失败，请稍后重试。</value></data>
+  <data name="Resources_ResourcePackProjectsLoadingMore" xml:space="preserve"><value>正在加载更多资源包...</value></data>
+  <data name="Resources_ResourcePackProjectsNoMore" xml:space="preserve"><value>没有更多资源包</value></data>
+  <data name="Resources_ResourcePackProjectsLoadMoreError" xml:space="preserve"><value>加载更多资源包失败，请稍后重试。</value></data>
+  <data name="Resources_ResourcePackCurseForgeMissingApiKey" xml:space="preserve"><value>未配置 CurseForge API Key，当前仅显示 Modrinth 结果。</value></data>
+  <data name="Resources_ResourcePackDetailsInfoSection" xml:space="preserve"><value>资源包信息</value></data>
+  <data name="Resources_ResourcePackInstallTargetSection" xml:space="preserve"><value>选择要安装到的游戏</value></data>
+  <data name="Resources_ResourcePackInstallTargetLocal" xml:space="preserve"><value>下载到本地</value></data>
+  <data name="Resources_ResourcePackInstallTargetsLoading" xml:space="preserve"><value>正在加载游戏列表...</value></data>
+  <data name="Resources_ResourcePackInstallTargetsLoadError" xml:space="preserve"><value>游戏列表加载失败</value></data>
+  <data name="Resources_ResourcePackVersionsLoading" xml:space="preserve"><value>正在加载可用资源包版本...</value></data>
+  <data name="Resources_ResourcePackVersionsEmpty" xml:space="preserve"><value>没有适用于该游戏的资源包版本</value></data>
+  <data name="Resources_ResourcePackVersionsEmptyLocal" xml:space="preserve"><value>没有可用的资源包版本</value></data>
+  <data name="Resources_ResourcePackVersionsFilterEmpty" xml:space="preserve"><value>没有找到匹配的资源包版本</value></data>
+  <data name="Resources_ResourcePackVersionsLoadError" xml:space="preserve"><value>资源包版本加载失败</value></data>
+  <data name="Resources_ResourcePackVersionsLoadingMore" xml:space="preserve"><value>正在加载更多资源包版本...</value></data>
+  <data name="Resources_ResourcePackVersionsNoMore" xml:space="preserve"><value>没有更多资源包版本</value></data>
+  <data name="Resources_ResourcePackVersionsLoadMoreError" xml:space="preserve"><value>加载更多资源包版本失败，请稍后重试。</value></data>
+  <data name="Resources_ResourcePackVersionsAllTitle" xml:space="preserve"><value>全部版本</value></data>
+  <data name="Resources_ShaderPackFilterAllLoaders" xml:space="preserve"><value>&#x5168;&#x90E8;</value></data>
+  <data name="Resources_ShaderPackFilterTypeCartoon" xml:space="preserve"><value>&#x5361;&#x901A;</value></data>
+  <data name="Resources_ShaderPackFilterTypeCursed" xml:space="preserve"><value>&#x602A;&#x5947;</value></data>
+  <data name="Resources_ShaderPackFilterTypeFantasy" xml:space="preserve"><value>&#x5947;&#x5E7B;</value></data>
+  <data name="Resources_ShaderPackFilterTypeRealistic" xml:space="preserve"><value>&#x771F;&#x5B9E;</value></data>
+  <data name="Resources_ShaderPackFilterTypeSemiRealistic" xml:space="preserve"><value>&#x534A;&#x771F;&#x5B9E;</value></data>
+  <data name="Resources_ShaderPackFilterTypeVanillaLike" xml:space="preserve"><value>&#x539F;&#x7248;&#x98CE;&#x683C;</value></data>
+  <data name="Resources_ShaderPackProjectsLoading" xml:space="preserve"><value>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x5149;&#x5F71;&#x5305;...</value></data>
+  <data name="Resources_ShaderPackProjectsEmpty" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x627E;&#x5230;&#x5339;&#x914D;&#x7684;&#x5149;&#x5F71;&#x5305;</value></data>
+  <data name="Resources_ShaderPackProjectsLoadError" xml:space="preserve"><value>&#x52A0;&#x8F7D;&#x5149;&#x5F71;&#x5305;&#x5217;&#x8868;&#x5931;&#x8D25;&#xFF0C;&#x8BF7;&#x7A0D;&#x540E;&#x91CD;&#x8BD5;&#x3002;</value></data>
+  <data name="Resources_ShaderPackProjectsLoadingMore" xml:space="preserve"><value>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x66F4;&#x591A;&#x5149;&#x5F71;&#x5305;...</value></data>
+  <data name="Resources_ShaderPackProjectsNoMore" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x66F4;&#x591A;&#x5149;&#x5F71;&#x5305;</value></data>
+  <data name="Resources_ShaderPackProjectsLoadMoreError" xml:space="preserve"><value>&#x52A0;&#x8F7D;&#x66F4;&#x591A;&#x5149;&#x5F71;&#x5305;&#x5931;&#x8D25;&#xFF0C;&#x8BF7;&#x7A0D;&#x540E;&#x91CD;&#x8BD5;&#x3002;</value></data>
+  <data name="Resources_ShaderPackCurseForgeMissingApiKey" xml:space="preserve"><value>&#x672A;&#x914D;&#x7F6E; CurseForge API Key&#xFF0C;&#x5F53;&#x524D;&#x4EC5;&#x663E;&#x793A; Modrinth &#x7ED3;&#x679C;&#x3002;</value></data>
+  <data name="Resources_ShaderPackDetailsInfoSection" xml:space="preserve"><value>&#x5149;&#x5F71;&#x5305;&#x4FE1;&#x606F;</value></data>
+  <data name="Resources_ShaderPackInstallTargetSection" xml:space="preserve"><value>&#x9009;&#x62E9;&#x8981;&#x5B89;&#x88C5;&#x5230;&#x7684;&#x6E38;&#x620F;</value></data>
+  <data name="Resources_ShaderPackInstallTargetLocal" xml:space="preserve"><value>&#x4E0B;&#x8F7D;&#x5230;&#x672C;&#x5730;</value></data>
+  <data name="Resources_ShaderPackInstallTargetsLoading" xml:space="preserve"><value>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x6E38;&#x620F;&#x5217;&#x8868;...</value></data>
+  <data name="Resources_ShaderPackInstallTargetsLoadError" xml:space="preserve"><value>&#x6E38;&#x620F;&#x5217;&#x8868;&#x52A0;&#x8F7D;&#x5931;&#x8D25;</value></data>
+  <data name="Resources_ShaderPackVersionsLoading" xml:space="preserve"><value>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x53EF;&#x7528;&#x5149;&#x5F71;&#x5305;&#x7248;&#x672C;...</value></data>
+  <data name="Resources_ShaderPackVersionsEmpty" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x9002;&#x7528;&#x4E8E;&#x8BE5;&#x6E38;&#x620F;&#x7684;&#x5149;&#x5F71;&#x5305;&#x7248;&#x672C;</value></data>
+  <data name="Resources_ShaderPackVersionsEmptyLocal" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x53EF;&#x7528;&#x7684;&#x5149;&#x5F71;&#x5305;&#x7248;&#x672C;</value></data>
+  <data name="Resources_ShaderPackVersionsFilterEmpty" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x627E;&#x5230;&#x5339;&#x914D;&#x7684;&#x5149;&#x5F71;&#x5305;&#x7248;&#x672C;</value></data>
+  <data name="Resources_ShaderPackVersionsLoadError" xml:space="preserve"><value>&#x5149;&#x5F71;&#x5305;&#x7248;&#x672C;&#x52A0;&#x8F7D;&#x5931;&#x8D25;</value></data>
+  <data name="Resources_ShaderPackVersionsLoadingMore" xml:space="preserve"><value>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x66F4;&#x591A;&#x5149;&#x5F71;&#x5305;&#x7248;&#x672C;...</value></data>
+  <data name="Resources_ShaderPackVersionsNoMore" xml:space="preserve"><value>&#x6CA1;&#x6709;&#x66F4;&#x591A;&#x5149;&#x5F71;&#x5305;&#x7248;&#x672C;</value></data>
+  <data name="Resources_ShaderPackVersionsLoadMoreError" xml:space="preserve"><value>&#x52A0;&#x8F7D;&#x66F4;&#x591A;&#x5149;&#x5F71;&#x5305;&#x7248;&#x672C;&#x5931;&#x8D25;&#xFF0C;&#x8BF7;&#x7A0D;&#x540E;&#x91CD;&#x8BD5;&#x3002;</value></data>
+  <data name="Resources_ShaderPackVersionsAllTitle" xml:space="preserve"><value>&#x5168;&#x90E8;&#x7248;&#x672C;</value></data>
+  <data name="Resources_ShaderPackDownloadFileExistsMessageFormat" xml:space="preserve"><value>&#x4E0B;&#x8F7D;&#x4F4D;&#x7F6E;&#x5DF2;&#x5B58;&#x5728;&#x540C;&#x540D;&#x6587;&#x4EF6;&#xFF1A;{0}</value></data>
   <data name="Page_Settings" xml:space="preserve"><value>全局设置</value></data>
   <data name="Settings_SectionGeneral" xml:space="preserve"><value>通用</value></data>
   <data name="Settings_SectionLaunchMemory" xml:space="preserve"><value>启动与内存</value></data>
@@ -388,6 +445,18 @@
   <data name="Status_ModInstallFailed" xml:space="preserve"><value>Mod 安装失败</value></data>
   <data name="Status_ModDownloadedFormat" xml:space="preserve"><value>{0} &#x5DF2;&#x4E0B;&#x8F7D;</value></data>
   <data name="Status_ModDownloadFailed" xml:space="preserve"><value>Mod &#x4E0B;&#x8F7D;&#x5931;&#x8D25;</value></data>
+  <data name="Status_ResourcePackDownloading" xml:space="preserve"><value>正在下载资源包...</value></data>
+  <data name="Status_ResourcePackDownloadingFormat" xml:space="preserve"><value>正在下载 {0}</value></data>
+  <data name="Status_ResourcePackInstalledFormat" xml:space="preserve"><value>{0} 已安装</value></data>
+  <data name="Status_ResourcePackInstallFailed" xml:space="preserve"><value>资源包安装失败</value></data>
+  <data name="Status_ResourcePackDownloadedFormat" xml:space="preserve"><value>{0} 已下载</value></data>
+  <data name="Status_ResourcePackDownloadFailed" xml:space="preserve"><value>资源包下载失败</value></data>
+  <data name="Status_ShaderPackDownloading" xml:space="preserve"><value>&#x6B63;&#x5728;&#x4E0B;&#x8F7D;&#x5149;&#x5F71;&#x5305;...</value></data>
+  <data name="Status_ShaderPackDownloadingFormat" xml:space="preserve"><value>&#x6B63;&#x5728;&#x4E0B;&#x8F7D; {0}</value></data>
+  <data name="Status_ShaderPackInstalledFormat" xml:space="preserve"><value>{0} &#x5DF2;&#x5B89;&#x88C5;</value></data>
+  <data name="Status_ShaderPackInstallFailed" xml:space="preserve"><value>&#x5149;&#x5F71;&#x5305;&#x5B89;&#x88C5;&#x5931;&#x8D25;</value></data>
+  <data name="Status_ShaderPackDownloadedFormat" xml:space="preserve"><value>{0} &#x5DF2;&#x4E0B;&#x8F7D;</value></data>
+  <data name="Status_ShaderPackDownloadFailed" xml:space="preserve"><value>&#x5149;&#x5F71;&#x5305;&#x4E0B;&#x8F7D;&#x5931;&#x8D25;</value></data>
   <data name="Status_SettingsSaved" xml:space="preserve"><value>启动器设置已保存</value></data>
   <data name="Status_SettingsSaveFailed" xml:space="preserve"><value>启动器设置保存失败，请稍后重试。</value></data>
   <data name="Status_JavaScanFailed" xml:space="preserve"><value>扫描本机 Java 失败，请稍后重试。</value></data>
@@ -717,6 +786,7 @@
   <data name="Dialog_UnsupportedResourcePackArchiveMessage" xml:space="preserve"><value>当前仅支持导入 .zip 资源包。</value></data>
   <data name="FilePicker_ResourcePackArchiveFilter" xml:space="preserve"><value>资源包压缩包|*.zip|所有文件|*.*</value></data>
   <data name="FilePicker_ResourcePackArchiveTitle" xml:space="preserve"><value>选择资源包压缩包</value></data>
+  <data name="FilePicker_ResourcePackDownloadDirectoryTitle" xml:space="preserve"><value>选择资源包下载目录</value></data>
   <data name="GameSettings_DetailResourcePacks" xml:space="preserve"><value>资源包</value></data>
   <data name="GameSettings_DropImportResourcePacksMessage" xml:space="preserve"><value>释放以导入资源包</value></data>
   <data name="GameSettings_DropResourcePackArchivesOnlyMessage" xml:space="preserve"><value>当前页面仅支持拖入资源包压缩包。</value></data>
@@ -751,6 +821,7 @@
   <data name="Dialog_UnsupportedShaderPackArchiveMessage" xml:space="preserve"><value>当前仅支持导入 .zip 光影包。</value></data>
   <data name="FilePicker_ShaderPackArchiveFilter" xml:space="preserve"><value>光影包压缩包|*.zip|所有文件|*.*</value></data>
   <data name="FilePicker_ShaderPackArchiveTitle" xml:space="preserve"><value>选择光影包压缩包</value></data>
+  <data name="FilePicker_ShaderPackDownloadDirectoryTitle" xml:space="preserve"><value>&#x9009;&#x62E9;&#x5149;&#x5F71;&#x5305;&#x4E0B;&#x8F7D;&#x76EE;&#x5F55;</value></data>
   <data name="GameSettings_DropImportShaderPacksMessage" xml:space="preserve"><value>释放以导入光影包</value></data>
   <data name="GameSettings_DropShaderPackArchivesOnlyMessage" xml:space="preserve"><value>当前页面仅支持拖入光影包压缩包。</value></data>
   <data name="GameSettings_ShaderPackManagementActionsLabel" xml:space="preserve"><value>操作</value></data>

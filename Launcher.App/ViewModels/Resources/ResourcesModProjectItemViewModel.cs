@@ -14,13 +14,16 @@ public sealed class ResourcesModProjectItemViewModel
     ];
 
     private readonly IReadOnlyList<string>? minecraftReleaseVersionOrder;
+    private readonly string fallbackIconKey;
 
     public ResourcesModProjectItemViewModel(
         ResourceProject project,
-        IReadOnlyList<string>? minecraftReleaseVersionOrder = null)
+        IReadOnlyList<string>? minecraftReleaseVersionOrder = null,
+        string fallbackIconKey = "instance_setting_page/mod")
     {
         Project = project;
         this.minecraftReleaseVersionOrder = minecraftReleaseVersionOrder;
+        this.fallbackIconKey = fallbackIconKey;
     }
 
     public ResourceProject Project { get; }
@@ -29,10 +32,9 @@ public sealed class ResourcesModProjectItemViewModel
 
     public string Description => Project.Description;
 
-    public string Subtitle => string.Join("  ",
-        SupportedMinecraftVersionsText,
-        SupportedLoadersText,
-        SourceText);
+    public string Subtitle => Project.Kind is ResourceProjectKind.Mod
+        ? string.Join("  ", SupportedMinecraftVersionsText, SupportedLoadersText, SourceText)
+        : string.Join("  ", SupportedMinecraftVersionsText, SourceText);
 
     public string TrailingText => string.Format(Strings.Resources_ModDownloadsFormat, DownloadsText);
 
@@ -53,8 +55,10 @@ public sealed class ResourcesModProjectItemViewModel
 
     public string? IconSource => Project.IconUrl;
 
+    public bool ShowsLoaders => Project.Kind is ResourceProjectKind.Mod;
+
     public string IconKey => string.IsNullOrWhiteSpace(Project.IconUrl)
-        ? "instance_setting_page/mod"
+        ? fallbackIconKey
         : string.Empty;
 
     private static string FormatLoaders(IReadOnlyList<string> loaders)

@@ -2,6 +2,8 @@ namespace Launcher.Domain.Models;
 
 public sealed class ResourceProjectVersion
 {
+    public ResourceProjectKind Kind { get; init; } = ResourceProjectKind.Mod;
+
     public string VersionId { get; init; } = string.Empty;
 
     public string Name { get; init; } = string.Empty;

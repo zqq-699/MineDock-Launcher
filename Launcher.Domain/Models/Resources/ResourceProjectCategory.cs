@@ -12,5 +12,14 @@ public enum ResourceProjectCategory
     Mobs,
     WorldGeneration,
     Storage,
-    Library
+    Library,
+    Simplistic,
+    Themed,
+    Realistic,
+    VanillaLike,
+    Audio,
+    Cartoon,
+    Cursed,
+    Fantasy,
+    SemiRealistic
 }

@@ -49,8 +49,30 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             floatingMessageService,
             downloadTasksPage);
         ModPage.PropertyChanged += ModPage_PropertyChanged;
-        ResourcePacksPage = new ResourcesResourcePacksPageViewModel(this);
-        ShaderPacksPage = new ResourcesShaderPacksPageViewModel(this);
+        ResourcePacksPage = new ResourcesResourcePacksPageViewModel(
+            this,
+            resourceCatalogService,
+            logger,
+            uiDispatcher,
+            gameVersionService,
+            gameInstanceService,
+            statusService,
+            filePickerService,
+            floatingMessageService,
+            downloadTasksPage);
+        ResourcePacksPage.PropertyChanged += OnlineProjectPage_PropertyChanged;
+        ShaderPacksPage = new ResourcesShaderPacksPageViewModel(
+            this,
+            resourceCatalogService,
+            logger,
+            uiDispatcher,
+            gameVersionService,
+            gameInstanceService,
+            statusService,
+            filePickerService,
+            floatingMessageService,
+            downloadTasksPage);
+        ShaderPacksPage.PropertyChanged += OnlineProjectPage_PropertyChanged;
         WorldsPage = new ResourcesWorldsPageViewModel(this);
         ModpacksPage = new ResourcesModpacksPageViewModel(this);
 
@@ -74,35 +96,50 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsModsSection))]
     [NotifyPropertyChangedFor(nameof(IsModSearchVisible))]
     [NotifyPropertyChangedFor(nameof(IsModProjectDetailsStep))]
+    [NotifyPropertyChangedFor(nameof(CurrentOnlineProjectPage))]
     [NotifyPropertyChangedFor(nameof(PageTitleIconSource))]
     private ResourcesSectionItem? selectedSection;
 
     [ObservableProperty]
     private ResourcesSectionViewModelBase? currentSectionViewModel;
 
-    public string PageTitle => IsModsSection
-        ? ModPage.PageTitle
+    public string PageTitle => CurrentOnlineProjectPage is { } onlineProjectPage
+        ? onlineProjectPage.PageTitle
         : SelectedSection?.Title ?? Strings.Page_Resources;
 
     public bool IsModsSection => SelectedSection?.Id == "mods";
 
-    public bool IsModSearchVisible => IsModsSection && (ModPage.IsProjectListStep || ModPage.IsProjectVersionsStep);
+    public bool IsModSearchVisible => CurrentOnlineProjectPage is { } onlineProjectPage
+        && (onlineProjectPage.IsProjectListStep || onlineProjectPage.IsProjectVersionsStep);
 
-    public bool IsModProjectDetailsStep => IsModsSection && ModPage.IsProjectContentStep;
+    public bool IsModProjectDetailsStep => CurrentOnlineProjectPage?.IsProjectContentStep == true;
 
-    public string? PageTitleIconSource => IsModsSection ? ModPage.PageTitleIconSource : null;
+    public string? PageTitleIconSource => CurrentOnlineProjectPage?.PageTitleIconSource;
+
+    public ResourcesModPageViewModel? CurrentOnlineProjectPage => CurrentSectionViewModel as ResourcesModPageViewModel;
 
     public string ActiveModSearchQuery
     {
-        get => ModPage.IsProjectVersionsStep
-            ? ModPage.AvailableVersionSearchQuery
-            : ModPage.SearchQuery;
+        get
+        {
+            var onlineProjectPage = CurrentOnlineProjectPage;
+            if (onlineProjectPage is null)
+                return string.Empty;
+
+            return onlineProjectPage.IsProjectVersionsStep
+                ? onlineProjectPage.AvailableVersionSearchQuery
+                : onlineProjectPage.SearchQuery;
+        }
         set
         {
-            if (ModPage.IsProjectVersionsStep)
-                ModPage.AvailableVersionSearchQuery = value;
+            var onlineProjectPage = CurrentOnlineProjectPage;
+            if (onlineProjectPage is null)
+                return;
+
+            if (onlineProjectPage.IsProjectVersionsStep)
+                onlineProjectPage.AvailableVersionSearchQuery = value;
             else
-                ModPage.SearchQuery = value;
+                onlineProjectPage.SearchQuery = value;
 
             OnPropertyChanged();
         }
@@ -110,8 +147,7 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
 
     public void BeginEnsureCurrentSectionLoaded()
     {
-        if (IsModsSection)
-            ModPage.BeginEnsureProjectsLoaded();
+        CurrentOnlineProjectPage?.BeginEnsureProjectsLoaded();
     }
 
     public async Task OpenModsForInstanceAsync(GameInstance instance)
@@ -153,21 +189,33 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
 
         if (section.Id != "mods")
             ModPage.ResetToProjectList();
+        if (section.Id != "resource_packs")
+            ResourcePacksPage.ResetToProjectList();
+        if (section.Id != "shader_packs")
+            ShaderPacksPage.ResetToProjectList();
 
         if (logSelection)
             logger?.LogInformation("Resources section selected. SectionId={SectionId}", section.Id);
 
-        if (logSelection && section.Id == "mods")
-            ModPage.BeginEnsureProjectsLoaded();
+        if (logSelection)
+            CurrentOnlineProjectPage?.BeginEnsureProjectsLoaded();
     }
 
     private void ModPage_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        OnlineProjectPage_PropertyChanged(sender, e);
+    }
+
+    private void OnlineProjectPage_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(ResourcesModPageViewModel.CurrentStep)
             or nameof(ResourcesModPageViewModel.SelectedProject)
             or nameof(ResourcesModPageViewModel.PageTitle)
             or nameof(ResourcesModPageViewModel.PageTitleIconSource))
         {
+            if (!ReferenceEquals(sender, CurrentOnlineProjectPage))
+                return;
+
             OnPropertyChanged(nameof(PageTitle));
             OnPropertyChanged(nameof(PageTitleIconSource));
             OnPropertyChanged(nameof(IsModSearchVisible));
@@ -178,7 +226,8 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
         if (e.PropertyName is nameof(ResourcesModPageViewModel.SearchQuery)
             or nameof(ResourcesModPageViewModel.AvailableVersionSearchQuery))
         {
-            OnPropertyChanged(nameof(ActiveModSearchQuery));
+            if (ReferenceEquals(sender, CurrentOnlineProjectPage))
+                OnPropertyChanged(nameof(ActiveModSearchQuery));
         }
     }
 }
