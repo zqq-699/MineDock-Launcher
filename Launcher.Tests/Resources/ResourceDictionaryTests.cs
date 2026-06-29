@@ -585,6 +585,15 @@ public sealed class ResourceDictionaryTests
                 Assert.NotNull(shaderPackListBox);
                 Assert.True(VirtualizingPanel.GetIsVirtualizing(shaderPackListBox));
                 Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(shaderPackListBox));
+
+                detailsViewModel.SetSelectedSection(new GameSettingsDetailSectionItem(
+                    "backup",
+                    Strings.GameSettings_DetailBackup,
+                    "instance_setting_page/backup"));
+                detailsView.UpdateLayout();
+
+                var backupSettingsView = FindVisualDescendant<InstanceBackupSettingsView>(detailsView);
+                Assert.NotNull(backupSettingsView);
             }
             catch (Exception ex)
             {
@@ -844,6 +853,7 @@ public sealed class ResourceDictionaryTests
             new StubInstanceFolderService(),
             new StubSystemMemoryService(),
             new StubModService(),
+            new StubInstanceBackupService(),
             new LocalModsViewModel(new StubModService(), statusService),
             new LocalSavesViewModel(new StubSaveService(), statusService),
             new LocalResourcePacksViewModel(new StubResourcePackService(), statusService),
@@ -869,6 +879,7 @@ public sealed class ResourceDictionaryTests
             new StubInstanceFolderService(),
             new StubSystemMemoryService(),
             modService,
+            new StubInstanceBackupService(),
             new LocalModsViewModel(modService, statusService),
             new LocalSavesViewModel(new StubSaveService(), statusService),
             new LocalResourcePacksViewModel(new StubResourcePackService(), statusService),
@@ -1221,6 +1232,59 @@ public sealed class ResourceDictionaryTests
         }
 
         public Task DeleteAsync(IEnumerable<LocalSave> saves, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class StubInstanceBackupService : IInstanceBackupService
+    {
+        public Task<string> EnsureBackupDirectoryAsync(string backupDirectory, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(backupDirectory);
+        }
+
+        public Task<int> CountBackupEntriesAsync(string backupDirectory, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(0);
+        }
+
+        public Task<IReadOnlyList<InstanceBackupRecord>> GetBackupsAsync(
+            string backupDirectory,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<InstanceBackupRecord>>([]);
+        }
+
+        public Task<InstanceBackupRecord> CreateBackupAsync(
+            GameInstance instance,
+            string backupDirectory,
+            string backupName,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new InstanceBackupRecord
+            {
+                Name = backupName,
+                FileName = $"{backupName}.zip",
+                FullPath = Path.Combine(backupDirectory, $"{backupName}.zip"),
+                SizeBytes = 1024 * 1024,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+        }
+
+        public Task DeleteBackupAsync(
+            string backupDirectory,
+            string backupFullPath,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task RestoreBackupAsync(
+            GameInstance instance,
+            string backupDirectory,
+            string backupFullPath,
+            CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }

@@ -829,6 +829,7 @@ public sealed class MainViewModelTests
                 new FakeInstanceFolderService(),
                 new FakeSystemMemoryService(),
                 new FakeModService(),
+                new FakeInstanceBackupService(),
                 new LocalModsViewModel(new FakeModService(), statusService),
                 new LocalSavesViewModel(new FakeSaveService(), statusService),
                 new LocalResourcePacksViewModel(new FakeResourcePackService(), statusService),
@@ -1151,6 +1152,59 @@ public sealed class MainViewModelTests
         }
 
         public Task DeleteAsync(IEnumerable<LocalSave> saves, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeInstanceBackupService : IInstanceBackupService
+    {
+        public Task<string> EnsureBackupDirectoryAsync(string backupDirectory, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Path.GetFullPath(backupDirectory));
+        }
+
+        public Task<int> CountBackupEntriesAsync(string backupDirectory, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(0);
+        }
+
+        public Task<IReadOnlyList<InstanceBackupRecord>> GetBackupsAsync(
+            string backupDirectory,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<InstanceBackupRecord>>([]);
+        }
+
+        public Task<InstanceBackupRecord> CreateBackupAsync(
+            GameInstance instance,
+            string backupDirectory,
+            string backupName,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new InstanceBackupRecord
+            {
+                Name = backupName,
+                FileName = $"{backupName}.zip",
+                FullPath = Path.Combine(backupDirectory, $"{backupName}.zip"),
+                SizeBytes = 1024 * 1024,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+        }
+
+        public Task DeleteBackupAsync(
+            string backupDirectory,
+            string backupFullPath,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task RestoreBackupAsync(
+            GameInstance instance,
+            string backupDirectory,
+            string backupFullPath,
+            CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }

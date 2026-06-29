@@ -444,6 +444,7 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             Description = instance.Description,
             IconSource = instance.IconSource,
             InstanceDirectory = versionDirectory,
+            BackupDirectory = instance.BackupDirectory,
             MemorySettingsMode = instance.MemorySettingsMode,
             MemoryMb = instance.MemoryMb,
             WindowWidth = instance.WindowWidth,

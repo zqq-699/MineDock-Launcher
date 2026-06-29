@@ -91,6 +91,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         IInstanceFolderService instanceFolderService,
         ISystemMemoryService systemMemoryService,
         IModService modService,
+        IInstanceBackupService backupService,
         LocalModsViewModel localModsViewModel,
         LocalSavesViewModel localSavesViewModel,
         LocalResourcePacksViewModel localResourcePacksViewModel,
@@ -114,6 +115,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             instanceFolderService,
             systemMemoryService,
             modService,
+            backupService,
             localModsViewModel,
             localSavesViewModel,
             localResourcePacksViewModel,
@@ -140,6 +142,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         Details.SaveManagement.PropertyChanged += SaveManagement_PropertyChanged;
         Details.ResourcePackManagement.PropertyChanged += ResourcePackManagement_PropertyChanged;
         Details.ShaderPackManagement.PropertyChanged += ShaderPackManagement_PropertyChanged;
+        Details.Backup.PropertyChanged += Backup_PropertyChanged;
 
         InstanceCategories.Add(new GameSettingsInstanceCategory("all", Strings.GameSettings_AllCategory, string.Empty, "general/general_all_application"));
         InstanceCategories.Add(new GameSettingsInstanceCategory("mod_loader", Strings.GameSettings_ModLoaderCategory, string.Empty, "general/general_extention"));
@@ -206,10 +209,14 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     public bool IsShaderPackManagementDetailsStep => IsDetailsStep
         && string.Equals(Details.SelectedSection?.Id, "shaders", StringComparison.OrdinalIgnoreCase);
 
+    public bool IsBackupManagementDetailsStep => IsDetailsStep
+        && string.Equals(Details.SelectedSection?.Id, "backup", StringComparison.OrdinalIgnoreCase);
+
     public bool IsTopResourceManagementDetailsStep => IsModManagementDetailsStep
         || IsSaveManagementDetailsStep
         || IsResourcePackManagementDetailsStep
-        || IsShaderPackManagementDetailsStep;
+        || IsShaderPackManagementDetailsStep
+        || IsBackupManagementDetailsStep;
 
     public bool IsTopSearchVisible => IsListStep || IsTopResourceManagementDetailsStep;
 
@@ -225,6 +232,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
                 return Details.ResourcePackManagement.ResourcePackSearchQuery;
             if (IsShaderPackManagementDetailsStep)
                 return Details.ShaderPackManagement.ShaderPackSearchQuery;
+            if (IsBackupManagementDetailsStep)
+                return Details.Backup.BackupSearchQuery;
 
             return InstanceSearchQuery;
         }
@@ -254,6 +263,13 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             if (IsShaderPackManagementDetailsStep)
             {
                 Details.ShaderPackManagement.ShaderPackSearchQuery = value;
+                OnPropertyChanged();
+                return;
+            }
+
+            if (IsBackupManagementDetailsStep)
+            {
+                Details.Backup.BackupSearchQuery = value;
                 OnPropertyChanged();
                 return;
             }
@@ -1185,12 +1201,19 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             OnPropertyChanged(nameof(TopSearchQuery));
     }
 
+    private void Backup_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(InstanceBackupSettingsViewModel.BackupSearchQuery))
+            OnPropertyChanged(nameof(TopSearchQuery));
+    }
+
     private void RaiseTopSearchPropertyChanges()
     {
         OnPropertyChanged(nameof(IsModManagementDetailsStep));
         OnPropertyChanged(nameof(IsSaveManagementDetailsStep));
         OnPropertyChanged(nameof(IsResourcePackManagementDetailsStep));
         OnPropertyChanged(nameof(IsShaderPackManagementDetailsStep));
+        OnPropertyChanged(nameof(IsBackupManagementDetailsStep));
         OnPropertyChanged(nameof(IsTopResourceManagementDetailsStep));
         OnPropertyChanged(nameof(IsTopSearchVisible));
         OnPropertyChanged(nameof(TopSearchQuery));

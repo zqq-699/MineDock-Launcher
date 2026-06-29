@@ -289,6 +289,55 @@
                                 </Button.Style>
                             </Button>
                         </WrapPanel>
+
+                        <WrapPanel HorizontalAlignment="Right"
+                                   VerticalAlignment="Center">
+                            <WrapPanel.Style>
+                                <Style TargetType="WrapPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsBackupManagementDetailsStep}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </WrapPanel.Style>
+
+                            <WrapPanel Margin="0,0,10,0"
+                                       VerticalAlignment="Center">
+                                <WrapPanel.Style>
+                                    <Style TargetType="WrapPanel">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Details.Backup.IsMultiSelectMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </WrapPanel.Style>
+
+                                <Button Margin="0,0,10,0"
+                                        Content="{Binding Details.Backup.SelectAllButtonText}"
+                                        Command="{Binding Details.Backup.SelectAllBackupsCommand}"
+                                        Style="{StaticResource ModTopToolbarCompactButtonStyle}" />
+                                <Button Content="{x:Static res:Strings.GameSettings_BackupDeleteButton}"
+                                        Command="{Binding Details.Backup.RequestDeleteSelectedBackupsCommand}"
+                                        Style="{StaticResource ModTopToolbarCompactDangerButtonStyle}" />
+                            </WrapPanel>
+
+                            <Button Command="{Binding Details.Backup.ToggleMultiSelectModeCommand}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ModTopToolbarCompactButtonStyle}">
+                                        <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_BackupMultiSelectButton}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Details.Backup.IsMultiSelectMode}" Value="True">
+                                                <Setter Property="Content" Value="{x:Static res:Strings.GameSettings_BackupCancelMultiSelectButton}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </WrapPanel>
                     </Grid>
                 </DataTemplate>
             </controls:ListPageFrame.SearchToolbarContentTemplate>

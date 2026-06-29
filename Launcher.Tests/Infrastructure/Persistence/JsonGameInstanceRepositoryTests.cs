@@ -33,6 +33,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
                 VersionName = "demo-pack",
                 Description = "stored beside the instance",
                 InstanceDirectory = versionDirectory,
+                BackupDirectory = Path.Combine(TempRoot, "backups", "demo-pack"),
                 MemorySettingsMode = MemorySettingsMode.Auto,
                 MemoryMb = 5120,
                 JavaSettingsMode = LaunchSettingsMode.PerInstance,
@@ -49,6 +50,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         using var document = JsonDocument.Parse(savedJson);
         Assert.Equal("Demo Pack", document.RootElement.GetProperty("Name").GetString());
         Assert.Equal("stored beside the instance", document.RootElement.GetProperty("Description").GetString());
+        Assert.Equal(Path.Combine(TempRoot, "backups", "demo-pack"), document.RootElement.GetProperty("BackupDirectory").GetString());
         Assert.Equal((int)MemorySettingsMode.Auto, document.RootElement.GetProperty("MemorySettingsMode").GetInt32());
         Assert.Equal(5120, document.RootElement.GetProperty("MemoryMb").GetInt32());
         Assert.Equal((int)LaunchSettingsMode.PerInstance, document.RootElement.GetProperty("JavaSettingsMode").GetInt32());
@@ -78,7 +80,8 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
             MinecraftVersion = "1.20.1",
             VersionName = "demo-pack",
             Description = "loaded from instance folder",
-            InstanceDirectory = "stale-path"
+            InstanceDirectory = "stale-path",
+            BackupDirectory = Path.Combine(TempRoot, "backups", "demo-pack")
         };
 
         await using (var stream = File.Create(settingsPath))
@@ -90,6 +93,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         Assert.Equal("Demo Pack", loaded.Name);
         Assert.Equal("loaded from instance folder", loaded.Description);
         Assert.Equal(versionDirectory, loaded.InstanceDirectory);
+        Assert.Equal(Path.Combine(TempRoot, "backups", "demo-pack"), loaded.BackupDirectory);
     }
 
     [Fact]

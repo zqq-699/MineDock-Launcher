@@ -193,6 +193,7 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
             Description = instance.Description,
             IconSource = instance.IconSource,
             InstanceDirectory = instance.InstanceDirectory,
+            BackupDirectory = instance.BackupDirectory,
             MemorySettingsMode = instance.MemorySettingsMode,
             MemoryMb = instance.MemoryMb,
             WindowWidth = instance.WindowWidth,

@@ -693,7 +693,7 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Equal(Strings.GameSettings_DetailGeneral, viewModel.Details.SectionTitle);
         Assert.IsType<InstanceGeneralSettingsViewModel>(viewModel.Details.CurrentSectionViewModel);
         Assert.True(viewModel.DetailSections.First(section => section.Id == "general").IsSelected);
-        Assert.Equal(7, viewModel.DetailSections.Count);
+        Assert.Equal(8, viewModel.DetailSections.Count);
         Assert.Equal(
             [
                 Strings.GameSettings_DetailGeneral,
@@ -702,7 +702,8 @@ public sealed class GameSettingsPageViewModelTests
                 Strings.GameSettings_DetailModManagement,
                 Strings.GameSettings_DetailSaves,
                 Strings.GameSettings_DetailResourcePacks,
-                Strings.GameSettings_DetailShaders
+                Strings.GameSettings_DetailShaders,
+                Strings.GameSettings_DetailBackup
             ],
             viewModel.DetailSections.Select(section => section.Title));
     }
@@ -3438,13 +3439,647 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
-    public void DetailSectionsHidePlaceholderEntries()
+    public async Task BackupDetailsSectionKeepsEntryAndShowsBackupPage()
+    {
+        var backupService = new FakeInstanceBackupService();
+        backupService.Backups.AddRange(
+        [
+            CreateBackupRecord("Alpha", "alpha.zip"),
+            CreateBackupRecord("Beta", "beta.zip"),
+            CreateBackupRecord("Gamma", "gamma.zip")
+        ]);
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"));
+        var viewModel = CreateViewModel([instance], backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        var section = viewModel.DetailSections.Single(section => section.Id == "backup");
+
+        viewModel.SelectDetailsSectionCommand.Execute(section);
+
+        Assert.True(section.IsSelected);
+        Assert.IsType<InstanceBackupSettingsViewModel>(viewModel.Details.CurrentSectionViewModel);
+        Assert.Equal(Strings.GameSettings_DetailBackup, viewModel.Details.SectionTitle);
+        Assert.Equal(
+            string.Format(Strings.GameSettings_BackupInfoSummaryFormat, 3),
+            viewModel.Details.Backup.BackupInfoText);
+        Assert.Equal(instance.BackupDirectory, viewModel.Details.Backup.BackupDirectoryText);
+    }
+
+    [Fact]
+    public async Task BackupDetailsSectionUsesTopSearchAndMultiSelectToolbar()
+    {
+        var viewModel = CreateViewModel([CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla)]);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        Assert.True(viewModel.IsBackupManagementDetailsStep);
+        Assert.True(viewModel.IsTopResourceManagementDetailsStep);
+        Assert.True(viewModel.IsTopSearchVisible);
+
+        viewModel.TopSearchQuery = "nightly";
+
+        Assert.Equal("nightly", viewModel.Details.Backup.BackupSearchQuery);
+        Assert.Equal("nightly", viewModel.TopSearchQuery);
+        Assert.False(viewModel.Details.Backup.IsMultiSelectMode);
+
+        viewModel.Details.Backup.ToggleMultiSelectModeCommand.Execute(null);
+
+        Assert.True(viewModel.Details.Backup.IsMultiSelectMode);
+    }
+
+    [Fact]
+    public async Task BackupMultiSelectSelectAllOnlyTargetsVisibleBackups()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backupService = new FakeInstanceBackupService();
+        backupService.Backups.AddRange(
+        [
+            CreateBackupRecord("Nightly One", "nightly-one.zip"),
+            CreateBackupRecord("Nightly Two", "nightly-two.zip"),
+            CreateBackupRecord("Release", "release.zip")
+        ]);
+        var viewModel = CreateViewModel([instance], backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.TopSearchQuery = "nightly";
+        viewModel.Details.Backup.ToggleMultiSelectModeCommand.Execute(null);
+        viewModel.Details.Backup.SelectAllBackupsCommand.Execute(null);
+
+        Assert.Equal(2, viewModel.Details.Backup.VisibleBackups.Count);
+        Assert.Equal(2, viewModel.Details.Backup.SelectedBackupCount);
+        Assert.True(viewModel.Details.Backup.AreAllVisibleBackupsSelected);
+        Assert.Equal(Strings.GameSettings_BackupCancelSelectAllButton, viewModel.Details.Backup.SelectAllButtonText);
+        Assert.Equal(["Nightly One", "Nightly Two"], viewModel.Details.Backup.VisibleBackups.Where(backup => backup.IsSelected).Select(backup => backup.Title));
+
+        viewModel.Details.Backup.SelectAllBackupsCommand.Execute(null);
+
+        Assert.Equal(0, viewModel.Details.Backup.SelectedBackupCount);
+        Assert.False(viewModel.Details.Backup.AreAllVisibleBackupsSelected);
+        Assert.Equal(Strings.GameSettings_BackupSelectAllButton, viewModel.Details.Backup.SelectAllButtonText);
+    }
+
+    [Fact]
+    public async Task BackupDetailsSectionDefaultsToNoDirectoryAndDisablesOpenCommand()
+    {
+        var viewModel = CreateViewModel([CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla)]);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        Assert.Equal(Strings.GameSettings_BackupDirectoryNotSelected, viewModel.Details.Backup.BackupDirectoryText);
+        Assert.Equal(
+            string.Format(Strings.GameSettings_BackupInfoSummaryFormat, 0),
+            viewModel.Details.Backup.BackupInfoText);
+        Assert.False(viewModel.Details.Backup.OpenBackupFolderCommand.CanExecute(null));
+        Assert.False(viewModel.Details.Backup.CreateBackupNowCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task ChangeBackupDirectoryCommandSavesDirectoryAndRefreshesCount()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var targetDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(instance);
+        var statusService = new FakeStatusService();
+        var filePickerService = new FakeFilePickerService { FolderPath = targetDirectory };
+        var backupService = new FakeInstanceBackupService();
+        backupService.Backups.AddRange(
+        [
+            CreateBackupRecord("Alpha", "alpha.zip"),
+            CreateBackupRecord("Beta", "beta.zip")
+        ]);
+        var viewModel = CreateViewModel(
+            instanceService,
+            new FakeGameVersionService([]),
+            statusService,
+            new FakeInstanceFolderService(),
+            filePickerService: filePickerService,
+            backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        await viewModel.Details.Backup.ChangeBackupDirectoryCommand.ExecuteAsync(null);
+
+        var normalizedDirectory = Path.GetFullPath(targetDirectory);
+        Assert.Equal(normalizedDirectory, instance.BackupDirectory);
+        Assert.Equal(normalizedDirectory, viewModel.Details.Backup.BackupDirectoryText);
+        Assert.Equal(normalizedDirectory, instanceService.LastSavedInstance?.BackupDirectory);
+        Assert.Equal(Strings.FilePicker_BackupDirectoryTitle, filePickerService.LastFolderPickerTitle);
+        Assert.Null(filePickerService.LastFolderPickerInitialDirectory);
+        Assert.Equal(Strings.Status_BackupDirectoryChanged, statusService.LastMessage);
+        Assert.Equal(
+            string.Format(Strings.GameSettings_BackupInfoSummaryFormat, 2),
+            viewModel.Details.Backup.BackupInfoText);
+        Assert.True(viewModel.Details.Backup.OpenBackupFolderCommand.CanExecute(null));
+        Assert.True(viewModel.Details.Backup.CreateBackupNowCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task ChangeBackupDirectoryCommandDoesNothingWhenPickerIsCanceled()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(instance);
+        var statusService = new FakeStatusService();
+        var viewModel = CreateViewModel(
+            instanceService,
+            new FakeGameVersionService([]),
+            statusService,
+            new FakeInstanceFolderService());
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        await viewModel.Details.Backup.ChangeBackupDirectoryCommand.ExecuteAsync(null);
+
+        Assert.Equal(string.Empty, instance.BackupDirectory);
+        Assert.Equal(0, instanceService.SaveCallCount);
+        Assert.Null(statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task OpenBackupFolderCommandReportsFailureWhenFolderCannotOpen()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var statusService = new FakeStatusService();
+        var folderService = new FakeInstanceFolderService { OpenResult = false };
+        var viewModel = CreateViewModel([instance], statusService: statusService, folderService: folderService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        await viewModel.Details.Backup.OpenBackupFolderCommand.ExecuteAsync(null);
+
+        Assert.Equal(Path.GetFullPath(instance.BackupDirectory), folderService.LastOpenedPath);
+        Assert.Equal(Strings.Status_OpenBackupDirectoryFailed, statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task OpenBackupLocationCommandRevealsBackupZip()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backup = CreateBackupRecord("Nightly", "nightly.zip");
+        backup.FullPath = Path.Combine(instance.BackupDirectory, backup.FileName);
+        var backupService = new FakeInstanceBackupService();
+        backupService.Backups.Add(backup);
+        var folderService = new FakeInstanceFolderService();
+        var viewModel = CreateViewModel([instance], folderService: folderService, backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.Details.Backup.OpenBackupLocationCommand.Execute(viewModel.Details.Backup.VisibleBackups.Single());
+
+        Assert.Equal(backup.FullPath, folderService.LastRevealedFilePath);
+    }
+
+    [Fact]
+    public async Task OpenBackupLocationCommandReportsFailureWhenRevealFails()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backup = CreateBackupRecord("Nightly", "nightly.zip");
+        backup.FullPath = Path.Combine(instance.BackupDirectory, backup.FileName);
+        var backupService = new FakeInstanceBackupService();
+        backupService.Backups.Add(backup);
+        var statusService = new FakeStatusService();
+        var folderService = new FakeInstanceFolderService { RevealResult = false };
+        var viewModel = CreateViewModel(
+            [instance],
+            statusService: statusService,
+            folderService: folderService,
+            backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.Details.Backup.OpenBackupLocationCommand.Execute(viewModel.Details.Backup.VisibleBackups.Single());
+
+        Assert.Equal(backup.FullPath, folderService.LastRevealedFilePath);
+        Assert.Equal(Strings.Status_OpenBackupLocationFailed, statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task RequestDeleteBackupCommandOnlyOpensConfirmationDialog()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backupService = new FakeInstanceBackupService();
+        backupService.Backups.Add(CreateBackupRecord("Nightly", "nightly.zip"));
+        var viewModel = CreateViewModel([instance], backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.Details.Backup.RequestDeleteBackupCommand.Execute(viewModel.Details.Backup.VisibleBackups.Single());
+
+        Assert.True(viewModel.Details.Backup.IsDeleteBackupDialogOpen);
+        Assert.Contains("Nightly", viewModel.Details.Backup.DeleteBackupDialogMessage);
+        Assert.Equal(0, backupService.DeleteBackupCallCount);
+    }
+
+    [Fact]
+    public async Task CancelDeleteBackupCommandClosesDialogWithoutDeleting()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backupService = new FakeInstanceBackupService();
+        backupService.Backups.Add(CreateBackupRecord("Nightly", "nightly.zip"));
+        var viewModel = CreateViewModel([instance], backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.Details.Backup.RequestDeleteBackupCommand.Execute(viewModel.Details.Backup.VisibleBackups.Single());
+        viewModel.Details.Backup.CancelDeleteBackupCommand.Execute(null);
+
+        Assert.False(viewModel.Details.Backup.IsDeleteBackupDialogOpen);
+        Assert.Equal(0, backupService.DeleteBackupCallCount);
+    }
+
+    [Fact]
+    public async Task ConfirmDeleteBackupCommandDeletesBackupAndRefreshesList()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backup = CreateBackupRecord("Nightly", "nightly.zip");
+        backup.FullPath = Path.Combine(instance.BackupDirectory, backup.FileName);
+        var backupService = new FakeInstanceBackupService();
+        backupService.Backups.Add(backup);
+        var statusService = new FakeStatusService();
+        var viewModel = CreateViewModel([instance], statusService: statusService, backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.Details.Backup.RequestDeleteBackupCommand.Execute(viewModel.Details.Backup.VisibleBackups.Single());
+        await viewModel.Details.Backup.ConfirmDeleteBackupCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.Details.Backup.IsDeleteBackupDialogOpen);
+        Assert.Equal(1, backupService.DeleteBackupCallCount);
+        Assert.Equal(instance.BackupDirectory, backupService.LastDeletedBackupDirectory);
+        Assert.Equal(backup.FullPath, backupService.LastDeletedBackupFullPath);
+        Assert.Empty(viewModel.Details.Backup.VisibleBackups);
+        Assert.Equal(
+            string.Format(Strings.GameSettings_BackupInfoSummaryFormat, 0),
+            viewModel.Details.Backup.BackupInfoText);
+        Assert.Equal(Strings.Status_BackupDeleted, statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task ConfirmDeleteBackupCommandReportsFailureWithoutRemovingBackup()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backupService = new FakeInstanceBackupService
+        {
+            DeleteException = new IOException("delete failed")
+        };
+        backupService.Backups.Add(CreateBackupRecord("Nightly", "nightly.zip"));
+        var statusService = new FakeStatusService();
+        var viewModel = CreateViewModel([instance], statusService: statusService, backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.Details.Backup.RequestDeleteBackupCommand.Execute(viewModel.Details.Backup.VisibleBackups.Single());
+        await viewModel.Details.Backup.ConfirmDeleteBackupCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.Details.Backup.IsDeleteBackupDialogOpen);
+        Assert.Equal(1, backupService.DeleteBackupCallCount);
+        Assert.Equal(["Nightly"], viewModel.Details.Backup.VisibleBackups.Select(backup => backup.Title));
+        Assert.Equal(Strings.Status_BackupDeleteFailed, statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task RequestDeleteSelectedBackupsCommandOpensConfirmationAndDeletesSelectedBackups()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backupService = new FakeInstanceBackupService();
+        backupService.Backups.AddRange(
+        [
+            CreateBackupRecord("Nightly One", "nightly-one.zip"),
+            CreateBackupRecord("Nightly Two", "nightly-two.zip"),
+            CreateBackupRecord("Release", "release.zip")
+        ]);
+        var statusService = new FakeStatusService();
+        var viewModel = CreateViewModel([instance], statusService: statusService, backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.TopSearchQuery = "nightly";
+        viewModel.Details.Backup.ToggleMultiSelectModeCommand.Execute(null);
+        viewModel.Details.Backup.SelectAllBackupsCommand.Execute(null);
+        viewModel.Details.Backup.RequestDeleteSelectedBackupsCommand.Execute(null);
+
+        Assert.True(viewModel.Details.Backup.IsDeleteBackupDialogOpen);
+        Assert.Equal(string.Format(Strings.Dialog_DeleteMultipleBackupsMessageFormat, 2), viewModel.Details.Backup.DeleteBackupDialogMessage);
+        Assert.Equal(0, backupService.DeleteBackupCallCount);
+
+        await viewModel.Details.Backup.ConfirmDeleteBackupCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.Details.Backup.IsDeleteBackupDialogOpen);
+        Assert.False(viewModel.Details.Backup.IsMultiSelectMode);
+        Assert.Equal(2, backupService.DeleteBackupCallCount);
+        Assert.Equal(["Release"], backupService.Backups.Select(backup => backup.Name));
+        Assert.Equal(string.Format(Strings.Status_SelectedBackupsDeletedFormat, 2), statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task RequestRestoreBackupCommandOpensConfirmationDialogOnly()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backupService = new FakeInstanceBackupService();
+        backupService.Backups.Add(CreateBackupRecord("Nightly", "nightly.zip"));
+        var viewModel = CreateViewModel([instance], backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.Details.Backup.RequestRestoreBackupCommand.Execute(viewModel.Details.Backup.VisibleBackups.Single());
+
+        Assert.True(viewModel.Details.Backup.IsRestoreBackupDialogOpen);
+        Assert.Contains("Nightly", viewModel.Details.Backup.RestoreBackupDialogMessage);
+        Assert.Contains("自动备份", viewModel.Details.Backup.RestoreBackupDialogMessage);
+        Assert.Equal(0, backupService.CreateBackupCallCount);
+        Assert.Equal(0, backupService.RestoreBackupCallCount);
+    }
+
+    [Fact]
+    public async Task CancelRestoreBackupCommandClosesDialogWithoutRestoring()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backupService = new FakeInstanceBackupService();
+        backupService.Backups.Add(CreateBackupRecord("Nightly", "nightly.zip"));
+        var viewModel = CreateViewModel([instance], backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.Details.Backup.RequestRestoreBackupCommand.Execute(viewModel.Details.Backup.VisibleBackups.Single());
+        viewModel.Details.Backup.CancelRestoreBackupCommand.Execute(null);
+
+        Assert.False(viewModel.Details.Backup.IsRestoreBackupDialogOpen);
+        Assert.Equal(0, backupService.CreateBackupCallCount);
+        Assert.Equal(0, backupService.RestoreBackupCallCount);
+    }
+
+    [Fact]
+    public async Task ConfirmRestoreBackupCommandCreatesProtectionBackupThenRestores()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backup = CreateBackupRecord("Nightly", "nightly.zip");
+        backup.FullPath = Path.Combine(instance.BackupDirectory, backup.FileName);
+        var backupService = new FakeInstanceBackupService();
+        backupService.Backups.Add(backup);
+        var floatingMessageService = new FakeFloatingMessageService();
+        var viewModel = CreateViewModel(
+            [instance],
+            backupService: backupService,
+            floatingMessageService: floatingMessageService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.Details.Backup.RequestRestoreBackupCommand.Execute(viewModel.Details.Backup.VisibleBackups.Single());
+        await viewModel.Details.Backup.ConfirmRestoreBackupCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.Details.Backup.IsRestoreBackupDialogOpen);
+        Assert.False(viewModel.Details.Backup.IsRestoringBackup);
+        Assert.Equal(1, backupService.CreateBackupCallCount);
+        Assert.StartsWith("恢复前备份 ", backupService.LastCreatedBackupName);
+        Assert.Equal(1, backupService.RestoreBackupCallCount);
+        Assert.Same(instance, backupService.LastRestoredBackupInstance);
+        Assert.Equal(instance.BackupDirectory, backupService.LastRestoredBackupDirectory);
+        Assert.Equal(backup.FullPath, backupService.LastRestoredBackupFullPath);
+        Assert.Equal(
+            [
+                $"create:{backupService.LastCreatedBackupName}",
+                $"restore:{backup.FullPath}"
+            ],
+            backupService.Operations);
+        Assert.Equal(Strings.Status_BackupRestored, floatingMessageService.LastMessage);
+        Assert.Equal(2, viewModel.Details.Backup.BackupCount);
+    }
+
+    [Fact]
+    public async Task ConfirmRestoreBackupCommandDoesNotRestoreWhenProtectionBackupFails()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backupService = new FakeInstanceBackupService
+        {
+            CreateException = new IOException("create failed")
+        };
+        backupService.Backups.Add(CreateBackupRecord("Nightly", "nightly.zip"));
+        var statusService = new FakeStatusService();
+        var viewModel = CreateViewModel([instance], statusService: statusService, backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.Details.Backup.RequestRestoreBackupCommand.Execute(viewModel.Details.Backup.VisibleBackups.Single());
+        await viewModel.Details.Backup.ConfirmRestoreBackupCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.Details.Backup.IsRestoringBackup);
+        Assert.Equal(1, backupService.CreateBackupCallCount);
+        Assert.Equal(0, backupService.RestoreBackupCallCount);
+        Assert.Equal(Strings.Status_BackupRestoreFailed, statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task ConfirmRestoreBackupCommandReportsFailureWhenRestoreFails()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backupService = new FakeInstanceBackupService
+        {
+            RestoreException = new IOException("restore failed")
+        };
+        backupService.Backups.Add(CreateBackupRecord("Nightly", "nightly.zip"));
+        var statusService = new FakeStatusService();
+        var viewModel = CreateViewModel([instance], statusService: statusService, backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.Details.Backup.RequestRestoreBackupCommand.Execute(viewModel.Details.Backup.VisibleBackups.Single());
+        await viewModel.Details.Backup.ConfirmRestoreBackupCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.Details.Backup.IsRestoringBackup);
+        Assert.Equal(1, backupService.CreateBackupCallCount);
+        Assert.Equal(1, backupService.RestoreBackupCallCount);
+        Assert.True(viewModel.Details.Backup.RequestRestoreBackupCommand.CanExecute(viewModel.Details.Backup.VisibleBackups.First()));
+        Assert.Equal(Strings.Status_BackupRestoreFailed, statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task CreateBackupCommandOpensNamingDialogWithDefaultName()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var viewModel = CreateViewModel([instance]);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.Details.Backup.CreateBackupNowCommand.Execute(null);
+
+        Assert.True(viewModel.Details.Backup.IsCreateBackupDialogOpen);
+        Assert.StartsWith("备份 ", viewModel.Details.Backup.NewBackupName);
+        Assert.True(viewModel.Details.Backup.ConfirmCreateBackupDialogCommand.CanExecute(null));
+
+        viewModel.Details.Backup.NewBackupName = string.Empty;
+
+        Assert.False(viewModel.Details.Backup.ConfirmCreateBackupDialogCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task CancelCreateBackupDialogClosesDialogWithoutCreatingBackup()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backupService = new FakeInstanceBackupService();
+        var viewModel = CreateViewModel([instance], backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.Details.Backup.CreateBackupNowCommand.Execute(null);
+        viewModel.Details.Backup.CancelCreateBackupDialogCommand.Execute(null);
+
+        Assert.False(viewModel.Details.Backup.IsCreateBackupDialogOpen);
+        Assert.Equal(0, backupService.CreateBackupCallCount);
+    }
+
+    [Fact]
+    public async Task ConfirmCreateBackupCreatesBackupAndRefreshesList()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backupService = new FakeInstanceBackupService();
+        var floatingMessageService = new FakeFloatingMessageService();
+        var viewModel = CreateViewModel(
+            [instance],
+            backupService: backupService,
+            floatingMessageService: floatingMessageService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.Details.Backup.CreateBackupNowCommand.Execute(null);
+        viewModel.Details.Backup.NewBackupName = "Nightly";
+        await viewModel.Details.Backup.ConfirmCreateBackupDialogCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.Details.Backup.IsCreateBackupDialogOpen);
+        Assert.False(viewModel.Details.Backup.IsCreatingBackup);
+        Assert.Equal(1, backupService.CreateBackupCallCount);
+        Assert.Same(instance, backupService.LastCreatedBackupInstance);
+        Assert.Equal(instance.BackupDirectory, backupService.LastCreatedBackupDirectory);
+        Assert.Equal("Nightly", backupService.LastCreatedBackupName);
+        Assert.Equal(
+            string.Format(Strings.GameSettings_BackupInfoSummaryFormat, 1),
+            viewModel.Details.Backup.BackupInfoText);
+        Assert.Equal("Nightly", viewModel.Details.Backup.VisibleBackups.Single().Title);
+        Assert.Equal("Nightly.zip · 1 MB", viewModel.Details.Backup.VisibleBackups.Single().Subtitle);
+        Assert.Equal(Strings.Status_BackupCreated, floatingMessageService.LastMessage);
+    }
+
+    [Fact]
+    public async Task ConfirmCreateBackupFailureOpensFailureDialogWithSummary()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backupService = new FakeInstanceBackupService
+        {
+            CreateException = new InstanceBackupException(
+                InstanceBackupFailureReason.BackupDirectoryInsideInstance,
+                "Backup directory cannot be inside the instance directory.")
+        };
+        var viewModel = CreateViewModel([instance], backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        viewModel.Details.Backup.CreateBackupNowCommand.Execute(null);
+        viewModel.Details.Backup.NewBackupName = "Bad";
+        await viewModel.Details.Backup.ConfirmCreateBackupDialogCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.Details.Backup.IsCreatingBackup);
+        Assert.True(viewModel.Details.Backup.IsBackupFailureDialogOpen);
+        Assert.Contains(Strings.BackupFailure_BackupDirectoryInsideInstance, viewModel.Details.Backup.BackupFailureDialogMessage);
+        Assert.Contains(nameof(InstanceBackupException), viewModel.Details.Backup.BackupFailureDialogMessage);
+    }
+
+    [Fact]
+    public async Task BackupListFiltersByNameAndFileName()
+    {
+        var instance = CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla);
+        instance.BackupDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "backups");
+        var backupService = new FakeInstanceBackupService();
+        backupService.Backups.AddRange(
+        [
+            CreateBackupRecord("Nightly", "nightly.zip"),
+            CreateBackupRecord("Release", "release-candidate.zip")
+        ]);
+        var viewModel = CreateViewModel([instance], backupService: backupService);
+
+        await viewModel.EnsureInstancesLoadedAsync();
+        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
+        OpenBackupSection(viewModel);
+
+        Assert.Equal(["Nightly", "Release"], viewModel.Details.Backup.VisibleBackups.Select(backup => backup.Title));
+
+        viewModel.TopSearchQuery = "candidate";
+
+        Assert.Equal(["Release"], viewModel.Details.Backup.VisibleBackups.Select(backup => backup.Title));
+    }
+
+    [Fact]
+    public void DetailSectionsHideUnreleasedPlaceholderEntries()
     {
         var viewModel = CreateViewModel([]);
 
         Assert.DoesNotContain(viewModel.DetailSections, section => section.Id == "loader");
         Assert.DoesNotContain(viewModel.DetailSections, section => section.Id == "advanced");
-        Assert.DoesNotContain(viewModel.DetailSections, section => section.Id == "backup");
+        Assert.Contains(viewModel.DetailSections, section => section.Id == "backup");
     }
 
     [Fact]
@@ -3650,6 +4285,12 @@ public sealed class GameSettingsPageViewModelTests
         return viewModel.Details.ShaderPackManagement;
     }
 
+    private static InstanceBackupSettingsViewModel OpenBackupSection(GameSettingsPageViewModel viewModel)
+    {
+        viewModel.SelectDetailsSectionCommand.Execute(GetDetailSection(viewModel, "backup"));
+        return viewModel.Details.Backup;
+    }
+
     private static void ExecuteResourceManagementOpenFolderCommand(
         GameSettingsPageViewModel viewModel,
         string sectionId)
@@ -3694,7 +4335,8 @@ public sealed class GameSettingsPageViewModelTests
         ILocalModIconEnrichmentService? modIconEnrichmentService = null,
         ILocalSaveService? saveService = null,
         ILocalResourcePackService? resourcePackService = null,
-        ILocalShaderPackService? shaderPackService = null)
+        ILocalShaderPackService? shaderPackService = null,
+        IInstanceBackupService? backupService = null)
     {
         var instanceService = new FakeGameInstanceService();
         instanceService.CreatedInstances.AddRange(instances);
@@ -3710,7 +4352,8 @@ public sealed class GameSettingsPageViewModelTests
             modIconEnrichmentService,
             saveService ?? new FakeSaveService(),
             resourcePackService ?? new FakeResourcePackService(),
-            shaderPackService ?? new FakeShaderPackService());
+            shaderPackService ?? new FakeShaderPackService(),
+            backupService ?? new FakeInstanceBackupService());
     }
 
     private static GameSettingsPageViewModel CreateViewModel(
@@ -3725,7 +4368,8 @@ public sealed class GameSettingsPageViewModelTests
         ILocalModIconEnrichmentService? modIconEnrichmentService = null,
         ILocalSaveService? saveService = null,
         ILocalResourcePackService? resourcePackService = null,
-        ILocalShaderPackService? shaderPackService = null)
+        ILocalShaderPackService? shaderPackService = null,
+        IInstanceBackupService? backupService = null)
     {
         var resolvedModService = modService ?? new FakeModService();
         var resolvedSaveService = saveService ?? new FakeSaveService();
@@ -3738,6 +4382,7 @@ public sealed class GameSettingsPageViewModelTests
             folderService,
             new FakeSystemMemoryService(),
             resolvedModService,
+            backupService ?? new FakeInstanceBackupService(),
             new LocalModsViewModel(resolvedModService, statusService, iconEnrichmentService: modIconEnrichmentService),
             new LocalSavesViewModel(resolvedSaveService, statusService),
             new LocalResourcePacksViewModel(resolvedResourcePackService, statusService),
@@ -3771,6 +4416,18 @@ public sealed class GameSettingsPageViewModelTests
             CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
             UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
             InstanceDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"))
+        };
+    }
+
+    private static InstanceBackupRecord CreateBackupRecord(string name, string fileName)
+    {
+        return new InstanceBackupRecord
+        {
+            Name = name,
+            FileName = fileName,
+            FullPath = Path.Combine(Path.GetTempPath(), "launcher-tests", fileName),
+            SizeBytes = 1024 * 1024,
+            CreatedAt = DateTimeOffset.UtcNow
         };
     }
 
@@ -3885,6 +4542,8 @@ public sealed class GameSettingsPageViewModelTests
     {
         public string? LastOpenedPath { get; private set; }
         public string? LastRevealedFilePath { get; private set; }
+        public bool OpenResult { get; init; } = true;
+        public bool RevealResult { get; init; } = true;
 
         public bool DirectoryExists(string folderPath)
         {
@@ -3901,13 +4560,13 @@ public sealed class GameSettingsPageViewModelTests
         public bool TryOpen(string folderPath)
         {
             LastOpenedPath = folderPath;
-            return true;
+            return OpenResult;
         }
 
         public bool TryRevealFile(string filePath)
         {
             LastRevealedFilePath = filePath;
-            return true;
+            return RevealResult;
         }
     }
 
@@ -3953,6 +4612,8 @@ public sealed class GameSettingsPageViewModelTests
         public string? ResourcePackArchivePath { get; init; }
         public string? ShaderPackArchivePath { get; init; }
         public string? FolderPath { get; init; }
+        public string? LastFolderPickerTitle { get; private set; }
+        public string? LastFolderPickerInitialDirectory { get; private set; }
 
         public string? PickMinecraftSkin()
         {
@@ -3991,7 +4652,125 @@ public sealed class GameSettingsPageViewModelTests
 
         public string? PickFolder(string title, string? initialDirectory = null)
         {
+            LastFolderPickerTitle = title;
+            LastFolderPickerInitialDirectory = initialDirectory;
             return FolderPath;
+        }
+    }
+
+    private sealed class FakeInstanceBackupService : IInstanceBackupService
+    {
+        public List<InstanceBackupRecord> Backups { get; } = [];
+        public List<string> Operations { get; } = [];
+        public Exception? CreateException { get; init; }
+        public Exception? DeleteException { get; init; }
+        public Exception? RestoreException { get; init; }
+        public string? LastEnsuredDirectory { get; private set; }
+        public string? LastCountedDirectory { get; private set; }
+        public string? LastGetBackupsDirectory { get; private set; }
+        public GameInstance? LastCreatedBackupInstance { get; private set; }
+        public string? LastCreatedBackupDirectory { get; private set; }
+        public string? LastCreatedBackupName { get; private set; }
+        public string? LastDeletedBackupDirectory { get; private set; }
+        public string? LastDeletedBackupFullPath { get; private set; }
+        public GameInstance? LastRestoredBackupInstance { get; private set; }
+        public string? LastRestoredBackupDirectory { get; private set; }
+        public string? LastRestoredBackupFullPath { get; private set; }
+        public int CreateBackupCallCount { get; private set; }
+        public int DeleteBackupCallCount { get; private set; }
+        public int RestoreBackupCallCount { get; private set; }
+
+        public Task<string> EnsureBackupDirectoryAsync(string backupDirectory, CancellationToken cancellationToken = default)
+        {
+            LastEnsuredDirectory = Path.GetFullPath(backupDirectory);
+            return Task.FromResult(LastEnsuredDirectory);
+        }
+
+        public Task<int> CountBackupEntriesAsync(string backupDirectory, CancellationToken cancellationToken = default)
+        {
+            LastCountedDirectory = backupDirectory;
+            return Task.FromResult(Backups.Count);
+        }
+
+        public Task<IReadOnlyList<InstanceBackupRecord>> GetBackupsAsync(
+            string backupDirectory,
+            CancellationToken cancellationToken = default)
+        {
+            LastGetBackupsDirectory = backupDirectory;
+            return Task.FromResult<IReadOnlyList<InstanceBackupRecord>>(Backups.Select(CloneBackup).ToArray());
+        }
+
+        public Task<InstanceBackupRecord> CreateBackupAsync(
+            GameInstance instance,
+            string backupDirectory,
+            string backupName,
+            CancellationToken cancellationToken = default)
+        {
+            CreateBackupCallCount++;
+            LastCreatedBackupInstance = instance;
+            LastCreatedBackupDirectory = backupDirectory;
+            LastCreatedBackupName = backupName;
+            Operations.Add($"create:{backupName}");
+
+            if (CreateException is not null)
+                throw CreateException;
+
+            var record = new InstanceBackupRecord
+            {
+                Name = backupName,
+                FileName = $"{backupName}.zip",
+                FullPath = Path.Combine(backupDirectory, $"{backupName}.zip"),
+                SizeBytes = 1024 * 1024,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            Backups.Add(CloneBackup(record));
+            return Task.FromResult(CloneBackup(record));
+        }
+
+        public Task DeleteBackupAsync(
+            string backupDirectory,
+            string backupFullPath,
+            CancellationToken cancellationToken = default)
+        {
+            DeleteBackupCallCount++;
+            LastDeletedBackupDirectory = backupDirectory;
+            LastDeletedBackupFullPath = backupFullPath;
+
+            if (DeleteException is not null)
+                throw DeleteException;
+
+            Backups.RemoveAll(backup => string.Equals(backup.FullPath, backupFullPath, StringComparison.OrdinalIgnoreCase));
+            return Task.CompletedTask;
+        }
+
+        public Task RestoreBackupAsync(
+            GameInstance instance,
+            string backupDirectory,
+            string backupFullPath,
+            CancellationToken cancellationToken = default)
+        {
+            RestoreBackupCallCount++;
+            LastRestoredBackupInstance = instance;
+            LastRestoredBackupDirectory = backupDirectory;
+            LastRestoredBackupFullPath = backupFullPath;
+            Operations.Add($"restore:{backupFullPath}");
+
+            if (RestoreException is not null)
+                throw RestoreException;
+
+            return Task.CompletedTask;
+        }
+
+        private static InstanceBackupRecord CloneBackup(InstanceBackupRecord backup)
+        {
+            return new InstanceBackupRecord
+            {
+                Name = backup.Name,
+                FileName = backup.FileName,
+                FullPath = backup.FullPath,
+                SizeBytes = backup.SizeBytes,
+                CreatedAt = backup.CreatedAt
+            };
         }
     }
 

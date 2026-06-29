@@ -33,6 +33,10 @@
             <views:InstanceShaderPackManagementSettingsView />
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type gameSettings:InstanceBackupSettingsViewModel}">
+            <views:InstanceBackupSettingsView />
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type gameSettings:InstancePlaceholderSettingsViewModel}">
             <views:InstancePlaceholderSettingsView />
         </DataTemplate>

@@ -665,6 +665,28 @@
   <data name="GameSettings_GeneralOpenInstanceDirectoryButton" xml:space="preserve"><value>打开游戏目录</value></data>
   <data name="GameSettings_GeneralCreatedAtSection" xml:space="preserve"><value>创建时间</value></data>
   <data name="GameSettings_DeleteGameButton" xml:space="preserve"><value>删除游戏</value></data>
+  <data name="GameSettings_BackupInfoSection" xml:space="preserve"><value>备份信息</value></data>
+  <data name="GameSettings_BackupInfoSummaryFormat" xml:space="preserve"><value>当前游戏有 {0} 个备份</value></data>
+  <data name="GameSettings_BackupDirectorySection" xml:space="preserve"><value>备份目录</value></data>
+  <data name="GameSettings_BackupDirectoryNotSelected" xml:space="preserve"><value>未选择备份目录</value></data>
+  <data name="GameSettings_BackupActionsLabel" xml:space="preserve"><value>操作</value></data>
+  <data name="GameSettings_BackupOpenFolderButton" xml:space="preserve"><value>打开备份文件夹</value></data>
+  <data name="GameSettings_BackupChangeDirectoryButton" xml:space="preserve"><value>更改目录</value></data>
+  <data name="GameSettings_BackupCreateNowButton" xml:space="preserve"><value>立即备份</value></data>
+  <data name="GameSettings_BackupMultiSelectButton" xml:space="preserve"><value>多选</value></data>
+  <data name="GameSettings_BackupCancelMultiSelectButton" xml:space="preserve"><value>取消多选</value></data>
+  <data name="GameSettings_BackupSelectAllButton" xml:space="preserve"><value>全选</value></data>
+  <data name="GameSettings_BackupCancelSelectAllButton" xml:space="preserve"><value>取消全选</value></data>
+  <data name="GameSettings_BackupDeleteButton" xml:space="preserve"><value>删除</value></data>
+  <data name="GameSettings_BackupDefaultNameFormat" xml:space="preserve"><value>备份 {0}</value></data>
+  <data name="GameSettings_BackupItemSubtitleFormat" xml:space="preserve"><value>{0} · {1:0.##} MB</value></data>
+  <data name="GameSettings_BackupLoading" xml:space="preserve"><value>正在读取备份列表</value></data>
+  <data name="GameSettings_BackupEmpty" xml:space="preserve"><value>暂无备份</value></data>
+  <data name="GameSettings_BackupSearchEmpty" xml:space="preserve"><value>没有找到匹配的备份</value></data>
+  <data name="GameSettings_BackupOpenLocationTooltip" xml:space="preserve"><value>打开文件夹</value></data>
+  <data name="GameSettings_BackupRestoreTooltip" xml:space="preserve"><value>恢复备份</value></data>
+  <data name="GameSettings_BackupRestoreUnavailableTooltip" xml:space="preserve"><value>恢复功能暂不可用</value></data>
+  <data name="GameSettings_BackupPreRestoreNameFormat" xml:space="preserve"><value>恢复前备份 {0}</value></data>
   <data name="GameSettings_ModManagementInfoSection" xml:space="preserve"><value>Mod信息</value></data>
   <data name="GameSettings_ModManagementInstalledSummaryFormat" xml:space="preserve"><value>当前游戏已安装 {0} 个 mods，已启用 {1} 个</value></data>
   <data name="GameSettings_ModManagementActionsLabel" xml:space="preserve"><value>操作</value></data>
@@ -716,6 +738,24 @@
   <data name="Dialog_RenameInstanceSuccessTitle" xml:space="preserve"><value>修改成功</value></data>
   <data name="Dialog_RenameInstanceFailedTitle" xml:space="preserve"><value>修改失败</value></data>
   <data name="Dialog_RenameInstanceResultSubtitle" xml:space="preserve"><value>点击确定返回版本详情。</value></data>
+  <data name="Dialog_CreateBackupTitle" xml:space="preserve"><value>创建备份</value></data>
+  <data name="Dialog_CreateBackupSubtitle" xml:space="preserve"><value>输入这个备份的名称。</value></data>
+  <data name="Dialog_CreateBackupNameLabel" xml:space="preserve"><value>备份名称</value></data>
+  <data name="Dialog_CreateBackupNameValidation" xml:space="preserve"><value>备份名称不能为空。</value></data>
+  <data name="Dialog_BackupCreateFailedTitle" xml:space="preserve"><value>备份失败</value></data>
+  <data name="Dialog_BackupCreateFailedMessageFormat" xml:space="preserve"><value>{0}
+
+异常摘要：{1}</value></data>
+  <data name="Dialog_DeleteBackupTitle" xml:space="preserve"><value>删除备份</value></data>
+  <data name="Dialog_DeleteBackupMessageFormat" xml:space="preserve"><value>确认删除备份“{0}”吗？此操作不可撤销。</value></data>
+  <data name="Dialog_DeleteMultipleBackupsMessageFormat" xml:space="preserve"><value>确认删除这 {0} 个备份吗？此操作不可撤销。</value></data>
+  <data name="Dialog_RestoreBackupTitle" xml:space="preserve"><value>恢复备份</value></data>
+  <data name="Dialog_RestoreBackupMessageFormat" xml:space="preserve"><value>确认恢复备份“{0}”吗？
+
+恢复前会自动备份当前游戏文件夹。</value></data>
+  <data name="BackupFailure_BackupDirectoryInsideInstance" xml:space="preserve"><value>备份目录不能位于实例目录内部，请选择实例目录外的文件夹。</value></data>
+  <data name="BackupFailure_InstanceDirectoryMissing" xml:space="preserve"><value>当前实例文件夹不存在，无法创建备份。</value></data>
+  <data name="BackupFailure_Generic" xml:space="preserve"><value>创建备份时遇到问题，请稍后重试。</value></data>
   <data name="Status_RenamingInstance" xml:space="preserve"><value>正在修改版本...</value></data>
   <data name="Status_InstanceRenamedFormat" xml:space="preserve"><value>已将版本修改为 {0}</value></data>
   <data name="Status_InstanceRenameResultFormat" xml:space="preserve"><value>版本已修改为 {0}</value></data>
@@ -775,7 +815,21 @@
   <data name="Status_OpenMinecraftDirectoryFailed" xml:space="preserve"><value>打开 .minecraft 目录失败，请稍后重试。</value></data>
   <data name="Status_MinecraftDirectoryChanged" xml:space="preserve"><value>.minecraft 目录已更新。</value></data>
   <data name="Status_MinecraftDirectoryChangeFailed" xml:space="preserve"><value>更改 .minecraft 目录失败，请稍后重试。</value></data>
+  <data name="Status_OpenBackupDirectoryFailed" xml:space="preserve"><value>打开备份目录失败，请稍后重试。</value></data>
+  <data name="Status_BackupDirectoryChanged" xml:space="preserve"><value>备份目录已更新。</value></data>
+  <data name="Status_BackupDirectoryChangeFailed" xml:space="preserve"><value>更改备份目录失败，请稍后重试。</value></data>
+  <data name="Status_BackupCreating" xml:space="preserve"><value>正在备份</value></data>
+  <data name="Status_BackupCreated" xml:space="preserve"><value>备份成功</value></data>
+  <data name="Status_LoadBackupsFailed" xml:space="preserve"><value>读取备份列表失败。</value></data>
+  <data name="Status_OpenBackupLocationFailed" xml:space="preserve"><value>打开备份文件位置失败。</value></data>
+  <data name="Status_BackupDeleted" xml:space="preserve"><value>备份已删除。</value></data>
+  <data name="Status_BackupDeleteFailed" xml:space="preserve"><value>删除备份失败，请稍后重试。</value></data>
+  <data name="Status_SelectedBackupsDeletedFormat" xml:space="preserve"><value>已删除 {0} 个备份</value></data>
+  <data name="Status_BackupRestoring" xml:space="preserve"><value>正在恢复备份</value></data>
+  <data name="Status_BackupRestored" xml:space="preserve"><value>备份已恢复</value></data>
+  <data name="Status_BackupRestoreFailed" xml:space="preserve"><value>恢复备份失败，请稍后重试。</value></data>
   <data name="FilePicker_MinecraftDirectoryTitle" xml:space="preserve"><value>选择 .minecraft 目录</value></data>
+  <data name="FilePicker_BackupDirectoryTitle" xml:space="preserve"><value>选择备份目录</value></data>
   <data name="Settings_LauncherLogDirectoryLabel" xml:space="preserve"><value>启动器日志目录</value></data>
   <data name="Settings_LauncherLogDirectoryDescription" xml:space="preserve"><value>这里存放启动器运行日志和诊断日志文件。</value></data>
   <data name="Settings_OpenLauncherLogDirectoryButton" xml:space="preserve"><value>打开目录</value></data>

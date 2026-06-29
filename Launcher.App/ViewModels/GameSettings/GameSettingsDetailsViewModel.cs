@@ -98,6 +98,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         IInstanceFolderService instanceFolderService,
         ISystemMemoryService systemMemoryService,
         IModService modService,
+        IInstanceBackupService backupService,
         LocalModsViewModel localModsViewModel,
         LocalSavesViewModel localSavesViewModel,
         LocalResourcePacksViewModel localResourcePacksViewModel,
@@ -165,6 +166,14 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             filePickerService);
         ShaderPackManagement.DeleteShaderPacksRequested += ShaderPackManagement_DeleteShaderPacksRequested;
         ShaderPackManagement.ShaderPackImportFailedRequested += ShaderPackManagement_ShaderPackImportFailedRequested;
+        Backup = new InstanceBackupSettingsViewModel(
+            this,
+            instanceService,
+            backupService,
+            statusService,
+            instanceFolderService,
+            filePickerService,
+            floatingMessageService);
         Placeholder = new InstancePlaceholderSettingsViewModel(this);
         CurrentSectionViewModel = General;
     }
@@ -260,6 +269,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
 
     public InstanceShaderPackManagementSettingsViewModel ShaderPackManagement { get; }
 
+    public InstanceBackupSettingsViewModel Backup { get; }
+
     public InstancePlaceholderSettingsViewModel Placeholder { get; }
 
     public ObservableCollection<SettingsJavaSelectionOption> InstanceJavaSelectionOptions => InstanceJavaSettings.JavaSelectionOptions;
@@ -323,6 +334,11 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     public void SetSelectedSection(GameSettingsDetailSectionItem? section)
     {
         SelectedSection = section;
+    }
+
+    public void NotifyInstanceSettingsSaved(GameInstance instance)
+    {
+        InstanceSettingsSaved?.Invoke(instance);
     }
 
     public void SuspendLocalWatchersForInstanceRename()
@@ -459,6 +475,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         SaveManagement.OnSelectedInstanceChanged(value?.Instance);
         ResourcePackManagement.OnSelectedInstanceChanged(value?.Instance);
         ShaderPackManagement.OnSelectedInstanceChanged(value?.Instance);
+        Backup.OnSelectedInstanceChanged(value?.Instance);
         _ = RefreshEnabledModCountAsync(value?.Instance);
 
         RefreshSystemMemorySnapshot();
@@ -477,6 +494,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             | SaveManagement.RefreshSelectedInstanceReference(value?.Instance)
             | ResourcePackManagement.RefreshSelectedInstanceReference(value?.Instance)
             | ShaderPackManagement.RefreshSelectedInstanceReference(value?.Instance);
+        Backup.OnSelectedInstanceChanged(value?.Instance);
 
         RefreshSystemMemorySnapshot();
         if (shouldReactivateCurrentSection && CurrentSectionViewModel is not null)
@@ -544,6 +562,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             "saves" => SaveManagement,
             "resource_packs" => ResourcePackManagement,
             "shaders" => ShaderPackManagement,
+            "backup" => Backup,
             _ => Placeholder
         };
         if (CurrentSectionViewModel is not null)

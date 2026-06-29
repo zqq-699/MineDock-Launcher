@@ -174,6 +174,98 @@
                 <gameSettingsDialogViews:RenameInstanceDialogView />
             </controls:DialogHost>
 
+            <controls:DialogHost x:Name="CreateBackupDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="420"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsCreateBackupDialogOpen}"
+                                 DataContext="{Binding GameSettingsPage.Details.Backup}">
+                <gameSettingsDialogViews:CreateBackupDialogView />
+            </controls:DialogHost>
+
+            <controls:DialogHost x:Name="BackupFailedDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="420"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsBackupFailureDialogOpen}"
+                                 DataContext="{Binding GameSettingsPage.Details.Backup}">
+                <gameSettingsDialogViews:BackupFailedDialogView />
+            </controls:DialogHost>
+
+            <controls:DialogHost x:Name="DeleteBackupDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="380"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsDeleteBackupDialogOpen}"
+                                 DataContext="{Binding GameSettingsPage.Details.Backup}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Dialog_DeleteBackupTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,16,0,24"
+                               Text="{Binding DeleteBackupDialogMessage}"
+                               Style="{StaticResource DialogBodyTextStyle}"
+                               TextWrapping="Wrap" />
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                Content="{x:Static res:Strings.Cancel_Button}"
+                                Command="{Binding CancelDeleteBackupCommand}" />
+                        <Button Style="{StaticResource LauncherDangerDialogButtonStyle}"
+                                Margin="{StaticResource DialogTrailingButtonMargin}"
+                                Content="{x:Static res:Strings.Delete_Button}"
+                                Command="{Binding ConfirmDeleteBackupCommand}" />
+                    </StackPanel>
+                </Grid>
+            </controls:DialogHost>
+
+            <controls:DialogHost x:Name="RestoreBackupDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="420"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsRestoreBackupDialogOpen}"
+                                 DataContext="{Binding GameSettingsPage.Details.Backup}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Dialog_RestoreBackupTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,16,0,24"
+                               Text="{Binding RestoreBackupDialogMessage}"
+                               Style="{StaticResource DialogBodyTextStyle}"
+                               TextWrapping="Wrap" />
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                Content="{x:Static res:Strings.Cancel_Button}"
+                                Command="{Binding CancelRestoreBackupCommand}" />
+                        <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                Margin="{StaticResource DialogTrailingButtonMargin}"
+                                Content="{x:Static res:Strings.Confirm_Button}"
+                                Command="{Binding ConfirmRestoreBackupCommand}" />
+                    </StackPanel>
+                </Grid>
+            </controls:DialogHost>
+
             <controls:DialogHost x:Name="DownloadLocalImportDialogHost"
                                  Grid.ColumnSpan="2"
                                  Grid.RowSpan="2"
