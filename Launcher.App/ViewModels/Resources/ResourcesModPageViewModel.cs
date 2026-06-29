@@ -27,13 +27,16 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private readonly IFloatingMessageService? floatingMessageService;
     private readonly DownloadTasksPageViewModel? downloadTasksPage;
     private readonly ILocalModpackImportService? localModpackImportService;
+    private readonly IModService? modService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger? logger;
     private readonly ResourcesOnlineProjectPageOptions options;
     private readonly object releaseVersionOrderGate = new();
+    private readonly Stack<ResourcesModProjectItemViewModel> projectDetailsBackStack = new();
     private CancellationTokenSource? refreshCancellationTokenSource;
     private CancellationTokenSource? installTargetsCancellationTokenSource;
     private CancellationTokenSource? projectVersionsCancellationTokenSource;
+    private CancellationTokenSource? projectDependenciesCancellationTokenSource;
     private bool hasRequestedInitialProjectLoad;
     private bool isApplyingVersionFilterOptions;
     private bool isApplyingInstanceFilters;
@@ -42,6 +45,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private readonly HashSet<string> loadedAvailableVersionIds = new(StringComparer.OrdinalIgnoreCase);
     private int nextAvailableVersionOffset;
     private Task<ReleaseVersionData?>? releaseVersionDataTask;
+    private TaskCompletionSource<RequiredDependenciesDialogChoice>? pendingRequiredDependenciesDialogChoiceSource;
 
     public ResourcesModPageViewModel(
         ResourcesPageViewModel parent,
@@ -54,7 +58,8 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         IFilePickerService? filePickerService = null,
         IFloatingMessageService? floatingMessageService = null,
         DownloadTasksPageViewModel? downloadTasksPage = null,
-        ILocalModpackImportService? localModpackImportService = null)
+        ILocalModpackImportService? localModpackImportService = null,
+        IModService? modService = null)
         : this(
             parent,
             CreateModOptions(),
@@ -67,7 +72,8 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             filePickerService,
             floatingMessageService,
             downloadTasksPage,
-            localModpackImportService)
+            localModpackImportService,
+            modService)
     {
     }
 
@@ -83,7 +89,8 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         IFilePickerService? filePickerService = null,
         IFloatingMessageService? floatingMessageService = null,
         DownloadTasksPageViewModel? downloadTasksPage = null,
-        ILocalModpackImportService? localModpackImportService = null)
+        ILocalModpackImportService? localModpackImportService = null,
+        IModService? modService = null)
         : base(parent, options.Title)
     {
         this.options = options;
@@ -95,6 +102,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         this.floatingMessageService = floatingMessageService;
         this.downloadTasksPage = downloadTasksPage;
         this.localModpackImportService = localModpackImportService;
+        this.modService = modService;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger;
 
@@ -152,6 +160,10 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     public ObservableCollection<ResourcesModVersionItemViewModel> AvailableVersions { get; } = [];
 
     public ObservableCollection<object> AvailableVersionListItems { get; } = [];
+
+    public ObservableCollection<ResourcesModProjectItemViewModel> RequiredDependencies { get; } = [];
+
+    public ObservableCollection<ResourcesModDependencyRequirementItemViewModel> RequiredDependencyDialogItems { get; } = [];
 
     [ObservableProperty]
     private string searchQuery = string.Empty;
@@ -229,9 +241,16 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private bool isUnknownInstanceVersionDialogOpen;
 
     [ObservableProperty]
+    private bool isRequiredDependenciesDialogOpen;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanShowInstallTargetsLoadingState))]
     [NotifyPropertyChangedFor(nameof(CanShowInstallTargetsLoadErrorState))]
     private bool isLoadingInstallTargets;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanShowRequiredDependencies))]
+    private bool isLoadingProjectDependencies;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasInstallTargetsLoadErrorMessage))]
@@ -330,6 +349,8 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 
     public bool CanShowInstallTargetsLoadErrorState => !IsLoadingInstallTargets && HasInstallTargetsLoadErrorMessage;
 
+    public bool CanShowRequiredDependencies => RequiredDependencies.Count > 0;
+
     public bool HasAvailableVersionsLoadErrorMessage => !string.IsNullOrWhiteSpace(AvailableVersionsLoadErrorMessage);
 
     public bool CanShowAvailableVersionsLoadingState => IsLoadingAvailableVersions && VisibleAvailableVersionCount == 0;
@@ -424,18 +445,61 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     }
 
     [RelayCommand]
+    private void CancelRequiredDependenciesDialog()
+    {
+        ResolveRequiredDependenciesDialog(RequiredDependenciesDialogChoice.Cancel);
+    }
+
+    [RelayCommand]
+    private void ContinueWithoutRequiredDependencies()
+    {
+        ResolveRequiredDependenciesDialog(RequiredDependenciesDialogChoice.ContinueWithoutDependencies);
+    }
+
+    [RelayCommand]
+    private void AutoInstallRequiredDependencies()
+    {
+        ResolveRequiredDependenciesDialog(RequiredDependenciesDialogChoice.AutoInstallDependencies);
+    }
+
+    [RelayCommand]
     private void SelectProject(ResourcesModProjectItemViewModel? project)
     {
         if (project is null)
             return;
 
+        projectDetailsBackStack.Clear();
+        OpenProjectDetails(project);
+    }
+
+    [RelayCommand]
+    private void OpenDependencyProject(ResourcesModProjectItemViewModel? project)
+    {
+        if (project is null)
+            return;
+
+        if (SelectedProject is not null)
+            projectDetailsBackStack.Push(SelectedProject);
+
+        OpenProjectDetails(project);
+        logger?.LogInformation(
+            "Resource project dependency selected. Kind={Kind}, Source={Source}, ProjectId={ProjectId}",
+            options.Kind,
+            project.Project.Source,
+            project.Project.ProjectId);
+    }
+
+    private void OpenProjectDetails(ResourcesModProjectItemViewModel project)
+    {
         SelectedProject = project;
         CurrentStep = ResourcesModPageStep.ProjectDetails;
         SelectedInstallTarget = null;
         AvailableVersions.Clear();
         AvailableVersionListItems.Clear();
         ClearAvailableVersionState(resetFilters: true);
+        ClearRequiredDependencies();
         AvailableVersionsLoadErrorMessage = string.Empty;
+        _ = LoadProjectDependenciesAsync(project);
         _ = LoadInstallTargetsAsync();
         logger?.LogInformation(
             "Resource project selected. Kind={Kind}, Source={Source}, ProjectId={ProjectId}",
@@ -453,12 +517,91 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             return;
         }
 
+        if (CurrentStep is ResourcesModPageStep.ProjectDetails
+            && projectDetailsBackStack.TryPop(out var previousProject))
+        {
+            OpenProjectDetails(previousProject);
+            return;
+        }
+
         ResetToProjectList();
     }
 
     public void ResetToProjectList()
     {
+        projectDetailsBackStack.Clear();
+        ResolveRequiredDependenciesDialog(RequiredDependenciesDialogChoice.Cancel);
+        CancelProjectDependenciesLoad();
+        ClearRequiredDependencies();
         CurrentStep = ResourcesModPageStep.ProjectList;
+    }
+
+    public async Task LoadProjectDependenciesAsync(ResourcesModProjectItemViewModel project)
+    {
+        projectDependenciesCancellationTokenSource?.Cancel();
+        projectDependenciesCancellationTokenSource?.Dispose();
+        projectDependenciesCancellationTokenSource = new CancellationTokenSource();
+        var cancellationToken = projectDependenciesCancellationTokenSource.Token;
+
+        if (resourceCatalogService is null
+            || project.Project.Kind is not ResourceProjectKind.Mod
+            || project.Project.Source is not (ResourceProjectSource.Modrinth or ResourceProjectSource.CurseForge))
+        {
+            IsLoadingProjectDependencies = false;
+            return;
+        }
+
+        IsLoadingProjectDependencies = true;
+
+        try
+        {
+            var result = await resourceCatalogService.GetProjectDependenciesAsync(
+                    new ResourceProjectDependenciesRequest
+                    {
+                        Kind = project.Project.Kind,
+                        Source = project.Project.Source,
+                        ProjectId = project.Project.ProjectId,
+                        Slug = project.Project.Slug
+                    },
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (cancellationToken.IsCancellationRequested)
+                return;
+
+            var dependencies = result.RequiredProjects
+                .Select(dependency => new ResourcesModProjectItemViewModel(
+                    dependency,
+                    fallbackIconKey: options.FallbackIconKey))
+                .ToList();
+            uiDispatcher.Invoke(() => ApplyRequiredDependencies(project, dependencies, cancellationToken));
+            logger?.LogInformation(
+                "Resource project dependencies loaded. Kind={Kind}, ProjectId={ProjectId}, RequiredCount={RequiredCount}",
+                options.Kind,
+                project.Project.ProjectId,
+                dependencies.Count);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                return;
+
+            uiDispatcher.Invoke(ClearRequiredDependencies);
+            logger?.LogError(
+                exception,
+                "Failed to load resource project dependencies. Kind={Kind}, Source={Source}, ProjectId={ProjectId}",
+                options.Kind,
+                project.Project.Source,
+                project.Project.ProjectId);
+        }
+        finally
+        {
+            if (!cancellationToken.IsCancellationRequested)
+                uiDispatcher.Invoke(() => IsLoadingProjectDependencies = false);
+        }
     }
 
     [RelayCommand]
@@ -826,9 +969,46 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
                 return;
             }
 
+            var dependencyPlan = await ResolveRequiredDependencyInstallPlanAsync(item, instance).ConfigureAwait(false);
+            if (dependencyPlan.Choice is RequiredDependenciesDialogChoice.Cancel)
+                return;
+
             downloadTask = BeginModDownloadTask(item, target.Title);
             floatingMessageService?.Show(options.DownloadingText);
+            if (dependencyPlan.Choice is RequiredDependenciesDialogChoice.AutoInstallDependencies)
+            {
+                try
+                {
+                    await InstallRequiredDependenciesAsync(
+                            dependencyPlan.MissingDependencies,
+                            instance,
+                            downloadTask,
+                            downloadTask?.CancellationToken ?? CancellationToken.None)
+                        .ConfigureAwait(false);
+                }
+                catch (RequiredDependencyInstallException exception)
+                {
+                    var failureMessage = string.Format(
+                        Strings.Status_ModRequiredDependenciesAutoInstallFailedFormat,
+                        exception.DependencyTitle);
+                    floatingMessageService?.Show(failureMessage);
+                    ReportStatus(failureMessage);
+                    FailModDownloadTask(downloadTask, failureMessage);
+                    logger?.LogWarning(
+                        exception,
+                        "Failed to auto-install required resource project dependency. Kind={Kind}, ProjectId={ProjectId}, DependencyProjectId={DependencyProjectId}, InstanceId={InstanceId}",
+                        options.Kind,
+                        SelectedProject?.Project.ProjectId,
+                        exception.DependencyProjectId,
+                        instance.Id);
+                    return;
+                }
+            }
+
             ReportStatus(string.Format(options.DownloadingFormat, item.Title));
+            downloadTask?.Report(new LauncherProgress(
+                ModProgressStages.DownloadingFile,
+                string.Format(options.DownloadingFormat, item.Title)));
             await resourceCatalogService.InstallProjectVersionAsync(
                     item.Version,
                     instance,
@@ -1585,6 +1765,44 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         UpdateProjectFooterItem();
     }
 
+    private void ApplyRequiredDependencies(
+        ResourcesModProjectItemViewModel project,
+        IReadOnlyList<ResourcesModProjectItemViewModel> dependencies,
+        CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested
+            || !ReferenceEquals(SelectedProject, project))
+        {
+            return;
+        }
+
+        RequiredDependencies.Clear();
+        foreach (var dependency in dependencies)
+            RequiredDependencies.Add(dependency);
+
+        OnPropertyChanged(nameof(CanShowRequiredDependencies));
+    }
+
+    private void ClearRequiredDependencies()
+    {
+        if (RequiredDependencies.Count == 0)
+        {
+            OnPropertyChanged(nameof(CanShowRequiredDependencies));
+            return;
+        }
+
+        RequiredDependencies.Clear();
+        OnPropertyChanged(nameof(CanShowRequiredDependencies));
+    }
+
+    private void CancelProjectDependenciesLoad()
+    {
+        projectDependenciesCancellationTokenSource?.Cancel();
+        projectDependenciesCancellationTokenSource?.Dispose();
+        projectDependenciesCancellationTokenSource = null;
+        IsLoadingProjectDependencies = false;
+    }
+
     private void ApplyInstallTargets(
         IReadOnlyList<GameInstance> instances,
         string loadErrorMessage,
@@ -1882,6 +2100,342 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         return string.IsNullOrWhiteSpace(item.Version.FileName)
             ? item.Title
             : item.Version.FileName;
+    }
+
+    private async Task<RequiredDependencyInstallPlan> ResolveRequiredDependencyInstallPlanAsync(
+        ResourcesModVersionItemViewModel item,
+        GameInstance instance)
+    {
+        if (options.Kind is not ResourceProjectKind.Mod
+            || item.Version.RequiredDependencies.Count == 0
+            || modService is null)
+        {
+            return RequiredDependencyInstallPlan.Continue;
+        }
+
+        var installedDependencies = await LoadEnabledLocalModIdentifiersAsync(instance, CancellationToken.None)
+            .ConfigureAwait(false);
+        var candidates = new List<RequiredDependencyInstallCandidate>();
+        var dialogItems = new List<ResourcesModDependencyRequirementItemViewModel>();
+        foreach (var dependency in item.Version.RequiredDependencies)
+        {
+            var candidate = await TryResolveRequiredDependencyInstallCandidateAsync(dependency, instance, CancellationToken.None)
+                .ConfigureAwait(false);
+            var state = ResolveDependencyRequirementState(candidate, installedDependencies);
+            candidates.Add(candidate);
+            dialogItems.Add(new ResourcesModDependencyRequirementItemViewModel(
+                dependency,
+                candidate.MinimumVersion,
+                candidate.InstallVersion,
+                state,
+                options.FallbackIconKey));
+        }
+
+        var missingDependencies = candidates
+            .Where(candidate => ResolveDependencyRequirementState(candidate, installedDependencies) is not RequiredDependencyRequirementState.Installed)
+            .ToList();
+
+        if (missingDependencies.Count == 0)
+        {
+            logger?.LogInformation(
+                "Resource project required dependencies are already installed. Kind={Kind}, ProjectId={ProjectId}, VersionId={VersionId}, RequiredCount={RequiredCount}, InstanceId={InstanceId}",
+                options.Kind,
+                SelectedProject?.Project.ProjectId,
+                item.Version.VersionId,
+                dialogItems.Count,
+                instance.Id);
+            return RequiredDependencyInstallPlan.Continue;
+        }
+
+        logger?.LogInformation(
+            "Resource project required dependencies are missing. Kind={Kind}, ProjectId={ProjectId}, VersionId={VersionId}, MissingCount={MissingCount}, InstanceId={InstanceId}",
+            options.Kind,
+            SelectedProject?.Project.ProjectId,
+            item.Version.VersionId,
+            missingDependencies.Count,
+            instance.Id);
+
+        var choice = await RequestRequiredDependenciesDialogAsync(dialogItems).ConfigureAwait(false);
+        return new RequiredDependencyInstallPlan(choice, missingDependencies);
+    }
+
+    private async Task<RequiredDependenciesDialogChoice> RequestRequiredDependenciesDialogAsync(
+        IReadOnlyList<ResourcesModDependencyRequirementItemViewModel> items)
+    {
+        var previousSource = pendingRequiredDependenciesDialogChoiceSource;
+        previousSource?.TrySetResult(RequiredDependenciesDialogChoice.Cancel);
+
+        var completion = new TaskCompletionSource<RequiredDependenciesDialogChoice>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        pendingRequiredDependenciesDialogChoiceSource = completion;
+        uiDispatcher.Invoke(() =>
+        {
+            RequiredDependencyDialogItems.Clear();
+            foreach (var item in items)
+                RequiredDependencyDialogItems.Add(item);
+
+            IsRequiredDependenciesDialogOpen = true;
+        });
+
+        return await completion.Task.ConfigureAwait(false);
+    }
+
+    private void ResolveRequiredDependenciesDialog(RequiredDependenciesDialogChoice choice)
+    {
+        uiDispatcher.Invoke(() => IsRequiredDependenciesDialogOpen = false);
+        pendingRequiredDependenciesDialogChoiceSource?.TrySetResult(choice);
+        pendingRequiredDependenciesDialogChoiceSource = null;
+    }
+
+    private async Task InstallRequiredDependenciesAsync(
+        IReadOnlyList<RequiredDependencyInstallCandidate> missingDependencies,
+        GameInstance instance,
+        DownloadTaskItem? downloadTask,
+        CancellationToken cancellationToken)
+    {
+        if (missingDependencies.Count == 0)
+            return;
+
+        var installedDependencies = await LoadEnabledLocalModIdentifiersAsync(instance, cancellationToken)
+            .ConfigureAwait(false);
+        var visiting = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var dependency in missingDependencies)
+        {
+            await InstallRequiredDependencyAsync(
+                    dependency,
+                    instance,
+                    installedDependencies,
+                    visiting,
+                    visited,
+                    downloadTask,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private async Task InstallRequiredDependencyAsync(
+        RequiredDependencyInstallCandidate candidate,
+        GameInstance instance,
+        InstalledDependencyCatalog installedDependencies,
+        ISet<string> visiting,
+        ISet<string> visited,
+        DownloadTaskItem? downloadTask,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var dependency = candidate.Dependency;
+        var project = dependency.Project;
+        var dependencyKey = ResolveDependencyKey(project);
+        if (string.IsNullOrWhiteSpace(dependencyKey)
+            || visited.Contains(dependencyKey)
+            || ResolveDependencyRequirementState(candidate, installedDependencies) is RequiredDependencyRequirementState.Installed)
+        {
+            return;
+        }
+
+        if (!visiting.Add(dependencyKey))
+            return;
+
+        try
+        {
+            var version = candidate.InstallVersion
+                ?? throw new RequiredDependencyInstallException(project);
+            foreach (var childDependency in version.RequiredDependencies)
+            {
+                var childCandidate = await ResolveRequiredDependencyInstallCandidateAsync(childDependency, instance, cancellationToken)
+                    .ConfigureAwait(false);
+                await InstallRequiredDependencyAsync(
+                        childCandidate,
+                        instance,
+                        installedDependencies,
+                        visiting,
+                        visited,
+                        downloadTask,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (ResolveDependencyRequirementState(candidate, installedDependencies) is RequiredDependencyRequirementState.Installed)
+                return;
+
+            var installingMessage = string.Format(
+                Strings.Status_ModRequiredDependencyInstallingFormat,
+                project.Title);
+            ReportStatus(installingMessage);
+            downloadTask?.Report(new LauncherProgress(ModProgressStages.DownloadingFile, installingMessage));
+            await resourceCatalogService!.InstallProjectVersionAsync(version, instance, cancellationToken)
+                .ConfigureAwait(false);
+            AddDependencyIdentifiers(installedDependencies, dependency, version);
+            logger?.LogInformation(
+                "Resource project required dependency installed. ProjectId={ProjectId}, DependencyProjectId={DependencyProjectId}, VersionId={VersionId}, InstanceId={InstanceId}",
+                SelectedProject?.Project.ProjectId,
+                project.ProjectId,
+                version.VersionId,
+                instance.Id);
+        }
+        finally
+        {
+            visiting.Remove(dependencyKey);
+            visited.Add(dependencyKey);
+        }
+    }
+
+    private async Task<RequiredDependencyInstallCandidate> TryResolveRequiredDependencyInstallCandidateAsync(
+        ResourceProjectDependency dependency,
+        GameInstance instance,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await ResolveRequiredDependencyInstallCandidateAsync(dependency, instance, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (RequiredDependencyInstallException)
+        {
+            return new RequiredDependencyInstallCandidate(dependency, MinimumVersion: null, InstallVersion: null);
+        }
+    }
+
+    private async Task<RequiredDependencyInstallCandidate> ResolveRequiredDependencyInstallCandidateAsync(
+        ResourceProjectDependency dependency,
+        GameInstance instance,
+        CancellationToken cancellationToken)
+    {
+        var project = dependency.Project;
+        if (resourceCatalogService is null
+            || project.Source is not (ResourceProjectSource.Modrinth or ResourceProjectSource.CurseForge)
+            || project.Kind is not ResourceProjectKind.Mod)
+        {
+            throw new RequiredDependencyInstallException(project);
+        }
+
+        var result = await resourceCatalogService.GetProjectVersionsAsync(
+                new ResourceProjectVersionsRequest
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    Source = project.Source,
+                    ProjectId = project.ProjectId,
+                    Slug = project.Slug,
+                    MinecraftVersion = instance.MinecraftVersion,
+                    Loader = instance.Loader,
+                    IncludeAllVersions = false,
+                    Offset = 0,
+                    PageSize = AvailableVersionPageSize
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
+        var installVersion = SelectRequiredDependencyVersion(result.Versions)
+            ?? throw new RequiredDependencyInstallException(project);
+        var minimumVersion = ResolveRequiredDependencyMinimumVersion(dependency, result.Versions) ?? installVersion;
+        return new RequiredDependencyInstallCandidate(dependency, minimumVersion, installVersion);
+    }
+
+    private static ResourceProjectVersion? SelectRequiredDependencyVersion(
+        IReadOnlyList<ResourceProjectVersion> versions)
+    {
+        return versions.FirstOrDefault(version => string.Equals(
+                   version.VersionType,
+                   "release",
+                   StringComparison.OrdinalIgnoreCase))
+               ?? versions.FirstOrDefault();
+    }
+
+    private static ResourceProjectVersion? ResolveRequiredDependencyMinimumVersion(
+        ResourceProjectDependency dependency,
+        IReadOnlyList<ResourceProjectVersion> versions)
+    {
+        if (string.IsNullOrWhiteSpace(dependency.VersionId))
+            return null;
+
+        return versions.FirstOrDefault(version => string.Equals(
+            version.VersionId,
+            dependency.VersionId,
+            StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task<InstalledDependencyCatalog> LoadEnabledLocalModIdentifiersAsync(
+        GameInstance instance,
+        CancellationToken cancellationToken)
+    {
+        if (modService is null)
+            return new InstalledDependencyCatalog([]);
+
+        var mods = await modService.GetModsAsync(instance, cancellationToken).ConfigureAwait(false);
+        var installedVersionsByModId = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var mod in mods
+            .Where(mod => mod.IsEnabled
+                && !string.IsNullOrWhiteSpace(mod.ModId)
+                && !string.IsNullOrWhiteSpace(mod.Version)))
+        {
+            var modId = mod.ModId!.Trim();
+            var version = mod.Version!.Trim();
+            if (!installedVersionsByModId.TryGetValue(modId, out var versions))
+            {
+                versions = [];
+                installedVersionsByModId[modId] = versions;
+            }
+
+            versions.Add(version);
+        }
+
+        return new InstalledDependencyCatalog(installedVersionsByModId);
+    }
+
+    private static RequiredDependencyRequirementState ResolveDependencyRequirementState(
+        RequiredDependencyInstallCandidate candidate,
+        InstalledDependencyCatalog installedDependencies)
+    {
+        var minimumVersion = candidate.MinimumVersion;
+        if (minimumVersion is null || string.IsNullOrWhiteSpace(minimumVersion.VersionNumber))
+            return RequiredDependencyRequirementState.Missing;
+
+        var hasInstalledDependency = false;
+        foreach (var identifier in EnumerateDependencyIdentifiers(candidate.Dependency.Project))
+        {
+            foreach (var installedVersion in installedDependencies.GetVersions(identifier))
+            {
+                hasInstalledDependency = true;
+                if (ResourceDependencyVersionComparer.IsGreaterThanOrEqual(
+                    installedVersion,
+                    minimumVersion.VersionNumber))
+                {
+                    return RequiredDependencyRequirementState.Installed;
+                }
+            }
+        }
+
+        return hasInstalledDependency
+            ? RequiredDependencyRequirementState.UpdateRequired
+            : RequiredDependencyRequirementState.Missing;
+    }
+
+    private static void AddDependencyIdentifiers(
+        InstalledDependencyCatalog installedDependencies,
+        ResourceProjectDependency dependency,
+        ResourceProjectVersion version)
+    {
+        if (string.IsNullOrWhiteSpace(version.VersionNumber))
+            return;
+
+        foreach (var identifier in EnumerateDependencyIdentifiers(dependency.Project))
+            installedDependencies.Add(identifier, version.VersionNumber);
+    }
+
+    private static IEnumerable<string> EnumerateDependencyIdentifiers(ResourceProject dependency)
+    {
+        if (!string.IsNullOrWhiteSpace(dependency.Slug))
+            yield return dependency.Slug;
+        if (!string.IsNullOrWhiteSpace(dependency.ProjectId))
+            yield return dependency.ProjectId;
+    }
+
+    private static string ResolveDependencyKey(ResourceProject dependency)
+    {
+        return string.IsNullOrWhiteSpace(dependency.ProjectId)
+            ? dependency.Slug
+            : dependency.ProjectId;
     }
 
     private static bool IsUnknownInstanceVersionTarget(ResourcesModInstallTargetItemViewModel? target)
@@ -2765,6 +3319,192 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private sealed record AvailableVersionPageResult(
         ResourceProjectVersionsResult Result,
         IReadOnlyList<ResourceProjectVersion> Versions);
+
+    private sealed record RequiredDependencyInstallPlan(
+        RequiredDependenciesDialogChoice Choice,
+        IReadOnlyList<RequiredDependencyInstallCandidate> MissingDependencies)
+    {
+        public static RequiredDependencyInstallPlan Continue { get; } =
+            new(RequiredDependenciesDialogChoice.ContinueWithoutDependencies, []);
+    }
+
+    private sealed record RequiredDependencyInstallCandidate(
+        ResourceProjectDependency Dependency,
+        ResourceProjectVersion? MinimumVersion,
+        ResourceProjectVersion? InstallVersion);
+
+    private sealed class InstalledDependencyCatalog
+    {
+        private readonly Dictionary<string, List<string>> versionsByModId;
+
+        public InstalledDependencyCatalog(Dictionary<string, List<string>> versionsByModId)
+        {
+            this.versionsByModId = versionsByModId;
+        }
+
+        public IEnumerable<string> GetVersions(string modId)
+        {
+            if (string.IsNullOrWhiteSpace(modId))
+                return [];
+
+            return versionsByModId.TryGetValue(modId.Trim(), out var versions)
+                ? versions
+                : [];
+        }
+
+        public void Add(string modId, string version)
+        {
+            if (string.IsNullOrWhiteSpace(modId) || string.IsNullOrWhiteSpace(version))
+                return;
+
+            var key = modId.Trim();
+            if (!versionsByModId.TryGetValue(key, out var versions))
+            {
+                versions = [];
+                versionsByModId[key] = versions;
+            }
+
+            versions.Add(version.Trim());
+        }
+    }
+
+    private static class ResourceDependencyVersionComparer
+    {
+        private static readonly string[] KnownContextTokens =
+        [
+            "mc",
+            "minecraft",
+            "fabric",
+            "forge",
+            "neoforge",
+            "quilt"
+        ];
+
+        public static bool IsGreaterThanOrEqual(string installedVersion, string minimumVersion)
+        {
+            if (!TryParse(installedVersion, out var installed)
+                || !TryParse(minimumVersion, out var minimum))
+            {
+                return false;
+            }
+
+            return installed.CompareTo(minimum) >= 0;
+        }
+
+        private static bool TryParse(string value, out ParsedDependencyVersion version)
+        {
+            version = default;
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            var tokens = value
+                .Trim()
+                .Split(['+', '-', '_', ' ', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(token => !IsContextToken(token))
+                .ToList();
+            var numericToken = tokens
+                .LastOrDefault(token => char.IsDigit(token[0]) && token.Contains('.'))
+                ?? tokens.LastOrDefault(token => char.IsDigit(token[0]));
+            if (numericToken is null)
+                return false;
+
+            var numbers = numericToken
+                .Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(part => new string(part.TakeWhile(char.IsDigit).ToArray()))
+                .Where(part => !string.IsNullOrWhiteSpace(part))
+                .Select(int.Parse)
+                .ToArray();
+            if (numbers.Length == 0)
+                return false;
+
+            var qualifier = tokens.FirstOrDefault(token =>
+                string.Equals(token, "alpha", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(token, "beta", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(token, "rc", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(token, "pre", StringComparison.OrdinalIgnoreCase)
+                || token.StartsWith("alpha.", StringComparison.OrdinalIgnoreCase)
+                || token.StartsWith("beta.", StringComparison.OrdinalIgnoreCase)
+                || token.StartsWith("rc.", StringComparison.OrdinalIgnoreCase)
+                || token.StartsWith("pre.", StringComparison.OrdinalIgnoreCase));
+            version = new ParsedDependencyVersion(numbers, ResolveQualifierWeight(qualifier));
+            return true;
+        }
+
+        private static bool IsContextToken(string token)
+        {
+            if (KnownContextTokens.Any(context => string.Equals(token, context, StringComparison.OrdinalIgnoreCase)))
+                return true;
+
+            if (token.StartsWith("mc", StringComparison.OrdinalIgnoreCase)
+                && token.Skip(2).Any(char.IsDigit))
+            {
+                return true;
+            }
+
+            return token.Contains("minecraft", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static int ResolveQualifierWeight(string? qualifier)
+        {
+            if (string.IsNullOrWhiteSpace(qualifier))
+                return 3;
+
+            if (qualifier.StartsWith("alpha", StringComparison.OrdinalIgnoreCase))
+                return 0;
+            if (qualifier.StartsWith("beta", StringComparison.OrdinalIgnoreCase))
+                return 1;
+            if (qualifier.StartsWith("pre", StringComparison.OrdinalIgnoreCase)
+                || qualifier.StartsWith("rc", StringComparison.OrdinalIgnoreCase))
+            {
+                return 2;
+            }
+
+            return 3;
+        }
+
+        private readonly record struct ParsedDependencyVersion(
+            IReadOnlyList<int> Numbers,
+            int QualifierWeight) : IComparable<ParsedDependencyVersion>
+        {
+            public int CompareTo(ParsedDependencyVersion other)
+            {
+                var count = Math.Max(Numbers.Count, other.Numbers.Count);
+                for (var index = 0; index < count; index++)
+                {
+                    var left = index < Numbers.Count ? Numbers[index] : 0;
+                    var right = index < other.Numbers.Count ? other.Numbers[index] : 0;
+                    var comparison = left.CompareTo(right);
+                    if (comparison != 0)
+                        return comparison;
+                }
+
+                return QualifierWeight.CompareTo(other.QualifierWeight);
+            }
+        }
+    }
+
+    private enum RequiredDependenciesDialogChoice
+    {
+        Cancel,
+        ContinueWithoutDependencies,
+        AutoInstallDependencies
+    }
+
+    private sealed class RequiredDependencyInstallException : Exception
+    {
+        public RequiredDependencyInstallException(ResourceProject dependency)
+            : base($"Required dependency cannot be installed automatically: {dependency.ProjectId}")
+        {
+            DependencyProjectId = dependency.ProjectId;
+            DependencyTitle = string.IsNullOrWhiteSpace(dependency.Title)
+                ? dependency.Slug
+                : dependency.Title;
+        }
+
+        public string DependencyProjectId { get; }
+
+        public string DependencyTitle { get; }
+    }
 
     private sealed class AvailableVersionCompatibilityGroup
     {

@@ -417,6 +417,139 @@
                 </Grid>
             </controls:DialogHost>
 
+            <controls:DialogHost x:Name="ResourcesModRequiredDependenciesDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="460"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsRequiredDependenciesDialogOpen}"
+                                 DataContext="{Binding ResourcesPage.CurrentOnlineProjectPage}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Resources_ModRequiredDependenciesDialogTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,16,0,14"
+                               Text="{x:Static res:Strings.Resources_ModRequiredDependenciesDialogMessage}"
+                               Style="{StaticResource DialogBodyTextStyle}"
+                               TextWrapping="Wrap" />
+
+                    <ScrollViewer Grid.Row="2"
+                                  MaxHeight="220"
+                                  Margin="0,0,0,24"
+                                  Style="{StaticResource MainContentScrollViewerStyle}"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding RequiredDependencyDialogItems}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid MinHeight="36"
+                                          Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Grid Width="28"
+                                              Height="28"
+                                              VerticalAlignment="Center">
+                                            <Image Source="{Binding IconSource}"
+                                                   Stretch="UniformToFill"
+                                                   RenderOptions.BitmapScalingMode="HighQuality">
+                                                <Image.Style>
+                                                    <Style TargetType="Image">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IconSource}" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Image.Style>
+                                            </Image>
+                                            <controls:SvgIcon Width="20"
+                                                              Height="20"
+                                                              IconKey="{Binding IconKey}"
+                                                              Foreground="{DynamicResource Brush.Icon.Secondary}"
+                                                              HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center">
+                                                <controls:SvgIcon.Style>
+                                                    <Style TargetType="controls:SvgIcon">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IconSource}" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </controls:SvgIcon.Style>
+                                            </controls:SvgIcon>
+                                        </Grid>
+
+                                        <StackPanel Grid.Column="1"
+                                                    Margin="10,0,16,0"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Title}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource Brush.Text.Primary}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold" />
+                                            <TextBlock Margin="0,3,0,0"
+                                                       Text="{Binding MinimumVersionText}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource Brush.Text.Secondary}"
+                                                       FontSize="12" />
+                                            <TextBlock Margin="0,2,0,0"
+                                                       Text="{Binding InstallVersionText}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource Brush.Text.Secondary}"
+                                                       FontSize="12" />
+                                        </StackPanel>
+
+                                        <TextBlock Grid.Column="2"
+                                                   VerticalAlignment="Center"
+                                                   Text="{Binding StateText}"
+                                                   Foreground="{DynamicResource Brush.Text.Secondary}"
+                                                   FontSize="12" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+
+                    <Grid Grid.Row="3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                HorizontalAlignment="Left"
+                                Content="{x:Static res:Strings.Cancel_Button}"
+                                Command="{Binding CancelRequiredDependenciesDialogCommand}" />
+
+                        <StackPanel Grid.Column="1"
+                                    Style="{StaticResource DialogFooterStyle}">
+                            <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                    Content="{x:Static res:Strings.Resources_ModRequiredDependenciesSkipButton}"
+                                    Command="{Binding ContinueWithoutRequiredDependenciesCommand}" />
+                            <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                    Margin="{StaticResource DialogTrailingButtonMargin}"
+                                    Content="{x:Static res:Strings.Resources_ModRequiredDependenciesAutoInstallButton}"
+                                    Command="{Binding AutoInstallRequiredDependenciesCommand}" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </controls:DialogHost>
+
             <controls:DialogHost x:Name="DeleteModsDialogHost"
                                  Grid.ColumnSpan="2"
                                  Grid.RowSpan="2"

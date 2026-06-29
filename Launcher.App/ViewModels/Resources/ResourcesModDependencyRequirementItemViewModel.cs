@@ -1,0 +1,94 @@
+using Launcher.App.Resources;
+using Launcher.Domain.Models;
+
+namespace Launcher.App.ViewModels.Resources;
+
+public sealed class ResourcesModDependencyRequirementItemViewModel
+{
+    public ResourcesModDependencyRequirementItemViewModel(
+        ResourceProjectDependency dependency,
+        ResourceProjectVersion? minimumVersion,
+        ResourceProjectVersion? installVersion,
+        RequiredDependencyRequirementState state,
+        string fallbackIconKey = "instance_setting_page/mod")
+    {
+        Dependency = dependency;
+        Project = dependency.Project;
+        MinimumVersion = minimumVersion;
+        InstallVersion = installVersion;
+        State = state;
+        IconSource = string.IsNullOrWhiteSpace(Project.IconUrl)
+            ? null
+            : Project.IconUrl;
+        IconKey = string.IsNullOrWhiteSpace(IconSource)
+            ? fallbackIconKey
+            : string.Empty;
+    }
+
+    public ResourceProject Project { get; }
+
+    public ResourceProjectDependency Dependency { get; }
+
+    public ResourceProjectVersion? MinimumVersion { get; }
+
+    public ResourceProjectVersion? InstallVersion { get; }
+
+    public RequiredDependencyRequirementState State { get; }
+
+    public bool IsInstalled => State is RequiredDependencyRequirementState.Installed;
+
+    public string? IconSource { get; }
+
+    public string IconKey { get; }
+
+    public string Title => Project.Title;
+
+    public string VersionText => string.Format(
+        Strings.Resources_ModRequiredDependencyVersionFormat,
+        ResolveVersionText(InstallVersion));
+
+    public string MinimumVersionText => string.Format(
+        Strings.Resources_ModRequiredDependencyMinimumVersionFormat,
+        ResolveVersionText(MinimumVersion));
+
+    public string InstallVersionText => string.Format(
+        Strings.Resources_ModRequiredDependencyInstallVersionFormat,
+        ResolveVersionText(InstallVersion));
+
+    public string StateText => State switch
+    {
+        RequiredDependencyRequirementState.Installed => Strings.Resources_ModRequiredDependencyInstalled,
+        RequiredDependencyRequirementState.UpdateRequired => Strings.Resources_ModRequiredDependencyUpdateRequired,
+        _ => Strings.Resources_ModRequiredDependencyMissing
+    };
+
+    private static string ResolveVersionText(ResourceProjectVersion? version)
+    {
+        if (version is null)
+            return Strings.Resources_ModRequiredDependencyVersionUnresolved;
+
+        if (!string.IsNullOrWhiteSpace(version.Name)
+            && !string.IsNullOrWhiteSpace(version.VersionNumber)
+            && !string.Equals(version.Name, version.VersionNumber, StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{version.Name} {version.VersionNumber}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(version.Name))
+            return version.Name;
+
+        if (!string.IsNullOrWhiteSpace(version.VersionNumber))
+            return version.VersionNumber;
+
+        return string.IsNullOrWhiteSpace(version.VersionId)
+            ? Strings.Resources_ModRequiredDependencyVersionUnresolved
+            : version.VersionId;
+    }
+}
+
+public enum RequiredDependencyRequirementState
+{
+    Installed,
+    UpdateRequired,
+    Missing
+}

@@ -399,6 +399,110 @@ public sealed class ResourceCatalogServiceTests
     }
 
     [Fact]
+    public async Task GetProjectDependenciesMapsRequiredModrinthVersionDependencies()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            modrinthVersionResponse:
+            """
+            [
+              {"id":"v1","dependencies":[
+                {"project_id":"AANobbMI","dependency_type":"required"},
+                {"project_id":"optional-lib","dependency_type":"optional"},
+                {"project_id":"embedded-lib","dependency_type":"embedded"},
+                {"file_name":"external.jar","dependency_type":"required"},
+                {"project_id":"main-mod","dependency_type":"required"}
+              ],"files":[{"filename":"iris.jar","url":"https://downloads.example.test/iris.jar","primary":true}]},
+              {"id":"v2","dependencies":[{"project_id":"AANobbMI","dependency_type":"required"}],"files":[{"filename":"iris2.jar","url":"https://downloads.example.test/iris2.jar","primary":true}]}
+            ]
+            """,
+            modrinthProjectsResponse:
+            """
+            [
+              {"id":"AANobbMI","slug":"sodium","project_type":"mod","title":"Sodium","description":"A high-performance rendering engine replacement for Minecraft.","icon_url":null,"downloads":175556776,"game_versions":["1.20.1"],"loaders":["fabric","neoforge","quilt","utility"]},
+              {"id":"required-shader","slug":"required-shader","project_type":"shader","title":"Required Shader","description":"Shader","icon_url":null,"downloads":5,"game_versions":["1.20.1"],"loaders":[]}
+            ]
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+
+        var result = await service.GetProjectDependenciesAsync(new ResourceProjectDependenciesRequest
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "main-mod"
+        });
+
+        var project = Assert.Single(result.RequiredProjects);
+        Assert.Equal("AANobbMI", project.ProjectId);
+        Assert.Equal("Sodium", project.Title);
+        Assert.Equal(ResourceProjectKind.Mod, project.Kind);
+        Assert.Equal(ResourceProjectSource.Modrinth, project.Source);
+        Assert.Equal(["1.20.1"], project.SupportedMinecraftVersions);
+        Assert.Equal(["fabric", "neoforge", "quilt"], project.SupportedLoaders);
+        Assert.Equal("https://modrinth.com/mod/sodium", project.ProjectUrl);
+
+        Assert.Equal(2, handler.Requests.Count);
+        var versionsRequest = handler.Requests[0];
+        Assert.Equal("api.modrinth.com", versionsRequest.RequestUri!.Host);
+        Assert.Contains("/project/main-mod/version", versionsRequest.RequestUri.AbsolutePath);
+
+        var projectsRequest = handler.Requests[1];
+        Assert.Contains("/projects", projectsRequest.RequestUri!.AbsolutePath);
+        Assert.Contains("AANobbMI", Uri.UnescapeDataString(projectsRequest.RequestUri.Query));
+        Assert.DoesNotContain("optional-lib", Uri.UnescapeDataString(projectsRequest.RequestUri.Query));
+    }
+
+    [Fact]
+    public async Task GetProjectDependenciesReturnsEmptyWhenModrinthVersionsHaveNoRequiredProjectDependencies()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            modrinthVersionResponse:
+            """
+            [{"id":"sodium-version","dependencies":[],"files":[{"filename":"sodium.jar","url":"https://downloads.example.test/sodium.jar","primary":true}]}]
+            """,
+            modrinthDependenciesResponse:
+            """
+            {"projects":[{"id":"reverse","slug":"reverse","project_type":"mod","title":"Reverse","description":"Depends on Sodium","downloads":1,"game_versions":["1.20.1"],"loaders":["fabric"]}],"versions":[]}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+
+        var result = await service.GetProjectDependenciesAsync(new ResourceProjectDependenciesRequest
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "main-mod"
+        });
+
+        Assert.Empty(result.RequiredProjects);
+        var request = Assert.Single(handler.Requests);
+        Assert.Contains("/project/main-mod/version", request.RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task GetProjectDependenciesReturnsEmptyForUnsupportedSource()
+    {
+        var handler = new ResourceCatalogHandler("""{"hits":[]}""");
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+
+        var result = await service.GetProjectDependenciesAsync(new ResourceProjectDependenciesRequest
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234"
+        });
+
+        Assert.Empty(result.RequiredProjects);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
     public async Task GetModpackVersionsQueriesCurseForgeWithMinecraftVersionAndLoader()
     {
         var handler = new ResourceCatalogHandler(
@@ -619,6 +723,66 @@ public sealed class ResourceCatalogServiceTests
     }
 
     [Fact]
+    public async Task GetProjectVersionsMapsRequiredModrinthVersionDependencies()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            modrinthVersionResponse:
+            """
+            [
+              {"id":"v1","name":"Iris 1.0","version_number":"1.0.0","version_type":"release","date_published":"2024-01-02T00:00:00Z","downloads":15,"game_versions":["1.20.1"],"loaders":["fabric"],"dependencies":[
+                {"project_id":"AANobbMI","version_id":"sodium-version","dependency_type":"required"},
+                {"project_id":"optional-lib","dependency_type":"optional"},
+                {"project_id":"shader-dependency","dependency_type":"required"},
+                {"file_name":"external.jar","dependency_type":"required"},
+                {"project_id":"iris","dependency_type":"required"}
+              ],"files":[{"filename":"iris.jar","url":"https://downloads.example.test/iris.jar","primary":true}]},
+              {"id":"v2","name":"Iris 2.0","version_number":"2.0.0","version_type":"release","date_published":"2024-01-03T00:00:00Z","downloads":12,"game_versions":["1.20.1"],"loaders":["fabric"],"dependencies":[
+                {"project_id":"AANobbMI","dependency_type":"required"},
+                {"project_id":"AANobbMI","dependency_type":"required"}
+              ],"files":[{"filename":"iris2.jar","url":"https://downloads.example.test/iris2.jar","primary":true}]}
+            ]
+            """,
+            modrinthProjectsResponse:
+            """
+            [
+              {"id":"AANobbMI","slug":"sodium","project_type":"mod","title":"Sodium","description":"Rendering engine","icon_url":null,"downloads":100,"game_versions":["1.20.1"],"loaders":["fabric","utility"]},
+              {"id":"shader-dependency","slug":"shader-dependency","project_type":"shader","title":"Shader Dependency","description":"Shader","icon_url":null,"downloads":1,"game_versions":["1.20.1"],"loaders":[]}
+            ]
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver(null));
+
+        var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "iris",
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Fabric
+        });
+
+        Assert.Equal(2, result.Versions.Count);
+        var dependency = Assert.Single(result.Versions[0].RequiredDependencies);
+        Assert.Equal("AANobbMI", dependency.Project.ProjectId);
+        Assert.Equal("sodium", dependency.Project.Slug);
+        Assert.Equal("Sodium", dependency.Project.Title);
+        Assert.Equal("sodium-version", dependency.VersionId);
+        Assert.Equal(["fabric"], dependency.Project.SupportedLoaders);
+        var dependencyWithoutVersion = Assert.Single(result.Versions[1].RequiredDependencies);
+        Assert.Equal("Sodium", dependencyWithoutVersion.Project.Title);
+        Assert.Equal(string.Empty, dependencyWithoutVersion.VersionId);
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Contains("/project/iris/version", handler.Requests[0].RequestUri!.AbsolutePath);
+        Assert.Contains("/projects", handler.Requests[1].RequestUri!.AbsolutePath);
+        var projectsQuery = Uri.UnescapeDataString(handler.Requests[1].RequestUri!.Query);
+        Assert.Contains("AANobbMI", projectsQuery);
+        Assert.Contains("shader-dependency", projectsQuery);
+        Assert.DoesNotContain("optional-lib", projectsQuery);
+    }
+
+    [Fact]
     public async Task GetProjectVersionsQueriesCurseForgeWithMinecraftVersionAndLoader()
     {
         var handler = new ResourceCatalogHandler(
@@ -649,6 +813,93 @@ public sealed class ResourceCatalogServiceTests
         Assert.Contains("gameVersion=1.18.2", request.RequestUri.Query);
         Assert.Contains("modLoaderType=4", request.RequestUri.Query);
         Assert.Contains("pageSize=50", request.RequestUri.Query);
+    }
+
+    [Fact]
+    public async Task GetProjectVersionsMapsCurseForgeRequiredDependencies()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            curseForgeResponse:
+            """
+            {"data":[{"id":101,"displayName":"Main Mod 1.0","fileName":"main.jar","releaseType":1,"downloadCount":9,"fileDate":"2024-01-02T00:00:00Z","gameVersions":["1.20.1","Fabric"],"sortableGameVersions":[{"gameVersion":"1.20.1","modLoader":4}],"dependencies":[
+              {"modId":222,"relationType":3},
+              {"modId":333,"relationType":2},
+              {"modId":444,"relationType":3},
+              {"modId":1234,"relationType":3}
+            ]}],"pagination":{"index":0,"pageSize":10000,"resultCount":1,"totalCount":1}}
+            """,
+            curseForgeModsResponse:
+            """
+            {"data":[
+              {"id":222,"classId":6,"name":"Library Mod","slug":"library-mod","summary":"Library","downloadCount":20,"logo":{"thumbnailUrl":"https://example.test/library.png"},"links":{"websiteUrl":"https://www.curseforge.com/minecraft/mc-mods/library-mod"},"latestFilesIndexes":[{"gameVersion":"1.20.1","modLoader":4}],"gameVersionLatestFiles":[]},
+              {"id":444,"classId":12,"name":"Resource Pack","slug":"resource-pack","summary":"Not a mod","downloadCount":5,"latestFilesIndexes":[],"gameVersionLatestFiles":[]}
+            ]}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver("test-key"));
+
+        var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
+        {
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Fabric,
+            PageSize = 50
+        });
+
+        var version = Assert.Single(result.Versions);
+        var dependency = Assert.Single(version.RequiredDependencies);
+        Assert.Equal("222", dependency.Project.ProjectId);
+        Assert.Equal("library-mod", dependency.Project.Slug);
+        Assert.Equal("Library Mod", dependency.Project.Title);
+        Assert.Equal(ResourceProjectSource.CurseForge, dependency.Project.Source);
+        Assert.Equal(string.Empty, dependency.VersionId);
+        Assert.Equal(["1.20.1"], dependency.Project.SupportedMinecraftVersions);
+        Assert.Equal(["fabric"], dependency.Project.SupportedLoaders);
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
+        Assert.Contains("/mods/1234/files", handler.Requests[0].RequestUri!.AbsolutePath);
+        Assert.Equal(HttpMethod.Post, handler.Requests[1].Method);
+        Assert.Equal("/v1/mods", handler.Requests[1].RequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task GetProjectDependenciesMapsCurseForgeRequiredDependencies()
+    {
+        var handler = new ResourceCatalogHandler(
+            """{"hits":[]}""",
+            curseForgeResponse:
+            """
+            {"data":[
+              {"id":101,"displayName":"Main Mod 1.0","fileName":"main.jar","releaseType":1,"downloadCount":9,"fileDate":"2024-01-02T00:00:00Z","gameVersions":["1.20.1","Fabric"],"sortableGameVersions":[{"gameVersion":"1.20.1","modLoader":4}],"dependencies":[{"modId":222,"relationType":3}]},
+              {"id":102,"displayName":"Main Mod 1.1","fileName":"main-2.jar","releaseType":1,"downloadCount":7,"fileDate":"2024-01-03T00:00:00Z","gameVersions":["1.20.1","Fabric"],"sortableGameVersions":[{"gameVersion":"1.20.1","modLoader":4}],"dependencies":[{"modId":222,"relationType":3}]}
+            ],"pagination":{"index":0,"pageSize":10000,"resultCount":2,"totalCount":2}}
+            """,
+            curseForgeModsResponse:
+            """
+            {"data":[{"id":222,"classId":6,"name":"Library Mod","slug":"library-mod","summary":"Library","downloadCount":20,"latestFilesIndexes":[{"gameVersion":"1.20.1","modLoader":4}],"gameVersionLatestFiles":[]}]}
+            """);
+        var service = new ResourceCatalogService(
+            new HttpClient(handler),
+            curseForgeApiKeyResolver: new StubCurseForgeApiKeyResolver("test-key"));
+
+        var result = await service.GetProjectDependenciesAsync(new ResourceProjectDependenciesRequest
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            Slug = "main-mod"
+        });
+
+        var dependency = Assert.Single(result.RequiredProjects);
+        Assert.Equal("222", dependency.ProjectId);
+        Assert.Equal("Library Mod", dependency.Title);
+        Assert.Equal(ResourceProjectSource.CurseForge, dependency.Source);
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Contains("/mods/1234/files", handler.Requests[0].RequestUri!.AbsolutePath);
+        Assert.Equal("/v1/mods", handler.Requests[1].RequestUri!.AbsolutePath);
     }
 
     [Fact]
@@ -1268,6 +1519,9 @@ public sealed class ResourceCatalogServiceTests
         private readonly string curseForgeResponse;
         private readonly string curseForgeCategoriesResponse;
         private readonly string modrinthVersionResponse;
+        private readonly string modrinthDependenciesResponse;
+        private readonly string modrinthProjectsResponse;
+        private readonly string curseForgeModsResponse;
         private readonly IReadOnlyDictionary<string, string> downloadResponses;
         private readonly IReadOnlyDictionary<string, byte[]> binaryDownloadResponses;
 
@@ -1276,6 +1530,9 @@ public sealed class ResourceCatalogServiceTests
             string? curseForgeResponse = null,
             string? curseForgeCategoriesResponse = null,
             string? modrinthVersionResponse = null,
+            string? modrinthDependenciesResponse = null,
+            string? modrinthProjectsResponse = null,
+            string? curseForgeModsResponse = null,
             IReadOnlyDictionary<string, string>? downloadResponses = null,
             IReadOnlyDictionary<string, byte[]>? binaryDownloadResponses = null)
         {
@@ -1283,6 +1540,9 @@ public sealed class ResourceCatalogServiceTests
             this.curseForgeResponse = curseForgeResponse ?? """{"data":[]}""";
             this.curseForgeCategoriesResponse = curseForgeCategoriesResponse ?? """{"data":[]}""";
             this.modrinthVersionResponse = modrinthVersionResponse ?? "[]";
+            this.modrinthDependenciesResponse = modrinthDependenciesResponse ?? """{"projects":[],"versions":[]}""";
+            this.modrinthProjectsResponse = modrinthProjectsResponse ?? "[]";
+            this.curseForgeModsResponse = curseForgeModsResponse ?? """{"data":[]}""";
             this.downloadResponses = downloadResponses ?? new Dictionary<string, string>();
             this.binaryDownloadResponses = binaryDownloadResponses ?? new Dictionary<string, byte[]>();
         }
@@ -1313,11 +1573,18 @@ public sealed class ResourceCatalogServiceTests
 
             var body = request.RequestUri?.Host switch
             {
+                "api.modrinth.com" when string.Equals(request.RequestUri.AbsolutePath, "/v2/projects", StringComparison.Ordinal)
+                    => modrinthProjectsResponse,
+                "api.modrinth.com" when request.RequestUri.AbsolutePath.Contains("/dependencies", StringComparison.Ordinal)
+                    => modrinthDependenciesResponse,
                 "api.modrinth.com" when request.RequestUri.AbsolutePath.Contains("/version", StringComparison.Ordinal)
                     => modrinthVersionResponse,
                 "api.modrinth.com" => modrinthResponse,
                 "api.curseforge.com" when request.RequestUri.AbsolutePath.Contains("/categories", StringComparison.Ordinal)
                     => curseForgeCategoriesResponse,
+                "api.curseforge.com" when request.Method == HttpMethod.Post
+                    && string.Equals(request.RequestUri.AbsolutePath, "/v1/mods", StringComparison.Ordinal)
+                    => curseForgeModsResponse,
                 "api.curseforge.com" => curseForgeResponse,
                 _ => throw new InvalidOperationException($"Unexpected host: {request.RequestUri?.Host}")
             };

@@ -664,10 +664,12 @@ public sealed class ResourcesPageViewModelTests
         Assert.Equal("1.18", viewModel.ModPage.SelectedVersionOption?.Id);
         Assert.Equal(expectedLoaderId, viewModel.ModPage.SelectedLoaderOption?.Id);
         Assert.True(service.CallCount >= 1);
-        Assert.NotNull(service.LastRequest);
-        Assert.Equal(["1.18.2"], service.LastRequest.MinecraftVersions);
-        Assert.Equal("1.18.2", service.LastRequest.MinecraftVersion);
-        Assert.Equal(loader, service.LastRequest.Loader);
+        await TestAsync.WaitForAsync(() => service.Requests.Any(request => request.Kind == ResourceProjectKind.Mod));
+        var modRequest = service.Requests.LastOrDefault(request => request.Kind == ResourceProjectKind.Mod);
+        Assert.NotNull(modRequest);
+        Assert.Equal(["1.18.2"], modRequest.MinecraftVersions);
+        Assert.Equal("1.18.2", modRequest.MinecraftVersion);
+        Assert.Equal(loader, modRequest.Loader);
     }
 
     [Fact]
@@ -1336,6 +1338,355 @@ public sealed class ResourcesPageViewModelTests
         Assert.True(target.IsLocalDownload);
         Assert.Equal(Strings.Resources_ModInstallTargetsLoadError, viewModel.ModPage.InstallTargetsLoadErrorMessage);
         Assert.True(viewModel.ModPage.CanShowInstallTargetsLoadErrorState);
+    }
+
+    [Fact]
+    public async Task ModProjectDetailsLoadsRequiredDependenciesAndOpensDependencyDetails()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.DependenciesResultsByProjectId["iris"] = new ResourceProjectDependenciesResult
+        {
+            RequiredProjects =
+            [
+                new ResourceProject
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    Source = ResourceProjectSource.Modrinth,
+                    ProjectId = "fabric-api",
+                    Slug = "fabric-api",
+                    Title = "Fabric API",
+                    Description = "Library",
+                    SupportedMinecraftVersions = ["1.20.1"],
+                    SupportedLoaders = ["fabric"],
+                    Downloads = 100
+                }
+            ]
+        };
+        catalogService.DependenciesResultsByProjectId["fabric-api"] = new ResourceProjectDependenciesResult();
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "iris",
+            Slug = "iris",
+            Title = "Iris Shaders"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.RequiredDependencies.Count == 1);
+
+        var dependency = Assert.Single(viewModel.ModPage.RequiredDependencies);
+        Assert.Equal("Fabric API", dependency.Title);
+        Assert.True(viewModel.ModPage.CanShowRequiredDependencies);
+        Assert.NotNull(catalogService.LastDependenciesRequest);
+        Assert.Equal("iris", catalogService.LastDependenciesRequest.ProjectId);
+
+        viewModel.ModPage.OpenDependencyProjectCommand.Execute(dependency);
+        await TestAsync.WaitForAsync(() => catalogService.LastDependenciesRequest?.ProjectId == "fabric-api");
+
+        Assert.Equal(ResourcesModPageStep.ProjectDetails, viewModel.ModPage.CurrentStep);
+        Assert.Equal("Fabric API", viewModel.ModPage.SelectedProject?.Title);
+        Assert.Empty(viewModel.ModPage.RequiredDependencies);
+
+        viewModel.ModPage.BackToProjectListCommand.Execute(null);
+
+        Assert.Equal(ResourcesModPageStep.ProjectDetails, viewModel.ModPage.CurrentStep);
+        Assert.Equal("Iris Shaders", viewModel.ModPage.SelectedProject?.Title);
+
+        viewModel.ModPage.BackToProjectListCommand.Execute(null);
+
+        Assert.Equal(ResourcesModPageStep.ProjectList, viewModel.ModPage.CurrentStep);
+    }
+
+    [Fact]
+    public async Task CurseForgeModProjectDetailsLoadsRequiredDependenciesAndOpensDependencyDetails()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.DependenciesResultsByProjectId["1234"] = new ResourceProjectDependenciesResult
+        {
+            RequiredProjects =
+            [
+                new ResourceProject
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    Source = ResourceProjectSource.CurseForge,
+                    ProjectId = "222",
+                    Slug = "library-mod",
+                    Title = "Library Mod",
+                    Description = "Library",
+                    SupportedMinecraftVersions = ["1.20.1"],
+                    SupportedLoaders = ["fabric"],
+                    Downloads = 100
+                }
+            ]
+        };
+        catalogService.DependenciesResultsByProjectId["222"] = new ResourceProjectDependenciesResult();
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = CreateModProjectItem("1234", "Main Mod", ResourceProjectSource.CurseForge);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.RequiredDependencies.Count == 1);
+
+        var dependency = Assert.Single(viewModel.ModPage.RequiredDependencies);
+        Assert.Equal("Library Mod", dependency.Title);
+        Assert.Equal(ResourceProjectSource.CurseForge, dependency.Project.Source);
+        Assert.NotNull(catalogService.LastDependenciesRequest);
+        Assert.Equal(ResourceProjectSource.CurseForge, catalogService.LastDependenciesRequest.Source);
+
+        viewModel.ModPage.OpenDependencyProjectCommand.Execute(dependency);
+        await TestAsync.WaitForAsync(() => catalogService.LastDependenciesRequest?.ProjectId == "222");
+
+        Assert.Equal(ResourcesModPageStep.ProjectDetails, viewModel.ModPage.CurrentStep);
+        Assert.Equal("Library Mod", viewModel.ModPage.SelectedProject?.Title);
+        Assert.Equal(ResourceProjectSource.CurseForge, viewModel.ModPage.SelectedProject?.Project.Source);
+
+        viewModel.ModPage.BackToProjectListCommand.Execute(null);
+
+        Assert.Equal(ResourcesModPageStep.ProjectDetails, viewModel.ModPage.CurrentStep);
+        Assert.Equal("Main Mod", viewModel.ModPage.SelectedProject?.Title);
+    }
+
+    [Fact]
+    public async Task ModDependencyDetailsBackSupportsMultipleParentProjects()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.DependenciesResultsByProjectId["a"] = new ResourceProjectDependenciesResult
+        {
+            RequiredProjects =
+            [
+                new ResourceProject
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    Source = ResourceProjectSource.Modrinth,
+                    ProjectId = "b",
+                    Slug = "b",
+                    Title = "Project B"
+                }
+            ]
+        };
+        catalogService.DependenciesResultsByProjectId["b"] = new ResourceProjectDependenciesResult
+        {
+            RequiredProjects =
+            [
+                new ResourceProject
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    Source = ResourceProjectSource.Modrinth,
+                    ProjectId = "c",
+                    Slug = "c",
+                    Title = "Project C"
+                }
+            ]
+        };
+        catalogService.DependenciesResultsByProjectId["c"] = new ResourceProjectDependenciesResult();
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "a",
+            Slug = "a",
+            Title = "Project A"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.RequiredDependencies.Count == 1);
+        viewModel.ModPage.OpenDependencyProjectCommand.Execute(viewModel.ModPage.RequiredDependencies.Single());
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.RequiredDependencies.Count == 1
+            && viewModel.ModPage.RequiredDependencies[0].Title == "Project C");
+        viewModel.ModPage.OpenDependencyProjectCommand.Execute(viewModel.ModPage.RequiredDependencies.Single());
+        await TestAsync.WaitForAsync(() => catalogService.LastDependenciesRequest?.ProjectId == "c");
+
+        Assert.Equal("Project C", viewModel.ModPage.SelectedProject?.Title);
+
+        viewModel.ModPage.BackToProjectListCommand.Execute(null);
+
+        Assert.Equal(ResourcesModPageStep.ProjectDetails, viewModel.ModPage.CurrentStep);
+        Assert.Equal("Project B", viewModel.ModPage.SelectedProject?.Title);
+
+        viewModel.ModPage.BackToProjectListCommand.Execute(null);
+
+        Assert.Equal(ResourcesModPageStep.ProjectDetails, viewModel.ModPage.CurrentStep);
+        Assert.Equal("Project A", viewModel.ModPage.SelectedProject?.Title);
+
+        viewModel.ModPage.BackToProjectListCommand.Execute(null);
+
+        Assert.Equal(ResourcesModPageStep.ProjectList, viewModel.ModPage.CurrentStep);
+    }
+
+    [Fact]
+    public async Task ModDependencyDetailsVersionsBackReturnsToDependencyBeforeParent()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.DependenciesResultsByProjectId["parent"] = new ResourceProjectDependenciesResult
+        {
+            RequiredProjects =
+            [
+                new ResourceProject
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    Source = ResourceProjectSource.Modrinth,
+                    ProjectId = "dependency",
+                    Slug = "dependency",
+                    Title = "Dependency"
+                }
+            ]
+        };
+        catalogService.DependenciesResultsByProjectId["dependency"] = new ResourceProjectDependenciesResult();
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "parent",
+            Slug = "parent",
+            Title = "Parent"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.RequiredDependencies.Count == 1);
+        viewModel.ModPage.OpenDependencyProjectCommand.Execute(viewModel.ModPage.RequiredDependencies.Single());
+        await TestAsync.WaitForAsync(() => catalogService.LastDependenciesRequest?.ProjectId == "dependency");
+
+        viewModel.ModPage.SelectInstallTargetCommand.Execute(ResourcesModInstallTargetItemViewModel.CreateLocalDownload());
+        await TestAsync.WaitForAsync(() => !viewModel.ModPage.IsLoadingAvailableVersions);
+
+        Assert.Equal(ResourcesModPageStep.ProjectVersions, viewModel.ModPage.CurrentStep);
+        Assert.Equal("Dependency", viewModel.ModPage.SelectedProject?.Title);
+
+        viewModel.ModPage.BackToProjectListCommand.Execute(null);
+
+        Assert.Equal(ResourcesModPageStep.ProjectDetails, viewModel.ModPage.CurrentStep);
+        Assert.Equal("Dependency", viewModel.ModPage.SelectedProject?.Title);
+
+        viewModel.ModPage.BackToProjectListCommand.Execute(null);
+
+        Assert.Equal(ResourcesModPageStep.ProjectDetails, viewModel.ModPage.CurrentStep);
+        Assert.Equal("Parent", viewModel.ModPage.SelectedProject?.Title);
+    }
+
+    [Fact]
+    public async Task ModProjectSelectionClearsDependencyDetailsBackStack()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.DependenciesResultsByProjectId["parent"] = new ResourceProjectDependenciesResult
+        {
+            RequiredProjects =
+            [
+                new ResourceProject
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    Source = ResourceProjectSource.Modrinth,
+                    ProjectId = "dependency",
+                    Slug = "dependency",
+                    Title = "Dependency"
+                }
+            ]
+        };
+        catalogService.DependenciesResultsByProjectId["dependency"] = new ResourceProjectDependenciesResult();
+        catalogService.DependenciesResultsByProjectId["other"] = new ResourceProjectDependenciesResult();
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var parent = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "parent",
+            Slug = "parent",
+            Title = "Parent"
+        });
+        var other = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "other",
+            Slug = "other",
+            Title = "Other"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(parent);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.RequiredDependencies.Count == 1);
+        viewModel.ModPage.OpenDependencyProjectCommand.Execute(viewModel.ModPage.RequiredDependencies.Single());
+        await TestAsync.WaitForAsync(() => catalogService.LastDependenciesRequest?.ProjectId == "dependency");
+
+        viewModel.ModPage.SelectProjectCommand.Execute(other);
+        await TestAsync.WaitForAsync(() => catalogService.LastDependenciesRequest?.ProjectId == "other");
+        viewModel.ModPage.BackToProjectListCommand.Execute(null);
+
+        Assert.Equal(ResourcesModPageStep.ProjectList, viewModel.ModPage.CurrentStep);
+    }
+
+    [Fact]
+    public async Task ModProjectDetailsDoesNotApplyStaleDependencyResultsAfterProjectSwitch()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var pendingFirstProject = new TaskCompletionSource<ResourceProjectDependenciesResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        catalogService.PendingDependenciesResultsByProjectId["first"] = pendingFirstProject;
+        catalogService.DependenciesResultsByProjectId["second"] = new ResourceProjectDependenciesResult();
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var firstProject = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "first",
+            Slug = "first",
+            Title = "First"
+        });
+        var secondProject = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "second",
+            Slug = "second",
+            Title = "Second"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(firstProject);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsLoadingProjectDependencies);
+        viewModel.ModPage.SelectProjectCommand.Execute(secondProject);
+        await TestAsync.WaitForAsync(() => catalogService.LastDependenciesRequest?.ProjectId == "second"
+            && !viewModel.ModPage.IsLoadingProjectDependencies);
+
+        pendingFirstProject.SetResult(new ResourceProjectDependenciesResult
+        {
+            RequiredProjects =
+            [
+                new ResourceProject
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    Source = ResourceProjectSource.Modrinth,
+                    ProjectId = "stale",
+                    Title = "Stale"
+                }
+            ]
+        });
+        await Task.Delay(30);
+
+        Assert.Equal("Second", viewModel.ModPage.SelectedProject?.Title);
+        Assert.Empty(viewModel.ModPage.RequiredDependencies);
+        Assert.False(viewModel.ModPage.CanShowRequiredDependencies);
+    }
+
+    [Fact]
+    public async Task ModProjectDetailsHidesDependenciesWhenCurseForgeProjectHasNone()
+    {
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        var viewModel = new ResourcesPageViewModel(catalogService);
+        var project = new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "1234",
+            Title = "CurseForge Mod"
+        });
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        await Task.Delay(30);
+
+        Assert.NotNull(catalogService.LastDependenciesRequest);
+        Assert.Equal(ResourceProjectSource.CurseForge, catalogService.LastDependenciesRequest.Source);
+        Assert.Empty(viewModel.ModPage.RequiredDependencies);
+        Assert.False(viewModel.ModPage.CanShowRequiredDependencies);
     }
 
     [Fact]
@@ -2676,6 +3027,1047 @@ public sealed class ResourcesPageViewModelTests
     }
 
     [Fact]
+    public async Task ModVersionSelectionInstallsDirectlyWhenRequiredDependenciesAreEnabled()
+    {
+        var dependency = CreateDependency("fabric-api", "Fabric API", "api-version");
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["fabric-api"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-other-version",
+                    Name = "Fabric API 0.9",
+                    VersionNumber = "0.9.0",
+                    VersionType = "beta",
+                    FileName = "fabric-api-old.jar"
+                },
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-version",
+                    Name = "Fabric API 1.0",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "fabric-api.jar"
+                }
+            ]
+        };
+        var modService = new FakeModService();
+        var instance = CreateInstance("Fabric Test", "1.20.1", LoaderKind.Fabric);
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            new LocalMod
+            {
+                Name = "Fabric API",
+                ModId = "fabric-api",
+                Version = "1.0.0",
+                FileName = "fabric-api.jar",
+                FullPath = "C:\\Instances\\Fabric Test\\mods\\fabric-api.jar",
+                IsEnabled = true
+            }
+        ];
+        var viewModel = new ResourcesPageViewModel(catalogService, modService: modService);
+        var project = CreateModProjectItem("iris", "Iris");
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "iris-version",
+            Name = "Iris 1.0",
+            FileName = "iris.jar",
+            RequiredDependencies = [dependency]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        await viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+
+        Assert.False(viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+        Assert.Equal("iris-version", catalogService.LastInstalledVersion?.VersionId);
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionInstallsDirectlyWhenInstalledRequiredDependencyVersionIsHigherThanMinimum()
+    {
+        var dependency = CreateDependency("fabric-api", "Fabric API", "api-minimum-version");
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["fabric-api"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-recommended-version",
+                    Name = "Fabric API 1.2",
+                    VersionNumber = "1.2.0",
+                    VersionType = "release",
+                    FileName = "fabric-api.jar"
+                },
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-minimum-version",
+                    Name = "Fabric API 1.0",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "fabric-api-old.jar"
+                }
+            ]
+        };
+        var modService = new FakeModService();
+        var instance = CreateInstance("Fabric Test", "1.20.1", LoaderKind.Fabric);
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            new LocalMod
+            {
+                Name = "Fabric API",
+                ModId = "fabric-api",
+                Version = "1.1.0",
+                FileName = "fabric-api.jar",
+                FullPath = "C:\\Instances\\Fabric Test\\mods\\fabric-api.jar",
+                IsEnabled = true
+            }
+        ];
+        var viewModel = new ResourcesPageViewModel(catalogService, modService: modService);
+        var project = CreateModProjectItem("iris", "Iris");
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "iris-version",
+            Name = "Iris 1.0",
+            FileName = "iris.jar",
+            RequiredDependencies = [dependency]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        await viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+
+        Assert.False(viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+        Assert.Equal(["iris-version"], catalogService.InstalledVersions.Select(version => version.VersionId));
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionShowsDialogWhenInstalledRequiredDependencyVersionIsLowerThanMinimum()
+    {
+        var dependency = CreateDependency("fabric-api", "Fabric API", "api-version");
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["fabric-api"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-version",
+                    Name = "Fabric API 1.0",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "fabric-api.jar"
+                }
+            ]
+        };
+        var modService = new FakeModService();
+        var instance = CreateInstance("Fabric Test", "1.20.1", LoaderKind.Fabric);
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            new LocalMod
+            {
+                Name = "Fabric API",
+                ModId = "fabric-api",
+                Version = "0.9.0",
+                FileName = "fabric-api.jar",
+                FullPath = "C:\\Instances\\Fabric Test\\mods\\fabric-api.jar",
+                IsEnabled = true
+            }
+        ];
+        var viewModel = new ResourcesPageViewModel(catalogService, modService: modService);
+        var project = CreateModProjectItem("iris", "Iris");
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "iris-version",
+            Name = "Iris 1.0",
+            FileName = "iris.jar",
+            RequiredDependencies = [dependency]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        var installTask = viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+
+        var dialogItem = Assert.Single(viewModel.ModPage.RequiredDependencyDialogItems);
+        Assert.Equal("Fabric API", dialogItem.Title);
+        Assert.False(dialogItem.IsInstalled);
+        Assert.Equal(Strings.Resources_ModRequiredDependencyUpdateRequired, dialogItem.StateText);
+
+        viewModel.ModPage.CancelRequiredDependenciesDialogCommand.Execute(null);
+        await installTask;
+
+        Assert.Null(catalogService.LastInstalledVersion);
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionMissingRequiredDependencyDialogCanCancelInstall()
+    {
+        var dependency = CreateDependency("fabric-api", "Fabric API", "api-version");
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["fabric-api"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-version",
+                    Name = "Fabric API 1.0",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "fabric-api.jar"
+                }
+            ]
+        };
+        var modService = new FakeModService();
+        var instance = CreateInstance("Fabric Test", "1.20.1", LoaderKind.Fabric);
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            new LocalMod
+            {
+                Name = "Fabric API",
+                ModId = "fabric-api",
+                FileName = "fabric-api.jar.disabled",
+                FullPath = "C:\\Instances\\Fabric Test\\mods\\fabric-api.jar.disabled",
+                IsEnabled = false
+            }
+        ];
+        var viewModel = new ResourcesPageViewModel(catalogService, modService: modService);
+        var project = CreateModProjectItem("iris", "Iris");
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "iris-version",
+            Name = "Iris 1.0",
+            FileName = "iris.jar",
+            RequiredDependencies = [dependency]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        var installTask = viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+
+        var dialogItem = Assert.Single(viewModel.ModPage.RequiredDependencyDialogItems);
+        Assert.Equal("Fabric API", dialogItem.Title);
+        Assert.Equal(string.Format(Strings.Resources_ModRequiredDependencyVersionFormat, "Fabric API 1.0 1.0.0"), dialogItem.VersionText);
+        Assert.False(dialogItem.IsInstalled);
+        Assert.Equal(Strings.Resources_ModRequiredDependencyMissing, dialogItem.StateText);
+
+        viewModel.ModPage.CancelRequiredDependenciesDialogCommand.Execute(null);
+        await installTask;
+
+        Assert.Null(catalogService.LastInstalledVersion);
+        Assert.False(viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionCanContinueWithoutMissingRequiredDependencies()
+    {
+        var dependency = CreateDependency("fabric-api", "Fabric API", "api-version");
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["fabric-api"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-version",
+                    Name = "Fabric API 1.0",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "fabric-api.jar"
+                }
+            ]
+        };
+        var viewModel = new ResourcesPageViewModel(catalogService, modService: new FakeModService());
+        var instance = CreateInstance("Fabric Test", "1.20.1", LoaderKind.Fabric);
+        var project = CreateModProjectItem("iris", "Iris");
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "iris-version",
+            Name = "Iris 1.0",
+            FileName = "iris.jar",
+            RequiredDependencies = [dependency]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        var installTask = viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+
+        viewModel.ModPage.ContinueWithoutRequiredDependenciesCommand.Execute(null);
+        await installTask;
+
+        Assert.Equal(["iris-version"], catalogService.InstalledVersions.Select(version => version.VersionId));
+    }
+
+    [Fact]
+    public async Task CurseForgeModVersionSelectionAutoInstallsMissingRequiredDependency()
+    {
+        var dependency = CreateDependency(
+            "222",
+            "Library Mod",
+            source: ResourceProjectSource.CurseForge);
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["222"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "library-beta",
+                    Name = "Library 1.1 Beta",
+                    VersionNumber = "1.1.0-beta.1",
+                    VersionType = "beta",
+                    FileName = "library-beta.jar"
+                },
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "library-release",
+                    Name = "Library 1.0",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "library.jar"
+                }
+            ]
+        };
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            downloadTasksPage: new DownloadTasksPageViewModel(),
+            modService: new FakeModService());
+        var instance = CreateInstance("Fabric Test", "1.20.1", LoaderKind.Fabric);
+        var project = CreateModProjectItem("1234", "Main Mod", ResourceProjectSource.CurseForge);
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "main-version",
+            Name = "Main Mod 1.0",
+            FileName = "main.jar",
+            RequiredDependencies = [dependency]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        var installTask = viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+
+        var dialogItem = Assert.Single(viewModel.ModPage.RequiredDependencyDialogItems);
+        Assert.Equal("Library Mod", dialogItem.Title);
+        Assert.Equal(Strings.Resources_ModRequiredDependencyMissing, dialogItem.StateText);
+        Assert.Contains("Library 1.0", dialogItem.InstallVersionText);
+        Assert.NotNull(catalogService.LastVersionsRequest);
+        Assert.Equal(ResourceProjectSource.CurseForge, catalogService.LastVersionsRequest.Source);
+
+        viewModel.ModPage.AutoInstallRequiredDependenciesCommand.Execute(null);
+        await installTask;
+
+        Assert.Equal(["library-release", "main-version"], catalogService.InstalledVersions.Select(version => version.VersionId));
+    }
+
+    [Fact]
+    public async Task CurseForgeModVersionSelectionAutoUpdatesRequiredDependencyBelowRecommendedVersion()
+    {
+        var dependency = new ResourceProjectDependency
+        {
+            Project = new ResourceProject
+            {
+                Kind = ResourceProjectKind.Mod,
+                Source = ResourceProjectSource.CurseForge,
+                ProjectId = "222",
+                Slug = "library-mod",
+                Title = "Library Mod"
+            }
+        };
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["222"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "library-release",
+                    Name = "Library 1.0",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "library.jar"
+                }
+            ]
+        };
+        var modService = new FakeModService();
+        var instance = CreateInstance("Fabric Test", "1.20.1", LoaderKind.Fabric);
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            new LocalMod
+            {
+                Name = "Library Mod",
+                ModId = "library-mod",
+                Version = "0.9.0",
+                FileName = "library.jar",
+                FullPath = "C:\\Instances\\Fabric Test\\mods\\library.jar",
+                IsEnabled = true
+            }
+        ];
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            downloadTasksPage: new DownloadTasksPageViewModel(),
+            modService: modService);
+        var project = CreateModProjectItem("1234", "Main Mod", ResourceProjectSource.CurseForge);
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "main-version",
+            Name = "Main Mod 1.0",
+            FileName = "main.jar",
+            RequiredDependencies = [dependency]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        var installTask = viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+
+        var dialogItem = Assert.Single(viewModel.ModPage.RequiredDependencyDialogItems);
+        Assert.Equal(Strings.Resources_ModRequiredDependencyUpdateRequired, dialogItem.StateText);
+
+        viewModel.ModPage.AutoInstallRequiredDependenciesCommand.Execute(null);
+        await installTask;
+
+        Assert.Equal(["library-release", "main-version"], catalogService.InstalledVersions.Select(version => version.VersionId));
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionAutoInstallsMissingRequiredDependenciesRecursively()
+    {
+        var api = CreateDependency("fabric-api", "Fabric API", "api-version");
+        var library = CreateDependency("library-mod", "Library Mod", "library-version");
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["library-mod"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "library-version",
+                    Name = "Library 1.0",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "library.jar",
+                    RequiredDependencies = [api]
+                }
+            ]
+        };
+        catalogService.VersionsResultsByProjectId["fabric-api"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-version",
+                    Name = "Fabric API 1.0",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "fabric-api.jar"
+                }
+            ]
+        };
+        var statusService = new FakeStatusService();
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            statusService: statusService,
+            downloadTasksPage: new DownloadTasksPageViewModel(),
+            modService: new FakeModService());
+        var instance = CreateInstance("Fabric Test", "1.20.1", LoaderKind.Fabric);
+        var project = CreateModProjectItem("iris", "Iris");
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "iris-version",
+            Name = "Iris 1.0",
+            FileName = "iris.jar",
+            RequiredDependencies = [library]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        var installTask = viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+
+        viewModel.ModPage.AutoInstallRequiredDependenciesCommand.Execute(null);
+        await installTask;
+
+        Assert.Equal(
+            ["api-version", "library-version", "iris-version"],
+            catalogService.InstalledVersions.Select(version => version.VersionId));
+        Assert.Contains(string.Format(Strings.Status_ModRequiredDependencyInstallingFormat, "Fabric API"), statusService.Messages);
+        Assert.Contains(string.Format(Strings.Status_ModInstalledFormat, "Iris"), statusService.Messages);
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionDoesNotReinstallSatisfiedRecursiveDependency()
+    {
+        var api = CreateDependency("fabric-api", "Fabric API", "api-minimum-version");
+        var library = CreateDependency("library-mod", "Library Mod", "library-version");
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["library-mod"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "library-version",
+                    Name = "Library 1.0",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "library.jar",
+                    RequiredDependencies = [api]
+                }
+            ]
+        };
+        catalogService.VersionsResultsByProjectId["fabric-api"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-recommended-version",
+                    Name = "Fabric API 1.2",
+                    VersionNumber = "1.2.0",
+                    VersionType = "release",
+                    FileName = "fabric-api.jar"
+                },
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-minimum-version",
+                    Name = "Fabric API 1.0",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "fabric-api-old.jar"
+                }
+            ]
+        };
+        var modService = new FakeModService();
+        var instance = CreateInstance("Fabric Test", "1.20.1", LoaderKind.Fabric);
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            new LocalMod
+            {
+                Name = "Fabric API",
+                ModId = "fabric-api",
+                Version = "1.1.0",
+                FileName = "fabric-api.jar",
+                FullPath = "C:\\Instances\\Fabric Test\\mods\\fabric-api.jar",
+                IsEnabled = true
+            }
+        ];
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            downloadTasksPage: new DownloadTasksPageViewModel(),
+            modService: modService);
+        var project = CreateModProjectItem("iris", "Iris");
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "iris-version",
+            Name = "Iris 1.0",
+            FileName = "iris.jar",
+            RequiredDependencies = [library]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        var installTask = viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+
+        viewModel.ModPage.AutoInstallRequiredDependenciesCommand.Execute(null);
+        await installTask;
+
+        Assert.Equal(
+            ["library-version", "iris-version"],
+            catalogService.InstalledVersions.Select(version => version.VersionId));
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionAutoUpdatesInstalledRequiredDependencyBelowMinimumToRecommendedVersion()
+    {
+        var dependency = CreateDependency("sodium", "Sodium", "sodium-0.8.7");
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["sodium"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "sodium-0.8.12",
+                    Name = "Sodium 0.8.12 for Fabric 1.21.11",
+                    VersionNumber = "mc1.21.11-0.8.12-fabric",
+                    VersionType = "release",
+                    FileName = "sodium-0.8.12.jar"
+                },
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "sodium-0.8.7",
+                    Name = "Sodium 0.8.7 for Fabric 1.21.11",
+                    VersionNumber = "mc1.21.11-0.8.7-fabric",
+                    VersionType = "release",
+                    FileName = "sodium-0.8.7.jar"
+                }
+            ]
+        };
+        var modService = new FakeModService();
+        var instance = CreateInstance("Fabric Test", "1.21.11", LoaderKind.Fabric);
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            new LocalMod
+            {
+                Name = "Sodium",
+                ModId = "sodium",
+                Version = "mc1.21.11-0.8.6-fabric",
+                FileName = "sodium.jar",
+                FullPath = "C:\\Instances\\Fabric Test\\mods\\sodium.jar",
+                IsEnabled = true
+            }
+        ];
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            downloadTasksPage: new DownloadTasksPageViewModel(),
+            modService: modService);
+        var project = CreateModProjectItem("iris", "Iris");
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "iris-1.10.7",
+            Name = "Iris 1.10.7",
+            FileName = "iris.jar",
+            RequiredDependencies = [dependency]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        var installTask = viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+
+        var dialogItem = Assert.Single(viewModel.ModPage.RequiredDependencyDialogItems);
+        Assert.Equal(Strings.Resources_ModRequiredDependencyUpdateRequired, dialogItem.StateText);
+        Assert.Equal(
+            string.Format(
+                Strings.Resources_ModRequiredDependencyMinimumVersionFormat,
+                "Sodium 0.8.7 for Fabric 1.21.11 mc1.21.11-0.8.7-fabric"),
+            dialogItem.MinimumVersionText);
+        Assert.Equal(
+            string.Format(
+                Strings.Resources_ModRequiredDependencyInstallVersionFormat,
+                "Sodium 0.8.12 for Fabric 1.21.11 mc1.21.11-0.8.12-fabric"),
+            dialogItem.InstallVersionText);
+
+        viewModel.ModPage.AutoInstallRequiredDependenciesCommand.Execute(null);
+        await installTask;
+
+        Assert.Equal(
+            ["sodium-0.8.12", "iris-1.10.7"],
+            catalogService.InstalledVersions.Select(version => version.VersionId));
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionTreatsUnparseableInstalledDependencyVersionAsUpdateRequired()
+    {
+        var dependency = CreateDependency("fabric-api", "Fabric API", "api-minimum-version");
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["fabric-api"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-recommended-version",
+                    Name = "Fabric API 1.2",
+                    VersionNumber = "1.2.0",
+                    VersionType = "release",
+                    FileName = "fabric-api.jar"
+                },
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-minimum-version",
+                    Name = "Fabric API 1.0",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "fabric-api-old.jar"
+                }
+            ]
+        };
+        var modService = new FakeModService();
+        var instance = CreateInstance("Fabric Test", "1.20.1", LoaderKind.Fabric);
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            new LocalMod
+            {
+                Name = "Fabric API",
+                ModId = "fabric-api",
+                Version = "custom-build",
+                FileName = "fabric-api.jar",
+                FullPath = "C:\\Instances\\Fabric Test\\mods\\fabric-api.jar",
+                IsEnabled = true
+            }
+        ];
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            downloadTasksPage: new DownloadTasksPageViewModel(),
+            modService: modService);
+        var project = CreateModProjectItem("iris", "Iris");
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "iris-version",
+            Name = "Iris 1.0",
+            FileName = "iris.jar",
+            RequiredDependencies = [dependency]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        var installTask = viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+
+        var dialogItem = Assert.Single(viewModel.ModPage.RequiredDependencyDialogItems);
+        Assert.Equal(Strings.Resources_ModRequiredDependencyUpdateRequired, dialogItem.StateText);
+
+        viewModel.ModPage.AutoInstallRequiredDependenciesCommand.Execute(null);
+        await installTask;
+
+        Assert.Equal(
+            ["api-recommended-version", "iris-version"],
+            catalogService.InstalledVersions.Select(version => version.VersionId));
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionAutoInstallsFirstCompatibleDependencyVersionWhenDependencyHasNoVersionId()
+    {
+        var dependency = CreateDependency("fabric-api", "Fabric API");
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["fabric-api"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-first-version",
+                    Name = "Fabric API 1.0",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "fabric-api.jar"
+                },
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-second-version",
+                    Name = "Fabric API 2.0",
+                    VersionNumber = "2.0.0",
+                    VersionType = "release",
+                    FileName = "fabric-api-2.jar"
+                }
+            ]
+        };
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            downloadTasksPage: new DownloadTasksPageViewModel(),
+            modService: new FakeModService());
+        var instance = CreateInstance("Fabric Test", "1.20.1", LoaderKind.Fabric);
+        var project = CreateModProjectItem("iris", "Iris");
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "iris-version",
+            Name = "Iris 1.0",
+            FileName = "iris.jar",
+            RequiredDependencies = [dependency]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        var installTask = viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+
+        var dialogItem = Assert.Single(viewModel.ModPage.RequiredDependencyDialogItems);
+        Assert.Equal(string.Format(Strings.Resources_ModRequiredDependencyVersionFormat, "Fabric API 1.0 1.0.0"), dialogItem.VersionText);
+
+        viewModel.ModPage.AutoInstallRequiredDependenciesCommand.Execute(null);
+        await installTask;
+
+        Assert.Equal(
+            ["api-first-version", "iris-version"],
+            catalogService.InstalledVersions.Select(version => version.VersionId));
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionPrefersLatestCompatibleReleaseOverDependencyVersionId()
+    {
+        var dependency = CreateDependency("sodium", "Sodium", "sodium-0.8.7");
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["sodium"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "sodium-0.8.13-beta.2",
+                    Name = "Sodium 0.8.13-beta.2 for Fabric 1.21.11",
+                    VersionNumber = "mc1.21.11-0.8.13-beta.2-fabric",
+                    VersionType = "beta",
+                    FileName = "sodium-0.8.13-beta.2.jar"
+                },
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "sodium-0.8.12",
+                    Name = "Sodium 0.8.12 for Fabric 1.21.11",
+                    VersionNumber = "mc1.21.11-0.8.12-fabric",
+                    VersionType = "release",
+                    FileName = "sodium-0.8.12.jar"
+                },
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "sodium-0.8.7",
+                    Name = "Sodium 0.8.7 for Fabric 1.21.11",
+                    VersionNumber = "mc1.21.11-0.8.7-fabric",
+                    VersionType = "release",
+                    FileName = "sodium-0.8.7.jar"
+                }
+            ]
+        };
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            downloadTasksPage: new DownloadTasksPageViewModel(),
+            modService: new FakeModService());
+        var instance = CreateInstance("Fabric Test", "1.21.11", LoaderKind.Fabric);
+        var project = CreateModProjectItem("iris", "Iris");
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "iris-1.10.7",
+            Name = "Iris 1.10.7 for Fabric 1.21.11",
+            FileName = "iris-1.10.7.jar",
+            RequiredDependencies = [dependency]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        var installTask = viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+
+        var dialogItem = Assert.Single(viewModel.ModPage.RequiredDependencyDialogItems);
+        Assert.Equal("Sodium", dialogItem.Title);
+        Assert.Equal(
+            string.Format(
+                Strings.Resources_ModRequiredDependencyVersionFormat,
+                "Sodium 0.8.12 for Fabric 1.21.11 mc1.21.11-0.8.12-fabric"),
+            dialogItem.VersionText);
+
+        viewModel.ModPage.AutoInstallRequiredDependenciesCommand.Execute(null);
+        await installTask;
+
+        Assert.Equal(
+            ["sodium-0.8.12", "iris-1.10.7"],
+            catalogService.InstalledVersions.Select(version => version.VersionId));
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionDoesNotUpdateInstalledDependencyAboveMinimumEvenWhenRecommendedVersionDiffers()
+    {
+        var dependency = CreateDependency("sodium", "Sodium", "sodium-0.8.7");
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["sodium"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "sodium-0.8.12",
+                    Name = "Sodium 0.8.12 for Fabric 1.21.11",
+                    VersionNumber = "mc1.21.11-0.8.12-fabric",
+                    VersionType = "release",
+                    FileName = "sodium-0.8.12.jar"
+                },
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "sodium-0.8.7",
+                    Name = "Sodium 0.8.7 for Fabric 1.21.11",
+                    VersionNumber = "mc1.21.11-0.8.7-fabric",
+                    VersionType = "release",
+                    FileName = "sodium-0.8.7.jar"
+                }
+            ]
+        };
+        var modService = new FakeModService();
+        var instance = CreateInstance("Fabric Test", "1.21.11", LoaderKind.Fabric);
+        modService.ModsByInstanceId[instance.Id] =
+        [
+            new LocalMod
+            {
+                Name = "Sodium",
+                ModId = "sodium",
+                Version = "mc1.21.11-0.8.12-fabric",
+                FileName = "sodium.jar",
+                FullPath = "C:\\Instances\\Fabric Test\\mods\\sodium.jar",
+                IsEnabled = true
+            }
+        ];
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            downloadTasksPage: new DownloadTasksPageViewModel(),
+            modService: modService);
+        var project = CreateModProjectItem("iris", "Iris");
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "iris-1.10.7",
+            Name = "Iris 1.10.7",
+            FileName = "iris.jar",
+            RequiredDependencies = [dependency]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        await viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+
+        Assert.False(viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+        Assert.Equal(["iris-1.10.7"], catalogService.InstalledVersions.Select(version => version.VersionId));
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionFallsBackToFirstCompatibleDependencyVersionWhenNoReleaseExists()
+    {
+        var dependency = CreateDependency("fabric-api", "Fabric API", "api-old-version");
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["fabric-api"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-beta-version",
+                    Name = "Fabric API 2.0 Beta",
+                    VersionNumber = "2.0.0-beta",
+                    VersionType = "beta",
+                    FileName = "fabric-api-beta.jar"
+                },
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-alpha-version",
+                    Name = "Fabric API 2.0 Alpha",
+                    VersionNumber = "2.0.0-alpha",
+                    VersionType = "alpha",
+                    FileName = "fabric-api-alpha.jar"
+                }
+            ]
+        };
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            downloadTasksPage: new DownloadTasksPageViewModel(),
+            modService: new FakeModService());
+        var instance = CreateInstance("Fabric Test", "1.20.1", LoaderKind.Fabric);
+        var project = CreateModProjectItem("iris", "Iris");
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "iris-version",
+            Name = "Iris 1.0",
+            FileName = "iris.jar",
+            RequiredDependencies = [dependency]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        var installTask = viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+
+        var dialogItem = Assert.Single(viewModel.ModPage.RequiredDependencyDialogItems);
+        Assert.Equal(
+            string.Format(Strings.Resources_ModRequiredDependencyVersionFormat, "Fabric API 2.0 Beta 2.0.0-beta"),
+            dialogItem.VersionText);
+
+        viewModel.ModPage.AutoInstallRequiredDependenciesCommand.Execute(null);
+        await installTask;
+
+        Assert.Equal(
+            ["api-beta-version", "iris-version"],
+            catalogService.InstalledVersions.Select(version => version.VersionId));
+    }
+
+    [Fact]
+    public async Task ModVersionSelectionAutoInstallStopsWhenDependencyHasNoCompatibleVersion()
+    {
+        var dependency = CreateDependency("fabric-api", "Fabric API", "api-version");
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["fabric-api"] = new ResourceProjectVersionsResult();
+        var statusService = new FakeStatusService();
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            statusService: statusService,
+            downloadTasksPage: new DownloadTasksPageViewModel(),
+            modService: new FakeModService());
+        var instance = CreateInstance("Fabric Test", "1.20.1", LoaderKind.Fabric);
+        var project = CreateModProjectItem("iris", "Iris");
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "iris-version",
+            Name = "Iris 1.0",
+            FileName = "iris.jar",
+            RequiredDependencies = [dependency]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        var installTask = viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+
+        Assert.Equal(
+            string.Format(Strings.Resources_ModRequiredDependencyVersionFormat, Strings.Resources_ModRequiredDependencyVersionUnresolved),
+            Assert.Single(viewModel.ModPage.RequiredDependencyDialogItems).VersionText);
+
+        viewModel.ModPage.AutoInstallRequiredDependenciesCommand.Execute(null);
+        await installTask;
+
+        Assert.Empty(catalogService.InstalledVersions);
+        Assert.Contains(
+            string.Format(Strings.Status_ModRequiredDependenciesAutoInstallFailedFormat, "Fabric API"),
+            statusService.Messages);
+    }
+
+    [Fact]
     public async Task WorldVersionSelectionInstallsVersionToSelectedInstanceWithWorldMessages()
     {
         var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
@@ -3132,6 +4524,49 @@ public sealed class ResourcesPageViewModelTests
         };
     }
 
+    private static ResourcesModProjectItemViewModel CreateModProjectItem(
+        string slug,
+        string title,
+        ResourceProjectSource source = ResourceProjectSource.Modrinth)
+    {
+        return new ResourcesModProjectItemViewModel(new ResourceProject
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = source,
+            ProjectId = slug,
+            Slug = slug,
+            Title = title
+        });
+    }
+
+    private static ResourceProject CreateDependencyProject(
+        string slug,
+        string title,
+        ResourceProjectSource source = ResourceProjectSource.Modrinth)
+    {
+        return new ResourceProject
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = source,
+            ProjectId = slug,
+            Slug = slug,
+            Title = title
+        };
+    }
+
+    private static ResourceProjectDependency CreateDependency(
+        string slug,
+        string title,
+        string versionId = "",
+        ResourceProjectSource source = ResourceProjectSource.Modrinth)
+    {
+        return new ResourceProjectDependency
+        {
+            Project = CreateDependencyProject(slug, title, source),
+            VersionId = versionId
+        };
+    }
+
     private static IReadOnlyList<string> FormatAvailableVersionListItems(IEnumerable<object> items)
     {
         return items
@@ -3200,9 +4635,13 @@ public sealed class ResourcesPageViewModelTests
 
         public ResourceCatalogSearchRequest? LastRequest { get; private set; }
 
+        public List<ResourceCatalogSearchRequest> Requests { get; } = [];
+
         public ResourceProjectVersionsRequest? LastVersionsRequest { get; private set; }
 
         public List<ResourceProjectVersionsRequest> VersionRequests { get; } = [];
+
+        public ResourceProjectDependenciesRequest? LastDependenciesRequest { get; private set; }
 
         public ResourceProjectVersionsResult VersionsResult { get; init; } = new();
 
@@ -3210,11 +4649,21 @@ public sealed class ResourcesPageViewModelTests
 
         public Dictionary<string, ResourceProjectVersionsResult> VersionsResultsByRequestKey { get; } = [];
 
+        public Dictionary<string, ResourceProjectVersionsResult> VersionsResultsByProjectId { get; } = [];
+
         public Dictionary<string, TaskCompletionSource<ResourceProjectVersionsResult>> PendingVersionsResultsByRequestKey { get; } = [];
+
+        public ResourceProjectDependenciesResult DependenciesResult { get; init; } = new();
+
+        public Dictionary<string, ResourceProjectDependenciesResult> DependenciesResultsByProjectId { get; } = [];
+
+        public Dictionary<string, TaskCompletionSource<ResourceProjectDependenciesResult>> PendingDependenciesResultsByProjectId { get; } = [];
 
         public HashSet<int> VersionOffsetsToThrow { get; } = [];
 
         public ResourceProjectVersion? LastInstalledVersion { get; private set; }
+
+        public List<ResourceProjectVersion> InstalledVersions { get; } = [];
 
         public GameInstance? LastInstallInstance { get; private set; }
 
@@ -3244,6 +4693,7 @@ public sealed class ResourcesPageViewModelTests
         {
             CallCount++;
             LastRequest = request;
+            Requests.Add(request);
             return resultTask;
         }
 
@@ -3256,6 +4706,9 @@ public sealed class ResourcesPageViewModelTests
             if (VersionOffsetsToThrow.Contains(request.Offset))
                 return Task.FromException<ResourceProjectVersionsResult>(new InvalidOperationException("versions failed"));
 
+            if (VersionsResultsByProjectId.TryGetValue(request.ProjectId, out var projectResult))
+                return Task.FromResult(projectResult);
+
             if (VersionsResultsByRequestKey.TryGetValue(CreateVersionsRequestKey(request), out var keyedResult))
                 return Task.FromResult(keyedResult);
 
@@ -3266,6 +4719,20 @@ public sealed class ResourcesPageViewModelTests
                 return Task.FromResult(result);
 
             return Task.FromResult(VersionsResult);
+        }
+
+        public Task<ResourceProjectDependenciesResult> GetProjectDependenciesAsync(
+            ResourceProjectDependenciesRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            LastDependenciesRequest = request;
+            if (PendingDependenciesResultsByProjectId.TryGetValue(request.ProjectId, out var pendingResult))
+                return pendingResult.Task.WaitAsync(cancellationToken);
+
+            if (DependenciesResultsByProjectId.TryGetValue(request.ProjectId, out var result))
+                return Task.FromResult(result);
+
+            return Task.FromResult(DependenciesResult);
         }
 
         public static string CreateVersionsRequestKey(
@@ -3294,6 +4761,7 @@ public sealed class ResourcesPageViewModelTests
                 return Task.FromException<string>(new InvalidOperationException("install failed"));
 
             LastInstalledVersion = version;
+            InstalledVersions.Add(version);
             LastInstallInstance = instance;
             return Task.FromResult("installed.jar");
         }
@@ -3329,6 +4797,63 @@ public sealed class ResourcesPageViewModelTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult(InstallExists);
+        }
+    }
+
+    private sealed class FakeModService : IModService
+    {
+        public Dictionary<string, List<LocalMod>> ModsByInstanceId { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public int GetModsCallCount { get; private set; }
+
+        public Task<IReadOnlyList<LocalMod>> GetModsAsync(
+            GameInstance instance,
+            CancellationToken cancellationToken = default)
+        {
+            GetModsCallCount++;
+            var mods = ModsByInstanceId.TryGetValue(instance.Id, out var result)
+                ? result.Select(CloneLocalMod).ToArray()
+                : [];
+            return Task.FromResult<IReadOnlyList<LocalMod>>(mods);
+        }
+
+        public Task<LocalMod> ImportAsync(
+            GameInstance instance,
+            string sourceJarPath,
+            bool overwriteExisting = false,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task SetEnabledAsync(
+            LocalMod mod,
+            bool enabled,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task DeleteAsync(LocalMod mod, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        private static LocalMod CloneLocalMod(LocalMod mod)
+        {
+            return new LocalMod
+            {
+                Name = mod.Name,
+                Loader = mod.Loader,
+                ModId = mod.ModId,
+                Version = mod.Version,
+                FileName = mod.FileName,
+                FullPath = mod.FullPath,
+                IconSource = mod.IconSource,
+                IsEnabled = mod.IsEnabled,
+                SizeBytes = mod.SizeBytes,
+                Source = mod.Source
+            };
         }
     }
 

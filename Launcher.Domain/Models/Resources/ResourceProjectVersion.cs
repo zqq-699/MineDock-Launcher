@@ -25,4 +25,6 @@ public sealed class ResourceProjectVersion
     public IReadOnlyList<string> GameVersions { get; init; } = [];
 
     public IReadOnlyList<string> Loaders { get; init; } = [];
+
+    public IReadOnlyList<ResourceProjectDependency> RequiredDependencies { get; init; } = [];
 }

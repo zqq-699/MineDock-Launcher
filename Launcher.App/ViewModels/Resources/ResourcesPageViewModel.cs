@@ -25,7 +25,8 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
         IFilePickerService? filePickerService = null,
         IFloatingMessageService? floatingMessageService = null,
         DownloadTasksPageViewModel? downloadTasksPage = null,
-        ILocalModpackImportService? localModpackImportService = null)
+        ILocalModpackImportService? localModpackImportService = null,
+        IModService? modService = null)
     {
         this.logger = logger;
 
@@ -48,7 +49,8 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             statusService,
             filePickerService,
             floatingMessageService,
-            downloadTasksPage);
+            downloadTasksPage,
+            modService: modService);
         ModPage.PropertyChanged += ModPage_PropertyChanged;
         ResourcePacksPage = new ResourcesResourcePacksPageViewModel(
             this,

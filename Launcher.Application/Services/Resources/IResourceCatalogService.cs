@@ -19,6 +19,13 @@ public interface IResourceCatalogService
         ResourceProjectVersionsRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<ResourceProjectDependenciesResult> GetProjectDependenciesAsync(
+        ResourceProjectDependenciesRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(new ResourceProjectDependenciesResult());
+    }
+
     Task<string> InstallProjectVersionAsync(
         ResourceProjectVersion version,
         GameInstance instance,

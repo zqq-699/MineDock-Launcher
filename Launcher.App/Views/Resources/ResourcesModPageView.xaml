@@ -296,6 +296,78 @@
                                                Text="{Binding DownloadsText}"
                                                Style="{StaticResource ResourcesModDetailValueTextStyle}" />
                                 </Grid>
+
+                                <Grid Style="{StaticResource ResourcesModDetailFieldRowStyle}"
+                                      Visibility="{Binding DataContext.CanShowRequiredDependencies, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="128" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{x:Static res:Strings.Resources_ModDetailsDependenciesLabel}"
+                                               Style="{StaticResource ResourcesModDetailLabelTextStyle}" />
+                                    <ItemsControl Grid.Column="1"
+                                                  ItemsSource="{Binding DataContext.RequiredDependencies, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button Margin="0,0,8,6"
+                                                        Style="{StaticResource LauncherDialogButtonStyle}"
+                                                        Command="{Binding DataContext.OpenDependencyProjectCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                                                        CommandParameter="{Binding}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Grid Width="18"
+                                                              Height="18"
+                                                              Margin="0,0,6,0"
+                                                              VerticalAlignment="Center"
+                                                              ClipToBounds="True"
+                                                              behaviors:RoundedClip.Radius="4">
+                                                            <Image Source="{Binding IconSource}"
+                                                                   Stretch="UniformToFill"
+                                                                   RenderOptions.BitmapScalingMode="HighQuality">
+                                                                <Image.Style>
+                                                                    <Style TargetType="Image">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IconSource}" Value="{x:Null}">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Image.Style>
+                                                            </Image>
+                                                            <controls:SvgIcon Width="14"
+                                                                              Height="14"
+                                                                              IconKey="{Binding IconKey}"
+                                                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                                                              HorizontalAlignment="Center"
+                                                                              VerticalAlignment="Center">
+                                                                <controls:SvgIcon.Style>
+                                                                    <Style TargetType="controls:SvgIcon">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IconSource}" Value="{x:Null}">
+                                                                                <Setter Property="Visibility" Value="Visible" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </controls:SvgIcon.Style>
+                                                            </controls:SvgIcon>
+                                                        </Grid>
+                                                        <TextBlock MaxWidth="180"
+                                                                   Text="{Binding Title}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Grid>
                             </StackPanel>
                         </Border>
                     </GroupBox>

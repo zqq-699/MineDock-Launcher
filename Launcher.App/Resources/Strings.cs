@@ -72,6 +72,7 @@ public static class Strings
     public static string Resources_ModDetailsLoaderLabel => Get(nameof(Resources_ModDetailsLoaderLabel));
     public static string Resources_ModDetailsSourceLabel => Get(nameof(Resources_ModDetailsSourceLabel));
     public static string Resources_ModDetailsDownloadsLabel => Get(nameof(Resources_ModDetailsDownloadsLabel));
+    public static string Resources_ModDetailsDependenciesLabel => Get(nameof(Resources_ModDetailsDependenciesLabel));
     public static string Resources_ModInstallTargetSection => Get(nameof(Resources_ModInstallTargetSection));
     public static string Resources_ModInstallTargetLocal => Get(nameof(Resources_ModInstallTargetLocal));
     public static string Resources_ModInstallTargetsLoading => Get(nameof(Resources_ModInstallTargetsLoading));
@@ -208,6 +209,17 @@ public static class Strings
     public static string Resources_ModpackDownloadFileExistsMessageFormat => Get(nameof(Resources_ModpackDownloadFileExistsMessageFormat));
     public static string Resources_ModUnknownInstanceVersionTitle => Get(nameof(Resources_ModUnknownInstanceVersionTitle));
     public static string Resources_ModUnknownInstanceVersionMessage => Get(nameof(Resources_ModUnknownInstanceVersionMessage));
+    public static string Resources_ModRequiredDependenciesDialogTitle => Get(nameof(Resources_ModRequiredDependenciesDialogTitle));
+    public static string Resources_ModRequiredDependenciesDialogMessage => Get(nameof(Resources_ModRequiredDependenciesDialogMessage));
+    public static string Resources_ModRequiredDependencyInstalled => Get(nameof(Resources_ModRequiredDependencyInstalled));
+    public static string Resources_ModRequiredDependencyMissing => Get(nameof(Resources_ModRequiredDependencyMissing));
+    public static string Resources_ModRequiredDependencyUpdateRequired => Get(nameof(Resources_ModRequiredDependencyUpdateRequired));
+    public static string Resources_ModRequiredDependencyVersionFormat => Get(nameof(Resources_ModRequiredDependencyVersionFormat));
+    public static string Resources_ModRequiredDependencyMinimumVersionFormat => Get(nameof(Resources_ModRequiredDependencyMinimumVersionFormat));
+    public static string Resources_ModRequiredDependencyInstallVersionFormat => Get(nameof(Resources_ModRequiredDependencyInstallVersionFormat));
+    public static string Resources_ModRequiredDependencyVersionUnresolved => Get(nameof(Resources_ModRequiredDependencyVersionUnresolved));
+    public static string Resources_ModRequiredDependenciesSkipButton => Get(nameof(Resources_ModRequiredDependenciesSkipButton));
+    public static string Resources_ModRequiredDependenciesAutoInstallButton => Get(nameof(Resources_ModRequiredDependenciesAutoInstallButton));
     public static string Page_Settings => Get(nameof(Page_Settings));
     public static string Settings_SectionGeneral => Get(nameof(Settings_SectionGeneral));
     public static string Settings_SectionLaunchMemory => Get(nameof(Settings_SectionLaunchMemory));
@@ -730,6 +742,8 @@ public static class Strings
     public static string Status_LoadLocalShaderPacksFailed => Get(nameof(Status_LoadLocalShaderPacksFailed));
     public static string Status_ModDownloading => Get(nameof(Status_ModDownloading));
     public static string Status_ModDownloadingFormat => Get(nameof(Status_ModDownloadingFormat));
+    public static string Status_ModRequiredDependencyInstallingFormat => Get(nameof(Status_ModRequiredDependencyInstallingFormat));
+    public static string Status_ModRequiredDependenciesAutoInstallFailedFormat => Get(nameof(Status_ModRequiredDependenciesAutoInstallFailedFormat));
     public static string Status_ModCompatibleFileNotFound => Get(nameof(Status_ModCompatibleFileNotFound));
     public static string Status_ModrinthResultsFoundFormat => Get(nameof(Status_ModrinthResultsFoundFormat));
     public static string Status_ModInstalledFormat => Get(nameof(Status_ModInstalledFormat));

@@ -13,6 +13,19 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="App_Title" xml:space="preserve"><value>Launcher</value></data>
+  <data name="Resources_ModRequiredDependenciesDialogTitle" xml:space="preserve"><value>缺少前置 Mod</value></data>
+  <data name="Resources_ModRequiredDependenciesDialogMessage" xml:space="preserve"><value>当前的 Mod 需要前置 Mod</value></data>
+  <data name="Resources_ModRequiredDependencyInstalled" xml:space="preserve"><value>已安装</value></data>
+  <data name="Resources_ModRequiredDependencyMissing" xml:space="preserve"><value>缺失</value></data>
+  <data name="Resources_ModRequiredDependencyUpdateRequired" xml:space="preserve"><value>需要更新</value></data>
+  <data name="Resources_ModRequiredDependencyVersionFormat" xml:space="preserve"><value>版本：{0}</value></data>
+  <data name="Resources_ModRequiredDependencyMinimumVersionFormat" xml:space="preserve"><value>最低要求：{0}</value></data>
+  <data name="Resources_ModRequiredDependencyInstallVersionFormat" xml:space="preserve"><value>将安装：{0}</value></data>
+  <data name="Resources_ModRequiredDependencyVersionUnresolved" xml:space="preserve"><value>无法解析</value></data>
+  <data name="Resources_ModRequiredDependenciesSkipButton" xml:space="preserve"><value>不安装前置Mod</value></data>
+  <data name="Resources_ModRequiredDependenciesAutoInstallButton" xml:space="preserve"><value>自动安装前置Mod</value></data>
+  <data name="Status_ModRequiredDependencyInstallingFormat" xml:space="preserve"><value>正在安装前置 Mod：{0}</value></data>
+  <data name="Status_ModRequiredDependenciesAutoInstallFailedFormat" xml:space="preserve"><value>无法自动安装前置 Mod：{0}</value></data>
   <data name="Resources_ModDownloadFileExistsTitle" xml:space="preserve"><value>已有同名文件</value></data>
   <data name="Resources_ModDownloadFileExistsMessageFormat" xml:space="preserve"><value>下载位置已存在同名文件：{0}</value></data>
   <data name="Resources_ModUnknownInstanceVersionTitle" xml:space="preserve"><value>无法识别游戏版本</value></data>
@@ -80,6 +93,7 @@
   <data name="Resources_ModDetailsLoaderLabel" xml:space="preserve"><value>&#x52A0;&#x8F7D;&#x5668;</value></data>
   <data name="Resources_ModDetailsSourceLabel" xml:space="preserve"><value>&#x6765;&#x6E90;</value></data>
   <data name="Resources_ModDetailsDownloadsLabel" xml:space="preserve"><value>&#x4E0B;&#x8F7D;&#x6B21;&#x6570;</value></data>
+  <data name="Resources_ModDetailsDependenciesLabel" xml:space="preserve"><value>&#x524D;&#x7F6E; Mod</value></data>
   <data name="Resources_ModInstallTargetSection" xml:space="preserve"><value>&#x9009;&#x62E9;&#x8981;&#x5B89;&#x88C5;&#x5230;&#x7684;&#x6E38;&#x620F;</value></data>
   <data name="Resources_ModInstallTargetLocal" xml:space="preserve"><value>&#x4E0B;&#x8F7D;&#x5230;&#x672C;&#x5730;</value></data>
   <data name="Resources_ModInstallTargetsLoading" xml:space="preserve"><value>&#x6B63;&#x5728;&#x52A0;&#x8F7D;&#x6E38;&#x620F;&#x5217;&#x8868;...</value></data>

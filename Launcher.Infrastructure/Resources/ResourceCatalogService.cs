@@ -181,6 +181,147 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         };
     }
 
+    public async Task<ResourceProjectDependenciesResult> GetProjectDependenciesAsync(
+        ResourceProjectDependenciesRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogInformation(
+            "Loading resource project dependencies. Kind={Kind} Source={Source} ProjectId={ProjectId}",
+            request.Kind,
+            request.Source,
+            request.ProjectId);
+
+        if (request.Kind is not ResourceProjectKind.Mod)
+        {
+            return new ResourceProjectDependenciesResult();
+        }
+
+        return request.Source switch
+        {
+            ResourceProjectSource.Modrinth => await GetModrinthProjectDependenciesAsync(request, cancellationToken)
+                .ConfigureAwait(false),
+            ResourceProjectSource.CurseForge => await GetCurseForgeProjectDependenciesAsync(request, cancellationToken)
+                .ConfigureAwait(false),
+            _ => new ResourceProjectDependenciesResult()
+        };
+    }
+
+    private async Task<ResourceProjectDependenciesResult> GetModrinthProjectDependenciesAsync(
+        ResourceProjectDependenciesRequest request,
+        CancellationToken cancellationToken)
+    {
+        var projectIdOrSlug = string.IsNullOrWhiteSpace(request.ProjectId)
+            ? request.Slug
+            : request.ProjectId;
+        if (string.IsNullOrWhiteSpace(projectIdOrSlug))
+            return new ResourceProjectDependenciesResult();
+
+        try
+        {
+            var versionsUrl = $"{ModrinthBaseUrl}/project/{Uri.EscapeDataString(projectIdOrSlug)}/version";
+            var versions = await httpClient.GetFromJsonAsync<List<ModrinthProjectVersion>>(versionsUrl, cancellationToken)
+                .ConfigureAwait(false);
+
+            var currentProjectIds = CreateCurrentProjectIds(request.ProjectId, request.Slug, projectIdOrSlug);
+            var requiredProjectIds = CollectRequiredModrinthDependencyProjectIds(versions ?? [], currentProjectIds);
+
+            if (requiredProjectIds.Count == 0)
+            {
+                logger.LogInformation(
+                    "Resource project dependencies loaded. ProjectId={ProjectId} RequiredCount=0",
+                    request.ProjectId);
+                return new ResourceProjectDependenciesResult();
+            }
+
+            var projectsById = await LoadModrinthDependencyProjectsByIdAsync(requiredProjectIds, cancellationToken)
+                .ConfigureAwait(false);
+            var requiredProjects = requiredProjectIds
+                .Select(projectId => projectsById.TryGetValue(projectId, out var project) ? project : null)
+                .OfType<ResourceProject>()
+                .ToList();
+
+            logger.LogInformation(
+                "Resource project dependencies loaded. ProjectId={ProjectId} RequiredCount={RequiredCount}",
+                request.ProjectId,
+                requiredProjects.Count);
+
+            return new ResourceProjectDependenciesResult
+            {
+                RequiredProjects = requiredProjects
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Failed to load resource project dependencies. Kind={Kind} Source={Source} ProjectId={ProjectId}",
+                request.Kind,
+                request.Source,
+                request.ProjectId);
+            throw;
+        }
+    }
+
+    private async Task<ResourceProjectDependenciesResult> GetCurseForgeProjectDependenciesAsync(
+        ResourceProjectDependenciesRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.ProjectId))
+            return new ResourceProjectDependenciesResult();
+
+        try
+        {
+            var result = await GetCurseForgeProjectVersionsAsync(
+                    new ResourceProjectVersionsRequest
+                    {
+                        Kind = request.Kind,
+                        Source = request.Source,
+                        ProjectId = request.ProjectId,
+                        Slug = request.Slug,
+                        IncludeAllVersions = true,
+                        Offset = 0,
+                        PageSize = 10000
+                    },
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            var requiredProjects = result.Versions
+                .SelectMany(version => version.RequiredDependencies)
+                .Select(dependency => dependency.Project)
+                .GroupBy(project => project.ProjectId, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+
+            logger.LogInformation(
+                "Resource project dependencies loaded. ProjectId={ProjectId} RequiredCount={RequiredCount}",
+                request.ProjectId,
+                requiredProjects.Count);
+
+            return new ResourceProjectDependenciesResult
+            {
+                RequiredProjects = requiredProjects
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Failed to load resource project dependencies. Kind={Kind} Source={Source} ProjectId={ProjectId}",
+                request.Kind,
+                request.Source,
+                request.ProjectId);
+            throw;
+        }
+    }
+
     private async Task<ResourceCatalogSourceSearchResult> SearchModrinthProjectsAsync(
         ResourceCatalogSearchRequest request,
         CancellationToken cancellationToken)
@@ -258,6 +399,13 @@ public sealed class ResourceCatalogService : IResourceCatalogService
 
         var versions = await httpClient.GetFromJsonAsync<List<ModrinthProjectVersion>>(url, cancellationToken)
             .ConfigureAwait(false) ?? [];
+        var currentProjectIds = CreateCurrentProjectIds(request.ProjectId, request.Slug, projectIdOrSlug);
+        var dependencyProjectsById = request.Kind is ResourceProjectKind.Mod
+            ? await LoadModrinthDependencyProjectsByIdAsync(
+                    CollectRequiredModrinthDependencyProjectIds(versions, currentProjectIds),
+                    cancellationToken)
+                .ConfigureAwait(false)
+            : new Dictionary<string, ResourceProject>(StringComparer.OrdinalIgnoreCase);
 
         return new ResourceProjectVersionsResult
         {
@@ -278,10 +426,110 @@ public sealed class ResourceCatalogService : IResourceCatalogService
                         Downloads = version.Downloads,
                         PublishedAt = version.DatePublished,
                         GameVersions = NormalizeDistinct(version.GameVersions),
-                        Loaders = NormalizeDistinct(version.Loaders)
+                        Loaders = NormalizeDistinct(version.Loaders),
+                        RequiredDependencies = MapModrinthVersionRequiredDependencies(
+                            version.Dependencies,
+                            dependencyProjectsById,
+                            currentProjectIds)
                     };
                 })
                 .ToList()
+        };
+    }
+
+    private async Task<IReadOnlyDictionary<string, ResourceProject>> LoadModrinthDependencyProjectsByIdAsync(
+        IReadOnlyList<string> projectIds,
+        CancellationToken cancellationToken)
+    {
+        if (projectIds.Count == 0)
+            return new Dictionary<string, ResourceProject>(StringComparer.OrdinalIgnoreCase);
+
+        var projectsParameter = Uri.EscapeDataString(JsonSerializer.Serialize(projectIds));
+        var projects = await httpClient.GetFromJsonAsync<List<ModrinthDependencyProject>>(
+                $"{ModrinthBaseUrl}/projects?ids={projectsParameter}",
+                cancellationToken)
+            .ConfigureAwait(false) ?? [];
+
+        return projects
+            .Where(project => !string.IsNullOrWhiteSpace(project.Id))
+            .Where(project => string.Equals(project.ProjectType, "mod", StringComparison.OrdinalIgnoreCase))
+            .Select(MapModrinthDependencyProject)
+            .GroupBy(project => project.ProjectId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static List<string> CollectRequiredModrinthDependencyProjectIds(
+        IEnumerable<ModrinthProjectVersion> versions,
+        ISet<string> excludedProjectIds)
+    {
+        return versions
+            .SelectMany(version => version.Dependencies)
+            .Where(dependency => string.Equals(dependency.DependencyType, "required", StringComparison.OrdinalIgnoreCase))
+            .Select(dependency => dependency.ProjectId)
+            .Where(projectId => !string.IsNullOrWhiteSpace(projectId))
+            .Select(projectId => projectId!)
+            .Where(projectId => !excludedProjectIds.Contains(projectId))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static IReadOnlyList<ResourceProjectDependency> MapModrinthVersionRequiredDependencies(
+        IEnumerable<ModrinthVersionDependency> dependencies,
+        IReadOnlyDictionary<string, ResourceProject> projectsById,
+        ISet<string> excludedProjectIds)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var requiredProjects = new List<ResourceProjectDependency>();
+        foreach (var dependency in dependencies
+                     .Where(dependency => string.Equals(dependency.DependencyType, "required", StringComparison.OrdinalIgnoreCase))
+                     .Where(dependency => !string.IsNullOrWhiteSpace(dependency.ProjectId)))
+        {
+            var projectId = dependency.ProjectId!;
+            if (excludedProjectIds.Contains(projectId) || !seen.Add(projectId))
+                continue;
+
+            if (projectsById.TryGetValue(projectId, out var project))
+            {
+                requiredProjects.Add(new ResourceProjectDependency
+                {
+                    Project = project,
+                    VersionId = dependency.VersionId ?? string.Empty
+                });
+            }
+        }
+
+        return requiredProjects;
+    }
+
+    private static HashSet<string> CreateCurrentProjectIds(params string?[] projectIds)
+    {
+        var currentProjectIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var projectId in projectIds)
+        {
+            if (!string.IsNullOrWhiteSpace(projectId))
+                currentProjectIds.Add(projectId);
+        }
+
+        return currentProjectIds;
+    }
+
+    private static ResourceProject MapModrinthDependencyProject(ModrinthDependencyProject project)
+    {
+        return new ResourceProject
+        {
+            Source = ResourceProjectSource.Modrinth,
+            Kind = ResourceProjectKind.Mod,
+            ProjectId = project.Id,
+            Slug = project.Slug,
+            Title = project.Title,
+            Description = project.Description,
+            IconUrl = project.IconUrl,
+            Downloads = project.Downloads,
+            SupportedMinecraftVersions = NormalizeDistinct(project.GameVersions),
+            SupportedLoaders = NormalizeDistinct(project.Loaders.Where(KnownModrinthLoaders.Contains)),
+            ProjectUrl = string.IsNullOrWhiteSpace(project.Slug)
+                ? string.Empty
+                : $"https://modrinth.com/mod/{project.Slug}"
         };
     }
 
@@ -342,6 +590,14 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         var payload = await response.Content.ReadFromJsonAsync<CurseForgeFilesResponse>(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         var files = payload?.Data ?? [];
+        var currentProjectIds = CreateCurrentProjectIds(request.ProjectId, request.Slug, projectId.ToString());
+        var dependencyProjectsById = request.Kind is ResourceProjectKind.Mod
+            ? await LoadCurseForgeDependencyProjectsByIdAsync(
+                    CollectRequiredCurseForgeDependencyProjectIds(files, currentProjectIds),
+                    apiKey,
+                    cancellationToken)
+                .ConfigureAwait(false)
+            : new Dictionary<string, ResourceProject>(StringComparer.OrdinalIgnoreCase);
 
         return new ResourceProjectVersionsResult
         {
@@ -368,11 +624,106 @@ public sealed class ResourceCatalogService : IResourceCatalogService
                         ? NormalizeDistinct(file.SortableGameVersions
                             .Select(version => TryMapCurseForgeLoader(version.ModLoader))
                             .Where(loader => !string.IsNullOrWhiteSpace(loader))!)
-                        : []
+                        : [],
+                    RequiredDependencies = MapCurseForgeVersionRequiredDependencies(
+                        file.Dependencies,
+                        dependencyProjectsById,
+                        currentProjectIds)
                 })
                 .ToList(),
             HasMore = HasMore(payload?.Pagination?.TotalCount, offset, files.Count, pageSize)
         };
+    }
+
+    private async Task<IReadOnlyDictionary<string, ResourceProject>> LoadCurseForgeDependencyProjectsByIdAsync(
+        IReadOnlyList<string> projectIds,
+        string apiKey,
+        CancellationToken cancellationToken)
+    {
+        if (projectIds.Count == 0)
+            return new Dictionary<string, ResourceProject>(StringComparer.OrdinalIgnoreCase);
+
+        logger.LogInformation(
+            "Loading CurseForge dependency projects. RequestedCount={RequestedCount}",
+            projectIds.Count);
+
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, $"{CurseForgeBaseUrl}/mods")
+        {
+            Content = JsonContent.Create(new CurseForgeModsRequest(projectIds.Select(long.Parse).ToList()))
+        };
+        httpRequest.Headers.TryAddWithoutValidation("Accept", "application/json");
+        httpRequest.Headers.TryAddWithoutValidation("x-api-key", apiKey);
+
+        using var response = await httpClient.SendAsync(httpRequest, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            logger.LogWarning(
+                "CurseForge dependency project lookup was rejected. StatusCode={StatusCode}",
+                (int)response.StatusCode);
+            return new Dictionary<string, ResourceProject>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        response.EnsureSuccessStatusCode();
+        var payload = await response.Content.ReadFromJsonAsync<CurseForgeSearchResponse>(cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
+        var projects = payload?.Data
+            .Where(mod => mod.Id > 0)
+            .Where(mod => mod.ClassId == MinecraftModsClassId)
+            .Select(mod => MapCurseForgeProject(mod, ResourceProjectKind.Mod))
+            .GroupBy(project => project.ProjectId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, ResourceProject>(StringComparer.OrdinalIgnoreCase);
+
+        logger.LogInformation(
+            "CurseForge dependency projects loaded. RequestedCount={RequestedCount} ResolvedCount={ResolvedCount}",
+            projectIds.Count,
+            projects.Count);
+
+        return projects;
+    }
+
+    private static List<string> CollectRequiredCurseForgeDependencyProjectIds(
+        IEnumerable<CurseForgeFile> files,
+        ISet<string> excludedProjectIds)
+    {
+        return files
+            .SelectMany(file => file.Dependencies)
+            .Where(dependency => dependency.RelationType == (int)CurseForgeFileRelationType.RequiredDependency)
+            .Select(dependency => dependency.ModId)
+            .Where(modId => modId > 0)
+            .Select(modId => modId.ToString())
+            .Where(projectId => !excludedProjectIds.Contains(projectId))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static IReadOnlyList<ResourceProjectDependency> MapCurseForgeVersionRequiredDependencies(
+        IEnumerable<CurseForgeFileDependency> dependencies,
+        IReadOnlyDictionary<string, ResourceProject> projectsById,
+        ISet<string> excludedProjectIds)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var requiredProjects = new List<ResourceProjectDependency>();
+        foreach (var dependency in dependencies
+                     .Where(dependency => dependency.RelationType == (int)CurseForgeFileRelationType.RequiredDependency)
+                     .Where(dependency => dependency.ModId > 0))
+        {
+            var projectId = dependency.ModId.ToString();
+            if (excludedProjectIds.Contains(projectId) || !seen.Add(projectId))
+                continue;
+
+            if (projectsById.TryGetValue(projectId, out var project))
+            {
+                requiredProjects.Add(new ResourceProjectDependency
+                {
+                    Project = project,
+                    VersionId = string.Empty
+                });
+            }
+        }
+
+        return requiredProjects;
     }
 
     public async Task<string> InstallProjectVersionAsync(
@@ -522,22 +873,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         var payload = await response.Content.ReadFromJsonAsync<CurseForgeSearchResponse>(cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
-        var projects = payload?.Data.Select(mod => new ResourceProject
-        {
-            Source = ResourceProjectSource.CurseForge,
-            Kind = request.Kind,
-            ProjectId = mod.Id.ToString(),
-            Slug = mod.Slug,
-            Title = mod.Name,
-            Description = mod.Summary,
-            IconUrl = mod.Logo?.ThumbnailUrl ?? mod.Logo?.Url,
-            Downloads = mod.DownloadCount,
-            SupportedMinecraftVersions = ResolveCurseForgeMinecraftVersions(mod),
-            SupportedLoaders = HasLoaderFacet(request.Kind) ? ResolveCurseForgeLoaders(mod) : [],
-            ProjectUrl = mod.Links?.WebsiteUrl ?? (string.IsNullOrWhiteSpace(mod.Slug)
-                ? string.Empty
-                : $"https://www.curseforge.com/minecraft/{MapCurseForgeWebsitePath(request.Kind)}/{mod.Slug}")
-        }).ToList() ?? [];
+        var projects = payload?.Data.Select(mod => MapCurseForgeProject(mod, request.Kind)).ToList() ?? [];
 
         return new ResourceCatalogSourceSearchResult(
             projects,
@@ -768,6 +1104,26 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             ResourceProjectKind.World => "worlds",
             ResourceProjectKind.Modpack => "modpacks",
             _ => "mc-mods"
+        };
+    }
+
+    private static ResourceProject MapCurseForgeProject(CurseForgeMod mod, ResourceProjectKind kind)
+    {
+        return new ResourceProject
+        {
+            Source = ResourceProjectSource.CurseForge,
+            Kind = kind,
+            ProjectId = mod.Id.ToString(),
+            Slug = mod.Slug,
+            Title = mod.Name,
+            Description = mod.Summary,
+            IconUrl = mod.Logo?.ThumbnailUrl ?? mod.Logo?.Url,
+            Downloads = mod.DownloadCount,
+            SupportedMinecraftVersions = ResolveCurseForgeMinecraftVersions(mod),
+            SupportedLoaders = HasLoaderFacet(kind) ? ResolveCurseForgeLoaders(mod) : [],
+            ProjectUrl = mod.Links?.WebsiteUrl ?? (string.IsNullOrWhiteSpace(mod.Slug)
+                ? string.Empty
+                : $"https://www.curseforge.com/minecraft/{MapCurseForgeWebsitePath(kind)}/{mod.Slug}")
         };
     }
 
@@ -1031,6 +1387,16 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         NeoForge = 6
     }
 
+    private enum CurseForgeFileRelationType
+    {
+        EmbeddedLibrary = 1,
+        OptionalDependency = 2,
+        RequiredDependency = 3,
+        Tool = 4,
+        Incompatible = 5,
+        Include = 6
+    }
+
     private sealed class ModrinthSearchResponse
     {
         [JsonPropertyName("hits")]
@@ -1095,6 +1461,9 @@ public sealed class ResourceCatalogService : IResourceCatalogService
 
         [JsonPropertyName("files")]
         public List<ModrinthProjectVersionFile> Files { get; init; } = [];
+
+        [JsonPropertyName("dependencies")]
+        public List<ModrinthVersionDependency> Dependencies { get; init; } = [];
     }
 
     private sealed class ModrinthProjectVersionFile
@@ -1107,6 +1476,48 @@ public sealed class ResourceCatalogService : IResourceCatalogService
 
         [JsonPropertyName("primary")]
         public bool IsPrimary { get; init; }
+    }
+
+    private sealed class ModrinthDependencyProject
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; init; } = string.Empty;
+
+        [JsonPropertyName("slug")]
+        public string Slug { get; init; } = string.Empty;
+
+        [JsonPropertyName("project_type")]
+        public string ProjectType { get; init; } = string.Empty;
+
+        [JsonPropertyName("title")]
+        public string Title { get; init; } = string.Empty;
+
+        [JsonPropertyName("description")]
+        public string Description { get; init; } = string.Empty;
+
+        [JsonPropertyName("icon_url")]
+        public string? IconUrl { get; init; }
+
+        [JsonPropertyName("downloads")]
+        public long Downloads { get; init; }
+
+        [JsonPropertyName("game_versions")]
+        public List<string> GameVersions { get; init; } = [];
+
+        [JsonPropertyName("loaders")]
+        public List<string> Loaders { get; init; } = [];
+    }
+
+    private sealed class ModrinthVersionDependency
+    {
+        [JsonPropertyName("project_id")]
+        public string? ProjectId { get; init; }
+
+        [JsonPropertyName("version_id")]
+        public string? VersionId { get; init; }
+
+        [JsonPropertyName("dependency_type")]
+        public string DependencyType { get; init; } = string.Empty;
     }
 
     private sealed class CurseForgeSearchResponse
@@ -1126,6 +1537,9 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         [JsonPropertyName("pagination")]
         public CurseForgePagination? Pagination { get; init; }
     }
+
+    private sealed record CurseForgeModsRequest(
+        [property: JsonPropertyName("modIds")] IReadOnlyList<long> ModIds);
 
     private sealed class CurseForgeCategoriesResponse
     {
@@ -1149,6 +1563,9 @@ public sealed class ResourceCatalogService : IResourceCatalogService
     {
         [JsonPropertyName("id")]
         public long Id { get; init; }
+
+        [JsonPropertyName("classId")]
+        public int? ClassId { get; init; }
 
         [JsonPropertyName("name")]
         public string Name { get; init; } = string.Empty;
@@ -1236,6 +1653,18 @@ public sealed class ResourceCatalogService : IResourceCatalogService
 
         [JsonPropertyName("sortableGameVersions")]
         public List<CurseForgeSortableGameVersion> SortableGameVersions { get; init; } = [];
+
+        [JsonPropertyName("dependencies")]
+        public List<CurseForgeFileDependency> Dependencies { get; init; } = [];
+    }
+
+    private sealed class CurseForgeFileDependency
+    {
+        [JsonPropertyName("modId")]
+        public long ModId { get; init; }
+
+        [JsonPropertyName("relationType")]
+        public int RelationType { get; init; }
     }
 
     private sealed class CurseForgeSortableGameVersion
