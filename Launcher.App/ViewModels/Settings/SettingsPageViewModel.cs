@@ -183,10 +183,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             SettingsPageSection.Theme,
             Strings.Settings_SectionTheme,
             "setting_page/theme"));
-        Sections.Add(new SettingsSectionItem(
-            SettingsPageSection.ControlList,
-            Strings.Settings_SectionControlList,
-            "general/general_all_application"));
 
         MemoryModeOptions.Add(new SettingsMemoryModeOption(
             MemorySettingsMode.Auto,

@@ -18,10 +18,7 @@ public partial class GameSettingsDetailsView : UserControl
         "mod_management",
         "saves",
         "resource_packs",
-        "shaders",
-        "loader",
-        "advanced",
-        "backup"
+        "shaders"
     ];
 
     private INotifyPropertyChanged? currentViewModelNotifier;

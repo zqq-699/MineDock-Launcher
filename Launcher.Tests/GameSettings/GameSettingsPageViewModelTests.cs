@@ -693,7 +693,7 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Equal(Strings.GameSettings_DetailGeneral, viewModel.Details.SectionTitle);
         Assert.IsType<InstanceGeneralSettingsViewModel>(viewModel.Details.CurrentSectionViewModel);
         Assert.True(viewModel.DetailSections.First(section => section.Id == "general").IsSelected);
-        Assert.Equal(10, viewModel.DetailSections.Count);
+        Assert.Equal(7, viewModel.DetailSections.Count);
         Assert.Equal(
             [
                 Strings.GameSettings_DetailGeneral,
@@ -702,10 +702,7 @@ public sealed class GameSettingsPageViewModelTests
                 Strings.GameSettings_DetailModManagement,
                 Strings.GameSettings_DetailSaves,
                 Strings.GameSettings_DetailResourcePacks,
-                Strings.GameSettings_DetailShaders,
-                Strings.GameSettings_DetailLoader,
-                Strings.GameSettings_DetailAdvanced,
-                Strings.GameSettings_DetailBackup
+                Strings.GameSettings_DetailShaders
             ],
             viewModel.DetailSections.Select(section => section.Title));
     }
@@ -3441,23 +3438,13 @@ public sealed class GameSettingsPageViewModelTests
     }
 
     [Fact]
-    public async Task SelectDetailsSectionCommandUpdatesDetailsContentWithoutChangingHeaderTitle()
+    public void DetailSectionsHidePlaceholderEntries()
     {
-        var viewModel = CreateViewModel([CreateInstance("Vanilla World", "1.21.4", LoaderKind.Vanilla)]);
+        var viewModel = CreateViewModel([]);
 
-        await viewModel.EnsureInstancesLoadedAsync();
-        viewModel.SelectInstanceCommand.Execute(viewModel.VisibleInstances.Single());
-        var targetSection = viewModel.DetailSections.Single(section => section.Id == "loader");
-
-        viewModel.SelectDetailsSectionCommand.Execute(targetSection);
-
-        Assert.Equal("Vanilla World", viewModel.PageTitle);
-        Assert.Equal(Strings.GameSettings_DetailLoader, viewModel.Details.SectionTitle);
-        Assert.Equal(
-            string.Format(Strings.GameSettings_DetailPlaceholderBodyFormat, Strings.GameSettings_DetailLoader),
-            viewModel.Details.SectionPlaceholderBody);
-        Assert.True(targetSection.IsSelected);
-        Assert.False(viewModel.DetailSections.First(section => section.Id == "general").IsSelected);
+        Assert.DoesNotContain(viewModel.DetailSections, section => section.Id == "loader");
+        Assert.DoesNotContain(viewModel.DetailSections, section => section.Id == "advanced");
+        Assert.DoesNotContain(viewModel.DetailSections, section => section.Id == "backup");
     }
 
     [Fact]

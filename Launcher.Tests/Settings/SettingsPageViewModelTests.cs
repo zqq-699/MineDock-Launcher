@@ -70,7 +70,7 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
-    public void ThemeSectionIsPlacedAfterJavaSection()
+    public void SettingsSectionsHideControlList()
     {
         var viewModel = CreateViewModel(out _, out _);
 
@@ -79,10 +79,10 @@ public sealed class SettingsPageViewModelTests
                 SettingsPageSection.General,
                 SettingsPageSection.LaunchMemory,
                 SettingsPageSection.Java,
-                SettingsPageSection.Theme,
-                SettingsPageSection.ControlList
+                SettingsPageSection.Theme
             ],
             viewModel.Sections.Select(section => section.Section));
+        Assert.DoesNotContain(viewModel.Sections, section => section.Section is SettingsPageSection.ControlList);
     }
 
     [Fact]
@@ -222,21 +222,11 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
-    public void ControlListSectionShowsInteractiveControls()
+    public void ControlListViewModelKeepsInteractiveControlsForFutureUse()
     {
         var viewModel = CreateViewModel(out _, out _);
 
-        var controlListSection = viewModel.Sections.Single(section => section.Section is SettingsPageSection.ControlList);
-        viewModel.SelectSectionCommand.Execute(controlListSection);
-
-        Assert.Same(controlListSection, viewModel.SelectedSection);
-        Assert.Equal(Strings.Settings_SectionControlList, viewModel.SectionTitle);
-        Assert.True(viewModel.IsControlListSection);
-        Assert.IsType<ControlListSettingsViewModel>(viewModel.CurrentSectionViewModel);
-        Assert.False(viewModel.IsGeneralSection);
-        Assert.False(viewModel.IsLaunchMemorySection);
-        Assert.False(viewModel.IsJavaSection);
-        Assert.False(viewModel.IsThemeSection);
+        Assert.IsType<ControlListSettingsViewModel>(viewModel.ControlList);
         Assert.Contains(
             viewModel.InteractiveControls,
             control => control.Title == Strings.Settings_ControlComboBox);

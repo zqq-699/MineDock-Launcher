@@ -15,8 +15,7 @@ public partial class SettingsPageView : UserControl
         nameof(SettingsPageSection.General),
         nameof(SettingsPageSection.LaunchMemory),
         nameof(SettingsPageSection.Java),
-        nameof(SettingsPageSection.Theme),
-        nameof(SettingsPageSection.ControlList)
+        nameof(SettingsPageSection.Theme)
     ];
 
     private readonly DispatcherTimer memoryRefreshTimer = new()
