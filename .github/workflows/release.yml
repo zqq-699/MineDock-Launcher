@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore Launcher.sln
+
+      - name: Test
+        run: dotnet test Launcher.sln --no-restore
+
+      - name: Verify tag matches project version
+        shell: pwsh
+        run: |
+          [xml]$project = Get-Content "Launcher.App/Launcher.App.csproj"
+          $projectVersion = $project.Project.PropertyGroup.Version
+          $tagVersion = $env:GITHUB_REF_NAME.TrimStart("v")
+
+          if ($projectVersion -ne $tagVersion) {
+            throw "Tag $($env:GITHUB_REF_NAME) does not match Launcher.App version $projectVersion."
+          }
+
+      - name: Clean publish output
+        shell: pwsh
+        run: |
+          $publishDir = "publish/MineDock Launcher-win-x64-fdd-single"
+          if (Test-Path $publishDir) {
+            Remove-Item $publishDir -Recurse -Force
+          }
+
+      - name: Publish win-x64 single file
+        run: dotnet publish Launcher.App/Launcher.App.csproj -c Release -p:PublishProfile=WinX64FrameworkDependentSingleFile
+
+      - name: Verify release asset
+        shell: pwsh
+        run: |
+          $assetPath = "publish/MineDock Launcher-win-x64-fdd-single/MineDock_Launcher_x64.exe"
+          if (-not (Test-Path $assetPath)) {
+            throw "Expected release asset was not created: $assetPath"
+          }
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assetPath = "publish/MineDock Launcher-win-x64-fdd-single/MineDock_Launcher_x64.exe"
+          gh release create $env:GITHUB_REF_NAME $assetPath --title $env:GITHUB_REF_NAME --generate-notes --latest
