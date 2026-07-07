@@ -56,6 +56,7 @@ public partial class MainWindow : Window
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
         launcherStateMonitor.StateChanged += LauncherStateMonitor_StateChanged;
         AcrylicWindow.Enable(this, themeService);
+        NativeCaptionButtons.Hide(this);
         Loaded += async (_, _) =>
         {
             await viewModel.InitializeCommand.ExecuteAsync(null);
@@ -94,6 +95,32 @@ public partial class MainWindow : Window
             IsMenuExpanded = viewModel.IsMenuExpanded;
             navigationMenuService.AnimateExpanded(IsMenuExpanded);
         }
+    }
+
+    private void TitleBarDragArea_OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount >= 2)
+        {
+            ToggleWindowMaximizedState();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.LeftButton != MouseButtonState.Pressed)
+            return;
+
+        DragMove();
+        e.Handled = true;
+    }
+
+    private void ToggleWindowMaximizedState()
+    {
+        if (ResizeMode is ResizeMode.NoResize or ResizeMode.CanMinimize)
+            return;
+
+        WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
     }
 
     private FrameworkElement? ResolvePageRoot(string page)

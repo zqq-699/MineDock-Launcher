@@ -23,7 +23,7 @@
         AllowDrop="True"
         MinWidth="900"
         MinHeight="600"
-        WindowStyle="None"
+        WindowStyle="SingleBorderWindow"
         AllowsTransparency="False"
         Background="Transparent"
         PreviewDragEnter="Window_OnPreviewDragEnter"
@@ -38,7 +38,7 @@
         TextOptions.TextRenderingMode="ClearType"
         TextOptions.TextHintingMode="Fixed">
     <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="48"
+        <shell:WindowChrome CaptionHeight="0"
                             CornerRadius="8"
                             GlassFrameThickness="-1"
                             ResizeBorderThickness="8"
@@ -96,6 +96,12 @@
                                                     Visibility="{Binding DataContext.CurrentPage, ElementName=RootWindow, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=Settings}" />
                     <generalViews:GeneralPageView x:Name="GeneralPageView" />
                 </Grid>
+
+                <Border Grid.Column="1"
+                        Grid.Row="0"
+                        Margin="0,0,88,0"
+                        Background="Transparent"
+                        MouseLeftButtonDown="TitleBarDragArea_OnMouseLeftButtonDown" />
 
                 <StackPanel Grid.Column="1"
                             Grid.Row="0"

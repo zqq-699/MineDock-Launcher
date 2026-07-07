@@ -15,7 +15,12 @@ public sealed class AcrylicWindowTests
         {
             try
             {
-                var window = new Window();
+                var window = new Window
+                {
+                    AllowsTransparency = false,
+                    ResizeMode = ResizeMode.CanResize,
+                    WindowStyle = WindowStyle.SingleBorderWindow
+                };
                 var chrome = new WindowChrome
                 {
                     GlassFrameThickness = new Thickness(-1)
@@ -27,6 +32,7 @@ public sealed class AcrylicWindowTests
 
                 Assert.Equal(new Thickness(-1), chrome.GlassFrameThickness);
                 Assert.Same(Brushes.Transparent, window.Background);
+                Assert.Equal(WindowStyle.SingleBorderWindow, window.WindowStyle);
 
                 themeService.ApplyBackgroundBlurDisabled(true);
 
@@ -37,6 +43,7 @@ public sealed class AcrylicWindowTests
 
                 Assert.Equal(new Thickness(-1), chrome.GlassFrameThickness);
                 Assert.Same(Brushes.Transparent, window.Background);
+                Assert.Equal(WindowStyle.SingleBorderWindow, window.WindowStyle);
             }
             catch (Exception ex)
             {
