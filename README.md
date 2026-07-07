@@ -8,49 +8,69 @@
 
 ### 简介
 
-`MineDock Launcher` 是一个基于 **WPF + C# / .NET 8** 的 Minecraft 启动器项目。
+`MineDock Launcher` 是一个 Minecraft 启动器，目标是把日常启动、实例管理、资源安装和账户管理做得更清楚、更顺手。
 
-这个项目更关注“好用的日常启动体验”与“清晰、稳定、可持续演进的产品能力”，而不是只做一个能启动游戏的壳。
+这是一个 **纯 AI 编写、设计并持续迭代** 的项目。人工主要负责提出需求、判断体验、验收结果和决定下一步方向；代码、界面、文案和功能实现都由 AI 完成。
 
-### 项目目标
+它目前仍在开发中，但已经围绕普通玩家常用的启动器流程做了不少能力：选择游戏、安装版本、管理 Mod 和资源、配置 Java 与内存、处理启动失败，以及切换深色 / 浅色主题。
 
-- 提供清晰、流畅的 Minecraft 启动与实例管理体验
-- 同时支持普通玩家常用的版本、加载器、资源管理与账户能力
-- 做好深色 / 浅色主题、设置管理、日志与诊断这类长期使用体验
-- 在持续迭代中逐步补全更完整的整合包、资源管理和启动诊断能力
+### 功能概览
 
-### 当前功能
+#### 启动与实例
 
-- 账户管理
-  支持离线账户与 Microsoft 账户
-- 账户外观
-  支持头像、皮肤、披风相关管理能力
-- 版本安装
-  支持 `Vanilla`、`Fabric`、`Forge`
-- 加载器预留
-  `NeoForge`、`Quilt` 已预留入口，但当前仍未完成完整安装实现
-- 游戏启动
-  支持启动进度、启动失败反馈、异常退出分析与诊断
-- 实例管理
-  支持实例创建、重命名、删除和独立设置
-- 资源管理
-  支持 Mod、存档、资源包、光影包的本地管理
-- Modrinth 集成
-  支持搜索并安装兼容 Mod
-- 本地整合包导入
-  支持本地 Modpack 压缩包导入
-- 全局设置
-  支持 Java 发现与选择、内存设置、下载源、限速、主题、强调色等
-- 主题系统
-  支持深色 / 浅色、跟随系统、运行时切换
+- 从首页选择已有游戏实例并启动。
+- 显示启动进度和当前状态。
+- 启动失败时给出反馈，并记录诊断信息。
+- 支持实例创建、重命名、删除和独立设置。
+- 支持实例级 Java、内存、启动参数、启动前命令和退出后命令。
+- 支持实例备份、恢复、删除和备份目录管理。
 
-### 适合关注什么
+#### 账户与外观
 
-如果你关心的是这个项目“现在能不能用、在往哪里做”，重点可以看：
+- 支持离线账户。
+- 支持 Microsoft 账户登录。
+- 支持账户列表、当前账户切换、重命名和删除。
+- 支持头像、皮肤、披风相关管理能力。
+- 支持离线账户 UUID 生成方式设置。
 
-- 是否覆盖常见 Minecraft 启动需求
-- 是否能更舒服地管理实例和资源
-- 是否能逐步补齐整合包、诊断和账户体验
+#### 版本与加载器
+
+- 支持安装原版 `Vanilla` 游戏版本。
+- 支持安装 `Fabric` 和 `Forge`。
+- `NeoForge` 和 `Quilt` 已有入口与相关能力铺垫，完整体验仍在继续完善。
+- 支持版本列表、版本筛选、实例命名和重复名称提示。
+- 支持下载任务状态展示。
+
+#### 资源管理
+
+- 支持管理实例内的 Mod、存档、资源包和光影包。
+- 支持本地导入 Mod、存档压缩包、资源包和光影包。
+- 支持打开对应资源文件夹。
+- 支持多选、全选、删除等批量操作。
+- 支持本地整合包压缩包导入，并在部分文件需要手动补全时给出提示。
+
+#### 在线资源
+
+- 支持在线搜索 Mod、资源包、光影包、世界和整合包。
+- 支持按 Minecraft 版本、加载器、来源和分类筛选。
+- 支持查看资源详情、可用版本和依赖信息。
+- 支持安装兼容资源到指定游戏实例，或下载到本地目录。
+- 支持 Modrinth；CurseForge 相关结果会根据配置情况展示。
+- 支持前置 Mod 检查，并可辅助安装缺少的前置依赖。
+
+#### 设置与体验
+
+- 支持自动发现 Java，也可以手动导入或选择 Java。
+- 支持全局内存设置和实例独立内存设置。
+- 支持游戏下载源选择、下载限速和 Minecraft 目录设置。
+- 支持深色主题、浅色主题、跟随系统和运行时切换。
+- 支持多种强调色。
+- 支持启动器日志目录、诊断日志和错误反馈。
+- 支持检查启动器更新，并在可用时尝试自动更新。
+
+### 当前状态
+
+这个项目还在持续开发中。已经可用的功能会继续打磨，未完成的入口会逐步补齐。README 会尽量保持和当前实现一致，避免把计划中的功能写成已经完成。
 
 ### 运行方式
 
@@ -71,10 +91,6 @@ dotnet run --project Launcher.App\Launcher.App.csproj
 .\RunLauncher.bat
 ```
 
-### 当前状态
-
-项目仍在持续开发中。部分能力已经可用，部分能力还在继续补全和打磨，README 会尽量跟随当前实现更新。
-
 如果你是开发者，具体开发约定请查看 [AGENTS.md](./AGENTS.md)。
 
 ---
@@ -85,51 +101,69 @@ dotnet run --project Launcher.App\Launcher.App.csproj
 
 ### Overview
 
-`MineDock Launcher` is a **WPF + C# / .NET 8** Minecraft launcher project.
+`MineDock Launcher` is a Minecraft launcher focused on everyday launching, instance management, resource installation, account management, and a clean user experience.
 
-The goal is not just to launch the game, but to build a launcher that feels solid for everyday use and can keep growing into a more complete product over time.
+This project is **written, designed, and continuously iterated entirely by AI**. Human involvement is mainly about giving product direction, reviewing the experience, accepting results, and deciding what should be improved next.
 
-### Project Goals
+It is still under active development, but it already covers many common launcher workflows: launching games, installing versions, managing resources, configuring Java and memory, diagnosing launch failures, and switching between dark and light themes.
 
-- Provide a smooth and clear Minecraft launch and instance management experience
-- Cover the features players commonly need around versions, loaders, resources, and accounts
-- Treat themes, settings, logs, and diagnostics as first-class long-term usability features
-- Gradually expand modpack, resource management, and launch diagnostic capabilities
+### Features
 
-### Current Features
+#### Launching and Instances
 
-- Account management
-  Supports offline accounts and Microsoft accounts
-- Account appearance
-  Includes avatar, skin, and cape related features
-- Version installation
-  Supports `Vanilla`, `Fabric`, and `Forge`
-- Loader placeholders
-  `NeoForge` and `Quilt` have reserved entry points but are not fully implemented yet
-- Game launching
-  Includes progress reporting, failure feedback, abnormal-exit analysis, and diagnostics
-- Instance management
-  Supports instance creation, rename, deletion, and isolated settings
-- Resource management
-  Supports local mods, saves, resource packs, and shader packs
-- Modrinth integration
-  Search and install compatible mods
-- Local modpack import
-  Import local modpack archives
-- Global settings
-  Java discovery and selection, memory settings, download source, speed limits, theme, accent color, and more
-- Theme system
-  Dark mode, light mode, follow-system behavior, and runtime switching
+- Select and launch existing game instances from the home page.
+- Show launch progress and current launch status.
+- Provide failure feedback and diagnostic logs when launching fails.
+- Create, rename, delete, and configure instances independently.
+- Configure instance-level Java, memory, launch arguments, pre-launch commands, and post-exit commands.
+- Create, restore, delete, and manage instance backups.
 
-### What This README Focuses On
+#### Accounts and Appearance
 
-This README is intentionally centered on what the launcher is for and what it can currently do.
+- Offline account support.
+- Microsoft account support.
+- Account list, active account switching, rename, and delete actions.
+- Avatar, skin, and cape related management.
+- Offline account UUID generation options.
 
-If you mainly want to evaluate the project, the key questions are:
+#### Versions and Loaders
 
-- does it already cover common Minecraft launcher workflows?
-- does it make instance and resource management easier?
-- is it moving toward a fuller launcher experience over time?
+- Install `Vanilla` Minecraft versions.
+- Install `Fabric` and `Forge`.
+- `NeoForge` and `Quilt` have entry points and groundwork in place, with the full experience still being refined.
+- Version lists, filters, instance naming, and duplicate-name feedback.
+- Download task status display.
+
+#### Resource Management
+
+- Manage instance mods, saves, resource packs, and shader packs.
+- Import local mods, save archives, resource packs, and shader packs.
+- Open resource folders directly.
+- Multi-select, select-all, delete, and other batch actions.
+- Import local modpack archives, with guidance when some files need to be retried or completed manually.
+
+#### Online Resources
+
+- Search online mods, resource packs, shader packs, worlds, and modpacks.
+- Filter by Minecraft version, loader, source, and category.
+- View project details, available versions, and dependency information.
+- Install compatible resources into a selected game instance, or download them locally.
+- Modrinth is supported; CurseForge results depend on configuration.
+- Check required mod dependencies and help install missing dependencies.
+
+#### Settings and Experience
+
+- Discover Java automatically, or import and select Java manually.
+- Configure global memory and per-instance memory.
+- Choose download sources, speed limits, and the Minecraft directory.
+- Use dark mode, light mode, follow-system behavior, and runtime theme switching.
+- Choose from multiple accent colors.
+- Open launcher log directories and use diagnostic logs for troubleshooting.
+- Check for launcher updates and attempt automatic updates when available.
+
+### Status
+
+MineDock Launcher is still under active development. Existing features will continue to be polished, and unfinished entry points will be completed over time. This README aims to describe what is currently present without presenting planned work as finished.
 
 ### Run
 
@@ -150,8 +184,4 @@ Or use:
 .\RunLauncher.bat
 ```
 
-### Status
-
-The project is still under active development. Several features are already working, while others are still being refined or completed. This README aims to stay aligned with the current implementation.
-
-If you are contributing as a developer, see [AGENTS.md](./AGENTS.md) for repository-specific rules.
+For repository-specific development rules, see [AGENTS.md](./AGENTS.md).
