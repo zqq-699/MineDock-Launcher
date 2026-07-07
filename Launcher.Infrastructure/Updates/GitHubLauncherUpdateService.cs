@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
+using Launcher.Application;
 using Launcher.Application.Services;
 using Microsoft.Extensions.Logging;
 
@@ -10,8 +11,6 @@ namespace Launcher.Infrastructure.Updates;
 public sealed class GitHubLauncherUpdateService : ILauncherUpdateService
 {
     private static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromSeconds(15);
-    private const string ReleasesUrl = "https://api.github.com/repos/zhouquan050906-cpu/launcher_z/releases";
-    private const string UserAgent = "MineDock-Launcher";
     private const string GitHubApiVersion = "2022-11-28";
 
     private readonly HttpClient httpClient;
@@ -42,7 +41,9 @@ public sealed class GitHubLauncherUpdateService : ILauncherUpdateService
         try
         {
             logger?.LogInformation("Checking launcher updates from GitHub Releases.");
-            var releases = await httpClient.GetFromJsonAsync<List<GitHubReleaseDto>>(ReleasesUrl, cancellationToken)
+            var releases = await httpClient.GetFromJsonAsync<List<GitHubReleaseDto>>(
+                    LauncherProjectLinks.GitHubReleasesApiUrl,
+                    cancellationToken)
                 .ConfigureAwait(false);
             if (releases is null || releases.Count == 0)
             {
@@ -92,7 +93,7 @@ public sealed class GitHubLauncherUpdateService : ILauncherUpdateService
     private static void EnsureDefaultHeaders(HttpClient client)
     {
         if (client.DefaultRequestHeaders.UserAgent.Count == 0)
-            client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(LauncherProjectLinks.GitHubUserAgent);
 
         if (!client.DefaultRequestHeaders.Accept.Any(header =>
                 string.Equals(header.MediaType, "application/vnd.github+json", StringComparison.OrdinalIgnoreCase)))
@@ -110,7 +111,7 @@ public sealed class GitHubLauncherUpdateService : ILauncherUpdateService
             return null;
 
         var releasePageUrl = string.IsNullOrWhiteSpace(release.HtmlUrl)
-            ? "https://github.com/zhouquan050906-cpu/launcher_z/releases"
+            ? LauncherProjectLinks.GitHubReleasesUrl
             : release.HtmlUrl.Trim();
         var selectedAsset = SelectDownloadAsset(release.Assets);
 

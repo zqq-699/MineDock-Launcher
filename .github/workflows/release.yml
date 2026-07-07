@@ -47,6 +47,18 @@ jobs:
             Remove-Item $publishDir -Recurse -Force
           }
 
+      - name: Prepare CurseForge API key
+        shell: pwsh
+        env:
+          CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CURSEFORGE_API_KEY)) {
+            throw "Repository secret CURSEFORGE_API_KEY is not configured. Configure it before publishing a release."
+          }
+
+          New-Item -ItemType Directory -Force ".local-secrets" | Out-Null
+          Set-Content -Path ".local-secrets/curseforge.key" -Value $env:CURSEFORGE_API_KEY.Trim() -NoNewline -Encoding utf8
+
       - name: Publish win-x64 single file
         run: dotnet publish Launcher.App/Launcher.App.csproj -c Release -p:PublishProfile=WinX64FrameworkDependentSingleFile
 

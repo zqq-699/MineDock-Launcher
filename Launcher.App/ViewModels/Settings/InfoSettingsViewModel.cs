@@ -4,14 +4,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.Application;
 using Launcher.Application.Services;
 
 namespace Launcher.App.ViewModels.Settings;
 
 public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
 {
-    public const string GithubRepositoryUrl = "https://github.com/zhouquan050906-cpu/launcher_z";
-
     private readonly IStatusService statusService;
     private readonly IFloatingMessageService floatingMessageService;
     private readonly IExternalLinkService externalLinkService;
@@ -87,7 +86,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
     {
         try
         {
-            if (!externalLinkService.TryOpen(GithubRepositoryUrl))
+            if (!externalLinkService.TryOpen(LauncherProjectLinks.GitHubRepositoryUrl))
                 statusService.Report(Strings.Status_OpenGithubRepositoryFailed);
         }
         catch (Exception)

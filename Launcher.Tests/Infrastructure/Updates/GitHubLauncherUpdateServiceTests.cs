@@ -1,4 +1,5 @@
 using System.Net;
+using Launcher.Application;
 using Launcher.Application.Services;
 using Launcher.Infrastructure.Updates;
 
@@ -16,7 +17,7 @@ public sealed class GitHubLauncherUpdateServiceTests
             [
               {
                 "tag_name": "{{tagName}}",
-                "html_url": "https://github.com/zhouquan050906-cpu/launcher_z/releases/tag/{{tagName}}",
+                "html_url": "{{LauncherProjectLinks.GitHubReleasesUrl}}/tag/{{tagName}}",
                 "body": "notes",
                 "draft": false,
                 "assets": [
@@ -41,8 +42,9 @@ public sealed class GitHubLauncherUpdateServiceTests
         Assert.Equal(LauncherUpdateAssetKind.WindowsX64Executable, result.Update.AssetKind);
         Assert.True(result.Update.CanAutoInstall);
         var request = Assert.Single(handler.Requests);
+        Assert.Equal(LauncherProjectLinks.GitHubReleasesApiUrl, request.RequestUri!.ToString());
         Assert.Equal("api.github.com", request.RequestUri!.Host);
-        Assert.Contains(request.Headers.UserAgent, value => value.Product?.Name == "MineDock-Launcher");
+        Assert.Contains(request.Headers.UserAgent, value => value.Product?.Name == LauncherProjectLinks.GitHubUserAgent);
         Assert.True(request.Headers.TryGetValues("X-GitHub-Api-Version", out var apiVersions));
         Assert.Equal("2022-11-28", Assert.Single(apiVersions));
     }

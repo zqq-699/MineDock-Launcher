@@ -1,6 +1,7 @@
 ﻿using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.ViewModels.Settings;
+using Launcher.Application;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
@@ -287,7 +288,7 @@ public sealed class SettingsPageViewModelTests
 
         info.OpenGithubRepositoryCommand.Execute(null);
 
-        Assert.Equal(InfoSettingsViewModel.GithubRepositoryUrl, externalLinkService.LastOpenedUrl);
+        Assert.Equal(LauncherProjectLinks.GitHubRepositoryUrl, externalLinkService.LastOpenedUrl);
         Assert.Null(statusService.LastMessage);
     }
 
@@ -299,7 +300,7 @@ public sealed class SettingsPageViewModelTests
 
         viewModel.Info.OpenGithubRepositoryCommand.Execute(null);
 
-        Assert.Equal(InfoSettingsViewModel.GithubRepositoryUrl, externalLinkService.LastOpenedUrl);
+        Assert.Equal(LauncherProjectLinks.GitHubRepositoryUrl, externalLinkService.LastOpenedUrl);
         Assert.Equal(Strings.Status_OpenGithubRepositoryFailed, statusService.LastMessage);
     }
 
