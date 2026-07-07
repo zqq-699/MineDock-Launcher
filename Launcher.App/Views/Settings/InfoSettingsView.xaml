@@ -62,16 +62,28 @@
             <ItemsControl ItemsSource="{Binding ReferenceProjects}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <TextBlock Margin="0,0,0,8"
-                                   HorizontalAlignment="Left"
-                                   FontSize="13"
-                                   TextTrimming="CharacterEllipsis">
-                            <Hyperlink Command="{Binding DataContext.OpenReferenceProjectCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                       CommandParameter="{Binding}"
-                                       Style="{StaticResource ReferenceProjectHyperlinkStyle}">
-                                <Run Text="{Binding Name}" />
-                            </Hyperlink>
-                        </TextBlock>
+                        <StackPanel Margin="0,0,0,18"
+                                    HorizontalAlignment="Stretch">
+                            <TextBlock HorizontalAlignment="Left"
+                                       FontSize="13"
+                                       TextTrimming="CharacterEllipsis">
+                                <Hyperlink Command="{Binding DataContext.OpenReferenceProjectCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                           CommandParameter="{Binding}"
+                                           Style="{StaticResource ReferenceProjectHyperlinkStyle}">
+                                    <Run Text="{Binding Name}" />
+                                </Hyperlink>
+                            </TextBlock>
+                            <TextBlock Margin="0,4,0,0"
+                                       Text="{Binding CopyrightNotice}"
+                                       Foreground="{DynamicResource Brush.Text.Subtle}"
+                                       FontSize="12"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Margin="0,2,0,0"
+                                       Text="{Binding LicenseText}"
+                                       Foreground="{DynamicResource Brush.Text.Subtle}"
+                                       FontSize="12"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

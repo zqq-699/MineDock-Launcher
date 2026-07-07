@@ -22,17 +22,78 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
     private string? updateDialogDownloadUrl;
     private static readonly ReadOnlyCollection<InfoReferenceProjectItem> RuntimeReferenceProjects = new(
     [
-        new InfoReferenceProjectItem("CommunityToolkit.Mvvm", "8.4.2", "https://github.com/CommunityToolkit/dotnet"),
-        new InfoReferenceProjectItem("Microsoft.Extensions.DependencyInjection", "10.0.9", "https://github.com/dotnet/dotnet"),
-        new InfoReferenceProjectItem("Microsoft.Extensions.DependencyInjection.Abstractions", "10.0.9", "https://github.com/dotnet/dotnet"),
-        new InfoReferenceProjectItem("Microsoft.Extensions.Logging", "10.0.9", "https://github.com/dotnet/dotnet"),
-        new InfoReferenceProjectItem("Microsoft.Extensions.Logging.Abstractions", "10.0.9", "https://github.com/dotnet/dotnet"),
-        new InfoReferenceProjectItem("Serilog", "4.2.0", "https://github.com/serilog/serilog"),
-        new InfoReferenceProjectItem("Serilog.Extensions.Logging", "8.0.0", "https://github.com/serilog/serilog-extensions-logging"),
-        new InfoReferenceProjectItem("Serilog.Sinks.File", "6.0.0", "https://github.com/serilog/serilog-sinks-file"),
-        new InfoReferenceProjectItem("CmlLib.Core", "4.0.6", "https://github.com/CmlLib/CmlLib.Core"),
-        new InfoReferenceProjectItem("CmlLib.Core.Auth.Microsoft", "3.3.1", "https://github.com/CmlLib/CmlLib.Core.Auth.Microsoft"),
-        new InfoReferenceProjectItem("SharpCompress", "0.39.0", "https://github.com/adamhathcock/sharpcompress")
+        new InfoReferenceProjectItem(
+            "CommunityToolkit.Mvvm",
+            "8.4.2",
+            "https://github.com/CommunityToolkit/dotnet",
+            "Copyright (c) .NET Foundation and Contributors. All rights reserved.",
+            "MIT License"),
+        new InfoReferenceProjectItem(
+            "Microsoft.Extensions.DependencyInjection",
+            "10.0.9",
+            "https://github.com/dotnet/dotnet",
+            "Copyright (c) Microsoft Corporation. All rights reserved.",
+            "MIT License"),
+        new InfoReferenceProjectItem(
+            "Microsoft.Extensions.DependencyInjection.Abstractions",
+            "10.0.9",
+            "https://github.com/dotnet/dotnet",
+            "Copyright (c) Microsoft Corporation. All rights reserved.",
+            "MIT License"),
+        new InfoReferenceProjectItem(
+            "Microsoft.Extensions.Logging",
+            "10.0.9",
+            "https://github.com/dotnet/dotnet",
+            "Copyright (c) Microsoft Corporation. All rights reserved.",
+            "MIT License"),
+        new InfoReferenceProjectItem(
+            "Microsoft.Extensions.Logging.Abstractions",
+            "10.0.9",
+            "https://github.com/dotnet/dotnet",
+            "Copyright (c) Microsoft Corporation. All rights reserved.",
+            "MIT License"),
+        new InfoReferenceProjectItem(
+            "Serilog",
+            "4.2.0",
+            "https://github.com/serilog/serilog",
+            "Copyright (c) Serilog Contributors",
+            "Apache-2.0 License"),
+        new InfoReferenceProjectItem(
+            "Serilog.Extensions.Logging",
+            "8.0.0",
+            "https://github.com/serilog/serilog-extensions-logging",
+            "Copyright (c) Microsoft, Serilog Contributors",
+            "Apache-2.0 License"),
+        new InfoReferenceProjectItem(
+            "Serilog.Sinks.File",
+            "6.0.0",
+            "https://github.com/serilog/serilog-sinks-file",
+            "Copyright (c) Serilog Contributors",
+            "Apache-2.0 License"),
+        new InfoReferenceProjectItem(
+            "CmlLib.Core",
+            "4.0.6",
+            "https://github.com/CmlLib/CmlLib.Core",
+            "Copyright (c) 2023 AlphaBs",
+            "MIT License"),
+        new InfoReferenceProjectItem(
+            "CmlLib.Core.Auth.Microsoft",
+            "3.3.1",
+            "https://github.com/CmlLib/CmlLib.Core.Auth.Microsoft",
+            "Copyright (c) 2023 AlphaBs",
+            "MIT License"),
+        new InfoReferenceProjectItem(
+            "SharpCompress",
+            "0.39.0",
+            "https://github.com/adamhathcock/sharpcompress",
+            "Copyright (c) 2025 Adam Hathcock",
+            "MIT License"),
+        new InfoReferenceProjectItem(
+            "IconPark",
+            "1.0.0",
+            "https://github.com/bytedance/IconPark",
+            "Copyright 2019-present Bytedance Inc.",
+            "Apache-2.0 License")
     ]);
 
     public InfoSettingsViewModel(
@@ -282,4 +343,9 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
     }
 }
 
-public sealed record InfoReferenceProjectItem(string Name, string Version, string Url);
+public sealed record InfoReferenceProjectItem(
+    string Name,
+    string Version,
+    string Url,
+    string CopyrightNotice,
+    string LicenseText);
