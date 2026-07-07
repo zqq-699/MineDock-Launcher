@@ -150,7 +150,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         IFilePickerService filePickerService,
         IInstanceFolderService instanceFolderService,
         IFloatingMessageService floatingMessageService,
-        IThemeService themeService)
+        IThemeService themeService,
+        IExternalLinkService? externalLinkService = null,
+        ILauncherUpdateService? launcherUpdateService = null)
     {
         this.settingsService = settingsService;
         this.statusService = statusService;
@@ -183,6 +185,10 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             SettingsPageSection.Theme,
             Strings.Settings_SectionTheme,
             "setting_page/theme"));
+        Sections.Add(new SettingsSectionItem(
+            SettingsPageSection.Info,
+            Strings.Settings_SectionInfo,
+            "setting_page/info"));
 
         MemoryModeOptions.Add(new SettingsMemoryModeOption(
             MemorySettingsMode.Auto,
@@ -246,6 +252,12 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         LaunchMemory = new LaunchMemorySettingsViewModel(this);
         Java = new JavaSettingsViewModel(this);
         Theme = new ThemeSettingsViewModel(this);
+        Info = new InfoSettingsViewModel(
+            this,
+            statusService,
+            floatingMessageService,
+            externalLinkService ?? NullExternalLinkService.Instance,
+            launcherUpdateService ?? NullLauncherUpdateService.Instance);
         ControlList = new ControlListSettingsViewModel(this);
         SelectedSection = Sections[0];
     }
@@ -271,6 +283,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public JavaSettingsViewModel Java { get; }
 
     public ThemeSettingsViewModel Theme { get; }
+
+    public InfoSettingsViewModel Info { get; }
 
     public ControlListSettingsViewModel ControlList { get; }
 
@@ -315,6 +329,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public bool IsJavaSection => SelectedSection?.Section is SettingsPageSection.Java;
 
     public bool IsThemeSection => SelectedSection?.Section is SettingsPageSection.Theme;
+
+    public bool IsInfoSection => SelectedSection?.Section is SettingsPageSection.Info;
 
     public bool IsControlListSection => SelectedSection?.Section is SettingsPageSection.ControlList;
 
@@ -501,6 +517,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(IsLaunchMemorySection));
         OnPropertyChanged(nameof(IsJavaSection));
         OnPropertyChanged(nameof(IsThemeSection));
+        OnPropertyChanged(nameof(IsInfoSection));
         OnPropertyChanged(nameof(IsControlListSection));
         CurrentSectionViewModel = value?.Section switch
         {
@@ -508,6 +525,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             SettingsPageSection.LaunchMemory => LaunchMemory,
             SettingsPageSection.Java => Java,
             SettingsPageSection.Theme => Theme,
+            SettingsPageSection.Info => Info,
             SettingsPageSection.ControlList => ControlList,
             _ => General
         };
@@ -965,5 +983,35 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private static string ResolveLauncherLogDirectory()
     {
         return Path.GetFullPath(LauncherLogConfiguration.ResolveLogDirectory());
+    }
+
+    private sealed class NullExternalLinkService : IExternalLinkService
+    {
+        public static readonly NullExternalLinkService Instance = new();
+
+        private NullExternalLinkService()
+        {
+        }
+
+        public bool TryOpen(string url)
+        {
+            return false;
+        }
+    }
+
+    private sealed class NullLauncherUpdateService : ILauncherUpdateService
+    {
+        public static readonly NullLauncherUpdateService Instance = new();
+
+        private NullLauncherUpdateService()
+        {
+        }
+
+        public Task<LauncherUpdateCheckResult> CheckForUpdatesAsync(
+            string currentVersion,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(LauncherUpdateCheckResult.Failed(currentVersion));
+        }
     }
 }

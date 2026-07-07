@@ -1,0 +1,38 @@
+<UserControl x:Class="Launcher.App.Views.Settings.InfoSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="clr-namespace:Launcher.App.Resources"
+             Focusable="False">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/MineDock%20Launcher;component/Views/Settings/SettingsSectionResources.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <StackPanel Margin="0,0,12,72"
+                MaxWidth="{StaticResource DetailPageContentMaxWidth}"
+                HorizontalAlignment="Stretch">
+        <GroupBox Header="{x:Static res:Strings.Settings_LauncherVersionSection}"
+                  Style="{StaticResource LauncherContentSectionStyle}">
+            <StackPanel>
+                <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
+                    <TextBlock Text="{Binding LauncherVersionText}"
+                               Style="{StaticResource ReadOnlyFieldTextStyle}" />
+                </Border>
+
+                <WrapPanel Margin="0,16,0,0">
+                    <Button Margin="0,0,10,10"
+                            Content="{x:Static res:Strings.Settings_ViewGithubRepositoryButton}"
+                            Command="{Binding OpenGithubRepositoryCommand}"
+                            Style="{StaticResource LauncherDialogButtonStyle}" />
+                    <Button Margin="0,0,10,10"
+                            Content="{Binding CheckUpdatesButtonText}"
+                            Command="{Binding CheckUpdatesCommand}"
+                            Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
+                </WrapPanel>
+            </StackPanel>
+        </GroupBox>
+    </StackPanel>
+</UserControl>

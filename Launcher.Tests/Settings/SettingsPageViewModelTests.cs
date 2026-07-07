@@ -79,7 +79,8 @@ public sealed class SettingsPageViewModelTests
                 SettingsPageSection.General,
                 SettingsPageSection.LaunchMemory,
                 SettingsPageSection.Java,
-                SettingsPageSection.Theme
+                SettingsPageSection.Theme,
+                SettingsPageSection.Info
             ],
             viewModel.Sections.Select(section => section.Section));
         Assert.DoesNotContain(viewModel.Sections, section => section.Section is SettingsPageSection.ControlList);
@@ -262,6 +263,150 @@ public sealed class SettingsPageViewModelTests
         Assert.Equal(LauncherDefaults.DefaultAccentColor, viewModel.SelectedAccentColorOption?.Id);
         Assert.Equal(LauncherDefaults.DefaultLauncherBackgroundOpacityPercent, viewModel.LauncherBackgroundOpacityPercent);
         Assert.Equal("85%", viewModel.LauncherBackgroundOpacityText);
+    }
+
+    [Fact]
+    public void InfoSectionShowsLauncherVersionAndActions()
+    {
+        var viewModel = CreateViewModel(out _, out var statusService, out var externalLinkService);
+
+        var infoSection = viewModel.Sections.Single(section => section.Section is SettingsPageSection.Info);
+        viewModel.SelectSectionCommand.Execute(infoSection);
+
+        Assert.Same(infoSection, viewModel.SelectedSection);
+        Assert.Equal(Strings.Settings_SectionInfo, viewModel.SectionTitle);
+        Assert.True(viewModel.IsInfoSection);
+        var info = Assert.IsType<InfoSettingsViewModel>(viewModel.CurrentSectionViewModel);
+        Assert.Same(viewModel.Info, info);
+        Assert.False(viewModel.IsGeneralSection);
+        Assert.False(viewModel.IsLaunchMemorySection);
+        Assert.False(viewModel.IsJavaSection);
+        Assert.False(viewModel.IsThemeSection);
+        Assert.False(viewModel.IsControlListSection);
+        Assert.Equal("1.0.0", info.LauncherVersionText);
+
+        info.OpenGithubRepositoryCommand.Execute(null);
+
+        Assert.Equal(InfoSettingsViewModel.GithubRepositoryUrl, externalLinkService.LastOpenedUrl);
+        Assert.Null(statusService.LastMessage);
+    }
+
+    [Fact]
+    public void InfoGithubRepositoryCommandReportsFailureWhenLinkCannotOpen()
+    {
+        var viewModel = CreateViewModel(out _, out var statusService, out var externalLinkService);
+        externalLinkService.TryOpenResult = false;
+
+        viewModel.Info.OpenGithubRepositoryCommand.Execute(null);
+
+        Assert.Equal(InfoSettingsViewModel.GithubRepositoryUrl, externalLinkService.LastOpenedUrl);
+        Assert.Equal(Strings.Status_OpenGithubRepositoryFailed, statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task InfoCheckUpdatesShowsDialogWhenUpdateIsAvailable()
+    {
+        var viewModel = CreateViewModel(
+            out _,
+            out _,
+            out _,
+            out var updateService);
+        updateService.Result = LauncherUpdateCheckResult.Available(
+            "1.0.0",
+            new LauncherUpdateInfo(
+                "1.0.1",
+                "1.0.1",
+                "https://example.test/releases/v1.0.1",
+                "https://example.test/downloads/launcher.zip",
+                "Release notes"));
+
+        await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
+
+        Assert.Equal("1.0.0", updateService.LastCurrentVersion);
+        Assert.True(viewModel.Info.IsUpdateAvailableDialogOpen);
+        Assert.Equal("1.0.1", viewModel.Info.UpdateDialogVersionText);
+        Assert.Equal(
+            string.Format(Strings.Dialog_UpdateAvailableVersionFormat, "1.0.1"),
+            viewModel.Info.UpdateDialogMessage);
+    }
+
+    [Fact]
+    public async Task InfoOpenUpdateChangelogCommandOpensReleasePage()
+    {
+        var viewModel = CreateViewModel(
+            out _,
+            out _,
+            out var externalLinkService,
+            out var updateService);
+        updateService.Result = LauncherUpdateCheckResult.Available(
+            "1.0.0",
+            new LauncherUpdateInfo(
+                "1.0.1",
+                "1.0.1",
+                "https://example.test/releases/v1.0.1",
+                "https://example.test/downloads/launcher.zip",
+                null));
+
+        await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
+        viewModel.Info.OpenUpdateChangelogCommand.Execute(null);
+
+        Assert.Equal("https://example.test/releases/v1.0.1", externalLinkService.LastOpenedUrl);
+    }
+
+    [Fact]
+    public async Task InfoConfirmUpdateCommandOpensDownloadUrlAndClosesDialog()
+    {
+        var viewModel = CreateViewModel(
+            out _,
+            out _,
+            out var externalLinkService,
+            out var updateService);
+        updateService.Result = LauncherUpdateCheckResult.Available(
+            "1.0.0",
+            new LauncherUpdateInfo(
+                "1.0.1",
+                "1.0.1",
+                "https://example.test/releases/v1.0.1",
+                "https://example.test/downloads/launcher.zip",
+                null));
+
+        await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
+        viewModel.Info.ConfirmUpdateCommand.Execute(null);
+
+        Assert.Equal("https://example.test/downloads/launcher.zip", externalLinkService.LastOpenedUrl);
+        Assert.False(viewModel.Info.IsUpdateAvailableDialogOpen);
+    }
+
+    [Fact]
+    public async Task InfoCheckUpdatesReportsLatestWhenNoUpdateIsAvailable()
+    {
+        var viewModel = CreateViewModel(
+            out _,
+            out var statusService,
+            out _,
+            out var updateService);
+        updateService.Result = LauncherUpdateCheckResult.Latest("1.0.0");
+
+        await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.Info.IsUpdateAvailableDialogOpen);
+        Assert.Equal(Strings.Status_LauncherAlreadyLatest, statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task InfoCheckUpdatesReportsFailureWhenServiceFails()
+    {
+        var viewModel = CreateViewModel(
+            out _,
+            out var statusService,
+            out _,
+            out var updateService);
+        updateService.Result = LauncherUpdateCheckResult.Failed("1.0.0");
+
+        await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.Info.IsUpdateAvailableDialogOpen);
+        Assert.Equal(Strings.Status_CheckUpdatesFailed, statusService.LastMessage);
     }
 
     [Fact]
@@ -964,6 +1109,40 @@ public sealed class SettingsPageViewModelTests
     }
 
     private static SettingsPageViewModel CreateViewModel(
+        out TestSettingsService settingsService,
+        out FakeStatusService statusService,
+        out FakeExternalLinkService externalLinkService)
+    {
+        return CreateViewModel(
+            new LauncherSettings(),
+            new FakeJavaRuntimeDiscoveryService(),
+            new FakeFilePickerService(),
+            out settingsService,
+            out statusService,
+            out _,
+            out _,
+            out externalLinkService);
+    }
+
+    private static SettingsPageViewModel CreateViewModel(
+        out TestSettingsService settingsService,
+        out FakeStatusService statusService,
+        out FakeExternalLinkService externalLinkService,
+        out FakeLauncherUpdateService launcherUpdateService)
+    {
+        return CreateViewModel(
+            new LauncherSettings(),
+            new FakeJavaRuntimeDiscoveryService(),
+            new FakeFilePickerService(),
+            out settingsService,
+            out statusService,
+            out _,
+            out _,
+            out externalLinkService,
+            out launcherUpdateService);
+    }
+
+    private static SettingsPageViewModel CreateViewModel(
         LauncherSettings settings,
         out TestSettingsService settingsService,
         out FakeStatusService statusService)
@@ -1086,10 +1265,56 @@ public sealed class SettingsPageViewModelTests
         out FakeFloatingMessageService floatingMessageService,
         out FakeThemeService themeService)
     {
+        return CreateViewModel(
+            settings,
+            javaRuntimeDiscoveryService,
+            filePickerService,
+            out settingsService,
+            out statusService,
+            out floatingMessageService,
+            out themeService,
+            out _);
+    }
+
+    private static SettingsPageViewModel CreateViewModel(
+        LauncherSettings settings,
+        FakeJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
+        FakeFilePickerService filePickerService,
+        out TestSettingsService settingsService,
+        out FakeStatusService statusService,
+        out FakeFloatingMessageService floatingMessageService,
+        out FakeThemeService themeService,
+        out FakeExternalLinkService externalLinkService)
+    {
+        return CreateViewModel(
+            settings,
+            javaRuntimeDiscoveryService,
+            filePickerService,
+            out settingsService,
+            out statusService,
+            out floatingMessageService,
+            out themeService,
+            out externalLinkService,
+            out _);
+    }
+
+    private static SettingsPageViewModel CreateViewModel(
+        LauncherSettings settings,
+        FakeJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
+        FakeFilePickerService filePickerService,
+        out TestSettingsService settingsService,
+        out FakeStatusService statusService,
+        out FakeFloatingMessageService floatingMessageService,
+        out FakeThemeService themeService,
+        out FakeExternalLinkService externalLinkService,
+        out FakeLauncherUpdateService launcherUpdateService)
+    {
         settingsService = new TestSettingsService(settings);
         statusService = new FakeStatusService();
         floatingMessageService = new FakeFloatingMessageService();
         themeService = new FakeThemeService();
+        externalLinkService = new FakeExternalLinkService();
+        launcherUpdateService = new FakeLauncherUpdateService();
         return new SettingsPageViewModel(
             settingsService,
             statusService,
@@ -1098,7 +1323,9 @@ public sealed class SettingsPageViewModelTests
             filePickerService,
             new FakeInstanceFolderService(),
             floatingMessageService,
-            themeService);
+            themeService,
+            externalLinkService,
+            launcherUpdateService);
     }
 
     private static JavaRuntimeInfo CreateJavaRuntime(string executablePath, int majorVersion)
@@ -1256,6 +1483,32 @@ public sealed class SettingsPageViewModelTests
         {
             LastRevealedFilePath = filePath;
             return true;
+        }
+    }
+
+    private sealed class FakeExternalLinkService : IExternalLinkService
+    {
+        public string? LastOpenedUrl { get; private set; }
+        public bool TryOpenResult { get; set; } = true;
+
+        public bool TryOpen(string url)
+        {
+            LastOpenedUrl = url;
+            return TryOpenResult;
+        }
+    }
+
+    private sealed class FakeLauncherUpdateService : ILauncherUpdateService
+    {
+        public LauncherUpdateCheckResult Result { get; set; } = LauncherUpdateCheckResult.Latest("1.0.0");
+        public string? LastCurrentVersion { get; private set; }
+
+        public Task<LauncherUpdateCheckResult> CheckForUpdatesAsync(
+            string currentVersion,
+            CancellationToken cancellationToken = default)
+        {
+            LastCurrentVersion = currentVersion;
+            return Task.FromResult(Result);
         }
     }
 

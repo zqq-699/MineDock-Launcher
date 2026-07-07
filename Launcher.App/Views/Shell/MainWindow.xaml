@@ -743,6 +743,54 @@
                 </Grid>
             </controls:DialogHost>
 
+            <controls:DialogHost x:Name="LauncherUpdateDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="420"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding DataContext.SettingsPage.Info.IsUpdateAvailableDialogOpen, ElementName=RootWindow}"
+                                 DataContext="{Binding DataContext.SettingsPage.Info, ElementName=RootWindow}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Dialog_UpdateAvailableTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,16,0,24"
+                               Text="{Binding UpdateDialogMessage}"
+                               Style="{StaticResource DialogBodyTextStyle}"
+                               TextWrapping="Wrap" />
+
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                HorizontalAlignment="Left"
+                                Content="{x:Static res:Strings.Dialog_OpenUpdateChangelogButton}"
+                                Command="{Binding OpenUpdateChangelogCommand}" />
+
+                        <StackPanel Grid.Column="1"
+                                    Style="{StaticResource DialogFooterStyle}">
+                            <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                    Content="{x:Static res:Strings.Cancel_Button}"
+                                    Command="{Binding CancelUpdateDialogCommand}" />
+                            <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                    Margin="{StaticResource DialogTrailingButtonMargin}"
+                                    Content="{x:Static res:Strings.Dialog_UpdateButton}"
+                                    Command="{Binding ConfirmUpdateCommand}" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </controls:DialogHost>
+
             <controls:DialogHost x:Name="JavaRequirementDialogHost"
                                  Grid.ColumnSpan="2"
                                  Grid.RowSpan="2"

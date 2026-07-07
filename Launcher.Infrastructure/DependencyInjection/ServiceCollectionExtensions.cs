@@ -11,6 +11,7 @@ using Launcher.Infrastructure.Modrinth;
 using Launcher.Infrastructure.Platform;
 using Launcher.Infrastructure.Persistence;
 using Launcher.Infrastructure.Resources;
+using Launcher.Infrastructure.Updates;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Launcher.Infrastructure.DependencyInjection;
@@ -49,6 +50,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILocalShaderPackService, LocalShaderPackService>();
         services.AddSingleton<IModrinthService, ModrinthService>();
         services.AddSingleton<IResourceCatalogService, ResourceCatalogService>();
+        services.AddSingleton<ILauncherUpdateService, GitHubLauncherUpdateService>();
         services.AddSingleton<ILauncherStateMonitor, LauncherStateMonitor>();
         services.AddSingleton<IMicrosoftAccountService, MicrosoftAccountService>();
         services.AddSingleton<IAccountSkinLibraryService, AccountSkinLibraryService>();

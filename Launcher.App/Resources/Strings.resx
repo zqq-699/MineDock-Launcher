@@ -230,7 +230,13 @@
   <data name="Settings_SectionLaunchMemory" xml:space="preserve"><value>启动与内存</value></data>
   <data name="Settings_SectionJava" xml:space="preserve"><value>Java</value></data>
   <data name="Settings_SectionTheme" xml:space="preserve"><value>主题</value></data>
+  <data name="Settings_SectionInfo" xml:space="preserve"><value>信息</value></data>
   <data name="Settings_SectionControlList" xml:space="preserve"><value>控件列表</value></data>
+  <data name="Settings_InfoContent" xml:space="preserve"><value>信息</value></data>
+  <data name="Settings_LauncherVersionSection" xml:space="preserve"><value>启动器版本</value></data>
+  <data name="Settings_LauncherVersionUnknown" xml:space="preserve"><value>未知版本</value></data>
+  <data name="Settings_ViewGithubRepositoryButton" xml:space="preserve"><value>查看 GitHub 仓库</value></data>
+  <data name="Settings_CheckUpdatesButton" xml:space="preserve"><value>检查更新</value></data>
   <data name="Settings_GeneralAccountSection" xml:space="preserve"><value>离线玩家</value></data>
   <data name="Settings_OfflineUsernameLabel" xml:space="preserve"><value>默认离线玩家名称</value></data>
   <data name="Settings_GeneralDirectorySection" xml:space="preserve"><value>目录</value></data>
@@ -655,6 +661,8 @@
   <data name="Status_InstanceFolderNotFound" xml:space="preserve"><value>没有找到该版本对应的文件夹。</value></data>
   <data name="Status_OpenInstanceFolderFailed" xml:space="preserve"><value>打开版本文件夹失败，请稍后重试。</value></data>
   <data name="Status_OpenLaunchLogFolderFailed" xml:space="preserve"><value>打开启动诊断日志目录失败，请稍后重试。</value></data>
+  <data name="Status_OpenGithubRepositoryFailed" xml:space="preserve"><value>打开 GitHub 仓库失败</value></data>
+  <data name="Status_UpdateCheckUnavailable" xml:space="preserve"><value>更新检查暂未接入</value></data>
   <data name="GameSettings_UnknownMinecraftVersion" xml:space="preserve"><value>未知版本</value></data>
   <data name="GameSettings_DetailsPlaceholderHeader" xml:space="preserve"><value>详细设置</value></data>
   <data name="GameSettings_DetailsPlaceholderBody" xml:space="preserve"><value>这里会继续补充这个版本的详细设置项，下一步将接入更多可编辑内容。</value></data>
@@ -996,4 +1004,12 @@
   <data name="Dialog_OpenFileButton" xml:space="preserve"><value>打开文件</value></data>
   <data name="Status_ModpackImportedWithManualDownloadsFormat" xml:space="preserve"><value>{0} 已导入，部分文件需稍后重试或手动补全</value></data>
   <data name="Status_OpenModpackManualDownloadsFileFailed" xml:space="preserve"><value>打开补档清单失败，请稍后重试。</value></data>
+  <data name="Dialog_UpdateAvailableTitle" xml:space="preserve"><value>&#x53D1;&#x73B0;&#x65B0;&#x7248;&#x672C;</value></data>
+  <data name="Dialog_UpdateAvailableVersionFormat" xml:space="preserve"><value>&#x53EF;&#x7528;&#x7248;&#x672C;&#xFF1A;{0}</value></data>
+  <data name="Dialog_OpenUpdateChangelogButton" xml:space="preserve"><value>&#x6253;&#x5F00;&#x66F4;&#x65B0;&#x65E5;&#x5FD7;</value></data>
+  <data name="Dialog_UpdateButton" xml:space="preserve"><value>&#x66F4;&#x65B0;</value></data>
+  <data name="Status_CheckingUpdates" xml:space="preserve"><value>&#x6B63;&#x5728;&#x68C0;&#x67E5;&#x66F4;&#x65B0;...</value></data>
+  <data name="Status_LauncherAlreadyLatest" xml:space="preserve"><value>&#x5F53;&#x524D;&#x5DF2;&#x662F;&#x6700;&#x65B0;&#x7248;&#x672C;</value></data>
+  <data name="Status_CheckUpdatesFailed" xml:space="preserve"><value>&#x68C0;&#x67E5;&#x66F4;&#x65B0;&#x5931;&#x8D25;&#xFF0C;&#x8BF7;&#x7A0D;&#x540E;&#x91CD;&#x8BD5;&#x3002;</value></data>
+  <data name="Status_OpenUpdatePageFailed" xml:space="preserve"><value>&#x6253;&#x5F00;&#x66F4;&#x65B0;&#x9875;&#x9762;&#x5931;&#x8D25;</value></data>
 </root>
