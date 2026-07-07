@@ -33,56 +33,63 @@
                 <GroupBox Header="{x:Static res:Strings.GameSettings_ModManagementInfoSection}"
                           Margin="0,0,0,12"
                           Style="{StaticResource LauncherContentSectionStyle}">
-                    <Border Style="{StaticResource SectionFieldSurfaceStyle}">
-                        <StackPanel>
-                            <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
-                                <TextBlock Text="{Binding DataContext.InstalledSummaryText, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
-                                           Style="{StaticResource ReadOnlyFieldTextStyle}" />
-                            </Border>
+                    <StackPanel>
+                        <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
+                            <TextBlock Text="{Binding DataContext.InstalledSummaryText, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
+                                       Style="{StaticResource ReadOnlyFieldTextStyle}" />
+                        </Border>
 
-                            <TextBlock Margin="0,12,0,8"
-                                       Text="{x:Static res:Strings.GameSettings_ModManagementActionsLabel}"
-                                       Style="{StaticResource SettingsOptionTextStyle}" />
-
-                            <WrapPanel>
-                                <Button Margin="0,0,8,4"
-                                        Content="{x:Static res:Strings.GameSettings_ModManagementOpenFolderButton}"
-                                        Command="{Binding DataContext.OpenModFolderCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
-                                        Style="{StaticResource LauncherDialogButtonStyle}" />
-                                <Button Margin="0,0,8,4"
-                                        Content="{x:Static res:Strings.GameSettings_ModManagementLocalImportButton}"
-                                        Command="{Binding DataContext.ImportLocalModCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
-                                        Style="{StaticResource LauncherDialogButtonStyle}" />
-                                <Button Margin="0,0,8,4"
-                                        Content="{x:Static res:Strings.GameSettings_ModManagementOnlineInstallButton}"
-                                        Command="{Binding DataContext.InstallOnlineModCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
-                                        Style="{StaticResource LauncherDialogButtonStyle}" />
-                            </WrapPanel>
-
-                            <TextBlock Margin="0,4,0,8"
-                                       Text="{x:Static res:Strings.GameSettings_ModManagementFilterLabel}"
-                                       Style="{StaticResource SettingsOptionTextStyle}" />
-
-                            <WrapPanel>
-                                <Button Content="{x:Static res:Strings.GameSettings_ModManagementFilterAllButton}"
-                                        Command="{Binding DataContext.SetModFilterCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
-                                        CommandParameter="{x:Static gameSettings:ModManagementFilter.All}"
-                                        Tag="{Binding DataContext.IsAllModsFilterSelected, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
-                                        Style="{StaticResource ModManagementFilterButtonStyle}" />
-                                <Button Content="{x:Static res:Strings.GameSettings_ModManagementFilterEnabledButton}"
-                                        Command="{Binding DataContext.SetModFilterCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
-                                        CommandParameter="{x:Static gameSettings:ModManagementFilter.Enabled}"
-                                        Tag="{Binding DataContext.IsEnabledModsFilterSelected, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
-                                        Style="{StaticResource ModManagementFilterButtonStyle}" />
-                                <Button Content="{x:Static res:Strings.GameSettings_ModManagementFilterDisabledButton}"
-                                        Command="{Binding DataContext.SetModFilterCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
-                                        CommandParameter="{x:Static gameSettings:ModManagementFilter.Disabled}"
-                                        Tag="{Binding DataContext.IsDisabledModsFilterSelected, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
-                                        Style="{StaticResource ModManagementFilterButtonStyle}" />
-                            </WrapPanel>
-                        </StackPanel>
-                    </Border>
+                        <WrapPanel Margin="0,12,0,0">
+                            <Button Margin="0,0,8,4"
+                                    Content="{x:Static res:Strings.GameSettings_ModManagementOpenFolderButton}"
+                                    Command="{Binding DataContext.OpenModFolderCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
+                                    Style="{StaticResource LauncherDialogButtonStyle}" />
+                            <Button Margin="0,0,8,4"
+                                    Content="{x:Static res:Strings.GameSettings_ModManagementLocalImportButton}"
+                                    Command="{Binding DataContext.ImportLocalModCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
+                                    Style="{StaticResource LauncherDialogButtonStyle}" />
+                            <Button Margin="0,0,8,4"
+                                    Content="{x:Static res:Strings.GameSettings_ModManagementOnlineInstallButton}"
+                                    Command="{Binding DataContext.InstallOnlineModCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
+                                    Style="{StaticResource LauncherDialogButtonStyle}" />
+                        </WrapPanel>
+                    </StackPanel>
                 </GroupBox>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type gameSettings:ModManagementListSectionItem}">
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Margin="0"
+                               Text="{x:Static res:Strings.GameSettings_ModManagementFilterLabel}"
+                               Style="{StaticResource ManagementListSectionHeaderTextStyle}" />
+
+                    <WrapPanel Grid.Column="1"
+                               HorizontalAlignment="Right">
+                        <Button Margin="0,0,8,0"
+                                Content="{x:Static res:Strings.GameSettings_ModManagementFilterAllButton}"
+                                Command="{Binding DataContext.SetModFilterCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
+                                CommandParameter="{x:Static gameSettings:ModManagementFilter.All}"
+                                Tag="{Binding DataContext.IsAllModsFilterSelected, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
+                                Style="{StaticResource ModManagementFilterButtonStyle}" />
+                        <Button Margin="0,0,8,0"
+                                Content="{x:Static res:Strings.GameSettings_ModManagementFilterEnabledButton}"
+                                Command="{Binding DataContext.SetModFilterCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
+                                CommandParameter="{x:Static gameSettings:ModManagementFilter.Enabled}"
+                                Tag="{Binding DataContext.IsEnabledModsFilterSelected, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
+                                Style="{StaticResource ModManagementFilterButtonStyle}" />
+                        <Button Margin="0"
+                                Content="{x:Static res:Strings.GameSettings_ModManagementFilterDisabledButton}"
+                                Command="{Binding DataContext.SetModFilterCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
+                                CommandParameter="{x:Static gameSettings:ModManagementFilter.Disabled}"
+                                Tag="{Binding DataContext.IsDisabledModsFilterSelected, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceModManagementSettingsView}}}"
+                                Style="{StaticResource ModManagementFilterButtonStyle}" />
+                    </WrapPanel>
+                </Grid>
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gameSettings:ModManagementModItemViewModel}">

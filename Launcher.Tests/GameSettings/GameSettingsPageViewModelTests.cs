@@ -854,9 +854,10 @@ public sealed class GameSettingsPageViewModelTests
 
         var saveManagement = viewModel.Details.SaveManagement;
         Assert.Same(saveManagement.VisibleSaves, saveManagement.Saves);
-        Assert.Equal(3, saveManagement.VisibleSaveListItems.Count);
+        Assert.Equal(4, saveManagement.VisibleSaveListItems.Count);
         Assert.IsType<SaveManagementInfoPanelItem>(saveManagement.VisibleSaveListItems[0]);
-        Assert.Same(saveManagement.Saves[0], saveManagement.VisibleSaveListItems[1]);
+        Assert.IsType<SaveManagementListSectionItem>(saveManagement.VisibleSaveListItems[1]);
+        Assert.Same(saveManagement.Saves[0], saveManagement.VisibleSaveListItems[2]);
         Assert.Equal(2, saveManagement.InstalledSaveCount);
         Assert.Equal(
             string.Format(Strings.GameSettings_SaveManagementInstalledSummaryFormat, 2),
@@ -898,8 +899,9 @@ public sealed class GameSettingsPageViewModelTests
         saveManagement.SelectAllSavesCommand.Execute(null);
 
         Assert.Equal(2, saveManagement.Saves.Count);
-        Assert.Equal(3, saveManagement.VisibleSaveListItems.Count);
+        Assert.Equal(4, saveManagement.VisibleSaveListItems.Count);
         Assert.IsType<SaveManagementInfoPanelItem>(saveManagement.VisibleSaveListItems[0]);
+        Assert.IsType<SaveManagementListSectionItem>(saveManagement.VisibleSaveListItems[1]);
         Assert.Equal(2, saveManagement.SelectedSaveCount);
         Assert.True(saveManagement.AreAllVisibleSavesSelected);
         Assert.All(saveManagement.Saves, save => Assert.True(save.IsSelected));
@@ -927,9 +929,10 @@ public sealed class GameSettingsPageViewModelTests
         saveManagement.SaveSearchQuery = "Alpha";
 
         Assert.Single(saveManagement.Saves);
-        Assert.Equal(2, saveManagement.VisibleSaveListItems.Count);
+        Assert.Equal(3, saveManagement.VisibleSaveListItems.Count);
         Assert.IsType<SaveManagementInfoPanelItem>(saveManagement.VisibleSaveListItems[0]);
-        Assert.Same(alphaItem, saveManagement.VisibleSaveListItems[1]);
+        Assert.IsType<SaveManagementListSectionItem>(saveManagement.VisibleSaveListItems[1]);
+        Assert.Same(alphaItem, saveManagement.VisibleSaveListItems[2]);
         Assert.Same(alphaItem, saveManagement.Saves.Single());
         Assert.Same(alphaItem, saveManagement.SelectedSave);
         Assert.Equal(2, saveManagement.InstalledSaveCount);
@@ -937,7 +940,7 @@ public sealed class GameSettingsPageViewModelTests
         saveManagement.SaveSearchQuery = string.Empty;
 
         Assert.Equal(2, saveManagement.Saves.Count);
-        Assert.Equal(3, saveManagement.VisibleSaveListItems.Count);
+        Assert.Equal(4, saveManagement.VisibleSaveListItems.Count);
         Assert.Same(alphaItem, saveManagement.Saves.Single(save => save.Title == "Alpha Base"));
     }
 
@@ -1318,9 +1321,10 @@ public sealed class GameSettingsPageViewModelTests
 
         var resourcePackManagement = viewModel.Details.ResourcePackManagement;
         Assert.Same(resourcePackManagement.VisibleResourcePacks, resourcePackManagement.ResourcePacks);
-        Assert.Equal(3, resourcePackManagement.VisibleResourcePackListItems.Count);
+        Assert.Equal(4, resourcePackManagement.VisibleResourcePackListItems.Count);
         Assert.IsType<ResourcePackManagementInfoPanelItem>(resourcePackManagement.VisibleResourcePackListItems[0]);
-        Assert.Same(resourcePackManagement.ResourcePacks[0], resourcePackManagement.VisibleResourcePackListItems[1]);
+        Assert.IsType<ResourcePackManagementListSectionItem>(resourcePackManagement.VisibleResourcePackListItems[1]);
+        Assert.Same(resourcePackManagement.ResourcePacks[0], resourcePackManagement.VisibleResourcePackListItems[2]);
         Assert.Equal(2, resourcePackManagement.InstalledResourcePackCount);
         Assert.Equal(
             string.Format(Strings.GameSettings_ResourcePackManagementInstalledSummaryFormat, 2),
@@ -1552,9 +1556,10 @@ public sealed class GameSettingsPageViewModelTests
 
         var shaderPackManagement = viewModel.Details.ShaderPackManagement;
         Assert.Same(shaderPackManagement.VisibleShaderPacks, shaderPackManagement.ShaderPacks);
-        Assert.Equal(3, shaderPackManagement.VisibleShaderPackListItems.Count);
+        Assert.Equal(4, shaderPackManagement.VisibleShaderPackListItems.Count);
         Assert.IsType<ShaderPackManagementInfoPanelItem>(shaderPackManagement.VisibleShaderPackListItems[0]);
-        Assert.Same(shaderPackManagement.ShaderPacks[0], shaderPackManagement.VisibleShaderPackListItems[1]);
+        Assert.IsType<ShaderPackManagementListSectionItem>(shaderPackManagement.VisibleShaderPackListItems[1]);
+        Assert.Same(shaderPackManagement.ShaderPacks[0], shaderPackManagement.VisibleShaderPackListItems[2]);
         Assert.Equal(2, shaderPackManagement.InstalledShaderPackCount);
         Assert.Equal(
             string.Format(Strings.GameSettings_ShaderPackManagementInstalledSummaryFormat, 2),
@@ -1627,51 +1632,57 @@ public sealed class GameSettingsPageViewModelTests
         await TestAsync.WaitForAsync(() => saveManagement.Saves.Count == 1000);
 
         Assert.Same(saveManagement.VisibleSaves, saveManagement.Saves);
-        Assert.Equal(1001, saveManagement.VisibleSaveListItems.Count);
+        Assert.Equal(1002, saveManagement.VisibleSaveListItems.Count);
         Assert.IsType<SaveManagementInfoPanelItem>(saveManagement.VisibleSaveListItems[0]);
-        Assert.Same(saveManagement.VisibleSaves[0], saveManagement.VisibleSaveListItems[1]);
+        Assert.IsType<SaveManagementListSectionItem>(saveManagement.VisibleSaveListItems[1]);
+        Assert.Same(saveManagement.VisibleSaves[0], saveManagement.VisibleSaveListItems[2]);
         Assert.Equal(1000, saveManagement.InstalledSaveCount);
 
         saveManagement.SaveSearchQuery = "save-0999";
 
         Assert.Single(saveManagement.VisibleSaves);
-        Assert.Equal(2, saveManagement.VisibleSaveListItems.Count);
+        Assert.Equal(3, saveManagement.VisibleSaveListItems.Count);
         Assert.IsType<SaveManagementInfoPanelItem>(saveManagement.VisibleSaveListItems[0]);
-        Assert.Same(saveManagement.VisibleSaves[0], saveManagement.VisibleSaveListItems[1]);
+        Assert.IsType<SaveManagementListSectionItem>(saveManagement.VisibleSaveListItems[1]);
+        Assert.Same(saveManagement.VisibleSaves[0], saveManagement.VisibleSaveListItems[2]);
         Assert.Equal(1000, saveManagement.InstalledSaveCount);
 
         var resourcePackManagement = OpenResourcePackManagementSection(viewModel);
         await TestAsync.WaitForAsync(() => resourcePackManagement.ResourcePacks.Count == 1000);
 
         Assert.Same(resourcePackManagement.VisibleResourcePacks, resourcePackManagement.ResourcePacks);
-        Assert.Equal(1001, resourcePackManagement.VisibleResourcePackListItems.Count);
+        Assert.Equal(1002, resourcePackManagement.VisibleResourcePackListItems.Count);
         Assert.IsType<ResourcePackManagementInfoPanelItem>(resourcePackManagement.VisibleResourcePackListItems[0]);
-        Assert.Same(resourcePackManagement.VisibleResourcePacks[0], resourcePackManagement.VisibleResourcePackListItems[1]);
+        Assert.IsType<ResourcePackManagementListSectionItem>(resourcePackManagement.VisibleResourcePackListItems[1]);
+        Assert.Same(resourcePackManagement.VisibleResourcePacks[0], resourcePackManagement.VisibleResourcePackListItems[2]);
         Assert.Equal(1000, resourcePackManagement.InstalledResourcePackCount);
 
         resourcePackManagement.ResourcePackSearchQuery = "pack-0999";
 
         Assert.Single(resourcePackManagement.VisibleResourcePacks);
-        Assert.Equal(2, resourcePackManagement.VisibleResourcePackListItems.Count);
+        Assert.Equal(3, resourcePackManagement.VisibleResourcePackListItems.Count);
         Assert.IsType<ResourcePackManagementInfoPanelItem>(resourcePackManagement.VisibleResourcePackListItems[0]);
-        Assert.Same(resourcePackManagement.VisibleResourcePacks[0], resourcePackManagement.VisibleResourcePackListItems[1]);
+        Assert.IsType<ResourcePackManagementListSectionItem>(resourcePackManagement.VisibleResourcePackListItems[1]);
+        Assert.Same(resourcePackManagement.VisibleResourcePacks[0], resourcePackManagement.VisibleResourcePackListItems[2]);
         Assert.Equal(1000, resourcePackManagement.InstalledResourcePackCount);
 
         var shaderPackManagement = OpenShaderPackManagementSection(viewModel);
         await TestAsync.WaitForAsync(() => shaderPackManagement.ShaderPacks.Count == 1000);
 
         Assert.Same(shaderPackManagement.VisibleShaderPacks, shaderPackManagement.ShaderPacks);
-        Assert.Equal(1001, shaderPackManagement.VisibleShaderPackListItems.Count);
+        Assert.Equal(1002, shaderPackManagement.VisibleShaderPackListItems.Count);
         Assert.IsType<ShaderPackManagementInfoPanelItem>(shaderPackManagement.VisibleShaderPackListItems[0]);
-        Assert.Same(shaderPackManagement.VisibleShaderPacks[0], shaderPackManagement.VisibleShaderPackListItems[1]);
+        Assert.IsType<ShaderPackManagementListSectionItem>(shaderPackManagement.VisibleShaderPackListItems[1]);
+        Assert.Same(shaderPackManagement.VisibleShaderPacks[0], shaderPackManagement.VisibleShaderPackListItems[2]);
         Assert.Equal(1000, shaderPackManagement.InstalledShaderPackCount);
 
         shaderPackManagement.ShaderPackSearchQuery = "shader-0999";
 
         Assert.Single(shaderPackManagement.VisibleShaderPacks);
-        Assert.Equal(2, shaderPackManagement.VisibleShaderPackListItems.Count);
+        Assert.Equal(3, shaderPackManagement.VisibleShaderPackListItems.Count);
         Assert.IsType<ShaderPackManagementInfoPanelItem>(shaderPackManagement.VisibleShaderPackListItems[0]);
-        Assert.Same(shaderPackManagement.VisibleShaderPacks[0], shaderPackManagement.VisibleShaderPackListItems[1]);
+        Assert.IsType<ShaderPackManagementListSectionItem>(shaderPackManagement.VisibleShaderPackListItems[1]);
+        Assert.Same(shaderPackManagement.VisibleShaderPacks[0], shaderPackManagement.VisibleShaderPackListItems[2]);
         Assert.Equal(1000, shaderPackManagement.InstalledShaderPackCount);
     }
 
@@ -2840,9 +2851,10 @@ public sealed class GameSettingsPageViewModelTests
         modManagement.ModSearchQuery = "sodium";
 
         Assert.Single(modManagement.Mods);
-        Assert.Equal(2, modManagement.VisibleModListItems.Count);
+        Assert.Equal(3, modManagement.VisibleModListItems.Count);
         Assert.IsType<ModManagementInfoPanelItem>(modManagement.VisibleModListItems[0]);
-        Assert.Same(modManagement.Mods[0], modManagement.VisibleModListItems[1]);
+        Assert.IsType<ModManagementListSectionItem>(modManagement.VisibleModListItems[1]);
+        Assert.Same(modManagement.Mods[0], modManagement.VisibleModListItems[2]);
         Assert.Equal("sodium-fabric-0.5.13", modManagement.Mods[0].Title);
         Assert.Equal(2, modManagement.InstalledModCount);
         Assert.Equal(1, modManagement.EnabledModCount);
@@ -2853,8 +2865,9 @@ public sealed class GameSettingsPageViewModelTests
         modManagement.ModSearchQuery = "missing-mod";
 
         Assert.Empty(modManagement.Mods);
-        Assert.Single(modManagement.VisibleModListItems);
+        Assert.Equal(2, modManagement.VisibleModListItems.Count);
         Assert.IsType<ModManagementInfoPanelItem>(modManagement.VisibleModListItems[0]);
+        Assert.IsType<ModManagementListSectionItem>(modManagement.VisibleModListItems[1]);
         Assert.True(modManagement.CanShowModListSection);
         Assert.False(modManagement.CanShowNoModsEmptyState);
         Assert.True(modManagement.CanShowModEmptyState);
@@ -2885,7 +2898,7 @@ public sealed class GameSettingsPageViewModelTests
         Assert.True(modManagement.IsAllModsFilterSelected);
         Assert.False(modManagement.IsEnabledModsFilterSelected);
         Assert.False(modManagement.IsDisabledModsFilterSelected);
-        Assert.Equal(4, modManagement.VisibleModListItems.Count);
+        Assert.Equal(5, modManagement.VisibleModListItems.Count);
 
         modManagement.SetModFilterCommand.Execute(ModManagementFilter.Enabled);
 
@@ -2894,8 +2907,9 @@ public sealed class GameSettingsPageViewModelTests
         Assert.True(modManagement.IsEnabledModsFilterSelected);
         Assert.False(modManagement.IsDisabledModsFilterSelected);
         Assert.Equal(["sodium", "lithium"], modManagement.Mods.Select(mod => mod.Title));
-        Assert.Equal(3, modManagement.VisibleModListItems.Count);
+        Assert.Equal(4, modManagement.VisibleModListItems.Count);
         Assert.IsType<ModManagementInfoPanelItem>(modManagement.VisibleModListItems[0]);
+        Assert.IsType<ModManagementListSectionItem>(modManagement.VisibleModListItems[1]);
         Assert.Equal(3, modManagement.InstalledModCount);
         Assert.Equal(2, modManagement.EnabledModCount);
 
@@ -2915,15 +2929,16 @@ public sealed class GameSettingsPageViewModelTests
         var disabledMod = Assert.Single(modManagement.Mods);
         Assert.Equal("disabled-helper", disabledMod.Title);
         Assert.False(disabledMod.IsEnabled);
-        Assert.Equal(2, modManagement.VisibleModListItems.Count);
+        Assert.Equal(3, modManagement.VisibleModListItems.Count);
         Assert.Equal(3, modManagement.InstalledModCount);
         Assert.Equal(2, modManagement.EnabledModCount);
 
         modManagement.ModSearchQuery = "sodium";
 
         Assert.Empty(modManagement.Mods);
-        Assert.Single(modManagement.VisibleModListItems);
+        Assert.Equal(2, modManagement.VisibleModListItems.Count);
         Assert.IsType<ModManagementInfoPanelItem>(modManagement.VisibleModListItems[0]);
+        Assert.IsType<ModManagementListSectionItem>(modManagement.VisibleModListItems[1]);
         Assert.Equal(Strings.GameSettings_ModManagementSearchEmptyMessage, modManagement.ModEmptyMessage);
         Assert.Equal(3, modManagement.InstalledModCount);
         Assert.Equal(2, modManagement.EnabledModCount);
@@ -2952,9 +2967,10 @@ public sealed class GameSettingsPageViewModelTests
         await TestAsync.WaitForAsync(() => modManagement.Mods.Count == 1000);
 
         Assert.Same(modManagement.VisibleMods, modManagement.Mods);
-        Assert.Equal(1001, modManagement.VisibleModListItems.Count);
+        Assert.Equal(1002, modManagement.VisibleModListItems.Count);
         Assert.IsType<ModManagementInfoPanelItem>(modManagement.VisibleModListItems[0]);
-        Assert.Same(modManagement.VisibleMods[0], modManagement.VisibleModListItems[1]);
+        Assert.IsType<ModManagementListSectionItem>(modManagement.VisibleModListItems[1]);
+        Assert.Same(modManagement.VisibleMods[0], modManagement.VisibleModListItems[2]);
         Assert.Equal(1000, modManagement.VisibleMods.Count);
         Assert.Equal(1000, modManagement.InstalledModCount);
         Assert.Equal(500, modManagement.EnabledModCount);
@@ -2962,9 +2978,10 @@ public sealed class GameSettingsPageViewModelTests
         modManagement.ModSearchQuery = "mod-0999";
 
         Assert.Same(modManagement.VisibleMods, modManagement.Mods);
-        Assert.Equal(2, modManagement.VisibleModListItems.Count);
+        Assert.Equal(3, modManagement.VisibleModListItems.Count);
         Assert.IsType<ModManagementInfoPanelItem>(modManagement.VisibleModListItems[0]);
-        Assert.Same(modManagement.VisibleMods[0], modManagement.VisibleModListItems[1]);
+        Assert.IsType<ModManagementListSectionItem>(modManagement.VisibleModListItems[1]);
+        Assert.Same(modManagement.VisibleMods[0], modManagement.VisibleModListItems[2]);
         Assert.Single(modManagement.VisibleMods);
         Assert.Equal("Mod 0999", modManagement.VisibleMods[0].Title);
         Assert.Equal(1000, modManagement.InstalledModCount);
@@ -3465,6 +3482,10 @@ public sealed class GameSettingsPageViewModelTests
             string.Format(Strings.GameSettings_BackupInfoSummaryFormat, 3),
             viewModel.Details.Backup.BackupInfoText);
         Assert.Equal(instance.BackupDirectory, viewModel.Details.Backup.BackupDirectoryText);
+        Assert.Equal(5, viewModel.Details.Backup.VisibleBackupListItems.Count);
+        Assert.IsType<BackupManagementInfoPanelItem>(viewModel.Details.Backup.VisibleBackupListItems[0]);
+        Assert.IsType<BackupManagementListSectionItem>(viewModel.Details.Backup.VisibleBackupListItems[1]);
+        Assert.Same(viewModel.Details.Backup.VisibleBackups[0], viewModel.Details.Backup.VisibleBackupListItems[2]);
     }
 
     [Fact]
@@ -3541,6 +3562,8 @@ public sealed class GameSettingsPageViewModelTests
             viewModel.Details.Backup.BackupInfoText);
         Assert.False(viewModel.Details.Backup.OpenBackupFolderCommand.CanExecute(null));
         Assert.False(viewModel.Details.Backup.CreateBackupNowCommand.CanExecute(null));
+        Assert.Single(viewModel.Details.Backup.VisibleBackupListItems);
+        Assert.IsType<BackupManagementInfoPanelItem>(viewModel.Details.Backup.VisibleBackupListItems[0]);
     }
 
     [Fact]
@@ -3582,6 +3605,10 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Equal(
             string.Format(Strings.GameSettings_BackupInfoSummaryFormat, 2),
             viewModel.Details.Backup.BackupInfoText);
+        Assert.Equal(4, viewModel.Details.Backup.VisibleBackupListItems.Count);
+        Assert.IsType<BackupManagementInfoPanelItem>(viewModel.Details.Backup.VisibleBackupListItems[0]);
+        Assert.IsType<BackupManagementListSectionItem>(viewModel.Details.Backup.VisibleBackupListItems[1]);
+        Assert.Same(viewModel.Details.Backup.VisibleBackups[0], viewModel.Details.Backup.VisibleBackupListItems[2]);
         Assert.True(viewModel.Details.Backup.OpenBackupFolderCommand.CanExecute(null));
         Assert.True(viewModel.Details.Backup.CreateBackupNowCommand.CanExecute(null));
     }
@@ -3741,6 +3768,8 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Equal(instance.BackupDirectory, backupService.LastDeletedBackupDirectory);
         Assert.Equal(backup.FullPath, backupService.LastDeletedBackupFullPath);
         Assert.Empty(viewModel.Details.Backup.VisibleBackups);
+        Assert.Single(viewModel.Details.Backup.VisibleBackupListItems);
+        Assert.IsType<BackupManagementInfoPanelItem>(viewModel.Details.Backup.VisibleBackupListItems[0]);
         Assert.Equal(
             string.Format(Strings.GameSettings_BackupInfoSummaryFormat, 0),
             viewModel.Details.Backup.BackupInfoText);
@@ -4070,6 +4099,17 @@ public sealed class GameSettingsPageViewModelTests
         viewModel.TopSearchQuery = "candidate";
 
         Assert.Equal(["Release"], viewModel.Details.Backup.VisibleBackups.Select(backup => backup.Title));
+        Assert.Equal(3, viewModel.Details.Backup.VisibleBackupListItems.Count);
+        Assert.IsType<BackupManagementInfoPanelItem>(viewModel.Details.Backup.VisibleBackupListItems[0]);
+        Assert.IsType<BackupManagementListSectionItem>(viewModel.Details.Backup.VisibleBackupListItems[1]);
+        Assert.Same(viewModel.Details.Backup.VisibleBackups[0], viewModel.Details.Backup.VisibleBackupListItems[2]);
+
+        viewModel.TopSearchQuery = "missing";
+
+        Assert.Empty(viewModel.Details.Backup.VisibleBackups);
+        Assert.Single(viewModel.Details.Backup.VisibleBackupListItems);
+        Assert.IsType<BackupManagementInfoPanelItem>(viewModel.Details.Backup.VisibleBackupListItems[0]);
+        Assert.Equal(Strings.GameSettings_BackupSearchEmpty, viewModel.Details.Backup.BackupEmptyMessage);
     }
 
     [Fact]

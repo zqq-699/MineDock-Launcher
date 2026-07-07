@@ -18,43 +18,42 @@
                 <GroupBox Header="{x:Static res:Strings.GameSettings_BackupInfoSection}"
                           Margin="0,0,0,12"
                           Style="{StaticResource LauncherContentSectionStyle}">
-                    <Border Style="{StaticResource SectionFieldSurfaceStyle}">
-                        <StackPanel>
-                            <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
-                                <TextBlock Text="{Binding DataContext.BackupInfoText, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceBackupSettingsView}}}"
-                                           Style="{StaticResource ReadOnlyFieldTextStyle}" />
-                            </Border>
+                    <StackPanel>
+                        <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
+                            <TextBlock Text="{Binding DataContext.BackupInfoText, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceBackupSettingsView}}}"
+                                       Style="{StaticResource ReadOnlyFieldTextStyle}" />
+                        </Border>
 
-                            <TextBlock Margin="0,12,0,8"
-                                       Text="{x:Static res:Strings.GameSettings_BackupDirectorySection}"
-                                       Style="{StaticResource SettingsOptionTextStyle}" />
+                        <TextBlock Margin="0,12,0,8"
+                                   Text="{x:Static res:Strings.GameSettings_BackupDirectorySection}"
+                                   Style="{StaticResource ManagementListSectionHeaderTextStyle}" />
 
-                            <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
-                                <TextBlock Text="{Binding DataContext.BackupDirectoryText, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceBackupSettingsView}}}"
-                                           Style="{StaticResource ReadOnlyFieldTextStyle}" />
-                            </Border>
+                        <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
+                            <TextBlock Text="{Binding DataContext.BackupDirectoryText, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceBackupSettingsView}}}"
+                                       Style="{StaticResource ReadOnlyFieldTextStyle}" />
+                        </Border>
 
-                            <TextBlock Margin="0,12,0,8"
-                                       Text="{x:Static res:Strings.GameSettings_BackupActionsLabel}"
-                                       Style="{StaticResource SettingsOptionTextStyle}" />
-
-                            <WrapPanel>
-                                <Button Margin="0,0,8,4"
-                                        Content="{x:Static res:Strings.GameSettings_BackupOpenFolderButton}"
-                                        Command="{Binding DataContext.OpenBackupFolderCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceBackupSettingsView}}}"
-                                        Style="{StaticResource LauncherDialogButtonStyle}" />
-                                <Button Margin="0,0,8,4"
-                                        Content="{x:Static res:Strings.GameSettings_BackupChangeDirectoryButton}"
-                                        Command="{Binding DataContext.ChangeBackupDirectoryCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceBackupSettingsView}}}"
-                                        Style="{StaticResource LauncherDialogButtonStyle}" />
-                                <Button Margin="0,0,8,4"
-                                        Content="{x:Static res:Strings.GameSettings_BackupCreateNowButton}"
-                                        Command="{Binding DataContext.CreateBackupNowCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceBackupSettingsView}}}"
-                                        Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
-                            </WrapPanel>
-                        </StackPanel>
-                    </Border>
+                        <WrapPanel Margin="0,12,0,0">
+                            <Button Margin="0,0,8,4"
+                                    Content="{x:Static res:Strings.GameSettings_BackupOpenFolderButton}"
+                                    Command="{Binding DataContext.OpenBackupFolderCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceBackupSettingsView}}}"
+                                    Style="{StaticResource LauncherDialogButtonStyle}" />
+                            <Button Margin="0,0,8,4"
+                                    Content="{x:Static res:Strings.GameSettings_BackupChangeDirectoryButton}"
+                                    Command="{Binding DataContext.ChangeBackupDirectoryCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceBackupSettingsView}}}"
+                                    Style="{StaticResource LauncherDialogButtonStyle}" />
+                            <Button Margin="0,0,8,4"
+                                    Content="{x:Static res:Strings.GameSettings_BackupCreateNowButton}"
+                                    Command="{Binding DataContext.CreateBackupNowCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceBackupSettingsView}}}"
+                                    Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
+                        </WrapPanel>
+                    </StackPanel>
                 </GroupBox>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type gameSettings:BackupManagementListSectionItem}">
+                <TextBlock Text="{x:Static res:Strings.GameSettings_BackupListSection}"
+                           Style="{StaticResource ManagementListSectionHeaderTextStyle}" />
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gameSettings:InstanceBackupItemViewModel}">

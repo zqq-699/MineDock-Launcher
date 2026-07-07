@@ -370,6 +370,7 @@ public static class Strings
     public static string GameSettings_GeneralCreatedAtSection => Get(nameof(GameSettings_GeneralCreatedAtSection));
     public static string GameSettings_DeleteGameButton => Get(nameof(GameSettings_DeleteGameButton));
     public static string GameSettings_BackupInfoSection => Get(nameof(GameSettings_BackupInfoSection));
+    public static string GameSettings_BackupListSection => Get(nameof(GameSettings_BackupListSection));
     public static string GameSettings_BackupInfoSummaryFormat => Get(nameof(GameSettings_BackupInfoSummaryFormat));
     public static string GameSettings_BackupDirectorySection => Get(nameof(GameSettings_BackupDirectorySection));
     public static string GameSettings_BackupDirectoryNotSelected => Get(nameof(GameSettings_BackupDirectoryNotSelected));

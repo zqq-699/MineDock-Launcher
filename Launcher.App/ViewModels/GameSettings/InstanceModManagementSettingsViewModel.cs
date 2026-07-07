@@ -1064,25 +1064,36 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         if (IsSameVisibleModListItems())
             return;
 
-        var items = new object[VisibleMods.Count + 1];
+        var hasListSection = localModsViewModel.CurrentMods.Count > 0;
+        var items = new object[VisibleMods.Count + (hasListSection ? 2 : 1)];
         items[0] = ModManagementInfoPanelItem.Instance;
+        if (hasListSection)
+            items[1] = ModManagementListSectionItem.Instance;
+
         for (var index = 0; index < VisibleMods.Count; index++)
-            items[index + 1] = VisibleMods[index];
+            items[index + (hasListSection ? 2 : 1)] = VisibleMods[index];
 
         VisibleModListItems = items;
     }
 
     private bool IsSameVisibleModListItems()
     {
-        if (VisibleModListItems.Count != VisibleMods.Count + 1)
+        var hasListSection = localModsViewModel.CurrentMods.Count > 0;
+        if (VisibleModListItems.Count != VisibleMods.Count + (hasListSection ? 2 : 1))
             return false;
 
         if (!ReferenceEquals(VisibleModListItems[0], ModManagementInfoPanelItem.Instance))
             return false;
 
+        if (!hasListSection)
+            return true;
+
+        if (!ReferenceEquals(VisibleModListItems[1], ModManagementListSectionItem.Instance))
+            return false;
+
         for (var index = 0; index < VisibleMods.Count; index++)
         {
-            if (!ReferenceEquals(VisibleModListItems[index + 1], VisibleMods[index]))
+            if (!ReferenceEquals(VisibleModListItems[index + 2], VisibleMods[index]))
                 return false;
         }
 
@@ -1159,6 +1170,15 @@ public sealed class ModManagementInfoPanelItem
     public static ModManagementInfoPanelItem Instance { get; } = new();
 
     private ModManagementInfoPanelItem()
+    {
+    }
+}
+
+public sealed class ModManagementListSectionItem
+{
+    public static ModManagementListSectionItem Instance { get; } = new();
+
+    private ModManagementListSectionItem()
     {
     }
 }

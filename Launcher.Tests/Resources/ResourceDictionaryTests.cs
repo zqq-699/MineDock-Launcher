@@ -511,7 +511,44 @@ public sealed class ResourceDictionaryTests
                 var application = GetOrCreateApplication();
                 EnsureApplicationResources(application);
 
-                var detailsViewModel = CreateDetailsViewModel();
+                var instance = CreateInstance("Fabric Pack", "1.21.4", LoaderKind.Fabric);
+                var modService = new StubModService();
+                var saveService = new StubSaveService();
+                var resourcePackService = new StubResourcePackService();
+                var shaderPackService = new StubShaderPackService();
+                var backupService = new StubInstanceBackupService();
+                instance.BackupDirectory = Path.Combine(instance.InstanceDirectory, "backups");
+                modService.ModsByInstanceId[instance.Id] =
+                [
+                    CreateLocalMod("sodium.jar", instance.InstanceDirectory, "Sodium")
+                ];
+                saveService.SavesByInstanceId[instance.Id] =
+                [
+                    CreateLocalSave("Base Camp", instance.InstanceDirectory)
+                ];
+                resourcePackService.ResourcePacksByInstanceId[instance.Id] =
+                [
+                    CreateLocalResourcePack("Fresh Animations.zip", instance.InstanceDirectory)
+                ];
+                shaderPackService.ShaderPacksByInstanceId[instance.Id] =
+                [
+                    CreateLocalShaderPack("Complementary.zip", instance.InstanceDirectory)
+                ];
+                backupService.Backups.Add(new InstanceBackupRecord
+                {
+                    Name = "Nightly",
+                    FileName = "nightly.zip",
+                    FullPath = Path.Combine(instance.BackupDirectory, "nightly.zip"),
+                    SizeBytes = 1024 * 1024,
+                    CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                });
+
+                var detailsViewModel = CreateDetailsViewModel(
+                    modService,
+                    saveService,
+                    resourcePackService,
+                    shaderPackService,
+                    backupService);
                 detailsViewModel.SetSelectedSection(new GameSettingsDetailSectionItem(
                     "mod_management",
                     Strings.GameSettings_DetailModManagement,
@@ -544,28 +581,71 @@ public sealed class ResourceDictionaryTests
 
                 Assert.Null(FindVisualDescendantByTag<Border>(pageView, "StickyModListFloatingHost"));
 
-                detailsViewModel.SetSelectedInstance(new GameSettingsInstanceItem(
-                    CreateInstance("Fabric Pack", "1.21.4", LoaderKind.Fabric),
-                    "release"));
+                detailsViewModel.SetSelectedInstance(new GameSettingsInstanceItem(instance, "release"));
+                RunSynchronously(() => detailsViewModel.ModManagement.EnsureLoadedForSelectedInstanceAsync());
                 detailsViewModel.ModManagement.ModSearchQuery = "sodium";
                 var standaloneView = new InstanceModManagementSettingsView
                 {
                     DataContext = detailsViewModel.ModManagement
                 };
                 standaloneView.ApplyTemplate();
-                standaloneView.Measure(new Size(800, 300));
-                standaloneView.Arrange(new Rect(0, 0, 800, 300));
+                standaloneView.Measure(new Size(800, 520));
+                standaloneView.Arrange(new Rect(0, 0, 800, 520));
                 standaloneView.UpdateLayout();
 
                 Assert.NotNull(standaloneView.Content);
                 var searchTextBoxes = FindVisualDescendants<TextBox>(standaloneView).ToArray();
                 Assert.Empty(searchTextBoxes);
+                var modListBoxForHeader = FindVisualDescendant<ListBox>(standaloneView);
+                Assert.NotNull(modListBoxForHeader);
+                Assert.True(detailsViewModel.ModManagement.VisibleModListItems.Count > 1, $"Expected Mod list section item, found {detailsViewModel.ModManagement.VisibleModListItems.Count} item(s).");
+                modListBoxForHeader.ScrollIntoView(detailsViewModel.ModManagement.VisibleModListItems[1]);
+                standaloneView.UpdateLayout();
+                PumpDispatcher();
                 var modInfoPanel = FindVisualDescendant<GroupBox>(
                     standaloneView,
                     groupBox => Equals(groupBox.Header, Strings.GameSettings_ModManagementInfoSection));
                 Assert.NotNull(modInfoPanel);
                 Assert.Equal(Visibility.Visible, modInfoPanel.Visibility);
-                Assert.NotNull(FindVisualAncestor<ListBoxItem>(modInfoPanel));
+                var modInfoListItem = FindVisualAncestor<ListBoxItem>(modInfoPanel);
+                Assert.NotNull(modInfoListItem);
+                var openModFolderButton = FindVisualDescendant<Button>(
+                    standaloneView,
+                    button => Equals(button.Content, Strings.GameSettings_ModManagementOpenFolderButton));
+                var importLocalModButton = FindVisualDescendant<Button>(
+                    standaloneView,
+                    button => Equals(button.Content, Strings.GameSettings_ModManagementLocalImportButton));
+                var installOnlineModButton = FindVisualDescendant<Button>(
+                    standaloneView,
+                    button => Equals(button.Content, Strings.GameSettings_ModManagementOnlineInstallButton));
+                Assert.NotNull(openModFolderButton);
+                Assert.NotNull(importLocalModButton);
+                Assert.NotNull(installOnlineModButton);
+                Assert.Same(modInfoListItem, FindVisualAncestor<ListBoxItem>(openModFolderButton));
+                Assert.Same(modInfoListItem, FindVisualAncestor<ListBoxItem>(importLocalModButton));
+                Assert.Same(modInfoListItem, FindVisualAncestor<ListBoxItem>(installOnlineModButton));
+                var modListLabel = FindVisualDescendant<TextBlock>(
+                    standaloneView,
+                    textBlock => Equals(textBlock.Text, Strings.GameSettings_ModManagementFilterLabel));
+                Assert.NotNull(modListLabel);
+                Assert.Equal(Visibility.Visible, modListLabel.Visibility);
+                var modListItem = FindVisualAncestor<ListBoxItem>(modListLabel);
+                Assert.NotNull(modListItem);
+                var allModsFilterButton = FindVisualDescendant<Button>(
+                    standaloneView,
+                    button => Equals(button.Content, Strings.GameSettings_ModManagementFilterAllButton));
+                var enabledModsFilterButton = FindVisualDescendant<Button>(
+                    standaloneView,
+                    button => Equals(button.Content, Strings.GameSettings_ModManagementFilterEnabledButton));
+                var disabledModsFilterButton = FindVisualDescendant<Button>(
+                    standaloneView,
+                    button => Equals(button.Content, Strings.GameSettings_ModManagementFilterDisabledButton));
+                Assert.NotNull(allModsFilterButton);
+                Assert.NotNull(enabledModsFilterButton);
+                Assert.NotNull(disabledModsFilterButton);
+                Assert.Same(modListItem, FindVisualAncestor<ListBoxItem>(allModsFilterButton));
+                Assert.Same(modListItem, FindVisualAncestor<ListBoxItem>(enabledModsFilterButton));
+                Assert.Same(modListItem, FindVisualAncestor<ListBoxItem>(disabledModsFilterButton));
 
                 var modListBox = FindVisualDescendant<ListBox>(standaloneView);
                 Assert.NotNull(modListBox);
@@ -584,10 +664,13 @@ public sealed class ResourceDictionaryTests
                     groupBox => Equals(groupBox.Header, Strings.GameSettings_ModManagementInfoSection)
                         && groupBox.Visibility == Visibility.Visible));
 
+                detailsViewModel.SetSelectedInstance(new GameSettingsInstanceItem(instance, "release"));
                 detailsViewModel.SetSelectedSection(new GameSettingsDetailSectionItem(
                     "saves",
                     Strings.GameSettings_DetailSaves,
                     "instance_setting_page/saves"));
+                RunSynchronously(() => detailsViewModel.SaveManagement.OnSectionActivatedAsync());
+                PumpDispatcher(DispatcherPriority.ApplicationIdle);
                 detailsView.UpdateLayout();
 
                 var saveManagementView = FindVisualDescendant<InstanceSaveManagementSettingsView>(detailsView);
@@ -599,19 +682,41 @@ public sealed class ResourceDictionaryTests
                     DataContext = detailsViewModel.SaveManagement
                 };
                 standaloneSaveView.ApplyTemplate();
-                standaloneSaveView.Measure(new Size(800, 300));
-                standaloneSaveView.Arrange(new Rect(0, 0, 800, 300));
+                standaloneSaveView.Measure(new Size(800, 520));
+                standaloneSaveView.Arrange(new Rect(0, 0, 800, 520));
                 standaloneSaveView.UpdateLayout();
 
                 Assert.NotNull(standaloneSaveView.Content);
                 var saveSearchTextBoxes = FindVisualDescendants<TextBox>(standaloneSaveView).ToArray();
                 Assert.Empty(saveSearchTextBoxes);
+                var saveListBoxForHeader = FindVisualDescendant<ListBox>(standaloneSaveView);
+                Assert.NotNull(saveListBoxForHeader);
+                Assert.True(detailsViewModel.SaveManagement.VisibleSaveListItems.Count > 1, $"Expected save list section item, found {detailsViewModel.SaveManagement.VisibleSaveListItems.Count} item(s).");
+                saveListBoxForHeader.ScrollIntoView(detailsViewModel.SaveManagement.VisibleSaveListItems[1]);
+                standaloneSaveView.UpdateLayout();
+                PumpDispatcher();
                 var saveInfoPanel = FindVisualDescendant<GroupBox>(
                     standaloneSaveView,
                     groupBox => Equals(groupBox.Header, Strings.GameSettings_SaveManagementInfoSection));
                 Assert.NotNull(saveInfoPanel);
                 Assert.Equal(Visibility.Visible, saveInfoPanel.Visibility);
-                Assert.NotNull(FindVisualAncestor<ListBoxItem>(saveInfoPanel));
+                var saveInfoListItem = FindVisualAncestor<ListBoxItem>(saveInfoPanel);
+                Assert.NotNull(saveInfoListItem);
+                var openSaveFolderButton = FindVisualDescendant<Button>(
+                    standaloneSaveView,
+                    button => Equals(button.Content, Strings.GameSettings_SaveManagementOpenFolderButton));
+                var importLocalSaveButton = FindVisualDescendant<Button>(
+                    standaloneSaveView,
+                    button => Equals(button.Content, Strings.GameSettings_SaveManagementLocalImportButton));
+                Assert.NotNull(openSaveFolderButton);
+                Assert.NotNull(importLocalSaveButton);
+                Assert.Same(saveInfoListItem, FindVisualAncestor<ListBoxItem>(openSaveFolderButton));
+                Assert.Same(saveInfoListItem, FindVisualAncestor<ListBoxItem>(importLocalSaveButton));
+                var saveListLabel = FindVisualDescendant<TextBlock>(
+                    standaloneSaveView,
+                    textBlock => Equals(textBlock.Text, Strings.GameSettings_SaveManagementSaveListSection));
+                Assert.NotNull(saveListLabel);
+                Assert.Equal(Visibility.Visible, saveListLabel.Visibility);
 
                 var saveListBox = FindVisualDescendant<ListBox>(standaloneSaveView);
                 Assert.NotNull(saveListBox);
@@ -622,6 +727,8 @@ public sealed class ResourceDictionaryTests
                     "resource_packs",
                     Strings.GameSettings_DetailResourcePacks,
                     "main_menu_library"));
+                RunSynchronously(() => detailsViewModel.ResourcePackManagement.OnSectionActivatedAsync());
+                PumpDispatcher(DispatcherPriority.ApplicationIdle);
                 detailsView.UpdateLayout();
 
                 var resourcePackManagementView = FindVisualDescendant<InstanceResourcePackManagementSettingsView>(detailsView);
@@ -633,19 +740,41 @@ public sealed class ResourceDictionaryTests
                     DataContext = detailsViewModel.ResourcePackManagement
                 };
                 standaloneResourcePackView.ApplyTemplate();
-                standaloneResourcePackView.Measure(new Size(800, 300));
-                standaloneResourcePackView.Arrange(new Rect(0, 0, 800, 300));
+                standaloneResourcePackView.Measure(new Size(800, 520));
+                standaloneResourcePackView.Arrange(new Rect(0, 0, 800, 520));
                 standaloneResourcePackView.UpdateLayout();
 
                 Assert.NotNull(standaloneResourcePackView.Content);
                 var resourcePackSearchTextBoxes = FindVisualDescendants<TextBox>(standaloneResourcePackView).ToArray();
                 Assert.Empty(resourcePackSearchTextBoxes);
+                var resourcePackListBoxForHeader = FindVisualDescendant<ListBox>(standaloneResourcePackView);
+                Assert.NotNull(resourcePackListBoxForHeader);
+                Assert.True(detailsViewModel.ResourcePackManagement.VisibleResourcePackListItems.Count > 1, $"Expected resource pack list section item, found {detailsViewModel.ResourcePackManagement.VisibleResourcePackListItems.Count} item(s).");
+                resourcePackListBoxForHeader.ScrollIntoView(detailsViewModel.ResourcePackManagement.VisibleResourcePackListItems[1]);
+                standaloneResourcePackView.UpdateLayout();
+                PumpDispatcher();
                 var resourcePackInfoPanel = FindVisualDescendant<GroupBox>(
                     standaloneResourcePackView,
                     groupBox => Equals(groupBox.Header, Strings.GameSettings_ResourcePackManagementInfoSection));
                 Assert.NotNull(resourcePackInfoPanel);
                 Assert.Equal(Visibility.Visible, resourcePackInfoPanel.Visibility);
-                Assert.NotNull(FindVisualAncestor<ListBoxItem>(resourcePackInfoPanel));
+                var resourcePackInfoListItem = FindVisualAncestor<ListBoxItem>(resourcePackInfoPanel);
+                Assert.NotNull(resourcePackInfoListItem);
+                var openResourcePackFolderButton = FindVisualDescendant<Button>(
+                    standaloneResourcePackView,
+                    button => Equals(button.Content, Strings.GameSettings_ResourcePackManagementOpenFolderButton));
+                var importLocalResourcePackButton = FindVisualDescendant<Button>(
+                    standaloneResourcePackView,
+                    button => Equals(button.Content, Strings.GameSettings_ResourcePackManagementLocalImportButton));
+                Assert.NotNull(openResourcePackFolderButton);
+                Assert.NotNull(importLocalResourcePackButton);
+                Assert.Same(resourcePackInfoListItem, FindVisualAncestor<ListBoxItem>(openResourcePackFolderButton));
+                Assert.Same(resourcePackInfoListItem, FindVisualAncestor<ListBoxItem>(importLocalResourcePackButton));
+                var resourcePackListLabel = FindVisualDescendant<TextBlock>(
+                    standaloneResourcePackView,
+                    textBlock => Equals(textBlock.Text, Strings.GameSettings_ResourcePackManagementListSection));
+                Assert.NotNull(resourcePackListLabel);
+                Assert.Equal(Visibility.Visible, resourcePackListLabel.Visibility);
 
                 var resourcePackListBox = FindVisualDescendant<ListBox>(standaloneResourcePackView);
                 Assert.NotNull(resourcePackListBox);
@@ -656,6 +785,8 @@ public sealed class ResourceDictionaryTests
                     "shaders",
                     Strings.GameSettings_DetailShaders,
                     "instance_setting_page/shader"));
+                RunSynchronously(() => detailsViewModel.ShaderPackManagement.OnSectionActivatedAsync());
+                PumpDispatcher(DispatcherPriority.ApplicationIdle);
                 detailsView.UpdateLayout();
 
                 var shaderPackManagementView = FindVisualDescendant<InstanceShaderPackManagementSettingsView>(detailsView);
@@ -667,19 +798,41 @@ public sealed class ResourceDictionaryTests
                     DataContext = detailsViewModel.ShaderPackManagement
                 };
                 standaloneShaderPackView.ApplyTemplate();
-                standaloneShaderPackView.Measure(new Size(800, 300));
-                standaloneShaderPackView.Arrange(new Rect(0, 0, 800, 300));
+                standaloneShaderPackView.Measure(new Size(800, 520));
+                standaloneShaderPackView.Arrange(new Rect(0, 0, 800, 520));
                 standaloneShaderPackView.UpdateLayout();
 
                 Assert.NotNull(standaloneShaderPackView.Content);
                 var shaderPackSearchTextBoxes = FindVisualDescendants<TextBox>(standaloneShaderPackView).ToArray();
                 Assert.Empty(shaderPackSearchTextBoxes);
+                var shaderPackListBoxForHeader = FindVisualDescendant<ListBox>(standaloneShaderPackView);
+                Assert.NotNull(shaderPackListBoxForHeader);
+                Assert.True(detailsViewModel.ShaderPackManagement.VisibleShaderPackListItems.Count > 1, $"Expected shader pack list section item, found {detailsViewModel.ShaderPackManagement.VisibleShaderPackListItems.Count} item(s).");
+                shaderPackListBoxForHeader.ScrollIntoView(detailsViewModel.ShaderPackManagement.VisibleShaderPackListItems[1]);
+                standaloneShaderPackView.UpdateLayout();
+                PumpDispatcher();
                 var shaderPackInfoPanel = FindVisualDescendant<GroupBox>(
                     standaloneShaderPackView,
                     groupBox => Equals(groupBox.Header, Strings.GameSettings_ShaderPackManagementInfoSection));
                 Assert.NotNull(shaderPackInfoPanel);
                 Assert.Equal(Visibility.Visible, shaderPackInfoPanel.Visibility);
-                Assert.NotNull(FindVisualAncestor<ListBoxItem>(shaderPackInfoPanel));
+                var shaderPackInfoListItem = FindVisualAncestor<ListBoxItem>(shaderPackInfoPanel);
+                Assert.NotNull(shaderPackInfoListItem);
+                var openShaderPackFolderButton = FindVisualDescendant<Button>(
+                    standaloneShaderPackView,
+                    button => Equals(button.Content, Strings.GameSettings_ShaderPackManagementOpenFolderButton));
+                var importLocalShaderPackButton = FindVisualDescendant<Button>(
+                    standaloneShaderPackView,
+                    button => Equals(button.Content, Strings.GameSettings_ShaderPackManagementLocalImportButton));
+                Assert.NotNull(openShaderPackFolderButton);
+                Assert.NotNull(importLocalShaderPackButton);
+                Assert.Same(shaderPackInfoListItem, FindVisualAncestor<ListBoxItem>(openShaderPackFolderButton));
+                Assert.Same(shaderPackInfoListItem, FindVisualAncestor<ListBoxItem>(importLocalShaderPackButton));
+                var shaderPackListLabel = FindVisualDescendant<TextBlock>(
+                    standaloneShaderPackView,
+                    textBlock => Equals(textBlock.Text, Strings.GameSettings_ShaderPackManagementListSection));
+                Assert.NotNull(shaderPackListLabel);
+                Assert.Equal(Visibility.Visible, shaderPackListLabel.Visibility);
 
                 var shaderPackListBox = FindVisualDescendant<ListBox>(standaloneShaderPackView);
                 Assert.NotNull(shaderPackListBox);
@@ -690,10 +843,64 @@ public sealed class ResourceDictionaryTests
                     "backup",
                     Strings.GameSettings_DetailBackup,
                     "instance_setting_page/backup"));
+                RunSynchronously(() => detailsViewModel.Backup.OnSectionActivatedAsync());
+                PumpDispatcher(DispatcherPriority.ApplicationIdle);
                 detailsView.UpdateLayout();
 
                 var backupSettingsView = FindVisualDescendant<InstanceBackupSettingsView>(detailsView);
                 Assert.NotNull(backupSettingsView);
+
+                var standaloneBackupView = new InstanceBackupSettingsView
+                {
+                    DataContext = detailsViewModel.Backup
+                };
+                standaloneBackupView.ApplyTemplate();
+                standaloneBackupView.Measure(new Size(800, 520));
+                standaloneBackupView.Arrange(new Rect(0, 0, 800, 520));
+                standaloneBackupView.UpdateLayout();
+
+                Assert.NotNull(standaloneBackupView.Content);
+                var backupListBoxForHeader = FindVisualDescendant<ListBox>(standaloneBackupView);
+                Assert.NotNull(backupListBoxForHeader);
+                Assert.True(detailsViewModel.Backup.VisibleBackupListItems.Count > 1, $"Expected backup list section item, found {detailsViewModel.Backup.VisibleBackupListItems.Count} item(s).");
+                backupListBoxForHeader.ScrollIntoView(detailsViewModel.Backup.VisibleBackupListItems[1]);
+                standaloneBackupView.UpdateLayout();
+                PumpDispatcher();
+                var backupInfoPanel = FindVisualDescendant<GroupBox>(
+                    standaloneBackupView,
+                    groupBox => Equals(groupBox.Header, Strings.GameSettings_BackupInfoSection));
+                Assert.NotNull(backupInfoPanel);
+                Assert.Equal(Visibility.Visible, backupInfoPanel.Visibility);
+                var backupInfoListItem = FindVisualAncestor<ListBoxItem>(backupInfoPanel);
+                Assert.NotNull(backupInfoListItem);
+                var openBackupFolderButton = FindVisualDescendant<Button>(
+                    standaloneBackupView,
+                    button => Equals(button.Content, Strings.GameSettings_BackupOpenFolderButton));
+                var changeBackupDirectoryButton = FindVisualDescendant<Button>(
+                    standaloneBackupView,
+                    button => Equals(button.Content, Strings.GameSettings_BackupChangeDirectoryButton));
+                var createBackupNowButton = FindVisualDescendant<Button>(
+                    standaloneBackupView,
+                    button => Equals(button.Content, Strings.GameSettings_BackupCreateNowButton));
+                Assert.NotNull(openBackupFolderButton);
+                Assert.NotNull(changeBackupDirectoryButton);
+                Assert.NotNull(createBackupNowButton);
+                Assert.Same(backupInfoListItem, FindVisualAncestor<ListBoxItem>(openBackupFolderButton));
+                Assert.Same(backupInfoListItem, FindVisualAncestor<ListBoxItem>(changeBackupDirectoryButton));
+                Assert.Same(backupInfoListItem, FindVisualAncestor<ListBoxItem>(createBackupNowButton));
+                Assert.Null(FindVisualDescendant<TextBlock>(
+                    standaloneBackupView,
+                    textBlock => Equals(textBlock.Text, Strings.GameSettings_BackupActionsLabel)));
+                var backupListLabel = FindVisualDescendant<TextBlock>(
+                    standaloneBackupView,
+                    textBlock => Equals(textBlock.Text, Strings.GameSettings_BackupListSection));
+                Assert.NotNull(backupListLabel);
+                Assert.Equal(Visibility.Visible, backupListLabel.Visibility);
+
+                var backupListBox = FindVisualDescendant<ListBox>(standaloneBackupView);
+                Assert.NotNull(backupListBox);
+                Assert.True(VirtualizingPanel.GetIsVirtualizing(backupListBox));
+                Assert.Equal(VirtualizationMode.Recycling, VirtualizingPanel.GetVirtualizationMode(backupListBox));
             }
             catch (Exception ex)
             {
@@ -882,14 +1089,17 @@ public sealed class ResourceDictionaryTests
     [Fact]
     public void ModManagementStringsResolveAtRuntime()
     {
-        Assert.Equal("Mod\u4fe1\u606f", Strings.GameSettings_ModManagementInfoSection);
+        Assert.Equal("Mod\u6982\u89c8", Strings.GameSettings_ModManagementInfoSection);
+        Assert.Equal("\u5b58\u6863\u6982\u89c8", Strings.GameSettings_SaveManagementInfoSection);
+        Assert.Equal("\u8d44\u6e90\u5305\u6982\u89c8", Strings.GameSettings_ResourcePackManagementInfoSection);
+        Assert.Equal("\u5149\u5f71\u5305\u6982\u89c8", Strings.GameSettings_ShaderPackManagementInfoSection);
         Assert.Equal(
             "\u5f53\u524d\u6e38\u620f\u5df2\u5b89\u88c5 0 \u4e2a mods\uff0c\u5df2\u542f\u7528 0 \u4e2a",
             string.Format(Strings.GameSettings_ModManagementInstalledSummaryFormat, 0, 0));
         Assert.Equal(
             "\u6253\u5f00 mod \u6587\u4ef6\u5939",
             Strings.GameSettings_ModManagementOpenFolderButton);
-        Assert.Equal("\u7b5b\u9009", Strings.GameSettings_ModManagementFilterLabel);
+        Assert.Equal("Mod\u5217\u8868", Strings.GameSettings_ModManagementFilterLabel);
         Assert.Equal("\u5168\u90e8", Strings.GameSettings_ModManagementFilterAllButton);
         Assert.Equal("\u5df2\u542f\u7528", Strings.GameSettings_ModManagementFilterEnabledButton);
         Assert.Equal("\u5df2\u7981\u7528", Strings.GameSettings_ModManagementFilterDisabledButton);
@@ -940,11 +1150,21 @@ public sealed class ResourceDictionaryTests
             throw exception;
     }
 
-    private static GameSettingsDetailsViewModel CreateDetailsViewModel()
+    private static GameSettingsDetailsViewModel CreateDetailsViewModel(
+        StubModService? modService = null,
+        StubSaveService? saveService = null,
+        StubResourcePackService? resourcePackService = null,
+        StubShaderPackService? shaderPackService = null,
+        StubInstanceBackupService? backupService = null)
     {
         var statusService = new StubStatusService();
         var instanceService = new StubGameInstanceService();
         var editDialog = new GameSettingsEditDialogViewModel(instanceService, statusService);
+        modService ??= new StubModService();
+        saveService ??= new StubSaveService();
+        resourcePackService ??= new StubResourcePackService();
+        shaderPackService ??= new StubShaderPackService();
+        backupService ??= new StubInstanceBackupService();
 
         return new GameSettingsDetailsViewModel(
             editDialog,
@@ -952,12 +1172,12 @@ public sealed class ResourceDictionaryTests
             statusService,
             new StubInstanceFolderService(),
             new StubSystemMemoryService(),
-            new StubModService(),
-            new StubInstanceBackupService(),
-            new LocalModsViewModel(new StubModService(), statusService),
-            new LocalSavesViewModel(new StubSaveService(), statusService),
-            new LocalResourcePacksViewModel(new StubResourcePackService(), statusService),
-            new LocalShaderPacksViewModel(new StubShaderPackService(), statusService),
+            modService,
+            backupService,
+            new LocalModsViewModel(modService, statusService),
+            new LocalSavesViewModel(saveService, statusService),
+            new LocalResourcePacksViewModel(resourcePackService, statusService),
+            new LocalShaderPacksViewModel(shaderPackService, statusService),
             new StubJavaRuntimeDiscoveryService(),
             new StubFilePickerService(),
             new StubFloatingMessageService());
@@ -1019,6 +1239,39 @@ public sealed class ResourceDictionaryTests
             IsEnabled = true,
             SizeBytes = 1024,
             Source = "Local"
+        };
+    }
+
+    private static LocalSave CreateLocalSave(string name, string instanceDirectory)
+    {
+        return new LocalSave
+        {
+            Name = name,
+            DirectoryName = name,
+            FullPath = Path.Combine(instanceDirectory, "saves", name),
+            CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+        };
+    }
+
+    private static LocalResourcePack CreateLocalResourcePack(string fileName, string instanceDirectory)
+    {
+        return new LocalResourcePack
+        {
+            Name = Path.GetFileNameWithoutExtension(fileName),
+            FileName = fileName,
+            FullPath = Path.Combine(instanceDirectory, "resourcepacks", fileName),
+            CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+        };
+    }
+
+    private static LocalShaderPack CreateLocalShaderPack(string fileName, string instanceDirectory)
+    {
+        return new LocalShaderPack
+        {
+            Name = Path.GetFileNameWithoutExtension(fileName),
+            FileName = fileName,
+            FullPath = Path.Combine(instanceDirectory, "shaderpacks", fileName),
+            CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
         };
     }
 
@@ -1328,9 +1581,14 @@ public sealed class ResourceDictionaryTests
 
     private sealed class StubSaveService : ILocalSaveService
     {
+        public Dictionary<string, IReadOnlyList<LocalSave>> SavesByInstanceId { get; } = new(StringComparer.OrdinalIgnoreCase);
+
         public Task<IReadOnlyList<LocalSave>> GetSavesAsync(GameInstance instance, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<LocalSave>>([]);
+            return Task.FromResult(
+                SavesByInstanceId.TryGetValue(instance.Id, out var saves)
+                    ? saves
+                    : []);
         }
 
         public Task<LocalSaveImportResult> ImportFromArchiveAsync(
@@ -1354,6 +1612,8 @@ public sealed class ResourceDictionaryTests
 
     private sealed class StubInstanceBackupService : IInstanceBackupService
     {
+        public List<InstanceBackupRecord> Backups { get; } = [];
+
         public Task<string> EnsureBackupDirectoryAsync(string backupDirectory, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(backupDirectory);
@@ -1368,7 +1628,7 @@ public sealed class ResourceDictionaryTests
             string backupDirectory,
             CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<InstanceBackupRecord>>([]);
+            return Task.FromResult<IReadOnlyList<InstanceBackupRecord>>(Backups.ToArray());
         }
 
         public Task<InstanceBackupRecord> CreateBackupAsync(
@@ -1407,9 +1667,14 @@ public sealed class ResourceDictionaryTests
 
     private sealed class StubResourcePackService : ILocalResourcePackService
     {
+        public Dictionary<string, IReadOnlyList<LocalResourcePack>> ResourcePacksByInstanceId { get; } = new(StringComparer.OrdinalIgnoreCase);
+
         public Task<IReadOnlyList<LocalResourcePack>> GetResourcePacksAsync(GameInstance instance, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<LocalResourcePack>>([]);
+            return Task.FromResult(
+                ResourcePacksByInstanceId.TryGetValue(instance.Id, out var resourcePacks)
+                    ? resourcePacks
+                    : []);
         }
 
         public Task<LocalResourcePackImportResult> ImportAsync(
@@ -1433,9 +1698,14 @@ public sealed class ResourceDictionaryTests
 
     private sealed class StubShaderPackService : ILocalShaderPackService
     {
+        public Dictionary<string, IReadOnlyList<LocalShaderPack>> ShaderPacksByInstanceId { get; } = new(StringComparer.OrdinalIgnoreCase);
+
         public Task<IReadOnlyList<LocalShaderPack>> GetShaderPacksAsync(GameInstance instance, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<LocalShaderPack>>([]);
+            return Task.FromResult(
+                ShaderPacksByInstanceId.TryGetValue(instance.Id, out var shaderPacks)
+                    ? shaderPacks
+                    : []);
         }
 
         public Task<LocalShaderPackImportResult> ImportAsync(

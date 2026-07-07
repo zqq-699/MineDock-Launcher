@@ -625,7 +625,16 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
             backup.IsSelected = IsMultiSelectMode && selectedBackupPaths.Contains(backup.FullPath);
 
         UpdateSelectedBackupState();
-        VisibleBackupListItems = [BackupManagementInfoPanelItem.Instance, .. VisibleBackups.Cast<object>()];
+        var hasListSection = VisibleBackups.Count > 0;
+        var listItems = new object[VisibleBackups.Count + (hasListSection ? 2 : 1)];
+        listItems[0] = BackupManagementInfoPanelItem.Instance;
+        if (hasListSection)
+            listItems[1] = BackupManagementListSectionItem.Instance;
+
+        for (var index = 0; index < VisibleBackups.Count; index++)
+            listItems[index + (hasListSection ? 2 : 1)] = VisibleBackups[index];
+
+        VisibleBackupListItems = listItems;
         if (selectedInstance is not null)
             ListEntranceAnimationToken++;
         NotifyBackupListStateChanged();
@@ -781,6 +790,15 @@ public sealed class BackupManagementInfoPanelItem
     public static BackupManagementInfoPanelItem Instance { get; } = new();
 
     private BackupManagementInfoPanelItem()
+    {
+    }
+}
+
+public sealed class BackupManagementListSectionItem
+{
+    public static BackupManagementListSectionItem Instance { get; } = new();
+
+    private BackupManagementListSectionItem()
     {
     }
 }

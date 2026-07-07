@@ -18,30 +18,29 @@
                 <GroupBox Header="{x:Static res:Strings.GameSettings_ShaderPackManagementInfoSection}"
                           Margin="0,0,0,12"
                           Style="{StaticResource LauncherContentSectionStyle}">
-                    <Border Style="{StaticResource SectionFieldSurfaceStyle}">
-                        <StackPanel>
-                            <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
-                                <TextBlock Text="{Binding DataContext.InstalledSummaryText, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceShaderPackManagementSettingsView}}}"
-                                           Style="{StaticResource ReadOnlyFieldTextStyle}" />
-                            </Border>
+                    <StackPanel>
+                        <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
+                            <TextBlock Text="{Binding DataContext.InstalledSummaryText, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceShaderPackManagementSettingsView}}}"
+                                       Style="{StaticResource ReadOnlyFieldTextStyle}" />
+                        </Border>
 
-                            <TextBlock Margin="0,12,0,8"
-                                       Text="{x:Static res:Strings.GameSettings_ShaderPackManagementActionsLabel}"
-                                       Style="{StaticResource SettingsOptionTextStyle}" />
-
-                            <WrapPanel>
-                                <Button Margin="0,0,8,4"
-                                        Content="{x:Static res:Strings.GameSettings_ShaderPackManagementOpenFolderButton}"
-                                        Command="{Binding DataContext.OpenShaderPackFolderCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceShaderPackManagementSettingsView}}}"
-                                        Style="{StaticResource LauncherDialogButtonStyle}" />
-                                <Button Margin="0,0,8,4"
-                                        Content="{x:Static res:Strings.GameSettings_ShaderPackManagementLocalImportButton}"
-                                        Command="{Binding DataContext.ImportLocalShaderPackCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceShaderPackManagementSettingsView}}}"
-                                        Style="{StaticResource LauncherDialogButtonStyle}" />
-                            </WrapPanel>
-                        </StackPanel>
-                    </Border>
+                        <WrapPanel Margin="0,12,0,0">
+                            <Button Margin="0,0,8,4"
+                                    Content="{x:Static res:Strings.GameSettings_ShaderPackManagementOpenFolderButton}"
+                                    Command="{Binding DataContext.OpenShaderPackFolderCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceShaderPackManagementSettingsView}}}"
+                                    Style="{StaticResource LauncherDialogButtonStyle}" />
+                            <Button Margin="0,0,8,4"
+                                    Content="{x:Static res:Strings.GameSettings_ShaderPackManagementLocalImportButton}"
+                                    Command="{Binding DataContext.ImportLocalShaderPackCommand, RelativeSource={RelativeSource AncestorType={x:Type views:InstanceShaderPackManagementSettingsView}}}"
+                                    Style="{StaticResource LauncherDialogButtonStyle}" />
+                        </WrapPanel>
+                    </StackPanel>
                 </GroupBox>
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type gameSettings:ShaderPackManagementListSectionItem}">
+                <TextBlock Text="{x:Static res:Strings.GameSettings_ShaderPackManagementListSection}"
+                           Style="{StaticResource ManagementListSectionHeaderTextStyle}" />
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type gameSettings:ShaderPackManagementItemViewModel}">

@@ -735,25 +735,36 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         if (IsSameVisibleShaderPackListItems())
             return;
 
-        var items = new object[VisibleShaderPacks.Count + 1];
+        var hasListSection = VisibleShaderPacks.Count > 0;
+        var items = new object[VisibleShaderPacks.Count + (hasListSection ? 2 : 1)];
         items[0] = ShaderPackManagementInfoPanelItem.Instance;
+        if (hasListSection)
+            items[1] = ShaderPackManagementListSectionItem.Instance;
+
         for (var index = 0; index < VisibleShaderPacks.Count; index++)
-            items[index + 1] = VisibleShaderPacks[index];
+            items[index + (hasListSection ? 2 : 1)] = VisibleShaderPacks[index];
 
         VisibleShaderPackListItems = items;
     }
 
     private bool IsSameVisibleShaderPackListItems()
     {
-        if (VisibleShaderPackListItems.Count != VisibleShaderPacks.Count + 1)
+        var hasListSection = VisibleShaderPacks.Count > 0;
+        if (VisibleShaderPackListItems.Count != VisibleShaderPacks.Count + (hasListSection ? 2 : 1))
             return false;
 
         if (!ReferenceEquals(VisibleShaderPackListItems[0], ShaderPackManagementInfoPanelItem.Instance))
             return false;
 
+        if (!hasListSection)
+            return true;
+
+        if (!ReferenceEquals(VisibleShaderPackListItems[1], ShaderPackManagementListSectionItem.Instance))
+            return false;
+
         for (var index = 0; index < VisibleShaderPacks.Count; index++)
         {
-            if (!ReferenceEquals(VisibleShaderPackListItems[index + 1], VisibleShaderPacks[index]))
+            if (!ReferenceEquals(VisibleShaderPackListItems[index + 2], VisibleShaderPacks[index]))
                 return false;
         }
 
@@ -866,6 +877,15 @@ public sealed class ShaderPackManagementInfoPanelItem
     public static ShaderPackManagementInfoPanelItem Instance { get; } = new();
 
     private ShaderPackManagementInfoPanelItem()
+    {
+    }
+}
+
+public sealed class ShaderPackManagementListSectionItem
+{
+    public static ShaderPackManagementListSectionItem Instance { get; } = new();
+
+    private ShaderPackManagementListSectionItem()
     {
     }
 }

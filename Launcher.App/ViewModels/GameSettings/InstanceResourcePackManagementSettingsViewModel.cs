@@ -735,25 +735,36 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         if (IsSameVisibleResourcePackListItems())
             return;
 
-        var items = new object[VisibleResourcePacks.Count + 1];
+        var hasListSection = VisibleResourcePacks.Count > 0;
+        var items = new object[VisibleResourcePacks.Count + (hasListSection ? 2 : 1)];
         items[0] = ResourcePackManagementInfoPanelItem.Instance;
+        if (hasListSection)
+            items[1] = ResourcePackManagementListSectionItem.Instance;
+
         for (var index = 0; index < VisibleResourcePacks.Count; index++)
-            items[index + 1] = VisibleResourcePacks[index];
+            items[index + (hasListSection ? 2 : 1)] = VisibleResourcePacks[index];
 
         VisibleResourcePackListItems = items;
     }
 
     private bool IsSameVisibleResourcePackListItems()
     {
-        if (VisibleResourcePackListItems.Count != VisibleResourcePacks.Count + 1)
+        var hasListSection = VisibleResourcePacks.Count > 0;
+        if (VisibleResourcePackListItems.Count != VisibleResourcePacks.Count + (hasListSection ? 2 : 1))
             return false;
 
         if (!ReferenceEquals(VisibleResourcePackListItems[0], ResourcePackManagementInfoPanelItem.Instance))
             return false;
 
+        if (!hasListSection)
+            return true;
+
+        if (!ReferenceEquals(VisibleResourcePackListItems[1], ResourcePackManagementListSectionItem.Instance))
+            return false;
+
         for (var index = 0; index < VisibleResourcePacks.Count; index++)
         {
-            if (!ReferenceEquals(VisibleResourcePackListItems[index + 1], VisibleResourcePacks[index]))
+            if (!ReferenceEquals(VisibleResourcePackListItems[index + 2], VisibleResourcePacks[index]))
                 return false;
         }
 
@@ -866,6 +877,15 @@ public sealed class ResourcePackManagementInfoPanelItem
     public static ResourcePackManagementInfoPanelItem Instance { get; } = new();
 
     private ResourcePackManagementInfoPanelItem()
+    {
+    }
+}
+
+public sealed class ResourcePackManagementListSectionItem
+{
+    public static ResourcePackManagementListSectionItem Instance { get; } = new();
+
+    private ResourcePackManagementListSectionItem()
     {
     }
 }

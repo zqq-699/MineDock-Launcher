@@ -675,7 +675,8 @@
   <data name="GameSettings_GeneralOpenInstanceDirectoryButton" xml:space="preserve"><value>打开游戏目录</value></data>
   <data name="GameSettings_GeneralCreatedAtSection" xml:space="preserve"><value>创建时间</value></data>
   <data name="GameSettings_DeleteGameButton" xml:space="preserve"><value>删除游戏</value></data>
-  <data name="GameSettings_BackupInfoSection" xml:space="preserve"><value>备份信息</value></data>
+  <data name="GameSettings_BackupInfoSection" xml:space="preserve"><value>备份概览</value></data>
+  <data name="GameSettings_BackupListSection" xml:space="preserve"><value>备份列表</value></data>
   <data name="GameSettings_BackupInfoSummaryFormat" xml:space="preserve"><value>当前游戏有 {0} 个备份</value></data>
   <data name="GameSettings_BackupDirectorySection" xml:space="preserve"><value>备份目录</value></data>
   <data name="GameSettings_BackupDirectoryNotSelected" xml:space="preserve"><value>未选择备份目录</value></data>
@@ -697,10 +698,10 @@
   <data name="GameSettings_BackupRestoreTooltip" xml:space="preserve"><value>恢复备份</value></data>
   <data name="GameSettings_BackupRestoreUnavailableTooltip" xml:space="preserve"><value>恢复功能暂不可用</value></data>
   <data name="GameSettings_BackupPreRestoreNameFormat" xml:space="preserve"><value>恢复前备份 {0}</value></data>
-  <data name="GameSettings_ModManagementInfoSection" xml:space="preserve"><value>Mod信息</value></data>
+  <data name="GameSettings_ModManagementInfoSection" xml:space="preserve"><value>Mod概览</value></data>
   <data name="GameSettings_ModManagementInstalledSummaryFormat" xml:space="preserve"><value>当前游戏已安装 {0} 个 mods，已启用 {1} 个</value></data>
   <data name="GameSettings_ModManagementActionsLabel" xml:space="preserve"><value>操作</value></data>
-  <data name="GameSettings_ModManagementFilterLabel" xml:space="preserve"><value>筛选</value></data>
+  <data name="GameSettings_ModManagementFilterLabel" xml:space="preserve"><value>Mod列表</value></data>
   <data name="GameSettings_ModManagementFilterAllButton" xml:space="preserve"><value>全部</value></data>
   <data name="GameSettings_ModManagementFilterEnabledButton" xml:space="preserve"><value>已启用</value></data>
   <data name="GameSettings_ModManagementFilterDisabledButton" xml:space="preserve"><value>已禁用</value></data>
@@ -895,7 +896,7 @@
   <data name="Dialog_ReplaceModImportMessageFormat" xml:space="preserve"><value>已存在《{0}》，是否替换？</value></data>
   <data name="Dialog_Replace_Button" xml:space="preserve"><value>替换</value></data>
   <data name="GameSettings_ModManagementUnavailableMessage" xml:space="preserve"><value>当前版本不可安装mod</value></data>
-  <data name="GameSettings_SaveManagementInfoSection" xml:space="preserve"><value>存档信息</value></data>
+  <data name="GameSettings_SaveManagementInfoSection" xml:space="preserve"><value>存档概览</value></data>
   <data name="GameSettings_SaveManagementInstalledSummaryFormat" xml:space="preserve"><value>当前游戏有 {0} 个存档</value></data>
   <data name="GameSettings_SaveManagementActionsLabel" xml:space="preserve"><value>操作</value></data>
   <data name="GameSettings_SaveManagementOpenFolderButton" xml:space="preserve"><value>打开存档文件夹</value></data>
@@ -946,7 +947,7 @@
   <data name="GameSettings_ResourcePackManagementDeleteButton" xml:space="preserve"><value>删除</value></data>
   <data name="GameSettings_ResourcePackManagementEmptyMessage" xml:space="preserve"><value>当前没有可用资源包</value></data>
   <data name="GameSettings_ResourcePackManagementLoading" xml:space="preserve"><value>正在加载资源包...</value></data>
-  <data name="GameSettings_ResourcePackManagementInfoSection" xml:space="preserve"><value>资源包信息</value></data>
+  <data name="GameSettings_ResourcePackManagementInfoSection" xml:space="preserve"><value>资源包概览</value></data>
   <data name="GameSettings_ResourcePackManagementInstalledSummaryFormat" xml:space="preserve"><value>当前游戏有 {0} 个资源包</value></data>
   <data name="GameSettings_ResourcePackManagementListSection" xml:space="preserve"><value>资源包列表</value></data>
   <data name="GameSettings_ResourcePackManagementLocalImportButton" xml:space="preserve"><value>本地导入</value></data>
@@ -982,7 +983,7 @@
   <data name="GameSettings_ShaderPackManagementDeleteButton" xml:space="preserve"><value>删除</value></data>
   <data name="GameSettings_ShaderPackManagementEmptyMessage" xml:space="preserve"><value>当前没有可用光影包</value></data>
   <data name="GameSettings_ShaderPackManagementLoading" xml:space="preserve"><value>正在加载光影包...</value></data>
-  <data name="GameSettings_ShaderPackManagementInfoSection" xml:space="preserve"><value>光影包信息</value></data>
+  <data name="GameSettings_ShaderPackManagementInfoSection" xml:space="preserve"><value>光影包概览</value></data>
   <data name="GameSettings_ShaderPackManagementInstalledSummaryFormat" xml:space="preserve"><value>当前游戏有 {0} 个光影包</value></data>
   <data name="GameSettings_ShaderPackManagementListSection" xml:space="preserve"><value>光影包列表</value></data>
   <data name="GameSettings_ShaderPackManagementLocalImportButton" xml:space="preserve"><value>本地导入</value></data>

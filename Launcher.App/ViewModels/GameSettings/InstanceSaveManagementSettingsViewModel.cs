@@ -748,25 +748,36 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         if (IsSameVisibleSaveListItems())
             return;
 
-        var items = new object[VisibleSaves.Count + 1];
+        var hasListSection = VisibleSaves.Count > 0;
+        var items = new object[VisibleSaves.Count + (hasListSection ? 2 : 1)];
         items[0] = SaveManagementInfoPanelItem.Instance;
+        if (hasListSection)
+            items[1] = SaveManagementListSectionItem.Instance;
+
         for (var index = 0; index < VisibleSaves.Count; index++)
-            items[index + 1] = VisibleSaves[index];
+            items[index + (hasListSection ? 2 : 1)] = VisibleSaves[index];
 
         VisibleSaveListItems = items;
     }
 
     private bool IsSameVisibleSaveListItems()
     {
-        if (VisibleSaveListItems.Count != VisibleSaves.Count + 1)
+        var hasListSection = VisibleSaves.Count > 0;
+        if (VisibleSaveListItems.Count != VisibleSaves.Count + (hasListSection ? 2 : 1))
             return false;
 
         if (!ReferenceEquals(VisibleSaveListItems[0], SaveManagementInfoPanelItem.Instance))
             return false;
 
+        if (!hasListSection)
+            return true;
+
+        if (!ReferenceEquals(VisibleSaveListItems[1], SaveManagementListSectionItem.Instance))
+            return false;
+
         for (var index = 0; index < VisibleSaves.Count; index++)
         {
-            if (!ReferenceEquals(VisibleSaveListItems[index + 1], VisibleSaves[index]))
+            if (!ReferenceEquals(VisibleSaveListItems[index + 2], VisibleSaves[index]))
                 return false;
         }
 
@@ -881,6 +892,15 @@ public sealed class SaveManagementInfoPanelItem
     public static SaveManagementInfoPanelItem Instance { get; } = new();
 
     private SaveManagementInfoPanelItem()
+    {
+    }
+}
+
+public sealed class SaveManagementListSectionItem
+{
+    public static SaveManagementListSectionItem Instance { get; } = new();
+
+    private SaveManagementListSectionItem()
     {
     }
 }
