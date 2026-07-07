@@ -21,14 +21,14 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <AssemblyName>MineDock Launcher</AssemblyName>
+    <AssemblyName>MineDock_Launcher_x64</AssemblyName>
     <RootNamespace>Launcher.App</RootNamespace>
     <Title>MineDock Launcher</Title>
     <Product>MineDock Launcher</Product>
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
-    <InformationalVersion>1.0.0</InformationalVersion>
+    <Version>1.0.3</Version>
+    <AssemblyVersion>1.0.3.0</AssemblyVersion>
+    <FileVersion>1.0.3.0</FileVersion>
+    <InformationalVersion>1.0.3</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>Assets\Icons\app_icon_concept.ico</ApplicationIcon>
     <OutputType>WinExe</OutputType>

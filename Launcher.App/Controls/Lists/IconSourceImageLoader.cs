@@ -7,8 +7,8 @@ namespace Launcher.App.Controls;
 
 internal static class IconSourceImageLoader
 {
-    private const string ComponentPathPrefix = "/MineDock%20Launcher;component/";
-    private const string ComponentUriPrefix = "pack://application:,,,/MineDock%20Launcher;component";
+    private const string ComponentPathPrefix = "/MineDock_Launcher_x64;component/";
+    private const string ComponentUriPrefix = "pack://application:,,,/MineDock_Launcher_x64;component";
 
     private static readonly ConcurrentDictionary<string, CachedImageSource> CachedImagesByKey = new(StringComparer.OrdinalIgnoreCase);
 

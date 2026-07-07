@@ -152,7 +152,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         IFloatingMessageService floatingMessageService,
         IThemeService themeService,
         IExternalLinkService? externalLinkService = null,
-        ILauncherUpdateService? launcherUpdateService = null)
+        ILauncherUpdateService? launcherUpdateService = null,
+        ILauncherSelfUpdateService? launcherSelfUpdateService = null,
+        IApplicationExitService? applicationExitService = null)
     {
         this.settingsService = settingsService;
         this.statusService = statusService;
@@ -257,7 +259,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             statusService,
             floatingMessageService,
             externalLinkService ?? NullExternalLinkService.Instance,
-            launcherUpdateService ?? NullLauncherUpdateService.Instance);
+            launcherUpdateService ?? NullLauncherUpdateService.Instance,
+            launcherSelfUpdateService ?? NullLauncherSelfUpdateService.Instance,
+            applicationExitService ?? NullApplicationExitService.Instance);
         ControlList = new ControlListSettingsViewModel(this);
         SelectedSection = Sections[0];
     }
@@ -1012,6 +1016,35 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult(LauncherUpdateCheckResult.Failed(currentVersion));
+        }
+    }
+
+    private sealed class NullLauncherSelfUpdateService : ILauncherSelfUpdateService
+    {
+        public static readonly NullLauncherSelfUpdateService Instance = new();
+
+        private NullLauncherSelfUpdateService()
+        {
+        }
+
+        public Task<LauncherSelfUpdateStartResult> StartUpdateAsync(
+            LauncherUpdateInfo update,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(LauncherSelfUpdateStartResult.Failed());
+        }
+    }
+
+    private sealed class NullApplicationExitService : IApplicationExitService
+    {
+        public static readonly NullApplicationExitService Instance = new();
+
+        private NullApplicationExitService()
+        {
+        }
+
+        public void Shutdown()
+        {
         }
     }
 }

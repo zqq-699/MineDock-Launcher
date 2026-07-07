@@ -26,7 +26,7 @@ public sealed class ListPageItemButtonTests
         var dictionary = new ResourceDictionary
         {
             Source = new Uri(
-                "pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.xaml",
+                "pack://application:,,,/MineDock_Launcher_x64;component/Styles/ControlStyles.xaml",
                 UriKind.Absolute)
         };
 
@@ -206,7 +206,7 @@ public sealed class ListPageItemButtonTests
                 var dictionary = new ResourceDictionary
                 {
                     Source = new Uri(
-                        "pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.xaml",
+                        "pack://application:,,,/MineDock_Launcher_x64;component/Styles/ControlStyles.xaml",
                         UriKind.Absolute)
                 };
                 application.Resources.MergedDictionaries.Add(dictionary);

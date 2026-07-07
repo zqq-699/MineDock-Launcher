@@ -10,13 +10,13 @@ namespace Launcher.App.Services;
 public sealed class ThemeService : IThemeService, IDisposable
 {
     private const string DarkThemeSource =
-        "pack://application:,,,/MineDock%20Launcher;component/Resources/Themes/Dark.xaml";
+        "pack://application:,,,/MineDock_Launcher_x64;component/Resources/Themes/Dark.xaml";
 
     private const string LightThemeSource =
-        "pack://application:,,,/MineDock%20Launcher;component/Resources/Themes/Light.xaml";
+        "pack://application:,,,/MineDock_Launcher_x64;component/Resources/Themes/Light.xaml";
 
     private const string AccentThemeSourcePrefix =
-        "pack://application:,,,/MineDock%20Launcher;component/Resources/Themes/Accents/";
+        "pack://application:,,,/MineDock_Launcher_x64;component/Resources/Themes/Accents/";
 
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<ThemeService> logger;

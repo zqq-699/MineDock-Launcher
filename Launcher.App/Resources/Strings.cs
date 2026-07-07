@@ -232,6 +232,7 @@ public static class Strings
     public static string Settings_LauncherVersionUnknown => Get(nameof(Settings_LauncherVersionUnknown));
     public static string Settings_ViewGithubRepositoryButton => Get(nameof(Settings_ViewGithubRepositoryButton));
     public static string Settings_CheckUpdatesButton => Get(nameof(Settings_CheckUpdatesButton));
+    public static string Settings_ReferenceProjectsSection => Get(nameof(Settings_ReferenceProjectsSection));
     public static string Dialog_UpdateAvailableTitle => Get(nameof(Dialog_UpdateAvailableTitle));
     public static string Dialog_UpdateAvailableVersionFormat => Get(nameof(Dialog_UpdateAvailableVersionFormat));
     public static string Dialog_OpenUpdateChangelogButton => Get(nameof(Dialog_OpenUpdateChangelogButton));
@@ -845,11 +846,16 @@ public static class Strings
     public static string Status_BackupRestoreFailed => Get(nameof(Status_BackupRestoreFailed));
     public static string Status_OpenLaunchLogFolderFailed => Get(nameof(Status_OpenLaunchLogFolderFailed));
     public static string Status_OpenGithubRepositoryFailed => Get(nameof(Status_OpenGithubRepositoryFailed));
+    public static string Status_OpenReferenceProjectFailed => Get(nameof(Status_OpenReferenceProjectFailed));
     public static string Status_UpdateCheckUnavailable => Get(nameof(Status_UpdateCheckUnavailable));
     public static string Status_CheckingUpdates => Get(nameof(Status_CheckingUpdates));
     public static string Status_LauncherAlreadyLatest => Get(nameof(Status_LauncherAlreadyLatest));
     public static string Status_CheckUpdatesFailed => Get(nameof(Status_CheckUpdatesFailed));
     public static string Status_OpenUpdatePageFailed => Get(nameof(Status_OpenUpdatePageFailed));
+    public static string Status_DownloadingLauncherUpdate => Get(nameof(Status_DownloadingLauncherUpdate));
+    public static string Status_UpdateAutoInstallPackageNotFound => Get(nameof(Status_UpdateAutoInstallPackageNotFound));
+    public static string Status_LauncherUpdateStartFailed => Get(nameof(Status_LauncherUpdateStartFailed));
+    public static string Status_LauncherUpdateRestarting => Get(nameof(Status_LauncherUpdateRestarting));
     public static string Status_RenamingInstance => Get(nameof(Status_RenamingInstance));
     public static string Status_InstanceRenamedFormat => Get(nameof(Status_InstanceRenamedFormat));
     public static string Status_InstanceRenameResultFormat => Get(nameof(Status_InstanceRenameResultFormat));

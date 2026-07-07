@@ -1,4 +1,5 @@
 using System.Net;
+using Launcher.Application.Services;
 using Launcher.Infrastructure.Updates;
 
 namespace Launcher.Tests.Infrastructure.Updates;
@@ -20,8 +21,8 @@ public sealed class GitHubLauncherUpdateServiceTests
                 "draft": false,
                 "assets": [
                   {
-                    "name": "MineDock-Launcher-1.0.1.zip",
-                    "browser_download_url": "https://example.test/MineDock-Launcher-1.0.1.zip"
+                    "name": "MineDock_Launcher_x64.exe",
+                    "browser_download_url": "https://example.test/MineDock_Launcher_x64.exe"
                   }
                 ]
               }
@@ -35,7 +36,10 @@ public sealed class GitHubLauncherUpdateServiceTests
         Assert.True(result.IsUpdateAvailable);
         Assert.NotNull(result.Update);
         Assert.Equal("1.0.1", result.Update.Version);
-        Assert.Equal("https://example.test/MineDock-Launcher-1.0.1.zip", result.Update.DownloadUrl);
+        Assert.Equal("https://example.test/MineDock_Launcher_x64.exe", result.Update.DownloadUrl);
+        Assert.Equal("MineDock_Launcher_x64.exe", result.Update.DownloadFileName);
+        Assert.Equal(LauncherUpdateAssetKind.WindowsX64Executable, result.Update.AssetKind);
+        Assert.True(result.Update.CanAutoInstall);
         var request = Assert.Single(handler.Requests);
         Assert.Equal("api.github.com", request.RequestUri!.Host);
         Assert.Contains(request.Headers.UserAgent, value => value.Product?.Name == "MineDock-Launcher");
@@ -109,7 +113,7 @@ public sealed class GitHubLauncherUpdateServiceTests
     }
 
     [Fact]
-    public async Task CheckForUpdatesPrefersZipExeMsiAssets()
+    public async Task CheckForUpdatesPrefersX64ExecutableAsset()
     {
         var handler = new GitHubReleasesHandler(
             """
@@ -120,20 +124,20 @@ public sealed class GitHubLauncherUpdateServiceTests
                 "draft": false,
                 "assets": [
                   {
-                    "name": "readme.txt",
-                    "browser_download_url": "https://example.test/readme.txt"
+                    "name": "MineDock_Launcher_ARM64.exe",
+                    "browser_download_url": "https://example.test/MineDock_Launcher_ARM64.exe"
                   },
                   {
-                    "name": "launcher.msi",
-                    "browser_download_url": "https://example.test/launcher.msi"
+                    "name": "MineDock_Launcher_x64.exe.asc",
+                    "browser_download_url": "https://example.test/MineDock_Launcher_x64.exe.asc"
                   },
                   {
-                    "name": "launcher.exe",
-                    "browser_download_url": "https://example.test/launcher.exe"
+                    "name": "Source code (zip)",
+                    "browser_download_url": "https://example.test/source.zip"
                   },
                   {
-                    "name": "launcher.zip",
-                    "browser_download_url": "https://example.test/launcher.zip"
+                    "name": "MineDock_Launcher_x64.exe",
+                    "browser_download_url": "https://example.test/MineDock_Launcher_x64.exe"
                   }
                 ]
               }
@@ -144,7 +148,41 @@ public sealed class GitHubLauncherUpdateServiceTests
         var result = await service.CheckForUpdatesAsync("1.0.0");
 
         Assert.True(result.IsUpdateAvailable);
-        Assert.Equal("https://example.test/launcher.zip", result.Update?.DownloadUrl);
+        Assert.Equal("https://example.test/MineDock_Launcher_x64.exe", result.Update?.DownloadUrl);
+        Assert.Equal(LauncherUpdateAssetKind.WindowsX64Executable, result.Update?.AssetKind);
+    }
+
+    [Fact]
+    public async Task CheckForUpdatesMarksNonX64ExecutableAsNotAutoInstallable()
+    {
+        var handler = new GitHubReleasesHandler(
+            """
+            [
+              {
+                "tag_name": "v1.0.1",
+                "html_url": "https://example.test/release",
+                "draft": false,
+                "assets": [
+                  {
+                    "name": "MineDock_Launcher_ARM64.exe",
+                    "browser_download_url": "https://example.test/MineDock_Launcher_ARM64.exe"
+                  },
+                  {
+                    "name": "MineDock_Launcher_x64.exe.asc",
+                    "browser_download_url": "https://example.test/MineDock_Launcher_x64.exe.asc"
+                  }
+                ]
+              }
+            ]
+            """);
+        var service = new GitHubLauncherUpdateService(new HttpClient(handler));
+
+        var result = await service.CheckForUpdatesAsync("1.0.0");
+
+        Assert.True(result.IsUpdateAvailable);
+        Assert.Equal("https://example.test/MineDock_Launcher_ARM64.exe", result.Update?.DownloadUrl);
+        Assert.Equal(LauncherUpdateAssetKind.OtherExecutable, result.Update?.AssetKind);
+        Assert.False(result.Update?.CanAutoInstall);
     }
 
     [Fact]

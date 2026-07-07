@@ -237,6 +237,7 @@
   <data name="Settings_LauncherVersionUnknown" xml:space="preserve"><value>未知版本</value></data>
   <data name="Settings_ViewGithubRepositoryButton" xml:space="preserve"><value>查看 GitHub 仓库</value></data>
   <data name="Settings_CheckUpdatesButton" xml:space="preserve"><value>检查更新</value></data>
+  <data name="Settings_ReferenceProjectsSection" xml:space="preserve"><value>引用的项目</value></data>
   <data name="Settings_GeneralAccountSection" xml:space="preserve"><value>离线玩家</value></data>
   <data name="Settings_OfflineUsernameLabel" xml:space="preserve"><value>默认离线玩家名称</value></data>
   <data name="Settings_GeneralDirectorySection" xml:space="preserve"><value>目录</value></data>
@@ -662,6 +663,7 @@
   <data name="Status_OpenInstanceFolderFailed" xml:space="preserve"><value>打开版本文件夹失败，请稍后重试。</value></data>
   <data name="Status_OpenLaunchLogFolderFailed" xml:space="preserve"><value>打开启动诊断日志目录失败，请稍后重试。</value></data>
   <data name="Status_OpenGithubRepositoryFailed" xml:space="preserve"><value>打开 GitHub 仓库失败</value></data>
+  <data name="Status_OpenReferenceProjectFailed" xml:space="preserve"><value>打开项目链接失败</value></data>
   <data name="Status_UpdateCheckUnavailable" xml:space="preserve"><value>更新检查暂未接入</value></data>
   <data name="GameSettings_UnknownMinecraftVersion" xml:space="preserve"><value>未知版本</value></data>
   <data name="GameSettings_DetailsPlaceholderHeader" xml:space="preserve"><value>详细设置</value></data>
@@ -1012,4 +1014,8 @@
   <data name="Status_LauncherAlreadyLatest" xml:space="preserve"><value>&#x5F53;&#x524D;&#x5DF2;&#x662F;&#x6700;&#x65B0;&#x7248;&#x672C;</value></data>
   <data name="Status_CheckUpdatesFailed" xml:space="preserve"><value>&#x68C0;&#x67E5;&#x66F4;&#x65B0;&#x5931;&#x8D25;&#xFF0C;&#x8BF7;&#x7A0D;&#x540E;&#x91CD;&#x8BD5;&#x3002;</value></data>
   <data name="Status_OpenUpdatePageFailed" xml:space="preserve"><value>&#x6253;&#x5F00;&#x66F4;&#x65B0;&#x9875;&#x9762;&#x5931;&#x8D25;</value></data>
+  <data name="Status_DownloadingLauncherUpdate" xml:space="preserve"><value>&#x6B63;&#x5728;&#x4E0B;&#x8F7D;&#x66F4;&#x65B0;...</value></data>
+  <data name="Status_UpdateAutoInstallPackageNotFound" xml:space="preserve"><value>&#x672A;&#x627E;&#x5230;&#x53EF;&#x81EA;&#x52A8;&#x5B89;&#x88C5;&#x7684;&#x66F4;&#x65B0;&#x5305;</value></data>
+  <data name="Status_LauncherUpdateStartFailed" xml:space="preserve"><value>&#x542F;&#x52A8;&#x66F4;&#x65B0;&#x5931;&#x8D25;&#xFF0C;&#x8BF7;&#x624B;&#x52A8;&#x4E0B;&#x8F7D;&#x65B0;&#x7248;&#x672C;&#x3002;</value></data>
+  <data name="Status_LauncherUpdateRestarting" xml:space="preserve"><value>&#x6B63;&#x5728;&#x5B89;&#x88C5;&#x66F4;&#x65B0;&#xFF0C;&#x542F;&#x52A8;&#x5668;&#x5C06;&#x81EA;&#x52A8;&#x91CD;&#x542F;&#x3002;</value></data>
 </root>

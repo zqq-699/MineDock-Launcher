@@ -106,7 +106,7 @@ public sealed class ThemeServiceTests
         return new ResourceDictionary
         {
             Source = new Uri(
-                $"pack://application:,,,/MineDock%20Launcher;component/{relativePath}",
+                $"pack://application:,,,/MineDock_Launcher_x64;component/{relativePath}",
                 UriKind.Absolute)
         };
     }

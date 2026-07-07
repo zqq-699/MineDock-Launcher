@@ -13,7 +13,6 @@ public sealed class GitHubLauncherUpdateService : ILauncherUpdateService
     private const string ReleasesUrl = "https://api.github.com/repos/zhouquan050906-cpu/launcher_z/releases";
     private const string UserAgent = "MineDock-Launcher";
     private const string GitHubApiVersion = "2022-11-28";
-    private static readonly string[] AssetExtensionPriority = [".zip", ".exe", ".msi"];
 
     private readonly HttpClient httpClient;
     private readonly ILogger<GitHubLauncherUpdateService>? logger;
@@ -69,7 +68,9 @@ public sealed class GitHubLauncherUpdateService : ILauncherUpdateService
                 latestRelease.Version.NormalizedText,
                 latestRelease.ReleasePageUrl,
                 latestRelease.DownloadUrl,
-                latestRelease.Changelog);
+                latestRelease.Changelog,
+                latestRelease.DownloadFileName,
+                latestRelease.AssetKind);
 
             logger?.LogInformation(
                 "Launcher update found. Current version: {CurrentVersion}, Remote version: {RemoteVersion}",
@@ -111,38 +112,71 @@ public sealed class GitHubLauncherUpdateService : ILauncherUpdateService
         var releasePageUrl = string.IsNullOrWhiteSpace(release.HtmlUrl)
             ? "https://github.com/zhouquan050906-cpu/launcher_z/releases"
             : release.HtmlUrl.Trim();
-        var downloadUrl = SelectDownloadUrl(release.Assets) ?? releasePageUrl;
+        var selectedAsset = SelectDownloadAsset(release.Assets);
 
         return new GitHubReleaseCandidate(
             version,
             releasePageUrl,
-            downloadUrl,
-            string.IsNullOrWhiteSpace(release.Body) ? null : release.Body);
+            selectedAsset?.DownloadUrl ?? releasePageUrl,
+            string.IsNullOrWhiteSpace(release.Body) ? null : release.Body,
+            selectedAsset?.FileName,
+            selectedAsset?.AssetKind ?? LauncherUpdateAssetKind.ReleasePage);
     }
 
-    private static string? SelectDownloadUrl(IReadOnlyList<GitHubReleaseAssetDto>? assets)
+    private static GitHubSelectedAsset? SelectDownloadAsset(IReadOnlyList<GitHubReleaseAssetDto>? assets)
     {
         if (assets is null || assets.Count == 0)
             return null;
 
-        foreach (var extension in AssetExtensionPriority)
+        var executableAssets = assets
+            .Where(IsDownloadableExecutableAsset)
+            .ToList();
+        var x64Executable = executableAssets.FirstOrDefault(asset =>
+            asset.Name!.Contains("x64", StringComparison.OrdinalIgnoreCase)
+            || asset.Name.Contains("win64", StringComparison.OrdinalIgnoreCase)
+            || asset.Name.Contains("amd64", StringComparison.OrdinalIgnoreCase));
+        if (x64Executable is not null)
         {
-            var asset = assets.FirstOrDefault(candidate =>
-                !string.IsNullOrWhiteSpace(candidate.Name)
-                && candidate.Name.EndsWith(extension, StringComparison.OrdinalIgnoreCase)
-                && !string.IsNullOrWhiteSpace(candidate.BrowserDownloadUrl));
-            if (asset is not null)
-                return asset.BrowserDownloadUrl!.Trim();
+            return new GitHubSelectedAsset(
+                x64Executable.BrowserDownloadUrl!.Trim(),
+                x64Executable.Name!.Trim(),
+                LauncherUpdateAssetKind.WindowsX64Executable);
+        }
+
+        var executable = executableAssets.FirstOrDefault();
+        if (executable is not null)
+        {
+            return new GitHubSelectedAsset(
+                executable.BrowserDownloadUrl!.Trim(),
+                executable.Name!.Trim(),
+                LauncherUpdateAssetKind.OtherExecutable);
         }
 
         return null;
+    }
+
+    private static bool IsDownloadableExecutableAsset(GitHubReleaseAssetDto asset)
+    {
+        if (string.IsNullOrWhiteSpace(asset.Name) || string.IsNullOrWhiteSpace(asset.BrowserDownloadUrl))
+            return false;
+
+        var name = asset.Name.Trim();
+        return name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+            && !name.EndsWith(".exe.asc", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed record GitHubReleaseCandidate(
         LauncherSemanticVersion Version,
         string ReleasePageUrl,
         string DownloadUrl,
-        string? Changelog);
+        string? Changelog,
+        string? DownloadFileName,
+        LauncherUpdateAssetKind AssetKind);
+
+    private sealed record GitHubSelectedAsset(
+        string DownloadUrl,
+        string FileName,
+        LauncherUpdateAssetKind AssetKind);
 
     private sealed class GitHubReleaseDto
     {

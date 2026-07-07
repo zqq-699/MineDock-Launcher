@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Launcher.App.Behaviors;
@@ -12,6 +13,7 @@ using Launcher.App.ViewModels.Resources;
 using Launcher.App.Views.GameSettings;
 using Launcher.App.Views.Account.Dialogs;
 using Launcher.App.Views.Resources;
+using Launcher.App.Views.Settings;
 using Launcher.Application.Services;
 using Launcher.Application.Accounts;
 using Launcher.Domain.Models;
@@ -33,7 +35,7 @@ public sealed class ResourceDictionaryTests
                 var dictionary = new ResourceDictionary
                 {
                     Source = new Uri(
-                        "pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.xaml",
+                        "pack://application:,,,/MineDock_Launcher_x64;component/Styles/ControlStyles.xaml",
                         UriKind.Absolute)
                 };
 
@@ -140,7 +142,7 @@ public sealed class ResourceDictionaryTests
                 var dictionary = new ResourceDictionary
                 {
                     Source = new Uri(
-                        "pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.xaml",
+                        "pack://application:,,,/MineDock_Launcher_x64;component/Styles/ControlStyles.xaml",
                         UriKind.Absolute)
                 };
 
@@ -385,6 +387,104 @@ public sealed class ResourceDictionaryTests
 
                 Assert.True(view.MinHeight > 0);
                 Assert.NotNull(view.Content);
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (exception is not null)
+            throw exception;
+    }
+
+    [Fact]
+    public void InfoSettingsViewInitializesRuntimeContent()
+    {
+        Exception? exception = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var application = GetOrCreateApplication();
+                EnsureApplicationResources(application);
+                var view = new InfoSettingsView
+                {
+                    DataContext = new InfoSettingsViewTestContext(),
+                    Width = 600,
+                    Height = 400
+                };
+
+                view.ApplyTemplate();
+                view.Measure(new Size(600, 400));
+                view.Arrange(new Rect(0, 0, 600, 400));
+                view.UpdateLayout();
+
+                Assert.NotNull(view.Content);
+            }
+            catch (Exception ex)
+            {
+                exception = ex;
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+
+        if (exception is not null)
+            throw exception;
+    }
+
+    [Fact]
+    public void InfoSettingsViewKeepsScrollOffsetWhenCheckUpdateButtonRequestsBringIntoView()
+    {
+        Exception? exception = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var application = GetOrCreateApplication();
+                EnsureApplicationResources(application);
+                var view = new InfoSettingsView
+                {
+                    DataContext = new InfoSettingsViewTestContext(),
+                    Width = 600
+                };
+                var scrollViewer = new ScrollViewer
+                {
+                    Content = view,
+                    Width = 600,
+                    Height = 120,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+                };
+
+                scrollViewer.ApplyTemplate();
+                scrollViewer.Measure(new Size(600, 120));
+                scrollViewer.Arrange(new Rect(0, 0, 600, 120));
+                scrollViewer.UpdateLayout();
+                PumpDispatcher(DispatcherPriority.ApplicationIdle);
+
+                var checkUpdatesButton = FindVisualDescendant<Button>(
+                    scrollViewer,
+                    button => button.Name == "CheckUpdatesButton");
+                Assert.NotNull(checkUpdatesButton);
+
+                scrollViewer.ScrollToVerticalOffset(80);
+                scrollViewer.UpdateLayout();
+                PumpDispatcher(DispatcherPriority.ApplicationIdle);
+                var offsetBeforeBringIntoView = scrollViewer.VerticalOffset;
+                Assert.True(offsetBeforeBringIntoView > 0);
+
+                checkUpdatesButton.BringIntoView();
+                scrollViewer.UpdateLayout();
+                PumpDispatcher(DispatcherPriority.ApplicationIdle);
+
+                Assert.Equal(offsetBeforeBringIntoView, scrollViewer.VerticalOffset);
             }
             catch (Exception ex)
             {
@@ -802,7 +902,7 @@ public sealed class ResourceDictionaryTests
         application.Resources.MergedDictionaries.Add(new ResourceDictionary
         {
             Source = new Uri(
-                "pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.xaml",
+                "pack://application:,,,/MineDock_Launcher_x64;component/Styles/ControlStyles.xaml",
                 UriKind.Absolute)
         });
         application.Resources["BooleanToMenuTextVisibilityConverter"] = new BooleanToMenuTextVisibilityConverter();
@@ -1019,7 +1119,7 @@ public sealed class ResourceDictionaryTests
         return new ResourceDictionary
         {
             Source = new Uri(
-                $"pack://application:,,,/MineDock%20Launcher;component/{relativePath}",
+                $"pack://application:,,,/MineDock_Launcher_x64;component/{relativePath}",
                 UriKind.Absolute)
         };
     }
@@ -1080,6 +1180,24 @@ public sealed class ResourceDictionaryTests
             return Task.FromResult(false);
         }
     }
+
+    private sealed class InfoSettingsViewTestContext
+    {
+        public string LauncherVersionText => "1.0.3";
+
+        public string CheckUpdatesButtonText => Strings.Settings_CheckUpdatesButton;
+
+        public ICommand CheckUpdatesCommand { get; } = new RoutedCommand();
+
+        public IReadOnlyList<InfoReferenceProjectTestItem> ReferenceProjects { get; } =
+        [
+            new InfoReferenceProjectTestItem("CommunityToolkit.Mvvm", "8.4.2")
+        ];
+
+        public ICommand OpenReferenceProjectCommand { get; } = new RoutedCommand();
+    }
+
+    private sealed record InfoReferenceProjectTestItem(string Name, string Version);
 
     private sealed class StubStatusService : IStatusService
     {

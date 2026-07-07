@@ -784,7 +784,7 @@
                                     Command="{Binding CancelUpdateDialogCommand}" />
                             <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                                     Margin="{StaticResource DialogTrailingButtonMargin}"
-                                    Content="{x:Static res:Strings.Dialog_UpdateButton}"
+                                    Content="{Binding ConfirmUpdateButtonText}"
                                     Command="{Binding ConfirmUpdateCommand}" />
                         </StackPanel>
                     </Grid>

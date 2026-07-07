@@ -4,6 +4,7 @@ using Launcher.Application.Services;
 using Launcher.App.Logging;
 using Launcher.App.Services;
 using Launcher.Infrastructure.DependencyInjection;
+using Launcher.Infrastructure.Updates;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -14,9 +15,19 @@ public partial class App : System.Windows.Application
 {
     private static readonly TimeSpan ExitBackgroundTaskWaitTimeout = TimeSpan.FromSeconds(5);
     private ServiceProvider? serviceProvider;
+    private bool isUpdateApplyMode;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        var updateApplyOptions = LauncherUpdateApplyOptions.Parse(e.Args);
+        if (updateApplyOptions is not null)
+        {
+            isUpdateApplyMode = true;
+            var exitCode = new LauncherUpdateApplyRunner().Run(updateApplyOptions);
+            Shutdown(exitCode);
+            return;
+        }
+
         Log.Logger = LauncherLogConfiguration.CreateLogger();
         RegisterUnhandledExceptionLogging();
 
@@ -40,6 +51,7 @@ public partial class App : System.Windows.Application
             services.AddSingleton<IFilePickerService, FilePickerService>();
             services.AddSingleton<IInstanceFolderService, InstanceFolderService>();
             services.AddSingleton<IExternalLinkService, ExternalLinkService>();
+            services.AddSingleton<IApplicationExitService, ApplicationExitService>();
             services.AddSingleton<IAccountDialogService, AccountDialogService>();
             services.AddSingleton<IUiDispatcher, WpfUiDispatcher>();
             services.AddSingleton<IThemeService, ThemeService>();
@@ -95,6 +107,12 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        if (isUpdateApplyMode)
+        {
+            base.OnExit(e);
+            return;
+        }
+
         try
         {
             Log.Information("Launcher exit started. ExitCode={ExitCode}", e.ApplicationExitCode);

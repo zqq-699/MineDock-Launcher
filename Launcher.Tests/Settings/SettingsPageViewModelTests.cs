@@ -283,7 +283,7 @@ public sealed class SettingsPageViewModelTests
         Assert.False(viewModel.IsJavaSection);
         Assert.False(viewModel.IsThemeSection);
         Assert.False(viewModel.IsControlListSection);
-        Assert.Equal("1.0.0", info.LauncherVersionText);
+        Assert.Equal("1.0.3", info.LauncherVersionText);
 
         info.OpenGithubRepositoryCommand.Execute(null);
 
@@ -304,6 +304,87 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
+    public void InfoReferenceProjectsListContainsRuntimeDependenciesOnly()
+    {
+        var viewModel = CreateViewModel(out _, out _);
+        var references = viewModel.Info.ReferenceProjects;
+
+        Assert.Contains(references, project =>
+            project.Name == "CommunityToolkit.Mvvm"
+            && project.Version == "8.4.2"
+            && project.Url == "https://github.com/CommunityToolkit/dotnet");
+        Assert.Contains(references, project =>
+            project.Name == "Microsoft.Extensions.DependencyInjection"
+            && project.Version == "10.0.9"
+            && project.Url == "https://github.com/dotnet/dotnet");
+        Assert.Contains(references, project =>
+            project.Name == "Microsoft.Extensions.DependencyInjection.Abstractions"
+            && project.Version == "10.0.9"
+            && project.Url == "https://github.com/dotnet/dotnet");
+        Assert.Contains(references, project =>
+            project.Name == "Microsoft.Extensions.Logging"
+            && project.Version == "10.0.9"
+            && project.Url == "https://github.com/dotnet/dotnet");
+        Assert.Contains(references, project =>
+            project.Name == "Microsoft.Extensions.Logging.Abstractions"
+            && project.Version == "10.0.9"
+            && project.Url == "https://github.com/dotnet/dotnet");
+        Assert.Contains(references, project =>
+            project.Name == "Serilog"
+            && project.Version == "4.2.0"
+            && project.Url == "https://github.com/serilog/serilog");
+        Assert.Contains(references, project =>
+            project.Name == "Serilog.Extensions.Logging"
+            && project.Version == "8.0.0"
+            && project.Url == "https://github.com/serilog/serilog-extensions-logging");
+        Assert.Contains(references, project =>
+            project.Name == "Serilog.Sinks.File"
+            && project.Version == "6.0.0"
+            && project.Url == "https://github.com/serilog/serilog-sinks-file");
+        Assert.Contains(references, project =>
+            project.Name == "CmlLib.Core"
+            && project.Version == "4.0.6"
+            && project.Url == "https://github.com/CmlLib/CmlLib.Core");
+        Assert.Contains(references, project =>
+            project.Name == "CmlLib.Core.Auth.Microsoft"
+            && project.Version == "3.3.1"
+            && project.Url == "https://github.com/CmlLib/CmlLib.Core.Auth.Microsoft");
+        Assert.Contains(references, project =>
+            project.Name == "SharpCompress"
+            && project.Version == "0.39.0"
+            && project.Url == "https://github.com/adamhathcock/sharpcompress");
+
+        Assert.DoesNotContain(references, project => project.Name.Equals("xunit", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(references, project => project.Name.Equals("coverlet.collector", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(references, project => project.Name.Equals("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void InfoOpenReferenceProjectCommandOpensProjectUrl()
+    {
+        var viewModel = CreateViewModel(out _, out var statusService, out var externalLinkService);
+        var project = viewModel.Info.ReferenceProjects.Single(item => item.Name == "Serilog");
+
+        viewModel.Info.OpenReferenceProjectCommand.Execute(project);
+
+        Assert.Equal("https://github.com/serilog/serilog", externalLinkService.LastOpenedUrl);
+        Assert.Null(statusService.LastMessage);
+    }
+
+    [Fact]
+    public void InfoOpenReferenceProjectCommandReportsFailureWhenLinkCannotOpen()
+    {
+        var viewModel = CreateViewModel(out _, out var statusService, out var externalLinkService);
+        externalLinkService.TryOpenResult = false;
+        var project = viewModel.Info.ReferenceProjects.Single(item => item.Name == "Serilog");
+
+        viewModel.Info.OpenReferenceProjectCommand.Execute(project);
+
+        Assert.Equal("https://github.com/serilog/serilog", externalLinkService.LastOpenedUrl);
+        Assert.Equal(Strings.Status_OpenReferenceProjectFailed, statusService.LastMessage);
+    }
+
+    [Fact]
     public async Task InfoCheckUpdatesShowsDialogWhenUpdateIsAvailable()
     {
         var viewModel = CreateViewModel(
@@ -312,22 +393,49 @@ public sealed class SettingsPageViewModelTests
             out _,
             out var updateService);
         updateService.Result = LauncherUpdateCheckResult.Available(
-            "1.0.0",
+            "1.0.3",
             new LauncherUpdateInfo(
                 "1.0.1",
                 "1.0.1",
                 "https://example.test/releases/v1.0.1",
-                "https://example.test/downloads/launcher.zip",
-                "Release notes"));
+                "https://example.test/downloads/MineDock_Launcher_x64.exe",
+                "Release notes",
+                "MineDock_Launcher_x64.exe",
+                LauncherUpdateAssetKind.WindowsX64Executable));
 
         await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
 
-        Assert.Equal("1.0.0", updateService.LastCurrentVersion);
+        Assert.Equal("1.0.3", updateService.LastCurrentVersion);
         Assert.True(viewModel.Info.IsUpdateAvailableDialogOpen);
         Assert.Equal("1.0.1", viewModel.Info.UpdateDialogVersionText);
         Assert.Equal(
             string.Format(Strings.Dialog_UpdateAvailableVersionFormat, "1.0.1"),
             viewModel.Info.UpdateDialogMessage);
+    }
+
+    [Fact]
+    public async Task InfoCheckUpdatesCommandStaysExecutableWhileChecking()
+    {
+        var viewModel = CreateViewModel(
+            out _,
+            out _,
+            out _,
+            out var updateService);
+        var pendingResult = new TaskCompletionSource<LauncherUpdateCheckResult>();
+        updateService.ResultTask = pendingResult.Task;
+
+        var checkTask = viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.Info.IsCheckingUpdates);
+        Assert.True(viewModel.Info.CheckUpdatesCommand.CanExecute(null));
+
+        await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
+        Assert.Equal(1, updateService.CallCount);
+
+        pendingResult.SetResult(LauncherUpdateCheckResult.Latest("1.0.3"));
+        await checkTask;
+
+        Assert.False(viewModel.Info.IsCheckingUpdates);
     }
 
     [Fact]
@@ -339,13 +447,15 @@ public sealed class SettingsPageViewModelTests
             out var externalLinkService,
             out var updateService);
         updateService.Result = LauncherUpdateCheckResult.Available(
-            "1.0.0",
+            "1.0.3",
             new LauncherUpdateInfo(
                 "1.0.1",
                 "1.0.1",
                 "https://example.test/releases/v1.0.1",
-                "https://example.test/downloads/launcher.zip",
-                null));
+                "https://example.test/downloads/MineDock_Launcher_x64.exe",
+                null,
+                "MineDock_Launcher_x64.exe",
+                LauncherUpdateAssetKind.WindowsX64Executable));
 
         await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
         viewModel.Info.OpenUpdateChangelogCommand.Execute(null);
@@ -354,27 +464,92 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
-    public async Task InfoConfirmUpdateCommandOpensDownloadUrlAndClosesDialog()
+    public async Task InfoConfirmUpdateCommandStartsSelfUpdateAndExits()
     {
         var viewModel = CreateViewModel(
             out _,
+            out var statusService,
             out _,
-            out var externalLinkService,
-            out var updateService);
+            out var updateService,
+            out var selfUpdateService,
+            out var exitService);
         updateService.Result = LauncherUpdateCheckResult.Available(
-            "1.0.0",
+            "1.0.3",
             new LauncherUpdateInfo(
                 "1.0.1",
                 "1.0.1",
                 "https://example.test/releases/v1.0.1",
-                "https://example.test/downloads/launcher.zip",
+                "https://example.test/downloads/MineDock_Launcher_x64.exe",
+                null,
+                "MineDock_Launcher_x64.exe",
+                LauncherUpdateAssetKind.WindowsX64Executable));
+
+        await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
+        await viewModel.Info.ConfirmUpdateCommand.ExecuteAsync(null);
+
+        Assert.Equal("1.0.1", selfUpdateService.LastUpdate?.Version);
+        Assert.False(viewModel.Info.IsUpdateAvailableDialogOpen);
+        Assert.Equal(Strings.Status_LauncherUpdateRestarting, statusService.LastMessage);
+        Assert.Equal(1, exitService.ShutdownCount);
+    }
+
+    [Fact]
+    public async Task InfoConfirmUpdateCommandReportsWhenNoAutoInstallPackageExists()
+    {
+        var viewModel = CreateViewModel(
+            out _,
+            out var statusService,
+            out _,
+            out var updateService,
+            out var selfUpdateService,
+            out var exitService);
+        updateService.Result = LauncherUpdateCheckResult.Available(
+            "1.0.3",
+            new LauncherUpdateInfo(
+                "1.0.1",
+                "1.0.1",
+                "https://example.test/releases/v1.0.1",
+                "https://example.test/releases/v1.0.1",
                 null));
 
         await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
-        viewModel.Info.ConfirmUpdateCommand.Execute(null);
+        await viewModel.Info.ConfirmUpdateCommand.ExecuteAsync(null);
 
-        Assert.Equal("https://example.test/downloads/launcher.zip", externalLinkService.LastOpenedUrl);
-        Assert.False(viewModel.Info.IsUpdateAvailableDialogOpen);
+        Assert.Null(selfUpdateService.LastUpdate);
+        Assert.True(viewModel.Info.IsUpdateAvailableDialogOpen);
+        Assert.Equal(Strings.Status_UpdateAutoInstallPackageNotFound, statusService.LastMessage);
+        Assert.Equal(0, exitService.ShutdownCount);
+    }
+
+    [Fact]
+    public async Task InfoConfirmUpdateCommandReportsWhenSelfUpdateFails()
+    {
+        var viewModel = CreateViewModel(
+            out _,
+            out var statusService,
+            out _,
+            out var updateService,
+            out var selfUpdateService,
+            out var exitService);
+        selfUpdateService.Result = LauncherSelfUpdateStartResult.Failed();
+        updateService.Result = LauncherUpdateCheckResult.Available(
+            "1.0.3",
+            new LauncherUpdateInfo(
+                "1.0.1",
+                "1.0.1",
+                "https://example.test/releases/v1.0.1",
+                "https://example.test/downloads/MineDock_Launcher_x64.exe",
+                null,
+                "MineDock_Launcher_x64.exe",
+                LauncherUpdateAssetKind.WindowsX64Executable));
+
+        await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
+        await viewModel.Info.ConfirmUpdateCommand.ExecuteAsync(null);
+
+        Assert.Equal("1.0.1", selfUpdateService.LastUpdate?.Version);
+        Assert.True(viewModel.Info.IsUpdateAvailableDialogOpen);
+        Assert.Equal(Strings.Status_LauncherUpdateStartFailed, statusService.LastMessage);
+        Assert.Equal(0, exitService.ShutdownCount);
     }
 
     [Fact]
@@ -385,7 +560,7 @@ public sealed class SettingsPageViewModelTests
             out var statusService,
             out _,
             out var updateService);
-        updateService.Result = LauncherUpdateCheckResult.Latest("1.0.0");
+        updateService.Result = LauncherUpdateCheckResult.Latest("1.0.3");
 
         await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
 
@@ -401,7 +576,7 @@ public sealed class SettingsPageViewModelTests
             out var statusService,
             out _,
             out var updateService);
-        updateService.Result = LauncherUpdateCheckResult.Failed("1.0.0");
+        updateService.Result = LauncherUpdateCheckResult.Failed("1.0.3");
 
         await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
 
@@ -1131,6 +1306,23 @@ public sealed class SettingsPageViewModelTests
         out FakeLauncherUpdateService launcherUpdateService)
     {
         return CreateViewModel(
+            out settingsService,
+            out statusService,
+            out externalLinkService,
+            out launcherUpdateService,
+            out _,
+            out _);
+    }
+
+    private static SettingsPageViewModel CreateViewModel(
+        out TestSettingsService settingsService,
+        out FakeStatusService statusService,
+        out FakeExternalLinkService externalLinkService,
+        out FakeLauncherUpdateService launcherUpdateService,
+        out FakeLauncherSelfUpdateService launcherSelfUpdateService,
+        out FakeApplicationExitService applicationExitService)
+    {
+        return CreateViewModel(
             new LauncherSettings(),
             new FakeJavaRuntimeDiscoveryService(),
             new FakeFilePickerService(),
@@ -1139,7 +1331,9 @@ public sealed class SettingsPageViewModelTests
             out _,
             out _,
             out externalLinkService,
-            out launcherUpdateService);
+            out launcherUpdateService,
+            out launcherSelfUpdateService,
+            out applicationExitService);
     }
 
     private static SettingsPageViewModel CreateViewModel(
@@ -1309,12 +1503,41 @@ public sealed class SettingsPageViewModelTests
         out FakeExternalLinkService externalLinkService,
         out FakeLauncherUpdateService launcherUpdateService)
     {
+        return CreateViewModel(
+            settings,
+            javaRuntimeDiscoveryService,
+            filePickerService,
+            out settingsService,
+            out statusService,
+            out floatingMessageService,
+            out themeService,
+            out externalLinkService,
+            out launcherUpdateService,
+            out _,
+            out _);
+    }
+
+    private static SettingsPageViewModel CreateViewModel(
+        LauncherSettings settings,
+        FakeJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
+        FakeFilePickerService filePickerService,
+        out TestSettingsService settingsService,
+        out FakeStatusService statusService,
+        out FakeFloatingMessageService floatingMessageService,
+        out FakeThemeService themeService,
+        out FakeExternalLinkService externalLinkService,
+        out FakeLauncherUpdateService launcherUpdateService,
+        out FakeLauncherSelfUpdateService launcherSelfUpdateService,
+        out FakeApplicationExitService applicationExitService)
+    {
         settingsService = new TestSettingsService(settings);
         statusService = new FakeStatusService();
         floatingMessageService = new FakeFloatingMessageService();
         themeService = new FakeThemeService();
         externalLinkService = new FakeExternalLinkService();
         launcherUpdateService = new FakeLauncherUpdateService();
+        launcherSelfUpdateService = new FakeLauncherSelfUpdateService();
+        applicationExitService = new FakeApplicationExitService();
         return new SettingsPageViewModel(
             settingsService,
             statusService,
@@ -1325,7 +1548,9 @@ public sealed class SettingsPageViewModelTests
             floatingMessageService,
             themeService,
             externalLinkService,
-            launcherUpdateService);
+            launcherUpdateService,
+            launcherSelfUpdateService,
+            applicationExitService);
     }
 
     private static JavaRuntimeInfo CreateJavaRuntime(string executablePath, int majorVersion)
@@ -1500,15 +1725,42 @@ public sealed class SettingsPageViewModelTests
 
     private sealed class FakeLauncherUpdateService : ILauncherUpdateService
     {
-        public LauncherUpdateCheckResult Result { get; set; } = LauncherUpdateCheckResult.Latest("1.0.0");
+        public LauncherUpdateCheckResult Result { get; set; } = LauncherUpdateCheckResult.Latest("1.0.3");
+        public Task<LauncherUpdateCheckResult>? ResultTask { get; set; }
         public string? LastCurrentVersion { get; private set; }
+        public int CallCount { get; private set; }
 
         public Task<LauncherUpdateCheckResult> CheckForUpdatesAsync(
             string currentVersion,
             CancellationToken cancellationToken = default)
         {
+            CallCount++;
             LastCurrentVersion = currentVersion;
+            return ResultTask ?? Task.FromResult(Result);
+        }
+    }
+
+    private sealed class FakeLauncherSelfUpdateService : ILauncherSelfUpdateService
+    {
+        public LauncherSelfUpdateStartResult Result { get; set; } = LauncherSelfUpdateStartResult.Success("update.exe");
+        public LauncherUpdateInfo? LastUpdate { get; private set; }
+
+        public Task<LauncherSelfUpdateStartResult> StartUpdateAsync(
+            LauncherUpdateInfo update,
+            CancellationToken cancellationToken = default)
+        {
+            LastUpdate = update;
             return Task.FromResult(Result);
+        }
+    }
+
+    private sealed class FakeApplicationExitService : IApplicationExitService
+    {
+        public int ShutdownCount { get; private set; }
+
+        public void Shutdown()
+        {
+            ShutdownCount++;
         }
     }
 

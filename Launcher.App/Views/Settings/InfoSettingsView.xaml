@@ -6,33 +6,75 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="/MineDock%20Launcher;component/Views/Settings/SettingsSectionResources.xaml" />
+                <ResourceDictionary Source="/MineDock_Launcher_x64;component/Views/Settings/SettingsSectionResources.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="ReferenceProjectHyperlinkStyle" TargetType="Hyperlink">
+                <Setter Property="Foreground" Value="{DynamicResource Brush.Accent.Primary}" />
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Foreground" Value="{DynamicResource Brush.Accent.Hover}" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
     <StackPanel Margin="0,0,12,72"
                 MaxWidth="{StaticResource DetailPageContentMaxWidth}"
                 HorizontalAlignment="Stretch">
-        <GroupBox Header="{x:Static res:Strings.Settings_LauncherVersionSection}"
-                  Style="{StaticResource LauncherContentSectionStyle}">
-            <StackPanel>
-                <Border Style="{StaticResource ReadOnlyFieldSurfaceStyle}">
-                    <TextBlock Text="{Binding LauncherVersionText}"
-                               Style="{StaticResource ReadOnlyFieldTextStyle}" />
-                </Border>
+        <StackPanel HorizontalAlignment="Left">
+            <Image Width="64"
+                   Height="64"
+                   HorizontalAlignment="Left"
+                   Source="/MineDock_Launcher_x64;component/Assets/Icons/app_icon_concept_256.png"
+                   RenderOptions.BitmapScalingMode="HighQuality" />
+            <TextBlock Margin="0,10,0,0"
+                       Text="{x:Static res:Strings.App_Title}"
+                       Foreground="{DynamicResource Brush.Text.Primary}"
+                       FontSize="26"
+                       FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis" />
 
-                <WrapPanel Margin="0,16,0,0">
-                    <Button Margin="0,0,10,10"
-                            Content="{x:Static res:Strings.Settings_ViewGithubRepositoryButton}"
-                            Command="{Binding OpenGithubRepositoryCommand}"
-                            Style="{StaticResource LauncherDialogButtonStyle}" />
-                    <Button Margin="0,0,10,10"
-                            Content="{Binding CheckUpdatesButtonText}"
-                            Command="{Binding CheckUpdatesCommand}"
-                            Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
-                </WrapPanel>
-            </StackPanel>
+            <TextBlock Margin="0,16,0,0"
+                       Text="{Binding LauncherVersionText, StringFormat=v{0}}"
+                       Foreground="{DynamicResource Brush.Text.Primary}"
+                       FontSize="13"
+                       FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis" />
+
+            <WrapPanel Margin="0,16,0,0">
+                <Button Margin="0,0,10,10"
+                        Content="{x:Static res:Strings.Settings_ViewGithubRepositoryButton}"
+                        Command="{Binding OpenGithubRepositoryCommand}"
+                        Style="{StaticResource LauncherDialogButtonStyle}" />
+                <Button x:Name="CheckUpdatesButton"
+                        Margin="0,0,10,10"
+                        Content="{Binding CheckUpdatesButtonText}"
+                        Command="{Binding CheckUpdatesCommand}"
+                        RequestBringIntoView="CheckUpdatesButton_OnRequestBringIntoView"
+                        Style="{StaticResource LauncherPrimaryDialogButtonStyle}" />
+            </WrapPanel>
+        </StackPanel>
+
+        <GroupBox Margin="0,28,0,0"
+                  Header="{x:Static res:Strings.Settings_ReferenceProjectsSection}"
+                  Style="{StaticResource LauncherContentSectionStyle}">
+            <ItemsControl ItemsSource="{Binding ReferenceProjects}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Margin="0,0,0,8"
+                                   HorizontalAlignment="Left"
+                                   FontSize="13"
+                                   TextTrimming="CharacterEllipsis">
+                            <Hyperlink Command="{Binding DataContext.OpenReferenceProjectCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                       CommandParameter="{Binding}"
+                                       Style="{StaticResource ReferenceProjectHyperlinkStyle}">
+                                <Run Text="{Binding Name}" />
+                            </Hyperlink>
+                        </TextBlock>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
         </GroupBox>
     </StackPanel>
 </UserControl>

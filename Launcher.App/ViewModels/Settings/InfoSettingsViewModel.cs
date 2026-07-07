@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
@@ -15,25 +16,48 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
     private readonly IFloatingMessageService floatingMessageService;
     private readonly IExternalLinkService externalLinkService;
     private readonly ILauncherUpdateService launcherUpdateService;
+    private readonly ILauncherSelfUpdateService launcherSelfUpdateService;
+    private readonly IApplicationExitService applicationExitService;
+    private LauncherUpdateInfo? availableUpdate;
     private string? updateDialogReleasePageUrl;
     private string? updateDialogDownloadUrl;
+    private static readonly ReadOnlyCollection<InfoReferenceProjectItem> RuntimeReferenceProjects = new(
+    [
+        new InfoReferenceProjectItem("CommunityToolkit.Mvvm", "8.4.2", "https://github.com/CommunityToolkit/dotnet"),
+        new InfoReferenceProjectItem("Microsoft.Extensions.DependencyInjection", "10.0.9", "https://github.com/dotnet/dotnet"),
+        new InfoReferenceProjectItem("Microsoft.Extensions.DependencyInjection.Abstractions", "10.0.9", "https://github.com/dotnet/dotnet"),
+        new InfoReferenceProjectItem("Microsoft.Extensions.Logging", "10.0.9", "https://github.com/dotnet/dotnet"),
+        new InfoReferenceProjectItem("Microsoft.Extensions.Logging.Abstractions", "10.0.9", "https://github.com/dotnet/dotnet"),
+        new InfoReferenceProjectItem("Serilog", "4.2.0", "https://github.com/serilog/serilog"),
+        new InfoReferenceProjectItem("Serilog.Extensions.Logging", "8.0.0", "https://github.com/serilog/serilog-extensions-logging"),
+        new InfoReferenceProjectItem("Serilog.Sinks.File", "6.0.0", "https://github.com/serilog/serilog-sinks-file"),
+        new InfoReferenceProjectItem("CmlLib.Core", "4.0.6", "https://github.com/CmlLib/CmlLib.Core"),
+        new InfoReferenceProjectItem("CmlLib.Core.Auth.Microsoft", "3.3.1", "https://github.com/CmlLib/CmlLib.Core.Auth.Microsoft"),
+        new InfoReferenceProjectItem("SharpCompress", "0.39.0", "https://github.com/adamhathcock/sharpcompress")
+    ]);
 
     public InfoSettingsViewModel(
         SettingsPageViewModel parent,
         IStatusService statusService,
         IFloatingMessageService floatingMessageService,
         IExternalLinkService externalLinkService,
-        ILauncherUpdateService launcherUpdateService)
+        ILauncherUpdateService launcherUpdateService,
+        ILauncherSelfUpdateService launcherSelfUpdateService,
+        IApplicationExitService applicationExitService)
         : base(parent)
     {
         this.statusService = statusService;
         this.floatingMessageService = floatingMessageService;
         this.externalLinkService = externalLinkService;
         this.launcherUpdateService = launcherUpdateService;
+        this.launcherSelfUpdateService = launcherSelfUpdateService;
+        this.applicationExitService = applicationExitService;
         LauncherVersionText = ResolveLauncherVersion();
     }
 
     public string LauncherVersionText { get; }
+
+    public IReadOnlyList<InfoReferenceProjectItem> ReferenceProjects => RuntimeReferenceProjects;
 
     [ObservableProperty]
     private bool isUpdateAvailableDialogOpen;
@@ -47,9 +71,16 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
     [ObservableProperty]
     private bool isCheckingUpdates;
 
+    [ObservableProperty]
+    private bool isStartingUpdate;
+
     public string CheckUpdatesButtonText => IsCheckingUpdates
         ? Strings.Status_CheckingUpdates
         : Strings.Settings_CheckUpdatesButton;
+
+    public string ConfirmUpdateButtonText => IsStartingUpdate
+        ? Strings.Status_DownloadingLauncherUpdate
+        : Strings.Dialog_UpdateButton;
 
     [RelayCommand]
     private void OpenGithubRepository()
@@ -65,7 +96,24 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanCheckUpdates))]
+    [RelayCommand]
+    private void OpenReferenceProject(InfoReferenceProjectItem? project)
+    {
+        if (project is null)
+            return;
+
+        try
+        {
+            if (!externalLinkService.TryOpen(project.Url))
+                ReportVisibleStatus(Strings.Status_OpenReferenceProjectFailed);
+        }
+        catch (Exception)
+        {
+            ReportVisibleStatus(Strings.Status_OpenReferenceProjectFailed);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCheckUpdates), AllowConcurrentExecutions = true)]
     private async Task CheckUpdatesAsync()
     {
         if (IsCheckingUpdates)
@@ -100,6 +148,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
             }
 
             var update = result.Update;
+            availableUpdate = update;
             UpdateDialogVersionText = update.DisplayVersion;
             UpdateDialogMessage = string.Format(Strings.Dialog_UpdateAvailableVersionFormat, update.DisplayVersion);
             updateDialogReleasePageUrl = update.ReleasePageUrl;
@@ -127,27 +176,74 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
         IsUpdateAvailableDialogOpen = false;
     }
 
-    [RelayCommand]
-    private void ConfirmUpdate()
+    [RelayCommand(CanExecute = nameof(CanConfirmUpdate))]
+    private async Task ConfirmUpdateAsync()
     {
-        if (!TryOpenUpdateUrl(updateDialogDownloadUrl ?? updateDialogReleasePageUrl))
+        if (IsStartingUpdate)
+            return;
+
+        if (availableUpdate is null)
         {
             ReportVisibleStatus(Strings.Status_OpenUpdatePageFailed);
             return;
         }
 
-        IsUpdateAvailableDialogOpen = false;
+        if (!availableUpdate.CanAutoInstall)
+        {
+            ReportVisibleStatus(Strings.Status_UpdateAutoInstallPackageNotFound);
+            return;
+        }
+
+        IsStartingUpdate = true;
+        ReportStatus(Strings.Status_DownloadingLauncherUpdate);
+        try
+        {
+            var result = await launcherSelfUpdateService.StartUpdateAsync(availableUpdate);
+            if (!result.Succeeded)
+            {
+                ReportVisibleStatus(Strings.Status_LauncherUpdateStartFailed);
+                return;
+            }
+
+            IsUpdateAvailableDialogOpen = false;
+            ReportVisibleStatus(Strings.Status_LauncherUpdateRestarting);
+            applicationExitService.Shutdown();
+        }
+        catch (Exception)
+        {
+            ReportVisibleStatus(Strings.Status_LauncherUpdateStartFailed);
+        }
+        finally
+        {
+            IsStartingUpdate = false;
+        }
     }
 
     private bool CanCheckUpdates()
     {
-        return !IsCheckingUpdates;
+        return !IsStartingUpdate;
+    }
+
+    private bool CanConfirmUpdate()
+    {
+        return !IsStartingUpdate;
     }
 
     partial void OnIsCheckingUpdatesChanged(bool value)
     {
         OnPropertyChanged(nameof(CheckUpdatesButtonText));
+    }
+
+    partial void OnIsStartingUpdateChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ConfirmUpdateButtonText));
         CheckUpdatesCommand.NotifyCanExecuteChanged();
+        ConfirmUpdateCommand.NotifyCanExecuteChanged();
+    }
+
+    private void ReportStatus(string message)
+    {
+        statusService.Report(message);
     }
 
     private void ReportVisibleStatus(string message)
@@ -186,3 +282,5 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
             : assemblyVersion;
     }
 }
+
+public sealed record InfoReferenceProjectItem(string Name, string Version, string Url);

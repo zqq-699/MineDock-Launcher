@@ -8,7 +8,7 @@
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="/MineDock%20Launcher;component/Views/GameSettings/GameSettingsSectionResources.xaml" />
+                <ResourceDictionary Source="/MineDock_Launcher_x64;component/Views/GameSettings/GameSettingsSectionResources.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>

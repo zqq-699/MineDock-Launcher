@@ -51,6 +51,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IModrinthService, ModrinthService>();
         services.AddSingleton<IResourceCatalogService, ResourceCatalogService>();
         services.AddSingleton<ILauncherUpdateService, GitHubLauncherUpdateService>();
+        services.AddSingleton<ILauncherSelfUpdateService, LauncherSelfUpdateService>();
         services.AddSingleton<ILauncherStateMonitor, LauncherStateMonitor>();
         services.AddSingleton<IMicrosoftAccountService, MicrosoftAccountService>();
         services.AddSingleton<IAccountSkinLibraryService, AccountSkinLibraryService>();
