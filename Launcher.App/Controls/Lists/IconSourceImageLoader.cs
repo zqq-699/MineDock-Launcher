@@ -7,6 +7,9 @@ namespace Launcher.App.Controls;
 
 internal static class IconSourceImageLoader
 {
+    private const string ComponentPathPrefix = "/MineDock%20Launcher;component/";
+    private const string ComponentUriPrefix = "pack://application:,,,/MineDock%20Launcher;component";
+
     private static readonly ConcurrentDictionary<string, CachedImageSource> CachedImagesByKey = new(StringComparer.OrdinalIgnoreCase);
 
     public static ImageSource? TryLoad(object? source)
@@ -49,11 +52,11 @@ internal static class IconSourceImageLoader
         if (Uri.TryCreate(source, UriKind.Absolute, out var absoluteUri))
             return absoluteUri;
 
-        if (source.StartsWith("/Launcher.App;component/", StringComparison.OrdinalIgnoreCase))
+        if (source.StartsWith(ComponentPathPrefix, StringComparison.OrdinalIgnoreCase))
             return new Uri($"pack://application:,,,{source}", UriKind.Absolute);
 
         if (source.StartsWith("/", StringComparison.Ordinal))
-            return new Uri($"pack://application:,,,/Launcher.App;component{source}", UriKind.Absolute);
+            return new Uri($"{ComponentUriPrefix}{source}", UriKind.Absolute);
 
         if (Uri.TryCreate(source, UriKind.Relative, out var relativeUri))
             return relativeUri;

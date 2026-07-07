@@ -27,7 +27,7 @@ public sealed class ModrinthService : IModrinthService
         this.httpClient = httpClient ?? new HttpClient();
         this.logger = logger ?? NullLogger<ModrinthService>.Instance;
         if (!this.httpClient.DefaultRequestHeaders.UserAgent.Any())
-            this.httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Launcher/0.1 (offline-wpf-launcher)");
+            this.httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("MDL/0.1 (MineDock-Launcher)");
     }
 
     public async Task<IReadOnlyList<ModrinthProject>> SearchModsAsync(string query, string minecraftVersion, LoaderKind loader, CancellationToken cancellationToken = default)

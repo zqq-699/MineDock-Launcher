@@ -13,9 +13,14 @@ public sealed class ThemeServiceTests
         Exception? exception = null;
         var thread = new Thread(() =>
         {
+            global::System.Windows.Application? application = null;
+            var createdApplication = false;
             try
             {
-                var application = global::System.Windows.Application.Current ?? new global::System.Windows.Application();
+                application = global::System.Windows.Application.Current;
+                createdApplication = application is null || !application.Dispatcher.CheckAccess();
+                application = WpfApplicationTestHelper.GetOrCreateApplication();
+
                 application.Resources.MergedDictionaries.Clear();
                 application.Resources.MergedDictionaries.Add(LoadDictionary("Resources/Themes/Shared.xaml"));
 
@@ -81,6 +86,11 @@ public sealed class ThemeServiceTests
             {
                 exception = ex;
             }
+            finally
+            {
+                if (createdApplication)
+                    WpfApplicationTestHelper.ShutdownAndResetCurrentApplication();
+            }
         });
 
         thread.SetApartmentState(ApartmentState.STA);
@@ -96,7 +106,7 @@ public sealed class ThemeServiceTests
         return new ResourceDictionary
         {
             Source = new Uri(
-                $"pack://application:,,,/Launcher.App;component/{relativePath}",
+                $"pack://application:,,,/MineDock%20Launcher;component/{relativePath}",
                 UriKind.Absolute)
         };
     }

@@ -33,7 +33,7 @@ public sealed class ResourceDictionaryTests
                 var dictionary = new ResourceDictionary
                 {
                     Source = new Uri(
-                        "pack://application:,,,/Launcher.App;component/Styles/ControlStyles.xaml",
+                        "pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.xaml",
                         UriKind.Absolute)
                 };
 
@@ -140,7 +140,7 @@ public sealed class ResourceDictionaryTests
                 var dictionary = new ResourceDictionary
                 {
                     Source = new Uri(
-                        "pack://application:,,,/Launcher.App;component/Styles/ControlStyles.xaml",
+                        "pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.xaml",
                         UriKind.Absolute)
                 };
 
@@ -802,7 +802,7 @@ public sealed class ResourceDictionaryTests
         application.Resources.MergedDictionaries.Add(new ResourceDictionary
         {
             Source = new Uri(
-                "pack://application:,,,/Launcher.App;component/Styles/ControlStyles.xaml",
+                "pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.xaml",
                 UriKind.Absolute)
         });
         application.Resources["BooleanToMenuTextVisibilityConverter"] = new BooleanToMenuTextVisibilityConverter();
@@ -1019,17 +1019,14 @@ public sealed class ResourceDictionaryTests
         return new ResourceDictionary
         {
             Source = new Uri(
-                $"pack://application:,,,/Launcher.App;component/{relativePath}",
+                $"pack://application:,,,/MineDock%20Launcher;component/{relativePath}",
                 UriKind.Absolute)
         };
     }
 
     private static global::System.Windows.Application GetOrCreateApplication()
     {
-        var application = global::System.Windows.Application.Current
-            ?? new global::System.Windows.Application();
-        application.ShutdownMode = ShutdownMode.OnExplicitShutdown;
-        return application;
+        return WpfApplicationTestHelper.GetOrCreateApplication();
     }
 
     private sealed class PendingResourceCatalogService(Task<ResourceCatalogSearchResult> resultTask) : IResourceCatalogService

@@ -2,5 +2,5 @@ namespace Launcher.Application;
 
 public static class LauncherApplicationIdentity
 {
-    public const string StorageDirectoryName = "Launcher";
+    public const string StorageDirectoryName = "MDL";
 }

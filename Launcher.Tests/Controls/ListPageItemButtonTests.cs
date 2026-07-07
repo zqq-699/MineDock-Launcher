@@ -26,7 +26,7 @@ public sealed class ListPageItemButtonTests
         var dictionary = new ResourceDictionary
         {
             Source = new Uri(
-                "pack://application:,,,/Launcher.App;component/Styles/ControlStyles.xaml",
+                "pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.xaml",
                 UriKind.Absolute)
         };
 
@@ -194,15 +194,22 @@ public sealed class ListPageItemButtonTests
         Exception? exception = null;
         var thread = new Thread(() =>
         {
+            global::System.Windows.Application? application = null;
+            var createdApplication = false;
             Window? window = null;
             try
             {
+                application = global::System.Windows.Application.Current;
+                createdApplication = application is null || !application.Dispatcher.CheckAccess();
+                application = WpfApplicationTestHelper.GetOrCreateApplication();
+
                 var dictionary = new ResourceDictionary
                 {
                     Source = new Uri(
-                        "pack://application:,,,/Launcher.App;component/Styles/ControlStyles.xaml",
+                        "pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.xaml",
                         UriKind.Absolute)
                 };
+                application.Resources.MergedDictionaries.Add(dictionary);
 
                 var state = new VirtualizedListItemState
                 {
@@ -234,7 +241,6 @@ public sealed class ListPageItemButtonTests
                     Content = button
                 };
                 var listBox = new ListBox();
-                listBox.Resources.MergedDictionaries.Add(dictionary);
                 listBox.Items.Add(container);
                 window = new Window
                 {
@@ -276,6 +282,8 @@ public sealed class ListPageItemButtonTests
             finally
             {
                 window?.Close();
+                if (createdApplication)
+                    WpfApplicationTestHelper.ShutdownAndResetCurrentApplication();
             }
         });
 

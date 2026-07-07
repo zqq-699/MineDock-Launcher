@@ -10,13 +10,13 @@ namespace Launcher.App.Services;
 public sealed class ThemeService : IThemeService, IDisposable
 {
     private const string DarkThemeSource =
-        "pack://application:,,,/Launcher.App;component/Resources/Themes/Dark.xaml";
+        "pack://application:,,,/MineDock%20Launcher;component/Resources/Themes/Dark.xaml";
 
     private const string LightThemeSource =
-        "pack://application:,,,/Launcher.App;component/Resources/Themes/Light.xaml";
+        "pack://application:,,,/MineDock%20Launcher;component/Resources/Themes/Light.xaml";
 
     private const string AccentThemeSourcePrefix =
-        "pack://application:,,,/Launcher.App;component/Resources/Themes/Accents/";
+        "pack://application:,,,/MineDock%20Launcher;component/Resources/Themes/Accents/";
 
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<ThemeService> logger;
@@ -241,14 +241,14 @@ public sealed class ThemeService : IThemeService, IDisposable
     private static bool IsThemeDictionary(ResourceDictionary dictionary)
     {
         var source = dictionary.Source?.ToString();
-        return string.Equals(source, DarkThemeSource, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(source, LightThemeSource, StringComparison.OrdinalIgnoreCase);
+        return source?.EndsWith("/Resources/Themes/Dark.xaml", StringComparison.OrdinalIgnoreCase) == true
+            || source?.EndsWith("/Resources/Themes/Light.xaml", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private static bool IsAccentDictionary(ResourceDictionary dictionary)
     {
         var source = dictionary.Source?.ToString();
-        return source?.StartsWith(AccentThemeSourcePrefix, StringComparison.OrdinalIgnoreCase) == true;
+        return source?.Contains("/Resources/Themes/Accents/", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private void SystemEvents_UserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)

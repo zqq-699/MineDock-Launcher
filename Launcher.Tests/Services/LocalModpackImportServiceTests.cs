@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text;
+using Launcher.Application;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure;
@@ -385,7 +386,11 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
         Assert.True(result.IsSuccess);
         var instanceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "No Cache Pack");
         Assert.True(File.Exists(Path.Combine(instanceDirectory, "config", "imported.txt")));
-        Assert.False(Directory.Exists(Path.Combine(TempRoot, "Launcher", "cache", "modpacks")));
+        Assert.False(Directory.Exists(Path.Combine(
+            TempRoot,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "cache",
+            "modpacks")));
         Assert.Equal(
             ["No Cache Pack"],
             Directory.GetDirectories(Path.Combine(settings.MinecraftDirectory, "versions"))

@@ -1,12 +1,12 @@
 @echo off
 setlocal
 
-set "TARGET=%APPDATA%\Launcher"
+set "TARGET=%APPDATA%\MDL"
 
 echo This script removes launcher data from:
 echo %TARGET%
 echo.
-echo Make sure the launcher is closed before continuing.
+echo Make sure MineDock Launcher is closed before continuing.
 choice /M "Delete this directory and all of its contents"
 if errorlevel 2 (
     echo Cancelled.
@@ -25,5 +25,5 @@ if exist "%TARGET%" (
     exit /b 1
 )
 
-echo Launcher AppData has been cleared.
+echo MineDock Launcher AppData has been cleared.
 exit /b 0

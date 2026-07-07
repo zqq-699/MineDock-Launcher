@@ -21,6 +21,11 @@
   </ItemGroup>
 
   <PropertyGroup>
+    <AssemblyName>MineDock Launcher</AssemblyName>
+    <RootNamespace>Launcher.App</RootNamespace>
+    <Title>MineDock Launcher</Title>
+    <Product>MineDock Launcher</Product>
+    <ApplicationIcon>Assets\Icons\app_icon_concept.ico</ApplicationIcon>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>

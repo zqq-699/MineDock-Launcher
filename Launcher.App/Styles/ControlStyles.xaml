@@ -1,14 +1,14 @@
 ﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <ResourceDictionary.MergedDictionaries>
-        <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Navigation.xaml" />
-        <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Page.xaml" />
-        <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Scroll.xaml" />
-        <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Lists.xaml" />
-        <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Buttons.xaml" />
-        <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Dialogs.xaml" />
-        <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Inputs.xaml" />
-        <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Styles/ControlStyles.Messages.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.Navigation.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.Page.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.Scroll.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.Lists.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.Buttons.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.Dialogs.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.Inputs.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/MineDock%20Launcher;component/Styles/ControlStyles.Messages.xaml" />
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>
 

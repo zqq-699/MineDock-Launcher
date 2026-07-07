@@ -1,3 +1,4 @@
+using Launcher.Application;
 using Launcher.Infrastructure;
 using Launcher.Infrastructure.Modpacks;
 
@@ -31,7 +32,11 @@ public sealed class ModpackWorkspaceCleanupServiceTests : TestTempDirectory
 
         await service.CleanupAllAsync();
 
-        Assert.False(Directory.Exists(Path.Combine(TempRoot, "Launcher", "cache", "modpacks")));
+        Assert.False(Directory.Exists(Path.Combine(
+            TempRoot,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "cache",
+            "modpacks")));
     }
 
     [Fact]
@@ -54,7 +59,11 @@ public sealed class ModpackWorkspaceCleanupServiceTests : TestTempDirectory
 
     private string CreateModpackCacheDirectory()
     {
-        var cacheDirectory = Path.Combine(TempRoot, "Launcher", "cache", "modpacks");
+        var cacheDirectory = Path.Combine(
+            TempRoot,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "cache",
+            "modpacks");
         Directory.CreateDirectory(cacheDirectory);
         return cacheDirectory;
     }

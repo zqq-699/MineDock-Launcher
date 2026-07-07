@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using Launcher.Application;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure;
@@ -141,7 +142,11 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         var file = Assert.Single(prepared.Files);
         Assert.Equal("mods/keep.jar", file.RelativePath);
         Assert.True(prepared.HasOverrides);
-        Assert.False(Directory.Exists(Path.Combine(TempRoot, "Launcher", "cache", "modpacks")));
+        Assert.False(Directory.Exists(Path.Combine(
+            TempRoot,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "cache",
+            "modpacks")));
 
         var instance = new GameInstance { InstanceDirectory = Path.Combine(TempRoot, "instance") };
         await service.CopyOverridesAsync(prepared, instance, progress: null);
@@ -201,7 +206,11 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
         Assert.Equal(LoaderKind.Fabric, prepared.Loader);
         Assert.Equal("modpack.mrpack", prepared.EmbeddedModrinthEntryName);
         Assert.True(prepared.HasOverrides);
-        Assert.False(Directory.Exists(Path.Combine(TempRoot, "Launcher", "cache", "modpacks")));
+        Assert.False(Directory.Exists(Path.Combine(
+            TempRoot,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "cache",
+            "modpacks")));
 
         var instance = new GameInstance { InstanceDirectory = Path.Combine(TempRoot, "wrapped-instance") };
         await service.CopyOverridesAsync(prepared, instance, progress: null);

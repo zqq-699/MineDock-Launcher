@@ -1,4 +1,4 @@
-# Launcher
+# MineDock Launcher
 
 [中文](#chinese) | [English](#english)
 
@@ -8,7 +8,7 @@
 
 ### 简介
 
-`Launcher` 是一个基于 **WPF + C# / .NET 8** 的 Minecraft 启动器项目。
+`MineDock Launcher` 是一个基于 **WPF + C# / .NET 8** 的 Minecraft 启动器项目。
 
 这个项目更关注“好用的日常启动体验”与“清晰、稳定、可持续演进的产品能力”，而不是只做一个能启动游戏的壳。
 
@@ -85,7 +85,7 @@ dotnet run --project Launcher.App\Launcher.App.csproj
 
 ### Overview
 
-`Launcher` is a **WPF + C# / .NET 8** Minecraft launcher project.
+`MineDock Launcher` is a **WPF + C# / .NET 8** Minecraft launcher project.
 
 The goal is not just to launch the game, but to build a launcher that feels solid for everyday use and can keep growing into a more complete product over time.
 

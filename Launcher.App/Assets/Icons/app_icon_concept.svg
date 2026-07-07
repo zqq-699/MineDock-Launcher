@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="backgroundFill" x1="512" y1="0" x2="512" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#24272D" />
+      <stop offset="1" stop-color="#1D2026" />
+    </linearGradient>
+    <linearGradient id="cubeStroke" x1="220" y1="178" x2="804" y2="820" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#31D7FF" />
+      <stop offset="0.55" stop-color="#7C5CFF" />
+      <stop offset="1" stop-color="#B45CFF" />
+    </linearGradient>
+    <filter id="cubeShadow" x="64" y="48" width="896" height="928" filterUnits="userSpaceOnUse">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="36" result="blur" />
+      <feOffset in="blur" dx="0" dy="34" result="offsetBlur" />
+      <feFlood flood-color="#000000" flood-opacity="0.30" result="shadowColor" />
+      <feComposite in="shadowColor" in2="offsetBlur" operator="in" result="shadow" />
+      <feMerge>
+        <feMergeNode in="shadow" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="1024" rx="224" fill="url(#backgroundFill)" />
+
+  <g fill="none" stroke="url(#cubeStroke)" stroke-width="64" stroke-linecap="round" stroke-linejoin="round" filter="url(#cubeShadow)">
+    <path d="M220 350 L512 178 L804 350 L804 648 L512 820 L220 648 Z" />
+    <path d="M512 510 L220 350" />
+    <path d="M512 510 L804 350" />
+    <path d="M512 510 L512 820" />
+  </g>
+</svg>

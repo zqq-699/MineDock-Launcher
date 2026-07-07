@@ -1,8 +1,8 @@
 ﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <ResourceDictionary.MergedDictionaries>
-        <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Resources/Themes/Shared.xaml" />
-        <ResourceDictionary Source="pack://application:,,,/Launcher.App;component/Resources/Themes/Dark.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/MineDock%20Launcher;component/Resources/Themes/Shared.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/MineDock%20Launcher;component/Resources/Themes/Dark.xaml" />
     </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>
 
