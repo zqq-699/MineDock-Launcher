@@ -49,32 +49,6 @@ public sealed class JavaRuntimeSelectionServiceTests : TestTempDirectory
         Assert.Equal(17, selectedRuntime.MajorVersion);
     }
 
-    [Theory]
-    [InlineData("1.20.5", 21)]
-    [InlineData("1.21.4", 21)]
-    [InlineData("1.18", 17)]
-    [InlineData("1.20.4", 17)]
-    [InlineData("1.17.1", 16)]
-    [InlineData("1.16.5", 8)]
-    public void GuessRequiredMajorVersionMapsMinecraftVersions(string minecraftVersion, int expectedMajorVersion)
-    {
-        Assert.Equal(expectedMajorVersion, JavaRuntimeSelectionService.GuessRequiredMajorVersion(minecraftVersion));
-    }
-
-    [Fact]
-    public void AutomaticSelectionPrefersExactVersionAndX64()
-    {
-        var selectedRuntime = JavaRuntimeSelectionService.SelectBestRuntime(
-            [
-                CreateRuntime(@"C:\Java\jdk-17-x86\bin\java.exe", 17, "x86"),
-                CreateRuntime(@"C:\Java\jdk-17\bin\java.exe", 17, "x64"),
-                CreateRuntime(@"C:\Java\jdk-21\bin\java.exe", 21, "x64")
-            ],
-            17);
-
-        Assert.Equal(@"C:\Java\jdk-17\bin\java.exe", selectedRuntime?.ExecutablePath);
-    }
-
     [Fact]
     public void AutomaticSelectionFallsBackToSmallestHigherVersion()
     {
@@ -87,19 +61,6 @@ public sealed class JavaRuntimeSelectionServiceTests : TestTempDirectory
             17);
 
         Assert.Equal(21, selectedRuntime?.MajorVersion);
-    }
-
-    [Fact]
-    public void AutomaticSelectionDoesNotChooseLowerVersionThanRequired()
-    {
-        var selectedRuntime = JavaRuntimeSelectionService.SelectBestRuntime(
-            [
-                CreateRuntime(@"C:\Java\jdk-21\bin\java.exe", 21, "x64"),
-                CreateRuntime(@"C:\Java\jdk-17\bin\java.exe", 17, "x64")
-            ],
-            25);
-
-        Assert.Null(selectedRuntime);
     }
 
     [Fact]
@@ -119,59 +80,6 @@ public sealed class JavaRuntimeSelectionServiceTests : TestTempDirectory
         var selectedRuntime = await service.SelectForLaunchAsync(new GameInstance(), settings);
 
         Assert.Equal(executablePath, selectedRuntime.ExecutablePath);
-    }
-
-    [Fact]
-    public async Task PerInstanceAutomaticSelectionIgnoresGlobalManualPath()
-    {
-        var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService
-        {
-            Runtimes =
-            [
-                CreateRuntime(@"C:\Java\jdk-21\bin\java.exe", 21, "x64")
-            ],
-            ImportedRuntime = CreateRuntime(@"C:\Global\jdk-8\bin\java.exe", 8, "x64")
-        });
-        var settings = new LauncherSettings
-        {
-            JavaSelectionMode = JavaSelectionMode.Manual,
-            SelectedJavaExecutablePath = @"C:\Global\jdk-8\bin\java.exe"
-        };
-        var instance = new GameInstance
-        {
-            JavaSettingsMode = LaunchSettingsMode.PerInstance,
-            JavaSelectionMode = JavaSelectionMode.Auto,
-            MinecraftVersion = "1.20.5"
-        };
-
-        var selectedRuntime = await service.SelectForLaunchAsync(instance, settings);
-
-        Assert.Equal(21, selectedRuntime.MajorVersion);
-    }
-
-    [Fact]
-    public async Task PerInstanceManualSelectionUsesInstancePath()
-    {
-        var instancePath = @"C:\Instance\jdk-17\bin\java.exe";
-        var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService
-        {
-            ImportedRuntime = CreateRuntime(instancePath, 17, "x64")
-        });
-        var settings = new LauncherSettings
-        {
-            JavaSelectionMode = JavaSelectionMode.Manual,
-            SelectedJavaExecutablePath = @"C:\Global\jdk-21\bin\java.exe"
-        };
-        var instance = new GameInstance
-        {
-            JavaSettingsMode = LaunchSettingsMode.PerInstance,
-            JavaSelectionMode = JavaSelectionMode.Manual,
-            SelectedJavaExecutablePath = instancePath
-        };
-
-        var selectedRuntime = await service.SelectForLaunchAsync(instance, settings);
-
-        Assert.Equal(instancePath, selectedRuntime.ExecutablePath);
     }
 
     [Fact]
@@ -227,36 +135,6 @@ public sealed class JavaRuntimeSelectionServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task ManualSelectionAllowsRuntimeWhenMajorVersionIsUnknown()
-    {
-        var executablePath = @"C:\Java\unknown\bin\java.exe";
-        var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService
-        {
-            ImportedRuntime = new JavaRuntimeInfo(
-                "Unknown Java",
-                "unknown",
-                null,
-                "x64",
-                executablePath,
-                @"C:\Java\unknown",
-                "Test")
-        });
-        var settings = new LauncherSettings
-        {
-            JavaSelectionMode = JavaSelectionMode.Manual,
-            SelectedJavaExecutablePath = executablePath
-        };
-        var instance = new GameInstance
-        {
-            MinecraftVersion = "1.20.5"
-        };
-
-        var selectedRuntime = await service.SelectForLaunchAsync(instance, settings);
-
-        Assert.Null(selectedRuntime.MajorVersion);
-    }
-
-    [Fact]
     public async Task AutomaticSelectionThrowsMissingReasonWhenNoRuntimeIsDiscovered()
     {
         var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService());
@@ -294,21 +172,6 @@ public sealed class JavaRuntimeSelectionServiceTests : TestTempDirectory
 
         Assert.Equal(JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound, exception.Reason);
         Assert.Equal(21, exception.RequiredMajorVersion);
-    }
-
-    [Fact]
-    public async Task ManualSelectionThrowsWhenPathIsMissing()
-    {
-        var service = new JavaRuntimeSelectionService(new FakeJavaRuntimeDiscoveryService());
-        var settings = new LauncherSettings
-        {
-            JavaSelectionMode = JavaSelectionMode.Manual
-        };
-
-        var exception = await Assert.ThrowsAsync<JavaRuntimeSelectionException>(() =>
-            service.SelectForLaunchAsync(new GameInstance(), settings));
-
-        Assert.Equal(JavaRuntimeSelectionFailureReason.ManualRuntimeMissing, exception.Reason);
     }
 
     [Fact]

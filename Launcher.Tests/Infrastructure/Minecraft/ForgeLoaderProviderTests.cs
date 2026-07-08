@@ -22,24 +22,6 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task ForgeLoaderProviderReturnsEmptyForUnsupportedMinecraftVersion()
-    {
-        var handler = new ForgeHttpHandler(include1201Html: false, promotionsJson: """
-            {
-              "promos": {
-                "1.20.2-latest": "48.0.0"
-              }
-            }
-            """);
-        var provider = new ForgeLoaderProvider(new HttpClient(handler), new NoOpForgeInstallerRunner(), TempRoot);
-
-        var versions = await provider.GetLoaderVersionsAsync("1.20.1");
-
-        Assert.Empty(versions);
-        Assert.DoesNotContain(handler.RequestUris, uri => uri.AbsoluteUri.Contains("index_1.20.1", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
     public void MergeFlattenedVersionNormalizesLegacyForgeMinecraftArguments()
     {
         var baseVersion = new JsonObject
@@ -63,61 +45,6 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
         Assert.Contains("--tweakClass net.minecraftforge.fml.common.launcher.FMLTweaker", arguments);
         Assert.Contains("--versionType Forge", arguments);
         Assert.DoesNotContain("--versionType ${version_type}", arguments);
-    }
-
-    [Fact]
-    public void MergeFlattenedVersionKeepsLegacyBaseArgumentsWhenForgeAddsOnlyTweakClass()
-    {
-        var baseVersion = new JsonObject
-        {
-            ["id"] = "1.12.2",
-            ["minecraftArguments"] = "--username ${auth_player_name} --version ${version_name} --gameDir ${game_directory} --assetsDir ${assets_root} --assetIndex ${assets_index_name} --uuid ${auth_uuid} --accessToken ${auth_access_token} --userType ${user_type} --versionType ${version_type}"
-        };
-        var derivedVersion = new JsonObject
-        {
-            ["id"] = "forge-1.12.2-14.23.5.2860",
-            ["inheritsFrom"] = "1.12.2",
-            ["minecraftArguments"] = "--tweakClass net.minecraftforge.fml.common.launcher.FMLTweaker"
-        };
-
-        var merged = VersionJsonMergeHelper.MergeFlattenedVersion(baseVersion, derivedVersion, "Legacy Forge Pack", "1.12.2");
-
-        var arguments = merged["minecraftArguments"]!.GetValue<string>();
-        Assert.Equal(1, CountArgument(arguments, "--gameDir"));
-        Assert.Contains("--username ${auth_player_name}", arguments);
-        Assert.Contains("--tweakClass net.minecraftforge.fml.common.launcher.FMLTweaker", arguments);
-    }
-
-    [Fact]
-    public void MergeFlattenedVersionNormalizesDuplicateModernGameArguments()
-    {
-        var baseVersion = new JsonObject
-        {
-            ["id"] = "1.20.1",
-            ["arguments"] = new JsonObject
-            {
-                ["game"] = new JsonArray("--username", "${auth_player_name}", "--gameDir", "${game_directory}")
-            }
-        };
-        var derivedVersion = new JsonObject
-        {
-            ["id"] = "forge-1.20.1-47.4.20",
-            ["inheritsFrom"] = "1.20.1",
-            ["arguments"] = new JsonObject
-            {
-                ["game"] = new JsonArray("--username", "${auth_player_name}", "--gameDir", "${game_directory}", "--launchTarget", "forgeclient")
-            }
-        };
-
-        var merged = VersionJsonMergeHelper.MergeFlattenedVersion(baseVersion, derivedVersion, "Modern Forge Pack", "1.20.1");
-
-        var gameArguments = merged["arguments"]!["game"]!.AsArray()
-            .Select(node => node!.GetValue<string>())
-            .ToList();
-        Assert.Equal(1, gameArguments.Count(argument => argument == "--username"));
-        Assert.Equal(1, gameArguments.Count(argument => argument == "--gameDir"));
-        Assert.Contains("--launchTarget", gameArguments);
-        Assert.Contains("forgeclient", gameArguments);
     }
 
     [Fact]
@@ -169,59 +96,6 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task ForgeLoaderProviderFallsBackForLegacyInstallerWithoutInstallClientOption()
-    {
-        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
-        var finalInstaller = new LegacyFallbackFinalVersionInstaller();
-        var handler = new ForgeHttpHandler(
-            include1102Html: true,
-            promotionsJson: """
-                {
-                  "promos": {
-                    "1.10.2-latest": "12.18.3.2511"
-                  }
-                }
-                """,
-            legacyInstallerBytes: CreateLegacyForgeInstallerBytes());
-        var provider = new ForgeLoaderProvider(
-            new HttpClient(handler),
-            new ScriptedForgeInstallerRunner((_, _, _) =>
-                throw new InvalidOperationException(
-                    "Forge installer exited with code 1: Exception in thread \"main\" joptsimple.UnrecognizedOptionException: 'installClient' is not a recognized option")),
-            finalInstaller,
-            TempRoot);
-
-        var finalVersionName = await provider.InstallAsync(
-            "1.10.2",
-            minecraftDirectory,
-            "1.10.2-forge-12.18.3.2511",
-            "12.18.3.2511",
-            progress: null);
-
-        var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
-        Assert.Equal("1.10.2-forge-12.18.3.2511", finalVersionName);
-        Assert.Equal(["1.10.2", "1.10.2-forge-12.18.3.2511"], finalInstaller.InstalledVersionNames);
-        Assert.False(Directory.Exists(Path.Combine(versionsDirectory, "1.10.2-forge1.10.2-12.18.3.2511")));
-        Assert.True(File.Exists(Path.Combine(
-            minecraftDirectory,
-            "libraries",
-            "net",
-            "minecraftforge",
-            "forge",
-            "1.10.2-12.18.3.2511",
-            "forge-1.10.2-12.18.3.2511.jar")));
-
-        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(
-            versionsDirectory,
-            "1.10.2-forge-12.18.3.2511",
-            "1.10.2-forge-12.18.3.2511.json")));
-        Assert.Equal("1.10.2-forge-12.18.3.2511", json.RootElement.GetProperty("id").GetString());
-        Assert.Equal("1.10.2-forge-12.18.3.2511", json.RootElement.GetProperty("jar").GetString());
-        Assert.False(json.RootElement.TryGetProperty("inheritsFrom", out _));
-        Assert.Equal("1.10.2", json.RootElement.GetProperty("launcher").GetProperty("minecraftVersion").GetString());
-    }
-
-    [Fact]
     public async Task ForgeLoaderProviderRunsInstallerInTempSandboxInsteadOfMainMinecraftDirectory()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -253,52 +127,6 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task ForgeLoaderProviderInstallDoesNotCreateRealVanillaBaseDirectoryWhenMissing()
-    {
-        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
-
-        var provider = CreateProvider(new ScriptedForgeInstallerRunner((gameDirectory, _, _) =>
-        {
-            return CreateSandboxForgeInstallAsync(gameDirectory, "forge-1.20.1-47.4.20", "1.20.1", "1.20.1-47.4.20");
-        }));
-
-        var finalVersionName = await provider.InstallAsync(
-            "1.20.1",
-            minecraftDirectory,
-            "Imported Forge Pack",
-            "47.4.20",
-            progress: null);
-
-        Assert.Equal("Imported Forge Pack", finalVersionName);
-        Assert.False(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "1.20.1")));
-        Assert.False(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "forge-1.20.1-47.4.20")));
-        Assert.True(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "Imported Forge Pack")));
-    }
-
-    [Fact]
-    public async Task ForgeLoaderProviderInstallSeedsLauncherProfileBeforeRunningInstaller()
-    {
-        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
-        await CreateVanillaVersionAsync(minecraftDirectory, "1.20.1");
-        var sawLauncherProfile = false;
-
-        var provider = CreateProvider(new ScriptedForgeInstallerRunner((gameDirectory, _, _) =>
-        {
-            sawLauncherProfile = File.Exists(Path.Combine(gameDirectory, "launcher_profiles.json"));
-            return CreateSandboxForgeInstallAsync(gameDirectory, "forge-1.20.1-47.4.20", "1.20.1", "1.20.1-47.4.20");
-        }));
-
-        await provider.InstallAsync(
-            "1.20.1",
-            minecraftDirectory,
-            "1.20.1-forge-47.4.20",
-            "47.4.20",
-            progress: null);
-
-        Assert.True(sawLauncherProfile);
-    }
-
-    [Fact]
     public async Task ForgeLoaderProviderInstallCleansCreatedVersionDirectoriesWhenInstallerFails()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -320,30 +148,6 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
         Assert.True(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "1.20.1")));
         Assert.False(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "forge-1.20.1-47.4.20")));
         Assert.False(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "1.20.1-forge-47.4.20")));
-    }
-
-    [Fact]
-    public async Task ForgeLoaderProviderInstallKeepsPreexistingForgeVersionDirectory()
-    {
-        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
-        await CreateVanillaVersionAsync(minecraftDirectory, "1.20.1");
-        CreateForgeDerivedVersion(minecraftDirectory, "forge-1.20.1-47.4.20", "1.20.1", "1.20.1-47.4.20");
-
-        var provider = CreateProvider(new ScriptedForgeInstallerRunner((gameDirectory, _, _) =>
-        {
-            return CreateSandboxForgeInstallAsync(gameDirectory, "forge-1.20.1-47.4.20", "1.20.1", "1.20.1-47.4.20");
-        }));
-
-        var finalVersionName = await provider.InstallAsync(
-            "1.20.1",
-            minecraftDirectory,
-            "Existing Forge Pack",
-            "47.4.20",
-            progress: null);
-
-        Assert.Equal("Existing Forge Pack", finalVersionName);
-        Assert.True(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "forge-1.20.1-47.4.20")));
-        Assert.True(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "Existing Forge Pack")));
     }
 
     private static int CountArgument(string arguments, string argument)

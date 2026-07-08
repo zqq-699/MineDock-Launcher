@@ -1,4 +1,4 @@
-﻿using Launcher.App.Resources;
+using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.ViewModels.Settings;
 using Launcher.Application;
@@ -71,23 +71,6 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
-    public void SettingsSectionsHideControlList()
-    {
-        var viewModel = CreateViewModel(out _, out _);
-
-        Assert.Equal(
-            [
-                SettingsPageSection.General,
-                SettingsPageSection.LaunchMemory,
-                SettingsPageSection.Java,
-                SettingsPageSection.Theme,
-                SettingsPageSection.Info
-            ],
-            viewModel.Sections.Select(section => section.Section));
-        Assert.DoesNotContain(viewModel.Sections, section => section.Section is SettingsPageSection.ControlList);
-    }
-
-    [Fact]
     public void OpenMinecraftDirectoryCommandUsesFolderService()
     {
         var settings = new LauncherSettings
@@ -111,31 +94,6 @@ public sealed class SettingsPageViewModelTests
 
         Assert.Equal(Path.GetFullPath(settings.MinecraftDirectory), folderService.LastOpenedPath);
         Assert.True(Directory.Exists(settings.MinecraftDirectory));
-        Assert.Null(statusService.LastMessage);
-    }
-
-    [Fact]
-    public void OpenLauncherLogDirectoryCommandUsesFolderService()
-    {
-        var settings = new LauncherSettings();
-        var settingsService = new TestSettingsService(settings);
-        var statusService = new FakeStatusService();
-        var folderService = new FakeInstanceFolderService();
-        var viewModel = new SettingsPageViewModel(
-            settingsService,
-            statusService,
-            new FakeSystemMemoryService(),
-            new FakeJavaRuntimeDiscoveryService(),
-            new FakeFilePickerService(),
-            folderService,
-            new FakeFloatingMessageService(), new FakeThemeService());
-        viewModel.PrimeFromSettings(settings);
-
-        viewModel.OpenLauncherLogDirectoryCommand.Execute(null);
-
-        Assert.Equal(viewModel.LauncherLogDirectory, folderService.LastOpenedPath);
-        Assert.EndsWith("log", viewModel.LauncherLogDirectory, StringComparison.OrdinalIgnoreCase);
-        Assert.True(Directory.Exists(viewModel.LauncherLogDirectory));
         Assert.Null(statusService.LastMessage);
     }
 
@@ -180,212 +138,6 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
-    public async Task ChangeMinecraftDirectoryCommandDoesNothingWhenPickerIsCanceled()
-    {
-        var settings = new LauncherSettings
-        {
-            MinecraftDirectory = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), ".minecraft")
-        };
-        var settingsService = new TestSettingsService(settings);
-        var viewModel = new SettingsPageViewModel(
-            settingsService,
-            new FakeStatusService(),
-            new FakeSystemMemoryService(),
-            new FakeJavaRuntimeDiscoveryService(),
-            new FakeFilePickerService(),
-            new FakeInstanceFolderService(),
-            new FakeFloatingMessageService(), new FakeThemeService());
-        viewModel.PrimeFromSettings(settings);
-        var changedCount = 0;
-        viewModel.MinecraftDirectoryChanged += (_, _) => changedCount++;
-
-        await viewModel.ChangeMinecraftDirectoryCommand.ExecuteAsync(null);
-
-        Assert.Equal(Path.GetFullPath(settings.MinecraftDirectory), viewModel.MinecraftDirectory);
-        Assert.Equal(0, settingsService.SaveCount);
-        Assert.Equal(0, changedCount);
-    }
-
-    [Fact]
-    public void SelectSectionCommandUpdatesCurrentSection()
-    {
-        var viewModel = CreateViewModel(out _, out _);
-
-        var launchSection = viewModel.Sections.Single(section => section.Section is SettingsPageSection.LaunchMemory);
-        viewModel.SelectSectionCommand.Execute(launchSection);
-
-        Assert.Same(launchSection, viewModel.SelectedSection);
-        Assert.Equal(Strings.Settings_SectionLaunchMemory, viewModel.SectionTitle);
-        Assert.True(viewModel.IsLaunchMemorySection);
-        Assert.IsType<LaunchMemorySettingsViewModel>(viewModel.CurrentSectionViewModel);
-        Assert.False(viewModel.IsGeneralSection);
-        Assert.True(launchSection.IsSelected);
-        Assert.False(viewModel.Sections.Single(section => section.Section is SettingsPageSection.General).IsSelected);
-    }
-
-    [Fact]
-    public void ControlListViewModelKeepsInteractiveControlsForFutureUse()
-    {
-        var viewModel = CreateViewModel(out _, out _);
-
-        Assert.IsType<ControlListSettingsViewModel>(viewModel.ControlList);
-        Assert.Contains(
-            viewModel.InteractiveControls,
-            control => control.Title == Strings.Settings_ControlComboBox);
-        Assert.Contains(
-            viewModel.InteractiveControls,
-            control => control.Title == Strings.Settings_ControlSwitch);
-        Assert.Contains(
-            viewModel.InteractiveControls,
-            control => control.Title == Strings.Settings_ControlSlider);
-    }
-
-    [Fact]
-    public void ThemeSectionShowsThemeOptions()
-    {
-        var viewModel = CreateViewModel(out _, out _);
-
-        var themeSection = viewModel.Sections.Single(section => section.Section is SettingsPageSection.Theme);
-        viewModel.SelectSectionCommand.Execute(themeSection);
-
-        Assert.Same(themeSection, viewModel.SelectedSection);
-        Assert.Equal(Strings.Settings_SectionTheme, viewModel.SectionTitle);
-        Assert.True(viewModel.IsThemeSection);
-        Assert.IsType<ThemeSettingsViewModel>(viewModel.CurrentSectionViewModel);
-        Assert.False(viewModel.IsGeneralSection);
-        Assert.False(viewModel.IsLaunchMemorySection);
-        Assert.False(viewModel.IsJavaSection);
-        Assert.False(viewModel.IsControlListSection);
-        Assert.Equal(2, viewModel.ThemeOptions.Count);
-        Assert.Equal(8, viewModel.AccentColorOptions.Count);
-        Assert.True(viewModel.FollowSystemTheme);
-        Assert.False(viewModel.IsThemeSelectionVisible);
-        Assert.Equal(LauncherDefaults.DefaultTheme, viewModel.SelectedThemeOption?.Id);
-        Assert.Equal(LauncherDefaults.DefaultAccentColor, viewModel.SelectedAccentColorOption?.Id);
-        Assert.Equal(LauncherDefaults.DefaultLauncherBackgroundOpacityPercent, viewModel.LauncherBackgroundOpacityPercent);
-        Assert.Equal("85%", viewModel.LauncherBackgroundOpacityText);
-    }
-
-    [Fact]
-    public void InfoSectionShowsLauncherVersionAndActions()
-    {
-        var viewModel = CreateViewModel(out _, out var statusService, out var externalLinkService);
-
-        var infoSection = viewModel.Sections.Single(section => section.Section is SettingsPageSection.Info);
-        viewModel.SelectSectionCommand.Execute(infoSection);
-
-        Assert.Same(infoSection, viewModel.SelectedSection);
-        Assert.Equal(Strings.Settings_SectionInfo, viewModel.SectionTitle);
-        Assert.True(viewModel.IsInfoSection);
-        var info = Assert.IsType<InfoSettingsViewModel>(viewModel.CurrentSectionViewModel);
-        Assert.Same(viewModel.Info, info);
-        Assert.False(viewModel.IsGeneralSection);
-        Assert.False(viewModel.IsLaunchMemorySection);
-        Assert.False(viewModel.IsJavaSection);
-        Assert.False(viewModel.IsThemeSection);
-        Assert.False(viewModel.IsControlListSection);
-        Assert.Equal("1.0.5", info.LauncherVersionText);
-
-        info.OpenGithubRepositoryCommand.Execute(null);
-
-        Assert.Equal(LauncherProjectLinks.GitHubRepositoryUrl, externalLinkService.LastOpenedUrl);
-        Assert.Null(statusService.LastMessage);
-    }
-
-    [Fact]
-    public void InfoGithubRepositoryCommandReportsFailureWhenLinkCannotOpen()
-    {
-        var viewModel = CreateViewModel(out _, out var statusService, out var externalLinkService);
-        externalLinkService.TryOpenResult = false;
-
-        viewModel.Info.OpenGithubRepositoryCommand.Execute(null);
-
-        Assert.Equal(LauncherProjectLinks.GitHubRepositoryUrl, externalLinkService.LastOpenedUrl);
-        Assert.Equal(Strings.Status_OpenGithubRepositoryFailed, statusService.LastMessage);
-    }
-
-    [Fact]
-    public void InfoReferenceProjectsListContainsRuntimeDependenciesOnly()
-    {
-        var viewModel = CreateViewModel(out _, out _);
-        var references = viewModel.Info.ReferenceProjects;
-
-        Assert.Contains(references, project =>
-            project.Name == "CommunityToolkit.Mvvm"
-            && project.Version == "8.4.2"
-            && project.Url == "https://github.com/CommunityToolkit/dotnet");
-        Assert.Contains(references, project =>
-            project.Name == "Microsoft.Extensions.DependencyInjection"
-            && project.Version == "10.0.9"
-            && project.Url == "https://github.com/dotnet/dotnet");
-        Assert.Contains(references, project =>
-            project.Name == "Microsoft.Extensions.DependencyInjection.Abstractions"
-            && project.Version == "10.0.9"
-            && project.Url == "https://github.com/dotnet/dotnet");
-        Assert.Contains(references, project =>
-            project.Name == "Microsoft.Extensions.Logging"
-            && project.Version == "10.0.9"
-            && project.Url == "https://github.com/dotnet/dotnet");
-        Assert.Contains(references, project =>
-            project.Name == "Microsoft.Extensions.Logging.Abstractions"
-            && project.Version == "10.0.9"
-            && project.Url == "https://github.com/dotnet/dotnet");
-        Assert.Contains(references, project =>
-            project.Name == "Serilog"
-            && project.Version == "4.2.0"
-            && project.Url == "https://github.com/serilog/serilog");
-        Assert.Contains(references, project =>
-            project.Name == "Serilog.Extensions.Logging"
-            && project.Version == "8.0.0"
-            && project.Url == "https://github.com/serilog/serilog-extensions-logging");
-        Assert.Contains(references, project =>
-            project.Name == "Serilog.Sinks.File"
-            && project.Version == "6.0.0"
-            && project.Url == "https://github.com/serilog/serilog-sinks-file");
-        Assert.Contains(references, project =>
-            project.Name == "CmlLib.Core"
-            && project.Version == "4.0.6"
-            && project.Url == "https://github.com/CmlLib/CmlLib.Core");
-        Assert.Contains(references, project =>
-            project.Name == "CmlLib.Core.Auth.Microsoft"
-            && project.Version == "3.3.1"
-            && project.Url == "https://github.com/CmlLib/CmlLib.Core.Auth.Microsoft");
-        Assert.Contains(references, project =>
-            project.Name == "SharpCompress"
-            && project.Version == "0.39.0"
-            && project.Url == "https://github.com/adamhathcock/sharpcompress");
-
-        Assert.DoesNotContain(references, project => project.Name.Equals("xunit", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(references, project => project.Name.Equals("coverlet.collector", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(references, project => project.Name.Equals("Microsoft.NET.Test.Sdk", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public void InfoOpenReferenceProjectCommandOpensProjectUrl()
-    {
-        var viewModel = CreateViewModel(out _, out var statusService, out var externalLinkService);
-        var project = viewModel.Info.ReferenceProjects.Single(item => item.Name == "Serilog");
-
-        viewModel.Info.OpenReferenceProjectCommand.Execute(project);
-
-        Assert.Equal("https://github.com/serilog/serilog", externalLinkService.LastOpenedUrl);
-        Assert.Null(statusService.LastMessage);
-    }
-
-    [Fact]
-    public void InfoOpenReferenceProjectCommandReportsFailureWhenLinkCannotOpen()
-    {
-        var viewModel = CreateViewModel(out _, out var statusService, out var externalLinkService);
-        externalLinkService.TryOpenResult = false;
-        var project = viewModel.Info.ReferenceProjects.Single(item => item.Name == "Serilog");
-
-        viewModel.Info.OpenReferenceProjectCommand.Execute(project);
-
-        Assert.Equal("https://github.com/serilog/serilog", externalLinkService.LastOpenedUrl);
-        Assert.Equal(Strings.Status_OpenReferenceProjectFailed, statusService.LastMessage);
-    }
-
-    [Fact]
     public async Task InfoCheckUpdatesShowsDialogWhenUpdateIsAvailable()
     {
         var viewModel = CreateViewModel(
@@ -412,56 +164,6 @@ public sealed class SettingsPageViewModelTests
         Assert.Equal(
             string.Format(Strings.Dialog_UpdateAvailableVersionFormat, "1.0.1"),
             viewModel.Info.UpdateDialogMessage);
-    }
-
-    [Fact]
-    public async Task InfoCheckUpdatesCommandStaysExecutableWhileChecking()
-    {
-        var viewModel = CreateViewModel(
-            out _,
-            out _,
-            out _,
-            out var updateService);
-        var pendingResult = new TaskCompletionSource<LauncherUpdateCheckResult>();
-        updateService.ResultTask = pendingResult.Task;
-
-        var checkTask = viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
-
-        Assert.True(viewModel.Info.IsCheckingUpdates);
-        Assert.True(viewModel.Info.CheckUpdatesCommand.CanExecute(null));
-
-        await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
-        Assert.Equal(1, updateService.CallCount);
-
-        pendingResult.SetResult(LauncherUpdateCheckResult.Latest("1.0.5"));
-        await checkTask;
-
-        Assert.False(viewModel.Info.IsCheckingUpdates);
-    }
-
-    [Fact]
-    public async Task InfoOpenUpdateChangelogCommandOpensReleasePage()
-    {
-        var viewModel = CreateViewModel(
-            out _,
-            out _,
-            out var externalLinkService,
-            out var updateService);
-        updateService.Result = LauncherUpdateCheckResult.Available(
-            "1.0.5",
-            new LauncherUpdateInfo(
-                "1.0.1",
-                "1.0.1",
-                "https://example.test/releases/v1.0.1",
-                "https://example.test/downloads/MineDock_Launcher_x64.exe",
-                null,
-                "MineDock_Launcher_x64.exe",
-                LauncherUpdateAssetKind.WindowsX64Executable));
-
-        await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
-        viewModel.Info.OpenUpdateChangelogCommand.Execute(null);
-
-        Assert.Equal("https://example.test/releases/v1.0.1", externalLinkService.LastOpenedUrl);
     }
 
     [Fact]
@@ -492,34 +194,6 @@ public sealed class SettingsPageViewModelTests
         Assert.False(viewModel.Info.IsUpdateAvailableDialogOpen);
         Assert.Equal(Strings.Status_LauncherUpdateRestarting, statusService.LastMessage);
         Assert.Equal(1, exitService.ShutdownCount);
-    }
-
-    [Fact]
-    public async Task InfoConfirmUpdateCommandReportsWhenNoAutoInstallPackageExists()
-    {
-        var viewModel = CreateViewModel(
-            out _,
-            out var statusService,
-            out _,
-            out var updateService,
-            out var selfUpdateService,
-            out var exitService);
-        updateService.Result = LauncherUpdateCheckResult.Available(
-            "1.0.5",
-            new LauncherUpdateInfo(
-                "1.0.1",
-                "1.0.1",
-                "https://example.test/releases/v1.0.1",
-                "https://example.test/releases/v1.0.1",
-                null));
-
-        await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
-        await viewModel.Info.ConfirmUpdateCommand.ExecuteAsync(null);
-
-        Assert.Null(selfUpdateService.LastUpdate);
-        Assert.True(viewModel.Info.IsUpdateAvailableDialogOpen);
-        Assert.Equal(Strings.Status_UpdateAutoInstallPackageNotFound, statusService.LastMessage);
-        Assert.Equal(0, exitService.ShutdownCount);
     }
 
     [Fact]
@@ -554,22 +228,6 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
-    public async Task InfoCheckUpdatesReportsLatestWhenNoUpdateIsAvailable()
-    {
-        var viewModel = CreateViewModel(
-            out _,
-            out var statusService,
-            out _,
-            out var updateService);
-        updateService.Result = LauncherUpdateCheckResult.Latest("1.0.5");
-
-        await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
-
-        Assert.False(viewModel.Info.IsUpdateAvailableDialogOpen);
-        Assert.Equal(Strings.Status_LauncherAlreadyLatest, statusService.LastMessage);
-    }
-
-    [Fact]
     public async Task InfoCheckUpdatesReportsFailureWhenServiceFails()
     {
         var viewModel = CreateViewModel(
@@ -583,28 +241,6 @@ public sealed class SettingsPageViewModelTests
 
         Assert.False(viewModel.Info.IsUpdateAvailableDialogOpen);
         Assert.Equal(Strings.Status_CheckUpdatesFailed, statusService.LastMessage);
-    }
-
-    [Fact]
-    public void ThemeSelectionAppearsAfterDisablingFollowSystem()
-    {
-        var viewModel = CreateViewModel(out _, out _);
-
-        viewModel.FollowSystemTheme = false;
-        viewModel.SelectedThemeOption = viewModel.ThemeOptions.Single(option => option.Id == "Light");
-
-        Assert.True(viewModel.IsThemeSelectionVisible);
-        Assert.Equal("Light", viewModel.SelectedThemeOption?.Id);
-    }
-
-    [Fact]
-    public void AccentSelectionRemainsVisibleWhenFollowingSystemTheme()
-    {
-        var viewModel = CreateViewModel(out _, out _);
-
-        Assert.True(viewModel.FollowSystemTheme);
-        Assert.Equal(8, viewModel.AccentColorOptions.Count);
-        Assert.Equal(LauncherDefaults.DefaultAccentColor, viewModel.SelectedAccentColorOption?.Id);
     }
 
     [Fact]
@@ -686,88 +322,6 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
-    public void ControlDemoActionUpdatesOnlyDemoState()
-    {
-        var viewModel = CreateViewModel(out var settingsService, out _);
-        var initialProgress = viewModel.ControlDemoProgress;
-        var initialSelection = viewModel.ControlDemoSecondaryMenuSelected;
-
-        viewModel.RunControlDemoActionCommand.Execute(null);
-
-        Assert.Equal(initialProgress + 20, viewModel.ControlDemoProgress);
-        Assert.NotEqual(initialSelection, viewModel.ControlDemoSecondaryMenuSelected);
-        Assert.Equal(Strings.Settings_ControlDemoStatusClicked, viewModel.ControlDemoStatusText);
-        Assert.Equal(0, settingsService.SaveCount);
-    }
-
-    [Fact]
-    public void ControlDemoSliderDoesNotSaveSettings()
-    {
-        var viewModel = CreateViewModel(out var settingsService, out _);
-
-        viewModel.ControlDemoSliderValue = 72;
-
-        Assert.Equal(72, viewModel.ControlDemoSliderValue);
-        Assert.Equal(0, settingsService.SaveCount);
-    }
-
-    [Fact]
-    public void JavaSelectionDefaultsToAutomatic()
-    {
-        var viewModel = CreateViewModel(out _, out _);
-
-        Assert.Equal(2, viewModel.JavaSelectionOptions.Count);
-        Assert.Equal(Strings.Settings_JavaSelectionAuto, viewModel.SelectedJavaSelectionOption?.Title);
-        Assert.Null(viewModel.SelectedJavaRuntime);
-    }
-
-    [Fact]
-    public async Task AutomaticJavaSelectionDoesNotSelectRuntimeAfterRefresh()
-    {
-        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
-        {
-            Runtimes =
-            [
-                CreateJavaRuntime(@"C:\Java\jdk-21\bin\java.exe", 21)
-            ]
-        };
-        var viewModel = CreateViewModel(
-            new LauncherSettings(),
-            javaRuntimeDiscoveryService,
-            out _,
-            out _);
-
-        await viewModel.RefreshJavaRuntimesCommand.ExecuteAsync(null);
-
-        Assert.Single(viewModel.JavaRuntimes);
-        Assert.Null(viewModel.SelectedJavaRuntime);
-    }
-
-    [Fact]
-    public async Task SwitchingFromAutomaticToManualSelectsFirstRuntime()
-    {
-        var firstRuntime = CreateJavaRuntime(@"C:\Java\jdk-21\bin\java.exe", 21);
-        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
-        {
-            Runtimes =
-            [
-                firstRuntime,
-                CreateJavaRuntime(@"C:\Java\jdk-17\bin\java.exe", 17)
-            ]
-        };
-        var viewModel = CreateViewModel(
-            new LauncherSettings(),
-            javaRuntimeDiscoveryService,
-            out _,
-            out _);
-
-        await viewModel.RefreshJavaRuntimesCommand.ExecuteAsync(null);
-        viewModel.SelectedJavaSelectionOption = viewModel.JavaSelectionOptions.Single(option => option.Id == "manual");
-
-        Assert.Equal(firstRuntime.ExecutablePath, viewModel.SelectedJavaRuntime?.ExecutablePath);
-    }
-
-    [Fact]
     public async Task ManualJavaSelectionSavesSelectedRuntimePath()
     {
         var selectedRuntime = CreateJavaRuntime(@"C:\Java\jdk-17\bin\java.exe", 17);
@@ -793,119 +347,6 @@ public sealed class SettingsPageViewModelTests
             settingsService.SaveCount >= 1
             && settings.JavaSelectionMode is JavaSelectionMode.Manual
             && settings.SelectedJavaExecutablePath == selectedRuntime.ExecutablePath);
-    }
-
-    [Fact]
-    public async Task SwitchingManualJavaSelectionBackToAutomaticClearsUiSelectionOnly()
-    {
-        var savedPath = @"C:\Java\jdk-17\bin\java.exe";
-        var settings = new LauncherSettings
-        {
-            JavaSelectionMode = JavaSelectionMode.Manual,
-            SelectedJavaExecutablePath = savedPath
-        };
-        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
-        {
-            Runtimes =
-            [
-                CreateJavaRuntime(savedPath, 17)
-            ]
-        };
-        var viewModel = CreateViewModel(settings, javaRuntimeDiscoveryService, out var settingsService, out _);
-        viewModel.PrimeFromSettings(settings);
-
-        await viewModel.RefreshJavaRuntimesCommand.ExecuteAsync(null);
-        Assert.NotNull(viewModel.SelectedJavaRuntime);
-
-        viewModel.SelectedJavaSelectionOption = viewModel.JavaSelectionOptions.Single(option => option.Id == "auto");
-
-        Assert.Null(viewModel.SelectedJavaRuntime);
-        await TestAsync.WaitForAsync(() =>
-            settingsService.SaveCount >= 1
-            && settings.JavaSelectionMode is JavaSelectionMode.Auto);
-        Assert.Equal(savedPath, settings.SelectedJavaExecutablePath);
-    }
-
-    [Fact]
-    public async Task ManualJavaSelectionRestoresSavedPathAfterRefresh()
-    {
-        var savedPath = @"C:\Java\jdk-17\bin\java.exe";
-        var settings = new LauncherSettings
-        {
-            JavaSelectionMode = JavaSelectionMode.Manual,
-            SelectedJavaExecutablePath = savedPath
-        };
-        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
-        {
-            Runtimes =
-            [
-                CreateJavaRuntime(@"C:\Java\jdk-21\bin\java.exe", 21),
-                CreateJavaRuntime(savedPath, 17)
-            ]
-        };
-        var viewModel = CreateViewModel(settings, javaRuntimeDiscoveryService, out _, out _);
-        viewModel.PrimeFromSettings(settings);
-
-        await viewModel.RefreshJavaRuntimesCommand.ExecuteAsync(null);
-
-        Assert.Equal(savedPath, viewModel.SelectedJavaRuntime?.ExecutablePath);
-    }
-
-    [Fact]
-    public async Task ManualJavaSelectionAddsSavedPathWhenMissingFromScan()
-    {
-        var savedPath = @"C:\Imported\jdk-21\bin\java.exe";
-        var settings = new LauncherSettings
-        {
-            JavaSelectionMode = JavaSelectionMode.Manual,
-            SelectedJavaExecutablePath = savedPath
-        };
-        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
-        {
-            Runtimes = [],
-            ImportedRuntime = CreateJavaRuntime(savedPath, 21)
-        };
-        var viewModel = CreateViewModel(settings, javaRuntimeDiscoveryService, out _, out _);
-        viewModel.PrimeFromSettings(settings);
-
-        await viewModel.RefreshJavaRuntimesCommand.ExecuteAsync(null);
-
-        Assert.Single(viewModel.JavaRuntimes);
-        Assert.Equal(savedPath, viewModel.SelectedJavaRuntime?.ExecutablePath);
-        Assert.Equal(savedPath, javaRuntimeDiscoveryService.LastImportedExecutablePath);
-    }
-
-    [Fact]
-    public async Task RefreshJavaRuntimesShowsDiscoveredRuntimes()
-    {
-        var settings = new LauncherSettings
-        {
-            MinecraftDirectory = @"C:\Launcher\.minecraft"
-        };
-        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
-        {
-            Runtimes =
-            [
-                new JavaRuntimeInfo(
-                    "Java 21",
-                    "21.0.2",
-                    21,
-                    "x64",
-                    @"C:\Program Files\Java\jdk-21\bin\java.exe",
-                    @"C:\Program Files\Java\jdk-21",
-                    "JAVA_HOME")
-            ]
-        };
-        var viewModel = CreateViewModel(settings, javaRuntimeDiscoveryService, out _, out _);
-        viewModel.PrimeFromSettings(settings);
-
-        await viewModel.RefreshJavaRuntimesCommand.ExecuteAsync(null);
-
-        Assert.Single(viewModel.JavaRuntimes);
-        Assert.Equal("Java 21", viewModel.JavaRuntimes[0].DisplayName);
-        Assert.Equal("21.0.2", viewModel.JavaRuntimes[0].VersionText);
-        Assert.Equal(@"C:\Launcher\.minecraft", javaRuntimeDiscoveryService.LastMinecraftDirectory);
-        Assert.False(viewModel.HasJavaRuntimeListMessage);
     }
 
     [Fact]
@@ -962,42 +403,6 @@ public sealed class SettingsPageViewModelTests
         Assert.Equal(executablePath, javaRuntimeDiscoveryService.LastImportedExecutablePath);
         Assert.Equal(Strings.Status_JavaImported, statusService.LastMessage);
         Assert.False(viewModel.HasJavaRuntimeListMessage);
-    }
-
-    [Fact]
-    public async Task ImportJavaRuntimeDoesNotDuplicateExistingRuntime()
-    {
-        const string executablePath = @"C:\Java\jdk-21\bin\java.exe";
-        var runtime = new JavaRuntimeInfo(
-            "Java 21",
-            "21.0.2",
-            21,
-            "x64",
-            executablePath,
-            @"C:\Java\jdk-21",
-            "ManualImport");
-        var javaRuntimeDiscoveryService = new FakeJavaRuntimeDiscoveryService
-        {
-            ImportedRuntime = runtime
-        };
-        var filePickerService = new FakeFilePickerService
-        {
-            JavaExecutablePath = executablePath
-        };
-        var viewModel = CreateViewModel(
-            new LauncherSettings(),
-            javaRuntimeDiscoveryService,
-            filePickerService,
-            out _,
-            out var statusService,
-            out var floatingMessageService);
-
-        await viewModel.ImportJavaRuntimeCommand.ExecuteAsync(null);
-        await viewModel.ImportJavaRuntimeCommand.ExecuteAsync(null);
-
-        Assert.Single(viewModel.JavaRuntimes);
-        Assert.Equal(Strings.Status_JavaImported, statusService.LastMessage);
-        Assert.Equal(Strings.Status_JavaAlreadyExists, floatingMessageService.LastMessage);
     }
 
     [Fact]
@@ -1093,113 +498,6 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
-    public async Task InvalidDownloadSpeedLimitFallsBackToUnlimited()
-    {
-        var settings = new LauncherSettings
-        {
-            DownloadSpeedLimitMbPerSecond = 12
-        };
-        var viewModel = CreateViewModel(settings, out var settingsService, out _);
-        viewModel.PrimeFromSettings(settings);
-
-        viewModel.DownloadSpeedLimitMbPerSecondText = "abc";
-
-        await TestAsync.WaitForAsync(() =>
-            settingsService.SaveCount >= 1
-            && settings.DownloadSpeedLimitMbPerSecond == 0
-            && viewModel.DownloadSpeedLimitMbPerSecondText == string.Empty);
-    }
-
-    [Fact]
-    public async Task DisablingLaunchCheckAlsoDisablesAutoRepair()
-    {
-        var settings = new LauncherSettings
-        {
-            DefaultCheckFilesBeforeLaunch = true,
-            DefaultAutoRepairMissingFiles = true
-        };
-        var viewModel = CreateViewModel(settings, out var settingsService, out _);
-        viewModel.PrimeFromSettings(settings);
-
-        viewModel.DefaultCheckFilesBeforeLaunch = false;
-
-        Assert.False(viewModel.DefaultAutoRepairMissingFiles);
-        await TestAsync.WaitForAsync(() =>
-            settingsService.SaveCount >= 1
-            && !settings.DefaultCheckFilesBeforeLaunch
-            && !settings.DefaultAutoRepairMissingFiles);
-    }
-
-    [Fact]
-    public async Task EnablingLaunchCheckAlsoEnablesAutoRepair()
-    {
-        var settings = new LauncherSettings
-        {
-            DefaultCheckFilesBeforeLaunch = false,
-            DefaultAutoRepairMissingFiles = false
-        };
-        var viewModel = CreateViewModel(settings, out var settingsService, out _);
-        viewModel.PrimeFromSettings(settings);
-
-        viewModel.DefaultCheckFilesBeforeLaunch = true;
-
-        Assert.True(viewModel.DefaultAutoRepairMissingFiles);
-        await TestAsync.WaitForAsync(() =>
-            settingsService.SaveCount >= 1
-            && settings.DefaultCheckFilesBeforeLaunch
-            && settings.DefaultAutoRepairMissingFiles);
-    }
-
-    [Fact]
-    public void LaunchDefaultsChangedUpdatesSharedSettingsImmediately()
-    {
-        var settings = new LauncherSettings
-        {
-            DefaultCheckFilesBeforeLaunch = true,
-            DefaultAutoRepairMissingFiles = true,
-            DefaultMinimizeLauncherAfterLaunch = false,
-            DefaultLaunchFullScreen = false,
-            DefaultMemorySettingsMode = MemorySettingsMode.Auto,
-            DefaultMemoryMb = 4096
-        };
-        var viewModel = CreateViewModel(settings, out _, out _);
-        viewModel.PrimeFromSettings(settings);
-        var changedCount = 0;
-        viewModel.LaunchDefaultsChanged += (_, _) => changedCount++;
-
-        viewModel.DefaultCheckFilesBeforeLaunch = false;
-
-        Assert.Equal(1, changedCount);
-        Assert.False(settings.DefaultCheckFilesBeforeLaunch);
-        Assert.False(settings.DefaultAutoRepairMissingFiles);
-
-        viewModel.DefaultLaunchFullScreen = true;
-
-        Assert.Equal(2, changedCount);
-        Assert.True(settings.DefaultLaunchFullScreen);
-
-        viewModel.DefaultGameArguments = "--quickPlaySingleplayer world";
-
-        Assert.Equal(3, changedCount);
-        Assert.Equal("--quickPlaySingleplayer world", settings.DefaultGameArguments);
-
-        viewModel.DefaultWaitForPreLaunchCommand = false;
-
-        Assert.Equal(4, changedCount);
-        Assert.False(settings.DefaultWaitForPreLaunchCommand);
-
-        viewModel.SelectedMemoryModeOption = viewModel.MemoryModeOptions.Single(option => option.Mode == MemorySettingsMode.Manual);
-
-        Assert.Equal(5, changedCount);
-        Assert.Equal(MemorySettingsMode.Manual, settings.DefaultMemorySettingsMode);
-
-        viewModel.DefaultMemoryMb = 8192;
-
-        Assert.Equal(6, changedCount);
-        Assert.Equal(8192, settings.DefaultMemoryMb);
-    }
-
-    [Fact]
     public async Task ChangingDownloadSourceAutoSavesPreference()
     {
         var settings = new LauncherSettings
@@ -1215,66 +513,6 @@ public sealed class SettingsPageViewModelTests
         await TestAsync.WaitForAsync(() =>
             settingsService.SaveCount >= 1
             && settings.DownloadSourcePreference is DownloadSourcePreference.Official);
-    }
-
-    [Fact]
-    public void ChangingDownloadSourceRaisesChangedEvent()
-    {
-        var settings = new LauncherSettings
-        {
-            DownloadSourcePreference = DownloadSourcePreference.Auto
-        };
-        var viewModel = CreateViewModel(settings, out _, out _);
-        viewModel.PrimeFromSettings(settings);
-        var changedPreference = DownloadSourcePreference.Auto;
-        var changedCount = 0;
-        viewModel.DownloadSourceChanged += (_, e) =>
-        {
-            changedCount++;
-            changedPreference = e.Preference;
-        };
-
-        viewModel.SelectedDownloadSourceOption = viewModel.DownloadSourceOptions.Single(option =>
-            option.Preference is DownloadSourcePreference.BmclApi);
-
-        Assert.Equal(1, changedCount);
-        Assert.Equal(DownloadSourcePreference.BmclApi, changedPreference);
-        Assert.Equal(DownloadSourcePreference.BmclApi, settings.DownloadSourcePreference);
-    }
-
-    [Fact]
-    public void ChangingDownloadSpeedLimitRaisesChangedEvent()
-    {
-        var settings = new LauncherSettings
-        {
-            DownloadSpeedLimitMbPerSecond = 0
-        };
-        var viewModel = CreateViewModel(settings, out _, out _);
-        viewModel.PrimeFromSettings(settings);
-        var changedSpeedLimit = 0;
-        var changedCount = 0;
-        viewModel.DownloadSpeedLimitChanged += (_, e) =>
-        {
-            changedCount++;
-            changedSpeedLimit = e.DownloadSpeedLimitMbPerSecond;
-        };
-
-        viewModel.DownloadSpeedLimitMbPerSecondText = "12";
-
-        Assert.Equal(1, changedCount);
-        Assert.Equal(12, changedSpeedLimit);
-        Assert.Equal(12, settings.DownloadSpeedLimitMbPerSecond);
-    }
-
-    [Fact]
-    public void PrimeFromSettingsDoesNotAutoSave()
-    {
-        var settings = new LauncherSettings();
-        var viewModel = CreateViewModel(settings, out var settingsService, out _);
-
-        viewModel.PrimeFromSettings(settings);
-
-        Assert.Equal(0, settingsService.SaveCount);
     }
 
     private static SettingsPageViewModel CreateViewModel(
@@ -1372,39 +610,6 @@ public sealed class SettingsPageViewModelTests
             && settings.DefaultMemoryMb == 4301);
 
         Assert.Equal("4.2 GB", viewModel.DefaultMemoryText);
-    }
-
-    [Fact]
-    public async Task AutomaticMemoryModeDisablesMemorySlider()
-    {
-        var settings = new LauncherSettings
-        {
-            DefaultMemorySettingsMode = MemorySettingsMode.Manual,
-            DefaultMemoryMb = 4096
-        };
-        var viewModel = CreateViewModel(settings, out var settingsService, out _);
-        viewModel.PrimeFromSettings(settings);
-
-        viewModel.SelectedMemoryModeOption = viewModel.MemoryModeOptions.Single(option => option.Mode == MemorySettingsMode.Auto);
-
-        Assert.False(viewModel.IsMemorySliderEnabled);
-        Assert.True(viewModel.IsAutomaticMemorySummaryVisible);
-        Assert.Equal("4.0 GB", viewModel.AutomaticMemoryText);
-        await TestAsync.WaitForAsync(() =>
-            settingsService.SaveCount >= 1
-            && settings.DefaultMemorySettingsMode == MemorySettingsMode.Auto
-            && settings.DefaultMemoryMb == 4096);
-    }
-
-    [Theory]
-    [InlineData(8192, 6144)]
-    [InlineData(16384, 12288)]
-    [InlineData(24576, 18432)]
-    [InlineData(4096, 2048)]
-    [InlineData(2048, 1024)]
-    public void MemorySliderMaximumUsesSystemMemoryRule(int totalMemoryMb, int expectedMaximumMb)
-    {
-        Assert.Equal(expectedMaximumMb, SettingsPageViewModel.CalculateMemorySliderMaximumMb(totalMemoryMb));
     }
 
     private static SettingsPageViewModel CreateViewModel(

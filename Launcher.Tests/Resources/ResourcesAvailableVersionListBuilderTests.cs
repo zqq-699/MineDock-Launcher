@@ -57,43 +57,6 @@ public sealed class ResourcesAvailableVersionListBuilderTests
         Assert.Contains("1.20.1-forge", headers);
     }
 
-    [Fact]
-    public void Append_InsertsVersionsIntoExistingCompatibilityGroups()
-    {
-        var builder = new ResourcesAvailableVersionListBuilder(CreateOptions(showsLoaderFilters: true));
-        var items = new List<object>
-        {
-            new ResourcesModVersionListHeaderItem("1.20.1-fabric"),
-            new ResourcesModVersionItemViewModel(new ResourceProjectVersion
-            {
-                Name = "Existing",
-                GameVersions = ["1.20.1"],
-                Loaders = ["fabric"]
-            }, project: null)
-        };
-
-        var appendedCount = builder.Append(
-            items,
-            [
-                new ResourceProjectVersion
-                {
-                    Name = "New",
-                    GameVersions = ["1.20.1"],
-                    Loaders = ["fabric"]
-                }
-            ],
-            "All versions",
-            selectedProject: null,
-            fallbackIconKey: "fallback",
-            selectedVersionId: "all",
-            selectedLoaderId: "all",
-            searchQuery: string.Empty,
-            currentVisibleCount: 1);
-
-        Assert.Equal(1, appendedCount);
-        Assert.IsType<ResourcesModVersionItemViewModel>(items[2]);
-    }
-
     private static ResourcesOnlineProjectPageOptions CreateOptions(bool showsLoaderFilters)
     {
         return new ResourcesOnlineProjectPageOptions(

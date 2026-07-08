@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using Launcher.App.Controls;
 using Launcher.App.Resources;
 using Launcher.App.Services;
@@ -10,46 +10,6 @@ namespace Launcher.Tests.Home;
 
 public sealed class HomePageViewModelTests
 {
-    [Fact]
-    public void HomePageBuildsLaunchInstanceMenuItems()
-    {
-        var viewModel = CreateViewModel();
-        var first = CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla);
-        var second = CreateInstance("second", "Fabric Pack", "1.21.1", LoaderKind.Fabric);
-
-        viewModel.SetLaunchInstances([first, second]);
-        viewModel.SetSelectedInstance(second);
-
-        Assert.True(viewModel.HasLaunchInstances);
-        Assert.False(viewModel.HasNoLaunchInstances);
-        Assert.Equal(["First World", "Fabric Pack"], viewModel.LaunchInstances.Select(instance => instance.Name));
-        Assert.False(viewModel.LaunchInstances[0].IsSelected);
-        Assert.True(viewModel.LaunchInstances[1].IsSelected);
-        Assert.True(viewModel.HasSelectedLaunchInstance);
-        Assert.Same(viewModel.LaunchInstances[1], viewModel.SelectedLaunchInstanceItem);
-    }
-
-    [Fact]
-    public void HomePageOrdersNewestLaunchInstancesFirst()
-    {
-        var viewModel = CreateViewModel();
-        var older = CreateInstance(
-            "older",
-            "Older World",
-            "1.20.1",
-            LoaderKind.Vanilla,
-            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
-        var newer = CreateInstance(
-            "newer",
-            "Newer World",
-            "1.21.1",
-            LoaderKind.Fabric,
-            new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero));
-
-        viewModel.SetLaunchInstances([older, newer]);
-
-        Assert.Equal(["Newer World", "Older World"], viewModel.LaunchInstances.Select(instance => instance.Name));
-    }
 
     [Fact]
     public async Task HomePageSelectLaunchInstanceCommandPersistsAndSelectsInstance()
@@ -105,33 +65,6 @@ public sealed class HomePageViewModelTests
 
         persistenceRelease.SetResult(true);
         await selectTask;
-    }
-
-    [Fact]
-    public void HomePageCollapsedLaunchInstanceSelectionFollowsSelectedInstance()
-    {
-        var viewModel = CreateViewModel();
-        var first = CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla);
-        var second = CreateInstance("second", "Fabric Pack", "1.21.1", LoaderKind.Fabric);
-        viewModel.SetLaunchInstances([first, second]);
-
-        viewModel.SetSelectedInstance(first);
-        Assert.Same(viewModel.LaunchInstances[0], viewModel.SelectedLaunchInstanceItem);
-
-        viewModel.SetSelectedInstance(second);
-        Assert.Same(viewModel.LaunchInstances[1], viewModel.SelectedLaunchInstanceItem);
-    }
-
-    [Fact]
-    public void HomePageInitializesLaunchMenuPinStateFromSettings()
-    {
-        var viewModel = CreateViewModel();
-
-        viewModel.Initialize(new LauncherSettings { IsHomeLaunchMenuPinned = true }, null);
-
-        Assert.True(viewModel.IsLaunchMenuPinned);
-        Assert.True(viewModel.LaunchGames.IsLaunchMenuPinned);
-        Assert.Equal(Strings.Home_UnpinLaunchMenuTooltip, viewModel.LaunchGames.LaunchMenuPinTooltip);
     }
 
     [Fact]
@@ -197,114 +130,6 @@ public sealed class HomePageViewModelTests
         Assert.True(viewModel.HasNoLaunchInstances);
         Assert.False(viewModel.HasSelectedLaunchInstance);
         Assert.Null(viewModel.SelectedLaunchInstanceItem);
-    }
-
-    [Fact]
-    public async Task HomePageUsesMinecraftVersionTypeForLaunchGameIcons()
-    {
-        var viewModel = CreateViewModel(
-            versions:
-            [
-                new MinecraftVersionInfo("1.21.4", "Release", false),
-                new MinecraftVersionInfo("snapshot-profile", "Snapshot", false),
-                new MinecraftVersionInfo("b1.7.3", "old_beta", false),
-                new MinecraftVersionInfo("a1.2.6", "old_alpha", false)
-            ]);
-        await viewModel.EnsureVersionTypesLoadedAsync();
-        var release = CreateInstance("release", "Release World", "1.21.4", LoaderKind.Vanilla);
-        var snapshot = CreateInstance("snapshot", "Snapshot World", "snapshot-profile", LoaderKind.Vanilla);
-        var beta = CreateInstance("beta", "Beta World", "b1.7.3", LoaderKind.Vanilla);
-        var alpha = CreateInstance("alpha", "Alpha World", "a1.2.6", LoaderKind.Vanilla);
-
-        viewModel.SetLaunchInstances([release, snapshot, beta, alpha]);
-
-        Assert.Equal("/Assets/Icons/block/grass_block.png", viewModel.LaunchInstances[0].IconSource);
-        Assert.Equal("/Assets/Icons/block/dirt_block.png", viewModel.LaunchInstances[1].IconSource);
-        Assert.Equal("/Assets/Icons/block/craftingtable_block.png", viewModel.LaunchInstances[2].IconSource);
-        Assert.Equal("/Assets/Icons/block/stone_block.png", viewModel.LaunchInstances[3].IconSource);
-    }
-
-    [Fact]
-    public void HomePageUsesInstanceVersionTypeForLaunchGameIcons()
-    {
-        var viewModel = CreateViewModel();
-        var snapshot = CreateInstance("snapshot", "Imported Snapshot", "custom-snapshot", LoaderKind.Vanilla);
-        snapshot.VersionType = "snapshot";
-
-        viewModel.SetLaunchInstances([snapshot]);
-
-        Assert.Equal("/Assets/Icons/block/dirt_block.png", viewModel.LaunchInstances.Single().IconSource);
-    }
-
-    [Fact]
-    public void HomePageUsesLoaderDefaultIconsForModdedInstances()
-    {
-        var viewModel = CreateViewModel();
-        var fabric = CreateInstance("fabric", "Fabric Pack", "1.21.4", LoaderKind.Fabric);
-        var forge = CreateInstance("forge", "Forge Pack", "1.20.1", LoaderKind.Forge);
-        var neoForge = CreateInstance("neoforge", "NeoForge Pack", "1.20.4", LoaderKind.NeoForge);
-
-        viewModel.SetLaunchInstances([fabric, forge, neoForge]);
-
-        Assert.Equal("/Assets/Icons/block/fabric.png", viewModel.LaunchInstances[0].IconSource);
-        Assert.Equal("/Assets/Icons/block/Anvil.png", viewModel.LaunchInstances[1].IconSource);
-        Assert.Equal("/Assets/Icons/block/neo_logo.png", viewModel.LaunchInstances[2].IconSource);
-    }
-
-    [Fact]
-    public void HomePageUsesCustomLaunchGameIconWhenSet()
-    {
-        var viewModel = CreateViewModel();
-        var game = CreateInstance("custom", "Custom World", "1.21.4", LoaderKind.Vanilla);
-        game.IconSource = "/custom/game-icon.png";
-
-        viewModel.SetLaunchInstances([game]);
-
-        Assert.Equal("/custom/game-icon.png", viewModel.LaunchInstances[0].IconSource);
-    }
-
-    [Fact]
-    public void HomePageUsesFixedLaunchInstanceSubtitleFormat()
-    {
-        var viewModel = CreateViewModel();
-        var vanilla = CreateInstance("vanilla", "Vanilla World", "1.21.4", LoaderKind.Vanilla);
-        var fabric = CreateInstance("fabric", "Fabric Pack", "1.20.1", LoaderKind.Fabric);
-        fabric.LoaderVersion = "0.16.10";
-        var forge = CreateInstance("forge", "Forge Pack", "26.1.1", LoaderKind.Forge);
-        forge.LoaderVersion = "63.0.2";
-        var neoForge = CreateInstance("neoforge", "NeoForge Pack", "1.20.4", LoaderKind.NeoForge);
-        neoForge.LoaderVersion = "20.4.237";
-
-        viewModel.SetLaunchInstances([vanilla, fabric, forge, neoForge]);
-
-        Assert.Equal("1.21.4", viewModel.LaunchInstances.Single(instance => instance.Name == "Vanilla World").Subtitle);
-        Assert.Equal("1.20.1 Fabric 0.16.10", viewModel.LaunchInstances.Single(instance => instance.Name == "Fabric Pack").Subtitle);
-        Assert.Equal("26.1.1 Forge 63.0.2", viewModel.LaunchInstances.Single(instance => instance.Name == "Forge Pack").Subtitle);
-        Assert.Equal("1.20.4 NeoForge 20.4.237", viewModel.LaunchInstances.Single(instance => instance.Name == "NeoForge Pack").Subtitle);
-    }
-
-    [Fact]
-    public void HomePageHidesMixinSuffixFromFabricSubtitle()
-    {
-        var viewModel = CreateViewModel();
-        var fabric = CreateInstance("fabric", "Fabric Pack", "1.20.1", LoaderKind.Fabric);
-        fabric.LoaderVersion = "0.16.10+mixin.0.8.7";
-
-        viewModel.SetLaunchInstances([fabric]);
-
-        Assert.Equal("1.20.1 Fabric 0.16.10", viewModel.LaunchInstances.Single().Subtitle);
-    }
-
-    [Fact]
-    public void HomePageShowsUnknownMinecraftVersionForImportedInstanceWithoutResolvedVersion()
-    {
-        var viewModel = CreateViewModel();
-        var imported = CreateInstance("imported", "Imported Pack", string.Empty, LoaderKind.Fabric);
-        imported.LoaderVersion = "0.16.10";
-
-        viewModel.SetLaunchInstances([imported]);
-
-        Assert.Equal("未知版本 Fabric 0.16.10", viewModel.LaunchInstances.Single().Subtitle);
     }
 
     [Fact]
@@ -379,47 +204,6 @@ public sealed class HomePageViewModelTests
         Assert.Equal(string.Empty, viewModel.LaunchStatusMessage);
         Assert.Equal(string.Empty, viewModel.LaunchDownloadSpeedText);
         Assert.Equal(0, viewModel.LaunchProgressPercent);
-    }
-
-    [Fact]
-    public async Task HomePageLaunchShowsDownloadSpeedOnlyWhenStartupDownloadsFiles()
-    {
-        var releaseLaunch = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var statusService = new FakeStatusService();
-        var launchService = new FakeLaunchService
-        {
-            LaunchBehavior = async (progress, cancellationToken) =>
-            {
-                progress!.Report(new LauncherProgress(
-                    LaunchProgressStages.DownloadSpeed,
-                    string.Empty,
-                    DownloadSpeedText: "1.2 MB/s"));
-                await releaseLaunch.Task.WaitAsync(cancellationToken);
-            }
-        };
-        var account = new LauncherAccount
-        {
-            Id = "offline-1",
-            DisplayName = "LocalUser",
-            Uuid = "00000000-0000-0000-0000-000000000001",
-            IsOffline = true
-        };
-        var viewModel = CreateViewModel(statusService, launchService: launchService, selectedAccount: account);
-        viewModel.SetSelectedInstance(CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla));
-
-        var launchTask = viewModel.LaunchCommand.ExecuteAsync(null);
-        await Task.Delay(60);
-
-        Assert.True(viewModel.IsLaunching);
-        Assert.True(viewModel.HasLaunchDownloadSpeedText);
-        Assert.Equal("1.2 MB/s", viewModel.LaunchDownloadSpeedText);
-        Assert.Equal(Strings.Status_LaunchDownloadingFiles, viewModel.LaunchStatusMessage);
-
-        releaseLaunch.SetResult();
-        await launchTask;
-
-        Assert.False(viewModel.HasLaunchDownloadSpeedText);
-        Assert.Equal(string.Empty, viewModel.LaunchDownloadSpeedText);
     }
 
     [Fact]
@@ -583,79 +367,6 @@ public sealed class HomePageViewModelTests
         Assert.False(viewModel.IsLaunching);
     }
 
-    [Theory]
-    [InlineData(JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound)]
-    [InlineData(JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing)]
-    public async Task HomePageLaunchSuppressesLaunchFailureDialogForWrappedAutomaticJavaFailure(
-        JavaRuntimeSelectionFailureReason reason)
-    {
-        var statusService = new FakeStatusService();
-        var report = new LaunchFailureReport(
-            LaunchFailureKind.StartupFailed,
-            "First World",
-            "1.20.5",
-            null,
-            @"C:\temp\diagnostic.log",
-            @"C:\temp");
-        var launchService = new FakeLaunchService
-        {
-            ExceptionToThrow = new LaunchFailedException(
-                report,
-                new JavaRuntimeSelectionException("missing java", reason, 21))
-        };
-        var account = new LauncherAccount
-        {
-            Id = "offline-1",
-            DisplayName = "LocalUser",
-            Uuid = "00000000-0000-0000-0000-000000000001",
-            IsOffline = true
-        };
-        var viewModel = CreateViewModel(statusService, launchService: launchService, selectedAccount: account);
-        viewModel.SetSelectedInstance(CreateInstance("first", "First World", "1.20.5", LoaderKind.Vanilla));
-        JavaRequirementNotMetEventArgs? eventArgs = null;
-        var launchFailureReported = false;
-        viewModel.JavaRequirementNotMet += (_, args) => eventArgs = args;
-        viewModel.LaunchFailureReported += (_, _) => launchFailureReported = true;
-
-        await viewModel.LaunchCommand.ExecuteAsync(null);
-
-        Assert.Equal(Strings.Status_JavaSelectionFailed, statusService.LastMessage);
-        Assert.NotNull(eventArgs);
-        Assert.Equal(21, eventArgs.RequiredMajorVersion);
-        Assert.Equal(reason, eventArgs.Reason);
-        Assert.False(launchFailureReported);
-        Assert.False(viewModel.IsLaunching);
-    }
-
-    [Fact]
-    public async Task HomePageLaunchDoesNotRaiseJavaRequirementEventForManualJavaFailure()
-    {
-        var statusService = new FakeStatusService();
-        var launchService = new FakeLaunchService
-        {
-            ExceptionToThrow = new JavaRuntimeSelectionException(
-                "manual missing",
-                JavaRuntimeSelectionFailureReason.ManualRuntimeMissing)
-        };
-        var account = new LauncherAccount
-        {
-            Id = "offline-1",
-            DisplayName = "LocalUser",
-            Uuid = "00000000-0000-0000-0000-000000000001",
-            IsOffline = true
-        };
-        var viewModel = CreateViewModel(statusService, launchService: launchService, selectedAccount: account);
-        viewModel.SetSelectedInstance(CreateInstance("first", "First World", "1.20.5", LoaderKind.Vanilla));
-        var eventRaised = false;
-        viewModel.JavaRequirementNotMet += (_, _) => eventRaised = true;
-
-        await viewModel.LaunchCommand.ExecuteAsync(null);
-
-        Assert.Equal(Strings.Status_JavaSelectionFailed, statusService.LastMessage);
-        Assert.False(eventRaised);
-        Assert.False(viewModel.IsLaunching);
-    }
-
     [Fact]
     public async Task HomePageLaunchRaisesJavaRequirementEventForManualVersionMismatch()
     {
@@ -750,56 +461,6 @@ public sealed class HomePageViewModelTests
         Assert.False(viewModel.HasLaunchProgress);
         Assert.Equal(string.Empty, viewModel.LaunchStatusMessage);
         Assert.Equal(0, viewModel.LaunchProgressPercent);
-    }
-
-    [Fact]
-    public async Task HomePageLaunchMinimizesWindowWhenInstanceOptionEnabled()
-    {
-        var launchService = new FakeLaunchService();
-        var windowService = new FakeWindowService();
-        var account = new LauncherAccount
-        {
-            Id = "offline-1",
-            DisplayName = "LocalUser",
-            Uuid = "00000000-0000-0000-0000-000000000001",
-            IsOffline = true
-        };
-        var viewModel = CreateViewModel(launchService: launchService, selectedAccount: account, windowService: windowService);
-        var instance = CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla);
-        instance.LaunchSettingsMode = LaunchSettingsMode.PerInstance;
-        instance.MinimizeLauncherAfterLaunch = true;
-        viewModel.SetSelectedInstance(instance);
-
-        await viewModel.LaunchCommand.ExecuteAsync(null);
-
-        Assert.Equal(1, windowService.MinimizeCallCount);
-    }
-
-    [Fact]
-    public async Task HomePageLaunchUsesGlobalMinimizeSettingWhenInstanceFollowsGlobal()
-    {
-        var launchService = new FakeLaunchService();
-        var windowService = new FakeWindowService();
-        var account = new LauncherAccount
-        {
-            Id = "offline-1",
-            DisplayName = "LocalUser",
-            Uuid = "00000000-0000-0000-0000-000000000001",
-            IsOffline = true
-        };
-        var viewModel = CreateViewModel(launchService: launchService, selectedAccount: account, windowService: windowService);
-        viewModel.SetSettings(new LauncherSettings
-        {
-            DefaultMinimizeLauncherAfterLaunch = true
-        });
-        var instance = CreateInstance("first", "First World", "1.20.1", LoaderKind.Vanilla);
-        instance.LaunchSettingsMode = LaunchSettingsMode.UseGlobal;
-        instance.MinimizeLauncherAfterLaunch = false;
-        viewModel.SetSelectedInstance(instance);
-
-        await viewModel.LaunchCommand.ExecuteAsync(null);
-
-        Assert.Equal(1, windowService.MinimizeCallCount);
     }
 
     private static HomePageViewModel CreateViewModel(

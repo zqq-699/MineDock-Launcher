@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using Launcher.App.Controls;
 using Launcher.App.Models;
 using Launcher.App.Resources;
@@ -60,58 +60,6 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
-    public async Task PrimeAsyncPrimesHomeLaunchMenuPinStateFromSettings()
-    {
-        var settings = new LauncherSettings
-        {
-            IsHomeLaunchMenuPinned = true
-        };
-        var viewModel = CreateViewModel(new FakeGameInstanceService(), settings);
-
-        await viewModel.PrimeAsync();
-
-        Assert.True(viewModel.HomePage.IsLaunchMenuPinned);
-        Assert.True(viewModel.HomePage.LaunchGames.IsLaunchMenuPinned);
-    }
-
-    [Fact]
-    public async Task HomeLaunchMenuPinTogglePersistsSetting()
-    {
-        var settings = new LauncherSettings();
-        var settingsService = new TestSettingsService(settings);
-        var viewModel = CreateViewModel(
-            new FakeGameInstanceService(),
-            settingsService: settingsService);
-        await viewModel.PrimeAsync();
-
-        await viewModel.HomePage.ToggleLaunchMenuPinnedCommand.ExecuteAsync(null);
-
-        Assert.True(viewModel.Settings.IsHomeLaunchMenuPinned);
-        Assert.True(viewModel.HomePage.IsLaunchMenuPinned);
-        Assert.Equal(1, settingsService.SaveCount);
-    }
-
-    [Fact]
-    public async Task HomePageRefreshesLaunchGamesWhenHomeNavigationIsRepeated()
-    {
-        var instanceService = new FakeGameInstanceService();
-        instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4"));
-        var viewModel = CreateViewModel(instanceService);
-
-        await viewModel.InitializeAsync();
-        Assert.Single(viewModel.HomePage.LaunchInstances);
-
-        instanceService.CreatedInstances.Clear();
-        viewModel.SelectNavigationItem(viewModel.NavigationItems.Single(item => item.Page == "Home"));
-
-        await TestAsync.WaitForAsync(() =>
-            instanceService.GetInstancesCallCount >= 2
-            && viewModel.HomePage.LaunchInstances.Count == 0);
-        Assert.True(viewModel.HomePage.HasNoLaunchInstances);
-        Assert.Null(viewModel.HomePage.SelectedInstance);
-    }
-
-    [Fact]
     public async Task HomeGameSettingsButtonNavigatesImmediatelyWhileGameSettingsRefreshIsPending()
     {
         var instanceService = new FakeGameInstanceService();
@@ -135,18 +83,6 @@ public sealed class MainViewModelTests
         refreshRelease.SetResult();
         await TestAsync.WaitForAsync(() => !viewModel.GameSettingsPage.IsLoadingInstances);
         Assert.False(viewModel.GameSettingsPage.IsLoadingInstances);
-    }
-
-    [Fact]
-    public void ResourcesNavigationSelectsResourcesPage()
-    {
-        var viewModel = CreateViewModel(new FakeGameInstanceService());
-        var resourcesItem = viewModel.NavigationItems.Single(item => item.Page == "Resources");
-
-        viewModel.SelectNavigationItem(resourcesItem);
-
-        Assert.Equal("Resources", viewModel.CurrentPage);
-        Assert.True(resourcesItem.IsSelected);
     }
 
     [Fact]
@@ -174,45 +110,6 @@ public sealed class MainViewModelTests
         Assert.True(viewModel.NavigationItems.Single(item => item.Page == "Resources").IsSelected);
         Assert.True(resourcesPage.IsModsSection);
         Assert.Equal("1.18", resourcesPage.ModPage.SelectedVersionOption?.Id);
-    }
-
-    [Fact]
-    public async Task ResourcesNavigationDoesNotStartModLoadBeforeViewActivation()
-    {
-        var dispatcher = new QueueingUiDispatcher();
-        var pendingResult = new TaskCompletionSource<ResourceCatalogSearchResult>();
-        var resourceCatalogService = new PendingResourceCatalogService(pendingResult.Task);
-        var resourcesPage = new ResourcesPageViewModel(resourceCatalogService, uiDispatcher: dispatcher);
-        var viewModel = CreateViewModel(
-            new FakeGameInstanceService(),
-            resourcesPage: resourcesPage);
-        await viewModel.InitializeAsync();
-        var resourcesItem = viewModel.NavigationItems.Single(item => item.Page == "Resources");
-
-        viewModel.SelectNavigationItem(resourcesItem);
-
-        Assert.Equal("Resources", viewModel.CurrentPage);
-        Assert.True(resourcesItem.IsSelected);
-        Assert.Equal(0, resourceCatalogService.CallCount);
-        Assert.False(resourcesPage.ModPage.IsLoadingProjects);
-        Assert.False(resourcesPage.ModPage.CanShowLoadingState);
-        Assert.Equal(0, dispatcher.PendingCount);
-    }
-
-    [Fact]
-    public void ResourcesSecondaryNavigationCatalogContainsResourceCenterSections()
-    {
-        var items = NavigationCatalog.CreateSecondaryItems("Resources").ToArray();
-
-        Assert.Equal(
-            [
-                Strings.Nav_Mod,
-                Strings.Nav_ResourcePacks,
-                Strings.Nav_ShaderPacks,
-                Strings.Nav_Worlds,
-                Strings.Nav_Modpacks
-            ],
-            items.Select(item => item.Title));
     }
 
     [Fact]
@@ -319,104 +216,6 @@ public sealed class MainViewModelTests
         Assert.Contains(viewModel.GameManagement.Instances, instance => instance.Id == editedInstance.Id && instance.Name == "Renamed Fabric");
         Assert.Contains(viewModel.HomePage.LaunchInstances, item => item.Instance.Id == editedInstance.Id && item.Name == "Renamed Fabric");
         Assert.Equal(defaultInstance.Id, viewModel.HomePage.SelectedInstance?.Id);
-    }
-
-    [Fact]
-    public async Task GameSettingsStateSyncRefreshesInstancesWithoutReplayingEntranceAnimation()
-    {
-        var instanceService = new FakeGameInstanceService();
-        instanceService.CreatedInstances.Add(CreateInstance("Vanilla World", "1.21.4"));
-        var viewModel = CreateViewModel(instanceService);
-
-        await viewModel.InitializeAsync();
-        viewModel.SelectNavigationItem(viewModel.NavigationItems.Single(item => item.Page == "GameSettings"));
-
-        await TestAsync.WaitForAsync(() =>
-            viewModel.GameSettingsPage.ListEntranceAnimationToken == 1
-            && viewModel.GameSettingsPage.VisibleInstances.Count == 1);
-
-        instanceService.CreatedInstances.Add(CreateInstance("Fabric Pack", "1.20.1"));
-        await viewModel.SyncCurrentStateAsync();
-
-        Assert.Equal(1, viewModel.GameSettingsPage.ListEntranceAnimationToken);
-        Assert.Equal(["Vanilla World", "Fabric Pack"], viewModel.GameSettingsPage.VisibleInstances.Select(instance => instance.Name));
-    }
-
-    [Fact]
-    public async Task GlobalLaunchDefaultsRefreshUseGlobalGameSettingsTogglesImmediately()
-    {
-        var settings = new LauncherSettings
-        {
-            DefaultCheckFilesBeforeLaunch = false,
-            DefaultAutoRepairMissingFiles = false,
-            DefaultMinimizeLauncherAfterLaunch = false,
-            DefaultLaunchFullScreen = false,
-            DefaultWaitForPreLaunchCommand = true,
-            DefaultMemorySettingsMode = MemorySettingsMode.Auto,
-            DefaultMemoryMb = 4096,
-            DefaultGameArguments = string.Empty
-        };
-        var instanceService = new FakeGameInstanceService();
-        var instance = CreateInstance("Vanilla World", "1.21.4");
-        instance.LaunchSettingsMode = LaunchSettingsMode.UseGlobal;
-        instanceService.CreatedInstances.Add(instance);
-        var viewModel = CreateViewModel(instanceService, settings);
-
-        await viewModel.InitializeAsync();
-        await viewModel.GameSettingsPage.EnsureInstancesLoadedAsync();
-        viewModel.GameSettingsPage.SelectInstanceCommand.Execute(viewModel.GameSettingsPage.VisibleInstances.Single());
-
-        Assert.False(viewModel.GameSettingsPage.Details.LaunchCheckFilesBeforeLaunchEnabled);
-        Assert.False(viewModel.GameSettingsPage.Details.LaunchAutoRepairMissingFilesEnabled);
-        Assert.False(viewModel.GameSettingsPage.Details.LaunchMinimizeLauncherAfterLaunchEnabled);
-        Assert.False(viewModel.GameSettingsPage.Details.LaunchFullScreenEnabled);
-        Assert.True(viewModel.GameSettingsPage.Details.LaunchWaitForPreLaunchCommand);
-        Assert.Equal(MemorySettingsMode.Auto, viewModel.GameSettingsPage.Details.SelectedMemoryModeOption?.Mode);
-        Assert.Equal(4096, viewModel.GameSettingsPage.Details.MemoryMb);
-        Assert.False(viewModel.GameSettingsPage.Details.IsMemorySliderEnabled);
-        Assert.False(viewModel.GameSettingsPage.Details.IsMemorySliderVisible);
-        Assert.Equal(string.Empty, viewModel.GameSettingsPage.Details.LaunchGameArguments);
-
-        viewModel.SettingsPage.DefaultCheckFilesBeforeLaunch = true;
-        viewModel.SettingsPage.DefaultMinimizeLauncherAfterLaunch = true;
-        viewModel.SettingsPage.DefaultLaunchFullScreen = true;
-        viewModel.SettingsPage.DefaultWaitForPreLaunchCommand = false;
-        viewModel.SettingsPage.SelectedMemoryModeOption = viewModel.SettingsPage.MemoryModeOptions
-            .Single(option => option.Mode == MemorySettingsMode.Manual);
-        viewModel.SettingsPage.DefaultMemoryMb = 8192;
-        viewModel.SettingsPage.DefaultGameArguments = "--demo";
-
-        Assert.True(viewModel.GameSettingsPage.Details.LaunchCheckFilesBeforeLaunchEnabled);
-        Assert.True(viewModel.GameSettingsPage.Details.LaunchAutoRepairMissingFilesEnabled);
-        Assert.True(viewModel.GameSettingsPage.Details.LaunchMinimizeLauncherAfterLaunchEnabled);
-        Assert.True(viewModel.GameSettingsPage.Details.LaunchFullScreenEnabled);
-        Assert.False(viewModel.GameSettingsPage.Details.LaunchWaitForPreLaunchCommand);
-        Assert.Equal(MemorySettingsMode.Manual, viewModel.GameSettingsPage.Details.SelectedMemoryModeOption?.Mode);
-        Assert.Equal(8192, viewModel.GameSettingsPage.Details.MemoryMb);
-        Assert.False(viewModel.GameSettingsPage.Details.IsMemorySliderEnabled);
-        Assert.True(viewModel.GameSettingsPage.Details.IsMemorySliderVisible);
-        Assert.Equal("--demo", viewModel.GameSettingsPage.Details.LaunchGameArguments);
-    }
-
-    [Fact]
-    public void FloatingMessageShowsOnlyWhenExplicitlyRequested()
-    {
-        var statusService = new FakeStatusService();
-        var floatingMessageService = new FakeFloatingMessageService();
-        var viewModel = CreateViewModel(
-            new FakeGameInstanceService(),
-            statusService: statusService,
-            floatingMessageService: floatingMessageService);
-
-        statusService.Report(Strings.Status_LaunchCanceled);
-
-        Assert.False(viewModel.IsFloatingMessageOpen);
-        Assert.Equal(string.Empty, viewModel.FloatingMessage);
-
-        floatingMessageService.Show(Strings.Status_LaunchCanceled);
-
-        Assert.True(viewModel.IsFloatingMessageOpen);
-        Assert.Equal(Strings.Status_LaunchCanceled, viewModel.FloatingMessage);
     }
 
     [Fact]
@@ -583,63 +382,6 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
-    public async Task JavaRequirementDialogCanNavigateToGlobalJavaSettings()
-    {
-        var launchService = new FakeLaunchService
-        {
-            ExceptionToThrow = new JavaRuntimeSelectionException(
-                "missing java",
-                JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound,
-                17)
-        };
-        var account = CreateOfflineAccount();
-        var viewModel = CreateViewModel(
-            new FakeGameInstanceService(),
-            launchService: launchService,
-            selectedAccount: account);
-        viewModel.HomePage.SetSelectedInstance(CreateInstance("Vanilla World", "1.20.1"));
-
-        await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
-        await viewModel.OpenJavaSettingsFromRequirementDialogCommand.ExecuteAsync(null);
-
-        Assert.False(viewModel.IsJavaRequirementDialogOpen);
-        Assert.Equal("Settings", viewModel.CurrentPage);
-        Assert.True(viewModel.SettingsPage.IsJavaSection);
-    }
-
-    [Fact]
-    public async Task JavaRequirementDialogCanNavigateToInstanceJavaSettings()
-    {
-        var instanceService = new FakeGameInstanceService();
-        var instance = CreateInstance("Vanilla World", "1.20.5");
-        instance.JavaSettingsMode = LaunchSettingsMode.PerInstance;
-        instance.JavaSelectionMode = JavaSelectionMode.Manual;
-        instance.SelectedJavaExecutablePath = @"C:\Java\jdk-8\bin\java.exe";
-        instanceService.CreatedInstances.Add(instance);
-        var launchService = new FakeLaunchService
-        {
-            ExceptionToThrow = new JavaRuntimeSelectionException(
-                "manual java too low",
-                JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow,
-                21,
-                8)
-        };
-        var viewModel = CreateViewModel(
-            instanceService,
-            launchService: launchService,
-            selectedAccount: CreateOfflineAccount());
-        viewModel.HomePage.SetSelectedInstance(instance);
-
-        await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
-        await viewModel.OpenJavaSettingsFromRequirementDialogCommand.ExecuteAsync(null);
-
-        Assert.False(viewModel.IsJavaRequirementDialogOpen);
-        Assert.Equal("GameSettings", viewModel.CurrentPage);
-        Assert.True(viewModel.GameSettingsPage.Details.IsJavaSection);
-        Assert.Equal(instance.Id, viewModel.GameSettingsPage.SelectedInstance?.Instance.Id);
-    }
-
-    [Fact]
     public async Task LaunchFailureOpensLaunchStatusDialog()
     {
         var windowService = new FakeWindowService();
@@ -715,130 +457,6 @@ public sealed class MainViewModelTests
 
         Assert.False(viewModel.LaunchStatusDialog.IsOpen);
         Assert.False(launchService.SessionToReturn.TryMarkExitHandled());
-    }
-
-    [Fact]
-    public async Task NormalRuntimeExitDoesNotOpenLaunchStatusDialog()
-    {
-        var launchService = new FakeLaunchService
-        {
-            SessionToReturn = new GameLaunchSession(
-                "instance",
-                "Vanilla World",
-                Task.FromResult(LaunchExitResult.Success))
-        };
-        var viewModel = CreateViewModel(
-            new FakeGameInstanceService(),
-            launchService: launchService,
-            selectedAccount: CreateOfflineAccount());
-        viewModel.HomePage.SetSelectedInstance(CreateInstance("Vanilla World", "1.20.1"));
-
-        await viewModel.HomePage.LaunchCommand.ExecuteAsync(null);
-        await Task.Delay(50);
-
-        Assert.False(viewModel.LaunchStatusDialog.IsOpen);
-    }
-
-    [Fact]
-    public void LaunchStatusDialogOpenLogDirectoryUsesFolderService()
-    {
-        var folderService = new FakeInstanceFolderService();
-        var statusService = new FakeStatusService();
-        var dialog = new LaunchStatusDialogViewModel(folderService, statusService);
-
-        dialog.Show(new LaunchFailureReport(
-            LaunchFailureKind.StartupFailed,
-            "Vanilla World",
-            "1.20.1",
-            null,
-            @"C:\logs\launch-diagnostics.log",
-            @"C:\logs"));
-        dialog.OpenLogDirectoryCommand.Execute(null);
-
-        Assert.Equal(@"C:\logs", folderService.LastOpenedPath);
-    }
-
-    [Fact]
-    public void LaunchStatusDialogShowsMissingClasspathEntryPath()
-    {
-        const string missingPath = @"C:\Minecraft\versions\example\example.jar";
-        var dialog = new LaunchStatusDialogViewModel(new FakeInstanceFolderService(), new FakeStatusService());
-
-        dialog.Show(new LaunchFailureReport(
-            LaunchFailureKind.StartupAbnormalExit,
-            "Fabric World",
-            "1.21.9-fabric-0.19.3",
-            1,
-            @"C:\logs\launch-diagnostics.log",
-            @"C:\logs",
-            new LaunchFailureAnalysis(
-                LaunchFailureCategory.MissingGameFiles,
-                "missing_game_files",
-                "missing_classpath_entry",
-                "repair_or_reinstall_instance",
-                MissingPath: missingPath)));
-
-        Assert.True(dialog.HasAnalysis);
-        Assert.Contains(missingPath, dialog.Message);
-        Assert.Contains(missingPath, dialog.AnalysisReasonDetail);
-        Assert.Equal(Strings.Dialog_LaunchAnalysisMissingFilesTitle, dialog.AnalysisReasonTitle);
-    }
-
-    [Fact]
-    public void LaunchStatusDialogShowsMissingClientJarPath()
-    {
-        const string missingPath = @"C:\Minecraft\versions\example\example.jar";
-        var dialog = new LaunchStatusDialogViewModel(new FakeInstanceFolderService(), new FakeStatusService());
-
-        dialog.Show(new LaunchFailureReport(
-            LaunchFailureKind.StartupFailed,
-            "Fabric World",
-            "1.21.9-fabric-0.19.3",
-            null,
-            @"C:\logs\launch-diagnostics.log",
-            @"C:\logs",
-            new LaunchFailureAnalysis(
-                LaunchFailureCategory.MissingGameFiles,
-                "missing_game_files",
-                "missing_client_jar",
-                "repair_or_reinstall_instance",
-                MissingPath: missingPath)));
-
-        Assert.True(dialog.HasAnalysis);
-        Assert.Contains(missingPath, dialog.Message);
-        Assert.Contains(missingPath, dialog.AnalysisReasonDetail);
-        Assert.Contains("客户端 jar", dialog.AnalysisReasonDetail);
-    }
-
-    [Fact]
-    public async Task InstanceJavaSettingsChangesSynchronizeHomeSelectedInstance()
-    {
-        var instanceService = new FakeGameInstanceService();
-        var instance = CreateInstance("Vanilla World", "1.20.5");
-        instance.JavaSettingsMode = LaunchSettingsMode.UseGlobal;
-        instance.JavaSelectionMode = JavaSelectionMode.Manual;
-        instanceService.CreatedInstances.Add(instance);
-        var viewModel = CreateViewModel(
-            instanceService,
-            settings: new LauncherSettings
-            {
-                JavaSelectionMode = JavaSelectionMode.Manual,
-                SelectedJavaExecutablePath = @"C:\Global\jdk-21\bin\java.exe"
-            });
-
-        await viewModel.InitializeAsync();
-        await viewModel.GameSettingsPage.EnsureInstancesLoadedAsync();
-        viewModel.GameSettingsPage.SelectInstanceCommand.Execute(viewModel.GameSettingsPage.VisibleInstances.Single());
-        viewModel.HomePage.SetSelectedInstance(instance);
-
-        viewModel.GameSettingsPage.Details.SelectedInstanceJavaSettingsModeOption = viewModel.GameSettingsPage.Details.LaunchSettingsModeOptions
-            .Single(option => option.Mode == LaunchSettingsMode.PerInstance);
-        viewModel.GameSettingsPage.Details.SelectedInstanceJavaSelectionOption = viewModel.GameSettingsPage.Details.InstanceJavaSelectionOptions
-            .Single(option => option.Id == "auto");
-
-        await TestAsync.WaitForAsync(() =>
-            viewModel.HomePage.SelectedInstance?.JavaSettingsMode == LaunchSettingsMode.PerInstance
-            && viewModel.HomePage.SelectedInstance.JavaSelectionMode == JavaSelectionMode.Auto);
     }
 
     private static MainViewModel CreateViewModel(

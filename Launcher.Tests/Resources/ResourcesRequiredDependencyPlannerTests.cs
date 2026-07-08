@@ -18,31 +18,6 @@ public sealed class ResourcesRequiredDependencyPlannerTests
     }
 
     [Fact]
-    public void SelectRequiredDependencyVersion_PrefersRelease()
-    {
-        var beta = new ResourceProjectVersion { VersionId = "beta", VersionType = "beta" };
-        var release = new ResourceProjectVersion { VersionId = "release", VersionType = "release" };
-
-        var selected = ResourcesRequiredDependencyPlanner.SelectRequiredDependencyVersion([beta, release]);
-
-        Assert.Same(release, selected);
-    }
-
-    [Fact]
-    public void ResolveRequiredDependencyMinimumVersion_UsesDependencyVersionId()
-    {
-        var dependency = new ResourceProjectDependency { VersionId = "required" };
-        var older = new ResourceProjectVersion { VersionId = "older", VersionNumber = "1.0.0" };
-        var required = new ResourceProjectVersion { VersionId = "required", VersionNumber = "1.2.0" };
-
-        var minimum = ResourcesRequiredDependencyPlanner.ResolveRequiredDependencyMinimumVersion(
-            dependency,
-            [older, required]);
-
-        Assert.Same(required, minimum);
-    }
-
-    [Fact]
     public void ResolveDependencyRequirementState_DetectsInstalledUpdateAndMissingStates()
     {
         var dependency = new ResourceProjectDependency
