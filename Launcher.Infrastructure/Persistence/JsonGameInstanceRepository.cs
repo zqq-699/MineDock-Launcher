@@ -45,14 +45,21 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
     public async Task<IReadOnlyList<GameInstance>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         var settings = await settingsService.LoadAsync(cancellationToken);
+        return await GetAllAsync(settings.MinecraftDirectory, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<GameInstance>> GetAllAsync(
+        string minecraftDirectory,
+        CancellationToken cancellationToken = default)
+    {
         await ioLock.WaitAsync(cancellationToken);
         try
         {
-            var instances = await ReadPerInstanceSettingsAsync(settings.MinecraftDirectory, cancellationToken);
+            var instances = await ReadPerInstanceSettingsAsync(minecraftDirectory, cancellationToken);
             logger.LogDebug(
                 "Game instances loaded. Count={InstanceCount} MinecraftDirectory={MinecraftDirectory}",
                 instances.Count,
-                settings.MinecraftDirectory);
+                minecraftDirectory);
             return instances;
         }
         finally

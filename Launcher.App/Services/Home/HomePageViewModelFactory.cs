@@ -38,6 +38,7 @@ public sealed class HomePageViewModelFactory : IHomePageViewModelFactory
         AccountPageViewModel accountPage,
         Action<double> reportProgressPercent,
         Func<GameInstance, Task<bool>> selectLaunchInstance,
+        Func<bool, Task<bool>> setLaunchMenuPinned,
         Func<GameInstance?, Task> openGameSettingsForInstance)
     {
         return new HomePageViewModel(
@@ -50,6 +51,7 @@ public sealed class HomePageViewModelFactory : IHomePageViewModelFactory
             uiDispatcher,
             reportProgressPercent,
             selectLaunchInstance,
+            setLaunchMenuPinned,
             openGameSettingsForInstance,
             logger);
     }

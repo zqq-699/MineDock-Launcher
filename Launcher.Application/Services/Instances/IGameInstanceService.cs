@@ -4,6 +4,7 @@ namespace Launcher.Application.Services;
 
 public interface IGameInstanceService
 {
+    Task<IReadOnlyList<GameInstance>> GetStoredInstancesAsync(LauncherSettings settings, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default);
     Task<GameInstance?> GetDefaultInstanceAsync(CancellationToken cancellationToken = default);
     Task<GameInstance> CreateInstanceAsync(

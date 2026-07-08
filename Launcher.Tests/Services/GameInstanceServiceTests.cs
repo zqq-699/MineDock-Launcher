@@ -1279,6 +1279,67 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task InstanceServiceSavesDefaultInstanceSelection()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultInstanceId = "first"
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "first");
+        await CreateInstalledVersionAsync(settings.MinecraftDirectory, "second");
+        var selected = CreateStoredInstance("second");
+        selected.Name = "Second Pack";
+        selected.MinecraftVersion = "1.21.4";
+        selected.Loader = LoaderKind.Fabric;
+        selected.LoaderVersion = "0.16.10";
+        selected.IconSource = "/custom/icon.png";
+        selected.VersionType = "release";
+        await repository.SaveAllAsync(
+        [
+            CreateStoredInstance("first"),
+            selected
+        ]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var saved = await service.SetDefaultInstanceAsync("second");
+
+        var savedSettings = await settingsService.LoadAsync();
+        Assert.True(saved);
+        Assert.Equal("second", savedSettings.DefaultInstanceId);
+    }
+
+    [Fact]
+    public async Task InstanceServiceLoadsStoredInstancesWithoutDiscoveringVersionsOrSaving()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultInstanceId = "first"
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new CountingGameInstanceRepository(
+        [
+            CreateStoredInstance("first"),
+            CreateStoredInstance("second")
+        ]);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+
+        var instances = await service.GetStoredInstancesAsync(settings);
+
+        Assert.Equal(["first", "second"], instances.Select(instance => instance.Id));
+        Assert.Equal(1, repository.GetAllForDirectoryCallCount);
+        Assert.Equal(settings.MinecraftDirectory, repository.LastGetAllMinecraftDirectory);
+        Assert.Equal(0, repository.DiscoverInstalledVersionsCallCount);
+        Assert.Equal(0, repository.SaveAllCallCount);
+        Assert.Equal(0, settingsService.SaveCount);
+    }
+
+    [Fact]
     public async Task InstanceServiceSavesDefaultInstanceSelectionWithoutDiscoveringVersions()
     {
         var settings = new LauncherSettings
@@ -1415,7 +1476,8 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         var deleted = await service.DeleteInstanceAsync("first");
 
         Assert.True(deleted);
-        Assert.Equal("second", (await settingsService.LoadAsync()).DefaultInstanceId);
+        var savedSettings = await settingsService.LoadAsync();
+        Assert.Equal("second", savedSettings.DefaultInstanceId);
         Assert.Single(await repository.GetAllAsync());
     }
 
@@ -1437,7 +1499,8 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         var deleted = await service.DeleteInstanceAsync("first");
 
         Assert.True(deleted);
-        Assert.Equal(string.Empty, (await settingsService.LoadAsync()).DefaultInstanceId);
+        var savedSettings = await settingsService.LoadAsync();
+        Assert.Equal(string.Empty, savedSettings.DefaultInstanceId);
     }
 
     [Fact]
@@ -1774,15 +1837,28 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     {
         private List<GameInstance> instances = [.. instances];
 
+        public int GetAllForDirectoryCallCount { get; private set; }
         public int DiscoverInstalledVersionsCallCount { get; private set; }
+        public int SaveAllCallCount { get; private set; }
+        public string? LastGetAllMinecraftDirectory { get; private set; }
 
         public Task<IReadOnlyList<GameInstance>> GetAllAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<GameInstance>>(instances.ToList());
         }
 
+        public Task<IReadOnlyList<GameInstance>> GetAllAsync(
+            string minecraftDirectory,
+            CancellationToken cancellationToken = default)
+        {
+            GetAllForDirectoryCallCount++;
+            LastGetAllMinecraftDirectory = minecraftDirectory;
+            return Task.FromResult<IReadOnlyList<GameInstance>>(instances.ToList());
+        }
+
         public Task SaveAllAsync(IReadOnlyCollection<GameInstance> instances, CancellationToken cancellationToken = default)
         {
+            SaveAllCallCount++;
             this.instances = instances.ToList();
             return Task.CompletedTask;
         }

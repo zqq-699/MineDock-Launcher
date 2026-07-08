@@ -32,9 +32,21 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public GameInstance? LastSavedInstance { get; private set; }
     public int CreateCallCount { get; private set; }
     public int GetInstancesCallCount { get; private set; }
+    public int GetStoredInstancesCallCount { get; private set; }
     public int DeleteCallCount { get; private set; }
     public int SaveCallCount { get; private set; }
     public LauncherProgress? InitialProgress { get; init; }
+
+    public Task<IReadOnlyList<GameInstance>> GetStoredInstancesAsync(
+        LauncherSettings settings,
+        CancellationToken cancellationToken = default)
+    {
+        lock (syncRoot)
+        {
+            GetStoredInstancesCallCount++;
+            return Task.FromResult<IReadOnlyList<GameInstance>>(CreatedInstances.ToList());
+        }
+    }
 
     public async Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default)
     {

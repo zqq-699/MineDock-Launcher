@@ -42,6 +42,20 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
 
     public bool HasLoadedInstances => hasLoadedInstances;
 
+    public async Task PrimeInstancesAsync(LauncherSettings launcherSettings)
+    {
+        settings = launcherSettings;
+        var loadedInstances = await instanceService.GetStoredInstancesAsync(launcherSettings);
+        var previousSelectedId = SelectedInstance?.Id;
+
+        Instances.ReplaceWith(loadedInstances);
+        SelectedInstance = ResolveSelectedInstance(launcherSettings.DefaultInstanceId, previousSelectedId);
+        logger.LogInformation(
+            "Game management instances primed. Count={InstanceCount} SelectedInstanceId={SelectedInstanceId}",
+            Instances.Count,
+            SelectedInstance?.Id);
+    }
+
     public async Task InitializeAsync(LauncherSettings launcherSettings)
     {
         settings = launcherSettings;
@@ -203,20 +217,24 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
 
         Instances.ReplaceWith(loadedInstances);
 
-        var selected = !string.IsNullOrWhiteSpace(settings.DefaultInstanceId)
-            ? Instances.FirstOrDefault(instance => instance.Id == settings.DefaultInstanceId)
-            : null;
-        selected ??= !string.IsNullOrWhiteSpace(previousSelectedId)
-            ? Instances.FirstOrDefault(instance => instance.Id == previousSelectedId)
-            : null;
-        selected ??= Instances.FirstOrDefault();
-
-        SelectedInstance = selected;
+        SelectedInstance = ResolveSelectedInstance(settings.DefaultInstanceId, previousSelectedId);
         hasLoadedInstances = true;
         logger.LogInformation(
             "Game management instances refreshed. Count={InstanceCount} SelectedInstanceId={SelectedInstanceId}",
             Instances.Count,
             SelectedInstance?.Id);
+    }
+
+    private GameInstance? ResolveSelectedInstance(string? defaultInstanceId, string? previousSelectedId)
+    {
+        var selected = !string.IsNullOrWhiteSpace(defaultInstanceId)
+            ? Instances.FirstOrDefault(instance => string.Equals(instance.Id, defaultInstanceId, StringComparison.OrdinalIgnoreCase))
+            : null;
+        selected ??= !string.IsNullOrWhiteSpace(previousSelectedId)
+            ? Instances.FirstOrDefault(instance => string.Equals(instance.Id, previousSelectedId, StringComparison.OrdinalIgnoreCase))
+            : null;
+        selected ??= Instances.FirstOrDefault();
+        return selected;
     }
 
     private int FindInstanceIndex(string instanceId)

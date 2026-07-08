@@ -46,6 +46,18 @@ public sealed class GameInstanceService : IGameInstanceService
         return instances;
     }
 
+    public async Task<IReadOnlyList<GameInstance>> GetStoredInstancesAsync(
+        LauncherSettings settings,
+        CancellationToken cancellationToken = default)
+    {
+        var instances = await repository.GetAllAsync(settings.MinecraftDirectory, cancellationToken).ConfigureAwait(false);
+        logger.LogDebug(
+            "Stored game instances loaded. Count={InstanceCount} DefaultInstanceId={DefaultInstanceId}",
+            instances.Count,
+            settings.DefaultInstanceId);
+        return instances;
+    }
+
     private async Task<IReadOnlyList<GameInstance>> GetInstancesCoreAsync(
         LauncherSettings settings,
         CancellationToken cancellationToken)
@@ -358,7 +370,8 @@ public sealed class GameInstanceService : IGameInstanceService
 
         if (string.Equals(settings.DefaultInstanceId, instance.Id, StringComparison.OrdinalIgnoreCase))
         {
-            settings.DefaultInstanceId = instances.FirstOrDefault()?.Id ?? string.Empty;
+            var nextDefaultInstance = instances.FirstOrDefault();
+            settings.DefaultInstanceId = nextDefaultInstance?.Id ?? string.Empty;
             await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
             logger.LogInformation("Default game instance changed after deletion. DefaultInstanceId={DefaultInstanceId}", settings.DefaultInstanceId);
         }

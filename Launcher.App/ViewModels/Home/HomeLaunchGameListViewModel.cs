@@ -13,20 +13,26 @@ public sealed partial class HomeLaunchGameListViewModel : ObservableObject
     private readonly IGameVersionService gameVersionService;
     private readonly IStatusService statusService;
     private readonly Func<GameInstance, Task<bool>> selectLaunchInstance;
+    private readonly Func<bool, Task<bool>> setLaunchMenuPinned;
     private IReadOnlyDictionary<string, string> versionTypesByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private bool hasLoadedVersionTypes;
 
     [ObservableProperty]
     private GameInstance? selectedInstance;
 
+    [ObservableProperty]
+    private bool isLaunchMenuPinned;
+
     public HomeLaunchGameListViewModel(
         IGameVersionService gameVersionService,
         IStatusService statusService,
-        Func<GameInstance, Task<bool>> selectLaunchInstance)
+        Func<GameInstance, Task<bool>> selectLaunchInstance,
+        Func<bool, Task<bool>>? setLaunchMenuPinned = null)
     {
         this.gameVersionService = gameVersionService;
         this.statusService = statusService;
         this.selectLaunchInstance = selectLaunchInstance;
+        this.setLaunchMenuPinned = setLaunchMenuPinned ?? (_ => Task.FromResult(true));
     }
 
     public ObservableCollection<HomeLaunchInstanceItem> LaunchInstances { get; } = [];
@@ -38,6 +44,15 @@ public sealed partial class HomeLaunchGameListViewModel : ObservableObject
     public HomeLaunchInstanceItem? SelectedLaunchInstanceItem => LaunchInstances.FirstOrDefault(item => item.IsSelected);
 
     public bool HasSelectedLaunchInstance => SelectedLaunchInstanceItem is not null;
+
+    public string LaunchMenuPinTooltip => IsLaunchMenuPinned
+        ? Strings.Home_UnpinLaunchMenuTooltip
+        : Strings.Home_PinLaunchMenuTooltip;
+
+    public void SetLaunchMenuPinned(bool isPinned)
+    {
+        IsLaunchMenuPinned = isPinned;
+    }
 
     public void SetSelectedInstance(GameInstance? instance)
     {
@@ -82,6 +97,27 @@ public sealed partial class HomeLaunchGameListViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task ToggleLaunchMenuPinnedAsync()
+    {
+        var previousValue = IsLaunchMenuPinned;
+        var nextValue = !previousValue;
+        IsLaunchMenuPinned = nextValue;
+
+        try
+        {
+            var saved = await setLaunchMenuPinned(nextValue);
+            if (saved)
+                return;
+        }
+        catch (Exception)
+        {
+        }
+
+        IsLaunchMenuPinned = previousValue;
+        statusService.Report(Strings.Status_SettingsSaveFailed);
+    }
+
+    [RelayCommand]
     private async Task SelectLaunchInstanceAsync(HomeLaunchInstanceItem? item)
     {
         if (item is null)
@@ -113,6 +149,11 @@ public sealed partial class HomeLaunchGameListViewModel : ObservableObject
     partial void OnSelectedInstanceChanged(GameInstance? value)
     {
         UpdateLaunchInstanceSelection(value?.Id);
+    }
+
+    partial void OnIsLaunchMenuPinnedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(LaunchMenuPinTooltip));
     }
 
     private void NotifyLaunchInstancesChanged()

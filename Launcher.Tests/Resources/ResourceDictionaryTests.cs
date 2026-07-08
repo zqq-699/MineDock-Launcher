@@ -1731,6 +1731,13 @@ public sealed class ResourceDictionaryTests
     {
         public List<GameInstance> Instances { get; } = [];
 
+        public Task<IReadOnlyList<GameInstance>> GetStoredInstancesAsync(
+            LauncherSettings settings,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<GameInstance>>(Instances);
+        }
+
         public Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<GameInstance>>(Instances);

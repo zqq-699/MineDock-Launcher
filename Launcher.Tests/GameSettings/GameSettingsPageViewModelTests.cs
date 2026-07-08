@@ -5475,6 +5475,13 @@ public sealed class GameSettingsPageViewModelTests
             this.exception = exception;
         }
 
+        public Task<IReadOnlyList<GameInstance>> GetStoredInstancesAsync(
+            LauncherSettings settings,
+            CancellationToken cancellationToken = default)
+        {
+            throw exception;
+        }
+
         public Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default)
         {
             throw exception;

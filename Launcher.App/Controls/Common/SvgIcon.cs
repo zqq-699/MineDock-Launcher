@@ -30,6 +30,13 @@ public sealed class SvgIcon : Control
             typeof(SvgIcon),
             new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    public static readonly DependencyProperty ForceFillProperty =
+        DependencyProperty.Register(
+            nameof(ForceFill),
+            typeof(bool),
+            typeof(SvgIcon),
+            new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+
     private static readonly Dictionary<string, SvgIconData?> IconCache = new(StringComparer.OrdinalIgnoreCase);
 
     public string? IconKey
@@ -42,6 +49,12 @@ public sealed class SvgIcon : Control
     {
         get => (Brush?)GetValue(StrokeProperty);
         set => SetValue(StrokeProperty, value);
+    }
+
+    public bool ForceFill
+    {
+        get => (bool)GetValue(ForceFillProperty);
+        set => SetValue(ForceFillProperty, value);
     }
 
     protected override void OnRender(DrawingContext drawingContext)
@@ -83,7 +96,7 @@ public sealed class SvgIcon : Control
                             LineJoin = shape.LineJoin
                         }
                         : null;
-                    drawingContext.DrawGeometry(shape.HasFill ? fillBrush : null, pen, shape.Geometry);
+                    drawingContext.DrawGeometry(shape.HasFill || ForceFill ? fillBrush : null, pen, shape.Geometry);
                 }
             }
             finally

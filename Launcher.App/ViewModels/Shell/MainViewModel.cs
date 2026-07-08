@@ -9,6 +9,8 @@ using Launcher.App.ViewModels.Resources;
 using Launcher.App.ViewModels.Settings;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.Shell;
 
@@ -21,6 +23,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly IWindowService windowService;
     private readonly IStatusService statusService;
     private readonly IUiDispatcher uiDispatcher;
+    private readonly ILogger<MainViewModel> logger;
     private bool hasPrimedSettings;
     private bool hasInitialized;
     private bool isSyncingCurrentState;
@@ -75,13 +78,15 @@ public sealed partial class MainViewModel : ObservableObject
         IFloatingMessageService floatingMessageService,
         IUiDispatcher uiDispatcher,
         IHomePageViewModelFactory homePageFactory,
-        LaunchStatusDialogViewModel launchStatusDialog)
+        LaunchStatusDialogViewModel launchStatusDialog,
+        ILogger<MainViewModel>? logger = null)
     {
         this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.settingsService = settingsService;
         this.windowService = windowService;
         this.statusService = statusService;
         this.uiDispatcher = uiDispatcher;
+        this.logger = logger ?? NullLogger<MainViewModel>.Instance;
         AccountPage = accountPage;
         DownloadPage = downloadPage;
         DownloadTasksPage = downloadTasksPage;
@@ -94,6 +99,7 @@ public sealed partial class MainViewModel : ObservableObject
             AccountPage,
             percent => ProgressPercent = percent,
             instance => GameManagement.SelectLaunchInstanceAsync(instance),
+            SetHomeLaunchMenuPinnedAsync,
             OpenGameSettingsForInstanceAsync);
         HomePage.JavaRequirementNotMet += HomePage_JavaRequirementNotMet;
         HomePage.LaunchFailureReported += HomePage_LaunchFailureReported;
@@ -150,6 +156,9 @@ public sealed partial class MainViewModel : ObservableObject
         IsMenuExpanded = Settings.IsMenuExpanded;
         AccountPage.PrimeFromSettings(Settings);
         HomePage.SetSettings(Settings);
+        await GameManagement.PrimeInstancesAsync(Settings);
+        HomePage.SetLaunchInstances(GameManagement.Instances);
+        HomePage.Initialize(Settings, GameManagement.SelectedInstance);
         DownloadPage.PrimeFromSettings(Settings);
         GameSettingsPage.PrimeFromSettings(Settings);
         SettingsPage.PrimeFromSettings(Settings);
@@ -318,6 +327,32 @@ public sealed partial class MainViewModel : ObservableObject
         await GameManagement.RefreshInstancesAsync();
         await HomePage.EnsureVersionTypesLoadedAsync();
         SyncHomeLaunchInstances();
+    }
+
+    private async Task<bool> SetHomeLaunchMenuPinnedAsync(bool isPinned)
+    {
+        var previousValue = Settings.IsHomeLaunchMenuPinned;
+        if (previousValue == isPinned)
+            return true;
+
+        Settings.IsHomeLaunchMenuPinned = isPinned;
+        try
+        {
+            await settingsService.SaveAsync(Settings);
+            logger.LogInformation(
+                "Home launch menu pin preference saved. IsPinned={IsPinned}",
+                isPinned);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            Settings.IsHomeLaunchMenuPinned = previousValue;
+            logger.LogWarning(
+                exception,
+                "Failed to save home launch menu pin preference. IsPinned={IsPinned}",
+                isPinned);
+            return false;
+        }
     }
 
     private void SyncHomeLaunchInstances()

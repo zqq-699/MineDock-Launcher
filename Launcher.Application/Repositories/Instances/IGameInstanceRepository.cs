@@ -6,6 +6,8 @@ public interface IGameInstanceRepository
 {
     Task<IReadOnlyList<GameInstance>> GetAllAsync(CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<GameInstance>> GetAllAsync(string minecraftDirectory, CancellationToken cancellationToken = default);
+
     Task SaveAllAsync(IReadOnlyCollection<GameInstance> instances, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<InstalledGameVersion>> DiscoverInstalledVersionsAsync(

@@ -98,6 +98,11 @@ public sealed partial class GameManagementViewModel : ObservableObject
         await RunInstanceRefreshWithModSyncAsync(() => InstancesViewModel.InitializeAsync(launcherSettings));
     }
 
+    public Task PrimeInstancesAsync(LauncherSettings launcherSettings)
+    {
+        return InstancesViewModel.PrimeInstancesAsync(launcherSettings);
+    }
+
     public void ApplyDownloadSourcePreference(DownloadSourcePreference preference)
     {
         LoaderSelection.ApplyDownloadSourcePreference(preference);

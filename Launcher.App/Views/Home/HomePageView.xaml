@@ -4,15 +4,16 @@
              xmlns:views="clr-namespace:Launcher.App.Views.Home"
              Focusable="False">
     <Grid x:Name="PageRoot">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="272" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+        <Grid x:Name="HomeLaunchContentHost">
+            <Grid.RenderTransform>
+                <TranslateTransform x:Name="HomeLaunchContentTranslate" />
+            </Grid.RenderTransform>
 
-        <views:HomeLaunchGameListView Grid.Column="0"
-                                      DataContext="{Binding LaunchGames}" />
+            <views:HomeLaunchPanelView />
+        </Grid>
 
-        <views:HomeLaunchPanelView Grid.Column="1" />
+        <views:HomeLaunchGameListView DataContext="{Binding LaunchGames}"
+                                      Panel.ZIndex="4" />
     </Grid>
 </UserControl>
 

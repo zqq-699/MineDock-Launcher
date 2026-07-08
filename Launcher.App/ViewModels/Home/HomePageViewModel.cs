@@ -49,6 +49,7 @@ public sealed partial class HomePageViewModel : ObservableObject
         IUiDispatcher uiDispatcher,
         Action<double> reportProgressPercent,
         Func<GameInstance, Task<bool>> selectLaunchInstance,
+        Func<bool, Task<bool>> setLaunchMenuPinned,
         Func<GameInstance?, Task> openGameSettingsForInstance,
         ILogger<HomePageViewModel>? logger = null)
     {
@@ -62,7 +63,11 @@ public sealed partial class HomePageViewModel : ObservableObject
         this.openGameSettingsForInstance = openGameSettingsForInstance;
         this.logger = logger ?? NullLogger<HomePageViewModel>.Instance;
 
-        LaunchGames = new HomeLaunchGameListViewModel(gameVersionService, statusService, selectLaunchInstance);
+        LaunchGames = new HomeLaunchGameListViewModel(
+            gameVersionService,
+            statusService,
+            selectLaunchInstance,
+            setLaunchMenuPinned);
         LaunchGames.PropertyChanged += LaunchGames_PropertyChanged;
 
         accountPage.PropertyChanged += (_, e) =>
@@ -94,7 +99,11 @@ public sealed partial class HomePageViewModel : ObservableObject
 
     public bool HasSelectedLaunchInstance => LaunchGames.HasSelectedLaunchInstance;
 
+    public bool IsLaunchMenuPinned => LaunchGames.IsLaunchMenuPinned;
+
     public IAsyncRelayCommand SelectLaunchInstanceCommand => LaunchGames.SelectLaunchInstanceCommand;
+
+    public IAsyncRelayCommand ToggleLaunchMenuPinnedCommand => LaunchGames.ToggleLaunchMenuPinnedCommand;
 
     public bool CanOpenSelectedInstanceSettings => SelectedInstance is not null && !IsLaunching;
 
@@ -144,6 +153,7 @@ public sealed partial class HomePageViewModel : ObservableObject
     public void Initialize(LauncherSettings launcherSettings, GameInstance? instance)
     {
         settings = launcherSettings;
+        LaunchGames.SetLaunchMenuPinned(launcherSettings.IsHomeLaunchMenuPinned);
         SetSelectedInstance(instance);
         NotifyAccountStateChanged();
         NotifyInstanceStateChanged();
@@ -152,6 +162,7 @@ public sealed partial class HomePageViewModel : ObservableObject
     public void SetSettings(LauncherSettings launcherSettings)
     {
         settings = launcherSettings;
+        LaunchGames.SetLaunchMenuPinned(launcherSettings.IsHomeLaunchMenuPinned);
     }
 
     public void SetSelectedInstance(GameInstance? instance)
@@ -348,6 +359,9 @@ public sealed partial class HomePageViewModel : ObservableObject
                 break;
             case nameof(HomeLaunchGameListViewModel.HasSelectedLaunchInstance):
                 OnPropertyChanged(nameof(HasSelectedLaunchInstance));
+                break;
+            case nameof(HomeLaunchGameListViewModel.IsLaunchMenuPinned):
+                OnPropertyChanged(nameof(IsLaunchMenuPinned));
                 break;
         }
     }

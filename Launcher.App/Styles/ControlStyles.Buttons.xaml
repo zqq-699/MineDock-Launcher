@@ -420,12 +420,23 @@
                                 </BeginStoryboard>
                             </Trigger.ExitActions>
                         </Trigger>
-                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsSelected}" Value="True" />
+                                <Condition Binding="{Binding Path=(behaviors:SecondaryMenuButtonBehavior.SuppressSelectedBackground), RelativeSource={RelativeSource TemplatedParent}}" Value="False" />
+                            </MultiDataTrigger.Conditions>
                             <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding Tag.IsSelected, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding Tag.IsSelected, RelativeSource={RelativeSource TemplatedParent}}" Value="True" />
+                                <Condition Binding="{Binding Path=(behaviors:SecondaryMenuButtonBehavior.SuppressSelectedBackground), RelativeSource={RelativeSource TemplatedParent}}" Value="False" />
+                            </MultiDataTrigger.Conditions>
                             <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
-                        </DataTrigger>
+                        </MultiDataTrigger>
+                        <Trigger Property="behaviors:SecondaryMenuButtonBehavior.SuppressSelectedBackground" Value="True">
+                            <Setter TargetName="SelectedBackground" Property="Opacity" Value="0" />
+                        </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Disabled}" />
                             <Setter Property="Cursor" Value="Arrow" />
@@ -567,6 +578,58 @@
                             </BeginStoryboard>
                         </EventTrigger>
                         <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Cursor" Value="Arrow" />
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.Icon.Muted}" />
+                            <Setter TargetName="HoverBackground" Property="Opacity" Value="0" />
+                            <Setter TargetName="PressedBackground" Property="Opacity" Value="0" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="HomeLaunchMenuPinButtonStyle" TargetType="ToggleButton">
+        <Setter Property="Width" Value="30" />
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.B8FFFFFF}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Root"
+                            CornerRadius="8">
+                        <Grid>
+                            <Border x:Name="HoverBackground"
+                                    Background="{DynamicResource Brush.22FFFFFF}"
+                                    CornerRadius="8"
+                                    Opacity="0" />
+                            <Border x:Name="PressedBackground"
+                                    Background="{DynamicResource Brush.34FFFFFF}"
+                                    CornerRadius="8"
+                                    Opacity="0" />
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.F4FFFFFF}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.F4FFFFFF}" />
+                            <Setter TargetName="HoverBackground" Property="Opacity" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource Brush.E8FFFFFF}" />
                             <Setter TargetName="PressedBackground" Property="Opacity" Value="1" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">

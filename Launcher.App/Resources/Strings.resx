@@ -357,6 +357,8 @@
   <data name="Home_NoAccountSelected" xml:space="preserve"><value>未选择账户</value></data>
   <data name="Home_NoVersionSelected" xml:space="preserve"><value>未选择游戏版本</value></data>
   <data name="Home_LaunchInstanceMenuTitle" xml:space="preserve"><value>主页</value></data>
+  <data name="Home_PinLaunchMenuTooltip" xml:space="preserve"><value>固定游戏菜单</value></data>
+  <data name="Home_UnpinLaunchMenuTooltip" xml:space="preserve"><value>取消固定游戏菜单</value></data>
   <data name="Home_LaunchInstanceSubtitleFormat" xml:space="preserve"><value>Minecraft {0} · {1}</value></data>
   <data name="Home_NoLaunchInstances" xml:space="preserve"><value>还没有本地游戏。</value></data>
   <data name="Launch_Button" xml:space="preserve"><value>启动游戏</value></data>

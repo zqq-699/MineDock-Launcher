@@ -123,6 +123,52 @@ public sealed class HomePageViewModelTests
     }
 
     [Fact]
+    public void HomePageInitializesLaunchMenuPinStateFromSettings()
+    {
+        var viewModel = CreateViewModel();
+
+        viewModel.Initialize(new LauncherSettings { IsHomeLaunchMenuPinned = true }, null);
+
+        Assert.True(viewModel.IsLaunchMenuPinned);
+        Assert.True(viewModel.LaunchGames.IsLaunchMenuPinned);
+        Assert.Equal(Strings.Home_UnpinLaunchMenuTooltip, viewModel.LaunchGames.LaunchMenuPinTooltip);
+    }
+
+    [Fact]
+    public async Task HomePageToggleLaunchMenuPinnedCommandPersistsPreference()
+    {
+        bool? requestedValue = null;
+        var viewModel = CreateViewModel(
+            setLaunchMenuPinned: value =>
+            {
+                requestedValue = value;
+                return Task.FromResult(true);
+            });
+
+        await viewModel.ToggleLaunchMenuPinnedCommand.ExecuteAsync(null);
+
+        Assert.True(requestedValue.HasValue);
+        Assert.True(requestedValue.Value);
+        Assert.True(viewModel.IsLaunchMenuPinned);
+        Assert.Equal(Strings.Home_UnpinLaunchMenuTooltip, viewModel.LaunchGames.LaunchMenuPinTooltip);
+    }
+
+    [Fact]
+    public async Task HomePageToggleLaunchMenuPinnedCommandRollsBackWhenPreferenceSaveFails()
+    {
+        var statusService = new FakeStatusService();
+        var viewModel = CreateViewModel(
+            statusService,
+            setLaunchMenuPinned: _ => Task.FromResult(false));
+
+        await viewModel.ToggleLaunchMenuPinnedCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsLaunchMenuPinned);
+        Assert.Equal(Strings.Home_PinLaunchMenuTooltip, viewModel.LaunchGames.LaunchMenuPinTooltip);
+        Assert.Equal(Strings.Status_SettingsSaveFailed, statusService.LastMessage);
+    }
+
+    [Fact]
     public async Task HomePageSelectLaunchInstanceCommandShowsFriendlyFailure()
     {
         var statusService = new FakeStatusService();
@@ -763,7 +809,8 @@ public sealed class HomePageViewModelTests
         FakeLaunchService? launchService = null,
         LauncherAccount? selectedAccount = null,
         FakeWindowService? windowService = null,
-        FakeFloatingMessageService? floatingMessageService = null)
+        FakeFloatingMessageService? floatingMessageService = null,
+        Func<bool, Task<bool>>? setLaunchMenuPinned = null)
     {
         statusService ??= new FakeStatusService();
         return new HomePageViewModel(
@@ -776,6 +823,7 @@ public sealed class HomePageViewModelTests
             ImmediateUiDispatcher.Instance,
             _ => { },
             selectLaunchInstance ?? (_ => Task.FromResult(true)),
+            setLaunchMenuPinned ?? (_ => Task.FromResult(true)),
             _ => Task.CompletedTask);
     }
 

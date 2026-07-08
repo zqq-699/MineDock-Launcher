@@ -5128,6 +5128,13 @@ public sealed class ResourcesPageViewModelTests
     {
         public int GetInstancesCallCount { get; private set; }
 
+        public Task<IReadOnlyList<GameInstance>> GetStoredInstancesAsync(
+            LauncherSettings settings,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(instances);
+        }
+
         public Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default)
         {
             GetInstancesCallCount++;
@@ -5182,6 +5189,13 @@ public sealed class ResourcesPageViewModelTests
 
     private sealed class ThrowingGameInstanceService : IGameInstanceService
     {
+        public Task<IReadOnlyList<GameInstance>> GetStoredInstancesAsync(
+            LauncherSettings settings,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromException<IReadOnlyList<GameInstance>>(new InvalidOperationException("instances failed"));
+        }
+
         public Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromException<IReadOnlyList<GameInstance>>(new InvalidOperationException("instances failed"));

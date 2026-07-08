@@ -97,6 +97,43 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task GetAllAsyncWithMinecraftDirectoryReadsWithoutLoadingSettingsDirectory()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, "wrong-minecraft")
+        };
+        var actualMinecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var versionDirectory = Path.Combine(actualMinecraftDirectory, "versions", "demo-pack");
+        repository.CreateInstanceDirectories(versionDirectory);
+        var settingsPath = Path.Combine(versionDirectory, InstanceMetadataDirectoryName, "instance-settings.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
+
+        await using (var stream = File.Create(settingsPath))
+        {
+            await JsonSerializer.SerializeAsync(
+                stream,
+                new GameInstance
+                {
+                    Id = "demo-pack",
+                    Name = "Demo Pack",
+                    MinecraftVersion = "1.20.1",
+                    VersionName = "demo-pack",
+                    InstanceDirectory = "stale-path"
+                },
+                new JsonSerializerOptions { WriteIndented = true });
+        }
+
+        var loaded = Assert.Single(await repository.GetAllAsync(actualMinecraftDirectory));
+
+        Assert.Equal("demo-pack", loaded.Id);
+        Assert.Equal(versionDirectory, loaded.InstanceDirectory);
+    }
+
+    [Fact]
     public async Task GetAllAsyncDefaultsMissingJavaSettingsToUseGlobalAutomatic()
     {
         var settings = new LauncherSettings

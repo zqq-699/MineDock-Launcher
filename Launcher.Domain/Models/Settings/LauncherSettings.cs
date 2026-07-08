@@ -7,6 +7,7 @@ public sealed class LauncherSettings
     [JsonIgnore]
     public string OfflineUsername { get; set; } = LauncherDefaults.DefaultOfflineUsername;
     public bool IsMenuExpanded { get; set; }
+    public bool IsHomeLaunchMenuPinned { get; set; }
     public string Theme { get; set; } = LauncherDefaults.DefaultTheme;
     public string AccentColor { get; set; } = LauncherDefaults.DefaultAccentColor;
     public bool ThemeFollowSystem { get; set; } = true;

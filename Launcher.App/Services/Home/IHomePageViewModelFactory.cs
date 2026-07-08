@@ -8,6 +8,7 @@ public interface IHomePageViewModelFactory
         AccountPageViewModel accountPage,
         Action<double> reportProgressPercent,
         Func<GameInstance, Task<bool>> selectLaunchInstance,
+        Func<bool, Task<bool>> setLaunchMenuPinned,
         Func<GameInstance?, Task> openGameSettingsForInstance);
 }
 

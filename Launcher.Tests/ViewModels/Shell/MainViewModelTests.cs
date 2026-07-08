@@ -33,6 +33,65 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public async Task PrimeAsyncPrimesHomeLaunchInstancesFromStoredInstances()
+    {
+        var first = CreateInstance("Vanilla World", "1.21.4");
+        var second = CreateInstance("Fabric Pack", "1.20.1");
+        var instanceService = new FakeGameInstanceService();
+        instanceService.CreatedInstances.Add(first);
+        instanceService.CreatedInstances.Add(second);
+        var settings = new LauncherSettings
+        {
+            DefaultInstanceId = second.Id
+        };
+        var viewModel = CreateViewModel(instanceService, settings);
+
+        await viewModel.PrimeAsync();
+
+        Assert.Equal(1, instanceService.GetStoredInstancesCallCount);
+        Assert.Equal(0, instanceService.GetInstancesCallCount);
+        Assert.Equal(2, viewModel.GameManagement.Instances.Count);
+        Assert.Equal(2, viewModel.HomePage.LaunchInstances.Count);
+        Assert.Equal(second.Id, viewModel.GameManagement.SelectedInstance?.Id);
+        Assert.Equal(second.Id, viewModel.HomePage.SelectedInstance?.Id);
+        Assert.Same(
+            viewModel.HomePage.LaunchInstances.Single(item => item.Instance.Id == second.Id),
+            viewModel.HomePage.SelectedLaunchInstanceItem);
+    }
+
+    [Fact]
+    public async Task PrimeAsyncPrimesHomeLaunchMenuPinStateFromSettings()
+    {
+        var settings = new LauncherSettings
+        {
+            IsHomeLaunchMenuPinned = true
+        };
+        var viewModel = CreateViewModel(new FakeGameInstanceService(), settings);
+
+        await viewModel.PrimeAsync();
+
+        Assert.True(viewModel.HomePage.IsLaunchMenuPinned);
+        Assert.True(viewModel.HomePage.LaunchGames.IsLaunchMenuPinned);
+    }
+
+    [Fact]
+    public async Task HomeLaunchMenuPinTogglePersistsSetting()
+    {
+        var settings = new LauncherSettings();
+        var settingsService = new TestSettingsService(settings);
+        var viewModel = CreateViewModel(
+            new FakeGameInstanceService(),
+            settingsService: settingsService);
+        await viewModel.PrimeAsync();
+
+        await viewModel.HomePage.ToggleLaunchMenuPinnedCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.Settings.IsHomeLaunchMenuPinned);
+        Assert.True(viewModel.HomePage.IsLaunchMenuPinned);
+        Assert.Equal(1, settingsService.SaveCount);
+    }
+
+    [Fact]
     public async Task HomePageRefreshesLaunchGamesWhenHomeNavigationIsRepeated()
     {
         var instanceService = new FakeGameInstanceService();
@@ -791,9 +850,10 @@ public sealed class MainViewModelTests
         LauncherAccount? selectedAccount = null,
         FakeWindowService? windowService = null,
         FakeFilePickerService? filePickerService = null,
-        ResourcesPageViewModel? resourcesPage = null)
+        ResourcesPageViewModel? resourcesPage = null,
+        TestSettingsService? settingsService = null)
     {
-        var settingsService = new TestSettingsService(settings ?? new LauncherSettings());
+        settingsService ??= new TestSettingsService(settings ?? new LauncherSettings());
         statusService ??= new FakeStatusService();
         floatingMessageService ??= new FakeFloatingMessageService();
         filePickerService ??= new FakeFilePickerService();

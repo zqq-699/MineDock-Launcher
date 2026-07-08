@@ -525,6 +525,8 @@ public static class Strings
     public static string Home_NoAccountSelected => Get(nameof(Home_NoAccountSelected));
     public static string Home_NoVersionSelected => Get(nameof(Home_NoVersionSelected));
     public static string Home_LaunchInstanceMenuTitle => Get(nameof(Home_LaunchInstanceMenuTitle));
+    public static string Home_PinLaunchMenuTooltip => Get(nameof(Home_PinLaunchMenuTooltip));
+    public static string Home_UnpinLaunchMenuTooltip => Get(nameof(Home_UnpinLaunchMenuTooltip));
     public static string Home_LaunchInstanceSubtitleFormat => Get(nameof(Home_LaunchInstanceSubtitleFormat));
     public static string Home_NoLaunchInstances => Get(nameof(Home_NoLaunchInstances));
     public static string Launch_Button => Get(nameof(Launch_Button));

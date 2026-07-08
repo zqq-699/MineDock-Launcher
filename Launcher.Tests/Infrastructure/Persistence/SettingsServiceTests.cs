@@ -29,6 +29,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.Equal(LauncherDefaults.DefaultTheme, loaded.Theme);
         Assert.Equal(LauncherDefaults.DefaultAccentColor, loaded.AccentColor);
         Assert.True(loaded.ThemeFollowSystem);
+        Assert.False(loaded.IsHomeLaunchMenuPinned);
         Assert.False(loaded.DisableBackgroundBlur);
         Assert.Equal(LauncherDefaults.DefaultLauncherBackgroundOpacityPercent, loaded.LauncherBackgroundOpacityPercent);
     }
@@ -103,6 +104,19 @@ public sealed class SettingsServiceTests : TestTempDirectory
         var loaded = await service.LoadAsync();
 
         Assert.Equal(LauncherAccentColors.Purple, loaded.AccentColor);
+    }
+
+    [Fact]
+    public async Task SettingsServiceRoundTripsHomeLaunchMenuPinPreference()
+    {
+        var service = new JsonSettingsService(TempRoot);
+        var settings = await service.LoadAsync();
+        settings.IsHomeLaunchMenuPinned = true;
+
+        await service.SaveAsync(settings);
+        var loaded = await service.LoadAsync();
+
+        Assert.True(loaded.IsHomeLaunchMenuPinned);
     }
 
     [Fact]
@@ -228,6 +242,24 @@ public sealed class SettingsServiceTests : TestTempDirectory
         var loaded = await service.LoadAsync();
 
         Assert.Equal(32, loaded.DownloadSpeedLimitMbPerSecond);
+    }
+
+    [Fact]
+    public async Task SettingsServiceLoadsDefaultInstanceIdFromOldSettings()
+    {
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(TempRoot, "settings.json"),
+            """
+            {
+              "DefaultInstanceId": "instance-1"
+            }
+            """);
+        var service = new JsonSettingsService(TempRoot);
+
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal("instance-1", loaded.DefaultInstanceId);
     }
 
     [Fact]
