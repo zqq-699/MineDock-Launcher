@@ -284,7 +284,7 @@ public sealed class SettingsPageViewModelTests
         Assert.False(viewModel.IsJavaSection);
         Assert.False(viewModel.IsThemeSection);
         Assert.False(viewModel.IsControlListSection);
-        Assert.Equal("1.0.4", info.LauncherVersionText);
+        Assert.Equal("1.0.5", info.LauncherVersionText);
 
         info.OpenGithubRepositoryCommand.Execute(null);
 
@@ -394,7 +394,7 @@ public sealed class SettingsPageViewModelTests
             out _,
             out var updateService);
         updateService.Result = LauncherUpdateCheckResult.Available(
-            "1.0.4",
+            "1.0.5",
             new LauncherUpdateInfo(
                 "1.0.1",
                 "1.0.1",
@@ -406,7 +406,7 @@ public sealed class SettingsPageViewModelTests
 
         await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
 
-        Assert.Equal("1.0.4", updateService.LastCurrentVersion);
+        Assert.Equal("1.0.5", updateService.LastCurrentVersion);
         Assert.True(viewModel.Info.IsUpdateAvailableDialogOpen);
         Assert.Equal("1.0.1", viewModel.Info.UpdateDialogVersionText);
         Assert.Equal(
@@ -433,7 +433,7 @@ public sealed class SettingsPageViewModelTests
         await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
         Assert.Equal(1, updateService.CallCount);
 
-        pendingResult.SetResult(LauncherUpdateCheckResult.Latest("1.0.4"));
+        pendingResult.SetResult(LauncherUpdateCheckResult.Latest("1.0.5"));
         await checkTask;
 
         Assert.False(viewModel.Info.IsCheckingUpdates);
@@ -448,7 +448,7 @@ public sealed class SettingsPageViewModelTests
             out var externalLinkService,
             out var updateService);
         updateService.Result = LauncherUpdateCheckResult.Available(
-            "1.0.4",
+            "1.0.5",
             new LauncherUpdateInfo(
                 "1.0.1",
                 "1.0.1",
@@ -475,7 +475,7 @@ public sealed class SettingsPageViewModelTests
             out var selfUpdateService,
             out var exitService);
         updateService.Result = LauncherUpdateCheckResult.Available(
-            "1.0.4",
+            "1.0.5",
             new LauncherUpdateInfo(
                 "1.0.1",
                 "1.0.1",
@@ -505,7 +505,7 @@ public sealed class SettingsPageViewModelTests
             out var selfUpdateService,
             out var exitService);
         updateService.Result = LauncherUpdateCheckResult.Available(
-            "1.0.4",
+            "1.0.5",
             new LauncherUpdateInfo(
                 "1.0.1",
                 "1.0.1",
@@ -534,7 +534,7 @@ public sealed class SettingsPageViewModelTests
             out var exitService);
         selfUpdateService.Result = LauncherSelfUpdateStartResult.Failed();
         updateService.Result = LauncherUpdateCheckResult.Available(
-            "1.0.4",
+            "1.0.5",
             new LauncherUpdateInfo(
                 "1.0.1",
                 "1.0.1",
@@ -561,7 +561,7 @@ public sealed class SettingsPageViewModelTests
             out var statusService,
             out _,
             out var updateService);
-        updateService.Result = LauncherUpdateCheckResult.Latest("1.0.4");
+        updateService.Result = LauncherUpdateCheckResult.Latest("1.0.5");
 
         await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
 
@@ -577,7 +577,7 @@ public sealed class SettingsPageViewModelTests
             out var statusService,
             out _,
             out var updateService);
-        updateService.Result = LauncherUpdateCheckResult.Failed("1.0.4");
+        updateService.Result = LauncherUpdateCheckResult.Failed("1.0.5");
 
         await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
 
@@ -1726,7 +1726,7 @@ public sealed class SettingsPageViewModelTests
 
     private sealed class FakeLauncherUpdateService : ILauncherUpdateService
     {
-        public LauncherUpdateCheckResult Result { get; set; } = LauncherUpdateCheckResult.Latest("1.0.4");
+        public LauncherUpdateCheckResult Result { get; set; } = LauncherUpdateCheckResult.Latest("1.0.5");
         public Task<LauncherUpdateCheckResult>? ResultTask { get; set; }
         public string? LastCurrentVersion { get; private set; }
         public int CallCount { get; private set; }

@@ -25,10 +25,10 @@
     <RootNamespace>Launcher.App</RootNamespace>
     <Title>MineDock Launcher</Title>
     <Product>MineDock Launcher</Product>
-    <Version>1.0.4</Version>
-    <AssemblyVersion>1.0.4.0</AssemblyVersion>
-    <FileVersion>1.0.4.0</FileVersion>
-    <InformationalVersion>1.0.4</InformationalVersion>
+    <Version>1.0.5</Version>
+    <AssemblyVersion>1.0.5.0</AssemblyVersion>
+    <FileVersion>1.0.5.0</FileVersion>
+    <InformationalVersion>1.0.5</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>Assets\Icons\app_icon_concept.ico</ApplicationIcon>
     <OutputType>WinExe</OutputType>
