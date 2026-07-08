@@ -1,4 +1,5 @@
-﻿using Launcher.Domain.Models;
+﻿using Launcher.App.Services;
+using Launcher.Domain.Models;
 
 namespace Launcher.Tests.Download;
 
@@ -24,6 +25,23 @@ public sealed class DownloadTasksPageViewModelTests
         var task = viewModel.BeginTask("Vanilla 1.21.5", "1.21.5");
 
         Assert.Same(task, startedTask);
+    }
+
+    [Fact]
+    public void DownloadTasksPageBeginsTaskThroughDispatcherWhenCalledOffUiThread()
+    {
+        var dispatcher = new RecordingUiDispatcher(hasAccess: false);
+        var viewModel = new DownloadTasksPageViewModel(dispatcher);
+        DownloadTaskItem? startedTask = null;
+
+        viewModel.TaskStarted += (_, task) => startedTask = task;
+
+        var task = viewModel.BeginTask("Sodium", "Fabric Test");
+
+        Assert.Equal(1, dispatcher.InvokeCount);
+        Assert.Same(task, startedTask);
+        Assert.Same(task, Assert.Single(viewModel.Tasks));
+        Assert.True(viewModel.HasTasks);
     }
 
     [Fact]
@@ -143,6 +161,39 @@ public sealed class DownloadTasksPageViewModelTests
         Assert.Equal(100, task.ProgressPercent);
     }
 
+    private sealed class RecordingUiDispatcher(bool hasAccess) : IUiDispatcher
+    {
+        private bool hasAccess = hasAccess;
+
+        public bool HasAccess => hasAccess;
+
+        public int InvokeCount { get; private set; }
+
+        public void Post(Action action)
+        {
+            ExecuteWithAccess(action);
+        }
+
+        public void Invoke(Action action)
+        {
+            InvokeCount++;
+            ExecuteWithAccess(action);
+        }
+
+        private void ExecuteWithAccess(Action action)
+        {
+            var previousHasAccess = hasAccess;
+            hasAccess = true;
+            try
+            {
+                action();
+            }
+            finally
+            {
+                hasAccess = previousHasAccess;
+            }
+        }
+    }
 }
 
 

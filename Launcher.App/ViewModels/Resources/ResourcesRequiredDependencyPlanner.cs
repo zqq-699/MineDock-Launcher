@@ -1,5 +1,4 @@
 using Launcher.App.Resources;
-using Launcher.App.ViewModels.Download;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -95,7 +94,7 @@ internal sealed class ResourcesRequiredDependencyPlanner
         IReadOnlyList<RequiredDependencyInstallCandidate> missingDependencies,
         GameInstance instance,
         string? projectId,
-        DownloadTaskItem? downloadTask,
+        Action<LauncherProgress>? reportProgress,
         CancellationToken cancellationToken)
     {
         if (missingDependencies.Count == 0)
@@ -115,7 +114,7 @@ internal sealed class ResourcesRequiredDependencyPlanner
                     installedDependencies,
                     visiting,
                     visited,
-                    downloadTask,
+                    reportProgress,
                     cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -179,7 +178,7 @@ internal sealed class ResourcesRequiredDependencyPlanner
         InstalledDependencyCatalog installedDependencies,
         ISet<string> visiting,
         ISet<string> visited,
-        DownloadTaskItem? downloadTask,
+        Action<LauncherProgress>? reportProgress,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -211,7 +210,7 @@ internal sealed class ResourcesRequiredDependencyPlanner
                         installedDependencies,
                         visiting,
                         visited,
-                        downloadTask,
+                        reportProgress,
                         cancellationToken)
                     .ConfigureAwait(false);
             }
@@ -223,7 +222,7 @@ internal sealed class ResourcesRequiredDependencyPlanner
                 Strings.Status_ModRequiredDependencyInstallingFormat,
                 project.Title);
             reportStatus(installingMessage);
-            downloadTask?.Report(new LauncherProgress(ModProgressStages.DownloadingFile, installingMessage));
+            reportProgress?.Invoke(new LauncherProgress(ModProgressStages.DownloadingFile, installingMessage));
             await resourceCatalogService!.InstallProjectVersionAsync(version, instance, cancellationToken)
                 .ConfigureAwait(false);
             AddDependencyIdentifiers(installedDependencies, dependency, version);

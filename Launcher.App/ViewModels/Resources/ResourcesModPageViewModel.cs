@@ -1000,7 +1000,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
                             dependencyPlan.MissingDependencies,
                             instance,
                             SelectedProject?.Project.ProjectId,
-                            downloadTask,
+                            progress => ReportModDownloadTask(downloadTask, progress),
                             downloadTask?.CancellationToken ?? CancellationToken.None)
                         .ConfigureAwait(false);
                 }
@@ -1024,7 +1024,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             }
 
             ReportStatus(string.Format(options.DownloadingFormat, item.Title));
-            downloadTask?.Report(new LauncherProgress(
+            ReportModDownloadTask(downloadTask, new LauncherProgress(
                 ModProgressStages.DownloadingFile,
                 string.Format(options.DownloadingFormat, item.Title)));
             await resourceCatalogService.InstallProjectVersionAsync(
@@ -2384,10 +2384,18 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private DownloadTaskItem? BeginModDownloadTask(ResourcesModVersionItemViewModel item, string subtitle)
     {
         var task = downloadTasksPage?.BeginTask(item.Title, subtitle);
-        task?.Report(new LauncherProgress(
+        ReportModDownloadTask(task, new LauncherProgress(
             ModProgressStages.DownloadingFile,
             string.Format(options.DownloadingFormat, item.Title)));
         return task;
+    }
+
+    private void ReportModDownloadTask(DownloadTaskItem? task, LauncherProgress progress)
+    {
+        if (task is null)
+            return;
+
+        uiDispatcher.Invoke(() => task.Report(progress));
     }
 
     private void CompleteModDownloadTask(DownloadTaskItem? task, string message)
@@ -2418,7 +2426,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 
         return new Progress<LauncherProgress>(progress =>
         {
-            task.Report(progress with { Message = LauncherProgressTextFormatter.Format(progress) });
+            ReportModDownloadTask(task, progress with { Message = LauncherProgressTextFormatter.Format(progress) });
         });
     }
 
@@ -2455,8 +2463,16 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 
     private void ReportStatus(string message)
     {
-        if (!string.IsNullOrWhiteSpace(message))
+        if (string.IsNullOrWhiteSpace(message))
+            return;
+
+        if (uiDispatcher.HasAccess)
+        {
             statusService?.Report(message);
+            return;
+        }
+
+        uiDispatcher.Invoke(() => statusService?.Report(message));
     }
 
     private static void ApplyPendingOption(

@@ -3382,6 +3382,73 @@ public sealed class ResourcesPageViewModelTests
     }
 
     [Fact]
+    public async Task ModVersionSelectionAutoInstallsMissingRequiredDependencyThroughDispatcher()
+    {
+        var dependency = CreateDependency("fabric-api", "Fabric API", "api-version");
+        var catalogService = new FakeResourceCatalogService(new ResourceCatalogSearchResult());
+        catalogService.VersionsResultsByProjectId["fabric-api"] = new ResourceProjectVersionsResult
+        {
+            Versions =
+            [
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "api-version",
+                    Name = "Fabric API 1.0",
+                    VersionNumber = "1.0.0",
+                    VersionType = "release",
+                    FileName = "fabric-api.jar"
+                }
+            ]
+        };
+        var dispatcher = new RecordingUiDispatcher(hasAccess: false);
+        var statusService = new FakeStatusService();
+        var downloadTasksPage = new DownloadTasksPageViewModel(dispatcher);
+        var taskStatusMessages = new List<string>();
+        downloadTasksPage.TaskStarted += (_, task) =>
+        {
+            task.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(DownloadTaskItem.StatusMessage))
+                    taskStatusMessages.Add(task.StatusMessage);
+            };
+        };
+        var viewModel = new ResourcesPageViewModel(
+            catalogService,
+            uiDispatcher: dispatcher,
+            statusService: statusService,
+            downloadTasksPage: downloadTasksPage,
+            modService: new FakeModService());
+        var instance = CreateInstance("Fabric Test", "1.20.1", LoaderKind.Fabric);
+        var project = CreateModProjectItem("iris", "Iris");
+        var version = new ResourcesModVersionItemViewModel(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.Mod,
+            VersionId = "iris-version",
+            Name = "Iris 1.0",
+            FileName = "iris.jar",
+            RequiredDependencies = [dependency]
+        }, project);
+
+        viewModel.ModPage.SelectProjectCommand.Execute(project);
+        viewModel.ModPage.SelectedInstallTarget = ResourcesModInstallTargetItemViewModel.FromInstance(instance);
+        var installTask = viewModel.ModPage.InstallAvailableVersionCommand.ExecuteAsync(version);
+        await TestAsync.WaitForAsync(() => viewModel.ModPage.IsRequiredDependenciesDialogOpen);
+
+        viewModel.ModPage.AutoInstallRequiredDependenciesCommand.Execute(null);
+        await installTask;
+
+        Assert.Equal(["api-version", "iris-version"], catalogService.InstalledVersions.Select(version => version.VersionId));
+        var task = Assert.Single(downloadTasksPage.Tasks);
+        Assert.Equal(DownloadTaskState.Completed, task.State);
+        Assert.Equal(100, task.ProgressPercent);
+        Assert.Contains(string.Format(Strings.Status_ModRequiredDependencyInstallingFormat, "Fabric API"), statusService.Messages);
+        Assert.Contains(string.Format(Strings.Status_ModRequiredDependencyInstallingFormat, "Fabric API"), taskStatusMessages);
+        Assert.Contains(string.Format(Strings.Status_ModInstalledFormat, "Iris"), taskStatusMessages);
+        Assert.True(dispatcher.InvokeCount > 0);
+    }
+
+    [Fact]
     public async Task CurseForgeModVersionSelectionAutoUpdatesRequiredDependencyBelowRecommendedVersion()
     {
         var dependency = new ResourceProjectDependency
@@ -5244,6 +5311,43 @@ public sealed class ResourcesPageViewModelTests
         public Task<bool> DeleteInstanceAsync(string instanceId, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
+        }
+    }
+
+    private sealed class RecordingUiDispatcher(bool hasAccess) : IUiDispatcher
+    {
+        private bool hasAccess = hasAccess;
+
+        public bool HasAccess => hasAccess;
+
+        public int InvokeCount { get; private set; }
+
+        public int PostCount { get; private set; }
+
+        public void Post(Action action)
+        {
+            PostCount++;
+            ExecuteWithAccess(action);
+        }
+
+        public void Invoke(Action action)
+        {
+            InvokeCount++;
+            ExecuteWithAccess(action);
+        }
+
+        private void ExecuteWithAccess(Action action)
+        {
+            var previousHasAccess = hasAccess;
+            hasAccess = true;
+            try
+            {
+                action();
+            }
+            finally
+            {
+                hasAccess = previousHasAccess;
+            }
         }
     }
 

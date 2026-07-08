@@ -420,6 +420,13 @@
                                 </BeginStoryboard>
                             </Trigger.ExitActions>
                         </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="behaviors:SecondaryMenuButtonBehavior.IsSelected" Value="True" />
+                                <Condition Property="behaviors:SecondaryMenuButtonBehavior.SuppressSelectedBackground" Value="False" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="SelectedBackground" Property="Opacity" Value="1" />
+                        </MultiTrigger>
                         <MultiDataTrigger>
                             <MultiDataTrigger.Conditions>
                                 <Condition Binding="{Binding IsSelected}" Value="True" />

@@ -57,6 +57,16 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
 
     public DownloadTaskItem BeginTask(string title, string subtitle)
     {
+        if (uiDispatcher.HasAccess)
+            return BeginTaskCore(title, subtitle);
+
+        DownloadTaskItem? task = null;
+        uiDispatcher.Invoke(() => task = BeginTaskCore(title, subtitle));
+        return task!;
+    }
+
+    private DownloadTaskItem BeginTaskCore(string title, string subtitle)
+    {
         var task = new DownloadTaskItem(title, subtitle);
         task.PropertyChanged += Task_PropertyChanged;
         Tasks.Insert(0, task);

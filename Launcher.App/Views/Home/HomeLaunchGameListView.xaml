@@ -91,6 +91,7 @@
                             <DataTemplate>
                                 <Button Height="{StaticResource HomeLaunchMenuItemHeight}"
                                         Style="{StaticResource SecondaryMenuButtonStyle}"
+                                        behaviors:SecondaryMenuButtonBehavior.IsSelected="{Binding IsSelected}"
                                         behaviors:SecondaryMenuButtonBehavior.SuppressSelectedBackground="{Binding SuppressSelectedItemBackground, ElementName=Root}"
                                         Command="{Binding DataContext.SelectLaunchInstanceCommand, RelativeSource={RelativeSource AncestorType={x:Type views:HomeLaunchGameListView}}}"
                                         CommandParameter="{Binding}">
