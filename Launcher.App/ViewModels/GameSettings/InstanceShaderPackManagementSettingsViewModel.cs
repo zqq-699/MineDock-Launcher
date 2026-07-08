@@ -18,11 +18,9 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
     private readonly IFilePickerService filePickerService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<InstanceShaderPackManagementSettingsViewModel> logger;
-    private readonly Dictionary<string, ShaderPackManagementItemViewModel> allShaderPacksByPath = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> selectedShaderPackPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly LocalContentSelectionState<ShaderPackManagementItemViewModel> selectionState;
     private Task? loadTask;
     private GameInstance? selectedInstance;
-    private string? lastSingleSelectedShaderPackPath;
     private bool hasPendingVisualRefresh;
     private bool isVisibleRefreshQueued;
     private bool isSectionActive;
@@ -74,6 +72,10 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         this.filePickerService = filePickerService;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<InstanceShaderPackManagementSettingsViewModel>.Instance;
+        selectionState = new LocalContentSelectionState<ShaderPackManagementItemViewModel>(
+            shaderPack => shaderPack.FullPath,
+            shaderPack => shaderPack.IsSelected,
+            static (shaderPack, isSelected) => shaderPack.IsSelected = isSelected);
         this.localShaderPacksViewModel.ShaderPacksChanged += LocalShaderPacksViewModel_ShaderPacksChanged;
     }
 
@@ -145,7 +147,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
 
         IsLoadingShaderPacks = false;
         HasLoadedShaderPacks = false;
-        allShaderPacksByPath.Clear();
+        selectionState.ClearCache();
         ListEntranceAnimationToken = 0;
         ResetSelectionState();
         ClearDisplayedShaderPacks();
@@ -282,21 +284,14 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
     {
         if (AreAllVisibleShaderPacksSelected)
         {
-            foreach (var shaderPack in ShaderPacks)
-                shaderPack.IsSelected = false;
-
-            selectedShaderPackPaths.Clear();
+            selectionState.ClearVisibleSelections(ShaderPacks);
+            selectionState.ClearSelectedPaths();
             SelectedShaderPack = null;
             UpdateSelectedShaderPackState();
             return;
         }
 
-        foreach (var shaderPack in ShaderPacks)
-        {
-            shaderPack.IsSelected = true;
-            selectedShaderPackPaths.Add(shaderPack.FullPath);
-        }
-
+        selectionState.SelectAll(ShaderPacks);
         SelectedShaderPack = null;
         UpdateSelectedShaderPackState();
     }
@@ -359,31 +354,22 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         {
             SelectedShaderPack = null;
             if (IsMultiSelectMode)
-                selectedShaderPackPaths.Clear();
-            foreach (var item in ShaderPacks)
-                item.IsSelected = false;
+                selectionState.ClearSelectedPaths();
+            selectionState.ClearVisibleSelections(ShaderPacks);
             UpdateSelectedShaderPackState();
             return;
         }
 
         if (IsMultiSelectMode)
         {
-            var isSelected = !shaderPack.IsSelected;
-            shaderPack.IsSelected = isSelected;
-            if (isSelected)
-                selectedShaderPackPaths.Add(shaderPack.FullPath);
-            else
-                selectedShaderPackPaths.Remove(shaderPack.FullPath);
-
+            selectionState.ToggleSelection(shaderPack);
             SelectedShaderPack = null;
             UpdateSelectedShaderPackState();
             return;
         }
 
         SelectedShaderPack = shaderPack;
-        lastSingleSelectedShaderPackPath = shaderPack.FullPath;
-        foreach (var item in ShaderPacks)
-            item.IsSelected = false;
+        selectionState.SelectSingle(shaderPack, ShaderPacks);
     }
 
     public async Task DeleteShaderPacksAsync(IReadOnlyList<string> fullPaths)
@@ -509,21 +495,16 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
 
     private void RefreshFromLocalShaderPacks()
     {
-        var selectedFullPath = lastSingleSelectedShaderPackPath ?? SelectedShaderPack?.FullPath;
+        var selectedFullPath = selectionState.LastSingleSelectedPath ?? SelectedShaderPack?.FullPath;
         var filteredShaderPacks = StableFilteredItemProjection.Synchronize(
             localShaderPacksViewModel.CurrentShaderPacks,
-            allShaderPacksByPath,
+            selectionState.ItemsByPath,
             shaderPack => shaderPack.FullPath,
             shaderPack => new ShaderPackManagementItemViewModel(shaderPack),
             static (item, shaderPack) => item.SyncFrom(shaderPack),
             MatchesSearch);
 
-        if (IsMultiSelectMode)
-            selectedShaderPackPaths.IntersectWith(filteredShaderPacks.Select(shaderPack => shaderPack.FullPath));
-
-        foreach (var item in allShaderPacksByPath.Values)
-            item.IsSelected = IsMultiSelectMode && selectedShaderPackPaths.Contains(item.FullPath);
-
+        selectionState.SyncSelectionToItems(filteredShaderPacks, IsMultiSelectMode);
         SetVisibleShaderPacks(filteredShaderPacks);
 
         RefreshSummary();
@@ -611,38 +592,36 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
 
     private void EnterMultiSelectMode()
     {
-        lastSingleSelectedShaderPackPath = SelectedShaderPack?.FullPath ?? lastSingleSelectedShaderPackPath;
+        var selectedShaderPack = SelectedShaderPack;
         IsMultiSelectMode = true;
         SelectedShaderPack = null;
-        selectedShaderPackPaths.Clear();
-        ClearVisibleSelections();
+        selectionState.BeginMultiSelect(selectedShaderPack, ShaderPacks);
         UpdateSelectedShaderPackState();
     }
 
     private void ExitMultiSelectMode()
     {
         IsMultiSelectMode = false;
-        ClearVisibleSelections();
-        selectedShaderPackPaths.Clear();
+        selectionState.ClearVisibleSelections(ShaderPacks);
+        selectionState.ClearSelectedPaths();
         UpdateSelectedShaderPackState();
 
         var restoredSelection = ShaderPacks.FirstOrDefault(shaderPack =>
-            string.Equals(shaderPack.FullPath, lastSingleSelectedShaderPackPath, StringComparison.OrdinalIgnoreCase));
+            string.Equals(shaderPack.FullPath, selectionState.LastSingleSelectedPath, StringComparison.OrdinalIgnoreCase));
         SelectShaderPack(restoredSelection ?? ShaderPacks.FirstOrDefault());
     }
 
     private void ResetSelectionState()
     {
-        lastSingleSelectedShaderPackPath = null;
+        selectionState.Reset();
         IsMultiSelectMode = false;
         SelectedShaderPack = null;
-        selectedShaderPackPaths.Clear();
         SelectedShaderPackCount = 0;
     }
 
     private void ClearDisplayedShaderPacks()
     {
-        allShaderPacksByPath.Clear();
+        selectionState.ClearCache();
         SetVisibleShaderPacks(Array.Empty<ShaderPackManagementItemViewModel>());
         RefreshVisibleShaderPackListItems();
         SelectedShaderPack = null;
@@ -658,13 +637,12 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
 
     private void ClearVisibleSelections()
     {
-        foreach (var shaderPack in ShaderPacks)
-            shaderPack.IsSelected = false;
+        selectionState.ClearVisibleSelections(ShaderPacks);
     }
 
     private IReadOnlyList<ShaderPackManagementItemViewModel> GetSelectedVisibleShaderPacks()
     {
-        return ShaderPacks.Where(shaderPack => selectedShaderPackPaths.Contains(shaderPack.FullPath)).ToArray();
+        return selectionState.GetSelectedVisibleItems(ShaderPacks);
     }
 
     private IReadOnlyList<LocalShaderPack> ResolveLocalShaderPacks(IEnumerable<string> fullPaths)
@@ -692,7 +670,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
 
     private void UpdateSelectedShaderPackState()
     {
-        SelectedShaderPackCount = ShaderPacks.Count(shaderPack => shaderPack.IsSelected);
+        SelectedShaderPackCount = selectionState.CountSelectedVisibleItems(ShaderPacks);
     }
 
     partial void OnVisibleShaderPacksChanged(IReadOnlyList<ShaderPackManagementItemViewModel> value)

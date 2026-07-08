@@ -18,8 +18,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     private readonly IFilePickerService filePickerService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<InstanceSaveManagementSettingsViewModel> logger;
-    private readonly Dictionary<string, SaveManagementSaveItemViewModel> allSavesByPath = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> selectedSavePaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly LocalContentSelectionState<SaveManagementSaveItemViewModel> selectionState;
     private static readonly string[] SupportedSaveArchiveExtensions =
     [
         ".zip",
@@ -35,7 +34,6 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     ];
     private Task? loadTask;
     private GameInstance? selectedInstance;
-    private string? lastSingleSelectedSavePath;
     private bool hasPendingVisualRefresh;
     private bool isVisibleRefreshQueued;
     private bool isSectionActive;
@@ -87,6 +85,10 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         this.filePickerService = filePickerService;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<InstanceSaveManagementSettingsViewModel>.Instance;
+        selectionState = new LocalContentSelectionState<SaveManagementSaveItemViewModel>(
+            save => save.FullPath,
+            save => save.IsSelected,
+            static (save, isSelected) => save.IsSelected = isSelected);
         this.localSavesViewModel.SavesChanged += LocalSavesViewModel_SavesChanged;
     }
 
@@ -158,7 +160,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
 
         IsLoadingSaves = false;
         HasLoadedSaves = false;
-        allSavesByPath.Clear();
+        selectionState.ClearCache();
         ListEntranceAnimationToken = 0;
         ResetSelectionState();
         ClearDisplayedSaves();
@@ -295,21 +297,14 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     {
         if (AreAllVisibleSavesSelected)
         {
-            foreach (var save in Saves)
-                save.IsSelected = false;
-
-            selectedSavePaths.Clear();
+            selectionState.ClearVisibleSelections(Saves);
+            selectionState.ClearSelectedPaths();
             SelectedSave = null;
             UpdateSelectedSaveState();
             return;
         }
 
-        foreach (var save in Saves)
-        {
-            save.IsSelected = true;
-            selectedSavePaths.Add(save.FullPath);
-        }
-
+        selectionState.SelectAll(Saves);
         SelectedSave = null;
         UpdateSelectedSaveState();
     }
@@ -372,31 +367,22 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         {
             SelectedSave = null;
             if (IsMultiSelectMode)
-                selectedSavePaths.Clear();
-            foreach (var item in Saves)
-                item.IsSelected = false;
+                selectionState.ClearSelectedPaths();
+            selectionState.ClearVisibleSelections(Saves);
             UpdateSelectedSaveState();
             return;
         }
 
         if (IsMultiSelectMode)
         {
-            var isSelected = !save.IsSelected;
-            save.IsSelected = isSelected;
-            if (isSelected)
-                selectedSavePaths.Add(save.FullPath);
-            else
-                selectedSavePaths.Remove(save.FullPath);
-
+            selectionState.ToggleSelection(save);
             SelectedSave = null;
             UpdateSelectedSaveState();
             return;
         }
 
         SelectedSave = save;
-        lastSingleSelectedSavePath = save.FullPath;
-        foreach (var item in Saves)
-            item.IsSelected = false;
+        selectionState.SelectSingle(save, Saves);
     }
 
     public async Task DeleteSavesAsync(IReadOnlyList<string> fullPaths)
@@ -522,21 +508,16 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
 
     private void RefreshFromLocalSaves()
     {
-        var selectedFullPath = lastSingleSelectedSavePath ?? SelectedSave?.FullPath;
+        var selectedFullPath = selectionState.LastSingleSelectedPath ?? SelectedSave?.FullPath;
         var filteredSaves = StableFilteredItemProjection.Synchronize(
             localSavesViewModel.CurrentSaves,
-            allSavesByPath,
+            selectionState.ItemsByPath,
             save => save.FullPath,
             save => new SaveManagementSaveItemViewModel(save),
             static (item, save) => item.SyncFrom(save),
             MatchesSearch);
 
-        if (IsMultiSelectMode)
-            selectedSavePaths.IntersectWith(filteredSaves.Select(save => save.FullPath));
-
-        foreach (var item in allSavesByPath.Values)
-            item.IsSelected = IsMultiSelectMode && selectedSavePaths.Contains(item.FullPath);
-
+        selectionState.SyncSelectionToItems(filteredSaves, IsMultiSelectMode);
         SetVisibleSaves(filteredSaves);
 
         RefreshSummary();
@@ -624,38 +605,36 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
 
     private void EnterMultiSelectMode()
     {
-        lastSingleSelectedSavePath = SelectedSave?.FullPath ?? lastSingleSelectedSavePath;
+        var selectedSave = SelectedSave;
         IsMultiSelectMode = true;
         SelectedSave = null;
-        selectedSavePaths.Clear();
-        ClearVisibleSelections();
+        selectionState.BeginMultiSelect(selectedSave, Saves);
         UpdateSelectedSaveState();
     }
 
     private void ExitMultiSelectMode()
     {
         IsMultiSelectMode = false;
-        ClearVisibleSelections();
-        selectedSavePaths.Clear();
+        selectionState.ClearVisibleSelections(Saves);
+        selectionState.ClearSelectedPaths();
         UpdateSelectedSaveState();
 
         var restoredSelection = Saves.FirstOrDefault(save =>
-            string.Equals(save.FullPath, lastSingleSelectedSavePath, StringComparison.OrdinalIgnoreCase));
+            string.Equals(save.FullPath, selectionState.LastSingleSelectedPath, StringComparison.OrdinalIgnoreCase));
         SelectSave(restoredSelection ?? Saves.FirstOrDefault());
     }
 
     private void ResetSelectionState()
     {
-        lastSingleSelectedSavePath = null;
+        selectionState.Reset();
         IsMultiSelectMode = false;
         SelectedSave = null;
-        selectedSavePaths.Clear();
         SelectedSaveCount = 0;
     }
 
     private void ClearDisplayedSaves()
     {
-        allSavesByPath.Clear();
+        selectionState.ClearCache();
         SetVisibleSaves(Array.Empty<SaveManagementSaveItemViewModel>());
         RefreshVisibleSaveListItems();
         SelectedSave = null;
@@ -671,13 +650,12 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
 
     private void ClearVisibleSelections()
     {
-        foreach (var save in Saves)
-            save.IsSelected = false;
+        selectionState.ClearVisibleSelections(Saves);
     }
 
     private IReadOnlyList<SaveManagementSaveItemViewModel> GetSelectedVisibleSaves()
     {
-        return Saves.Where(save => selectedSavePaths.Contains(save.FullPath)).ToArray();
+        return selectionState.GetSelectedVisibleItems(Saves);
     }
 
     private IReadOnlyList<LocalSave> ResolveLocalSaves(IEnumerable<string> fullPaths)
@@ -705,7 +683,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
 
     private void UpdateSelectedSaveState()
     {
-        SelectedSaveCount = Saves.Count(save => save.IsSelected);
+        SelectedSaveCount = selectionState.CountSelectedVisibleItems(Saves);
     }
 
     partial void OnVisibleSavesChanged(IReadOnlyList<SaveManagementSaveItemViewModel> value)

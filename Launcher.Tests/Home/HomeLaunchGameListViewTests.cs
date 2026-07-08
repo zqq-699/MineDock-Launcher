@@ -234,7 +234,7 @@ public sealed class HomeLaunchGameListViewTests
     }
 
     [Fact]
-    public void HomeLaunchGameListViewKeepsEmptyStateExpandedWhenThereIsNoSelectedInstance()
+    public void HomeLaunchGameListViewKeepsEmptyStateCollapsedWhenThereAreNoInstancesAndMenuIsUnpinned()
     {
         RunOnSta(() =>
         {
@@ -256,9 +256,67 @@ public sealed class HomeLaunchGameListViewTests
                 window.Show();
                 PumpDispatcher(DispatcherPriority.ApplicationIdle);
 
+                Assert.False(view.IsMenuExpanded);
+                Assert.Equal(view.CollapsedMenuHeight, view.MenuPanelShadowElement.Height, 1);
+                Assert.Equal(0d, view.ListTranslateTransform.Y, 1);
+                Assert.Equal(Visibility.Visible, view.EmptyStateTextElement.Visibility);
+                Assert.Equal(0d, view.HeaderOverlayElement.Opacity, 1);
+                Assert.False(view.HeaderOverlayElement.IsHitTestVisible);
+
+                var emptyStateTop = view.EmptyStateTextElement
+                    .TransformToAncestor(view.MenuPanelShadowElement)
+                    .Transform(new Point(0, 0))
+                    .Y;
+                var expectedSlotTop = (view.CollapsedMenuHeight - view.EmptyStateTextElement.ActualHeight) / 2;
+                Assert.InRange(emptyStateTop, expectedSlotTop - 3, expectedSlotTop + 3);
+
+                view.SetPointerExpandedForTest(true);
+                PumpAnimation();
+
+                Assert.False(view.IsMenuExpanded);
+                Assert.Equal(view.CollapsedMenuHeight, view.MenuPanelShadowElement.Height, 1);
+                Assert.Equal(0d, view.ListTranslateTransform.Y, 1);
+                Assert.Equal(0d, view.HeaderOverlayElement.Opacity, 1);
+            }
+            finally
+            {
+                window?.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void HomeLaunchGameListViewKeepsEmptyStateExpandedWhenMenuIsPinned()
+    {
+        RunOnSta(() =>
+        {
+            Window? window = null;
+            try
+            {
+                var application = WpfApplicationTestHelper.GetOrCreateApplication();
+                EnsureApplicationResources(application);
+                var viewModel = CreateViewModel();
+                viewModel.SetLaunchInstances([]);
+                viewModel.SetLaunchMenuPinned(true);
+                var view = new HomeLaunchGameListView
+                {
+                    DataContext = viewModel,
+                    Width = 900,
+                    Height = 700
+                };
+                window = CreateHiddenWindow(view);
+
+                window.Show();
+                PumpDispatcher(DispatcherPriority.ApplicationIdle);
+
                 Assert.True(view.IsMenuExpanded);
                 Assert.True(view.MenuPanelShadowElement.Height > view.CollapsedMenuHeight);
                 Assert.Equal(0d, view.ListTranslateTransform.Y, 1);
+                Assert.Equal(Visibility.Visible, view.EmptyStateTextElement.Visibility);
+                Assert.True(view.EmptyStateTranslateTransform.Y > view.CollapsedMenuHeight);
+                Assert.Equal(1d, view.HeaderOverlayElement.Opacity, 1);
+                Assert.True(view.HeaderOverlayElement.IsHitTestVisible);
+                Assert.True(view.PinButtonElement.IsChecked.GetValueOrDefault());
             }
             finally
             {

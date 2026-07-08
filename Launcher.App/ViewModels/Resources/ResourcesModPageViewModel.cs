@@ -31,6 +31,8 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger? logger;
     private readonly ResourcesOnlineProjectPageOptions options;
+    private readonly ResourcesAvailableVersionListBuilder availableVersionListBuilder;
+    private readonly ResourcesRequiredDependencyPlanner requiredDependencyPlanner;
     private readonly object releaseVersionOrderGate = new();
     private readonly Stack<ResourcesModProjectItemViewModel> projectDetailsBackStack = new();
     private CancellationTokenSource? refreshCancellationTokenSource;
@@ -105,13 +107,21 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         this.modService = modService;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger;
+        availableVersionListBuilder = new ResourcesAvailableVersionListBuilder(options);
+        requiredDependencyPlanner = new ResourcesRequiredDependencyPlanner(
+            resourceCatalogService,
+            modService,
+            options,
+            logger,
+            ReportStatus,
+            AvailableVersionPageSize);
 
         VersionOptions = [new ResourcesFilterOptionItem { Id = "all", Title = options.AllVersionsText }];
         LoaderOptions = CreateLoaderOptions(options);
         SourceOptions = CreateSourceOptions(options);
         TypeOptions = CreateTypeOptions(options);
-        AvailableVersionFilterOptions = [CreateAllAvailableVersionFilterOption()];
-        AvailableLoaderFilterOptions = [.. CreateDefaultAvailableLoaderFilterOptions()];
+        AvailableVersionFilterOptions = [availableVersionListBuilder.CreateAllVersionFilterOption()];
+        AvailableLoaderFilterOptions = [.. availableVersionListBuilder.CreateDefaultLoaderFilterOptions()];
 
         selectedVersionOption = VersionOptions[0];
         selectedLoaderOption = LoaderOptions[0];
@@ -367,7 +377,8 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 
     public string AvailableVersionsEmptyMessage => HasAvailableVersionFilters
         ? options.VersionsFilterEmptyText
-        : SelectedInstallTarget?.IsLocalDownload == true || IsUnknownInstanceVersionTarget(SelectedInstallTarget)
+        : SelectedInstallTarget?.IsLocalDownload == true
+            || ResourcesAvailableVersionListBuilder.IsUnknownInstanceVersionTarget(SelectedInstallTarget)
             ? options.VersionsEmptyLocalText
             : options.VersionsEmptyText;
 
@@ -378,7 +389,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             && SelectedAvailableLoaderFilterOption?.Id is { } loaderId
             && !string.Equals(loaderId, "all", StringComparison.OrdinalIgnoreCase));
 
-    public string AvailableVersionsTitle => FormatAvailableVersionsTitle(SelectedInstallTarget);
+    public string AvailableVersionsTitle => availableVersionListBuilder.FormatTitle(SelectedInstallTarget);
 
     public string PageTitle => IsProjectVersionsStep && SelectedInstallTarget?.IsLocalDownload == false
         ? SelectedInstallTarget.Title
@@ -612,7 +623,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 
         SelectedInstallTarget = target;
         CurrentStep = ResourcesModPageStep.ProjectVersions;
-        if (IsUnknownInstanceVersionTarget(target))
+        if (ResourcesAvailableVersionListBuilder.IsUnknownInstanceVersionTarget(target))
             IsUnknownInstanceVersionDialogOpen = true;
 
         _ = LoadAvailableVersionsAsync(target);
@@ -637,7 +648,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
                 options.Kind,
                 SelectedProject.Project.ProjectId,
                 target.Instance.Id,
-                IsUnknownInstanceVersionTarget(target));
+                ResourcesAvailableVersionListBuilder.IsUnknownInstanceVersionTarget(target));
         }
     }
 
@@ -969,7 +980,13 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
                 return;
             }
 
-            var dependencyPlan = await ResolveRequiredDependencyInstallPlanAsync(item, instance).ConfigureAwait(false);
+            var dependencyPlan = await requiredDependencyPlanner.ResolveInstallPlanAsync(
+                    item,
+                    instance,
+                    SelectedProject?.Project.ProjectId,
+                    RequestRequiredDependenciesDialogAsync,
+                    CancellationToken.None)
+                .ConfigureAwait(false);
             if (dependencyPlan.Choice is RequiredDependenciesDialogChoice.Cancel)
                 return;
 
@@ -979,9 +996,10 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             {
                 try
                 {
-                    await InstallRequiredDependenciesAsync(
+                    await requiredDependencyPlanner.InstallRequiredDependenciesAsync(
                             dependencyPlan.MissingDependencies,
                             instance,
+                            SelectedProject?.Project.ProjectId,
                             downloadTask,
                             downloadTask?.CancellationToken ?? CancellationToken.None)
                         .ConfigureAwait(false);
@@ -2102,63 +2120,6 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             : item.Version.FileName;
     }
 
-    private async Task<RequiredDependencyInstallPlan> ResolveRequiredDependencyInstallPlanAsync(
-        ResourcesModVersionItemViewModel item,
-        GameInstance instance)
-    {
-        if (options.Kind is not ResourceProjectKind.Mod
-            || item.Version.RequiredDependencies.Count == 0
-            || modService is null)
-        {
-            return RequiredDependencyInstallPlan.Continue;
-        }
-
-        var installedDependencies = await LoadEnabledLocalModIdentifiersAsync(instance, CancellationToken.None)
-            .ConfigureAwait(false);
-        var candidates = new List<RequiredDependencyInstallCandidate>();
-        var dialogItems = new List<ResourcesModDependencyRequirementItemViewModel>();
-        foreach (var dependency in item.Version.RequiredDependencies)
-        {
-            var candidate = await TryResolveRequiredDependencyInstallCandidateAsync(dependency, instance, CancellationToken.None)
-                .ConfigureAwait(false);
-            var state = ResolveDependencyRequirementState(candidate, installedDependencies);
-            candidates.Add(candidate);
-            dialogItems.Add(new ResourcesModDependencyRequirementItemViewModel(
-                dependency,
-                candidate.MinimumVersion,
-                candidate.InstallVersion,
-                state,
-                options.FallbackIconKey));
-        }
-
-        var missingDependencies = candidates
-            .Where(candidate => ResolveDependencyRequirementState(candidate, installedDependencies) is not RequiredDependencyRequirementState.Installed)
-            .ToList();
-
-        if (missingDependencies.Count == 0)
-        {
-            logger?.LogInformation(
-                "Resource project required dependencies are already installed. Kind={Kind}, ProjectId={ProjectId}, VersionId={VersionId}, RequiredCount={RequiredCount}, InstanceId={InstanceId}",
-                options.Kind,
-                SelectedProject?.Project.ProjectId,
-                item.Version.VersionId,
-                dialogItems.Count,
-                instance.Id);
-            return RequiredDependencyInstallPlan.Continue;
-        }
-
-        logger?.LogInformation(
-            "Resource project required dependencies are missing. Kind={Kind}, ProjectId={ProjectId}, VersionId={VersionId}, MissingCount={MissingCount}, InstanceId={InstanceId}",
-            options.Kind,
-            SelectedProject?.Project.ProjectId,
-            item.Version.VersionId,
-            missingDependencies.Count,
-            instance.Id);
-
-        var choice = await RequestRequiredDependenciesDialogAsync(dialogItems).ConfigureAwait(false);
-        return new RequiredDependencyInstallPlan(choice, missingDependencies);
-    }
-
     private async Task<RequiredDependenciesDialogChoice> RequestRequiredDependenciesDialogAsync(
         IReadOnlyList<ResourcesModDependencyRequirementItemViewModel> items)
     {
@@ -2185,269 +2146,6 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         uiDispatcher.Invoke(() => IsRequiredDependenciesDialogOpen = false);
         pendingRequiredDependenciesDialogChoiceSource?.TrySetResult(choice);
         pendingRequiredDependenciesDialogChoiceSource = null;
-    }
-
-    private async Task InstallRequiredDependenciesAsync(
-        IReadOnlyList<RequiredDependencyInstallCandidate> missingDependencies,
-        GameInstance instance,
-        DownloadTaskItem? downloadTask,
-        CancellationToken cancellationToken)
-    {
-        if (missingDependencies.Count == 0)
-            return;
-
-        var installedDependencies = await LoadEnabledLocalModIdentifiersAsync(instance, cancellationToken)
-            .ConfigureAwait(false);
-        var visiting = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var dependency in missingDependencies)
-        {
-            await InstallRequiredDependencyAsync(
-                    dependency,
-                    instance,
-                    installedDependencies,
-                    visiting,
-                    visited,
-                    downloadTask,
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-    }
-
-    private async Task InstallRequiredDependencyAsync(
-        RequiredDependencyInstallCandidate candidate,
-        GameInstance instance,
-        InstalledDependencyCatalog installedDependencies,
-        ISet<string> visiting,
-        ISet<string> visited,
-        DownloadTaskItem? downloadTask,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var dependency = candidate.Dependency;
-        var project = dependency.Project;
-        var dependencyKey = ResolveDependencyKey(project);
-        if (string.IsNullOrWhiteSpace(dependencyKey)
-            || visited.Contains(dependencyKey)
-            || ResolveDependencyRequirementState(candidate, installedDependencies) is RequiredDependencyRequirementState.Installed)
-        {
-            return;
-        }
-
-        if (!visiting.Add(dependencyKey))
-            return;
-
-        try
-        {
-            var version = candidate.InstallVersion
-                ?? throw new RequiredDependencyInstallException(project);
-            foreach (var childDependency in version.RequiredDependencies)
-            {
-                var childCandidate = await ResolveRequiredDependencyInstallCandidateAsync(childDependency, instance, cancellationToken)
-                    .ConfigureAwait(false);
-                await InstallRequiredDependencyAsync(
-                        childCandidate,
-                        instance,
-                        installedDependencies,
-                        visiting,
-                        visited,
-                        downloadTask,
-                        cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
-            if (ResolveDependencyRequirementState(candidate, installedDependencies) is RequiredDependencyRequirementState.Installed)
-                return;
-
-            var installingMessage = string.Format(
-                Strings.Status_ModRequiredDependencyInstallingFormat,
-                project.Title);
-            ReportStatus(installingMessage);
-            downloadTask?.Report(new LauncherProgress(ModProgressStages.DownloadingFile, installingMessage));
-            await resourceCatalogService!.InstallProjectVersionAsync(version, instance, cancellationToken)
-                .ConfigureAwait(false);
-            AddDependencyIdentifiers(installedDependencies, dependency, version);
-            logger?.LogInformation(
-                "Resource project required dependency installed. ProjectId={ProjectId}, DependencyProjectId={DependencyProjectId}, VersionId={VersionId}, InstanceId={InstanceId}",
-                SelectedProject?.Project.ProjectId,
-                project.ProjectId,
-                version.VersionId,
-                instance.Id);
-        }
-        finally
-        {
-            visiting.Remove(dependencyKey);
-            visited.Add(dependencyKey);
-        }
-    }
-
-    private async Task<RequiredDependencyInstallCandidate> TryResolveRequiredDependencyInstallCandidateAsync(
-        ResourceProjectDependency dependency,
-        GameInstance instance,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await ResolveRequiredDependencyInstallCandidateAsync(dependency, instance, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (RequiredDependencyInstallException)
-        {
-            return new RequiredDependencyInstallCandidate(dependency, MinimumVersion: null, InstallVersion: null);
-        }
-    }
-
-    private async Task<RequiredDependencyInstallCandidate> ResolveRequiredDependencyInstallCandidateAsync(
-        ResourceProjectDependency dependency,
-        GameInstance instance,
-        CancellationToken cancellationToken)
-    {
-        var project = dependency.Project;
-        if (resourceCatalogService is null
-            || project.Source is not (ResourceProjectSource.Modrinth or ResourceProjectSource.CurseForge)
-            || project.Kind is not ResourceProjectKind.Mod)
-        {
-            throw new RequiredDependencyInstallException(project);
-        }
-
-        var result = await resourceCatalogService.GetProjectVersionsAsync(
-                new ResourceProjectVersionsRequest
-                {
-                    Kind = ResourceProjectKind.Mod,
-                    Source = project.Source,
-                    ProjectId = project.ProjectId,
-                    Slug = project.Slug,
-                    MinecraftVersion = instance.MinecraftVersion,
-                    Loader = instance.Loader,
-                    IncludeAllVersions = false,
-                    Offset = 0,
-                    PageSize = AvailableVersionPageSize
-                },
-                cancellationToken)
-            .ConfigureAwait(false);
-        var installVersion = SelectRequiredDependencyVersion(result.Versions)
-            ?? throw new RequiredDependencyInstallException(project);
-        var minimumVersion = ResolveRequiredDependencyMinimumVersion(dependency, result.Versions) ?? installVersion;
-        return new RequiredDependencyInstallCandidate(dependency, minimumVersion, installVersion);
-    }
-
-    private static ResourceProjectVersion? SelectRequiredDependencyVersion(
-        IReadOnlyList<ResourceProjectVersion> versions)
-    {
-        return versions.FirstOrDefault(version => string.Equals(
-                   version.VersionType,
-                   "release",
-                   StringComparison.OrdinalIgnoreCase))
-               ?? versions.FirstOrDefault();
-    }
-
-    private static ResourceProjectVersion? ResolveRequiredDependencyMinimumVersion(
-        ResourceProjectDependency dependency,
-        IReadOnlyList<ResourceProjectVersion> versions)
-    {
-        if (string.IsNullOrWhiteSpace(dependency.VersionId))
-            return null;
-
-        return versions.FirstOrDefault(version => string.Equals(
-            version.VersionId,
-            dependency.VersionId,
-            StringComparison.OrdinalIgnoreCase));
-    }
-
-    private async Task<InstalledDependencyCatalog> LoadEnabledLocalModIdentifiersAsync(
-        GameInstance instance,
-        CancellationToken cancellationToken)
-    {
-        if (modService is null)
-            return new InstalledDependencyCatalog([]);
-
-        var mods = await modService.GetModsAsync(instance, cancellationToken).ConfigureAwait(false);
-        var installedVersionsByModId = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var mod in mods
-            .Where(mod => mod.IsEnabled
-                && !string.IsNullOrWhiteSpace(mod.ModId)
-                && !string.IsNullOrWhiteSpace(mod.Version)))
-        {
-            var modId = mod.ModId!.Trim();
-            var version = mod.Version!.Trim();
-            if (!installedVersionsByModId.TryGetValue(modId, out var versions))
-            {
-                versions = [];
-                installedVersionsByModId[modId] = versions;
-            }
-
-            versions.Add(version);
-        }
-
-        return new InstalledDependencyCatalog(installedVersionsByModId);
-    }
-
-    private static RequiredDependencyRequirementState ResolveDependencyRequirementState(
-        RequiredDependencyInstallCandidate candidate,
-        InstalledDependencyCatalog installedDependencies)
-    {
-        var minimumVersion = candidate.MinimumVersion;
-        if (minimumVersion is null || string.IsNullOrWhiteSpace(minimumVersion.VersionNumber))
-            return RequiredDependencyRequirementState.Missing;
-
-        var hasInstalledDependency = false;
-        foreach (var identifier in EnumerateDependencyIdentifiers(candidate.Dependency.Project))
-        {
-            foreach (var installedVersion in installedDependencies.GetVersions(identifier))
-            {
-                hasInstalledDependency = true;
-                if (ResourceDependencyVersionComparer.IsGreaterThanOrEqual(
-                    installedVersion,
-                    minimumVersion.VersionNumber))
-                {
-                    return RequiredDependencyRequirementState.Installed;
-                }
-            }
-        }
-
-        return hasInstalledDependency
-            ? RequiredDependencyRequirementState.UpdateRequired
-            : RequiredDependencyRequirementState.Missing;
-    }
-
-    private static void AddDependencyIdentifiers(
-        InstalledDependencyCatalog installedDependencies,
-        ResourceProjectDependency dependency,
-        ResourceProjectVersion version)
-    {
-        if (string.IsNullOrWhiteSpace(version.VersionNumber))
-            return;
-
-        foreach (var identifier in EnumerateDependencyIdentifiers(dependency.Project))
-            installedDependencies.Add(identifier, version.VersionNumber);
-    }
-
-    private static IEnumerable<string> EnumerateDependencyIdentifiers(ResourceProject dependency)
-    {
-        if (!string.IsNullOrWhiteSpace(dependency.Slug))
-            yield return dependency.Slug;
-        if (!string.IsNullOrWhiteSpace(dependency.ProjectId))
-            yield return dependency.ProjectId;
-    }
-
-    private static string ResolveDependencyKey(ResourceProject dependency)
-    {
-        return string.IsNullOrWhiteSpace(dependency.ProjectId)
-            ? dependency.Slug
-            : dependency.ProjectId;
-    }
-
-    private static bool IsUnknownInstanceVersionTarget(ResourcesModInstallTargetItemViewModel? target)
-    {
-        return target?.IsLocalDownload is false
-            && !target.IsNewInstanceInstall
-            && string.IsNullOrWhiteSpace(target.Instance?.MinecraftVersion);
-    }
-
-    private bool ShouldGroupAvailableVersionsByCompatibility()
-    {
-        return true;
     }
 
     private void AddInitialAvailableVersionsHeader()
@@ -2487,9 +2185,9 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private void ResetAvailableVersionFilterOptions()
     {
         AvailableVersionFilterOptions.Clear();
-        AvailableVersionFilterOptions.Add(CreateAllAvailableVersionFilterOption());
+        AvailableVersionFilterOptions.Add(availableVersionListBuilder.CreateAllVersionFilterOption());
         AvailableLoaderFilterOptions.Clear();
-        foreach (var option in CreateDefaultAvailableLoaderFilterOptions())
+        foreach (var option in availableVersionListBuilder.CreateDefaultLoaderFilterOptions())
             AvailableLoaderFilterOptions.Add(option);
 
         SelectedAvailableVersionFilterOption = AvailableVersionFilterOptions[0];
@@ -2500,15 +2198,15 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     {
         var selectedVersionId = SelectedAvailableVersionFilterOption?.Id ?? "all";
         var selectedLoaderId = SelectedAvailableLoaderFilterOption?.Id ?? "all";
-        var versionOptions = CreateAvailableVersionFilterOptions(versions);
-        var loaderOptions = CreateAvailableLoaderFilterOptions(versions);
+        var versionOptions = availableVersionListBuilder.CreateVersionFilterOptions(versions);
+        var loaderOptions = availableVersionListBuilder.CreateLoaderFilterOptions(versions);
 
         try
         {
             isApplyingAvailableVersionFilterOptions = true;
 
             AvailableVersionFilterOptions.Clear();
-            AvailableVersionFilterOptions.Add(CreateAllAvailableVersionFilterOption());
+            AvailableVersionFilterOptions.Add(availableVersionListBuilder.CreateAllVersionFilterOption());
             foreach (var option in versionOptions)
                 AvailableVersionFilterOptions.Add(option);
 
@@ -2533,16 +2231,16 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         IReadOnlyList<ResourceProjectVersion> versions,
         ResourcesModInstallTargetItemViewModel? target)
     {
-        var selectedVersionId = ResolveDefaultAvailableVersionFilterId(target);
-        var selectedLoaderId = ResolveDefaultAvailableLoaderFilterId(target);
-        var versionOptions = CreateAvailableVersionFilterOptions(versions);
-        var loaderOptions = CreateAvailableLoaderFilterOptions(versions);
+        var selectedVersionId = availableVersionListBuilder.ResolveDefaultVersionFilterId(target);
+        var selectedLoaderId = availableVersionListBuilder.ResolveDefaultLoaderFilterId(target);
+        var versionOptions = availableVersionListBuilder.CreateVersionFilterOptions(versions);
+        var loaderOptions = availableVersionListBuilder.CreateLoaderFilterOptions(versions);
 
         try
         {
             isApplyingAvailableVersionFilterOptions = true;
             AvailableVersionFilterOptions.Clear();
-            AvailableVersionFilterOptions.Add(CreateAllAvailableVersionFilterOption());
+            AvailableVersionFilterOptions.Add(availableVersionListBuilder.CreateAllVersionFilterOption());
             foreach (var option in versionOptions)
                 AvailableVersionFilterOptions.Add(option);
 
@@ -2584,100 +2282,23 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             return;
         }
 
-        AvailableLoaderFilterOptions.Add(new ResourcesFilterOptionItem { Id = loaderId, Title = GetAvailableLoaderFilterTitle(loaderId) });
-    }
-
-    private static string ResolveDefaultAvailableVersionFilterId(ResourcesModInstallTargetItemViewModel? target)
-    {
-        if (target?.IsLocalDownload != false || IsUnknownInstanceVersionTarget(target))
-            return "all";
-
-        var minecraftVersion = target.Instance?.MinecraftVersion?.Trim();
-        return string.IsNullOrWhiteSpace(minecraftVersion) ? "all" : minecraftVersion;
-    }
-
-    private static string ResolveDefaultAvailableLoaderFilterId(ResourcesModInstallTargetItemViewModel? target)
-    {
-        if (target?.IsLocalDownload != false || IsUnknownInstanceVersionTarget(target) || target.Instance is null)
-            return "all";
-
-        return target.Instance.Loader switch
-        {
-            LoaderKind.Fabric => "fabric",
-            LoaderKind.Forge => "forge",
-            LoaderKind.NeoForge => "neoforge",
-            LoaderKind.Quilt => "quilt",
-            _ => "all"
-        };
-    }
-
-    private static IReadOnlyList<ResourcesFilterOptionItem> CreateAvailableVersionFilterOptions(IReadOnlyList<ResourceProjectVersion> versions)
-    {
-        return versions
-            .SelectMany(version => NormalizeGameVersionCompatibilityValues(version.GameVersions))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(version => new ResourcesFilterOptionItem { Id = version, Title = version })
-            .ToList();
-    }
-
-    private IReadOnlyList<ResourcesFilterOptionItem> CreateAvailableLoaderFilterOptions(IReadOnlyList<ResourceProjectVersion> versions)
-    {
-        var options = CreateDefaultAvailableLoaderFilterOptions();
-        if (!this.options.ShowsLoaderFilters)
-            return options;
-
-        var loaderIds = versions
-            .SelectMany(ResolveCompatibilityLoaders)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Where(loader => !string.Equals(loader, "all", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        foreach (var loaderId in loaderIds)
-            options.Add(new ResourcesFilterOptionItem { Id = loaderId, Title = GetAvailableLoaderFilterTitle(loaderId) });
-
-        return options
-            .DistinctBy(option => option.Id, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-    }
-
-    private ResourcesFilterOptionItem CreateAllAvailableVersionFilterOption()
-    {
-        return new ResourcesFilterOptionItem { Id = "all", Title = options.AllVersionsText };
-    }
-
-    private List<ResourcesFilterOptionItem> CreateDefaultAvailableLoaderFilterOptions()
-    {
-        return
-        [
-            new ResourcesFilterOptionItem { Id = "all", Title = options.AllLoadersText }
-        ];
-    }
-
-    private static string GetAvailableLoaderFilterTitle(string loaderId)
-    {
-        return loaderId switch
-        {
-            "fabric" => Strings.Download_FabricLoaderTitle,
-            "forge" => Strings.Download_ForgeLoaderTitle,
-            "neoforge" => Strings.Download_NeoForgeLoaderTitle,
-            "quilt" => Strings.Download_QuiltLoaderTitle,
-            _ => loaderId
-        };
+        AvailableLoaderFilterOptions.Add(new ResourcesFilterOptionItem { Id = loaderId, Title = availableVersionListBuilder.GetLoaderTitle(loaderId) });
     }
 
     private void RebuildAvailableVersionListItems(bool playEntranceAnimation = true)
     {
         AvailableVersionListItems.Clear();
-        VisibleAvailableVersionCount = 0;
-
-        var filteredVersions = availableVersionSourceVersions
-            .Where(MatchesAvailableVersionFilters)
-            .ToList();
-
-        if (ShouldGroupAvailableVersionsByCompatibility())
-            AddGroupedAvailableVersionItems(filteredVersions);
-        else
-            AddFlatAvailableVersionItems(filteredVersions);
+        var result = availableVersionListBuilder.Build(
+            availableVersionSourceVersions,
+            AvailableVersionsTitle,
+            SelectedProject,
+            options.FallbackIconKey,
+            SelectedAvailableVersionFilterOption?.Id,
+            SelectedAvailableLoaderFilterOption?.Id,
+            AvailableVersionSearchQuery);
+        foreach (var item in result.Items)
+            AvailableVersionListItems.Add(item);
+        VisibleAvailableVersionCount = result.VisibleVersionCount;
 
         if (playEntranceAnimation)
             AvailableVersionListEntranceAnimationToken++;
@@ -2690,12 +2311,18 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private void AppendAvailableVersionListItems(IReadOnlyList<ResourceProjectVersion> versions)
     {
         RemoveAvailableVersionFooterItem();
+        var appendedCount = availableVersionListBuilder.Append(
+            AvailableVersionListItems,
+            versions,
+            AvailableVersionsTitle,
+            SelectedProject,
+            options.FallbackIconKey,
+            SelectedAvailableVersionFilterOption?.Id,
+            SelectedAvailableLoaderFilterOption?.Id,
+            AvailableVersionSearchQuery,
+            VisibleAvailableVersionCount);
 
-        var filteredVersions = versions
-            .Where(MatchesAvailableVersionFilters)
-            .ToList();
-
-        if (filteredVersions.Count == 0)
+        if (appendedCount == 0)
         {
             UpdateAvailableVersionFooterItem();
             RaiseAvailableVersionStatePropertiesChanged();
@@ -2703,10 +2330,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             return;
         }
 
-        if (ShouldGroupAvailableVersionsByCompatibility())
-            AppendGroupedAvailableVersionItems(filteredVersions);
-        else
-            AppendFlatAvailableVersionItems(filteredVersions);
+        VisibleAvailableVersionCount += appendedCount;
 
         UpdateAvailableVersionFooterItem();
         RaiseAvailableVersionStatePropertiesChanged();
@@ -2732,360 +2356,6 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             if (AvailableVersionListItems[index] is ResourcesListFooterStatusItem)
                 AvailableVersionListItems.RemoveAt(index);
         }
-    }
-
-    private bool MatchesAvailableVersionFilters(ResourceProjectVersion version)
-    {
-        return MatchesAvailableVersionSearch(version)
-            && MatchesAvailableVersionFilter(version)
-            && MatchesAvailableLoaderFilter(version);
-    }
-
-    private bool MatchesAvailableVersionSearch(ResourceProjectVersion version)
-    {
-        var query = AvailableVersionSearchQuery.Trim();
-        if (string.IsNullOrWhiteSpace(query))
-            return true;
-
-        return ContainsSearchText(version.Name, query)
-            || ContainsSearchText(version.VersionNumber, query)
-            || ContainsSearchText(version.FileName, query)
-            || ContainsSearchText(version.VersionType, query);
-    }
-
-    private bool MatchesAvailableVersionFilter(ResourceProjectVersion version)
-    {
-        var selectedVersion = SelectedAvailableVersionFilterOption?.Id;
-        return MatchesAvailableVersionFilter(version, selectedVersion);
-    }
-
-    private static bool MatchesAvailableVersionFilter(ResourceProjectVersion version, string? selectedVersion)
-    {
-        if (string.IsNullOrWhiteSpace(selectedVersion)
-            || string.Equals(selectedVersion, "all", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return NormalizeGameVersionCompatibilityValues(version.GameVersions)
-            .Any(versionId => string.Equals(versionId, selectedVersion, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private bool MatchesAvailableLoaderFilter(ResourceProjectVersion version)
-    {
-        var selectedLoader = SelectedAvailableLoaderFilterOption?.Id;
-        return MatchesAvailableLoaderFilter(version, selectedLoader);
-    }
-
-    private bool MatchesAvailableLoaderFilter(ResourceProjectVersion version, string? selectedLoader)
-    {
-        if (string.IsNullOrWhiteSpace(selectedLoader)
-            || string.Equals(selectedLoader, "all", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (!options.ShowsLoaderFilters)
-            return true;
-
-        return ResolveCompatibilityLoaders(version)
-            .Any(loader => string.Equals(loader, selectedLoader, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static bool ContainsSearchText(string value, string query)
-    {
-        return !string.IsNullOrWhiteSpace(value)
-            && value.Contains(query, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private void AddFlatAvailableVersionItems(IReadOnlyList<ResourceProjectVersion> versions)
-    {
-        AvailableVersionListItems.Add(new ResourcesModVersionListHeaderItem(AvailableVersionsTitle));
-        foreach (var version in versions)
-        {
-            AvailableVersionListItems.Add(new ResourcesModVersionItemViewModel(version, SelectedProject, options.FallbackIconKey));
-            VisibleAvailableVersionCount++;
-        }
-    }
-
-    private void AppendFlatAvailableVersionItems(IReadOnlyList<ResourceProjectVersion> versions)
-    {
-        if (!AvailableVersionListItems.OfType<ResourcesModVersionListHeaderItem>().Any())
-            AvailableVersionListItems.Add(new ResourcesModVersionListHeaderItem(AvailableVersionsTitle));
-
-        foreach (var version in versions)
-        {
-            AvailableVersionListItems.Add(new ResourcesModVersionItemViewModel(version, SelectedProject, options.FallbackIconKey));
-            VisibleAvailableVersionCount++;
-        }
-    }
-
-    private void AddGroupedAvailableVersionItems(IReadOnlyList<ResourceProjectVersion> versions)
-    {
-        var groups = new List<AvailableVersionCompatibilityGroup>();
-        var groupsByTitle = new Dictionary<string, AvailableVersionCompatibilityGroup>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var version in versions)
-        {
-            foreach (var title in CreateFilteredCompatibilityGroupTitles(version))
-            {
-                if (!groupsByTitle.TryGetValue(title, out var group))
-                {
-                    group = new AvailableVersionCompatibilityGroup(title);
-                    groupsByTitle.Add(title, group);
-                    groups.Add(group);
-                }
-
-                group.Versions.Add(version);
-            }
-        }
-
-        if (groups.Count == 0)
-        {
-            AvailableVersionListItems.Add(new ResourcesModVersionListHeaderItem(AvailableVersionsTitle));
-            return;
-        }
-
-        foreach (var group in groups)
-        {
-            AvailableVersionListItems.Add(new ResourcesModVersionListHeaderItem(group.Title));
-            foreach (var version in group.Versions)
-            {
-                AvailableVersionListItems.Add(new ResourcesModVersionItemViewModel(version, SelectedProject, options.FallbackIconKey));
-                VisibleAvailableVersionCount++;
-            }
-        }
-    }
-
-    private void AppendGroupedAvailableVersionItems(IReadOnlyList<ResourceProjectVersion> versions)
-    {
-        RemoveEmptyAvailableVersionsPlaceholderHeader();
-
-        foreach (var version in versions)
-        {
-            foreach (var title in CreateFilteredCompatibilityGroupTitles(version))
-            {
-                var insertIndex = FindAvailableVersionGroupInsertIndex(title);
-                AvailableVersionListItems.Insert(insertIndex, new ResourcesModVersionItemViewModel(version, SelectedProject, options.FallbackIconKey));
-                VisibleAvailableVersionCount++;
-            }
-        }
-    }
-
-    private int FindAvailableVersionGroupInsertIndex(string title)
-    {
-        for (var index = 0; index < AvailableVersionListItems.Count; index++)
-        {
-            if (AvailableVersionListItems[index] is not ResourcesModVersionListHeaderItem header
-                || !string.Equals(header.Title, title, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var insertIndex = index + 1;
-            while (insertIndex < AvailableVersionListItems.Count
-                && AvailableVersionListItems[insertIndex] is not ResourcesModVersionListHeaderItem)
-            {
-                insertIndex++;
-            }
-
-            return insertIndex;
-        }
-
-        AvailableVersionListItems.Add(new ResourcesModVersionListHeaderItem(title));
-        return AvailableVersionListItems.Count;
-    }
-
-    private void RemoveEmptyAvailableVersionsPlaceholderHeader()
-    {
-        if (VisibleAvailableVersionCount == 0
-            && AvailableVersionListItems.Count == 1
-            && AvailableVersionListItems[0] is ResourcesModVersionListHeaderItem header
-            && string.Equals(header.Title, AvailableVersionsTitle, StringComparison.OrdinalIgnoreCase))
-        {
-            AvailableVersionListItems.Clear();
-        }
-    }
-
-    private IEnumerable<string> CreateFilteredCompatibilityGroupTitles(ResourceProjectVersion version)
-    {
-        var gameVersions = NormalizeGameVersionCompatibilityValues(version.GameVersions);
-        var loaders = options.ShowsLoaderFilters
-            ? ResolveCompatibilityLoaders(version)
-            : [string.Empty];
-        var selectedVersion = SelectedAvailableVersionFilterOption?.Id;
-        var selectedLoader = SelectedAvailableLoaderFilterOption?.Id;
-
-        if (!string.IsNullOrWhiteSpace(selectedVersion)
-            && !string.Equals(selectedVersion, "all", StringComparison.OrdinalIgnoreCase))
-        {
-            gameVersions = gameVersions
-                .Where(gameVersion => string.Equals(gameVersion, selectedVersion, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-        }
-
-        if (options.ShowsLoaderFilters
-            && !string.IsNullOrWhiteSpace(selectedLoader)
-            && !string.Equals(selectedLoader, "all", StringComparison.OrdinalIgnoreCase))
-        {
-            loaders = loaders
-                .Where(loader => string.Equals(loader, selectedLoader, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-        }
-
-        foreach (var gameVersion in gameVersions)
-        {
-            foreach (var loader in loaders)
-            {
-                yield return string.IsNullOrWhiteSpace(loader)
-                    ? gameVersion
-                    : $"{gameVersion}-{loader}";
-            }
-        }
-    }
-
-    private static IEnumerable<string> CreateCompatibilityGroupTitles(ResourceProjectVersion version)
-    {
-        var gameVersions = NormalizeGameVersionCompatibilityValues(version.GameVersions);
-        var loaders = ResolveCompatibilityLoaders(version);
-
-        foreach (var gameVersion in gameVersions)
-        {
-            foreach (var loader in loaders)
-                yield return $"{gameVersion}-{loader}";
-        }
-    }
-
-    private static IReadOnlyList<string> NormalizeGameVersionCompatibilityValues(IReadOnlyList<string> values)
-    {
-        var normalized = values
-            .Select(value => value.Trim())
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Where(IsMinecraftVersionLike)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        return normalized.Count == 0 ? [Strings.Resources_ModVersionsUnknown] : normalized;
-    }
-
-    private static IReadOnlyList<string> ResolveCompatibilityLoaders(ResourceProjectVersion version)
-    {
-        var loaders = NormalizeLoaderCompatibilityValues(version.Loaders);
-        if (loaders.Count > 0)
-            return loaders;
-
-        loaders = NormalizeLoaderCompatibilityValues(version.GameVersions);
-        if (loaders.Count > 0)
-            return loaders;
-
-        loaders = InferLoadersFromVersionText(version);
-        return loaders.Count == 0 ? [Strings.Resources_ModLoadersUnknown] : loaders;
-    }
-
-    private static IReadOnlyList<string> NormalizeLoaderCompatibilityValues(IReadOnlyList<string> values)
-    {
-        return values
-            .Select(value => TryNormalizeLoaderId(value))
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList()!;
-    }
-
-    private static IReadOnlyList<string> InferLoadersFromVersionText(ResourceProjectVersion version)
-    {
-        var text = string.Join(
-            ' ',
-            version.FileName,
-            version.Name,
-            version.VersionNumber);
-
-        var loaders = new List<string>();
-        AddLoaderIfFound(text, "neoforge", loaders);
-        AddLoaderIfFound(text, "fabric", loaders);
-        AddLoaderIfFound(text, "forge", loaders);
-        AddLoaderIfFound(text, "quilt", loaders);
-        return loaders;
-    }
-
-    private static void AddLoaderIfFound(string text, string loader, ICollection<string> loaders)
-    {
-        if (ContainsLoaderToken(text, loader)
-            && !loaders.Contains(loader, StringComparer.OrdinalIgnoreCase))
-        {
-            loaders.Add(loader);
-        }
-    }
-
-    private static bool ContainsLoaderToken(string text, string loader)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-            return false;
-
-        var index = text.IndexOf(loader, StringComparison.OrdinalIgnoreCase);
-        while (index >= 0)
-        {
-            var before = index == 0 ? '\0' : text[index - 1];
-            var afterIndex = index + loader.Length;
-            var after = afterIndex >= text.Length ? '\0' : text[afterIndex];
-            if (!char.IsLetterOrDigit(before) && !char.IsLetterOrDigit(after))
-                return true;
-
-            index = text.IndexOf(loader, index + loader.Length, StringComparison.OrdinalIgnoreCase);
-        }
-
-        return false;
-    }
-
-    private static bool IsMinecraftVersionLike(string value)
-    {
-        var trimmed = value.Trim();
-        if (trimmed.Length == 0 || !char.IsDigit(trimmed[0]))
-            return false;
-
-        return trimmed.All(character =>
-            char.IsLetterOrDigit(character)
-            || character is '.' or '-' or '_');
-    }
-
-    private static string? TryNormalizeLoaderId(string value)
-    {
-        return value.Trim().ToLowerInvariant() switch
-        {
-            "fabric" => "fabric",
-            "forge" => "forge",
-            "neoforge" => "neoforge",
-            "quilt" => "quilt",
-            _ => null
-        };
-    }
-
-    private string FormatAvailableVersionsTitle(ResourcesModInstallTargetItemViewModel? target)
-    {
-        if (target?.IsLocalDownload != false || IsUnknownInstanceVersionTarget(target))
-            return options.VersionsAllTitleText;
-
-        if (target.Instance is not { } instance)
-            return options.VersionsAllTitleText;
-
-        var minecraftVersion = instance.MinecraftVersion?.Trim();
-        if (string.IsNullOrWhiteSpace(minecraftVersion))
-            return options.VersionsAllTitleText;
-
-        return options.ShowsLoaderFilters
-            ? $"{minecraftVersion}-{GetLoaderId(instance.Loader)}"
-            : minecraftVersion;
-    }
-
-    private static string GetLoaderId(LoaderKind loader)
-    {
-        return loader switch
-        {
-            LoaderKind.Fabric => "fabric",
-            LoaderKind.Forge => "forge",
-            LoaderKind.NeoForge => "neoforge",
-            LoaderKind.Quilt => "quilt",
-            _ => "vanilla"
-        };
     }
 
     private void ShowProjectVersionFileExistsDialog(ResourcesModVersionItemViewModel item)
@@ -3320,201 +2590,4 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         ResourceProjectVersionsResult Result,
         IReadOnlyList<ResourceProjectVersion> Versions);
 
-    private sealed record RequiredDependencyInstallPlan(
-        RequiredDependenciesDialogChoice Choice,
-        IReadOnlyList<RequiredDependencyInstallCandidate> MissingDependencies)
-    {
-        public static RequiredDependencyInstallPlan Continue { get; } =
-            new(RequiredDependenciesDialogChoice.ContinueWithoutDependencies, []);
-    }
-
-    private sealed record RequiredDependencyInstallCandidate(
-        ResourceProjectDependency Dependency,
-        ResourceProjectVersion? MinimumVersion,
-        ResourceProjectVersion? InstallVersion);
-
-    private sealed class InstalledDependencyCatalog
-    {
-        private readonly Dictionary<string, List<string>> versionsByModId;
-
-        public InstalledDependencyCatalog(Dictionary<string, List<string>> versionsByModId)
-        {
-            this.versionsByModId = versionsByModId;
-        }
-
-        public IEnumerable<string> GetVersions(string modId)
-        {
-            if (string.IsNullOrWhiteSpace(modId))
-                return [];
-
-            return versionsByModId.TryGetValue(modId.Trim(), out var versions)
-                ? versions
-                : [];
-        }
-
-        public void Add(string modId, string version)
-        {
-            if (string.IsNullOrWhiteSpace(modId) || string.IsNullOrWhiteSpace(version))
-                return;
-
-            var key = modId.Trim();
-            if (!versionsByModId.TryGetValue(key, out var versions))
-            {
-                versions = [];
-                versionsByModId[key] = versions;
-            }
-
-            versions.Add(version.Trim());
-        }
-    }
-
-    private static class ResourceDependencyVersionComparer
-    {
-        private static readonly string[] KnownContextTokens =
-        [
-            "mc",
-            "minecraft",
-            "fabric",
-            "forge",
-            "neoforge",
-            "quilt"
-        ];
-
-        public static bool IsGreaterThanOrEqual(string installedVersion, string minimumVersion)
-        {
-            if (!TryParse(installedVersion, out var installed)
-                || !TryParse(minimumVersion, out var minimum))
-            {
-                return false;
-            }
-
-            return installed.CompareTo(minimum) >= 0;
-        }
-
-        private static bool TryParse(string value, out ParsedDependencyVersion version)
-        {
-            version = default;
-            if (string.IsNullOrWhiteSpace(value))
-                return false;
-
-            var tokens = value
-                .Trim()
-                .Split(['+', '-', '_', ' ', '/'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Where(token => !IsContextToken(token))
-                .ToList();
-            var numericToken = tokens
-                .LastOrDefault(token => char.IsDigit(token[0]) && token.Contains('.'))
-                ?? tokens.LastOrDefault(token => char.IsDigit(token[0]));
-            if (numericToken is null)
-                return false;
-
-            var numbers = numericToken
-                .Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(part => new string(part.TakeWhile(char.IsDigit).ToArray()))
-                .Where(part => !string.IsNullOrWhiteSpace(part))
-                .Select(int.Parse)
-                .ToArray();
-            if (numbers.Length == 0)
-                return false;
-
-            var qualifier = tokens.FirstOrDefault(token =>
-                string.Equals(token, "alpha", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(token, "beta", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(token, "rc", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(token, "pre", StringComparison.OrdinalIgnoreCase)
-                || token.StartsWith("alpha.", StringComparison.OrdinalIgnoreCase)
-                || token.StartsWith("beta.", StringComparison.OrdinalIgnoreCase)
-                || token.StartsWith("rc.", StringComparison.OrdinalIgnoreCase)
-                || token.StartsWith("pre.", StringComparison.OrdinalIgnoreCase));
-            version = new ParsedDependencyVersion(numbers, ResolveQualifierWeight(qualifier));
-            return true;
-        }
-
-        private static bool IsContextToken(string token)
-        {
-            if (KnownContextTokens.Any(context => string.Equals(token, context, StringComparison.OrdinalIgnoreCase)))
-                return true;
-
-            if (token.StartsWith("mc", StringComparison.OrdinalIgnoreCase)
-                && token.Skip(2).Any(char.IsDigit))
-            {
-                return true;
-            }
-
-            return token.Contains("minecraft", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static int ResolveQualifierWeight(string? qualifier)
-        {
-            if (string.IsNullOrWhiteSpace(qualifier))
-                return 3;
-
-            if (qualifier.StartsWith("alpha", StringComparison.OrdinalIgnoreCase))
-                return 0;
-            if (qualifier.StartsWith("beta", StringComparison.OrdinalIgnoreCase))
-                return 1;
-            if (qualifier.StartsWith("pre", StringComparison.OrdinalIgnoreCase)
-                || qualifier.StartsWith("rc", StringComparison.OrdinalIgnoreCase))
-            {
-                return 2;
-            }
-
-            return 3;
-        }
-
-        private readonly record struct ParsedDependencyVersion(
-            IReadOnlyList<int> Numbers,
-            int QualifierWeight) : IComparable<ParsedDependencyVersion>
-        {
-            public int CompareTo(ParsedDependencyVersion other)
-            {
-                var count = Math.Max(Numbers.Count, other.Numbers.Count);
-                for (var index = 0; index < count; index++)
-                {
-                    var left = index < Numbers.Count ? Numbers[index] : 0;
-                    var right = index < other.Numbers.Count ? other.Numbers[index] : 0;
-                    var comparison = left.CompareTo(right);
-                    if (comparison != 0)
-                        return comparison;
-                }
-
-                return QualifierWeight.CompareTo(other.QualifierWeight);
-            }
-        }
-    }
-
-    private enum RequiredDependenciesDialogChoice
-    {
-        Cancel,
-        ContinueWithoutDependencies,
-        AutoInstallDependencies
-    }
-
-    private sealed class RequiredDependencyInstallException : Exception
-    {
-        public RequiredDependencyInstallException(ResourceProject dependency)
-            : base($"Required dependency cannot be installed automatically: {dependency.ProjectId}")
-        {
-            DependencyProjectId = dependency.ProjectId;
-            DependencyTitle = string.IsNullOrWhiteSpace(dependency.Title)
-                ? dependency.Slug
-                : dependency.Title;
-        }
-
-        public string DependencyProjectId { get; }
-
-        public string DependencyTitle { get; }
-    }
-
-    private sealed class AvailableVersionCompatibilityGroup
-    {
-        public AvailableVersionCompatibilityGroup(string title)
-        {
-            Title = title;
-        }
-
-        public string Title { get; }
-
-        public List<ResourceProjectVersion> Versions { get; } = [];
-    }
 }

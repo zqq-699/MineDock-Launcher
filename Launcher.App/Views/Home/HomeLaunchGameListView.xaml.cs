@@ -51,6 +51,8 @@ public partial class HomeLaunchGameListView : UserControl
 
     internal FrameworkElement HeaderOverlayElement => HomeLaunchHeaderOverlay;
 
+    internal FrameworkElement EmptyStateTextElement => HomeLaunchEmptyStateText;
+
     internal ToggleButton PinButtonElement => HomeLaunchMenuPinButton;
 
     internal FrameworkElement MenuViewportElement => HomeLaunchMenuViewport;
@@ -58,6 +60,8 @@ public partial class HomeLaunchGameListView : UserControl
     internal ListBox LaunchInstanceListBox => HomeLaunchInstanceListBox;
 
     internal TranslateTransform ListTranslateTransform => HomeLaunchListTranslate;
+
+    internal TranslateTransform EmptyStateTranslateTransform => HomeLaunchEmptyStateTranslate;
 
     internal bool IsMenuExpanded => ShouldUseExpandedState();
 
@@ -196,10 +200,12 @@ public partial class HomeLaunchGameListView : UserControl
         var generation = ++animationGeneration;
         var targetHeight = shouldExpand ? expandedHeight : GetCollapsedHeight();
         var targetTranslate = shouldExpand ? 0 : CalculateCollapsedListTranslate();
+        var targetEmptyStateTranslate = CalculateEmptyStateTranslate(shouldExpand, expandedHeight);
         var targetHeaderOpacity = shouldExpand ? 1 : 0;
 
         AnimateDouble(HomeLaunchMenuPanelShadow, HeightProperty, targetHeight, animate, generation);
         AnimateDouble(HomeLaunchListTranslate, TranslateTransform.YProperty, targetTranslate, animate, generation);
+        AnimateDouble(HomeLaunchEmptyStateTranslate, TranslateTransform.YProperty, targetEmptyStateTranslate, animate, generation);
         AnimateDouble(HomeLaunchHeaderOverlay, OpacityProperty, targetHeaderOpacity, animate, generation);
     }
 
@@ -216,7 +222,8 @@ public partial class HomeLaunchGameListView : UserControl
 
     private bool CanUseCollapsedState()
     {
-        return attachedViewModel?.SelectedLaunchInstanceItem is not null;
+        return attachedViewModel?.SelectedLaunchInstanceItem is not null
+            || attachedViewModel?.HasNoLaunchInstances == true;
     }
 
     private bool PrepareSelectedItemForMeasurement()
@@ -258,6 +265,27 @@ public partial class HomeLaunchGameListView : UserControl
         {
             return 0;
         }
+    }
+
+    private double CalculateEmptyStateTranslate(bool shouldExpand, double expandedHeight)
+    {
+        var textHeight = GetEmptyStateTextHeight();
+        var targetHeight = shouldExpand ? expandedHeight : GetCollapsedHeight();
+        return Math.Max(0, (targetHeight - textHeight) / 2);
+    }
+
+    private double GetEmptyStateTextHeight()
+    {
+        if (HomeLaunchEmptyStateText.ActualHeight > 0)
+            return HomeLaunchEmptyStateText.ActualHeight;
+
+        var availableWidth = Math.Max(
+            0,
+            GetResourceDouble("HomeLaunchMenuPanelWidth", FallbackPanelWidth)
+            - HomeLaunchEmptyStateText.Margin.Left
+            - HomeLaunchEmptyStateText.Margin.Right);
+        HomeLaunchEmptyStateText.Measure(new Size(availableWidth, double.PositiveInfinity));
+        return HomeLaunchEmptyStateText.DesiredSize.Height;
     }
 
     private FrameworkElement? GetSelectedItemContainer(HomeLaunchInstanceItem selectedItem)

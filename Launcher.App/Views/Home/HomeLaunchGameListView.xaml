@@ -57,8 +57,13 @@
                 <Grid x:Name="HomeLaunchMenuViewport"
                       VerticalAlignment="Top"
                       ClipToBounds="True">
-                    <TextBlock Text="{x:Static res:Strings.Home_NoLaunchInstances}"
-                               TextWrapping="Wrap">
+                    <TextBlock x:Name="HomeLaunchEmptyStateText"
+                               Text="{x:Static res:Strings.Home_NoLaunchInstances}"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Top">
+                        <TextBlock.RenderTransform>
+                            <TranslateTransform x:Name="HomeLaunchEmptyStateTranslate" />
+                        </TextBlock.RenderTransform>
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource HomeLaunchInstanceEmptyTextStyle}">
                                 <Setter Property="Visibility" Value="Collapsed" />

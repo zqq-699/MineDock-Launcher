@@ -18,7 +18,8 @@ public partial class GameSettingsDetailsView : UserControl
         "mod_management",
         "saves",
         "resource_packs",
-        "shaders"
+        "shaders",
+        "backup"
     ];
 
     private INotifyPropertyChanged? currentViewModelNotifier;
@@ -29,7 +30,7 @@ public partial class GameSettingsDetailsView : UserControl
         InitializeComponent();
         sectionTransitionService = new PageTransitionService(
             Dispatcher,
-            _ => SectionContentRoot,
+            _ => GetCurrentTransitionRoot(),
             GetCurrentSectionId(),
             SectionOrder);
 
@@ -72,21 +73,34 @@ public partial class GameSettingsDetailsView : UserControl
 
     private void ResetSectionPresentation()
     {
-        SectionContentRoot.BeginAnimation(OpacityProperty, null);
-        SectionContentRoot.Opacity = 1;
+        ResetTransitionElement(SectionContentRoot);
+        ResetTransitionElement(FullViewportSectionContentRoot);
+    }
 
-        var transform = EnsureTranslateTransform();
+    private FrameworkElement GetCurrentTransitionRoot()
+    {
+        return (DataContext as GameSettingsDetailsViewModel)?.CurrentSectionViewModel?.UsesFullViewportLayout is true
+            ? FullViewportSectionContentRoot
+            : SectionContentRoot;
+    }
+
+    private static void ResetTransitionElement(FrameworkElement element)
+    {
+        element.BeginAnimation(OpacityProperty, null);
+        element.Opacity = 1;
+
+        var transform = EnsureTranslateTransform(element);
         transform.BeginAnimation(TranslateTransform.YProperty, null);
         transform.Y = 0;
     }
 
-    private TranslateTransform EnsureTranslateTransform()
+    private static TranslateTransform EnsureTranslateTransform(FrameworkElement element)
     {
-        if (SectionContentRoot.RenderTransform is TranslateTransform transform)
+        if (element.RenderTransform is TranslateTransform transform)
             return transform;
 
         transform = new TranslateTransform();
-        SectionContentRoot.RenderTransform = transform;
+        element.RenderTransform = transform;
         return transform;
     }
 

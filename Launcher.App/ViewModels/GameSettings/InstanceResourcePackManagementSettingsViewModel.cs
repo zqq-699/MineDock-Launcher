@@ -18,11 +18,9 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     private readonly IFilePickerService filePickerService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<InstanceResourcePackManagementSettingsViewModel> logger;
-    private readonly Dictionary<string, ResourcePackManagementItemViewModel> allResourcePacksByPath = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> selectedResourcePackPaths = new(StringComparer.OrdinalIgnoreCase);
+    private readonly LocalContentSelectionState<ResourcePackManagementItemViewModel> selectionState;
     private Task? loadTask;
     private GameInstance? selectedInstance;
-    private string? lastSingleSelectedResourcePackPath;
     private bool hasPendingVisualRefresh;
     private bool isVisibleRefreshQueued;
     private bool isSectionActive;
@@ -74,6 +72,10 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         this.filePickerService = filePickerService;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<InstanceResourcePackManagementSettingsViewModel>.Instance;
+        selectionState = new LocalContentSelectionState<ResourcePackManagementItemViewModel>(
+            resourcePack => resourcePack.FullPath,
+            resourcePack => resourcePack.IsSelected,
+            static (resourcePack, isSelected) => resourcePack.IsSelected = isSelected);
         this.localResourcePacksViewModel.ResourcePacksChanged += LocalResourcePacksViewModel_ResourcePacksChanged;
     }
 
@@ -145,7 +147,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
 
         IsLoadingResourcePacks = false;
         HasLoadedResourcePacks = false;
-        allResourcePacksByPath.Clear();
+        selectionState.ClearCache();
         ListEntranceAnimationToken = 0;
         ResetSelectionState();
         ClearDisplayedResourcePacks();
@@ -282,21 +284,14 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     {
         if (AreAllVisibleResourcePacksSelected)
         {
-            foreach (var resourcePack in ResourcePacks)
-                resourcePack.IsSelected = false;
-
-            selectedResourcePackPaths.Clear();
+            selectionState.ClearVisibleSelections(ResourcePacks);
+            selectionState.ClearSelectedPaths();
             SelectedResourcePack = null;
             UpdateSelectedResourcePackState();
             return;
         }
 
-        foreach (var resourcePack in ResourcePacks)
-        {
-            resourcePack.IsSelected = true;
-            selectedResourcePackPaths.Add(resourcePack.FullPath);
-        }
-
+        selectionState.SelectAll(ResourcePacks);
         SelectedResourcePack = null;
         UpdateSelectedResourcePackState();
     }
@@ -359,31 +354,22 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         {
             SelectedResourcePack = null;
             if (IsMultiSelectMode)
-                selectedResourcePackPaths.Clear();
-            foreach (var item in ResourcePacks)
-                item.IsSelected = false;
+                selectionState.ClearSelectedPaths();
+            selectionState.ClearVisibleSelections(ResourcePacks);
             UpdateSelectedResourcePackState();
             return;
         }
 
         if (IsMultiSelectMode)
         {
-            var isSelected = !resourcePack.IsSelected;
-            resourcePack.IsSelected = isSelected;
-            if (isSelected)
-                selectedResourcePackPaths.Add(resourcePack.FullPath);
-            else
-                selectedResourcePackPaths.Remove(resourcePack.FullPath);
-
+            selectionState.ToggleSelection(resourcePack);
             SelectedResourcePack = null;
             UpdateSelectedResourcePackState();
             return;
         }
 
         SelectedResourcePack = resourcePack;
-        lastSingleSelectedResourcePackPath = resourcePack.FullPath;
-        foreach (var item in ResourcePacks)
-            item.IsSelected = false;
+        selectionState.SelectSingle(resourcePack, ResourcePacks);
     }
 
     public async Task DeleteResourcePacksAsync(IReadOnlyList<string> fullPaths)
@@ -509,21 +495,16 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
 
     private void RefreshFromLocalResourcePacks()
     {
-        var selectedFullPath = lastSingleSelectedResourcePackPath ?? SelectedResourcePack?.FullPath;
+        var selectedFullPath = selectionState.LastSingleSelectedPath ?? SelectedResourcePack?.FullPath;
         var filteredResourcePacks = StableFilteredItemProjection.Synchronize(
             localResourcePacksViewModel.CurrentResourcePacks,
-            allResourcePacksByPath,
+            selectionState.ItemsByPath,
             resourcePack => resourcePack.FullPath,
             resourcePack => new ResourcePackManagementItemViewModel(resourcePack),
             static (item, resourcePack) => item.SyncFrom(resourcePack),
             MatchesSearch);
 
-        if (IsMultiSelectMode)
-            selectedResourcePackPaths.IntersectWith(filteredResourcePacks.Select(resourcePack => resourcePack.FullPath));
-
-        foreach (var item in allResourcePacksByPath.Values)
-            item.IsSelected = IsMultiSelectMode && selectedResourcePackPaths.Contains(item.FullPath);
-
+        selectionState.SyncSelectionToItems(filteredResourcePacks, IsMultiSelectMode);
         SetVisibleResourcePacks(filteredResourcePacks);
 
         RefreshSummary();
@@ -611,38 +592,36 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
 
     private void EnterMultiSelectMode()
     {
-        lastSingleSelectedResourcePackPath = SelectedResourcePack?.FullPath ?? lastSingleSelectedResourcePackPath;
+        var selectedResourcePack = SelectedResourcePack;
         IsMultiSelectMode = true;
         SelectedResourcePack = null;
-        selectedResourcePackPaths.Clear();
-        ClearVisibleSelections();
+        selectionState.BeginMultiSelect(selectedResourcePack, ResourcePacks);
         UpdateSelectedResourcePackState();
     }
 
     private void ExitMultiSelectMode()
     {
         IsMultiSelectMode = false;
-        ClearVisibleSelections();
-        selectedResourcePackPaths.Clear();
+        selectionState.ClearVisibleSelections(ResourcePacks);
+        selectionState.ClearSelectedPaths();
         UpdateSelectedResourcePackState();
 
         var restoredSelection = ResourcePacks.FirstOrDefault(resourcePack =>
-            string.Equals(resourcePack.FullPath, lastSingleSelectedResourcePackPath, StringComparison.OrdinalIgnoreCase));
+            string.Equals(resourcePack.FullPath, selectionState.LastSingleSelectedPath, StringComparison.OrdinalIgnoreCase));
         SelectResourcePack(restoredSelection ?? ResourcePacks.FirstOrDefault());
     }
 
     private void ResetSelectionState()
     {
-        lastSingleSelectedResourcePackPath = null;
+        selectionState.Reset();
         IsMultiSelectMode = false;
         SelectedResourcePack = null;
-        selectedResourcePackPaths.Clear();
         SelectedResourcePackCount = 0;
     }
 
     private void ClearDisplayedResourcePacks()
     {
-        allResourcePacksByPath.Clear();
+        selectionState.ClearCache();
         SetVisibleResourcePacks(Array.Empty<ResourcePackManagementItemViewModel>());
         RefreshVisibleResourcePackListItems();
         SelectedResourcePack = null;
@@ -658,13 +637,12 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
 
     private void ClearVisibleSelections()
     {
-        foreach (var resourcePack in ResourcePacks)
-            resourcePack.IsSelected = false;
+        selectionState.ClearVisibleSelections(ResourcePacks);
     }
 
     private IReadOnlyList<ResourcePackManagementItemViewModel> GetSelectedVisibleResourcePacks()
     {
-        return ResourcePacks.Where(resourcePack => selectedResourcePackPaths.Contains(resourcePack.FullPath)).ToArray();
+        return selectionState.GetSelectedVisibleItems(ResourcePacks);
     }
 
     private IReadOnlyList<LocalResourcePack> ResolveLocalResourcePacks(IEnumerable<string> fullPaths)
@@ -692,7 +670,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
 
     private void UpdateSelectedResourcePackState()
     {
-        SelectedResourcePackCount = ResourcePacks.Count(resourcePack => resourcePack.IsSelected);
+        SelectedResourcePackCount = selectionState.CountSelectedVisibleItems(ResourcePacks);
     }
 
     partial void OnVisibleResourcePacksChanged(IReadOnlyList<ResourcePackManagementItemViewModel> value)
