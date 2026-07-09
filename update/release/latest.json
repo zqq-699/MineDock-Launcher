@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "appId": "MineDock-Launcher",
+  "channel": "release",
+  "versionName": "",
+  "versionCode": 0,
+  "publishedAt": "1970-01-01T00:00:00Z",
+  "mandatory": false,
+  "minSupportedVersionCode": 0,
+  "releaseNotes": "",
+  "assets": [
+    {
+      "platform": "windows",
+      "arch": "x64",
+      "packageType": "exe",
+      "fileName": "",
+      "size": 0,
+      "sha256": "",
+      "urls": [
+        {
+          "name": "gitee",
+          "url": "",
+          "priority": 1
+        },
+        {
+          "name": "github",
+          "url": "",
+          "priority": 2
+        }
+      ]
+    }
+  ]
+}
