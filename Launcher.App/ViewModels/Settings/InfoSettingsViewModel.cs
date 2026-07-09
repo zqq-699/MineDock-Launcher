@@ -7,6 +7,8 @@ using Launcher.App.Services;
 using Launcher.Application;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.Settings;
 
@@ -18,9 +20,11 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
     private readonly ILauncherUpdateService launcherUpdateService;
     private readonly ILauncherSelfUpdateService launcherSelfUpdateService;
     private readonly IApplicationExitService applicationExitService;
+    private readonly ILogger<InfoSettingsViewModel> logger;
     private LauncherUpdateInfo? availableUpdate;
     private string? updateDialogReleasePageUrl;
     private string? updateDialogDownloadUrl;
+    private bool isUpdateCheckRunning;
     private static readonly ReadOnlyCollection<InfoReferenceProjectItem> RuntimeReferenceProjects = new(
     [
         new InfoReferenceProjectItem(
@@ -104,7 +108,8 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
         IExternalLinkService externalLinkService,
         ILauncherUpdateService launcherUpdateService,
         ILauncherSelfUpdateService launcherSelfUpdateService,
-        IApplicationExitService applicationExitService)
+        IApplicationExitService applicationExitService,
+        ILogger<InfoSettingsViewModel>? logger = null)
         : base(parent)
     {
         this.statusService = statusService;
@@ -113,6 +118,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
         this.launcherUpdateService = launcherUpdateService;
         this.launcherSelfUpdateService = launcherSelfUpdateService;
         this.applicationExitService = applicationExitService;
+        this.logger = logger ?? NullLogger<InfoSettingsViewModel>.Instance;
         LauncherVersionText = ResolveLauncherVersion();
     }
 
@@ -177,53 +183,12 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
     [RelayCommand(CanExecute = nameof(CanCheckUpdates), AllowConcurrentExecutions = true)]
     private async Task CheckUpdatesAsync()
     {
-        if (IsCheckingUpdates)
-            return;
+        await CheckUpdatesCoreAsync(UpdateCheckPresentation.Manual);
+    }
 
-        IsCheckingUpdates = true;
-        statusService.Report(Strings.Status_CheckingUpdates);
-
-        try
-        {
-            LauncherUpdateCheckResult result;
-            try
-            {
-                result = await launcherUpdateService.CheckForUpdatesAsync(
-                    LauncherVersionText,
-                    Parent.SelectedUpdateChannelOption?.Channel ?? LauncherDefaults.DefaultUpdateChannel);
-            }
-            catch (Exception)
-            {
-                ReportVisibleStatus(Strings.Status_CheckUpdatesFailed);
-                return;
-            }
-
-            if (result.IsFailed)
-            {
-                ReportVisibleStatus(Strings.Status_CheckUpdatesFailed);
-                return;
-            }
-
-            if (!result.IsUpdateAvailable || result.Update is null)
-            {
-                ReportVisibleStatus(Strings.Status_LauncherAlreadyLatest);
-                return;
-            }
-
-            var update = result.Update;
-            availableUpdate = update;
-            UpdateDialogVersionText = update.DisplayVersion;
-            UpdateDialogMessage = string.Format(Strings.Dialog_UpdateAvailableVersionFormat, update.DisplayVersion);
-            updateDialogReleasePageUrl = update.ReleasePageUrl;
-            updateDialogDownloadUrl = string.IsNullOrWhiteSpace(update.DownloadUrl)
-                ? update.ReleasePageUrl
-                : update.DownloadUrl;
-            IsUpdateAvailableDialogOpen = true;
-        }
-        finally
-        {
-            IsCheckingUpdates = false;
-        }
+    public Task CheckUpdatesOnStartupAsync()
+    {
+        return CheckUpdatesCoreAsync(UpdateCheckPresentation.StartupSilent);
     }
 
     [RelayCommand]
@@ -284,7 +249,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
 
     private bool CanCheckUpdates()
     {
-        return !IsStartingUpdate;
+        return !IsStartingUpdate && !isUpdateCheckRunning;
     }
 
     private bool CanConfirmUpdate()
@@ -302,6 +267,120 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
         OnPropertyChanged(nameof(ConfirmUpdateButtonText));
         CheckUpdatesCommand.NotifyCanExecuteChanged();
         ConfirmUpdateCommand.NotifyCanExecuteChanged();
+    }
+
+    private async Task CheckUpdatesCoreAsync(UpdateCheckPresentation presentation)
+    {
+        if (isUpdateCheckRunning)
+            return;
+
+        var channel = Parent.SelectedUpdateChannelOption?.Channel ?? LauncherDefaults.DefaultUpdateChannel;
+        isUpdateCheckRunning = true;
+        CheckUpdatesCommand.NotifyCanExecuteChanged();
+        if (presentation is UpdateCheckPresentation.Manual)
+        {
+            IsCheckingUpdates = true;
+            statusService.Report(Strings.Status_CheckingUpdates);
+        }
+        else
+        {
+            logger.LogInformation(
+                "Startup launcher update check started. CurrentVersion={CurrentVersion} Channel={Channel}",
+                LauncherVersionText,
+                channel);
+        }
+
+        try
+        {
+            LauncherUpdateCheckResult result;
+            try
+            {
+                result = await launcherUpdateService.CheckForUpdatesAsync(LauncherVersionText, channel);
+            }
+            catch (Exception exception)
+            {
+                if (presentation is UpdateCheckPresentation.Manual)
+                {
+                    ReportVisibleStatus(Strings.Status_CheckUpdatesFailed);
+                }
+                else
+                {
+                    logger.LogWarning(
+                        exception,
+                        "Startup launcher update check threw an exception. CurrentVersion={CurrentVersion} Channel={Channel}",
+                        LauncherVersionText,
+                        channel);
+                }
+
+                return;
+            }
+
+            if (result.IsFailed)
+            {
+                if (presentation is UpdateCheckPresentation.Manual)
+                {
+                    ReportVisibleStatus(Strings.Status_CheckUpdatesFailed);
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "Startup launcher update check failed. CurrentVersion={CurrentVersion} Channel={Channel} Error={Error}",
+                        LauncherVersionText,
+                        channel,
+                        string.IsNullOrWhiteSpace(result.ErrorMessage) ? "<none>" : result.ErrorMessage);
+                }
+
+                return;
+            }
+
+            if (!result.IsUpdateAvailable || result.Update is null)
+            {
+                if (presentation is UpdateCheckPresentation.Manual)
+                {
+                    ReportVisibleStatus(Strings.Status_LauncherAlreadyLatest);
+                }
+                else
+                {
+                    logger.LogInformation(
+                        "Startup launcher update check completed. No update available. CurrentVersion={CurrentVersion} Channel={Channel}",
+                        LauncherVersionText,
+                        channel);
+                }
+
+                return;
+            }
+
+            if (presentation is UpdateCheckPresentation.StartupSilent)
+            {
+                logger.LogInformation(
+                    "Startup launcher update check found an update. CurrentVersion={CurrentVersion} Channel={Channel} UpdateVersion={UpdateVersion}",
+                    LauncherVersionText,
+                    channel,
+                    result.Update.DisplayVersion);
+            }
+
+            ShowUpdateAvailableDialog(result.Update);
+        }
+        finally
+        {
+            if (presentation is UpdateCheckPresentation.Manual)
+                IsCheckingUpdates = false;
+
+            isUpdateCheckRunning = false;
+            CheckUpdatesCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private void ShowUpdateAvailableDialog(LauncherUpdateInfo update)
+    {
+        availableUpdate = update;
+        UpdateDialogVersionText = update.DisplayVersion;
+        UpdateDialogMessage = string.Format(Strings.Dialog_UpdateAvailableVersionFormat, update.DisplayVersion);
+        updateDialogReleasePageUrl = update.ReleasePageUrl;
+        updateDialogDownloadUrl = string.IsNullOrWhiteSpace(update.DownloadUrl)
+            ? update.ReleasePageUrl
+            : update.DownloadUrl;
+        IsUpdateAvailableDialogOpen = true;
     }
 
     private void ReportStatus(string message)
@@ -343,6 +422,12 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
         return string.IsNullOrWhiteSpace(assemblyVersion)
             ? Strings.Settings_LauncherVersionUnknown
             : assemblyVersion;
+    }
+
+    private enum UpdateCheckPresentation
+    {
+        Manual,
+        StartupSilent
     }
 }
 

@@ -10,6 +10,7 @@ using Launcher.App.Services;
 using Launcher.App.Utilities;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
 
 namespace Launcher.App.ViewModels.Settings;
 
@@ -157,7 +158,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         IExternalLinkService? externalLinkService = null,
         ILauncherUpdateService? launcherUpdateService = null,
         ILauncherSelfUpdateService? launcherSelfUpdateService = null,
-        IApplicationExitService? applicationExitService = null)
+        IApplicationExitService? applicationExitService = null,
+        ILogger<InfoSettingsViewModel>? infoSettingsLogger = null)
     {
         this.settingsService = settingsService;
         this.statusService = statusService;
@@ -277,7 +279,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             externalLinkService ?? NullExternalLinkService.Instance,
             launcherUpdateService ?? NullLauncherUpdateService.Instance,
             launcherSelfUpdateService ?? NullLauncherSelfUpdateService.Instance,
-            applicationExitService ?? NullApplicationExitService.Instance);
+            applicationExitService ?? NullApplicationExitService.Instance,
+            infoSettingsLogger);
         ControlList = new ControlListSettingsViewModel(this);
         SelectedSection = Sections[0];
     }

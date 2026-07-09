@@ -267,13 +267,135 @@ public sealed class SettingsPageViewModelTests
 
         await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
 
-        Assert.Equal("0.9.1-beta.7", updateService.LastCurrentVersion);
+        Assert.Equal("0.9.1-beta.8", updateService.LastCurrentVersion);
         Assert.Equal(LauncherUpdateChannel.Release, updateService.LastChannel);
         Assert.True(viewModel.Info.IsUpdateAvailableDialogOpen);
         Assert.Equal("1.0.1", viewModel.Info.UpdateDialogVersionText);
         Assert.Equal(
             string.Format(Strings.Dialog_UpdateAvailableVersionFormat, "1.0.1"),
             viewModel.Info.UpdateDialogMessage);
+    }
+
+    [Fact]
+    public async Task InfoStartupUpdateCheckShowsDialogWhenUpdateIsAvailable()
+    {
+        var viewModel = CreateViewModel(
+            new LauncherSettings(),
+            new FakeJavaRuntimeDiscoveryService(),
+            new FakeFilePickerService(),
+            out _,
+            out var statusService,
+            out var floatingMessageService,
+            out _,
+            out _,
+            out var updateService);
+        updateService.Result = LauncherUpdateCheckResult.Available(
+            "1.0.5",
+            new LauncherUpdateInfo(
+                "1.0.1",
+                "1.0.1",
+                "https://example.test/releases/v1.0.1",
+                "https://example.test/downloads/MineDock_Launcher_x64.exe",
+                "Release notes",
+                "MineDock_Launcher_x64.exe",
+                LauncherUpdateAssetKind.WindowsX64Executable));
+
+        await viewModel.Info.CheckUpdatesOnStartupAsync();
+
+        Assert.Equal("0.9.1-beta.8", updateService.LastCurrentVersion);
+        Assert.Equal(LauncherUpdateChannel.Release, updateService.LastChannel);
+        Assert.True(viewModel.Info.IsUpdateAvailableDialogOpen);
+        Assert.Equal("1.0.1", viewModel.Info.UpdateDialogVersionText);
+        Assert.Equal(
+            string.Format(Strings.Dialog_UpdateAvailableVersionFormat, "1.0.1"),
+            viewModel.Info.UpdateDialogMessage);
+        Assert.Null(statusService.LastMessage);
+        Assert.Null(floatingMessageService.LastMessage);
+    }
+
+    [Fact]
+    public async Task InfoStartupUpdateCheckIsSilentWhenLauncherIsLatest()
+    {
+        var viewModel = CreateViewModel(
+            new LauncherSettings(),
+            new FakeJavaRuntimeDiscoveryService(),
+            new FakeFilePickerService(),
+            out _,
+            out var statusService,
+            out var floatingMessageService,
+            out _,
+            out _,
+            out var updateService);
+        updateService.Result = LauncherUpdateCheckResult.Latest("1.0.5");
+
+        await viewModel.Info.CheckUpdatesOnStartupAsync();
+
+        Assert.Equal(1, updateService.CallCount);
+        Assert.False(viewModel.Info.IsUpdateAvailableDialogOpen);
+        Assert.Null(statusService.LastMessage);
+        Assert.Null(floatingMessageService.LastMessage);
+    }
+
+    [Fact]
+    public async Task InfoStartupUpdateCheckIsSilentWhenCheckFails()
+    {
+        var failedViewModel = CreateViewModel(
+            new LauncherSettings(),
+            new FakeJavaRuntimeDiscoveryService(),
+            new FakeFilePickerService(),
+            out _,
+            out var failedStatusService,
+            out var failedFloatingMessageService,
+            out _,
+            out _,
+            out var failedUpdateService);
+        failedUpdateService.Result = LauncherUpdateCheckResult.Failed("1.0.5");
+
+        await failedViewModel.Info.CheckUpdatesOnStartupAsync();
+
+        Assert.False(failedViewModel.Info.IsUpdateAvailableDialogOpen);
+        Assert.Null(failedStatusService.LastMessage);
+        Assert.Null(failedFloatingMessageService.LastMessage);
+
+        var throwingViewModel = CreateViewModel(
+            new LauncherSettings(),
+            new FakeJavaRuntimeDiscoveryService(),
+            new FakeFilePickerService(),
+            out _,
+            out var throwingStatusService,
+            out var throwingFloatingMessageService,
+            out _,
+            out _,
+            out var throwingUpdateService);
+        throwingUpdateService.ExceptionToThrow = new InvalidOperationException("Update check failed.");
+
+        await throwingViewModel.Info.CheckUpdatesOnStartupAsync();
+
+        Assert.False(throwingViewModel.Info.IsUpdateAvailableDialogOpen);
+        Assert.Null(throwingStatusService.LastMessage);
+        Assert.Null(throwingFloatingMessageService.LastMessage);
+    }
+
+    [Fact]
+    public async Task InfoCheckUpdatesReportsWhenLauncherIsLatest()
+    {
+        var viewModel = CreateViewModel(
+            new LauncherSettings(),
+            new FakeJavaRuntimeDiscoveryService(),
+            new FakeFilePickerService(),
+            out _,
+            out var statusService,
+            out var floatingMessageService,
+            out _,
+            out _,
+            out var updateService);
+        updateService.Result = LauncherUpdateCheckResult.Latest("1.0.5");
+
+        await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.Info.IsUpdateAvailableDialogOpen);
+        Assert.Equal(Strings.Status_LauncherAlreadyLatest, statusService.LastMessage);
+        Assert.Equal(Strings.Status_LauncherAlreadyLatest, floatingMessageService.LastMessage);
     }
 
     [Fact]
@@ -1152,6 +1274,7 @@ public sealed class SettingsPageViewModelTests
     {
         public LauncherUpdateCheckResult Result { get; set; } = LauncherUpdateCheckResult.Latest("1.0.5");
         public Task<LauncherUpdateCheckResult>? ResultTask { get; set; }
+        public Exception? ExceptionToThrow { get; set; }
         public string? LastCurrentVersion { get; private set; }
         public LauncherUpdateChannel? LastChannel { get; private set; }
         public int CallCount { get; private set; }
@@ -1164,6 +1287,9 @@ public sealed class SettingsPageViewModelTests
             CallCount++;
             LastCurrentVersion = currentVersion;
             LastChannel = channel;
+            if (ExceptionToThrow is not null)
+                throw ExceptionToThrow;
+
             return ResultTask ?? Task.FromResult(Result);
         }
     }

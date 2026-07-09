@@ -107,12 +107,25 @@ public partial class App : System.Windows.Application
             var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
             mainWindow.Show();
             Log.Information("Main window shown.");
+            _ = CheckForLauncherUpdatesOnStartupAsync(mainViewModel);
         }
         catch (Exception exception)
         {
             Log.Fatal(exception, "Launcher startup failed.");
             Log.CloseAndFlush();
             throw;
+        }
+    }
+
+    private static async Task CheckForLauncherUpdatesOnStartupAsync(MainViewModel mainViewModel)
+    {
+        try
+        {
+            await mainViewModel.SettingsPage.Info.CheckUpdatesOnStartupAsync();
+        }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Unexpected failure while running startup launcher update check.");
         }
     }
 
