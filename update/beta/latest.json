@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "appId": "MineDock-Launcher",
   "channel": "beta",
-  "versionName": "0.9.1-beta.2",
-  "versionCode": 90102,
-  "publishedAt": "2026-07-09T14:30:12Z",
+  "versionName": "0.9.1-beta.7",
+  "versionCode": 90107,
+  "publishedAt": "2026-07-09T16:31:58Z",
   "mandatory": false,
   "minSupportedVersionCode": 0,
-  "releaseNotes": "# Beta 0.9.1-beta.2\r\n\r\n- Validate the tag-driven beta release workflow with a real prerelease tag.\r\n- Keep release notes as the required source for generated update manifests.\r\n- Confirm the generated Windows x64 single-file exe can be published through GitHub Releases.",
+  "releaseNotes": "# Beta 0.9.1-beta.7\r\n\r\n- Print Gitee attachment upload HTTP status and response body on failure.\r\n- Keep Gitee Release attachments as the first download mirror.",
   "assets": [
     {
       "platform": "windows",
@@ -15,16 +15,16 @@
       "packageType": "exe",
       "fileName": "MineDock_Launcher_x64.exe",
       "size": 7509546,
-      "sha256": "d3023ed7470e720dec24aec438b2fe3e1562b84af02b347edd4eccd7da0387b3",
+      "sha256": "3be52ce8457c6cecec476f850380ff143adc31d6f32f2448b1ed916215f91812",
       "urls": [
         {
           "name": "gitee",
-          "url": "",
+          "url": "https://gitee.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.7/MineDock_Launcher_x64.exe",
           "priority": 1
         },
         {
           "name": "github",
-          "url": "https://github.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.2/MineDock_Launcher_x64.exe",
+          "url": "https://github.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.7/MineDock_Launcher_x64.exe",
           "priority": 2
         }
       ]
