@@ -26,6 +26,48 @@ public sealed class ReleaseWorkflowTests
         Assert.Contains($"CHANNEL: {channel}", text);
     }
 
+    [Theory]
+    [InlineData(".github/workflows/release.yml")]
+    [InlineData(".github/workflows/beta.yml")]
+    public void WorkflowPublishesGiteeMirrorBeforeWritingManifest(string workflowPath)
+    {
+        var text = File.ReadAllText(Path.Combine(FindRepositoryRoot().FullName, workflowPath));
+
+        Assert.Contains("GITEE_OWNER: zqq-699", text);
+        Assert.Contains("GITEE_REPO: MineDock-Launcher", text);
+        Assert.Contains("GITEE_BRANCH: master", text);
+        Assert.Contains("GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}", text);
+        Assert.Contains("Create Gitee", text);
+        Assert.Contains("Sync Gitee update repository and tag", text);
+        Assert.Contains("update/release/latest.json", text);
+        Assert.Contains("update/beta/latest.json", text);
+        Assert.Contains("git tag $env:GITHUB_REF_NAME", text);
+        Assert.Contains("git push origin $env:GITHUB_REF_NAME", text);
+
+        var githubReleaseIndex = text.IndexOf("Create GitHub", StringComparison.Ordinal);
+        var finalManifestIndex = text.IndexOf("Generate final", StringComparison.Ordinal);
+        var syncGiteeIndex = text.IndexOf("Sync Gitee update repository and tag", StringComparison.Ordinal);
+        var giteeReleaseIndex = text.IndexOf("Create Gitee", StringComparison.Ordinal);
+        var githubManifestUploadIndex = text.IndexOf("Upload final manifest to GitHub", StringComparison.Ordinal);
+        var writeBackIndex = text.IndexOf("Write back", StringComparison.Ordinal);
+
+        Assert.True(githubReleaseIndex >= 0);
+        Assert.True(finalManifestIndex > githubReleaseIndex);
+        Assert.True(syncGiteeIndex > finalManifestIndex);
+        Assert.True(giteeReleaseIndex > syncGiteeIndex);
+        Assert.True(githubManifestUploadIndex > giteeReleaseIndex);
+        Assert.True(writeBackIndex > githubManifestUploadIndex);
+    }
+
+    [Fact]
+    public void GiteeManifestFallbackUsesMasterUpdatePath()
+    {
+        var root = FindRepositoryRoot();
+        var text = File.ReadAllText(Path.Combine(root.FullName, "Launcher.Application", "LauncherProjectLinks.cs"));
+
+        Assert.Contains("GiteeRepositoryUrl + \"/raw/master/update/{0}/latest.json\"", text);
+    }
+
     [Fact]
     public void BetaLatestManifestHasMatchingNonEmptyNotesFile()
     {
@@ -48,6 +90,30 @@ public sealed class ReleaseWorkflowTests
 
         Assert.True(TryCalculateVersionCode(versionName, out var expectedVersionCode), $"Invalid beta versionName: {versionName}");
         Assert.Equal(expectedVersionCode, document.RootElement.GetProperty("versionCode").GetInt32());
+    }
+
+    [Theory]
+    [InlineData("update/release/latest.json")]
+    [InlineData("update/beta/latest.json")]
+    public void LatestManifestUsesOnlyGithubAndGiteeDownloadSources(string manifestPath)
+    {
+        var root = FindRepositoryRoot();
+        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(root.FullName, manifestPath)));
+        var urls = document.RootElement
+            .GetProperty("assets")[0]
+            .GetProperty("urls")
+            .EnumerateArray()
+            .Select(url => new
+            {
+                Name = url.GetProperty("name").GetString(),
+                Priority = url.GetProperty("priority").GetInt32()
+            })
+            .ToArray();
+
+        Assert.Equal(new[] { "gitee", "github" }, urls.Select(url => url.Name).ToArray());
+        Assert.Equal(1, urls.Single(url => url.Name == "gitee").Priority);
+        Assert.Equal(2, urls.Single(url => url.Name == "github").Priority);
+        Assert.DoesNotContain(urls, url => url.Name is "oss" or "gitcode");
     }
 
     private static bool TryCalculateVersionCode(string? versionName, out int versionCode)

@@ -1,9 +1,9 @@
 # MineDock Launcher Remote Update Manifests
 
 This directory stores remote update manifest files for MineDock Launcher releases.
-These files are source-controlled release metadata and are intended to be uploaded
-to a static update source such as OSS, COS, GitCode, Gitee, GitHub raw, or GitHub
-Release assets.
+These files are source-controlled release metadata used by the GitHub raw and
+Gitee raw update sources, with matching executable assets published through
+GitHub and Gitee Releases.
 
 The `update` directory is not used as the launcher's local runtime configuration.
 
@@ -32,8 +32,10 @@ The release workflows parse `versionName` from the Git tag and verify
 `Launcher.App/Launcher.App.csproj`. The workflows do not use `latest.json` to
 decide the version being published.
 
-After a GitHub Release is created successfully, the workflow writes the final
-remote manifest back to `update/{channel}/latest.json` on the default branch:
+After GitHub and Gitee Releases are created successfully, the workflow writes the
+final remote manifest back to `update/{channel}/latest.json` on the default
+branch and mirrors both channel manifests to the lightweight Gitee update
+repository:
 
 - `versionName`: user-facing version, for example `1.2.3`.
 - `versionCode`: numeric version used for comparisons, for example `1020399`.
@@ -45,7 +47,10 @@ remote manifest back to `update/{channel}/latest.json` on the default branch:
 - `fileName`: published executable file name.
 - `size`: executable size in bytes.
 - `sha256`: SHA-256 checksum used for download integrity verification.
-- `urls`: download mirrors, tried from lower `priority` to higher `priority`.
+- `urls`: Gitee and GitHub download mirrors, tried from lower `priority` to higher `priority`.
 
-Keep placeholder download URLs empty until the final OSS, GitCode, Gitee, or
-GitHub Release URLs are ready.
+Final manifests contain only `gitee` and `github` download URLs. Gitee is the
+first update manifest source and the first download mirror; GitHub is the
+fallback. The Gitee repository is not a source-code mirror; it only stores
+`update/release/latest.json`, `update/beta/latest.json`, lightweight tags, and
+Release attachments.

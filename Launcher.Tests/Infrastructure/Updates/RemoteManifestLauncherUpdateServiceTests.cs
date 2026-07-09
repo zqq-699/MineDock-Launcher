@@ -9,11 +9,11 @@ namespace Launcher.Tests.Infrastructure.Updates;
 public sealed class RemoteManifestLauncherUpdateServiceTests
 {
     [Fact]
-    public async Task CheckForUpdatesRequestsGitHubReleaseManifestFirst()
+    public async Task CheckForUpdatesRequestsGiteeReleaseManifestFirst()
     {
         var handler = new ManifestHandler();
         handler.Respond(
-            "https://github.test/update/release/latest.json",
+            "https://gitee.test/update/release/latest.json",
             CreateManifest(versionCode: 1000199, channel: "release"));
         var service = CreateService(handler);
 
@@ -28,7 +28,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
         Assert.Equal(LauncherUpdateAssetKind.WindowsX64Executable, result.Update?.AssetKind);
         Assert.True(result.Update?.CanAutoInstall);
         Assert.Equal(
-            ["https://github.test/update/release/latest.json"],
+            ["https://gitee.test/update/release/latest.json"],
             handler.Requests.Select(request => request.RequestUri!.ToString()));
         Assert.Contains(handler.Requests[0].Headers.UserAgent, value => value.Product?.Name == LauncherProjectLinks.GitHubUserAgent);
     }
@@ -38,7 +38,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
     {
         var handler = new ManifestHandler();
         handler.Respond(
-            "https://github.test/update/beta/latest.json",
+            "https://gitee.test/update/beta/latest.json",
             CreateManifest(versionCode: 1000201, channel: "beta", versionName: "1.0.2-beta.1"));
         var service = CreateService(handler);
 
@@ -47,7 +47,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
         Assert.True(result.IsUpdateAvailable);
         Assert.Equal("1.0.2-beta.1", result.Update?.DisplayVersion);
         Assert.Equal(
-            ["https://github.test/update/beta/latest.json"],
+            ["https://gitee.test/update/beta/latest.json"],
             handler.Requests.Select(request => request.RequestUri!.ToString()));
     }
 
@@ -58,14 +58,14 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
     [InlineData(ManifestFailureMode.InvalidSchema)]
     [InlineData(ManifestFailureMode.InvalidAppId)]
     [InlineData(ManifestFailureMode.InvalidChannel)]
-    public async Task CheckForUpdatesFallsBackToGiteeWhenGitHubFails(ManifestFailureMode failureMode)
+    public async Task CheckForUpdatesFallsBackToGitHubWhenGiteeFails(ManifestFailureMode failureMode)
     {
         var handler = new ManifestHandler();
         handler.Respond(
-            "https://github.test/update/release/latest.json",
+            "https://gitee.test/update/release/latest.json",
             CreateFailureResponse(failureMode));
         handler.Respond(
-            "https://gitee.test/update/release/latest.json",
+            "https://github.test/update/release/latest.json",
             CreateManifest(versionCode: 1000399, channel: "release", versionName: "1.0.3"));
         var service = CreateService(handler);
 
@@ -76,8 +76,8 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
         Assert.Equal("1.0.3", result.Update?.Version);
         Assert.Equal(
             [
-                "https://github.test/update/release/latest.json",
-                "https://gitee.test/update/release/latest.json"
+                "https://gitee.test/update/release/latest.json",
+                "https://github.test/update/release/latest.json"
             ],
             handler.Requests.Select(request => request.RequestUri!.ToString()));
     }
@@ -87,10 +87,10 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
     {
         var handler = new ManifestHandler();
         handler.Respond(
-            "https://github.test/update/release/latest.json",
+            "https://gitee.test/update/release/latest.json",
             new ManifestResponse(HttpStatusCode.InternalServerError, "{}"));
         handler.Respond(
-            "https://gitee.test/update/release/latest.json",
+            "https://github.test/update/release/latest.json",
             new ManifestResponse(HttpStatusCode.NotFound, "{}"));
         var service = CreateService(handler);
 
@@ -106,7 +106,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
     {
         var handler = new ManifestHandler();
         handler.Respond(
-            "https://github.test/update/release/latest.json",
+            "https://gitee.test/update/release/latest.json",
             CreateManifest(versionCode: 1000099, channel: "release", versionName: "1.0.0"));
         var service = CreateService(handler);
 
@@ -122,7 +122,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
     {
         var handler = new ManifestHandler();
         handler.Respond(
-            "https://github.test/update/release/latest.json",
+            "https://gitee.test/update/release/latest.json",
             """
             {
               "schemaVersion": 1,
@@ -143,8 +143,8 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
                   "size": 123,
                   "sha256": "ABCDEF",
                   "urls": [
-                    { "name": "github", "url": "https://download.test/github.exe", "priority": 1 },
-                    { "name": "oss", "url": "https://download.test/oss.exe", "priority": 2 },
+                    { "name": "github", "url": "https://download.test/github.exe", "priority": 2 },
+                    { "name": "gitee", "url": "https://download.test/gitee.exe", "priority": 1 },
                     { "name": "ftp", "url": "ftp://download.test/file.exe", "priority": 0 }
                   ]
                 }
@@ -161,9 +161,9 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
         Assert.Equal(1000199, result.Update.MinSupportedVersionCode);
         Assert.Equal(123, result.Update.SizeBytes);
         Assert.Equal("ABCDEF", result.Update.Sha256);
-        Assert.Equal("https://download.test/github.exe", result.Update.DownloadUrl);
+        Assert.Equal("https://download.test/gitee.exe", result.Update.DownloadUrl);
         Assert.Equal(
-            ["github", "oss"],
+            ["gitee", "github"],
             result.Update.DownloadUrls!.Select(url => url.Name));
     }
 
@@ -187,8 +187,8 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
             logger: null,
             manifestSources:
             [
-                new LauncherUpdateManifestSource("github", "https://github.test/update/{0}/latest.json", 1),
-                new LauncherUpdateManifestSource("gitee", "https://gitee.test/update/{0}/latest.json", 2)
+                new LauncherUpdateManifestSource("gitee", "https://gitee.test/update/{0}/latest.json", 1),
+                new LauncherUpdateManifestSource("github", "https://github.test/update/{0}/latest.json", 2)
             ]);
     }
 
@@ -217,7 +217,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
               "size": 0,
               "sha256": "",
               "urls": [
-                { "name": "github", "url": "https://download.test/MineDock_Launcher_x64.exe", "priority": 1 }
+                { "name": "gitee", "url": "https://download.test/MineDock_Launcher_x64.exe", "priority": 1 }
               ]
             }
           ]

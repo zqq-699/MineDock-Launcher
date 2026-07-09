@@ -19,6 +19,9 @@ jobs:
       PUBLISH_DIR: publish/MineDock Launcher-win-x64-fdd-single
       ASSET_PATH: publish/MineDock Launcher-win-x64-fdd-single/MineDock_Launcher_x64.exe
       MANIFEST_PATH: update/release/latest.json
+      GITEE_OWNER: zqq-699
+      GITEE_REPO: MineDock-Launcher
+      GITEE_BRANCH: master
 
     steps:
       - name: Checkout
@@ -126,11 +129,33 @@ jobs:
           $hash = Get-FileHash -Algorithm SHA256 $env:ASSET_PATH
           $sha256 = $hash.Hash.ToLowerInvariant()
           $shaPath = Join-Path $env:PUBLISH_DIR "$assetName.sha256"
-          $downloadUrl = "https://github.com/$($env:GITHUB_REPOSITORY)/releases/download/$($env:GITHUB_REF_NAME)/$assetName"
-          $releaseNotes = Get-Content -Raw -Encoding UTF8 $env:NOTES_PATH
+          $githubDownloadUrl = "https://github.com/$($env:GITHUB_REPOSITORY)/releases/download/$($env:GITHUB_REF_NAME)/$assetName"
+          $encodedTag = [uri]::EscapeDataString($env:GITHUB_REF_NAME)
+          $encodedAssetName = [uri]::EscapeDataString($assetName)
+          $giteeDownloadUrl = "https://gitee.com/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases/download/$encodedTag/$encodedAssetName"
+          $releaseTitle = "MineDock Launcher $($env:VERSION_NAME)"
 
           Set-Content -Path $shaPath -Value "$sha256  $assetName" -Encoding ascii
 
+          "ASSET_NAME=$assetName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ASSET_SIZE=$($fileInfo.Length)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ASSET_SHA256=$sha256" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SHA_PATH=$shaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GITHUB_DOWNLOAD_URL=$githubDownloadUrl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GITEE_DOWNLOAD_URL=$giteeDownloadUrl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "RELEASE_TITLE=$releaseTitle" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME $env:ASSET_PATH $env:SHA_PATH --title $env:RELEASE_TITLE --notes-file $env:NOTES_PATH --latest
+
+      - name: Generate final release manifest
+        shell: pwsh
+        run: |
+          $releaseNotes = Get-Content -Raw -Encoding UTF8 $env:NOTES_PATH
           $manifest = Get-Content -Raw -Encoding UTF8 $env:MANIFEST_PATH | ConvertFrom-Json
           $manifest.versionName = $env:VERSION_NAME
           $manifest.versionCode = [int]$env:VERSION_CODE
@@ -138,30 +163,127 @@ jobs:
           $manifest.releaseNotes = $releaseNotes.Trim()
 
           $asset = $manifest.assets[0]
-          $asset.fileName = $assetName
-          $asset.size = [int64]$fileInfo.Length
-          $asset.sha256 = $sha256
-
-          $githubUrl = $asset.urls | Where-Object { $_.name -eq "github" } | Select-Object -First 1
-          if ($null -eq $githubUrl) {
-            $asset.urls += [pscustomobject]@{ name = "github"; url = $downloadUrl; priority = 1 }
-          } else {
-            $githubUrl.url = $downloadUrl
-            $githubUrl.priority = 1
-          }
+          $asset.fileName = $env:ASSET_NAME
+          $asset.size = [int64]$env:ASSET_SIZE
+          $asset.sha256 = $env:ASSET_SHA256
+          $asset.urls = @(
+            [pscustomobject]@{
+              name = "gitee"
+              url = $env:GITEE_DOWNLOAD_URL
+              priority = 1
+            },
+            [pscustomobject]@{
+              name = "github"
+              url = $env:GITHUB_DOWNLOAD_URL
+              priority = 2
+            }
+          )
 
           $manifest | ConvertTo-Json -Depth 20 | Set-Content -Path $env:GENERATED_MANIFEST_PATH -Encoding utf8
 
-      - name: Create GitHub release
+      - name: Sync Gitee update repository and tag
+        shell: pwsh
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:GITEE_TOKEN)) {
+            throw "Repository secret GITEE_TOKEN is not configured. Configure it before publishing a release."
+          }
+
+          $workspace = $env:GITHUB_WORKSPACE
+          $mirrorDirectory = Join-Path $env:RUNNER_TEMP "gitee-update-mirror"
+          if (Test-Path $mirrorDirectory) {
+            Remove-Item $mirrorDirectory -Recurse -Force
+          }
+
+          New-Item -ItemType Directory -Force $mirrorDirectory | Out-Null
+          Push-Location $mirrorDirectory
+          try {
+            git init
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            $encodedToken = [uri]::EscapeDataString($env:GITEE_TOKEN)
+            $remoteUrl = "https://oauth2:$encodedToken@gitee.com/$($env:GITEE_OWNER)/$($env:GITEE_REPO).git"
+            git remote add origin $remoteUrl
+
+            $existingTag = & git ls-remote --tags origin $env:GITHUB_REF_NAME
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to query Gitee tags."
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($existingTag)) {
+              throw "Gitee tag '$($env:GITHUB_REF_NAME)' already exists."
+            }
+
+            $branchRef = & git ls-remote --heads origin $env:GITEE_BRANCH
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to query Gitee branch '$($env:GITEE_BRANCH)'."
+            }
+
+            if ([string]::IsNullOrWhiteSpace($branchRef)) {
+              git checkout -B $env:GITEE_BRANCH
+            } else {
+              git fetch origin $env:GITEE_BRANCH
+              git checkout -B $env:GITEE_BRANCH FETCH_HEAD
+            }
+
+            Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
+            New-Item -ItemType Directory -Force "update/release" | Out-Null
+            New-Item -ItemType Directory -Force "update/beta" | Out-Null
+            Copy-Item (Join-Path $workspace "update/release/latest.json") "update/release/latest.json"
+            Copy-Item (Join-Path $workspace "update/beta/latest.json") "update/beta/latest.json"
+            Copy-Item $env:GENERATED_MANIFEST_PATH "update/$($env:CHANNEL)/latest.json" -Force
+
+            git add -A
+            if (git diff --cached --quiet) {
+              Write-Host "No Gitee manifest changes to commit."
+            } else {
+              git commit -m "Update $($env:CHANNEL) manifest for $($env:VERSION_NAME) [skip ci]"
+            }
+
+            git push origin HEAD:$($env:GITEE_BRANCH)
+            git tag $env:GITHUB_REF_NAME
+            git push origin $env:GITHUB_REF_NAME
+          } finally {
+            Pop-Location
+          }
+
+      - name: Create Gitee release
+        shell: pwsh
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:GITEE_TOKEN)) {
+            throw "Repository secret GITEE_TOKEN is not configured. Configure it before publishing a release."
+          }
+
+          $releaseNotes = Get-Content -Raw -Encoding UTF8 $env:NOTES_PATH
+          $releaseUri = "https://gitee.com/api/v5/repos/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases"
+          $release = Invoke-RestMethod -Method Post -Uri $releaseUri -Body @{
+            access_token = $env:GITEE_TOKEN
+            tag_name = $env:GITHUB_REF_NAME
+            target_commitish = $env:GITEE_BRANCH
+            name = $env:RELEASE_TITLE
+            body = $releaseNotes
+            prerelease = "false"
+          }
+
+          if ($null -eq $release.id) {
+            throw "Gitee release response did not include an id."
+          }
+
+          $uploadUri = "https://gitee.com/api/v5/repos/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases/$($release.id)/attach_files"
+          Invoke-RestMethod -Method Post -Uri $uploadUri -Form @{ access_token = $env:GITEE_TOKEN; file = Get-Item $env:ASSET_PATH } | Out-Null
+          Invoke-RestMethod -Method Post -Uri $uploadUri -Form @{ access_token = $env:GITEE_TOKEN; file = Get-Item $env:SHA_PATH } | Out-Null
+          Invoke-RestMethod -Method Post -Uri $uploadUri -Form @{ access_token = $env:GITEE_TOKEN; file = Get-Item $env:GENERATED_MANIFEST_PATH } | Out-Null
+
+      - name: Upload final manifest to GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $assetName = Split-Path $env:ASSET_PATH -Leaf
-          $shaPath = Join-Path $env:PUBLISH_DIR "$assetName.sha256"
-          $title = "MineDock Launcher $($env:VERSION_NAME)"
-
-          gh release create $env:GITHUB_REF_NAME $env:ASSET_PATH $shaPath $env:GENERATED_MANIFEST_PATH --title $title --notes-file $env:NOTES_PATH --latest
+          gh release upload $env:GITHUB_REF_NAME $env:GENERATED_MANIFEST_PATH
 
       - name: Write back release manifest
         shell: pwsh

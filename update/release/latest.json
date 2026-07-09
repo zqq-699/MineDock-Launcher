@@ -18,24 +18,14 @@
       "sha256": "",
       "urls": [
         {
-          "name": "github",
+          "name": "gitee",
           "url": "",
           "priority": 1
         },
         {
-          "name": "oss",
+          "name": "github",
           "url": "",
           "priority": 2
-        },
-        {
-          "name": "gitcode",
-          "url": "",
-          "priority": 3
-        },
-        {
-          "name": "gitee",
-          "url": "",
-          "priority": 4
         }
       ]
     }

@@ -18,24 +18,14 @@
       "sha256": "d3023ed7470e720dec24aec438b2fe3e1562b84af02b347edd4eccd7da0387b3",
       "urls": [
         {
-          "name": "github",
-          "url": "https://github.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.2/MineDock_Launcher_x64.exe",
+          "name": "gitee",
+          "url": "",
           "priority": 1
         },
         {
-          "name": "oss",
-          "url": "",
+          "name": "github",
+          "url": "https://github.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.2/MineDock_Launcher_x64.exe",
           "priority": 2
-        },
-        {
-          "name": "gitcode",
-          "url": "",
-          "priority": 3
-        },
-        {
-          "name": "gitee",
-          "url": "",
-          "priority": 4
         }
       ]
     }

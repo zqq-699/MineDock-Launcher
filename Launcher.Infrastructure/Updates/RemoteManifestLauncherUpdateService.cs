@@ -349,12 +349,12 @@ public sealed record LauncherUpdateManifestSource(
     public static IReadOnlyList<LauncherUpdateManifestSource> DefaultSources { get; } =
     [
         new LauncherUpdateManifestSource(
-            "github",
-            LauncherProjectLinks.GitHubUpdateManifestUrlTemplate,
-            1),
-        new LauncherUpdateManifestSource(
             "gitee",
             LauncherProjectLinks.GiteeUpdateManifestUrlTemplate,
+            1),
+        new LauncherUpdateManifestSource(
+            "github",
+            LauncherProjectLinks.GitHubUpdateManifestUrlTemplate,
             2)
     ];
 
