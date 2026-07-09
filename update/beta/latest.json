@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "appId": "MineDock-Launcher",
   "channel": "beta",
-  "versionName": "0.9.1-beta.10",
-  "versionCode": 90110,
-  "publishedAt": "2026-07-09T17:58:14Z",
+  "versionName": "0.9.1-beta.11",
+  "versionCode": 90111,
+  "publishedAt": "2026-07-09T18:11:48Z",
   "mandatory": false,
   "minSupportedVersionCode": 0,
-  "releaseNotes": "# Beta 0.9.1-beta.10\r\n\r\n- Move live update manifests to the update-manifests branch for GitHub and Gitee.\r\n- Keep the default branch update directory limited to release notes and a manifest template.\r\n- Avoid default-branch manifest commits after tag-triggered releases.",
+  "releaseNotes": "# Beta 0.9.1-beta.11\r\n\r\n- Fix generated update manifests so beta and release channels are written explicitly.\r\n- Repair the beta update manifest path used by launcher update checks.",
   "assets": [
     {
       "platform": "windows",
@@ -15,16 +15,16 @@
       "packageType": "exe",
       "fileName": "MineDock_Launcher_x64.exe",
       "size": 7509548,
-      "sha256": "c9ca2aadfb4cf405307818c2bdcd847c4a16a397513e21264eb9ddef2293f45d",
+      "sha256": "a7278d00feb1cbe89646e47638276ce730f72f9c8d6ed72a7d18fbe3e8000b28",
       "urls": [
         {
           "name": "gitee",
-          "url": "https://gitee.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.10/MineDock_Launcher_x64.exe",
+          "url": "https://gitee.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.11/MineDock_Launcher_x64.exe",
           "priority": 1
         },
         {
           "name": "github",
-          "url": "https://github.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.10/MineDock_Launcher_x64.exe",
+          "url": "https://github.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.11/MineDock_Launcher_x64.exe",
           "priority": 2
         }
       ]
