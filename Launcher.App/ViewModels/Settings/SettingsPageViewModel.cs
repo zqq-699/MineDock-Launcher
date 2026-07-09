@@ -394,7 +394,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             FollowSystemTheme = launcherSettings.ThemeFollowSystem;
             SelectedThemeOption = ResolveThemeOption(launcherSettings.Theme);
             SelectedAccentColorOption = ResolveAccentColorOption(launcherSettings.AccentColor);
-            Language.LoadSelection(launcherSettings.LauncherLanguage);
+            Language.LoadSelection(
+                launcherSettings.LauncherLanguage,
+                launcherSettings.AutoSetGameLanguageToLauncherLanguage);
             DisableBackgroundBlur = launcherSettings.DisableBackgroundBlur;
             LauncherBackgroundOpacityPercent = NormalizeLauncherBackgroundOpacity(launcherSettings.LauncherBackgroundOpacityPercent);
             JavaSettings.LoadSelection(launcherSettings.JavaSelectionMode, launcherSettings.SelectedJavaExecutablePath);
@@ -726,6 +728,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         settings.Theme = SelectedThemeOption?.Id ?? LauncherDefaults.DefaultTheme;
         settings.AccentColor = SelectedAccentColorOption?.Id ?? LauncherDefaults.DefaultAccentColor;
         settings.LauncherLanguage = Language.SelectedLanguageId;
+        settings.AutoSetGameLanguageToLauncherLanguage = Language.AutoSetGameLanguageToLauncherLanguage;
         settings.ThemeFollowSystem = FollowSystemTheme;
         settings.DisableBackgroundBlur = DisableBackgroundBlur;
         settings.LauncherBackgroundOpacityPercent = NormalizeLauncherBackgroundOpacity(LauncherBackgroundOpacityPercent);
@@ -746,7 +749,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             SelectedMemoryModeOption = ResolveMemoryModeOption(settings.DefaultMemorySettingsMode);
             SelectedThemeOption = ResolveThemeOption(settings.Theme);
             SelectedAccentColorOption = ResolveAccentColorOption(settings.AccentColor);
-            Language.LoadSelection(settings.LauncherLanguage);
+            Language.LoadSelection(
+                settings.LauncherLanguage,
+                settings.AutoSetGameLanguageToLauncherLanguage);
             DisableBackgroundBlur = settings.DisableBackgroundBlur;
             LauncherBackgroundOpacityPercent = settings.LauncherBackgroundOpacityPercent;
         }

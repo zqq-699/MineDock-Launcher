@@ -17,22 +17,53 @@
                 HorizontalAlignment="Stretch">
         <GroupBox Header="{x:Static res:Strings.Settings_LanguageSection}"
                   Style="{StaticResource LauncherContentSectionStyle}">
+            <StackPanel>
+                <Border Style="{StaticResource SectionFieldSurfaceStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="220" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="{x:Static res:Strings.Settings_LauncherLanguageLabel}"
+                                   Style="{StaticResource SettingsOptionTextStyle}" />
+
+                        <controls:AnimatedComboBox Grid.Column="1"
+                                                   ItemsSource="{Binding LanguageOptions}"
+                                                   SelectedItem="{Binding SelectedLanguageOption, Mode=TwoWay}"
+                                                   ItemTemplate="{StaticResource LanguageOptionTemplate}"
+                                                   SelectionItemTemplate="{StaticResource LanguageOptionTemplate}"
+                                                   Style="{StaticResource LauncherComboBoxStyle}" />
+                    </Grid>
+                </Border>
+
+                <TextBlock Margin="0,12,0,0"
+                           Text="{Binding LanguageRestartNoticeText}"
+                           Foreground="{DynamicResource Brush.Text.Danger}"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap"
+                           Visibility="{Binding IsLanguageRestartNoticeVisible, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+            </StackPanel>
+        </GroupBox>
+
+        <GroupBox Margin="0,26,0,0"
+                  Header="{x:Static res:Strings.Settings_GameLanguageSection}"
+                  Style="{StaticResource LauncherContentSectionStyle}">
             <Border Style="{StaticResource SectionFieldSurfaceStyle}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="220" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Text="{x:Static res:Strings.Settings_LauncherLanguageLabel}"
+                    <TextBlock Text="{x:Static res:Strings.Settings_AutoSetGameLanguageToLauncherLanguageLabel}"
                                Style="{StaticResource SettingsOptionTextStyle}" />
 
-                    <controls:AnimatedComboBox Grid.Column="1"
-                                               ItemsSource="{Binding LanguageOptions}"
-                                               SelectedItem="{Binding SelectedLanguageOption, Mode=TwoWay}"
-                                               ItemTemplate="{StaticResource LanguageOptionTemplate}"
-                                               SelectionItemTemplate="{StaticResource LanguageOptionTemplate}"
-                                               Style="{StaticResource LauncherComboBoxStyle}" />
+                    <CheckBox Grid.Column="1"
+                              Margin="16,0,0,0"
+                              IsChecked="{Binding AutoSetGameLanguageToLauncherLanguage, Mode=TwoWay}"
+                              Style="{StaticResource LauncherSwitchToggleButtonStyle}" />
                 </Grid>
             </Border>
         </GroupBox>

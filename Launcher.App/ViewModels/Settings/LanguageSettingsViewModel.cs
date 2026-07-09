@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Launcher.App.Resources;
 using Launcher.Domain.Models;
@@ -10,38 +11,69 @@ public sealed partial class LanguageSettingsViewModel : SettingsSectionViewModel
     public LanguageSettingsViewModel(SettingsPageViewModel parent)
         : base(parent)
     {
-        LanguageOptions.Add(Strings.Settings_LanguageSimplifiedChinese);
+        LanguageOptions.Add(new SettingsLanguageOption(
+            LauncherLanguages.SimplifiedChinese,
+            Strings.Settings_LanguageSimplifiedChinese));
+        LanguageOptions.Add(new SettingsLanguageOption(
+            LauncherLanguages.English,
+            Strings.Settings_LanguageEnglish));
         SelectedLanguageOption = LanguageOptions[0];
     }
 
-    public ObservableCollection<string> LanguageOptions { get; } = [];
+    public ObservableCollection<SettingsLanguageOption> LanguageOptions { get; } = [];
 
     [ObservableProperty]
-    private string? selectedLanguageOption;
+    private SettingsLanguageOption? selectedLanguageOption;
 
-    public string SelectedLanguageId => ResolveLanguageId(SelectedLanguageOption);
+    [ObservableProperty]
+    private bool autoSetGameLanguageToLauncherLanguage;
 
-    public void LoadSelection(string? language)
+    public string SelectedLanguageId => LauncherLanguages.Normalize(SelectedLanguageOption?.Id);
+
+    public bool IsLanguageRestartNoticeVisible =>
+        !string.Equals(SelectedLanguageId, CurrentLanguageId, StringComparison.OrdinalIgnoreCase);
+
+    public string LanguageRestartNoticeText => IsLanguageRestartNoticeVisible
+        ? BuildLanguageRestartNoticeText(CurrentLanguageId, SelectedLanguageId)
+        : string.Empty;
+
+    public void LoadSelection(string? language, bool autoSetGameLanguageToLauncherLanguage)
     {
-        SelectedLanguageOption = ResolveLanguageTitle(language);
+        SelectedLanguageOption = ResolveLanguageOption(language);
+        AutoSetGameLanguageToLauncherLanguage = autoSetGameLanguageToLauncherLanguage;
     }
 
-    partial void OnSelectedLanguageOptionChanged(string? value)
+    partial void OnSelectedLanguageOptionChanged(SettingsLanguageOption? value)
+    {
+        OnPropertyChanged(nameof(SelectedLanguageId));
+        OnPropertyChanged(nameof(IsLanguageRestartNoticeVisible));
+        OnPropertyChanged(nameof(LanguageRestartNoticeText));
+        Parent.NotifyLanguagePreferenceChanged();
+    }
+
+    partial void OnAutoSetGameLanguageToLauncherLanguageChanged(bool value)
     {
         Parent.NotifyLanguagePreferenceChanged();
     }
 
-    private static string ResolveLanguageId(string? title)
+    private SettingsLanguageOption ResolveLanguageOption(string? language)
     {
-        return string.Equals(title, Strings.Settings_LanguageSimplifiedChinese, StringComparison.Ordinal)
-            ? LauncherDefaults.DefaultLauncherLanguage
-            : LauncherDefaults.DefaultLauncherLanguage;
+        var normalizedLanguage = LauncherLanguages.Normalize(language);
+        return LanguageOptions.FirstOrDefault(option =>
+                   string.Equals(option.Id, normalizedLanguage, StringComparison.OrdinalIgnoreCase))
+               ?? LanguageOptions[0];
     }
 
-    private static string ResolveLanguageTitle(string? language)
+    private static string CurrentLanguageId => LauncherLanguages.Normalize(CultureInfo.CurrentUICulture.Name);
+
+    private static string BuildLanguageRestartNoticeText(string currentLanguageId, string targetLanguageId)
     {
-        return string.Equals(language, LauncherDefaults.DefaultLauncherLanguage, StringComparison.OrdinalIgnoreCase)
-            ? Strings.Settings_LanguageSimplifiedChinese
-            : Strings.Settings_LanguageSimplifiedChinese;
+        var currentNotice = Strings.GetLanguageRestartNotice(CultureInfo.GetCultureInfo(currentLanguageId));
+        var targetNotice = Strings.GetLanguageRestartNotice(CultureInfo.GetCultureInfo(targetLanguageId));
+        return string.Equals(currentNotice, targetNotice, StringComparison.Ordinal)
+            ? currentNotice
+            : $"{currentNotice}{Environment.NewLine}{targetNotice}";
     }
 }
+
+public sealed record SettingsLanguageOption(string Id, string Title);

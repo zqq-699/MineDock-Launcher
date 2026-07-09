@@ -34,6 +34,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILoaderProvider, NeoForgeLoaderProvider>();
         services.AddSingleton<ILoaderProvider, QuiltLoaderProvider>();
         services.AddSingleton<ILaunchService, LaunchService>();
+        services.AddSingleton<IGameLanguageService, GameLanguageService>();
         services.AddSingleton<IJavaRuntimeDiscoveryService, JavaRuntimeDiscoveryService>();
         services.AddSingleton<IJavaRuntimeSelectionService, JavaRuntimeSelectionService>();
         services.AddSingleton<IJavaRuntimeProvisioningService, CmlLibJavaRuntimeProvisioningService>();

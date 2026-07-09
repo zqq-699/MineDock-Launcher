@@ -44,8 +44,9 @@
                    VerticalAlignment="Center" />
     </DataTemplate>
 
-    <DataTemplate x:Key="LanguageOptionTemplate">
-        <TextBlock Text="{Binding}"
+    <DataTemplate x:Key="LanguageOptionTemplate"
+                  DataType="{x:Type settings:SettingsLanguageOption}">
+        <TextBlock Text="{Binding Title}"
                    Foreground="{DynamicResource Brush.F4F4F4}"
                    FontSize="13"
                    VerticalAlignment="Center" />

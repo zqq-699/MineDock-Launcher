@@ -19,6 +19,12 @@ public sealed class StringResourceTests
         @"\b(Subtitle|Message Format|Detail Format|Recommendation Format)\b",
         RegexOptions.CultureInvariant);
 
+    private static readonly HashSet<string> NativeLanguageNameKeys =
+    [
+        "Settings_LanguageSimplifiedChinese",
+        "Settings_LanguageEnglish"
+    ];
+
     [Fact]
     public void EnglishResourceKeysMatchDefaultResourceKeys()
     {
@@ -56,6 +62,7 @@ public sealed class StringResourceTests
         var englishEntries = LoadResourceEntries("Strings.en.resx");
 
         var offenders = englishEntries
+            .Where(entry => !NativeLanguageNameKeys.Contains(entry.Key))
             .Where(entry =>
                 string.Equals(entry.Key, entry.Value, StringComparison.Ordinal) ||
                 CjkPattern.IsMatch(entry.Value) ||
@@ -81,6 +88,9 @@ public sealed class StringResourceTests
         Assert.Equal("Release", englishEntries["Download_ReleaseCategory"]);
         Assert.Equal("Supported Versions", englishEntries["Resources_ModDetailsVersionLabel"]);
         Assert.Equal("General", englishEntries["GameSettings_DetailGeneral"]);
+        Assert.Equal("简体中文", englishEntries["Settings_LanguageSimplifiedChinese"]);
+        Assert.Equal("English", englishEntries["Settings_LanguageEnglish"]);
+        Assert.Equal("The language will take effect after restarting the app.", englishEntries["Settings_LanguageRestartNotice"]);
         Assert.Equal("Delete save \"{0}\"? This cannot be undone.", englishEntries["Dialog_DeleteSingleSaveMessageFormat"]);
     }
 
@@ -101,6 +111,9 @@ public sealed class StringResourceTests
             Assert.Equal("An instance with this name already exists.", Strings.Status_DuplicateInstanceName);
             Assert.Equal("Choose the account type to add.", Strings.Dialog_AddAccountSubtitle);
             Assert.Equal("Supported Versions", Strings.Resources_ModDetailsVersionLabel);
+            Assert.Equal("简体中文", Strings.Settings_LanguageSimplifiedChinese);
+            Assert.Equal("English", Strings.Settings_LanguageEnglish);
+            Assert.Equal("The language will take effect after restarting the app.", Strings.Settings_LanguageRestartNotice);
         }
         finally
         {

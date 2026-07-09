@@ -8,6 +8,7 @@ public static class Strings
     private static readonly ResourceManager ResourceManager = new("Launcher.App.Resources.Strings", typeof(Strings).Assembly);
 
     private static string Get(string name) => ResourceManager.GetString(name, CultureInfo.CurrentUICulture) ?? name;
+    private static string Get(string name, CultureInfo culture) => ResourceManager.GetString(name, culture) ?? name;
 
     public static string App_Title => Get(nameof(App_Title));
     public static string Menu_Button => Get(nameof(Menu_Button));
@@ -251,6 +252,11 @@ public static class Strings
     public static string Settings_LanguageSection => Get(nameof(Settings_LanguageSection));
     public static string Settings_LauncherLanguageLabel => Get(nameof(Settings_LauncherLanguageLabel));
     public static string Settings_LanguageSimplifiedChinese => Get(nameof(Settings_LanguageSimplifiedChinese));
+    public static string Settings_LanguageEnglish => Get(nameof(Settings_LanguageEnglish));
+    public static string Settings_LanguageRestartNotice => Get(nameof(Settings_LanguageRestartNotice));
+    public static string GetLanguageRestartNotice(CultureInfo culture) => Get(nameof(Settings_LanguageRestartNotice), culture);
+    public static string Settings_GameLanguageSection => Get(nameof(Settings_GameLanguageSection));
+    public static string Settings_AutoSetGameLanguageToLauncherLanguageLabel => Get(nameof(Settings_AutoSetGameLanguageToLauncherLanguageLabel));
     public static string Settings_GeneralFilesAndDirectoriesSection => Get(nameof(Settings_GeneralFilesAndDirectoriesSection));
     public static string Settings_DataDirectoryLabel => Get(nameof(Settings_DataDirectoryLabel));
     public static string Settings_MinecraftDirectoryLabel => Get(nameof(Settings_MinecraftDirectoryLabel));

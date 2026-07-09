@@ -65,11 +65,82 @@ public sealed class SettingsPageViewModelTests
         Assert.False(viewModel.IsThemeSelectionVisible);
         Assert.Equal("Light", viewModel.SelectedThemeOption?.Id);
         Assert.Equal(LauncherAccentColors.Emerald, viewModel.SelectedAccentColorOption?.Id);
-        Assert.Equal(Strings.Settings_LanguageSimplifiedChinese, viewModel.Language.SelectedLanguageOption);
+        Assert.Equal(Strings.Settings_LanguageSimplifiedChinese, viewModel.Language.SelectedLanguageOption?.Title);
         Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, viewModel.Language.SelectedLanguageId);
+        Assert.True(viewModel.Language.AutoSetGameLanguageToLauncherLanguage);
         Assert.True(viewModel.DisableBackgroundBlur);
         Assert.Equal(72, viewModel.LauncherBackgroundOpacityPercent);
         Assert.Equal("72%", viewModel.LauncherBackgroundOpacityText);
+    }
+
+    [Fact]
+    public void LanguageOptionsIncludeSimplifiedChineseAndEnglish()
+    {
+        var viewModel = CreateViewModel(out _, out _);
+
+        Assert.Equal(
+            [
+                LauncherLanguages.SimplifiedChinese,
+                LauncherLanguages.English
+            ],
+            viewModel.Language.LanguageOptions.Select(option => option.Id));
+        Assert.Equal(Strings.Settings_LanguageSimplifiedChinese, viewModel.Language.LanguageOptions[0].Title);
+        Assert.Equal(Strings.Settings_LanguageEnglish, viewModel.Language.LanguageOptions[1].Title);
+    }
+
+    [Fact]
+    public void LanguageRestartNoticeIsHiddenWhenSelectionMatchesCurrentLanguage()
+    {
+        var settings = new LauncherSettings { LauncherLanguage = LauncherLanguages.SimplifiedChinese };
+        var viewModel = CreateViewModel(settings, out _, out _);
+
+        viewModel.PrimeFromSettings(settings);
+
+        Assert.False(viewModel.Language.IsLanguageRestartNoticeVisible);
+        Assert.Equal(string.Empty, viewModel.Language.LanguageRestartNoticeText);
+    }
+
+    [Fact]
+    public void LanguageRestartNoticeShowsCurrentThenTargetLanguage()
+    {
+        var settings = new LauncherSettings { LauncherLanguage = LauncherLanguages.SimplifiedChinese };
+        var viewModel = CreateViewModel(settings, out _, out _);
+        viewModel.PrimeFromSettings(settings);
+
+        viewModel.Language.SelectedLanguageOption = viewModel.Language.LanguageOptions.Single(option =>
+            option.Id == LauncherLanguages.English);
+
+        Assert.True(viewModel.Language.IsLanguageRestartNoticeVisible);
+        Assert.Equal(
+            $"语言将在重启应用后生效。{Environment.NewLine}The language will take effect after restarting the app.",
+            viewModel.Language.LanguageRestartNoticeText);
+    }
+
+    [Fact]
+    public void GameLanguageAutoSyncSwitchLoadsFromSettings()
+    {
+        var settings = new LauncherSettings { AutoSetGameLanguageToLauncherLanguage = false };
+        var viewModel = CreateViewModel(settings, out _, out _);
+
+        viewModel.PrimeFromSettings(settings);
+
+        Assert.False(viewModel.Language.AutoSetGameLanguageToLauncherLanguage);
+    }
+
+    [Fact]
+    public async Task GameLanguageAutoSyncSwitchPersistsSettings()
+    {
+        var settings = new LauncherSettings { AutoSetGameLanguageToLauncherLanguage = true };
+        var viewModel = CreateViewModel(settings, out var settingsService, out _);
+        viewModel.PrimeFromSettings(settings);
+
+        viewModel.Language.AutoSetGameLanguageToLauncherLanguage = false;
+
+        await TestAsync.WaitForAsync(() =>
+            settingsService.SaveCount >= 1
+            && settings.AutoSetGameLanguageToLauncherLanguage == false);
+
+        Assert.False(viewModel.Language.AutoSetGameLanguageToLauncherLanguage);
     }
 
     [Fact]
@@ -317,18 +388,42 @@ public sealed class SettingsPageViewModelTests
     [Fact]
     public async Task LanguageSelectionPersistsSettings()
     {
-        var settings = new LauncherSettings { LauncherLanguage = "legacy-language" };
+        var settings = new LauncherSettings { LauncherLanguage = LauncherDefaults.DefaultLauncherLanguage };
         var viewModel = CreateViewModel(settings, out var settingsService, out _);
         viewModel.PrimeFromSettings(settings);
 
-        viewModel.Language.SelectedLanguageOption = null;
-        viewModel.Language.SelectedLanguageOption = viewModel.Language.LanguageOptions.Single();
+        viewModel.Language.SelectedLanguageOption = viewModel.Language.LanguageOptions.Single(option =>
+            option.Id == LauncherLanguages.English);
 
         await TestAsync.WaitForAsync(() =>
             settingsService.SaveCount >= 1
-            && settings.LauncherLanguage == LauncherDefaults.DefaultLauncherLanguage);
+            && settings.LauncherLanguage == LauncherLanguages.English);
 
-        Assert.Equal(Strings.Settings_LanguageSimplifiedChinese, viewModel.Language.SelectedLanguageOption);
+        Assert.Equal(Strings.Settings_LanguageEnglish, viewModel.Language.SelectedLanguageOption?.Title);
+        Assert.Equal(LauncherLanguages.English, viewModel.Language.SelectedLanguageId);
+    }
+
+    [Fact]
+    public void LanguageSelectionLoadsEnglishSettings()
+    {
+        var settings = new LauncherSettings { LauncherLanguage = LauncherLanguages.English };
+        var viewModel = CreateViewModel(settings, out _, out _);
+
+        viewModel.PrimeFromSettings(settings);
+
+        Assert.Equal(Strings.Settings_LanguageEnglish, viewModel.Language.SelectedLanguageOption?.Title);
+        Assert.Equal(LauncherLanguages.English, viewModel.Language.SelectedLanguageId);
+    }
+
+    [Fact]
+    public void LanguageSelectionFallsBackForInvalidSettings()
+    {
+        var settings = new LauncherSettings { LauncherLanguage = "legacy-language" };
+        var viewModel = CreateViewModel(settings, out _, out _);
+
+        viewModel.PrimeFromSettings(settings);
+
+        Assert.Equal(Strings.Settings_LanguageSimplifiedChinese, viewModel.Language.SelectedLanguageOption?.Title);
         Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, viewModel.Language.SelectedLanguageId);
     }
 

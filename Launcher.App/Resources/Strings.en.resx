@@ -2535,7 +2535,19 @@ The current game folder will be backed up first.</value>
     <value>Launcher Language</value>
   </data>
   <data name="Settings_LanguageSimplifiedChinese" xml:space="preserve">
-    <value>Simplified Chinese</value>
+    <value>简体中文</value>
+  </data>
+  <data name="Settings_LanguageEnglish" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="Settings_LanguageRestartNotice" xml:space="preserve">
+    <value>The language will take effect after restarting the app.</value>
+  </data>
+  <data name="Settings_GameLanguageSection" xml:space="preserve">
+    <value>Game Language</value>
+  </data>
+  <data name="Settings_AutoSetGameLanguageToLauncherLanguageLabel" xml:space="preserve">
+    <value>Automatically set game language to launcher language</value>
   </data>
   <data name="Settings_AccentSection" xml:space="preserve">
     <value>Accent Color</value>

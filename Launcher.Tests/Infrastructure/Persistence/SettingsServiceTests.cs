@@ -29,6 +29,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.Equal(LauncherDefaults.DefaultTheme, loaded.Theme);
         Assert.Equal(LauncherDefaults.DefaultAccentColor, loaded.AccentColor);
         Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, loaded.LauncherLanguage);
+        Assert.True(loaded.AutoSetGameLanguageToLauncherLanguage);
         Assert.True(loaded.ThemeFollowSystem);
         Assert.False(loaded.IsHomeLaunchMenuPinned);
         Assert.False(loaded.DisableBackgroundBlur);
@@ -112,12 +113,25 @@ public sealed class SettingsServiceTests : TestTempDirectory
     {
         var service = new JsonSettingsService(TempRoot);
         var settings = await service.LoadAsync();
-        settings.LauncherLanguage = LauncherDefaults.DefaultLauncherLanguage;
+        settings.LauncherLanguage = LauncherLanguages.English;
 
         await service.SaveAsync(settings);
         var loaded = await service.LoadAsync();
 
-        Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, loaded.LauncherLanguage);
+        Assert.Equal(LauncherLanguages.English, loaded.LauncherLanguage);
+    }
+
+    [Fact]
+    public async Task SettingsServiceRoundTripsGameLanguageAutoSyncPreference()
+    {
+        var service = new JsonSettingsService(TempRoot);
+        var settings = await service.LoadAsync();
+        settings.AutoSetGameLanguageToLauncherLanguage = false;
+
+        await service.SaveAsync(settings);
+        var loaded = await service.LoadAsync();
+
+        Assert.False(loaded.AutoSetGameLanguageToLauncherLanguage);
     }
 
     [Fact]

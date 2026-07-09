@@ -143,8 +143,6 @@ public sealed class JsonSettingsService : ISettingsService
 
     private static string NormalizeLauncherLanguage(string? language)
     {
-        return string.Equals(language, LauncherDefaults.DefaultLauncherLanguage, StringComparison.OrdinalIgnoreCase)
-            ? LauncherDefaults.DefaultLauncherLanguage
-            : LauncherDefaults.DefaultLauncherLanguage;
+        return LauncherLanguages.Normalize(language);
     }
 }

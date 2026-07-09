@@ -1,9 +1,12 @@
+using System.Globalization;
 using System.Windows;
 using Launcher.Application.DependencyInjection;
 using Launcher.Application.Services;
 using Launcher.App.Logging;
 using Launcher.App.Services;
+using Launcher.Domain.Models;
 using Launcher.Infrastructure.DependencyInjection;
+using Launcher.Infrastructure.Persistence;
 using Launcher.Infrastructure.Updates;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -16,6 +19,13 @@ public partial class App : System.Windows.Application
     private static readonly TimeSpan ExitBackgroundTaskWaitTimeout = TimeSpan.FromSeconds(5);
     private ServiceProvider? serviceProvider;
     private bool isUpdateApplyMode;
+
+    public App()
+    {
+        var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
+        if (LauncherUpdateApplyOptions.Parse(args) is null)
+            ApplyLauncherCulture(new JsonSettingsService().LoadAsync().GetAwaiter().GetResult().LauncherLanguage);
+    }
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -34,6 +44,7 @@ public partial class App : System.Windows.Application
         try
         {
             Log.Information("Launcher startup started. ArgumentCount={ArgumentCount}", e.Args.Length);
+            Log.Information("Launcher culture initialized. Language={Language}", CultureInfo.CurrentUICulture.Name);
             base.OnStartup(e);
 
             var services = new ServiceCollection();
@@ -103,6 +114,16 @@ public partial class App : System.Windows.Application
             Log.CloseAndFlush();
             throw;
         }
+    }
+
+    private static void ApplyLauncherCulture(string? language)
+    {
+        var normalizedLanguage = LauncherLanguages.Normalize(language);
+        var culture = CultureInfo.GetCultureInfo(normalizedLanguage);
+        CultureInfo.DefaultThreadCurrentCulture = culture;
+        CultureInfo.DefaultThreadCurrentUICulture = culture;
+        CultureInfo.CurrentCulture = culture;
+        CultureInfo.CurrentUICulture = culture;
     }
 
     protected override void OnExit(ExitEventArgs e)

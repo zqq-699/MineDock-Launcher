@@ -857,6 +857,10 @@
   <data name="Settings_LanguageSection" xml:space="preserve"><value>启动器语言</value></data>
   <data name="Settings_LauncherLanguageLabel" xml:space="preserve"><value>启动器语言</value></data>
   <data name="Settings_LanguageSimplifiedChinese" xml:space="preserve"><value>简体中文</value></data>
+  <data name="Settings_LanguageEnglish" xml:space="preserve"><value>English</value></data>
+  <data name="Settings_LanguageRestartNotice" xml:space="preserve"><value>语言将在重启应用后生效。</value></data>
+  <data name="Settings_GameLanguageSection" xml:space="preserve"><value>游戏语言</value></data>
+  <data name="Settings_AutoSetGameLanguageToLauncherLanguageLabel" xml:space="preserve"><value>自动设置游戏语言为启动器语言</value></data>
   <data name="Settings_AccentSection" xml:space="preserve"><value>强调色</value></data>
   <data name="Settings_AccentSelectionLabel" xml:space="preserve"><value>启动器强调色</value></data>
   <data name="Settings_AccentColorBlueTitle" xml:space="preserve"><value>蓝色 Blue</value></data>

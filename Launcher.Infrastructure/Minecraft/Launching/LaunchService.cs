@@ -22,6 +22,7 @@ public sealed class LaunchService : ILaunchService
     private readonly IJavaRuntimeProvisioningService? javaRuntimeProvisioningService;
     private readonly ISystemMemoryService? systemMemoryService;
     private readonly IModService? modService;
+    private readonly IGameLanguageService? gameLanguageService;
     private readonly ILogger<LaunchService> logger;
 
     public LaunchService(
@@ -31,6 +32,7 @@ public sealed class LaunchService : ILaunchService
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ISystemMemoryService? systemMemoryService = null,
         IModService? modService = null,
+        IGameLanguageService? gameLanguageService = null,
         ILogger<LaunchService>? logger = null)
         : this(
             accountSessionService,
@@ -42,6 +44,7 @@ public sealed class LaunchService : ILaunchService
             javaRuntimeProvisioningService,
             systemMemoryService,
             modService,
+            gameLanguageService,
             logger)
     {
     }
@@ -56,6 +59,7 @@ public sealed class LaunchService : ILaunchService
         IJavaRuntimeProvisioningService? javaRuntimeProvisioningService = null,
         ISystemMemoryService? systemMemoryService = null,
         IModService? modService = null,
+        IGameLanguageService? gameLanguageService = null,
         ILogger<LaunchService>? logger = null)
     {
         this.accountSessionService = accountSessionService;
@@ -67,6 +71,7 @@ public sealed class LaunchService : ILaunchService
         this.javaRuntimeProvisioningService = javaRuntimeProvisioningService;
         this.systemMemoryService = systemMemoryService;
         this.modService = modService;
+        this.gameLanguageService = gameLanguageService;
         this.logger = logger ?? NullLogger<LaunchService>.Instance;
     }
 
@@ -166,6 +171,7 @@ public sealed class LaunchService : ILaunchService
             }
 
             var accountSession = await accountSessionService.CreateSessionAsync(account, cancellationToken);
+            await ApplyGameLanguageAsync(instance, settings, cancellationToken);
             selectedJavaRuntime = await ResolveJavaRuntimeForLaunchAsync(
                 instance,
                 settings,
@@ -311,6 +317,39 @@ public sealed class LaunchService : ILaunchService
                 process?.StartInfo,
                 cancellationToken);
             throw new LaunchFailedException(report, exception);
+        }
+    }
+
+    private async Task ApplyGameLanguageAsync(
+        GameInstance instance,
+        LauncherSettings settings,
+        CancellationToken cancellationToken)
+    {
+        if (!settings.AutoSetGameLanguageToLauncherLanguage || gameLanguageService is null)
+            return;
+
+        try
+        {
+            await gameLanguageService.ApplyLauncherLanguageAsync(
+                instance,
+                settings.LauncherLanguage,
+                cancellationToken);
+            logger.LogInformation(
+                "Game language synchronized with launcher language. InstanceId={InstanceId} LauncherLanguage={LauncherLanguage}",
+                instance.Id,
+                LauncherLanguages.Normalize(settings.LauncherLanguage));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Failed to synchronize game language before launch. InstanceId={InstanceId} LauncherLanguage={LauncherLanguage}",
+                instance.Id,
+                LauncherLanguages.Normalize(settings.LauncherLanguage));
         }
     }
 

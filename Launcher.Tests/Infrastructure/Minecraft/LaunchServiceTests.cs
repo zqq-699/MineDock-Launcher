@@ -1011,6 +1011,84 @@ public sealed class LaunchServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task LaunchServiceAppliesGameLanguageWhenEnabled()
+    {
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var gameLanguageService = new FakeGameLanguageService();
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            launcherFactory,
+            new NoOpLaunchCrashMonitor(),
+            gameLanguageService: gameLanguageService);
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            LauncherLanguage = LauncherLanguages.English,
+            AutoSetGameLanguageToLauncherLanguage = true
+        };
+        var instance = CreateInstance(Path.Combine(settings.MinecraftDirectory, "versions", "1.20.1"), "1.20.1");
+
+        await service.LaunchAsync(instance, CreateAccount(), settings, progress: null);
+
+        Assert.Equal(1, gameLanguageService.CallCount);
+        Assert.Same(instance, gameLanguageService.LastInstance);
+        Assert.Equal(LauncherLanguages.English, gameLanguageService.LastLauncherLanguage);
+        Assert.Equal("1.20.1", launcherFactory.Launcher.LastBuiltVersionName);
+    }
+
+    [Fact]
+    public async Task LaunchServiceSkipsGameLanguageWhenDisabled()
+    {
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var gameLanguageService = new FakeGameLanguageService();
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            launcherFactory,
+            new NoOpLaunchCrashMonitor(),
+            gameLanguageService: gameLanguageService);
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            AutoSetGameLanguageToLauncherLanguage = false
+        };
+        var instance = CreateInstance(Path.Combine(settings.MinecraftDirectory, "versions", "1.20.1"), "1.20.1");
+
+        await service.LaunchAsync(instance, CreateAccount(), settings, progress: null);
+
+        Assert.Equal(0, gameLanguageService.CallCount);
+        Assert.Equal("1.20.1", launcherFactory.Launcher.LastBuiltVersionName);
+    }
+
+    [Fact]
+    public async Task LaunchServiceContinuesWhenGameLanguageSyncFails()
+    {
+        var launcherFactory = new FakeLaunchGameLauncherFactory();
+        var gameLanguageService = new FakeGameLanguageService
+        {
+            ExceptionToThrow = new IOException("options locked")
+        };
+        var service = new LaunchService(
+            new FakeLaunchAccountSessionService(),
+            new FakeManagedVersionRepairService(),
+            launcherFactory,
+            new NoOpLaunchCrashMonitor(),
+            gameLanguageService: gameLanguageService);
+        var settings = new LauncherSettings
+        {
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            AutoSetGameLanguageToLauncherLanguage = true
+        };
+        var instance = CreateInstance(Path.Combine(settings.MinecraftDirectory, "versions", "1.20.1"), "1.20.1");
+
+        await service.LaunchAsync(instance, CreateAccount(), settings, progress: null);
+
+        Assert.Equal(1, gameLanguageService.CallCount);
+        Assert.Equal("1.20.1", launcherFactory.Launcher.LastBuiltVersionName);
+    }
+
+    [Fact]
     public async Task ManagedVersionRepairThrowsWhenJarIsMissingAndAutoRepairDisabled()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -1637,6 +1715,32 @@ public sealed class LaunchServiceTests : TestTempDirectory
             LastDownloadSpeedLimitMbPerSecond = downloadSpeedLimitMbPerSecond;
             if (OnRepairAsync is not null)
                 return OnRepairAsync(progress);
+
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeGameLanguageService : IGameLanguageService
+    {
+        public int CallCount { get; private set; }
+
+        public GameInstance? LastInstance { get; private set; }
+
+        public string? LastLauncherLanguage { get; private set; }
+
+        public Exception? ExceptionToThrow { get; init; }
+
+        public Task ApplyLauncherLanguageAsync(
+            GameInstance instance,
+            string launcherLanguage,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            LastInstance = instance;
+            LastLauncherLanguage = launcherLanguage;
+
+            if (ExceptionToThrow is not null)
+                throw ExceptionToThrow;
 
             return Task.CompletedTask;
         }
