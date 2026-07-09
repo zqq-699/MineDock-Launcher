@@ -2,24 +2,24 @@
   "schemaVersion": 1,
   "appId": "MineDock-Launcher",
   "channel": "beta",
-  "versionName": "0.9.1-beta.1",
-  "versionCode": 90101,
-  "publishedAt": "2026-07-09T00:00:00+08:00",
+  "versionName": "0.9.1-beta.2",
+  "versionCode": 90102,
+  "publishedAt": "2026-07-09T14:30:12Z",
   "mandatory": false,
   "minSupportedVersionCode": 0,
-  "releaseNotes": "",
+  "releaseNotes": "# Beta 0.9.1-beta.2\r\n\r\n- Validate the tag-driven beta release workflow with a real prerelease tag.\r\n- Keep release notes as the required source for generated update manifests.\r\n- Confirm the generated Windows x64 single-file exe can be published through GitHub Releases.",
   "assets": [
     {
       "platform": "windows",
       "arch": "x64",
       "packageType": "exe",
-      "fileName": "",
-      "size": 0,
-      "sha256": "",
+      "fileName": "MineDock_Launcher_x64.exe",
+      "size": 7509546,
+      "sha256": "d3023ed7470e720dec24aec438b2fe3e1562b84af02b347edd4eccd7da0387b3",
       "urls": [
         {
           "name": "github",
-          "url": "",
+          "url": "https://github.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.2/MineDock_Launcher_x64.exe",
           "priority": 1
         },
         {
@@ -41,3 +41,4 @@
     }
   ]
 }
+
