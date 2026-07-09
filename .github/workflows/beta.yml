@@ -17,10 +17,11 @@ jobs:
       CHANNEL: beta
       PUBLISH_DIR: publish/MineDock Launcher-win-x64-fdd-single
       ASSET_PATH: publish/MineDock Launcher-win-x64-fdd-single/MineDock_Launcher_x64.exe
-      MANIFEST_PATH: update/beta/latest.json
+      MANIFEST_PATH: update/latest.template.json
       GITEE_OWNER: zqq-699
       GITEE_REPO: MineDock-Launcher
-      GITEE_BRANCH: master
+      GITEE_BRANCH: update-manifests
+      GITHUB_MANIFEST_BRANCH: update-manifests
 
     steps:
       - name: Checkout
@@ -40,7 +41,12 @@ jobs:
           }
 
           $versionName = $tag.Substring(1)
-          $versionCode = ([int]$Matches.major * 1000000) + ([int]$Matches.minor * 10000) + ([int]$Matches.patch * 100) + [int]$Matches.beta
+          $betaNumber = [int]$Matches.beta
+          if ($betaNumber -lt 1 -or $betaNumber -gt 98) {
+            throw "Beta number must be between 1 and 98. Actual beta number: $betaNumber"
+          }
+
+          $versionCode = ([int]$Matches.major * 1000000) + ([int]$Matches.minor * 10000) + ([int]$Matches.patch * 100) + $betaNumber
           $notesPath = "update/$($env:CHANNEL)/notes/$versionName.md"
 
           if (-not (Test-Path $notesPath)) {
@@ -90,8 +96,17 @@ jobs:
             throw "Unexpected update manifest appId: $($manifest.appId)"
           }
 
-          if ($manifest.channel -ne $env:CHANNEL) {
-            throw "Update manifest channel '$($manifest.channel)' does not match workflow channel '$($env:CHANNEL)'."
+          $urls = @($manifest.assets[0].urls)
+          if ($urls.Count -ne 2) {
+            throw "Manifest template must define exactly two download URL slots."
+          }
+
+          if ($urls[0].name -ne "gitee" -or [int]$urls[0].priority -ne 1) {
+            throw "Manifest template first download URL must be gitee with priority 1."
+          }
+
+          if ($urls[1].name -ne "github" -or [int]$urls[1].priority -ne 2) {
+            throw "Manifest template second download URL must be github with priority 2."
           }
 
       - name: Clean publish output
@@ -131,7 +146,7 @@ jobs:
           $githubDownloadUrl = "https://github.com/$($env:GITHUB_REPOSITORY)/releases/download/$($env:GITHUB_REF_NAME)/$assetName"
           $encodedTag = [uri]::EscapeDataString($env:GITHUB_REF_NAME)
           $encodedAssetName = [uri]::EscapeDataString($assetName)
-          $giteeDownloadUrl = "https://gitee.com/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases/download/$encodedTag/$encodedAssetName"
+          $giteeFallbackDownloadUrl = "https://gitee.com/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases/download/$encodedTag/$encodedAssetName"
           $releaseTitle = "MineDock Launcher $($env:VERSION_NAME) Beta"
 
           Set-Content -Path $shaPath -Value "$sha256  $assetName" -Encoding ascii
@@ -141,37 +156,8 @@ jobs:
           "ASSET_SHA256=$sha256" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "SHA_PATH=$shaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "GITHUB_DOWNLOAD_URL=$githubDownloadUrl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "GITEE_DOWNLOAD_URL=$giteeDownloadUrl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GITEE_FALLBACK_DOWNLOAD_URL=$giteeFallbackDownloadUrl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "RELEASE_TITLE=$releaseTitle" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Generate final beta manifest
-        shell: pwsh
-        run: |
-          $releaseNotes = Get-Content -Raw -Encoding UTF8 $env:NOTES_PATH
-          $manifest = Get-Content -Raw -Encoding UTF8 $env:MANIFEST_PATH | ConvertFrom-Json
-          $manifest.versionName = $env:VERSION_NAME
-          $manifest.versionCode = [int]$env:VERSION_CODE
-          $manifest.publishedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-          $manifest.releaseNotes = $releaseNotes.Trim()
-
-          $asset = $manifest.assets[0]
-          $asset.fileName = $env:ASSET_NAME
-          $asset.size = [int64]$env:ASSET_SIZE
-          $asset.sha256 = $env:ASSET_SHA256
-          $asset.urls = @(
-            [pscustomobject]@{
-              name = "gitee"
-              url = $env:GITEE_DOWNLOAD_URL
-              priority = 1
-            },
-            [pscustomobject]@{
-              name = "github"
-              url = $env:GITHUB_DOWNLOAD_URL
-              priority = 2
-            }
-          )
-
-          $manifest | ConvertTo-Json -Depth 20 | Set-Content -Path $env:GENERATED_MANIFEST_PATH -Encoding utf8
 
       - name: Reserve Gitee beta release tag
         shell: pwsh
@@ -198,6 +184,26 @@ jobs:
             $remoteUrl = "https://oauth2:$encodedToken@gitee.com/$($env:GITEE_OWNER)/$($env:GITEE_REPO).git"
             git remote add origin $remoteUrl
 
+            function Initialize-ManifestBranch {
+              param([string]$TemplatePath)
+
+              git checkout --orphan $env:GITEE_BRANCH
+              New-Item -ItemType Directory -Force "update/release" | Out-Null
+              New-Item -ItemType Directory -Force "update/beta" | Out-Null
+              foreach ($channel in @("release", "beta")) {
+                $manifest = Get-Content -Raw -Encoding UTF8 $TemplatePath | ConvertFrom-Json
+                $manifest.channel = $channel
+                $manifest | ConvertTo-Json -Depth 20 | Set-Content -Path "update/$channel/latest.json" -Encoding utf8
+              }
+
+              git add update
+              git commit -m "Initialize update manifests [skip ci]"
+              git push origin HEAD:$($env:GITEE_BRANCH)
+              if ($LASTEXITCODE -ne 0) {
+                throw "Failed to initialize Gitee manifest branch '$($env:GITEE_BRANCH)'."
+              }
+            }
+
             $existingTag = & git ls-remote --tags origin $env:GITHUB_REF_NAME
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to query Gitee tags."
@@ -213,7 +219,8 @@ jobs:
             }
 
             if ([string]::IsNullOrWhiteSpace($branchRef)) {
-              throw "Gitee branch '$($env:GITEE_BRANCH)' does not exist. Sync update manifests before publishing a release."
+              Write-Host "Gitee manifest branch '$($env:GITEE_BRANCH)' does not exist. Initializing it from the manifest template."
+              Initialize-ManifestBranch -TemplatePath (Join-Path $env:GITHUB_WORKSPACE $env:MANIFEST_PATH)
             }
 
             git fetch origin $env:GITEE_BRANCH
@@ -261,7 +268,104 @@ jobs:
           $encodedToken = [uri]::EscapeDataString($env:GITEE_TOKEN)
           $uploadUri = "https://gitee.com/api/v5/repos/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases/$($release.id)/attach_files?access_token=$encodedToken"
 
-          foreach ($filePath in @($env:ASSET_PATH, $env:SHA_PATH, $env:GENERATED_MANIFEST_PATH)) {
+          function Add-UrlCandidates {
+            param(
+              [object]$Value,
+              [System.Collections.Generic.List[string]]$Urls
+            )
+
+            if ($null -eq $Value) {
+              return
+            }
+
+            if ($Value -is [string]) {
+              if ($Value -match '^https?://') {
+                $Urls.Add($Value)
+              }
+
+              return
+            }
+
+            if ($Value -is [ValueType]) {
+              return
+            }
+
+            if ($Value -is [System.Collections.IDictionary]) {
+              foreach ($item in $Value.Values) {
+                Add-UrlCandidates -Value $item -Urls $Urls
+              }
+
+              return
+            }
+
+            if ($Value -is [System.Collections.IEnumerable]) {
+              foreach ($item in $Value) {
+                Add-UrlCandidates -Value $item -Urls $Urls
+              }
+
+              return
+            }
+
+            foreach ($property in $Value.PSObject.Properties) {
+              Add-UrlCandidates -Value $property.Value -Urls $Urls
+            }
+          }
+
+          function Test-DownloadUrl {
+            param([string]$Url)
+
+            try {
+              $headResponse = Invoke-WebRequest -Method Head -Uri $Url -MaximumRedirection 5 -TimeoutSec 60 -UseBasicParsing
+              if ([int]$headResponse.StatusCode -ge 200 -and [int]$headResponse.StatusCode -lt 400) {
+                return $true
+              }
+            } catch {
+              Write-Host "Gitee download URL HEAD validation failed. Url=$Url Error=$($_.Exception.Message)"
+            }
+
+            try {
+              $getResponse = Invoke-WebRequest -Method Get -Uri $Url -Headers @{ Range = "bytes=0-0" } -MaximumRedirection 5 -TimeoutSec 60 -UseBasicParsing
+              return [int]$getResponse.StatusCode -ge 200 -and [int]$getResponse.StatusCode -lt 400
+            } catch {
+              Write-Host "Gitee download URL GET validation failed. Url=$Url Error=$($_.Exception.Message)"
+              return $false
+            }
+          }
+
+          function Resolve-GiteeDownloadUrl {
+            param(
+              [string]$ResponseText,
+              [string]$FileName,
+              [string]$FallbackUrl
+            )
+
+            $urls = [System.Collections.Generic.List[string]]::new()
+            if (-not [string]::IsNullOrWhiteSpace($ResponseText)) {
+              try {
+                $responseJson = $ResponseText | ConvertFrom-Json
+                Add-UrlCandidates -Value $responseJson -Urls $urls
+              } catch {
+                Write-Host "Gitee upload response was not valid JSON while resolving download URL: $($_.Exception.Message)"
+              }
+            }
+
+            $matchingUrls = $urls | Where-Object { $_ -like "*$FileName*" -and $_ -match '/releases/download/' }
+            $candidates = @($matchingUrls) + @($urls) + @($FallbackUrl) |
+              Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+              Select-Object -Unique
+
+            foreach ($candidate in $candidates) {
+              Write-Host "Validating Gitee download URL candidate: $candidate"
+              if (Test-DownloadUrl -Url $candidate) {
+                return $candidate
+              }
+            }
+
+            throw "Could not resolve a valid Gitee download URL for '$FileName'."
+          }
+
+          $assetFullName = (Get-Item $env:ASSET_PATH).FullName
+          foreach ($filePath in @($env:ASSET_PATH, $env:SHA_PATH)) {
             $file = Get-Item $filePath
             Write-Host "Uploading Gitee release attachment. File=$($file.Name) Size=$($file.Length)"
             $responsePath = Join-Path $env:RUNNER_TEMP "gitee-upload-$($file.Name).json"
@@ -296,6 +400,92 @@ jobs:
             }
 
             Write-Host "Uploaded Gitee release attachment. File=$($file.Name)"
+            if ($file.FullName -eq $assetFullName) {
+              $giteeDownloadUrl = Resolve-GiteeDownloadUrl -ResponseText $responseText -FileName $file.Name -FallbackUrl $env:GITEE_FALLBACK_DOWNLOAD_URL
+              Write-Host "Resolved Gitee download URL for launcher asset: $giteeDownloadUrl"
+              "GITEE_DOWNLOAD_URL=$giteeDownloadUrl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            }
+          }
+
+      - name: Generate final beta manifest
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:GITEE_DOWNLOAD_URL)) {
+            throw "Gitee download URL was not resolved from the uploaded launcher asset."
+          }
+
+          $releaseNotes = Get-Content -Raw -Encoding UTF8 $env:NOTES_PATH
+          $manifest = Get-Content -Raw -Encoding UTF8 $env:MANIFEST_PATH | ConvertFrom-Json
+          $manifest.versionName = $env:VERSION_NAME
+          $manifest.versionCode = [int]$env:VERSION_CODE
+          $manifest.publishedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          $manifest.releaseNotes = $releaseNotes.Trim()
+
+          $asset = $manifest.assets[0]
+          $asset.fileName = $env:ASSET_NAME
+          $asset.size = [int64]$env:ASSET_SIZE
+          $asset.sha256 = $env:ASSET_SHA256
+          $asset.urls = @(
+            [pscustomobject]@{
+              name = "gitee"
+              url = $env:GITEE_DOWNLOAD_URL
+              priority = 1
+            },
+            [pscustomobject]@{
+              name = "github"
+              url = $env:GITHUB_DOWNLOAD_URL
+              priority = 2
+            }
+          )
+
+          $manifest | ConvertTo-Json -Depth 20 | Set-Content -Path $env:GENERATED_MANIFEST_PATH -Encoding utf8
+
+      - name: Upload final beta manifest to Gitee release
+        shell: pwsh
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:GITEE_TOKEN)) {
+            throw "Repository secret GITEE_TOKEN is not configured. Configure it before publishing a beta release."
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:GITEE_RELEASE_ID)) {
+            throw "Gitee release id is missing."
+          }
+
+          $encodedToken = [uri]::EscapeDataString($env:GITEE_TOKEN)
+          $uploadUri = "https://gitee.com/api/v5/repos/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases/$($env:GITEE_RELEASE_ID)/attach_files?access_token=$encodedToken"
+          $file = Get-Item $env:GENERATED_MANIFEST_PATH
+          Write-Host "Uploading final manifest to Gitee release. File=$($file.Name) Size=$($file.Length)"
+          $responsePath = Join-Path $env:RUNNER_TEMP "gitee-upload-$($file.Name).json"
+          $statusPath = Join-Path $env:RUNNER_TEMP "gitee-upload-$($file.Name).status"
+          $curlArgs = @(
+            "--show-error",
+            "--location",
+            "--connect-timeout", "30",
+            "--max-time", "600",
+            "--retry", "2",
+            "--retry-delay", "5",
+            "--request", "POST",
+            "--output", $responsePath,
+            "--write-out", "%{http_code}",
+            $uploadUri,
+            "--form", "file=@$($file.FullName)"
+          )
+
+          & curl.exe @curlArgs | Set-Content -Path $statusPath -Encoding ascii
+          $curlExitCode = $LASTEXITCODE
+          $httpStatus = if (Test-Path $statusPath) { (Get-Content -Raw $statusPath).Trim() } else { "" }
+          $responseText = if (Test-Path $responsePath) { Get-Content -Raw -Encoding UTF8 $responsePath } else { "" }
+
+          Write-Host "Gitee final manifest upload completed. File=$($file.Name) CurlExitCode=$curlExitCode HttpStatus=$httpStatus"
+          if ($curlExitCode -ne 0 -or $httpStatus -notmatch '^2\d\d$') {
+            if (-not [string]::IsNullOrWhiteSpace($responseText)) {
+              Write-Host "Gitee final manifest upload response body:"
+              Write-Host ($responseText.Substring(0, [Math]::Min($responseText.Length, 4000)))
+            }
+
+            throw "Failed to upload final manifest to Gitee release. curl exit code: $curlExitCode HTTP status: $httpStatus"
           }
 
       - name: Create GitHub beta release
@@ -338,24 +528,43 @@ jobs:
             $remoteUrl = "https://oauth2:$encodedToken@gitee.com/$($env:GITEE_OWNER)/$($env:GITEE_REPO).git"
             git remote add origin $remoteUrl
 
+            function Ensure-ChannelManifest {
+              param(
+                [string]$Channel,
+                [string]$TemplatePath
+              )
+
+              $manifestPath = "update/$Channel/latest.json"
+              if (Test-Path $manifestPath) {
+                return
+              }
+
+              $manifest = Get-Content -Raw -Encoding UTF8 $TemplatePath | ConvertFrom-Json
+              $manifest.channel = $Channel
+              $manifest | ConvertTo-Json -Depth 20 | Set-Content -Path $manifestPath -Encoding utf8
+            }
+
             $branchRef = & git ls-remote --heads origin $env:GITEE_BRANCH
-            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($branchRef)) {
+            if ($LASTEXITCODE -ne 0) {
               throw "Failed to query Gitee branch '$($env:GITEE_BRANCH)'."
             }
 
-            $branchBase = ($branchRef -split "\s+")[0]
-            "GITEE_BRANCH_BASE=$branchBase" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            git fetch origin $env:GITEE_BRANCH
-            git checkout -B $env:GITEE_BRANCH FETCH_HEAD
+            if ([string]::IsNullOrWhiteSpace($branchRef)) {
+              git checkout --orphan $env:GITEE_BRANCH
+            } else {
+              $branchBase = ($branchRef -split "\s+")[0]
+              "GITEE_BRANCH_BASE=$branchBase" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              git fetch origin $env:GITEE_BRANCH
+              git checkout -B $env:GITEE_BRANCH FETCH_HEAD
+            }
 
-            Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
             New-Item -ItemType Directory -Force "update/release" | Out-Null
             New-Item -ItemType Directory -Force "update/beta" | Out-Null
-            Copy-Item (Join-Path $workspace "update/release/latest.json") "update/release/latest.json"
-            Copy-Item (Join-Path $workspace "update/beta/latest.json") "update/beta/latest.json"
+            Ensure-ChannelManifest -Channel "release" -TemplatePath (Join-Path $workspace $env:MANIFEST_PATH)
+            Ensure-ChannelManifest -Channel "beta" -TemplatePath (Join-Path $workspace $env:MANIFEST_PATH)
             Copy-Item $generatedManifestPath "update/$($env:CHANNEL)/latest.json" -Force
 
-            git add -A
+            git add update
             if (git diff --cached --quiet) {
               Write-Host "No Gitee manifest changes to commit."
             } else {
@@ -385,20 +594,53 @@ jobs:
             Pop-Location
           }
 
-      - name: Write back beta manifest
+      - name: Sync GitHub beta manifest branch
         shell: pwsh
         run: |
           $manifestJson = Get-Content -Raw -Encoding UTF8 $env:GENERATED_MANIFEST_PATH
+          $templateJson = Get-Content -Raw -Encoding UTF8 $env:MANIFEST_PATH
           $targetPath = "update/$($env:CHANNEL)/latest.json"
-          $branch = "${{ github.event.repository.default_branch }}"
+          $branch = $env:GITHUB_MANIFEST_BRANCH
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin $branch
-          git checkout $branch
 
+          function Ensure-ChannelManifest {
+            param(
+              [string]$Channel,
+              [string]$TemplateJson
+            )
+
+            $manifestPath = "update/$Channel/latest.json"
+            if (Test-Path $manifestPath) {
+              return
+            }
+
+            $manifest = $TemplateJson | ConvertFrom-Json
+            $manifest.channel = $Channel
+            $manifest | ConvertTo-Json -Depth 20 | Set-Content -Path $manifestPath -Encoding utf8
+          }
+
+          $branchRef = & git ls-remote --heads origin $branch
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to query GitHub manifest branch '$branch'."
+          }
+
+          if ([string]::IsNullOrWhiteSpace($branchRef)) {
+            git checkout --orphan $branch
+            Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
+            git rm -r --cached . --ignore-unmatch
+          } else {
+            git fetch origin $branch
+            git checkout -B $branch FETCH_HEAD
+          }
+
+          New-Item -ItemType Directory -Force "update/release" | Out-Null
+          New-Item -ItemType Directory -Force "update/beta" | Out-Null
+          Ensure-ChannelManifest -Channel "release" -TemplateJson $templateJson
+          Ensure-ChannelManifest -Channel "beta" -TemplateJson $templateJson
           Set-Content -Path $targetPath -Value $manifestJson -Encoding utf8
-          git add $targetPath
+          git add update
 
           if (git diff --cached --quiet) {
             Write-Host "No manifest changes to commit."

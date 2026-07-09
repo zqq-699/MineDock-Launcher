@@ -267,7 +267,7 @@ public sealed class SettingsPageViewModelTests
 
         await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
 
-        Assert.Equal("0.9.1-beta.9", updateService.LastCurrentVersion);
+        Assert.Equal("0.9.1-beta.10", updateService.LastCurrentVersion);
         Assert.Equal(LauncherUpdateChannel.Release, updateService.LastChannel);
         Assert.True(viewModel.Info.IsUpdateAvailableDialogOpen);
         Assert.Equal("1.0.1", viewModel.Info.UpdateDialogVersionText);
@@ -302,7 +302,7 @@ public sealed class SettingsPageViewModelTests
 
         await viewModel.Info.CheckUpdatesOnStartupAsync();
 
-        Assert.Equal("0.9.1-beta.9", updateService.LastCurrentVersion);
+        Assert.Equal("0.9.1-beta.10", updateService.LastCurrentVersion);
         Assert.Equal(LauncherUpdateChannel.Release, updateService.LastChannel);
         Assert.True(viewModel.Info.IsUpdateAvailableDialogOpen);
         Assert.Equal("1.0.1", viewModel.Info.UpdateDialogVersionText);

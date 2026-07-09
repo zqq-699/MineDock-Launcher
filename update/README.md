@@ -1,19 +1,22 @@
 # MineDock Launcher Remote Update Manifests
 
-This directory stores remote update manifest files for MineDock Launcher releases.
-These files are source-controlled release metadata used by the GitHub raw and
-Gitee raw update sources, with matching executable assets published through
-GitHub and Gitee Releases.
+This directory stores release notes and the update manifest template for
+MineDock Launcher releases. The default branch does not store live
+`latest.json` manifests.
 
 The `update` directory is not used as the launcher's local runtime configuration.
 
 ## Channels
 
-- `release/latest.json`: stable release channel for normal users.
-- `beta/latest.json`: beta channel for test builds and early validation.
+- `release/notes/`: stable release notes.
+- `beta/notes/`: beta release notes.
+- `latest.template.json`: manifest schema/template used by release workflows.
 
-Both channels use the same JSON schema. The only required channel difference is
-the top-level `channel` field.
+Live channel manifests are written by the release workflows to the
+`update-manifests` branch in both GitHub and Gitee:
+
+- `update/release/latest.json`: stable release channel for normal users.
+- `update/beta/latest.json`: beta channel for test builds and early validation.
 
 ## Release Checklist
 
@@ -29,13 +32,12 @@ When preparing a new version, update the build metadata in
 
 The release workflows parse `versionName` from the Git tag and verify
 `InformationalVersion`, `LauncherBuildChannel`, and `LauncherVersionCode` from
-`Launcher.App/Launcher.App.csproj`. The workflows do not use `latest.json` to
-decide the version being published.
+`Launcher.App/Launcher.App.csproj`. The workflows do not use live `latest.json`
+manifests to decide the version being published.
 
 After GitHub and Gitee Releases are created successfully, the workflow writes the
-final remote manifest back to `update/{channel}/latest.json` on the default
-branch and mirrors both channel manifests to the lightweight Gitee update
-repository:
+final remote manifest to `update/{channel}/latest.json` on the
+`update-manifests` branch in GitHub and Gitee:
 
 - `versionName`: user-facing version, for example `1.2.3`.
 - `versionCode`: numeric version used for comparisons, for example `1020399`.
@@ -51,6 +53,6 @@ repository:
 
 Final manifests contain only `gitee` and `github` download URLs. Gitee is the
 first update manifest source and the first download mirror; GitHub is the
-fallback. The Gitee repository is not a source-code mirror; it only stores
-`update/release/latest.json`, `update/beta/latest.json`, lightweight tags, and
-Release attachments.
+fallback. The Gitee repository is not a source-code mirror; its
+`update-manifests` branch only stores `update/release/latest.json`,
+`update/beta/latest.json`, lightweight tags, and Release attachments.
