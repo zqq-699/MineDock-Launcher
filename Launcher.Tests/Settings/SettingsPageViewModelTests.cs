@@ -71,6 +71,7 @@ public sealed class SettingsPageViewModelTests
         Assert.True(viewModel.DisableBackgroundBlur);
         Assert.Equal(72, viewModel.LauncherBackgroundOpacityPercent);
         Assert.Equal("72%", viewModel.LauncherBackgroundOpacityText);
+        Assert.Equal(LauncherUpdateChannel.Release, viewModel.SelectedUpdateChannelOption?.Channel);
     }
 
     [Fact]
@@ -267,6 +268,7 @@ public sealed class SettingsPageViewModelTests
         await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
 
         Assert.Equal("1.0.5", updateService.LastCurrentVersion);
+        Assert.Equal(LauncherUpdateChannel.Release, updateService.LastChannel);
         Assert.True(viewModel.Info.IsUpdateAvailableDialogOpen);
         Assert.Equal("1.0.1", viewModel.Info.UpdateDialogVersionText);
         Assert.Equal(
@@ -349,6 +351,44 @@ public sealed class SettingsPageViewModelTests
 
         Assert.False(viewModel.Info.IsUpdateAvailableDialogOpen);
         Assert.Equal(Strings.Status_CheckUpdatesFailed, statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task UpdateChannelSelectionPersistsSettings()
+    {
+        var settings = new LauncherSettings();
+        var viewModel = CreateViewModel(settings, out var settingsService, out _);
+        viewModel.PrimeFromSettings(settings);
+
+        viewModel.SelectedUpdateChannelOption = viewModel.UpdateChannelOptions.Single(option =>
+            option.Channel is LauncherUpdateChannel.Beta);
+
+        await TestAsync.WaitForAsync(() =>
+            settingsService.SaveCount >= 1
+            && settings.UpdateChannel is LauncherUpdateChannel.Beta);
+
+        Assert.Equal(LauncherUpdateChannel.Beta, viewModel.SelectedUpdateChannelOption?.Channel);
+    }
+
+    [Fact]
+    public async Task InfoCheckUpdatesUsesSelectedUpdateChannel()
+    {
+        var settings = new LauncherSettings { UpdateChannel = LauncherUpdateChannel.Beta };
+        var viewModel = CreateViewModel(
+            settings,
+            new FakeJavaRuntimeDiscoveryService(),
+            new FakeFilePickerService(),
+            out _,
+            out _,
+            out _,
+            out _,
+            out _,
+            out var updateService);
+        viewModel.PrimeFromSettings(settings);
+
+        await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
+
+        Assert.Equal(LauncherUpdateChannel.Beta, updateService.LastChannel);
     }
 
     [Fact]
@@ -1113,14 +1153,17 @@ public sealed class SettingsPageViewModelTests
         public LauncherUpdateCheckResult Result { get; set; } = LauncherUpdateCheckResult.Latest("1.0.5");
         public Task<LauncherUpdateCheckResult>? ResultTask { get; set; }
         public string? LastCurrentVersion { get; private set; }
+        public LauncherUpdateChannel? LastChannel { get; private set; }
         public int CallCount { get; private set; }
 
         public Task<LauncherUpdateCheckResult> CheckForUpdatesAsync(
             string currentVersion,
+            LauncherUpdateChannel channel,
             CancellationToken cancellationToken = default)
         {
             CallCount++;
             LastCurrentVersion = currentVersion;
+            LastChannel = channel;
             return ResultTask ?? Task.FromResult(Result);
         }
     }

@@ -59,6 +59,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private SettingsAccentColorOption? selectedAccentColorOption;
 
     [ObservableProperty]
+    private SettingsUpdateChannelOption? selectedUpdateChannelOption;
+
+    [ObservableProperty]
     private bool followSystemTheme = true;
 
     [ObservableProperty]
@@ -245,6 +248,13 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             LauncherAccentColors.Amber,
             Strings.Settings_AccentColorAmberTitle));
 
+        UpdateChannelOptions.Add(new SettingsUpdateChannelOption(
+            LauncherUpdateChannel.Release,
+            Strings.Settings_UpdateChannelReleaseTitle));
+        UpdateChannelOptions.Add(new SettingsUpdateChannelOption(
+            LauncherUpdateChannel.Beta,
+            Strings.Settings_UpdateChannelBetaTitle));
+
         foreach (var control in SettingsInteractiveControlCatalog.Create())
             InteractiveControls.Add(control);
 
@@ -252,6 +262,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         SelectedMemoryModeOption = MemoryModeOptions[0];
         SelectedThemeOption = ThemeOptions[0];
         SelectedAccentColorOption = AccentColorOptions[0];
+        SelectedUpdateChannelOption = UpdateChannelOptions[0];
         SelectedControlDemoComboOption = InteractiveControls.FirstOrDefault();
         SelectedInteractiveControl = InteractiveControls.FirstOrDefault();
         General = new GeneralSettingsViewModel(this);
@@ -280,6 +291,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public ObservableCollection<SettingsThemeOption> ThemeOptions { get; } = [];
 
     public ObservableCollection<SettingsAccentColorOption> AccentColorOptions { get; } = [];
+
+    public ObservableCollection<SettingsUpdateChannelOption> UpdateChannelOptions { get; } = [];
 
     public ObservableCollection<SettingsInteractiveControlItem> InteractiveControls { get; } = [];
 
@@ -394,6 +407,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             FollowSystemTheme = launcherSettings.ThemeFollowSystem;
             SelectedThemeOption = ResolveThemeOption(launcherSettings.Theme);
             SelectedAccentColorOption = ResolveAccentColorOption(launcherSettings.AccentColor);
+            SelectedUpdateChannelOption = ResolveUpdateChannelOption(launcherSettings.UpdateChannel);
             Language.LoadSelection(
                 launcherSettings.LauncherLanguage,
                 launcherSettings.AutoSetGameLanguageToLauncherLanguage);
@@ -589,6 +603,15 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         ScheduleAutoSave();
     }
 
+    partial void OnSelectedUpdateChannelOptionChanged(SettingsUpdateChannelOption? value)
+    {
+        if (suppressAutoSave || !hasPrimedSettings)
+            return;
+
+        settings.UpdateChannel = value?.Channel ?? LauncherDefaults.DefaultUpdateChannel;
+        ScheduleAutoSave();
+    }
+
     internal void NotifyLanguagePreferenceChanged()
     {
         ScheduleAutoSave();
@@ -729,6 +752,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         settings.AccentColor = SelectedAccentColorOption?.Id ?? LauncherDefaults.DefaultAccentColor;
         settings.LauncherLanguage = Language.SelectedLanguageId;
         settings.AutoSetGameLanguageToLauncherLanguage = Language.AutoSetGameLanguageToLauncherLanguage;
+        settings.UpdateChannel = SelectedUpdateChannelOption?.Channel ?? LauncherDefaults.DefaultUpdateChannel;
         settings.ThemeFollowSystem = FollowSystemTheme;
         settings.DisableBackgroundBlur = DisableBackgroundBlur;
         settings.LauncherBackgroundOpacityPercent = NormalizeLauncherBackgroundOpacity(LauncherBackgroundOpacityPercent);
@@ -749,6 +773,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             SelectedMemoryModeOption = ResolveMemoryModeOption(settings.DefaultMemorySettingsMode);
             SelectedThemeOption = ResolveThemeOption(settings.Theme);
             SelectedAccentColorOption = ResolveAccentColorOption(settings.AccentColor);
+            SelectedUpdateChannelOption = ResolveUpdateChannelOption(settings.UpdateChannel);
             Language.LoadSelection(
                 settings.LauncherLanguage,
                 settings.AutoSetGameLanguageToLauncherLanguage);
@@ -882,6 +907,12 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     {
         return AccentColorOptions.FirstOrDefault(option => string.Equals(option.Id, accentColor, StringComparison.OrdinalIgnoreCase))
                ?? AccentColorOptions[0];
+    }
+
+    private SettingsUpdateChannelOption ResolveUpdateChannelOption(LauncherUpdateChannel channel)
+    {
+        return UpdateChannelOptions.FirstOrDefault(option => option.Channel == channel)
+               ?? UpdateChannelOptions[0];
     }
 
     private static int NormalizeLauncherBackgroundOpacity(int value)
@@ -1037,6 +1068,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
         public Task<LauncherUpdateCheckResult> CheckForUpdatesAsync(
             string currentVersion,
+            LauncherUpdateChannel channel,
             CancellationToken cancellationToken = default)
         {
             return Task.FromResult(LauncherUpdateCheckResult.Failed(currentVersion));

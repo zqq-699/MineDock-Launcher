@@ -699,6 +699,18 @@
   <data name="Settings_CheckUpdatesButton" xml:space="preserve">
     <value>Check for Updates</value>
   </data>
+  <data name="Settings_UpdateSection" xml:space="preserve">
+    <value>Launcher Updates</value>
+  </data>
+  <data name="Settings_UpdateChannelLabel" xml:space="preserve">
+    <value>Update Channel</value>
+  </data>
+  <data name="Settings_UpdateChannelReleaseTitle" xml:space="preserve">
+    <value>Release</value>
+  </data>
+  <data name="Settings_UpdateChannelBetaTitle" xml:space="preserve">
+    <value>Beta</value>
+  </data>
   <data name="Settings_ReferenceProjectsSection" xml:space="preserve">
     <value>Referenced Projects</value>
   </data>

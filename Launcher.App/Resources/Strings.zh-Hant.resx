@@ -699,6 +699,18 @@
   <data name="Settings_CheckUpdatesButton" xml:space="preserve">
     <value>檢查更新</value>
   </data>
+  <data name="Settings_UpdateSection" xml:space="preserve">
+    <value>啟動器更新</value>
+  </data>
+  <data name="Settings_UpdateChannelLabel" xml:space="preserve">
+    <value>更新通道</value>
+  </data>
+  <data name="Settings_UpdateChannelReleaseTitle" xml:space="preserve">
+    <value>正式版</value>
+  </data>
+  <data name="Settings_UpdateChannelBetaTitle" xml:space="preserve">
+    <value>測試版</value>
+  </data>
   <data name="Settings_ReferenceProjectsSection" xml:space="preserve">
     <value>引用的專案</value>
   </data>

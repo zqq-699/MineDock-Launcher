@@ -237,6 +237,10 @@ public static class Strings
     public static string Settings_LauncherVersionUnknown => Get(nameof(Settings_LauncherVersionUnknown));
     public static string Settings_ViewGithubRepositoryButton => Get(nameof(Settings_ViewGithubRepositoryButton));
     public static string Settings_CheckUpdatesButton => Get(nameof(Settings_CheckUpdatesButton));
+    public static string Settings_UpdateSection => Get(nameof(Settings_UpdateSection));
+    public static string Settings_UpdateChannelLabel => Get(nameof(Settings_UpdateChannelLabel));
+    public static string Settings_UpdateChannelReleaseTitle => Get(nameof(Settings_UpdateChannelReleaseTitle));
+    public static string Settings_UpdateChannelBetaTitle => Get(nameof(Settings_UpdateChannelBetaTitle));
     public static string Settings_ReferenceProjectsSection => Get(nameof(Settings_ReferenceProjectsSection));
     public static string Dialog_UpdateAvailableTitle => Get(nameof(Dialog_UpdateAvailableTitle));
     public static string Dialog_UpdateAvailableVersionFormat => Get(nameof(Dialog_UpdateAvailableVersionFormat));

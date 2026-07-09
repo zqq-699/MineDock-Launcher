@@ -6,6 +6,7 @@ using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application;
 using Launcher.Application.Services;
+using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.Settings;
 
@@ -187,7 +188,9 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
             LauncherUpdateCheckResult result;
             try
             {
-                result = await launcherUpdateService.CheckForUpdatesAsync(LauncherVersionText);
+                result = await launcherUpdateService.CheckForUpdatesAsync(
+                    LauncherVersionText,
+                    Parent.SelectedUpdateChannelOption?.Channel ?? LauncherDefaults.DefaultUpdateChannel);
             }
             catch (Exception)
             {

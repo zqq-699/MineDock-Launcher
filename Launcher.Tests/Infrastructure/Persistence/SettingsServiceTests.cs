@@ -34,6 +34,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.False(loaded.IsHomeLaunchMenuPinned);
         Assert.False(loaded.DisableBackgroundBlur);
         Assert.Equal(LauncherDefaults.DefaultLauncherBackgroundOpacityPercent, loaded.LauncherBackgroundOpacityPercent);
+        Assert.Equal(LauncherDefaults.DefaultUpdateChannel, loaded.UpdateChannel);
     }
 
     [Fact]
@@ -132,6 +133,37 @@ public sealed class SettingsServiceTests : TestTempDirectory
         var loaded = await service.LoadAsync();
 
         Assert.False(loaded.AutoSetGameLanguageToLauncherLanguage);
+    }
+
+    [Fact]
+    public async Task SettingsServiceRoundTripsUpdateChannel()
+    {
+        var service = new JsonSettingsService(TempRoot);
+        var settings = await service.LoadAsync();
+        settings.UpdateChannel = LauncherUpdateChannel.Beta;
+
+        await service.SaveAsync(settings);
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(LauncherUpdateChannel.Beta, loaded.UpdateChannel);
+    }
+
+    [Fact]
+    public async Task SettingsServiceBackfillsInvalidUpdateChannel()
+    {
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(TempRoot, "settings.json"),
+            """
+            {
+              "UpdateChannel": 999
+            }
+            """);
+        var service = new JsonSettingsService(TempRoot);
+
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(LauncherDefaults.DefaultUpdateChannel, loaded.UpdateChannel);
     }
 
     [Fact]

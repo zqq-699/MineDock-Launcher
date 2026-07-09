@@ -36,6 +36,14 @@
                    VerticalAlignment="Center" />
     </DataTemplate>
 
+    <DataTemplate x:Key="UpdateChannelOptionTemplate"
+                  DataType="{x:Type settings:SettingsUpdateChannelOption}">
+        <TextBlock Text="{Binding Title}"
+                   Foreground="{DynamicResource Brush.F4F4F4}"
+                   FontSize="13"
+                   VerticalAlignment="Center" />
+    </DataTemplate>
+
     <DataTemplate x:Key="ThemeOptionTemplate"
                   DataType="{x:Type settings:SettingsThemeOption}">
         <TextBlock Text="{Binding Title}"

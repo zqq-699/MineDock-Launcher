@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Security.Cryptography;
 using Launcher.Application;
 using Launcher.Application.Services;
 using Microsoft.Extensions.Logging;
@@ -72,15 +73,15 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
         if (string.IsNullOrWhiteSpace(currentExecutablePath))
             return LauncherSelfUpdateStartResult.Failed("Current launcher executable path is unavailable.");
 
-        if (!TryValidateDownloadUrl(update.DownloadUrl, update.DownloadFileName, out var downloadUri, out var fileName))
+        var downloadUrls = update.EffectiveDownloadUrls;
+        if (downloadUrls.Count == 0)
             return LauncherSelfUpdateStartResult.Failed("Update download URL is invalid.");
 
         try
         {
             var downloadPath = await DownloadUpdateExecutableAsync(
-                    update.Version,
-                    fileName,
-                    downloadUri,
+                    update,
+                    downloadUrls,
                     cancellationToken)
                 .ConfigureAwait(false);
             var logDirectory = Path.Combine(baseDirectory, LauncherApplicationIdentity.StorageDirectoryName, LogDirectoryName);
@@ -128,9 +129,59 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
     }
 
     private async Task<string> DownloadUpdateExecutableAsync(
-        string version,
+        LauncherUpdateInfo update,
+        IReadOnlyList<LauncherUpdateDownloadUrl> downloadUrls,
+        CancellationToken cancellationToken)
+    {
+        Exception? lastException = null;
+        foreach (var downloadUrl in downloadUrls.OrderBy(url => url.Priority))
+        {
+            if (!TryValidateDownloadUrl(downloadUrl.Url, update.DownloadFileName, out var downloadUri, out var fileName))
+            {
+                logger?.LogWarning(
+                    "Skipping invalid launcher update download URL. Version={Version} Source={Source} Url={Url}",
+                    update.Version,
+                    downloadUrl.Name,
+                    downloadUrl.Url);
+                continue;
+            }
+
+            try
+            {
+                return await DownloadUpdateExecutableFromSourceAsync(
+                        update,
+                        fileName,
+                        downloadUri,
+                        downloadUrl.Name,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                logger?.LogWarning(
+                    ex,
+                    "Launcher update executable download source failed. Version={Version} Source={Source} Url={Url}",
+                    update.Version,
+                    downloadUrl.Name,
+                    downloadUri);
+            }
+        }
+
+        throw new InvalidOperationException(
+            "All launcher update download URLs failed.",
+            lastException);
+    }
+
+    private async Task<string> DownloadUpdateExecutableFromSourceAsync(
+        LauncherUpdateInfo update,
         string fileName,
         Uri downloadUri,
+        string sourceName,
         CancellationToken cancellationToken)
     {
         var updateDirectory = Path.Combine(
@@ -138,14 +189,15 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
             LauncherApplicationIdentity.StorageDirectoryName,
             CacheDirectoryName,
             UpdatesDirectoryName,
-            SanitizePathSegment(version));
+            SanitizePathSegment(update.Version));
         Directory.CreateDirectory(updateDirectory);
 
         var downloadPath = Path.Combine(updateDirectory, fileName);
         var tempPath = downloadPath + ".download";
         logger?.LogInformation(
-            "Downloading launcher update executable. Version={Version} Url={Url} TargetPath={TargetPath}",
-            version,
+            "Downloading launcher update executable. Version={Version} Source={Source} Url={Url} TargetPath={TargetPath}",
+            update.Version,
+            sourceName,
             downloadUri,
             downloadPath);
 
@@ -161,13 +213,32 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
         if (fileInfo.Length <= 0)
             throw new InvalidOperationException("Downloaded launcher update executable is empty.");
 
+        if (update.SizeBytes > 0 && fileInfo.Length != update.SizeBytes)
+            throw new InvalidOperationException("Downloaded launcher update executable size does not match the update manifest.");
+
+        if (!string.IsNullOrWhiteSpace(update.Sha256))
+            await VerifySha256Async(tempPath, update.Sha256, cancellationToken).ConfigureAwait(false);
+
         File.Move(tempPath, downloadPath, overwrite: true);
         logger?.LogInformation(
-            "Launcher update executable downloaded. Version={Version} Path={Path} SizeBytes={SizeBytes}",
-            version,
+            "Launcher update executable downloaded. Version={Version} Source={Source} Path={Path} SizeBytes={SizeBytes}",
+            update.Version,
+            sourceName,
             downloadPath,
             fileInfo.Length);
         return downloadPath;
+    }
+
+    private static async Task VerifySha256Async(
+        string path,
+        string expectedSha256,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = File.OpenRead(path);
+        var hash = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
+        var actualSha256 = Convert.ToHexString(hash);
+        if (!string.Equals(actualSha256, expectedSha256.Trim(), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Downloaded launcher update executable SHA-256 does not match the update manifest.");
     }
 
     private static void EnsureDefaultHeaders(HttpClient client)

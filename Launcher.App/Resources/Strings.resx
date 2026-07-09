@@ -241,6 +241,10 @@
   <data name="Settings_LauncherVersionUnknown" xml:space="preserve"><value>未知版本</value></data>
   <data name="Settings_ViewGithubRepositoryButton" xml:space="preserve"><value>查看 GitHub 仓库</value></data>
   <data name="Settings_CheckUpdatesButton" xml:space="preserve"><value>检查更新</value></data>
+  <data name="Settings_UpdateSection" xml:space="preserve"><value>启动器更新</value></data>
+  <data name="Settings_UpdateChannelLabel" xml:space="preserve"><value>更新通道</value></data>
+  <data name="Settings_UpdateChannelReleaseTitle" xml:space="preserve"><value>正式版</value></data>
+  <data name="Settings_UpdateChannelBetaTitle" xml:space="preserve"><value>测试版</value></data>
   <data name="Settings_ReferenceProjectsSection" xml:space="preserve"><value>引用的项目</value></data>
   <data name="Settings_GeneralAccountSection" xml:space="preserve"><value>离线玩家</value></data>
   <data name="Settings_OfflineUsernameLabel" xml:space="preserve"><value>默认离线玩家名称</value></data>

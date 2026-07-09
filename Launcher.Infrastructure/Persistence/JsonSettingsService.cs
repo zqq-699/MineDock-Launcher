@@ -118,6 +118,12 @@ public sealed class JsonSettingsService : ISettingsService
         if (settings.DownloadSpeedLimitMbPerSecond < 0)
             settings.DownloadSpeedLimitMbPerSecond = 0;
 
+        if (settings.UpdateChannel is not LauncherUpdateChannel.Release
+            && settings.UpdateChannel is not LauncherUpdateChannel.Beta)
+        {
+            settings.UpdateChannel = LauncherDefaults.DefaultUpdateChannel;
+        }
+
         if (settings.JavaSelectionMode is not JavaSelectionMode.Auto
             && settings.JavaSelectionMode is not JavaSelectionMode.Manual)
         {

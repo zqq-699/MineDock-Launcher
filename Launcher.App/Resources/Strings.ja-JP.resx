@@ -699,6 +699,18 @@
   <data name="Settings_CheckUpdatesButton" xml:space="preserve">
     <value>更新を確認</value>
   </data>
+  <data name="Settings_UpdateSection" xml:space="preserve">
+    <value>ランチャー更新</value>
+  </data>
+  <data name="Settings_UpdateChannelLabel" xml:space="preserve">
+    <value>更新チャンネル</value>
+  </data>
+  <data name="Settings_UpdateChannelReleaseTitle" xml:space="preserve">
+    <value>正式版</value>
+  </data>
+  <data name="Settings_UpdateChannelBetaTitle" xml:space="preserve">
+    <value>ベータ版</value>
+  </data>
   <data name="Settings_ReferenceProjectsSection" xml:space="preserve">
     <value>参照しているプロジェクト</value>
   </data>

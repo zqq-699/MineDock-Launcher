@@ -8,4 +8,5 @@ public static class LauncherDefaults
     public const string DefaultLauncherLanguage = LauncherLanguages.SimplifiedChinese;
     public const int DefaultLauncherBackgroundOpacityPercent = 85;
     public const int DefaultMemoryMb = 4096;
+    public const LauncherUpdateChannel DefaultUpdateChannel = LauncherUpdateChannel.Release;
 }
