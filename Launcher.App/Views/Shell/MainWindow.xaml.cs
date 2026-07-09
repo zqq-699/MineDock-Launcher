@@ -66,6 +66,7 @@ public partial class MainWindow : Window
             _ = Dispatcher.BeginInvoke(PrewarmTransientUi, DispatcherPriority.ContextIdle);
         };
         Activated += (_, _) => QueueStateSync();
+        Closing += Window_OnClosing;
         Closed += (_, _) =>
         {
             launcherStateMonitor.StateChanged -= LauncherStateMonitor_StateChanged;
@@ -177,6 +178,12 @@ public partial class MainWindow : Window
     private void LauncherStateMonitor_StateChanged(object? sender, EventArgs e)
     {
         QueueStateSyncFromWatcher();
+    }
+
+    private void Window_OnClosing(object? sender, CancelEventArgs e)
+    {
+        if (!viewModel.CanCloseWindow())
+            e.Cancel = true;
     }
 
     private void QueueStateSyncFromWatcher()

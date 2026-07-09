@@ -74,18 +74,22 @@ public sealed class SettingsPageViewModelTests
     }
 
     [Fact]
-    public void LanguageOptionsIncludeSimplifiedChineseAndEnglish()
+    public void LanguageOptionsIncludeSimplifiedChineseTraditionalChineseJapaneseAndEnglish()
     {
         var viewModel = CreateViewModel(out _, out _);
 
         Assert.Equal(
             [
                 LauncherLanguages.SimplifiedChinese,
+                LauncherLanguages.TraditionalChinese,
+                LauncherLanguages.Japanese,
                 LauncherLanguages.English
             ],
             viewModel.Language.LanguageOptions.Select(option => option.Id));
         Assert.Equal(Strings.Settings_LanguageSimplifiedChinese, viewModel.Language.LanguageOptions[0].Title);
-        Assert.Equal(Strings.Settings_LanguageEnglish, viewModel.Language.LanguageOptions[1].Title);
+        Assert.Equal(Strings.Settings_LanguageTraditionalChinese, viewModel.Language.LanguageOptions[1].Title);
+        Assert.Equal(Strings.Settings_LanguageJapanese, viewModel.Language.LanguageOptions[2].Title);
+        Assert.Equal(Strings.Settings_LanguageEnglish, viewModel.Language.LanguageOptions[3].Title);
     }
 
     [Fact]
@@ -413,6 +417,30 @@ public sealed class SettingsPageViewModelTests
 
         Assert.Equal(Strings.Settings_LanguageEnglish, viewModel.Language.SelectedLanguageOption?.Title);
         Assert.Equal(LauncherLanguages.English, viewModel.Language.SelectedLanguageId);
+    }
+
+    [Fact]
+    public void LanguageSelectionLoadsTraditionalChineseSettings()
+    {
+        var settings = new LauncherSettings { LauncherLanguage = LauncherLanguages.TraditionalChinese };
+        var viewModel = CreateViewModel(settings, out _, out _);
+
+        viewModel.PrimeFromSettings(settings);
+
+        Assert.Equal(Strings.Settings_LanguageTraditionalChinese, viewModel.Language.SelectedLanguageOption?.Title);
+        Assert.Equal(LauncherLanguages.TraditionalChinese, viewModel.Language.SelectedLanguageId);
+    }
+
+    [Fact]
+    public void LanguageSelectionLoadsJapaneseSettings()
+    {
+        var settings = new LauncherSettings { LauncherLanguage = LauncherLanguages.Japanese };
+        var viewModel = CreateViewModel(settings, out _, out _);
+
+        viewModel.PrimeFromSettings(settings);
+
+        Assert.Equal(Strings.Settings_LanguageJapanese, viewModel.Language.SelectedLanguageOption?.Title);
+        Assert.Equal(LauncherLanguages.Japanese, viewModel.Language.SelectedLanguageId);
     }
 
     [Fact]

@@ -33,6 +33,32 @@ public sealed class GameLanguageServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ApplyLauncherLanguageCreatesOptionsFileForTraditionalChinese()
+    {
+        var service = new GameLanguageService();
+        var instance = CreateInstance();
+
+        await service.ApplyLauncherLanguageAsync(instance, LauncherLanguages.TraditionalChinese);
+
+        Assert.Equal(
+            ["lang:zh_tw"],
+            await File.ReadAllLinesAsync(Path.Combine(instance.InstanceDirectory, "options.txt")));
+    }
+
+    [Fact]
+    public async Task ApplyLauncherLanguageCreatesOptionsFileForJapanese()
+    {
+        var service = new GameLanguageService();
+        var instance = CreateInstance();
+
+        await service.ApplyLauncherLanguageAsync(instance, LauncherLanguages.Japanese);
+
+        Assert.Equal(
+            ["lang:ja_jp"],
+            await File.ReadAllLinesAsync(Path.Combine(instance.InstanceDirectory, "options.txt")));
+    }
+
+    [Fact]
     public async Task ApplyLauncherLanguageReplacesExistingLanguageLine()
     {
         var service = new GameLanguageService();

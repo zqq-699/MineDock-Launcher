@@ -15,6 +15,12 @@ public sealed partial class LanguageSettingsViewModel : SettingsSectionViewModel
             LauncherLanguages.SimplifiedChinese,
             Strings.Settings_LanguageSimplifiedChinese));
         LanguageOptions.Add(new SettingsLanguageOption(
+            LauncherLanguages.TraditionalChinese,
+            Strings.Settings_LanguageTraditionalChinese));
+        LanguageOptions.Add(new SettingsLanguageOption(
+            LauncherLanguages.Japanese,
+            Strings.Settings_LanguageJapanese));
+        LanguageOptions.Add(new SettingsLanguageOption(
             LauncherLanguages.English,
             Strings.Settings_LanguageEnglish));
         SelectedLanguageOption = LanguageOptions[0];

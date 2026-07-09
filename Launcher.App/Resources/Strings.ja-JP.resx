@@ -16,196 +16,196 @@
     <value>MineDock Launcher</value>
   </data>
   <data name="Resources_ModRequiredDependenciesDialogTitle" xml:space="preserve">
-    <value>Missing Required Mods</value>
+    <value>必須 Mod が不足しています</value>
   </data>
   <data name="Resources_ModRequiredDependenciesDialogMessage" xml:space="preserve">
-    <value>This mod requires additional mods.</value>
+    <value>この Mod には必須 Mod が必要です</value>
   </data>
   <data name="Resources_ModRequiredDependencyInstalled" xml:space="preserve">
-    <value>Installed</value>
+    <value>インストール済み</value>
   </data>
   <data name="Resources_ModRequiredDependencyMissing" xml:space="preserve">
-    <value>Missing</value>
+    <value>不足</value>
   </data>
   <data name="Resources_ModRequiredDependencyUpdateRequired" xml:space="preserve">
-    <value>Update Required</value>
+    <value>更新が必要です</value>
   </data>
   <data name="Resources_ModRequiredDependencyVersionFormat" xml:space="preserve">
-    <value>Version: {0}</value>
+    <value>バージョン：{0}</value>
   </data>
   <data name="Resources_ModRequiredDependencyMinimumVersionFormat" xml:space="preserve">
-    <value>Minimum required: {0}</value>
+    <value>最低要件：{0}</value>
   </data>
   <data name="Resources_ModRequiredDependencyInstallVersionFormat" xml:space="preserve">
-    <value>Will install: {0}</value>
+    <value>インストール予定：{0}</value>
   </data>
   <data name="Resources_ModRequiredDependencyVersionUnresolved" xml:space="preserve">
-    <value>Unable to resolve</value>
+    <value>解析できません</value>
   </data>
   <data name="Resources_ModRequiredDependenciesSkipButton" xml:space="preserve">
-    <value>Skip Required Mods</value>
+    <value>必須 Mod をインストールしない</value>
   </data>
   <data name="Resources_ModRequiredDependenciesAutoInstallButton" xml:space="preserve">
-    <value>Auto Install Required Mods</value>
+    <value>必須 Mod を自動インストール</value>
   </data>
   <data name="Status_ModRequiredDependencyInstallingFormat" xml:space="preserve">
-    <value>Installing required mod: {0}</value>
+    <value>必須 Mod をインストール中：{0}</value>
   </data>
   <data name="Status_ModRequiredDependenciesAutoInstallFailedFormat" xml:space="preserve">
-    <value>Could not automatically install required mod: {0}</value>
+    <value>必須 Mod を自動インストールできません：{0}</value>
   </data>
   <data name="Resources_ModDownloadFileExistsTitle" xml:space="preserve">
-    <value>File Already Exists</value>
+    <value>同名のファイルが既にあります</value>
   </data>
   <data name="Resources_ModDownloadFileExistsMessageFormat" xml:space="preserve">
-    <value>A file with the same name already exists in the download location: {0}</value>
+    <value>ダウンロード先に同名のファイルが既にあります：{0}</value>
   </data>
   <data name="Resources_ModUnknownInstanceVersionTitle" xml:space="preserve">
-    <value>Game Version Not Recognized</value>
+    <value>ゲームバージョンを識別できません</value>
   </data>
   <data name="Resources_ModUnknownInstanceVersionMessage" xml:space="preserve">
-    <value>The game version could not be recognized. Please select it manually.</value>
+    <value>このゲームのバージョンを識別できません。手動で選択してください。</value>
   </data>
   <data name="Resources_ResourcePackDownloadFileExistsMessageFormat" xml:space="preserve">
-    <value>A file with the same name already exists in the download location: {0}</value>
+    <value>ダウンロード先に同名のファイルが既にあります：{0}</value>
   </data>
   <data name="Menu_Button" xml:space="preserve">
-    <value>Menu</value>
+    <value>メニュー</value>
   </data>
   <data name="Search_Placeholder" xml:space="preserve">
-    <value>Search</value>
+    <value>検索</value>
   </data>
   <data name="Back_Button" xml:space="preserve">
-    <value>Back</value>
+    <value>前へ</value>
   </data>
   <data name="Back_Tooltip" xml:space="preserve">
-    <value>Back</value>
+    <value>戻る</value>
   </data>
   <data name="Cancel_Button" xml:space="preserve">
-    <value>Cancel</value>
+    <value>キャンセル</value>
   </data>
   <data name="Confirm_Button" xml:space="preserve">
     <value>OK</value>
   </data>
   <data name="Delete_Button" xml:space="preserve">
-    <value>Delete</value>
+    <value>削除</value>
   </data>
   <data name="Dialog_CloseWithDownloadsTitle" xml:space="preserve">
-    <value>Downloads Are Running</value>
+    <value>ダウンロードタスクが実行中です</value>
   </data>
   <data name="Dialog_CloseWithDownloadsMessage" xml:space="preserve">
-    <value>Closing the launcher will cancel the current downloads. Close anyway?</value>
+    <value>ランチャーを閉じると現在のダウンロードがキャンセルされます。それでも閉じますか？</value>
   </data>
   <data name="Dialog_CloseAnywayButton" xml:space="preserve">
-    <value>Close Anyway</value>
+    <value>閉じる</value>
   </data>
   <data name="Refresh_Button" xml:space="preserve">
-    <value>Refresh</value>
+    <value>更新</value>
   </data>
   <data name="ManualImport_Button" xml:space="preserve">
-    <value>Import</value>
+    <value>インポート</value>
   </data>
   <data name="Apply_Button" xml:space="preserve">
-    <value>Apply</value>
+    <value>適用</value>
   </data>
   <data name="Page_Account" xml:space="preserve">
-    <value>Accounts</value>
+    <value>アカウント</value>
   </data>
   <data name="Page_Home" xml:space="preserve">
-    <value>Home</value>
+    <value>ホーム</value>
   </data>
   <data name="Page_Download" xml:space="preserve">
-    <value>Game Downloads</value>
+    <value>ゲームのダウンロード</value>
   </data>
   <data name="Page_Install" xml:space="preserve">
-    <value>Downloads</value>
+    <value>ダウンロード</value>
   </data>
   <data name="Page_GameSettings" xml:space="preserve">
-    <value>Game Settings</value>
+    <value>ゲーム設定</value>
   </data>
   <data name="Page_Resources" xml:space="preserve">
-    <value>Resources</value>
+    <value>リソースセンター</value>
   </data>
   <data name="Resources_SectionMods" xml:space="preserve">
-    <value>Mods</value>
+    <value>Mod</value>
   </data>
   <data name="Resources_SectionResourcePacks" xml:space="preserve">
-    <value>Resource Packs</value>
+    <value>リソースパック</value>
   </data>
   <data name="Resources_SectionShaderPacks" xml:space="preserve">
-    <value>Shader Packs</value>
+    <value>シェーダーパック</value>
   </data>
   <data name="Resources_SectionWorlds" xml:space="preserve">
-    <value>Worlds</value>
+    <value>ワールド</value>
   </data>
   <data name="Resources_SectionModpacks" xml:space="preserve">
-    <value>Modpacks</value>
+    <value>Modパック</value>
   </data>
   <data name="Resources_PlaceholderMessage" xml:space="preserve">
-    <value>Select a resource category to browse.</value>
+    <value>リソースカテゴリを選択してください。</value>
   </data>
   <data name="Resources_SelectedPlaceholderMessageFormat" xml:space="preserve">
-    <value>{0} support is coming soon.</value>
+    <value>{0} 機能は今後対応予定です。</value>
   </data>
   <data name="Resources_ModFilterVersionLabel" xml:space="preserve">
-    <value>Game Version</value>
+    <value>バージョン</value>
   </data>
   <data name="Resources_ModFilterAllVersions" xml:space="preserve">
-    <value>All Versions</value>
+    <value>すべてのバージョン</value>
   </data>
   <data name="Resources_ModFilterLoaderLabel" xml:space="preserve">
-    <value>Loader</value>
+    <value>ローダー</value>
   </data>
   <data name="Resources_ModFilterAllLoaders" xml:space="preserve">
-    <value>All Loaders</value>
+    <value>すべてのローダー</value>
   </data>
   <data name="Resources_ModFilterSourceLabel" xml:space="preserve">
-    <value>Source</value>
+    <value>提供元</value>
   </data>
   <data name="Resources_ModFilterAllSources" xml:space="preserve">
-    <value>All Sources</value>
+    <value>すべての提供元</value>
   </data>
   <data name="Resources_ModFilterTypeLabel" xml:space="preserve">
-    <value>Category</value>
+    <value>種類</value>
   </data>
   <data name="Resources_ModFilterAllTypes" xml:space="preserve">
-    <value>All Types</value>
+    <value>すべての種類</value>
   </data>
   <data name="Resources_ModFilterTypeOptimization" xml:space="preserve">
-    <value>Optimization</value>
+    <value>最適化</value>
   </data>
   <data name="Resources_ModFilterTypeUtility" xml:space="preserve">
-    <value>Utility</value>
+    <value>ユーティリティ</value>
   </data>
   <data name="Resources_ModFilterTypeAdventure" xml:space="preserve">
-    <value>Adventure</value>
+    <value>アドベンチャー/RPG</value>
   </data>
   <data name="Resources_ModFilterTypeDecoration" xml:space="preserve">
-    <value>Decoration</value>
+    <value>装飾</value>
   </data>
   <data name="Resources_ModFilterTypeEquipment" xml:space="preserve">
-    <value>Equipment</value>
+    <value>装備</value>
   </data>
   <data name="Resources_ModFilterTypeTechnology" xml:space="preserve">
-    <value>Technology</value>
+    <value>テクノロジー</value>
   </data>
   <data name="Resources_ModFilterTypeMagic" xml:space="preserve">
-    <value>Magic</value>
+    <value>魔法</value>
   </data>
   <data name="Resources_ModFilterTypeMobs" xml:space="preserve">
-    <value>Mobs</value>
+    <value>モブ</value>
   </data>
   <data name="Resources_ModFilterTypeWorldGeneration" xml:space="preserve">
-    <value>World Generation</value>
+    <value>ワールド生成</value>
   </data>
   <data name="Resources_ModFilterTypeStorage" xml:space="preserve">
-    <value>Storage</value>
+    <value>ストレージ</value>
   </data>
   <data name="Resources_ModFilterTypeLibrary" xml:space="preserve">
-    <value>Library/API</value>
+    <value>ライブラリ/API</value>
   </data>
   <data name="Resources_ModFilterButtonLabel" xml:space="preserve">
-    <value>Filters</value>
+    <value>フィルター</value>
   </data>
   <data name="Resources_ModSourceModrinth" xml:space="preserve">
     <value>Modrinth</value>
@@ -214,547 +214,547 @@
     <value>CurseForge</value>
   </data>
   <data name="Resources_ModVersionsUnknown" xml:space="preserve">
-    <value>Unknown Versions</value>
+    <value>不明なバージョン</value>
   </data>
   <data name="Resources_ModLoadersUnknown" xml:space="preserve">
-    <value>Unknown Loaders</value>
+    <value>不明なローダー</value>
   </data>
   <data name="Resources_ModProjectsLoading" xml:space="preserve">
-    <value>Loading mods...</value>
+    <value>Mod を読み込み中...</value>
   </data>
   <data name="Resources_ModProjectsEmpty" xml:space="preserve">
-    <value>No matching mods found</value>
+    <value>一致する Mod が見つかりません</value>
   </data>
   <data name="Resources_ModProjectsLoadError" xml:space="preserve">
-    <value>Failed to load the mod list. Please try again later.</value>
+    <value>Mod リストの読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Resources_ModProjectsLoadingMore" xml:space="preserve">
-    <value>Loading more mods...</value>
+    <value>さらに Mod を読み込み中...</value>
   </data>
   <data name="Resources_ModProjectsNoMore" xml:space="preserve">
-    <value>No more mods</value>
+    <value>これ以上の Mod はありません</value>
   </data>
   <data name="Resources_ModProjectsLoadMoreError" xml:space="preserve">
-    <value>Failed to load more mods. Please try again later.</value>
+    <value>追加読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Resources_ModCurseForgeMissingApiKey" xml:space="preserve">
-    <value>No CurseForge API Key is configured; only Modrinth results are shown.</value>
+    <value>CurseForge API Key が設定されていないため、現在は Modrinth の結果のみ表示します。</value>
   </data>
   <data name="Resources_ModDownloadsFormat" xml:space="preserve">
-    <value>{0} downloads</value>
+    <value>{0} ダウンロード</value>
   </data>
   <data name="Resources_ModDownloadsTenThousandFormat" xml:space="preserve">
-    <value>{0:0.##} x 10K</value>
+    <value>{0:0.##}万</value>
   </data>
   <data name="Resources_ModDownloadsHundredMillionFormat" xml:space="preserve">
-    <value>{0:0.##} x 100M</value>
+    <value>{0:0.##}億</value>
   </data>
   <data name="Resources_ModDetailsInfoSection" xml:space="preserve">
-    <value>Mod Info</value>
+    <value>Mod 情報</value>
   </data>
   <data name="Resources_ModDetailsVersionLabel" xml:space="preserve">
-    <value>Supported Versions</value>
+    <value>対応バージョン</value>
   </data>
   <data name="Resources_ModDetailsLoaderLabel" xml:space="preserve">
-    <value>Loaders</value>
+    <value>ローダー</value>
   </data>
   <data name="Resources_ModDetailsSourceLabel" xml:space="preserve">
-    <value>Source</value>
+    <value>提供元</value>
   </data>
   <data name="Resources_ModDetailsDownloadsLabel" xml:space="preserve">
-    <value>Downloads</value>
+    <value>ダウンロード数</value>
   </data>
   <data name="Resources_ModDetailsDependenciesLabel" xml:space="preserve">
-    <value>Required Mods</value>
+    <value>必須 Mod</value>
   </data>
   <data name="Resources_ModInstallTargetSection" xml:space="preserve">
-    <value>Choose a Game to Install To</value>
+    <value>インストール先のゲームを選択</value>
   </data>
   <data name="Resources_ModInstallTargetLocal" xml:space="preserve">
-    <value>Download Locally</value>
+    <value>ローカルにダウンロード</value>
   </data>
   <data name="Resources_ModInstallTargetsLoading" xml:space="preserve">
-    <value>Loading game list...</value>
+    <value>ゲームリストを読み込み中...</value>
   </data>
   <data name="Resources_ModInstallTargetsLoadError" xml:space="preserve">
-    <value>Failed to load game list</value>
+    <value>ゲームリストの読み込みに失敗しました</value>
   </data>
   <data name="Resources_ModVersionsLoading" xml:space="preserve">
-    <value>Loading available mod versions...</value>
+    <value>利用可能な Mod バージョンを読み込み中...</value>
   </data>
   <data name="Resources_ModVersionsEmpty" xml:space="preserve">
-    <value>No mod versions are available for this game</value>
+    <value>このゲームに対応する Mod バージョンはありません</value>
   </data>
   <data name="Resources_ModVersionsEmptyLocal" xml:space="preserve">
-    <value>No mod versions available</value>
+    <value>利用可能な Mod バージョンはありません</value>
   </data>
   <data name="Resources_ModVersionsFilterEmpty" xml:space="preserve">
-    <value>No matching mod versions found</value>
+    <value>一致する Mod バージョンが見つかりません</value>
   </data>
   <data name="Resources_ModVersionsLoadError" xml:space="preserve">
-    <value>Failed to load mod versions</value>
+    <value>Mod バージョンの読み込みに失敗しました</value>
   </data>
   <data name="Resources_ModVersionsLoadingMore" xml:space="preserve">
-    <value>Loading more mod versions...</value>
+    <value>さらに Mod バージョンを読み込み中...</value>
   </data>
   <data name="Resources_ModVersionsNoMore" xml:space="preserve">
-    <value>No more mod versions</value>
+    <value>これ以上の Mod バージョンはありません</value>
   </data>
   <data name="Resources_ModVersionsLoadMoreError" xml:space="preserve">
-    <value>Failed to load more mod versions. Please try again later.</value>
+    <value>追加の Mod バージョン読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Resources_ModVersionsAllTitle" xml:space="preserve">
-    <value>All Versions</value>
+    <value>すべてのバージョン</value>
   </data>
   <data name="Resources_ResourcePackFilterAllLoaders" xml:space="preserve">
-    <value>All Loaders</value>
+    <value>すべて</value>
   </data>
   <data name="Resources_ResourcePackFilterTypeSimplistic" xml:space="preserve">
-    <value>Simplistic</value>
+    <value>シンプル</value>
   </data>
   <data name="Resources_ResourcePackFilterTypeThemed" xml:space="preserve">
-    <value>Themed</value>
+    <value>テーマ</value>
   </data>
   <data name="Resources_ResourcePackFilterTypeRealistic" xml:space="preserve">
-    <value>Realistic</value>
+    <value>リアル</value>
   </data>
   <data name="Resources_ResourcePackFilterTypeVanillaLike" xml:space="preserve">
-    <value>Vanilla-like</value>
+    <value>バニラ風</value>
   </data>
   <data name="Resources_ResourcePackFilterTypeAudio" xml:space="preserve">
-    <value>Audio</value>
+    <value>サウンド</value>
   </data>
   <data name="Resources_ResourcePackProjectsLoading" xml:space="preserve">
-    <value>Loading resource packs...</value>
+    <value>リソースパックを読み込み中...</value>
   </data>
   <data name="Resources_ResourcePackProjectsEmpty" xml:space="preserve">
-    <value>No matching resource packs found</value>
+    <value>一致するリソースパックが見つかりません</value>
   </data>
   <data name="Resources_ResourcePackProjectsLoadError" xml:space="preserve">
-    <value>Failed to load the resource pack list. Please try again later.</value>
+    <value>リソースパックリストの読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Resources_ResourcePackProjectsLoadingMore" xml:space="preserve">
-    <value>Loading more resource packs...</value>
+    <value>さらにリソースパックを読み込み中...</value>
   </data>
   <data name="Resources_ResourcePackProjectsNoMore" xml:space="preserve">
-    <value>No more resource packs</value>
+    <value>これ以上のリソースパックはありません</value>
   </data>
   <data name="Resources_ResourcePackProjectsLoadMoreError" xml:space="preserve">
-    <value>Failed to load more resource packs. Please try again later.</value>
+    <value>追加のリソースパック読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Resources_ResourcePackCurseForgeMissingApiKey" xml:space="preserve">
-    <value>No CurseForge API Key is configured; only Modrinth results are shown.</value>
+    <value>CurseForge API Key が設定されていないため、現在は Modrinth の結果のみ表示します。</value>
   </data>
   <data name="Resources_ResourcePackDetailsInfoSection" xml:space="preserve">
-    <value>Resource Pack Info</value>
+    <value>リソースパック情報</value>
   </data>
   <data name="Resources_ResourcePackInstallTargetSection" xml:space="preserve">
-    <value>Choose a Game to Install To</value>
+    <value>インストール先のゲームを選択</value>
   </data>
   <data name="Resources_ResourcePackInstallTargetLocal" xml:space="preserve">
-    <value>Download Locally</value>
+    <value>ローカルにダウンロード</value>
   </data>
   <data name="Resources_ResourcePackInstallTargetsLoading" xml:space="preserve">
-    <value>Loading game list...</value>
+    <value>ゲームリストを読み込み中...</value>
   </data>
   <data name="Resources_ResourcePackInstallTargetsLoadError" xml:space="preserve">
-    <value>Failed to load game list</value>
+    <value>ゲームリストの読み込みに失敗しました</value>
   </data>
   <data name="Resources_ResourcePackVersionsLoading" xml:space="preserve">
-    <value>Loading available resource pack versions...</value>
+    <value>利用可能なリソースパックバージョンを読み込み中...</value>
   </data>
   <data name="Resources_ResourcePackVersionsEmpty" xml:space="preserve">
-    <value>No resource pack versions are available for this game</value>
+    <value>このゲームに対応するリソースパックバージョンはありません</value>
   </data>
   <data name="Resources_ResourcePackVersionsEmptyLocal" xml:space="preserve">
-    <value>No resource pack versions available</value>
+    <value>利用可能なリソースパックバージョンはありません</value>
   </data>
   <data name="Resources_ResourcePackVersionsFilterEmpty" xml:space="preserve">
-    <value>No matching resource pack versions found</value>
+    <value>一致するリソースパックバージョンが見つかりません</value>
   </data>
   <data name="Resources_ResourcePackVersionsLoadError" xml:space="preserve">
-    <value>Failed to load resource pack versions</value>
+    <value>リソースパックバージョンの読み込みに失敗しました</value>
   </data>
   <data name="Resources_ResourcePackVersionsLoadingMore" xml:space="preserve">
-    <value>Loading more resource pack versions...</value>
+    <value>さらにリソースパックバージョンを読み込み中...</value>
   </data>
   <data name="Resources_ResourcePackVersionsNoMore" xml:space="preserve">
-    <value>No more resource pack versions</value>
+    <value>これ以上のリソースパックバージョンはありません</value>
   </data>
   <data name="Resources_ResourcePackVersionsLoadMoreError" xml:space="preserve">
-    <value>Failed to load more resource pack versions. Please try again later.</value>
+    <value>追加のリソースパックバージョン読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Resources_ResourcePackVersionsAllTitle" xml:space="preserve">
-    <value>All Versions</value>
+    <value>すべてのバージョン</value>
   </data>
   <data name="Resources_ShaderPackFilterAllLoaders" xml:space="preserve">
-    <value>All Loaders</value>
+    <value>すべて</value>
   </data>
   <data name="Resources_ShaderPackFilterTypeCartoon" xml:space="preserve">
-    <value>Cartoon</value>
+    <value>カートゥーン</value>
   </data>
   <data name="Resources_ShaderPackFilterTypeCursed" xml:space="preserve">
-    <value>Cursed</value>
+    <value>カースド</value>
   </data>
   <data name="Resources_ShaderPackFilterTypeFantasy" xml:space="preserve">
-    <value>Fantasy</value>
+    <value>ファンタジー</value>
   </data>
   <data name="Resources_ShaderPackFilterTypeRealistic" xml:space="preserve">
-    <value>Realistic</value>
+    <value>リアル</value>
   </data>
   <data name="Resources_ShaderPackFilterTypeSemiRealistic" xml:space="preserve">
-    <value>Semi-realistic</value>
+    <value>セミリアル</value>
   </data>
   <data name="Resources_ShaderPackFilterTypeVanillaLike" xml:space="preserve">
-    <value>Vanilla-like</value>
+    <value>バニラ風</value>
   </data>
   <data name="Resources_ShaderPackProjectsLoading" xml:space="preserve">
-    <value>Loading shader packs...</value>
+    <value>シェーダーパックを読み込み中...</value>
   </data>
   <data name="Resources_ShaderPackProjectsEmpty" xml:space="preserve">
-    <value>No matching shader packs found</value>
+    <value>一致するシェーダーパックが見つかりません</value>
   </data>
   <data name="Resources_ShaderPackProjectsLoadError" xml:space="preserve">
-    <value>Failed to load the shader pack list. Please try again later.</value>
+    <value>シェーダーパックリストの読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Resources_ShaderPackProjectsLoadingMore" xml:space="preserve">
-    <value>Loading more shader packs...</value>
+    <value>さらにシェーダーパックを読み込み中...</value>
   </data>
   <data name="Resources_ShaderPackProjectsNoMore" xml:space="preserve">
-    <value>No more shader packs</value>
+    <value>これ以上のシェーダーパックはありません</value>
   </data>
   <data name="Resources_ShaderPackProjectsLoadMoreError" xml:space="preserve">
-    <value>Failed to load more shader packs. Please try again later.</value>
+    <value>追加のシェーダーパック読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Resources_ShaderPackCurseForgeMissingApiKey" xml:space="preserve">
-    <value>No CurseForge API Key is configured; only Modrinth results are shown.</value>
+    <value>CurseForge API Key が設定されていないため、現在は Modrinth の結果のみ表示します。</value>
   </data>
   <data name="Resources_ShaderPackDetailsInfoSection" xml:space="preserve">
-    <value>Shader Pack Info</value>
+    <value>シェーダーパック情報</value>
   </data>
   <data name="Resources_ShaderPackInstallTargetSection" xml:space="preserve">
-    <value>Choose a Game to Install To</value>
+    <value>インストール先のゲームを選択</value>
   </data>
   <data name="Resources_ShaderPackInstallTargetLocal" xml:space="preserve">
-    <value>Download Locally</value>
+    <value>ローカルにダウンロード</value>
   </data>
   <data name="Resources_ShaderPackInstallTargetsLoading" xml:space="preserve">
-    <value>Loading game list...</value>
+    <value>ゲームリストを読み込み中...</value>
   </data>
   <data name="Resources_ShaderPackInstallTargetsLoadError" xml:space="preserve">
-    <value>Failed to load game list</value>
+    <value>ゲームリストの読み込みに失敗しました</value>
   </data>
   <data name="Resources_ShaderPackVersionsLoading" xml:space="preserve">
-    <value>Loading available shader pack versions...</value>
+    <value>利用可能なシェーダーパックバージョンを読み込み中...</value>
   </data>
   <data name="Resources_ShaderPackVersionsEmpty" xml:space="preserve">
-    <value>No shader pack versions are available for this game</value>
+    <value>このゲームに対応するシェーダーパックバージョンはありません</value>
   </data>
   <data name="Resources_ShaderPackVersionsEmptyLocal" xml:space="preserve">
-    <value>No shader pack versions available</value>
+    <value>利用可能なシェーダーパックバージョンはありません</value>
   </data>
   <data name="Resources_ShaderPackVersionsFilterEmpty" xml:space="preserve">
-    <value>No matching shader pack versions found</value>
+    <value>一致するシェーダーパックバージョンが見つかりません</value>
   </data>
   <data name="Resources_ShaderPackVersionsLoadError" xml:space="preserve">
-    <value>Failed to load shader pack versions</value>
+    <value>シェーダーパックバージョンの読み込みに失敗しました</value>
   </data>
   <data name="Resources_ShaderPackVersionsLoadingMore" xml:space="preserve">
-    <value>Loading more shader pack versions...</value>
+    <value>さらにシェーダーパックバージョンを読み込み中...</value>
   </data>
   <data name="Resources_ShaderPackVersionsNoMore" xml:space="preserve">
-    <value>No more shader pack versions</value>
+    <value>これ以上のシェーダーパックバージョンはありません</value>
   </data>
   <data name="Resources_ShaderPackVersionsLoadMoreError" xml:space="preserve">
-    <value>Failed to load more shader pack versions. Please try again later.</value>
+    <value>追加のシェーダーパックバージョン読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Resources_ShaderPackVersionsAllTitle" xml:space="preserve">
-    <value>All Versions</value>
+    <value>すべてのバージョン</value>
   </data>
   <data name="Resources_ShaderPackDownloadFileExistsMessageFormat" xml:space="preserve">
-    <value>A file with the same name already exists in the download location: {0}</value>
+    <value>ダウンロード先に同名のファイルが既にあります：{0}</value>
   </data>
   <data name="Resources_WorldFilterAllLoaders" xml:space="preserve">
-    <value>All Loaders</value>
+    <value>すべて</value>
   </data>
   <data name="Resources_WorldFilterTypeAdventure" xml:space="preserve">
-    <value>Adventure</value>
+    <value>アドベンチャー</value>
   </data>
   <data name="Resources_WorldFilterTypeCreation" xml:space="preserve">
-    <value>Building/Creation</value>
+    <value>建築/制作</value>
   </data>
   <data name="Resources_WorldFilterTypeGameMap" xml:space="preserve">
-    <value>Game Map</value>
+    <value>ゲームマップ</value>
   </data>
   <data name="Resources_WorldFilterTypeParkour" xml:space="preserve">
-    <value>Parkour</value>
+    <value>パルクール</value>
   </data>
   <data name="Resources_WorldFilterTypePuzzle" xml:space="preserve">
-    <value>Puzzle</value>
+    <value>パズル</value>
   </data>
   <data name="Resources_WorldFilterTypeSurvival" xml:space="preserve">
-    <value>Survival</value>
+    <value>サバイバル</value>
   </data>
   <data name="Resources_WorldProjectsLoading" xml:space="preserve">
-    <value>Loading worlds...</value>
+    <value>ワールドを読み込み中...</value>
   </data>
   <data name="Resources_WorldProjectsEmpty" xml:space="preserve">
-    <value>No matching worlds found</value>
+    <value>一致するワールドが見つかりません</value>
   </data>
   <data name="Resources_WorldProjectsLoadError" xml:space="preserve">
-    <value>Failed to load the world list. Please try again later.</value>
+    <value>ワールドリストの読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Resources_WorldProjectsLoadingMore" xml:space="preserve">
-    <value>Loading more worlds...</value>
+    <value>さらにワールドを読み込み中...</value>
   </data>
   <data name="Resources_WorldProjectsNoMore" xml:space="preserve">
-    <value>No more worlds</value>
+    <value>これ以上のワールドはありません</value>
   </data>
   <data name="Resources_WorldProjectsLoadMoreError" xml:space="preserve">
-    <value>Failed to load more worlds. Please try again later.</value>
+    <value>追加のワールド読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Resources_WorldCurseForgeMissingApiKey" xml:space="preserve">
-    <value>No CurseForge API Key is configured, so world results cannot be loaded.</value>
+    <value>CurseForge API Key が設定されていないため、ワールドの結果を読み込めません。</value>
   </data>
   <data name="Resources_WorldDetailsInfoSection" xml:space="preserve">
-    <value>World Info</value>
+    <value>ワールド情報</value>
   </data>
   <data name="Resources_WorldInstallTargetSection" xml:space="preserve">
-    <value>Choose a Game to Install To</value>
+    <value>インストール先のゲームを選択</value>
   </data>
   <data name="Resources_WorldInstallTargetLocal" xml:space="preserve">
-    <value>Download Locally</value>
+    <value>ローカルにダウンロード</value>
   </data>
   <data name="Resources_WorldInstallTargetsLoading" xml:space="preserve">
-    <value>Loading game list...</value>
+    <value>ゲームリストを読み込み中...</value>
   </data>
   <data name="Resources_WorldInstallTargetsLoadError" xml:space="preserve">
-    <value>Failed to load game list</value>
+    <value>ゲームリストの読み込みに失敗しました</value>
   </data>
   <data name="Resources_WorldVersionsLoading" xml:space="preserve">
-    <value>Loading available world versions...</value>
+    <value>利用可能なワールドバージョンを読み込み中...</value>
   </data>
   <data name="Resources_WorldVersionsEmpty" xml:space="preserve">
-    <value>No world versions are available for this game</value>
+    <value>このゲームに対応するワールドバージョンはありません</value>
   </data>
   <data name="Resources_WorldVersionsEmptyLocal" xml:space="preserve">
-    <value>No world versions available</value>
+    <value>利用可能なワールドバージョンはありません</value>
   </data>
   <data name="Resources_WorldVersionsFilterEmpty" xml:space="preserve">
-    <value>No matching world versions found</value>
+    <value>一致するワールドバージョンが見つかりません</value>
   </data>
   <data name="Resources_WorldVersionsLoadError" xml:space="preserve">
-    <value>Failed to load world versions</value>
+    <value>ワールドバージョンの読み込みに失敗しました</value>
   </data>
   <data name="Resources_WorldVersionsLoadingMore" xml:space="preserve">
-    <value>Loading more world versions...</value>
+    <value>さらにワールドバージョンを読み込み中...</value>
   </data>
   <data name="Resources_WorldVersionsNoMore" xml:space="preserve">
-    <value>No more world versions</value>
+    <value>これ以上のワールドバージョンはありません</value>
   </data>
   <data name="Resources_WorldVersionsLoadMoreError" xml:space="preserve">
-    <value>Failed to load more world versions. Please try again later.</value>
+    <value>追加のワールドバージョン読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Resources_WorldVersionsAllTitle" xml:space="preserve">
-    <value>All Versions</value>
+    <value>すべてのバージョン</value>
   </data>
   <data name="Resources_WorldDownloadFileExistsMessageFormat" xml:space="preserve">
-    <value>A file with the same name already exists in the download location: {0}</value>
+    <value>ダウンロード先に同名のファイルが既にあります：{0}</value>
   </data>
   <data name="Resources_ModpackFilterAllLoaders" xml:space="preserve">
-    <value>All Loaders</value>
+    <value>すべてのローダー</value>
   </data>
   <data name="Resources_ModpackFilterTypeAdventure" xml:space="preserve">
-    <value>Adventure</value>
+    <value>アドベンチャー</value>
   </data>
   <data name="Resources_ModpackFilterTypeTechnology" xml:space="preserve">
-    <value>Technology</value>
+    <value>テクノロジー</value>
   </data>
   <data name="Resources_ModpackFilterTypeMagic" xml:space="preserve">
-    <value>Magic</value>
+    <value>魔法</value>
   </data>
   <data name="Resources_ModpackFilterTypeOptimization" xml:space="preserve">
-    <value>Optimization</value>
+    <value>最適化</value>
   </data>
   <data name="Resources_ModpackFilterTypeQuests" xml:space="preserve">
-    <value>Quests</value>
+    <value>クエスト</value>
   </data>
   <data name="Resources_ModpackFilterTypeKitchenSink" xml:space="preserve">
-    <value>Kitchen Sink</value>
+    <value>総合</value>
   </data>
   <data name="Resources_ModpackFilterTypeLightweight" xml:space="preserve">
-    <value>Lightweight</value>
+    <value>軽量</value>
   </data>
   <data name="Resources_ModpackFilterTypeMultiplayer" xml:space="preserve">
-    <value>Multiplayer</value>
+    <value>マルチプレイ</value>
   </data>
   <data name="Resources_ModpackFilterTypeExploration" xml:space="preserve">
-    <value>Exploration</value>
+    <value>探索</value>
   </data>
   <data name="Resources_ModpackProjectsLoading" xml:space="preserve">
-    <value>Loading modpacks...</value>
+    <value>Modパックを読み込み中...</value>
   </data>
   <data name="Resources_ModpackProjectsEmpty" xml:space="preserve">
-    <value>No matching modpacks found</value>
+    <value>一致する Modパックが見つかりません</value>
   </data>
   <data name="Resources_ModpackProjectsLoadError" xml:space="preserve">
-    <value>Failed to load the modpack list. Please try again later.</value>
+    <value>Modパックリストの読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Resources_ModpackProjectsLoadingMore" xml:space="preserve">
-    <value>Loading more modpacks...</value>
+    <value>さらに Modパックを読み込み中...</value>
   </data>
   <data name="Resources_ModpackProjectsNoMore" xml:space="preserve">
-    <value>No more modpacks</value>
+    <value>これ以上の Modパックはありません</value>
   </data>
   <data name="Resources_ModpackProjectsLoadMoreError" xml:space="preserve">
-    <value>Failed to load more modpacks. Please try again later.</value>
+    <value>追加の Modパック読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Resources_ModpackCurseForgeMissingApiKey" xml:space="preserve">
-    <value>No CurseForge API Key is configured; only Modrinth results are shown.</value>
+    <value>CurseForge API Key が設定されていないため、現在は Modrinth の結果のみ表示します。</value>
   </data>
   <data name="Resources_ModpackDetailsInfoSection" xml:space="preserve">
-    <value>Modpack Info</value>
+    <value>Modパック情報</value>
   </data>
   <data name="Resources_ModpackInstallTargetSection" xml:space="preserve">
-    <value>Choose Installation Method</value>
+    <value>インストール方法を選択</value>
   </data>
   <data name="Resources_ModpackInstallTargetNewInstance" xml:space="preserve">
-    <value>Install as New Game</value>
+    <value>新しいゲームとしてインストール</value>
   </data>
   <data name="Resources_ModpackInstallTargetLocal" xml:space="preserve">
-    <value>Download Locally</value>
+    <value>ローカルにダウンロード</value>
   </data>
   <data name="Resources_ModpackInstallTargetsLoading" xml:space="preserve">
-    <value>Preparing installation methods...</value>
+    <value>インストール方法を準備中...</value>
   </data>
   <data name="Resources_ModpackInstallTargetsLoadError" xml:space="preserve">
-    <value>Failed to load installation methods</value>
+    <value>インストール方法の読み込みに失敗しました</value>
   </data>
   <data name="Resources_ModpackVersionsLoading" xml:space="preserve">
-    <value>Loading available modpack versions...</value>
+    <value>利用可能な Modパックバージョンを読み込み中...</value>
   </data>
   <data name="Resources_ModpackVersionsEmpty" xml:space="preserve">
-    <value>No modpack versions available</value>
+    <value>利用可能な Modパックバージョンはありません</value>
   </data>
   <data name="Resources_ModpackVersionsEmptyLocal" xml:space="preserve">
-    <value>No local modpack versions available</value>
+    <value>ダウンロード可能な Modパックバージョンはありません</value>
   </data>
   <data name="Resources_ModpackVersionsFilterEmpty" xml:space="preserve">
-    <value>No matching modpack versions found</value>
+    <value>一致する Modパックバージョンが見つかりません</value>
   </data>
   <data name="Resources_ModpackVersionsLoadError" xml:space="preserve">
-    <value>Failed to load modpack versions</value>
+    <value>Modパックバージョンの読み込みに失敗しました</value>
   </data>
   <data name="Resources_ModpackVersionsLoadingMore" xml:space="preserve">
-    <value>Loading more modpack versions...</value>
+    <value>さらに Modパックバージョンを読み込み中...</value>
   </data>
   <data name="Resources_ModpackVersionsNoMore" xml:space="preserve">
-    <value>No more modpack versions</value>
+    <value>これ以上の Modパックバージョンはありません</value>
   </data>
   <data name="Resources_ModpackVersionsLoadMoreError" xml:space="preserve">
-    <value>Failed to load more modpack versions. Please try again later.</value>
+    <value>追加の Modパックバージョン読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Resources_ModpackVersionsAllTitle" xml:space="preserve">
-    <value>All Versions</value>
+    <value>すべてのバージョン</value>
   </data>
   <data name="Resources_ModpackDownloadFileExistsMessageFormat" xml:space="preserve">
-    <value>A file with the same name already exists in the download location: {0}</value>
+    <value>ダウンロード先に同名のファイルが既にあります：{0}</value>
   </data>
   <data name="Page_Settings" xml:space="preserve">
-    <value>Settings</value>
+    <value>グローバル設定</value>
   </data>
   <data name="Settings_SectionGeneral" xml:space="preserve">
-    <value>General</value>
+    <value>一般</value>
   </data>
   <data name="Settings_SectionLanguage" xml:space="preserve">
-    <value>Language</value>
+    <value>言語</value>
   </data>
   <data name="Settings_SectionLaunchMemory" xml:space="preserve">
-    <value>Launch &amp; Memory</value>
+    <value>起動とメモリ</value>
   </data>
   <data name="Settings_SectionJava" xml:space="preserve">
     <value>Java</value>
   </data>
   <data name="Settings_SectionTheme" xml:space="preserve">
-    <value>Appearance</value>
+    <value>テーマ</value>
   </data>
   <data name="Settings_SectionInfo" xml:space="preserve">
-    <value>Info</value>
+    <value>情報</value>
   </data>
   <data name="Settings_SectionControlList" xml:space="preserve">
-    <value>Controls</value>
+    <value>コントロール一覧</value>
   </data>
   <data name="Settings_InfoContent" xml:space="preserve">
-    <value>Info</value>
+    <value>情報</value>
   </data>
   <data name="Settings_LauncherVersionSection" xml:space="preserve">
-    <value>Launcher Version</value>
+    <value>ランチャーバージョン</value>
   </data>
   <data name="Settings_LauncherVersionUnknown" xml:space="preserve">
-    <value>Unknown Version</value>
+    <value>不明なバージョン</value>
   </data>
   <data name="Settings_ViewGithubRepositoryButton" xml:space="preserve">
-    <value>View GitHub Repository</value>
+    <value>GitHub リポジトリを表示</value>
   </data>
   <data name="Settings_CheckUpdatesButton" xml:space="preserve">
-    <value>Check for Updates</value>
+    <value>更新を確認</value>
   </data>
   <data name="Settings_ReferenceProjectsSection" xml:space="preserve">
-    <value>Referenced Projects</value>
+    <value>参照しているプロジェクト</value>
   </data>
   <data name="Settings_GeneralAccountSection" xml:space="preserve">
-    <value>Offline Player</value>
+    <value>オフラインプレイヤー</value>
   </data>
   <data name="Settings_OfflineUsernameLabel" xml:space="preserve">
-    <value>Default Offline Player Name</value>
+    <value>既定のオフラインプレイヤー名</value>
   </data>
   <data name="Settings_GeneralDirectorySection" xml:space="preserve">
-    <value>Directories</value>
+    <value>ディレクトリ</value>
   </data>
   <data name="Settings_DataDirectoryLabel" xml:space="preserve">
-    <value>Launcher Data Folder</value>
+    <value>ランチャーデータディレクトリ</value>
   </data>
   <data name="Settings_MinecraftDirectoryLabel" xml:space="preserve">
-    <value>Minecraft Folder</value>
+    <value>Minecraft ディレクトリ</value>
   </data>
   <data name="Settings_LaunchDefaultsSection" xml:space="preserve">
-    <value>Default Launch Behavior</value>
+    <value>既定の起動動作</value>
   </data>
   <data name="Settings_MemorySection" xml:space="preserve">
-    <value>Memory</value>
+    <value>メモリ</value>
   </data>
   <data name="Settings_DefaultMemoryLabel" xml:space="preserve">
-    <value>Default Maximum Memory</value>
+    <value>既定の最大メモリ</value>
   </data>
   <data name="Settings_MemoryOptionFormat" xml:space="preserve">
     <value>{0} MB</value>
   </data>
   <data name="Settings_MemoryModeLabel" xml:space="preserve">
-    <value>Memory Mode</value>
+    <value>メモリ設定モード</value>
   </data>
   <data name="Settings_MemoryModeAuto" xml:space="preserve">
-    <value>Automatic</value>
+    <value>自動設定</value>
   </data>
   <data name="Settings_MemoryModeManual" xml:space="preserve">
-    <value>Manual</value>
+    <value>手動設定</value>
   </data>
   <data name="Settings_MaxMemoryLabel" xml:space="preserve">
-    <value>Maximum Memory</value>
+    <value>最大メモリを設定</value>
   </data>
   <data name="Settings_AutomaticMemoryAllocationLabel" xml:space="preserve">
-    <value>Automatic Allocation</value>
+    <value>自動割り当て</value>
   </data>
   <data name="Settings_SystemTotalMemoryLabel" xml:space="preserve">
-    <value>Total System Memory</value>
+    <value>システム最大メモリ</value>
   </data>
   <data name="Settings_SystemAvailableMemoryLabel" xml:space="preserve">
-    <value>Available Memory</value>
+    <value>現在利用可能なメモリ</value>
   </data>
   <data name="Settings_SystemMemorySummaryLabel" xml:space="preserve">
-    <value>Available / Total Memory</value>
+    <value>現在利用可能なメモリ/システム最大メモリ</value>
   </data>
   <data name="Settings_SystemMemorySummaryFormat" xml:space="preserve">
-    <value>{0} / {1}</value>
+    <value>{0}/{1}</value>
   </data>
   <data name="Settings_MemorySizeMbFormat" xml:space="preserve">
     <value>{0} MB</value>
@@ -769,203 +769,203 @@
     <value>Java</value>
   </data>
   <data name="Settings_JavaSelectionLabel" xml:space="preserve">
-    <value>Java Selection</value>
+    <value>Java の選択</value>
   </data>
   <data name="Settings_JavaSelectionAuto" xml:space="preserve">
-    <value>Auto Select</value>
+    <value>自動選択</value>
   </data>
   <data name="Settings_JavaSelectionManual" xml:space="preserve">
-    <value>Manual Select</value>
+    <value>手動選択</value>
   </data>
   <data name="Settings_JavaListLabel" xml:space="preserve">
-    <value>Java List</value>
+    <value>Java リスト</value>
   </data>
   <data name="Settings_JavaListLoading" xml:space="preserve">
-    <value>Scanning local Java runtimes...</value>
+    <value>この PC の Java をスキャン中...</value>
   </data>
   <data name="Settings_JavaListEmpty" xml:space="preserve">
-    <value>No local Java runtimes found.</value>
+    <value>この PC に Java が見つかりません。</value>
   </data>
   <data name="Settings_JavaVersionUnknown" xml:space="preserve">
-    <value>Unknown Version</value>
+    <value>不明なバージョン</value>
   </data>
   <data name="Settings_ThemeSection" xml:space="preserve">
-    <value>Launcher Appearance</value>
+    <value>ランチャーの外観</value>
   </data>
   <data name="Settings_ThemeFollowSystemLabel" xml:space="preserve">
-    <value>Follow System</value>
+    <value>システム設定に従う</value>
   </data>
   <data name="Settings_ThemeSelectionLabel" xml:space="preserve">
-    <value>Appearance</value>
+    <value>外観設定</value>
   </data>
   <data name="Settings_BackgroundSection" xml:space="preserve">
-    <value>Launcher Background</value>
+    <value>ランチャー背景</value>
   </data>
   <data name="Settings_DisableBackgroundBlurLabel" xml:space="preserve">
-    <value>Disable Background Blur</value>
+    <value>背景ぼかし効果を無効化</value>
   </data>
   <data name="Settings_BackgroundOpacityLabel" xml:space="preserve">
-    <value>Launcher Background Opacity</value>
+    <value>ランチャー背景の不透明度</value>
   </data>
   <data name="Settings_ThemeDarkTitle" xml:space="preserve">
-    <value>Dark</value>
+    <value>ダーク</value>
   </data>
   <data name="Settings_ThemeLightTitle" xml:space="preserve">
-    <value>Light</value>
+    <value>ライト</value>
   </data>
   <data name="Settings_ControlDemoButtonsSection" xml:space="preserve">
-    <value>Buttons &amp; Navigation</value>
+    <value>ボタンとナビゲーション</value>
   </data>
   <data name="Settings_ControlDemoInputsSection" xml:space="preserve">
-    <value>Inputs &amp; Toggles</value>
+    <value>入力とスイッチ</value>
   </data>
   <data name="Settings_ControlDemoSelectionSection" xml:space="preserve">
-    <value>Selection Controls</value>
+    <value>選択コントロール</value>
   </data>
   <data name="Settings_ControlDemoFeedbackSection" xml:space="preserve">
-    <value>Feedback Controls</value>
+    <value>フィードバックコントロール</value>
   </data>
   <data name="Settings_ControlDemoMenuButton" xml:space="preserve">
-    <value>Secondary Menu Item</value>
+    <value>サブメニュー項目</value>
   </data>
   <data name="Settings_ControlDemoListItemTitle" xml:space="preserve">
-    <value>List Item Button</value>
+    <value>リスト項目ボタン</value>
   </data>
   <data name="Settings_ControlDemoListItemSubtitle" xml:space="preserve">
-    <value>Includes an icon, title, subtitle, and trailing text</value>
+    <value>アイコン、タイトル、サブタイトル、末尾テキストを含みます</value>
   </data>
   <data name="Settings_ControlDemoListItemTrailing" xml:space="preserve">
-    <value>Example</value>
+    <value>例</value>
   </data>
   <data name="Settings_ControlDemoNormalButton" xml:space="preserve">
-    <value>Button</value>
+    <value>通常ボタン</value>
   </data>
   <data name="Settings_ControlDemoPrimaryButton" xml:space="preserve">
-    <value>Primary Button</value>
+    <value>メインボタン</value>
   </data>
   <data name="Settings_ControlDemoDangerButton" xml:space="preserve">
-    <value>Danger Button</value>
+    <value>危険ボタン</value>
   </data>
   <data name="Settings_ControlDemoIconButton" xml:space="preserve">
-    <value>Icon Button</value>
+    <value>アイコンボタン</value>
   </data>
   <data name="Settings_ControlDemoSwitchLabel" xml:space="preserve">
-    <value>Toggle Switch</value>
+    <value>トグルスイッチ</value>
   </data>
   <data name="Settings_ControlDemoSliderLabel" xml:space="preserve">
-    <value>Slider</value>
+    <value>スライダー</value>
   </data>
   <data name="Settings_ControlDemoTextBoxLabel" xml:space="preserve">
-    <value>Text Box</value>
+    <value>テキスト入力欄</value>
   </data>
   <data name="Settings_ControlDemoMultilineTextBoxLabel" xml:space="preserve">
-    <value>Multiline Text Box</value>
+    <value>複数行テキスト欄</value>
   </data>
   <data name="Settings_ControlDemoSearchBoxLabel" xml:space="preserve">
-    <value>Search Box</value>
+    <value>検索ボックス</value>
   </data>
   <data name="Settings_ControlDemoReadOnlyFieldLabel" xml:space="preserve">
-    <value>Read-only Field</value>
+    <value>表示欄</value>
   </data>
   <data name="Settings_ControlDemoComboBoxLabel" xml:space="preserve">
-    <value>Combo Box</value>
+    <value>ドロップダウン</value>
   </data>
   <data name="Settings_ControlDemoListBoxLabel" xml:space="preserve">
-    <value>Choice List</value>
+    <value>選択リスト</value>
   </data>
   <data name="Settings_ControlDemoProgressLabel" xml:space="preserve">
-    <value>Progress Bar</value>
+    <value>進行バー</value>
   </data>
   <data name="Settings_ControlDemoStatusLabel" xml:space="preserve">
-    <value>Status Text</value>
+    <value>ステータステキスト</value>
   </data>
   <data name="Settings_ControlDemoDefaultInput" xml:space="preserve">
-    <value>Type text here</value>
+    <value>ここに文字を入力できます</value>
   </data>
   <data name="Settings_ControlDemoDefaultMultilineInput" xml:space="preserve">
-    <value>This is a multiline text box example.
-Longer content wraps automatically.</value>
+    <value>これは複数行テキスト欄の例です。
+長い内容を入力すると自動的に折り返されます。</value>
   </data>
   <data name="Settings_ControlDemoStatusReady" xml:space="preserve">
-    <value>Waiting for interaction</value>
+    <value>操作待ち</value>
   </data>
   <data name="Settings_ControlDemoStatusClicked" xml:space="preserve">
-    <value>Example interaction triggered</value>
+    <value>サンプル操作が実行されました</value>
   </data>
   <data name="Settings_ControlCategoryNavigation" xml:space="preserve">
-    <value>Navigation</value>
+    <value>ナビゲーション</value>
   </data>
   <data name="Settings_ControlCategoryButton" xml:space="preserve">
-    <value>Buttons</value>
+    <value>ボタン</value>
   </data>
   <data name="Settings_ControlCategoryToggle" xml:space="preserve">
-    <value>Toggles</value>
+    <value>スイッチ</value>
   </data>
   <data name="Settings_ControlCategorySelection" xml:space="preserve">
-    <value>Selection</value>
+    <value>選択</value>
   </data>
   <data name="Settings_ControlCategoryInput" xml:space="preserve">
-    <value>Input</value>
+    <value>入力</value>
   </data>
   <data name="Settings_ControlSecondaryMenuButton" xml:space="preserve">
-    <value>Secondary Menu</value>
+    <value>サブメニュー項目</value>
   </data>
   <data name="Settings_ControlListPageItemButton" xml:space="preserve">
-    <value>List Item</value>
+    <value>リスト項目ボタン</value>
   </data>
   <data name="Settings_ControlDialogButton" xml:space="preserve">
-    <value>Dialog Button</value>
+    <value>通常ボタン</value>
   </data>
   <data name="Settings_ControlPrimaryButton" xml:space="preserve">
-    <value>Primary Button</value>
+    <value>メインボタン</value>
   </data>
   <data name="Settings_ControlDangerButton" xml:space="preserve">
-    <value>Danger Button</value>
+    <value>危険ボタン</value>
   </data>
   <data name="Settings_ControlInlineIconButton" xml:space="preserve">
-    <value>Icon Button</value>
+    <value>アイコンボタン</value>
   </data>
   <data name="Settings_ControlSwitch" xml:space="preserve">
-    <value>Switch</value>
+    <value>トグルスイッチ</value>
   </data>
   <data name="Settings_ControlSlider" xml:space="preserve">
-    <value>Slider</value>
+    <value>スライダー</value>
   </data>
   <data name="Settings_ControlComboBox" xml:space="preserve">
-    <value>Combo Box</value>
+    <value>ドロップダウン</value>
   </data>
   <data name="Settings_ControlTextBox" xml:space="preserve">
-    <value>Text Box</value>
+    <value>テキスト入力欄</value>
   </data>
   <data name="Settings_ControlMultilineTextBox" xml:space="preserve">
-    <value>Multiline Text Box</value>
+    <value>複数行テキスト欄</value>
   </data>
   <data name="Settings_ControlSearchBox" xml:space="preserve">
-    <value>Search Box</value>
+    <value>検索ボックス</value>
   </data>
   <data name="Settings_ControlChoiceList" xml:space="preserve">
-    <value>Choice List</value>
+    <value>選択リスト</value>
   </data>
   <data name="Settings_ControlVirtualizedList" xml:space="preserve">
-    <value>Virtualized List</value>
+    <value>仮想化リスト</value>
   </data>
   <data name="GameSettings_AllCategory" xml:space="preserve">
-    <value>All</value>
+    <value>すべて</value>
   </data>
   <data name="GameSettings_ModLoaderCategory" xml:space="preserve">
-    <value>Mod Loaders</value>
+    <value>Mod 対応</value>
   </data>
   <data name="GameSettings_NoInstances" xml:space="preserve">
-    <value>No games yet</value>
+    <value>ダウンロード済みのゲームはまだありません。</value>
   </data>
   <data name="GameSettings_NoMatchingInstances" xml:space="preserve">
-    <value>No matching games found</value>
+    <value>一致するゲームが見つかりません。</value>
   </data>
   <data name="GameSettings_NoCategoryInstancesFormat" xml:space="preserve">
-    <value>No {0} games found.</value>
+    <value>{0}ゲームが見つかりません。</value>
   </data>
   <data name="GameSettings_InstanceSubtitleFormat" xml:space="preserve">
-    <value>Minecraft {0} - {1}</value>
+    <value>Minecraft {0} · {1}</value>
   </data>
   <data name="GameSettings_InstanceSubtitleVanillaFormat" xml:space="preserve">
     <value>{0}</value>
@@ -977,367 +977,367 @@ Longer content wraps automatically.</value>
     <value>{0} {1} {2}</value>
   </data>
   <data name="GameSettings_DetailGeneral" xml:space="preserve">
-    <value>General</value>
+    <value>一般</value>
   </data>
   <data name="GameSettings_DetailLaunch" xml:space="preserve">
-    <value>Launch &amp; Memory</value>
+    <value>起動とメモリ</value>
   </data>
   <data name="GameSettings_DetailJava" xml:space="preserve">
     <value>Java</value>
   </data>
   <data name="GameSettings_DetailModManagement" xml:space="preserve">
-    <value>Mods</value>
+    <value>Mod</value>
   </data>
   <data name="GameSettings_DetailSaves" xml:space="preserve">
-    <value>Saves</value>
+    <value>セーブデータ</value>
   </data>
   <data name="GameSettings_DetailShaders" xml:space="preserve">
-    <value>Shader Packs</value>
+    <value>シェーダーパック</value>
   </data>
   <data name="GameSettings_DetailLoader" xml:space="preserve">
-    <value>Loader</value>
+    <value>ローダー</value>
   </data>
   <data name="GameSettings_DetailAdvanced" xml:space="preserve">
-    <value>Advanced</value>
+    <value>詳細設定</value>
   </data>
   <data name="GameSettings_DetailBackup" xml:space="preserve">
-    <value>Backups</value>
+    <value>バックアップ</value>
   </data>
   <data name="GameSettings_DetailExport" xml:space="preserve">
-    <value>Export</value>
+    <value>エクスポート</value>
   </data>
   <data name="Nav_GameInstanceList" xml:space="preserve">
-    <value>Game Settings</value>
+    <value>ゲーム設定</value>
   </data>
   <data name="Nav_JavaMemory" xml:space="preserve">
-    <value>Java &amp; Memory</value>
+    <value>Java/メモリ</value>
   </data>
   <data name="Nav_DirectoryManagement" xml:space="preserve">
-    <value>Directories</value>
+    <value>ディレクトリ管理</value>
   </data>
   <data name="Nav_Mod" xml:space="preserve">
-    <value>Mods</value>
+    <value>Mod</value>
   </data>
   <data name="Nav_ResourcePacks" xml:space="preserve">
-    <value>Resource Packs</value>
+    <value>リソースパック</value>
   </data>
   <data name="Nav_ShaderPacks" xml:space="preserve">
-    <value>Shader Packs</value>
+    <value>シェーダーパック</value>
   </data>
   <data name="Nav_Worlds" xml:space="preserve">
-    <value>Worlds</value>
+    <value>ワールド</value>
   </data>
   <data name="Nav_Modpacks" xml:space="preserve">
-    <value>Modpacks</value>
+    <value>Modパック</value>
   </data>
   <data name="Nav_Shaders" xml:space="preserve">
-    <value>Shaders</value>
+    <value>シェーダー</value>
   </data>
   <data name="Nav_Maps" xml:space="preserve">
-    <value>Maps</value>
+    <value>マップ</value>
   </data>
   <data name="Nav_AppearanceTheme" xml:space="preserve">
-    <value>Appearance</value>
+    <value>外観テーマ</value>
   </data>
   <data name="Nav_DefaultSettings" xml:space="preserve">
-    <value>Defaults</value>
+    <value>既定設定</value>
   </data>
   <data name="Nav_About" xml:space="preserve">
-    <value>About</value>
+    <value>概要</value>
   </data>
   <data name="Home_ChooseOrCreateAccount" xml:space="preserve">
-    <value>Choose or create an account to play.</value>
+    <value>ゲームを開始するにはアカウントを選択または作成してください。</value>
   </data>
   <data name="Home_GameSettingsButton" xml:space="preserve">
-    <value>Game Settings &gt;</value>
+    <value>ゲーム設定 &gt;</value>
   </data>
   <data name="Home_NoAccountSelected" xml:space="preserve">
-    <value>No account selected</value>
+    <value>アカウント未選択</value>
   </data>
   <data name="Home_NoVersionSelected" xml:space="preserve">
-    <value>No game selected</value>
+    <value>ゲームバージョン未選択</value>
   </data>
   <data name="Home_LaunchInstanceMenuTitle" xml:space="preserve">
-    <value>Home</value>
+    <value>ホーム</value>
   </data>
   <data name="Home_PinLaunchMenuTooltip" xml:space="preserve">
-    <value>Pin game menu</value>
+    <value>ゲームメニューを固定</value>
   </data>
   <data name="Home_UnpinLaunchMenuTooltip" xml:space="preserve">
-    <value>Unpin game menu</value>
+    <value>ゲームメニューの固定を解除</value>
   </data>
   <data name="Home_LaunchInstanceSubtitleFormat" xml:space="preserve">
-    <value>Minecraft {0} - {1}</value>
+    <value>Minecraft {0} · {1}</value>
   </data>
   <data name="Home_NoLaunchInstances" xml:space="preserve">
-    <value>No local games yet.</value>
+    <value>ローカルゲームはまだありません。</value>
   </data>
   <data name="Launch_Button" xml:space="preserve">
-    <value>Launch</value>
+    <value>ゲームを起動</value>
   </data>
   <data name="Account_ListTitle" xml:space="preserve">
-    <value>Accounts</value>
+    <value>アカウント</value>
   </data>
   <data name="Account_AddButton" xml:space="preserve">
-    <value>Add Account</value>
+    <value>アカウントを追加</value>
   </data>
   <data name="Account_EmptySelection" xml:space="preserve">
-    <value>Select an account to view or change settings.</value>
+    <value>設定を表示または変更するアカウントを選択してください。</value>
   </data>
   <data name="Account_SkinHeader" xml:space="preserve">
-    <value>Skins</value>
+    <value>スキン</value>
   </data>
   <data name="Account_CapeHeader" xml:space="preserve">
-    <value>Capes</value>
+    <value>マント</value>
   </data>
   <data name="Account_ChangeSkinButton" xml:space="preserve">
-    <value>Change Skin</value>
+    <value>スキンを変更</value>
   </data>
   <data name="Account_AddSkinButton" xml:space="preserve">
-    <value>Add Skin</value>
+    <value>スキンを追加</value>
   </data>
   <data name="Account_ManageSkinButton" xml:space="preserve">
-    <value>Manage Skins</value>
+    <value>スキンを管理</value>
   </data>
   <data name="Account_ChangeSkinModelButton" xml:space="preserve">
-    <value>Change Model</value>
+    <value>モデルを変更</value>
   </data>
   <data name="Account_SkinActiveState" xml:space="preserve">
-    <value>Active</value>
+    <value>現在適用中</value>
   </data>
   <data name="Account_SkinPreviewEmpty" xml:space="preserve">
-    <value>No skin preview yet. Refresh the profile or upload a skin to show it.</value>
+    <value>スキンプレビューはまだありません。プロフィールを更新するかスキンをアップロードすると表示されます。</value>
   </data>
   <data name="Account_AppearanceOfflineUnsupported" xml:space="preserve">
-    <value>Offline accounts do not support skin/cape management</value>
+    <value>オフラインアカウントはスキン/マント管理に対応していません</value>
   </data>
   <data name="Account_SkinModelClassicTitle" xml:space="preserve">
-    <value>Default</value>
+    <value>デフォルト</value>
   </data>
   <data name="Account_SkinModelClassicDescription" xml:space="preserve">
-    <value>Steve model with 4-pixel-wide arms.</value>
+    <value>Steve モデル、腕の幅は 4 ピクセルです。</value>
   </data>
   <data name="Account_SkinModelSlimTitle" xml:space="preserve">
-    <value>Slim</value>
+    <value>スリム</value>
   </data>
   <data name="Account_SkinModelSlimDescription" xml:space="preserve">
-    <value>Alex model with 3-pixel-wide arms.</value>
+    <value>Alex モデル、腕の幅は 3 ピクセルです。</value>
   </data>
   <data name="Account_UuidHeader" xml:space="preserve">
     <value>UUID</value>
   </data>
   <data name="Account_OfflineUuidModeLabel" xml:space="preserve">
-    <value>UUID Generation Mode</value>
+    <value>UUID 生成方式</value>
   </data>
   <data name="Account_OfflineUuidStandardTitle" xml:space="preserve">
-    <value>Standard Offline UUID</value>
+    <value>標準オフライン UUID</value>
   </data>
   <data name="Account_OfflineUuidStandardDescription" xml:space="preserve">
-    <value>Generated consistently from OfflinePlayer:username, compatible with most offline servers.</value>
+    <value>OfflinePlayer:ユーザー名 に基づいて安定生成し、多くのオフラインサーバーと互換性があります。</value>
   </data>
   <data name="Account_OfflineUuidRandomTitle" xml:space="preserve">
-    <value>Random Fixed UUID</value>
+    <value>ランダム固定 UUID</value>
   </data>
   <data name="Account_OfflineUuidRandomDescription" xml:space="preserve">
-    <value>Generated once and saved with the account; it stays unchanged after renaming.</value>
+    <value>一度生成するとアカウントに保存され、名前変更後も変わりません。</value>
   </data>
   <data name="Account_OfflineUuidManualTitle" xml:space="preserve">
-    <value>Manual UUID</value>
+    <value>UUID を手動入力</value>
   </data>
   <data name="Account_OfflineUuidManualDescription" xml:space="preserve">
-    <value>Enter a UUID manually; it is saved with the account after applying.</value>
+    <value>自分で UUID を入力し、適用後にアカウントへ保存します。</value>
   </data>
   <data name="Account_OfflineUuidInvalid" xml:space="preserve">
-    <value>Invalid UUID format</value>
+    <value>UUID の形式が正しくありません</value>
   </data>
   <data name="Account_NoneValue" xml:space="preserve">
-    <value>None</value>
+    <value>なし</value>
   </data>
   <data name="Account_UsernameLabel" xml:space="preserve">
-    <value>Username</value>
+    <value>ユーザー名</value>
   </data>
   <data name="Account_NewUsernameLabel" xml:space="preserve">
-    <value>New Username</value>
+    <value>新しいユーザー名</value>
   </data>
   <data name="Account_UsernameValidation" xml:space="preserve">
-    <value>Username must be 3-16 letters, numbers, or underscores</value>
+    <value>ユーザー名は 3～16 文字の英字、数字、アンダースコアである必要があります</value>
   </data>
   <data name="Account_TypeOfflineTitle" xml:space="preserve">
-    <value>Offline Account</value>
+    <value>オフラインアカウント</value>
   </data>
   <data name="Account_TypeOfflineDescription" xml:space="preserve">
-    <value>Use a local username to play.</value>
+    <value>ローカルユーザー名でゲームに入ります。</value>
   </data>
   <data name="Account_TypeMicrosoftTitle" xml:space="preserve">
-    <value>Microsoft Account</value>
+    <value>Microsoft アカウント</value>
   </data>
   <data name="Account_TypeMicrosoftDescription" xml:space="preserve">
-    <value>Sign in with a Microsoft account to use skins and avatars.</value>
+    <value>Microsoft アカウントでログインし、スキンアバターを取得します。</value>
   </data>
   <data name="Account_ProfileOfflineUnsupported" xml:space="preserve">
-    <value>Offline accounts do not support skin and cape management</value>
+    <value>オフラインアカウントはスキンとマントの管理に対応していません</value>
   </data>
   <data name="Account_ProfileNoCapes" xml:space="preserve">
-    <value>This account has no available capes</value>
+    <value>このアカウントには利用可能なマントがありません</value>
   </data>
   <data name="Account_ProfileLoaded" xml:space="preserve">
-    <value>Microsoft account profile loaded</value>
+    <value>Microsoft アカウントのプロフィールを読み込みました</value>
   </data>
   <data name="Account_ProfileCacheLoaded" xml:space="preserve">
-    <value>Loaded local cape cache. Refresh to get the latest state.</value>
+    <value>ローカルのマントキャッシュを読み込みました。更新をクリックすると最新状態を取得できます</value>
   </data>
   <data name="Account_ProfileRefreshHint" xml:space="preserve">
-    <value>Refresh to load this Microsoft account's cape list</value>
+    <value>更新をクリックしてこの Microsoft アカウントのマント一覧を読み込みます</value>
   </data>
   <data name="Cape_NoneState" xml:space="preserve">
-    <value>No Cape</value>
+    <value>マントを使用しない</value>
   </data>
   <data name="Cape_ActiveState" xml:space="preserve">
-    <value>Active</value>
+    <value>現在使用中</value>
   </data>
   <data name="Cape_AvailableState" xml:space="preserve">
-    <value>Available</value>
+    <value>利用可能</value>
   </data>
   <data name="Cape_UnnamedDisplayName" xml:space="preserve">
-    <value>Unnamed Cape</value>
+    <value>名前なしのマント</value>
   </data>
   <data name="Dialog_AddAccountTitle" xml:space="preserve">
-    <value>Add Account</value>
+    <value>アカウントを追加</value>
   </data>
   <data name="Dialog_AddOfflineAccountTitle" xml:space="preserve">
-    <value>Offline Account</value>
+    <value>オフラインアカウント</value>
   </data>
   <data name="Dialog_AddMicrosoftAccountTitle" xml:space="preserve">
-    <value>Microsoft Sign-in</value>
+    <value>Microsoft ログイン</value>
   </data>
   <data name="Dialog_AddAccountAlreadyExistsTitle" xml:space="preserve">
-    <value>Account Already Exists</value>
+    <value>アカウントは既に存在します</value>
   </data>
   <data name="Dialog_LoginSuccessTitle" xml:space="preserve">
-    <value>Sign-in Complete</value>
+    <value>ログイン成功</value>
   </data>
   <data name="Dialog_LoginIncompleteTitle" xml:space="preserve">
-    <value>Sign-in Incomplete</value>
+    <value>ログインが完了していません</value>
   </data>
   <data name="Dialog_AddAccountSubtitle" xml:space="preserve">
-    <value>Choose the account type to add.</value>
+    <value>追加するアカウントの種類を選択してください。</value>
   </data>
   <data name="Dialog_AddOfflineAccountSubtitle" xml:space="preserve">
-    <value>Enter a local username for offline play.</value>
+    <value>追加するオフラインアカウント名を入力してください。</value>
   </data>
   <data name="Dialog_AddMicrosoftAccountSubtitle" xml:space="preserve">
-    <value>Complete sign-in on the Microsoft page that opens.</value>
+    <value>表示された Microsoft 公式ページでログインを完了してください。</value>
   </data>
   <data name="Dialog_AddAccountResultSubtitle" xml:space="preserve">
-    <value>Click OK to return to the account list.</value>
+    <value>OK をクリックしてアカウント一覧に戻ります。</value>
   </data>
   <data name="Dialog_DeleteAccountTitle" xml:space="preserve">
-    <value>Delete Account</value>
+    <value>アカウントを削除</value>
   </data>
   <data name="Dialog_DeleteAccountMessage" xml:space="preserve">
-    <value>Are you sure you want to delete this account?</value>
+    <value>このアカウントを削除してもよろしいですか？</value>
   </data>
   <data name="Dialog_RenameAccountTitle" xml:space="preserve">
-    <value>Change Account Name</value>
+    <value>アカウント名を変更</value>
   </data>
   <data name="Dialog_RenameAccountBusyTitle" xml:space="preserve">
-    <value>Changing</value>
+    <value>変更中</value>
   </data>
   <data name="Dialog_RenameAccountSuccessTitle" xml:space="preserve">
-    <value>Changed</value>
+    <value>変更しました</value>
   </data>
   <data name="Dialog_RenameAccountFailedTitle" xml:space="preserve">
-    <value>Change Failed</value>
+    <value>変更に失敗しました</value>
   </data>
   <data name="Dialog_RenameAccountBusySubtitle" xml:space="preserve">
-    <value>Please wait while the account name is being changed.</value>
+    <value>しばらくお待ちください。アカウント名の変更を処理中です。</value>
   </data>
   <data name="Dialog_RenameAccountResultSubtitle" xml:space="preserve">
-    <value>Click OK to return to account details.</value>
+    <value>OK をクリックしてアカウント詳細に戻ります。</value>
   </data>
   <data name="Dialog_RenameMicrosoftAccountSubtitle" xml:space="preserve">
-    <value>Microsoft account names can be changed once every 30 days. Be careful.</value>
+    <value>Microsoft アカウント名は 30 日に 1 回だけ変更できます。慎重に操作してください。</value>
   </data>
   <data name="Dialog_RenameOfflineAccountSubtitle" xml:space="preserve">
-    <value>Enter a new offline account name.</value>
+    <value>新しいオフラインアカウント名を入力してください。</value>
   </data>
   <data name="Dialog_SkinModelTitle" xml:space="preserve">
-    <value>Choose Skin Model</value>
+    <value>スキンモデルを選択</value>
   </data>
   <data name="Dialog_SkinModelSubtitle" xml:space="preserve">
-    <value>Choose the model used by this skin.</value>
+    <value>現在のスキンで使用するモデルを選択してください。</value>
   </data>
   <data name="Dialog_SkinManagerTitle" xml:space="preserve">
-    <value>Manage Skins</value>
+    <value>スキンを管理</value>
   </data>
   <data name="Dialog_SkinManagerEmpty" xml:space="preserve">
-    <value>No skins added yet</value>
+    <value>追加済みのスキンはありません</value>
   </data>
   <data name="Dialog_SkinFormatErrorTitle" xml:space="preserve">
-    <value>Invalid Skin Format</value>
+    <value>スキン形式エラー</value>
   </data>
   <data name="Dialog_SkinFormatErrorSubtitle" xml:space="preserve">
-    <value>Skin images must be 64x64 or 64x32.</value>
+    <value>スキン画像は 64x64 または 64x32 である必要があります。</value>
   </data>
   <data name="Download_VersionListTitle" xml:space="preserve">
-    <value>Game Downloads</value>
+    <value>ゲームのダウンロード</value>
   </data>
   <data name="Download_LoadingVersions" xml:space="preserve">
-    <value>Loading Minecraft versions...</value>
+    <value>Minecraft バージョンリストを取得中...</value>
   </data>
   <data name="Download_InstanceNameLabel" xml:space="preserve">
-    <value>Game Name</value>
+    <value>ゲーム名</value>
   </data>
   <data name="Download_LoaderLabel" xml:space="preserve">
-    <value>Loader</value>
+    <value>ローダー</value>
   </data>
   <data name="Download_InstallButton" xml:space="preserve">
-    <value>Install</value>
+    <value>インストール</value>
   </data>
   <data name="Download_ReleaseCategory" xml:space="preserve">
-    <value>Release</value>
+    <value>正式版</value>
   </data>
   <data name="Download_SnapshotCategory" xml:space="preserve">
-    <value>Snapshot</value>
+    <value>スナップショット版</value>
   </data>
   <data name="Download_BetaCategory" xml:space="preserve">
-    <value>Beta</value>
+    <value>ベータ版</value>
   </data>
   <data name="Download_AlphaCategory" xml:space="preserve">
-    <value>Alpha</value>
+    <value>アルファ版</value>
   </data>
   <data name="Download_LocalImportCategory" xml:space="preserve">
-    <value>Local Import</value>
+    <value>ローカルインポート</value>
   </data>
   <data name="Download_LocalImportDialogTitle" xml:space="preserve">
-    <value>Local Import</value>
+    <value>ローカルインポート</value>
   </data>
   <data name="Download_LocalImportDialogSubtitle" xml:space="preserve">
-    <value>Import a local game or modpack by choosing a file or dropping it here.</value>
+    <value>ローカルゲームまたは Modパックをインポートします。ファイルを選択するか、直接ドラッグできます。</value>
   </data>
   <data name="Download_LocalImportDropZoneTitle" xml:space="preserve">
-    <value>Drop files here</value>
+    <value>ここにファイルをドラッグ</value>
   </data>
   <data name="Download_LocalImportDropZoneSubtitle" xml:space="preserve">
-    <value>You can also use the Choose File button in the lower-left corner.</value>
+    <value>左下の「ファイルを選択」ボタンも使用できます。</value>
   </data>
   <data name="Download_LocalImportSelectedFileLabel" xml:space="preserve">
-    <value>Selected File</value>
+    <value>選択済みファイル</value>
   </data>
   <data name="Download_LocalImportNoFileSelected" xml:space="preserve">
-    <value>No file selected</value>
+    <value>ファイルがまだ選択されていません</value>
   </data>
   <data name="Download_LocalImportUnrecognizedMessage" xml:space="preserve">
-    <value>The selected file could not be recognized. Choose a supported modpack file.</value>
+    <value>選択したファイルを識別できません。対応している Modパックファイルを選択してください</value>
   </data>
   <data name="Download_LocalImportSelectFileButton" xml:space="preserve">
-    <value>Choose File</value>
+    <value>ファイルを選択</value>
   </data>
   <data name="Download_LocalImportTaskTitle" xml:space="preserve">
-    <value>Modpack Import</value>
+    <value>Modパックのインポート</value>
   </data>
   <data name="Download_VanillaLoaderTitle" xml:space="preserve">
-    <value>Vanilla</value>
+    <value>バニラ</value>
   </data>
   <data name="Download_FabricLoaderTitle" xml:space="preserve">
     <value>Fabric</value>
@@ -1352,685 +1352,685 @@ Longer content wraps automatically.</value>
     <value>Quilt</value>
   </data>
   <data name="Download_VanillaLoaderSubtitle" xml:space="preserve">
-    <value>Do not install a mod loader</value>
+    <value>Mod ローダーをインストールしない</value>
   </data>
   <data name="Download_FabricLoaderSubtitle" xml:space="preserve">
-    <value>Choose and install a Fabric version</value>
+    <value>Fabric バージョンを選択してインストールできます</value>
   </data>
   <data name="Download_ForgeLoaderSubtitle" xml:space="preserve">
-    <value>Choose and install a Forge version</value>
+    <value>Forge バージョンを選択してインストールできます</value>
   </data>
   <data name="Download_NeoForgeLoaderSubtitle" xml:space="preserve">
-    <value>Choose and install a NeoForge version</value>
+    <value>NeoForge バージョンを選択してインストールできます</value>
   </data>
   <data name="Download_QuiltLoaderSubtitle" xml:space="preserve">
-    <value>Choose and install a Quilt version</value>
+    <value>Quilt バージョンを選択してインストールできます</value>
   </data>
   <data name="Download_FabricLoaderVersionLabel" xml:space="preserve">
-    <value>Fabric Version</value>
+    <value>Fabric バージョン</value>
   </data>
   <data name="Download_FabricLoaderVersionEmpty" xml:space="preserve">
-    <value>No versions available</value>
+    <value>利用可能なバージョンはありません</value>
   </data>
   <data name="Download_LoaderVersionEmptyFormat" xml:space="preserve">
-    <value>No {0} versions available</value>
+    <value>{0} に利用可能なバージョンはありません</value>
   </data>
   <data name="Download_LoaderVersionStableTag" xml:space="preserve">
-    <value>Stable</value>
+    <value>安定版</value>
   </data>
   <data name="Download_LoaderVersionPreviewTag" xml:space="preserve">
-    <value>Preview</value>
+    <value>プレビュー版</value>
   </data>
   <data name="Download_AddonLibraryNone" xml:space="preserve">
-    <value>Do Not Install</value>
+    <value>インストールしない</value>
   </data>
   <data name="Download_AddonLibraryLatestTag" xml:space="preserve">
-    <value>Latest</value>
+    <value>最新</value>
   </data>
   <data name="Download_AddonLibraryLoading" xml:space="preserve">
-    <value>Loading versions...</value>
+    <value>バージョンを読み込み中...</value>
   </data>
   <data name="Download_AddonLibraryEmpty" xml:space="preserve">
-    <value>No versions available</value>
+    <value>利用可能なバージョンはありません</value>
   </data>
   <data name="Download_AddonLibraryLoadFailedShort" xml:space="preserve">
-    <value>Load Failed</value>
+    <value>取得に失敗しました</value>
   </data>
   <data name="Download_FabricApiLabel" xml:space="preserve">
-    <value>Install Fabric API (recommended)</value>
+    <value>Fabric API をインストール（推奨）</value>
   </data>
   <data name="Download_QuiltLibraryLabel" xml:space="preserve">
-    <value>Install QFAPI / QSL (recommended)</value>
+    <value>QFAPI / QSL をインストール（推奨）</value>
   </data>
   <data name="Download_QuiltLibraryNone" xml:space="preserve">
-    <value>Do Not Install</value>
+    <value>インストールしない</value>
   </data>
   <data name="Download_QuiltLibraryLatestTag" xml:space="preserve">
-    <value>Latest</value>
+    <value>最新</value>
   </data>
   <data name="Download_QuiltLibraryLoading" xml:space="preserve">
-    <value>Loading QFAPI / QSL...</value>
+    <value>QFAPI / QSL を読み込み中...</value>
   </data>
   <data name="Download_QuiltLibraryEmpty" xml:space="preserve">
-    <value>No versions available</value>
+    <value>利用可能なバージョンはありません</value>
   </data>
   <data name="Download_QuiltLibraryLoadFailedShort" xml:space="preserve">
-    <value>Load Failed</value>
+    <value>取得に失敗しました</value>
   </data>
   <data name="Download_SelectVersionPlaceholder" xml:space="preserve">
-    <value>Select Version</value>
+    <value>バージョンを選択</value>
   </data>
   <data name="Download_LoaderVersionLoadFailedShort" xml:space="preserve">
-    <value>Load Failed</value>
+    <value>取得に失敗しました</value>
   </data>
   <data name="Download_LoaderPendingSubtitle" xml:space="preserve">
-    <value>Installation is not available yet</value>
+    <value>インストールはまだ未対応です</value>
   </data>
   <data name="Install_Empty" xml:space="preserve">
-    <value>No downloads</value>
+    <value>現在ダウンロード内容はありません</value>
   </data>
   <data name="DownloadTask_Preparing" xml:space="preserve">
-    <value>Preparing download...</value>
+    <value>ダウンロードを準備中...</value>
   </data>
   <data name="DownloadTask_Completed" xml:space="preserve">
-    <value>Completed</value>
+    <value>完了</value>
   </data>
   <data name="DownloadTask_Failed" xml:space="preserve">
-    <value>Failed</value>
+    <value>失敗</value>
   </data>
   <data name="DownloadTask_Running" xml:space="preserve">
-    <value>Downloading</value>
+    <value>ダウンロード中</value>
   </data>
   <data name="Status_Ready" xml:space="preserve">
-    <value>Ready</value>
+    <value>準備完了</value>
   </data>
   <data name="Status_NoLaunchableInstance" xml:space="preserve">
-    <value>No launchable game yet</value>
+    <value>起動可能なゲームがまだありません</value>
   </data>
   <data name="Status_LaunchPreparing" xml:space="preserve">
-    <value>Preparing to launch...</value>
+    <value>ゲーム起動を準備中...</value>
   </data>
   <data name="Status_LaunchCheckingInstance" xml:space="preserve">
-    <value>Checking current instance...</value>
+    <value>現在のインスタンスを確認中...</value>
   </data>
   <data name="Status_LaunchRepairingMetadata" xml:space="preserve">
-    <value>Preparing version metadata...</value>
+    <value>現在のバージョン情報を整理中...</value>
   </data>
   <data name="Status_LaunchRepairingJar" xml:space="preserve">
-    <value>Repairing current instance jar...</value>
+    <value>現在のインスタンスの jar ファイルを補完中...</value>
   </data>
   <data name="Status_LaunchRepairingLibraries" xml:space="preserve">
-    <value>Repairing shared libraries...</value>
+    <value>共有 libraries を補完中...</value>
   </data>
   <data name="Status_LaunchRepairingAssets" xml:space="preserve">
-    <value>Repairing game assets...</value>
+    <value>ゲームリソースを補完中...</value>
   </data>
   <data name="Status_LaunchRepairingLogging" xml:space="preserve">
-    <value>Repairing logging configuration...</value>
+    <value>ログ設定を補完中...</value>
   </data>
   <data name="Status_LaunchCheckingJava" xml:space="preserve">
-    <value>Checking Java runtime...</value>
+    <value>Java 実行環境を確認中...</value>
   </data>
   <data name="Status_LaunchRunningPreLaunchCommand" xml:space="preserve">
-    <value>Running pre-launch command...</value>
+    <value>起動前コマンドを実行中...</value>
   </data>
   <data name="Status_LaunchPreparingProcess" xml:space="preserve">
-    <value>Preparing launch arguments...</value>
+    <value>起動引数を生成中...</value>
   </data>
   <data name="Status_LaunchStartingProcess" xml:space="preserve">
-    <value>Starting game process...</value>
+    <value>ゲームプロセスを起動中...</value>
   </data>
   <data name="Status_LaunchCheckingFiles" xml:space="preserve">
-    <value>Checking game files...</value>
+    <value>ゲームファイルを確認中...</value>
   </data>
   <data name="Status_LaunchDownloadingFiles" xml:space="preserve">
-    <value>Downloading missing game files...</value>
+    <value>不足しているゲームファイルをダウンロード中...</value>
   </data>
   <data name="Status_LaunchCanceled" xml:space="preserve">
-    <value>Launch canceled</value>
+    <value>今回の起動はキャンセルされました</value>
   </data>
   <data name="Status_LaunchAccountUnavailable" xml:space="preserve">
-    <value>The current account cannot launch the game. Sign in again or switch accounts.</value>
+    <value>現在のアカウントではゲームを起動できません。再ログインするかアカウントを切り替えてください。</value>
   </data>
   <data name="Status_LaunchExitedQuickly" xml:space="preserve">
-    <value>The game exited immediately after launch. Diagnostics were saved; check the logs\launcher folder for this instance.</value>
+    <value>ゲームは起動直後に終了しました。診断ログを記録しました。現在のインスタンスの logs\launcher ディレクトリを確認してください。</value>
   </data>
   <data name="Status_LaunchProcessExited" xml:space="preserve">
-    <value>The game process exited. Diagnostics were saved.</value>
+    <value>ゲームプロセスは終了しました。診断ログを記録しました。</value>
   </data>
   <data name="Status_LaunchAbnormalExit" xml:space="preserve">
-    <value>The game exited abnormally during startup. Diagnostics were saved.</value>
+    <value>ゲームの起動が異常終了しました。診断ログを記録しました。</value>
   </data>
   <data name="Status_LaunchRuntimeAbnormalExit" xml:space="preserve">
-    <value>The game exited abnormally while running. Diagnostics were saved.</value>
+    <value>ゲームの実行中に異常終了しました。診断ログを記録しました。</value>
   </data>
   <data name="Status_LaunchFailed" xml:space="preserve">
-    <value>Launch failed. Please try again later.</value>
+    <value>起動に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_LaunchInstanceRepairFailed" xml:space="preserve">
-    <value>The current instance is missing critical files and cannot be repaired without adding a new version. Reinstall this instance or check the version files.</value>
+    <value>現在のインスタンスには重要なファイルが不足しており、新しいバージョンを追加せずに自動補完できません。このインスタンスを再インストールするか、バージョンファイルを確認してください。</value>
   </data>
   <data name="Status_LaunchInstanceSelectedFormat" xml:space="preserve">
-    <value>Current game switched to {0}</value>
+    <value>現在のゲームを {0} に切り替えました</value>
   </data>
   <data name="Status_LaunchInstanceSelectionFailed" xml:space="preserve">
-    <value>Failed to switch the current game. Refresh and try again.</value>
+    <value>現在のゲームの切り替えに失敗しました。更新してから再試行してください。</value>
   </data>
   <data name="Status_LoadingVersions" xml:space="preserve">
-    <value>Loading Minecraft versions...</value>
+    <value>Minecraft バージョンリストを取得中...</value>
   </data>
   <data name="Status_VersionsLoadedFormat" xml:space="preserve">
-    <value>Loaded {0} versions</value>
+    <value>{0} 個のバージョンを読み込みました</value>
   </data>
   <data name="Status_LoaderVersionsPendingFormat" xml:space="preserve">
-    <value>{0} installation will be added later</value>
+    <value>{0} の後続バージョンは今後対応予定です</value>
   </data>
   <data name="Status_LoadingLoaderVersionsFormat" xml:space="preserve">
-    <value>Loading {0} versions...</value>
+    <value>{0} バージョンを読み込み中...</value>
   </data>
   <data name="Status_LoaderVersionsLoadedFormat" xml:space="preserve">
-    <value>{0} versions loaded</value>
+    <value>{0} の利用可能なバージョンを読み込みました</value>
   </data>
   <data name="Status_SelectMinecraftVersionFirst" xml:space="preserve">
-    <value>Select a Minecraft version first</value>
+    <value>先に Minecraft バージョンを選択してください</value>
   </data>
   <data name="Status_InstanceCreatedFormat" xml:space="preserve">
-    <value>Game {0} created</value>
+    <value>ゲーム {0} を作成しました</value>
   </data>
   <data name="Status_LocalModImported" xml:space="preserve">
-    <value>Mod imported.</value>
+    <value>ローカル Mod をインポートしました</value>
   </data>
   <data name="Status_LocalModImportFileNotFound" xml:space="preserve">
-    <value>Could not find the mod file to import.</value>
+    <value>インポートする Mod ファイルが見つかりません。</value>
   </data>
   <data name="Status_LocalSaveImported" xml:space="preserve">
-    <value>Save imported.</value>
+    <value>ローカルセーブデータをインポートしました</value>
   </data>
   <data name="Status_LocalSaveImportFileNotFound" xml:space="preserve">
-    <value>Could not find the save archive to import.</value>
+    <value>インポートするセーブデータの圧縮ファイルが見つかりません。</value>
   </data>
   <data name="Status_SelectInstanceFirst" xml:space="preserve">
-    <value>Select a game first</value>
+    <value>先にゲームを選択してください</value>
   </data>
   <data name="Status_SearchingModrinth" xml:space="preserve">
-    <value>Searching Modrinth...</value>
+    <value>Modrinth を検索中...</value>
   </data>
   <data name="Status_ModDownloading" xml:space="preserve">
-    <value>Downloading mod...</value>
+    <value>Mod をダウンロード中...</value>
   </data>
   <data name="Status_ModDownloadingFormat" xml:space="preserve">
-    <value>Downloading {0}</value>
+    <value>{0} をダウンロード中</value>
   </data>
   <data name="Status_ModCompatibleFileNotFound" xml:space="preserve">
-    <value>No mod file compatible with the current game was found.</value>
+    <value>現在のゲームに対応する Mod ファイルが見つかりません。</value>
   </data>
   <data name="Status_ModrinthResultsFoundFormat" xml:space="preserve">
-    <value>Found {0} resources</value>
+    <value>{0} 件のリソースが見つかりました</value>
   </data>
   <data name="Status_ModInstalledFormat" xml:space="preserve">
-    <value>{0} installed</value>
+    <value>{0} をインストールしました</value>
   </data>
   <data name="Status_ModInstallFailed" xml:space="preserve">
-    <value>Mod installation failed</value>
+    <value>Mod のインストールに失敗しました</value>
   </data>
   <data name="Status_ModDownloadedFormat" xml:space="preserve">
-    <value>{0} downloaded</value>
+    <value>{0} をダウンロードしました</value>
   </data>
   <data name="Status_ModDownloadFailed" xml:space="preserve">
-    <value>Failed to download mod.</value>
+    <value>Mod のダウンロードに失敗しました</value>
   </data>
   <data name="Status_ResourcePackDownloading" xml:space="preserve">
-    <value>Downloading resource pack...</value>
+    <value>リソースパックをダウンロード中...</value>
   </data>
   <data name="Status_ResourcePackDownloadingFormat" xml:space="preserve">
-    <value>Downloading {0}</value>
+    <value>{0} をダウンロード中</value>
   </data>
   <data name="Status_ResourcePackInstalledFormat" xml:space="preserve">
-    <value>{0} installed</value>
+    <value>{0} をインストールしました</value>
   </data>
   <data name="Status_ResourcePackInstallFailed" xml:space="preserve">
-    <value>Resource pack installation failed</value>
+    <value>リソースパックのインストールに失敗しました</value>
   </data>
   <data name="Status_ResourcePackDownloadedFormat" xml:space="preserve">
-    <value>{0} downloaded</value>
+    <value>{0} をダウンロードしました</value>
   </data>
   <data name="Status_ResourcePackDownloadFailed" xml:space="preserve">
-    <value>Failed to download resource pack.</value>
+    <value>リソースパックのダウンロードに失敗しました</value>
   </data>
   <data name="Status_ShaderPackDownloading" xml:space="preserve">
-    <value>Downloading shader pack...</value>
+    <value>シェーダーパックをダウンロード中...</value>
   </data>
   <data name="Status_ShaderPackDownloadingFormat" xml:space="preserve">
-    <value>Downloading {0}</value>
+    <value>{0} をダウンロード中</value>
   </data>
   <data name="Status_ShaderPackInstalledFormat" xml:space="preserve">
-    <value>{0} installed</value>
+    <value>{0} をインストールしました</value>
   </data>
   <data name="Status_ShaderPackInstallFailed" xml:space="preserve">
-    <value>Shader pack installation failed</value>
+    <value>シェーダーパックのインストールに失敗しました</value>
   </data>
   <data name="Status_ShaderPackDownloadedFormat" xml:space="preserve">
-    <value>{0} downloaded</value>
+    <value>{0} をダウンロードしました</value>
   </data>
   <data name="Status_ShaderPackDownloadFailed" xml:space="preserve">
-    <value>Failed to download shader pack.</value>
+    <value>シェーダーパックのダウンロードに失敗しました</value>
   </data>
   <data name="Status_WorldDownloading" xml:space="preserve">
-    <value>Downloading world...</value>
+    <value>ワールドをダウンロード中...</value>
   </data>
   <data name="Status_WorldDownloadingFormat" xml:space="preserve">
-    <value>Downloading {0}</value>
+    <value>{0} をダウンロード中</value>
   </data>
   <data name="Status_WorldInstalledFormat" xml:space="preserve">
-    <value>{0} installed</value>
+    <value>{0} をインストールしました</value>
   </data>
   <data name="Status_WorldInstallFailed" xml:space="preserve">
-    <value>World installation failed</value>
+    <value>ワールドのインストールに失敗しました</value>
   </data>
   <data name="Status_WorldDownloadedFormat" xml:space="preserve">
-    <value>{0} downloaded</value>
+    <value>{0} をダウンロードしました</value>
   </data>
   <data name="Status_WorldDownloadFailed" xml:space="preserve">
-    <value>Failed to download world.</value>
+    <value>ワールドのダウンロードに失敗しました</value>
   </data>
   <data name="Status_SettingsSaved" xml:space="preserve">
-    <value>Launcher settings saved</value>
+    <value>ランチャー設定を保存しました</value>
   </data>
   <data name="Status_SettingsSaveFailed" xml:space="preserve">
-    <value>Failed to save launcher settings. Please try again later.</value>
+    <value>ランチャー設定の保存に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_JavaScanFailed" xml:space="preserve">
-    <value>Failed to scan local Java runtimes. Please try again later.</value>
+    <value>この PC の Java スキャンに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_JavaImported" xml:space="preserve">
-    <value>Java runtime imported.</value>
+    <value>Java をインポートしました</value>
   </data>
   <data name="Status_JavaAlreadyExists" xml:space="preserve">
-    <value>This Java runtime already exists</value>
+    <value>この Java は既に存在します</value>
   </data>
   <data name="Status_JavaImportFailed" xml:space="preserve">
-    <value>Failed to import Java. Make sure the selected file is a Java executable.</value>
+    <value>Java のインポートに失敗しました。Java 実行ファイルを選択しているか確認してください。</value>
   </data>
   <data name="Status_JavaSelectionFailed" xml:space="preserve">
-    <value>Java selection is unavailable. Check Java settings in global settings.</value>
+    <value>Java の選択は利用できません。グローバル設定の Java 設定を確認してください。</value>
   </data>
   <data name="Status_InstanceSettingsSaved" xml:space="preserve">
-    <value>Game settings saved</value>
+    <value>ゲーム設定を保存しました</value>
   </data>
   <data name="Status_DefaultInstanceSetFormat" xml:space="preserve">
-    <value>{0} set as the default game</value>
+    <value>{0} を既定のゲームに設定しました</value>
   </data>
   <data name="Status_LoadInstancesFailed" xml:space="preserve">
-    <value>Failed to load games. Please try again later.</value>
+    <value>ゲームの読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_LoadVersionsFailed" xml:space="preserve">
-    <value>Failed to load the version list. Please try again later.</value>
+    <value>バージョンリストの読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_UnimplementedCategory" xml:space="preserve">
-    <value>This category will be available later.</value>
+    <value>このカテゴリは今後実装予定です。</value>
   </data>
   <data name="Status_NoCategoryVersionsFormat" xml:space="preserve">
-    <value>No {0} versions found.</value>
+    <value>{0} バージョンが見つかりません。</value>
   </data>
   <data name="Status_NoMatchingVersions" xml:space="preserve">
-    <value>No matching versions found.</value>
+    <value>一致するバージョンが見つかりません。</value>
   </data>
   <data name="Status_DuplicateInstanceName" xml:space="preserve">
-    <value>An instance with this name already exists.</value>
+    <value>同名のゲームが既に存在します</value>
   </data>
   <data name="Status_InstallQueued" xml:space="preserve">
-    <value>Waiting for other installation tasks...</value>
+    <value>他のインストールタスクの完了を待機中...</value>
   </data>
   <data name="Status_InstallStartingDownload" xml:space="preserve">
-    <value>Starting download</value>
+    <value>ダウンロードを開始中</value>
   </data>
   <data name="Status_InstallPreparing" xml:space="preserve">
-    <value>Preparing installation...</value>
+    <value>インストールを準備中...</value>
   </data>
   <data name="Status_InstallCheckingFiles" xml:space="preserve">
-    <value>Checking game files...</value>
+    <value>ゲームファイルを確認中...</value>
   </data>
   <data name="Status_InstallDownloadingFiles" xml:space="preserve">
-    <value>Downloading game files...</value>
+    <value>ゲームファイルをダウンロード中...</value>
   </data>
   <data name="Status_InstallDownloadingLoaderInstaller" xml:space="preserve">
-    <value>Downloading loader installer...</value>
+    <value>ローダーインストーラーをダウンロード中...</value>
   </data>
   <data name="Status_InstallRunningLoaderInstaller" xml:space="preserve">
-    <value>Running loader installer...</value>
+    <value>ローダーインストーラーを実行中...</value>
   </data>
   <data name="Status_InstallFinalizingVersion" xml:space="preserve">
-    <value>Finalizing version files...</value>
+    <value>バージョンファイルを整理中...</value>
   </data>
   <data name="Status_InstallCompletingFiles" xml:space="preserve">
-    <value>Completing loader file processing...</value>
+    <value>ローダーファイル処理を完了中...</value>
   </data>
   <data name="Status_InstallingVanillaFormat" xml:space="preserve">
-    <value>Installing Vanilla {0}...</value>
+    <value>バニラ {0} をインストール中...</value>
   </data>
   <data name="Status_InstallingLoaderFormat" xml:space="preserve">
-    <value>Installing {0} {1}...</value>
+    <value>{0} {1} をインストール中...</value>
   </data>
   <data name="Status_InstanceInstalledFormat" xml:space="preserve">
-    <value>Game {0} installed</value>
+    <value>ゲーム {0} をインストールしました</value>
   </data>
   <data name="Status_InstallFailed" xml:space="preserve">
-    <value>Installation failed. Please try again later.</value>
+    <value>インストールに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_ModpackPreparingArchive" xml:space="preserve">
-    <value>Preparing modpack file</value>
+    <value>Modパックファイルを準備中</value>
   </data>
   <data name="Status_ModpackParsingManifest" xml:space="preserve">
-    <value>Parsing modpack manifest</value>
+    <value>Modパックマニフェストを解析中</value>
   </data>
   <data name="Status_ModpackResolvingFiles" xml:space="preserve">
-    <value>Resolving modpack files</value>
+    <value>Modパックファイルを解析中</value>
   </data>
   <data name="Status_ModpackResolvingFilesFormat" xml:space="preserve">
-    <value>Resolving modpack files ({0})</value>
+    <value>Modパックファイルを解析中（{0}）</value>
   </data>
   <data name="Status_ModpackCreatingInstance" xml:space="preserve">
-    <value>Creating game instance</value>
+    <value>ゲームインスタンスを作成中</value>
   </data>
   <data name="Status_ModpackInstallingMinecraftBase" xml:space="preserve">
-    <value>Installing Minecraft base files</value>
+    <value>Minecraft 基本ファイルをインストール中</value>
   </data>
   <data name="Status_ModpackInstallingLoader" xml:space="preserve">
-    <value>Installing loader</value>
+    <value>Loader をインストール中</value>
   </data>
   <data name="Status_ModpackDownloadingFiles" xml:space="preserve">
-    <value>Downloading modpack files</value>
+    <value>Modパックファイルをダウンロード中</value>
   </data>
   <data name="Status_ModpackDownloadingFileFormat" xml:space="preserve">
-    <value>Downloading {0}</value>
+    <value>{0} をダウンロード中</value>
   </data>
   <data name="Status_ModpackDownloading" xml:space="preserve">
-    <value>Downloading modpack...</value>
+    <value>Modパックをダウンロード中...</value>
   </data>
   <data name="Status_ModpackDownloadingFormat" xml:space="preserve">
-    <value>Downloading {0}</value>
+    <value>{0} をダウンロード中</value>
   </data>
   <data name="Status_ModpackDownloadedFormat" xml:space="preserve">
-    <value>{0} downloaded</value>
+    <value>{0} をダウンロードしました</value>
   </data>
   <data name="Status_ModpackDownloadFailed" xml:space="preserve">
-    <value>Failed to download modpack.</value>
+    <value>Modパックのダウンロードに失敗しました</value>
   </data>
   <data name="Status_ModpackCopyingOverrides" xml:space="preserve">
-    <value>Copying modpack overrides</value>
+    <value>Modパックの上書きファイルをコピー中</value>
   </data>
   <data name="Status_ModpackCleaningUp" xml:space="preserve">
-    <value>Cleaning up import files</value>
+    <value>インポート作業をクリーンアップ中</value>
   </data>
   <data name="Status_ModpackImportedFormat" xml:space="preserve">
-    <value>{0} imported</value>
+    <value>{0} のインポートが完了しました</value>
   </data>
   <data name="Status_ModpackInvalidArchive" xml:space="preserve">
-    <value>The modpack format is unsupported or the file is corrupted</value>
+    <value>Modパック形式が対応していないか、ファイルが破損しています</value>
   </data>
   <data name="Status_ModpackUnsupportedLoader" xml:space="preserve">
-    <value>Only Vanilla, Fabric, Forge, NeoForge, and Quilt modpacks are supported</value>
+    <value>現在は Vanilla、Fabric、Forge、NeoForge、Quilt の Modパックのみ対応しています</value>
   </data>
   <data name="Status_ModpackMissingCurseForgeApiKey" xml:space="preserve">
-    <value>No CurseForge API Key configured</value>
+    <value>CurseForge API Key が設定されていません</value>
   </data>
   <data name="Status_ModpackHashMismatch" xml:space="preserve">
-    <value>Modpack file verification failed</value>
+    <value>Modパックファイルの検証に失敗しました</value>
   </data>
   <data name="Status_ModpackInstalling" xml:space="preserve">
-    <value>Installing</value>
+    <value>インストール中</value>
   </data>
   <data name="Status_ModpackImportFailed" xml:space="preserve">
-    <value>Failed to import modpack</value>
+    <value>Modパックのインポートに失敗しました</value>
   </data>
   <data name="Status_LoaderInstallPending" xml:space="preserve">
-    <value>This loader will be installable in a future version.</value>
+    <value>このローダーのインストールは今後のバージョンで対応予定です。</value>
   </data>
   <data name="Status_FabricLoaderVersionsLoadFailed" xml:space="preserve">
-    <value>Failed to load Fabric versions. Please try again later.</value>
+    <value>Fabric バージョンリストの読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_LoaderVersionsLoadFailedFormat" xml:space="preserve">
-    <value>Failed to load {0} versions. Please try again later.</value>
+    <value>{0} バージョンリストの読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_FabricApiVersionsLoadFailed" xml:space="preserve">
-    <value>Failed to load Fabric API versions; it will not be installed.</value>
+    <value>Fabric API バージョンリストの読み込みに失敗したため、インストールしない設定に変更しました。</value>
   </data>
   <data name="Status_QuiltLibraryVersionsLoadFailed" xml:space="preserve">
-    <value>Failed to load QFAPI / QSL versions; it will not be installed.</value>
+    <value>QFAPI / QSL バージョンリストの読み込みに失敗したため、インストールしない設定に変更しました。</value>
   </data>
   <data name="Status_OpeningMicrosoftLogin" xml:space="preserve">
-    <value>Opening the Microsoft sign-in page...</value>
+    <value>Microsoft 公式ログインページを開いています...</value>
   </data>
   <data name="Status_LoginMicrosoftActive" xml:space="preserve">
-    <value>Waiting for Microsoft sign-in to complete.</value>
+    <value>ログイン中です。表示された Microsoft 公式ページでログインを完了してください...</value>
   </data>
   <data name="Status_LoginMissingProfile" xml:space="preserve">
-    <value>Microsoft sign-in failed: Minecraft Java profile was not found</value>
+    <value>Microsoft ログインに失敗しました：Minecraft Java アカウントプロフィールを取得できませんでした</value>
   </data>
   <data name="Status_LoginAccountAlreadyAddedFormat" xml:space="preserve">
-    <value>Microsoft account {0} has already been added and is now selected</value>
+    <value>Microsoft アカウント {0} は既に追加されています。選択しました。</value>
   </data>
   <data name="Status_LoginAccountAddedFormat" xml:space="preserve">
-    <value>Added Microsoft account {0}</value>
+    <value>Microsoft アカウント {0} を追加しました</value>
   </data>
   <data name="Status_LoginCanceled" xml:space="preserve">
-    <value>Microsoft sign-in canceled</value>
+    <value>Microsoft ログインをキャンセルしました</value>
   </data>
   <data name="Status_LoginFailed" xml:space="preserve">
-    <value>Microsoft sign-in failed. Please try again later.</value>
+    <value>Microsoft ログインに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_OfflineAccountAddedFormat" xml:space="preserve">
-    <value>Added offline account {0}</value>
+    <value>オフラインアカウント {0} を追加しました</value>
   </data>
   <data name="Status_OfflineUuidModeChangedFormat" xml:space="preserve">
-    <value>Offline UUID mode changed to {0}</value>
+    <value>オフライン UUID 方式を {0} に切り替えました</value>
   </data>
   <data name="Status_OfflineUuidModeChangeFailed" xml:space="preserve">
-    <value>Failed to change offline UUID mode. Please try again later.</value>
+    <value>オフライン UUID 方式の切り替えに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_OfflineUuidInvalid" xml:space="preserve">
-    <value>Invalid UUID format. Check it and try again.</value>
+    <value>UUID の形式が正しくありません。確認してから再試行してください。</value>
   </data>
   <data name="Status_OfflineUuidApplied" xml:space="preserve">
-    <value>Offline UUID applied.</value>
+    <value>オフライン UUID を適用しました</value>
   </data>
   <data name="Status_AccountDeletedFormat" xml:space="preserve">
-    <value>Deleted account {0}</value>
+    <value>アカウント {0} を削除しました</value>
   </data>
   <data name="Status_AccountDeletedCacheCleanupFailedFormat" xml:space="preserve">
-    <value>Deleted account {0} from the list, but failed to clear sign-in cache.</value>
+    <value>アカウント {0} はリストから削除しましたが、ログインキャッシュのクリーンアップに失敗しました。</value>
   </data>
   <data name="Status_AccountNameUnchanged" xml:space="preserve">
-    <value>Account name is unchanged</value>
+    <value>アカウント名は変更されていません</value>
   </data>
   <data name="Status_SavingOfflineAccountName" xml:space="preserve">
-    <value>Saving offline account name...</value>
+    <value>オフラインアカウント名を保存中...</value>
   </data>
   <data name="Status_ChangingMicrosoftAccountName" xml:space="preserve">
-    <value>Changing Microsoft account name online...</value>
+    <value>Microsoft アカウント名をオンラインで変更中...</value>
   </data>
   <data name="Status_AccountRenamedFormat" xml:space="preserve">
-    <value>Changed account name to {0}</value>
+    <value>アカウント名を {0} に変更しました</value>
   </data>
   <data name="Status_AccountRenameResultFormat" xml:space="preserve">
-    <value>Account name changed to {0}</value>
+    <value>アカウント名を {0} に変更しました</value>
   </data>
   <data name="Status_AccountRenameFailed" xml:space="preserve">
-    <value>Failed to change account name. Please try again later.</value>
+    <value>アカウント名の変更に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_AccountRenameFailedDuplicateName" xml:space="preserve">
-    <value>Failed to change account name: this username is already taken.</value>
+    <value>アカウント名の変更に失敗しました：このユーザー名は既に使用されています。</value>
   </data>
   <data name="Status_AccountRenameFailedNotAllowed" xml:space="preserve">
-    <value>Failed to change account name: this account cannot be renamed yet, likely because the 30-day cooldown has not ended.</value>
+    <value>アカウント名の変更に失敗しました：このアカウントは一時的に名前変更できません。30 日のクールダウン中の可能性があります。</value>
   </data>
   <data name="Status_AccountRenameFailedInvalidName" xml:space="preserve">
-    <value>Failed to change account name: username format does not meet Minecraft rules.</value>
+    <value>アカウント名の変更に失敗しました：ユーザー名の形式が Minecraft の規則に合っていません。</value>
   </data>
   <data name="Status_RefreshingAccountProfile" xml:space="preserve">
-    <value>Refreshing Microsoft account profile...</value>
+    <value>Microsoft アカウントプロフィールを更新中...</value>
   </data>
   <data name="Status_AccountProfileRefreshed" xml:space="preserve">
-    <value>Microsoft account profile refreshed</value>
+    <value>Microsoft アカウントプロフィールを更新しました</value>
   </data>
   <data name="Status_AccountProfileRefreshFailed" xml:space="preserve">
-    <value>Failed to refresh Microsoft account profile. Please try again later.</value>
+    <value>Microsoft アカウントプロフィールの更新に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_AccountProfileRefreshTooFrequent" xml:space="preserve">
-    <value>Refreshing too often. Try again later.</value>
+    <value>更新が頻繁すぎます。しばらくしてから再試行してください</value>
   </data>
   <data name="Status_AccountProfileRefreshOfflineUnsupported" xml:space="preserve">
-    <value>Only Microsoft accounts can refresh profile data</value>
+    <value>Microsoft アカウントのみプロフィールを更新できます</value>
   </data>
   <data name="Status_ErrorCodeFormat" xml:space="preserve">
-    <value>Return code: {0}</value>
+    <value>戻りコード：{0}</value>
   </data>
   <data name="Status_SkinOfflineUnsupported" xml:space="preserve">
-    <value>Only Microsoft accounts can change skins</value>
+    <value>Microsoft アカウントのみスキンを変更できます</value>
   </data>
   <data name="Status_AddingSkin" xml:space="preserve">
-    <value>Adding skin...</value>
+    <value>スキンを追加中...</value>
   </data>
   <data name="Status_SkinAdded" xml:space="preserve">
-    <value>Skin added. Click Apply to sync it to the official site.</value>
+    <value>スキンを追加しました。適用をクリックすると公式サイトへ同期されます。</value>
   </data>
   <data name="Status_UploadingSkin" xml:space="preserve">
-    <value>Uploading skin...</value>
+    <value>スキンをアップロード中...</value>
   </data>
   <data name="Status_SkinUpdated" xml:space="preserve">
-    <value>Skin updated</value>
+    <value>スキンを更新しました</value>
   </data>
   <data name="Status_SkinModelChanged" xml:space="preserve">
-    <value>Skin model changed. Click Apply to sync it to the official site.</value>
+    <value>スキンモデルを変更しました。適用をクリックすると公式サイトへ同期されます。</value>
   </data>
   <data name="Status_SkinDeleted" xml:space="preserve">
-    <value>Skin deleted</value>
+    <value>スキンを削除しました</value>
   </data>
   <data name="Status_SkinDeleteFailed" xml:space="preserve">
-    <value>Failed to delete skin. Please try again later.</value>
+    <value>スキンの削除に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_SkinUpdateFailed" xml:space="preserve">
-    <value>Failed to change skin. Please try again later.</value>
+    <value>スキンの変更に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_CapeOfflineUnsupported" xml:space="preserve">
-    <value>Only Microsoft accounts can change capes</value>
+    <value>Microsoft アカウントのみマントを変更できます</value>
   </data>
   <data name="Status_ChangingCape" xml:space="preserve">
-    <value>Changing cape...</value>
+    <value>マントを変更中...</value>
   </data>
   <data name="Status_CapeRemoved" xml:space="preserve">
-    <value>Removed current cape</value>
+    <value>現在のマントを削除しました</value>
   </data>
   <data name="Status_CapeChangedFormat" xml:space="preserve">
-    <value>Changed cape: {0}</value>
+    <value>マントを変更しました：{0}</value>
   </data>
   <data name="Status_CapeChangeFailed" xml:space="preserve">
-    <value>Failed to change cape. Please try again later.</value>
+    <value>マントの変更に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_LoadingAccountProfile" xml:space="preserve">
-    <value>Loading Microsoft account profile...</value>
+    <value>Microsoft アカウントプロフィールを読み込み中...</value>
   </data>
   <data name="Status_LoadAccountProfileFailed" xml:space="preserve">
-    <value>Failed to load Microsoft account profile. Please try again later.</value>
+    <value>Microsoft アカウントプロフィールの読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="FilePicker_MinecraftSkinTitle" xml:space="preserve">
-    <value>Choose Minecraft Skin</value>
+    <value>Minecraft スキンを選択</value>
   </data>
   <data name="FilePicker_MinecraftSkinFilter" xml:space="preserve">
-    <value>PNG Skin (*.png)|*.png</value>
+    <value>PNG スキン (*.png)|*.png</value>
   </data>
   <data name="FilePicker_JavaExecutableTitle" xml:space="preserve">
-    <value>Choose Java Executable</value>
+    <value>Java 実行ファイルを選択</value>
   </data>
   <data name="FilePicker_JavaExecutableFilter" xml:space="preserve">
-    <value>Java executable (java.exe;java)|java.exe;java|All files (*.*)|*.*</value>
+    <value>Java 実行ファイル (java.exe;java)|java.exe;java|すべてのファイル (*.*)|*.*</value>
   </data>
   <data name="FilePicker_LocalImportFileTitle" xml:space="preserve">
-    <value>Choose Local Game or Modpack File</value>
+    <value>ローカルゲームまたは Modパックファイルを選択</value>
   </data>
   <data name="FilePicker_LocalImportFileFilter" xml:space="preserve">
-    <value>Modpack (*.mrpack;*.zip)|*.mrpack;*.zip|Modrinth modpack (*.mrpack)|*.mrpack|CurseForge modpack (*.zip)|*.zip|All files (*.*)|*.*</value>
+    <value>Modパック (*.mrpack;*.zip)|*.mrpack;*.zip|Modrinth Modパック (*.mrpack)|*.mrpack|CurseForge Modパック (*.zip)|*.zip|すべてのファイル (*.*)|*.*</value>
   </data>
   <data name="GameSettings_DeleteInstanceTooltip" xml:space="preserve">
-    <value>Delete game</value>
+    <value>バージョンを削除</value>
   </data>
   <data name="GameSettings_OpenInstanceFolderTooltip" xml:space="preserve">
-    <value>Open instance folder</value>
+    <value>フォルダーの場所を開く</value>
   </data>
   <data name="GameSettings_SelectInstanceAndGoHomeTooltip" xml:space="preserve">
-    <value>Select and return home</value>
+    <value>ホームに戻ってこのバージョンを選択</value>
   </data>
   <data name="Dialog_DeleteInstanceTitle" xml:space="preserve">
-    <value>Delete Game</value>
+    <value>バージョンを削除</value>
   </data>
   <data name="Dialog_DeleteInstanceMessageFormat" xml:space="preserve">
-    <value>Delete version "{0}"?</value>
+    <value>バージョン「{0}」を削除してもよろしいですか？</value>
   </data>
   <data name="Status_InstanceDeletedFormat" xml:space="preserve">
-    <value>Deleted version {0}</value>
+    <value>バージョン {0} を削除しました</value>
   </data>
   <data name="Status_DeleteInstanceFailed" xml:space="preserve">
-    <value>Failed to delete version. Please try again later.</value>
+    <value>バージョンの削除に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_InstanceFolderNotFound" xml:space="preserve">
-    <value>Instance folder not found.</value>
+    <value>このバージョンに対応するフォルダーが見つかりません。</value>
   </data>
   <data name="Status_OpenInstanceFolderFailed" xml:space="preserve">
-    <value>Failed to open the instance folder.</value>
+    <value>バージョンフォルダーを開けませんでした。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_OpenLaunchLogFolderFailed" xml:space="preserve">
-    <value>Failed to open the launch log folder.</value>
+    <value>起動診断ログディレクトリを開けませんでした。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_OpenGithubRepositoryFailed" xml:space="preserve">
-    <value>Failed to open the GitHub repository.</value>
+    <value>GitHub リポジトリを開けませんでした</value>
   </data>
   <data name="Status_OpenReferenceProjectFailed" xml:space="preserve">
-    <value>Failed to open the reference project.</value>
+    <value>プロジェクトリンクを開けませんでした</value>
   </data>
   <data name="Status_UpdateCheckUnavailable" xml:space="preserve">
-    <value>Update checking is currently unavailable.</value>
+    <value>更新確認はまだ対応していません</value>
   </data>
   <data name="GameSettings_UnknownMinecraftVersion" xml:space="preserve">
-    <value>Unknown Minecraft version</value>
+    <value>不明なバージョン</value>
   </data>
   <data name="GameSettings_DetailsPlaceholderHeader" xml:space="preserve">
-    <value>Detailed Settings</value>
+    <value>詳細設定</value>
   </data>
   <data name="GameSettings_DetailsPlaceholderBody" xml:space="preserve">
-    <value>More detailed settings for this version will be added here. More editable options will be added next.</value>
+    <value>このバージョンの詳細設定項目は今後追加されます。次のステップで編集可能な内容を追加します。</value>
   </data>
   <data name="GameSettings_DetailPlaceholderBodyFormat" xml:space="preserve">
-    <value>More settings related to "{0}" will be added here. Editable options will be added next.</value>
+    <value>「{0}」関連の設定項目は今後追加されます。次のステップで具体的な編集可能内容を追加します。</value>
   </data>
   <data name="GameSettings_GeneralDescriptionSection" xml:space="preserve">
-    <value>Description</value>
+    <value>説明</value>
   </data>
   <data name="GameSettings_GeneralSaveDescriptionButton" xml:space="preserve">
-    <value>Save Description</value>
+    <value>説明を保存</value>
   </data>
   <data name="GameSettings_GeneralInstanceDirectorySection" xml:space="preserve">
-    <value>Instance Folder</value>
+    <value>ゲームディレクトリ</value>
   </data>
   <data name="GameSettings_GeneralOpenInstanceDirectoryButton" xml:space="preserve">
-    <value>Open Instance Folder</value>
+    <value>ゲームディレクトリを開く</value>
   </data>
   <data name="GameSettings_GeneralCreatedAtSection" xml:space="preserve">
-    <value>Created At</value>
+    <value>作成日時</value>
   </data>
   <data name="GameSettings_DeleteGameButton" xml:space="preserve">
-    <value>Delete Game</value>
+    <value>ゲームを削除</value>
   </data>
   <data name="GameSettings_BackupInfoSection" xml:space="preserve">
-    <value>Backup Info</value>
+    <value>バックアップ概要</value>
   </data>
   <data name="GameSettings_BackupListSection" xml:space="preserve">
-    <value>Backup List</value>
+    <value>バックアップリスト</value>
   </data>
   <data name="GameSettings_ExportSettingsSection" xml:space="preserve">
-    <value>Export Settings</value>
+    <value>エクスポート設定</value>
   </data>
   <data name="GameSettings_ExportModpackTypeLabel" xml:space="preserve">
-    <value>Export Modpack Type</value>
+    <value>エクスポートする Modパック形式</value>
   </data>
   <data name="GameSettings_ExportTypeCurseForge" xml:space="preserve">
     <value>CurseForge</value>
@@ -2039,250 +2039,250 @@ Longer content wraps automatically.</value>
     <value>Modrinth</value>
   </data>
   <data name="GameSettings_ExportModpackInfoSection" xml:space="preserve">
-    <value>Modpack Information</value>
+    <value>Modパック情報</value>
   </data>
   <data name="GameSettings_ExportModpackNameLabel" xml:space="preserve">
-    <value>Modpack Name</value>
+    <value>Modパック名</value>
   </data>
   <data name="GameSettings_ExportModpackNameRequired" xml:space="preserve">
-    <value>Modpack name cannot be empty</value>
+    <value>Modパック名は空にできません</value>
   </data>
   <data name="GameSettings_ExportAuthorLabel" xml:space="preserve">
-    <value>Author</value>
+    <value>作者</value>
   </data>
   <data name="GameSettings_ExportAuthorHint" xml:space="preserve">
-    <value>Author only applies to the CurseForge modpack format. Modrinth does not include an author field.</value>
+    <value>作者は CurseForge Modパック形式でのみ有効です。Modrinth 形式には作者フィールドはありません。</value>
   </data>
   <data name="GameSettings_ExportVersionLabel" xml:space="preserve">
-    <value>Version</value>
+    <value>バージョン</value>
   </data>
   <data name="GameSettings_ExportVersionPlaceholder" xml:space="preserve">
     <value>1.0.0</value>
   </data>
   <data name="GameSettings_ExportPackModsLabel" xml:space="preserve">
-    <value>Export Mods</value>
+    <value>Mods をエクスポート</value>
   </data>
   <data name="GameSettings_ExportPackDisabledModsLabel" xml:space="preserve">
-    <value>Export Disabled Mods</value>
+    <value>無効化された Mod をエクスポート</value>
   </data>
   <data name="GameSettings_ExportPackResourcePacksLabel" xml:space="preserve">
-    <value>Export Resource Packs</value>
+    <value>リソースパックをエクスポート</value>
   </data>
   <data name="GameSettings_ExportPackShaderPacksLabel" xml:space="preserve">
-    <value>Export Shader Packs</value>
+    <value>シェーダーパックをエクスポート</value>
   </data>
   <data name="GameSettings_ExportPackSavesLabel" xml:space="preserve">
-    <value>Export Config</value>
+    <value>設定をエクスポート</value>
   </data>
   <data name="Status_ModpackExporting" xml:space="preserve">
-    <value>Exporting modpack...</value>
+    <value>Modパックをエクスポート中...</value>
   </data>
   <data name="Status_ModpackExported" xml:space="preserve">
-    <value>Modpack exported.</value>
+    <value>Modパックをエクスポートしました</value>
   </data>
   <data name="Status_ModpackExportedFormat" xml:space="preserve">
-    <value>Modpack exported to {0}</value>
+    <value>Modパックを {0} にエクスポートしました</value>
   </data>
   <data name="Status_ModpackExportFailed" xml:space="preserve">
-    <value>Failed to export modpack. Please try again later.</value>
+    <value>Modパックのエクスポートに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_ModpackExportMissingCurseForgeApiKey" xml:space="preserve">
-    <value>CurseForge API key is missing, so local files cannot be identified.</value>
+    <value>CurseForge API Key が不足しているため、ローカルファイルを識別できません。</value>
   </data>
   <data name="Status_ModpackExportMissingLoaderVersion" xml:space="preserve">
-    <value>The instance loader version is incomplete, so the modpack cannot be exported.</value>
+    <value>インスタンスのローダーバージョンが不完全なため、Modパックをエクスポートできません。</value>
   </data>
   <data name="Status_ModpackExportCurseForgeApiFailed" xml:space="preserve">
-    <value>Failed to identify files with CurseForge. Please try again later.</value>
+    <value>CurseForge に接続してファイルを識別できませんでした。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_ModpackExportModrinthApiFailed" xml:space="preserve">
-    <value>Failed to identify files with Modrinth. Please try again later.</value>
+    <value>Modrinth に接続してファイルを識別できませんでした。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_ModpackExportInvalidRequest" xml:space="preserve">
-    <value>Export information is incomplete, so the modpack cannot be exported.</value>
+    <value>エクスポート情報が不完全なため、Modパックをエクスポートできません。</value>
   </data>
   <data name="Status_ModpackExportFileSystemFailed" xml:space="preserve">
-    <value>Failed to write the modpack file. Check the save location.</value>
+    <value>Modパックファイルの書き込みに失敗しました。保存先を確認してください。</value>
   </data>
   <data name="Status_ModrinthExportUnsupported" xml:space="preserve">
-    <value>Modrinth modpack export is not supported yet.</value>
+    <value>Modrinth Modパックのエクスポートはまだ対応していません。</value>
   </data>
   <data name="GameSettings_BackupInfoSummaryFormat" xml:space="preserve">
-    <value>This game has {0} backups</value>
+    <value>現在のゲームには {0} 個のバックアップがあります</value>
   </data>
   <data name="GameSettings_BackupDirectorySection" xml:space="preserve">
-    <value>Backup Folder</value>
+    <value>バックアップディレクトリ</value>
   </data>
   <data name="GameSettings_BackupDirectoryNotSelected" xml:space="preserve">
-    <value>No backup folder selected</value>
+    <value>バックアップディレクトリ未選択</value>
   </data>
   <data name="GameSettings_BackupActionsLabel" xml:space="preserve">
-    <value>Actions</value>
+    <value>操作</value>
   </data>
   <data name="GameSettings_BackupOpenFolderButton" xml:space="preserve">
-    <value>Open Folder</value>
+    <value>バックアップフォルダーを開く</value>
   </data>
   <data name="GameSettings_BackupChangeDirectoryButton" xml:space="preserve">
-    <value>Change Folder</value>
+    <value>ディレクトリを変更</value>
   </data>
   <data name="GameSettings_BackupCreateNowButton" xml:space="preserve">
-    <value>Create Backup</value>
+    <value>今すぐバックアップ</value>
   </data>
   <data name="GameSettings_BackupMultiSelectButton" xml:space="preserve">
-    <value>Select Multiple</value>
+    <value>複数選択</value>
   </data>
   <data name="GameSettings_BackupCancelMultiSelectButton" xml:space="preserve">
-    <value>Cancel Selection</value>
+    <value>複数選択をキャンセル</value>
   </data>
   <data name="GameSettings_BackupSelectAllButton" xml:space="preserve">
-    <value>Select All</value>
+    <value>すべて選択</value>
   </data>
   <data name="GameSettings_BackupCancelSelectAllButton" xml:space="preserve">
-    <value>Clear Selection</value>
+    <value>全選択を解除</value>
   </data>
   <data name="GameSettings_BackupDeleteButton" xml:space="preserve">
-    <value>Delete</value>
+    <value>削除</value>
   </data>
   <data name="GameSettings_BackupDefaultNameFormat" xml:space="preserve">
-    <value>Backup {0}</value>
+    <value>バックアップ {0}</value>
   </data>
   <data name="GameSettings_BackupItemSubtitleFormat" xml:space="preserve">
-    <value>{0} - {1:0.##} MB</value>
+    <value>{0} · {1:0.##} MB</value>
   </data>
   <data name="GameSettings_BackupLoading" xml:space="preserve">
-    <value>Loading backups...</value>
+    <value>バックアップリストを読み込み中</value>
   </data>
   <data name="GameSettings_BackupEmpty" xml:space="preserve">
-    <value>No backups yet</value>
+    <value>バックアップはありません</value>
   </data>
   <data name="GameSettings_BackupSearchEmpty" xml:space="preserve">
-    <value>No matching backups found</value>
+    <value>一致するバックアップが見つかりません</value>
   </data>
   <data name="GameSettings_BackupOpenLocationTooltip" xml:space="preserve">
-    <value>Open backup location</value>
+    <value>フォルダーを開く</value>
   </data>
   <data name="GameSettings_BackupRestoreTooltip" xml:space="preserve">
-    <value>Restore backup</value>
+    <value>バックアップを復元</value>
   </data>
   <data name="GameSettings_BackupRestoreUnavailableTooltip" xml:space="preserve">
-    <value>This backup cannot be restored</value>
+    <value>復元機能は現在利用できません</value>
   </data>
   <data name="GameSettings_BackupPreRestoreNameFormat" xml:space="preserve">
-    <value>Pre-restore backup {0}</value>
+    <value>復元前バックアップ {0}</value>
   </data>
   <data name="GameSettings_ModManagementInfoSection" xml:space="preserve">
-    <value>Mod Overview</value>
+    <value>Mod 概要</value>
   </data>
   <data name="GameSettings_ModManagementInstalledSummaryFormat" xml:space="preserve">
-    <value>This game has {0} mods installed, {1} enabled</value>
+    <value>現在のゲームには {0} 個の mods がインストールされており、{1} 個が有効です</value>
   </data>
   <data name="GameSettings_ModManagementActionsLabel" xml:space="preserve">
-    <value>Actions</value>
+    <value>操作</value>
   </data>
   <data name="GameSettings_ModManagementFilterLabel" xml:space="preserve">
-    <value>Mod List</value>
+    <value>Mod リスト</value>
   </data>
   <data name="GameSettings_ModManagementFilterAllButton" xml:space="preserve">
-    <value>All</value>
+    <value>すべて</value>
   </data>
   <data name="GameSettings_ModManagementFilterEnabledButton" xml:space="preserve">
-    <value>Enabled</value>
+    <value>有効</value>
   </data>
   <data name="GameSettings_ModManagementFilterDisabledButton" xml:space="preserve">
-    <value>Disabled</value>
+    <value>無効</value>
   </data>
   <data name="GameSettings_ModManagementOpenFolderButton" xml:space="preserve">
-    <value>Open Folder</value>
+    <value>mod フォルダーを開く</value>
   </data>
   <data name="GameSettings_ModManagementLocalImportButton" xml:space="preserve">
-    <value>Import Local File</value>
+    <value>ローカルインポート</value>
   </data>
   <data name="GameSettings_ModManagementOnlineInstallButton" xml:space="preserve">
-    <value>Install Online</value>
+    <value>オンラインインストール</value>
   </data>
   <data name="GameSettings_ModManagementEnableAllButton" xml:space="preserve">
-    <value>Enable All</value>
+    <value>すべて有効化</value>
   </data>
   <data name="GameSettings_ModManagementDisableAllButton" xml:space="preserve">
-    <value>Disable All</value>
+    <value>すべて無効化</value>
   </data>
   <data name="GameSettings_ModManagementModListSection" xml:space="preserve">
-    <value>Mod List</value>
+    <value>Mods リスト</value>
   </data>
   <data name="GameSettings_ModManagementEnabledState" xml:space="preserve">
-    <value>Enabled</value>
+    <value>有効</value>
   </data>
   <data name="GameSettings_ModManagementDisabledState" xml:space="preserve">
-    <value>Disabled</value>
+    <value>無効</value>
   </data>
   <data name="GameSettings_LaunchSettingsSection" xml:space="preserve">
-    <value>Launch Settings</value>
+    <value>起動設定</value>
   </data>
   <data name="GameSettings_LaunchSettingsModeLabel" xml:space="preserve">
-    <value>Settings Mode</value>
+    <value>設定方式</value>
   </data>
   <data name="GameSettings_LaunchSettingsModeUseGlobal" xml:space="preserve">
-    <value>Use Global Settings</value>
+    <value>グローバル設定に従う</value>
   </data>
   <data name="GameSettings_LaunchSettingsModePerInstance" xml:space="preserve">
-    <value>Use Custom Settings</value>
+    <value>ゲームごとに設定</value>
   </data>
   <data name="GameSettings_LaunchCheckFilesOption" xml:space="preserve">
-    <value>Check files before launch</value>
+    <value>起動前にファイルの整合性を確認</value>
   </data>
   <data name="GameSettings_LaunchAutoRepairOption" xml:space="preserve">
-    <value>Automatically repair missing files</value>
+    <value>不足ファイルを自動補完</value>
   </data>
   <data name="GameSettings_LaunchMinimizeLauncherOption" xml:space="preserve">
-    <value>Minimize launcher after launch</value>
+    <value>起動後にランチャーを最小化</value>
   </data>
   <data name="GameSettings_LaunchFullScreenOption" xml:space="preserve">
-    <value>Start in fullscreen</value>
+    <value>フルスクリーンで起動</value>
   </data>
   <data name="GameSettings_AdvancedLaunchSettingsSection" xml:space="preserve">
-    <value>Advanced Launch Settings</value>
+    <value>詳細起動設定</value>
   </data>
   <data name="GameSettings_PreLaunchCommandOption" xml:space="preserve">
-    <value>Command before launch</value>
+    <value>起動前にコマンドを実行</value>
   </data>
   <data name="GameSettings_WaitForPreLaunchCommandOption" xml:space="preserve">
-    <value>Wait for pre-launch command</value>
+    <value>コマンドの完了を待ってから起動</value>
   </data>
   <data name="GameSettings_PostExitCommandOption" xml:space="preserve">
-    <value>Command after exit</value>
+    <value>終了後にコマンドを実行</value>
   </data>
   <data name="GameSettings_CustomJvmArgumentsOption" xml:space="preserve">
-    <value>Custom JVM Arguments</value>
+    <value>JVM 引数を追加</value>
   </data>
   <data name="GameSettings_CustomGameArgumentsOption" xml:space="preserve">
-    <value>Custom Game Arguments</value>
+    <value>ゲーム引数を追加</value>
   </data>
   <data name="GameSettings_InstanceNameLabel" xml:space="preserve">
-    <value>Game Name</value>
+    <value>バージョン名</value>
   </data>
   <data name="GameSettings_InstanceIconLabel" xml:space="preserve">
-    <value>Game Icon</value>
+    <value>バージョンアイコン</value>
   </data>
   <data name="GameSettings_InstanceNameValidation" xml:space="preserve">
-    <value>Enter a valid game name.</value>
+    <value>名前は空にできず、ファイル名に使用できない文字を含めることはできません。</value>
   </data>
   <data name="GameSettings_IconGrassBlock" xml:space="preserve">
-    <value>Grass Block</value>
+    <value>草ブロック</value>
   </data>
   <data name="GameSettings_IconDirtBlock" xml:space="preserve">
-    <value>Dirt Block</value>
+    <value>土</value>
   </data>
   <data name="GameSettings_IconCraftingTable" xml:space="preserve">
-    <value>Crafting Table</value>
+    <value>作業台</value>
   </data>
   <data name="GameSettings_IconStoneBlock" xml:space="preserve">
-    <value>Stone Block</value>
+    <value>石</value>
   </data>
   <data name="GameSettings_IconFabric" xml:space="preserve">
     <value>Fabric</value>
   </data>
   <data name="GameSettings_IconAnvil" xml:space="preserve">
-    <value>Anvil</value>
+    <value>金床</value>
   </data>
   <data name="GameSettings_IconNeoForge" xml:space="preserve">
     <value>NeoForge</value>
@@ -2291,341 +2291,341 @@ Longer content wraps automatically.</value>
     <value>Quilt</value>
   </data>
   <data name="GameSettings_IconDiamondBlock" xml:space="preserve">
-    <value>Diamond Block</value>
+    <value>ダイヤモンドブロック</value>
   </data>
   <data name="GameSettings_IconBeacon" xml:space="preserve">
-    <value>Beacon</value>
+    <value>ビーコン</value>
   </data>
   <data name="GameSettings_IconFurnace" xml:space="preserve">
-    <value>Furnace</value>
+    <value>かまど</value>
   </data>
   <data name="GameSettings_IconTnt" xml:space="preserve">
     <value>TNT</value>
   </data>
   <data name="Dialog_RenameInstanceTitle" xml:space="preserve">
-    <value>Rename Game</value>
+    <value>名前を変更</value>
   </data>
   <data name="Dialog_RenameInstanceSubtitle" xml:space="preserve">
-    <value>Change the name and icon of the current instance.</value>
+    <value>現在のインスタンスの名前とアイコンを変更します。</value>
   </data>
   <data name="Dialog_RenameInstanceBusyTitle" xml:space="preserve">
-    <value>Renaming Game</value>
+    <value>変更中</value>
   </data>
   <data name="Dialog_RenameInstanceBusySubtitle" xml:space="preserve">
-    <value>Updating the version folder and configuration. Please wait.</value>
+    <value>バージョンディレクトリと設定を更新中です。しばらくお待ちください。</value>
   </data>
   <data name="Dialog_RenameInstanceSuccessTitle" xml:space="preserve">
-    <value>Renamed</value>
+    <value>変更しました</value>
   </data>
   <data name="Dialog_RenameInstanceFailedTitle" xml:space="preserve">
-    <value>Rename Failed</value>
+    <value>変更に失敗しました</value>
   </data>
   <data name="Dialog_RenameInstanceResultSubtitle" xml:space="preserve">
-    <value>Click OK to return to version details.</value>
+    <value>OK をクリックしてバージョン詳細に戻ります。</value>
   </data>
   <data name="Dialog_CreateBackupTitle" xml:space="preserve">
-    <value>Create Backup</value>
+    <value>バックアップを作成</value>
   </data>
   <data name="Dialog_CreateBackupSubtitle" xml:space="preserve">
-    <value>Enter a name for this backup.</value>
+    <value>このバックアップの名前を入力してください。</value>
   </data>
   <data name="Dialog_CreateBackupNameLabel" xml:space="preserve">
-    <value>Backup Name</value>
+    <value>バックアップ名</value>
   </data>
   <data name="Dialog_CreateBackupNameValidation" xml:space="preserve">
-    <value>Enter a backup name.</value>
+    <value>バックアップ名は空にできません。</value>
   </data>
   <data name="Dialog_BackupCreateFailedTitle" xml:space="preserve">
-    <value>Backup Failed</value>
+    <value>バックアップに失敗しました</value>
   </data>
   <data name="Dialog_BackupCreateFailedMessageFormat" xml:space="preserve">
     <value>{0}
 
-Exception summary: {1}</value>
+例外の概要：{1}</value>
   </data>
   <data name="Dialog_DeleteBackupTitle" xml:space="preserve">
-    <value>Delete Backup</value>
+    <value>バックアップを削除</value>
   </data>
   <data name="Dialog_DeleteBackupMessageFormat" xml:space="preserve">
-    <value>Delete backup "{0}"? This cannot be undone.</value>
+    <value>バックアップ「{0}」を削除してもよろしいですか？この操作は元に戻せません。</value>
   </data>
   <data name="Dialog_DeleteMultipleBackupsMessageFormat" xml:space="preserve">
-    <value>Delete these {0} backups? This cannot be undone.</value>
+    <value>この {0} 個のバックアップを削除してもよろしいですか？この操作は元に戻せません。</value>
   </data>
   <data name="Dialog_RestoreBackupTitle" xml:space="preserve">
-    <value>Restore Backup</value>
+    <value>バックアップを復元</value>
   </data>
   <data name="Dialog_RestoreBackupMessageFormat" xml:space="preserve">
-    <value>Restore backup "{0}"?
+    <value>バックアップ「{0}」を復元してもよろしいですか？
 
-The current game folder will be backed up first.</value>
+復元前に現在のゲームフォルダーが自動的にバックアップされます。</value>
   </data>
   <data name="BackupFailure_BackupDirectoryInsideInstance" xml:space="preserve">
-    <value>The backup folder cannot be inside the instance folder. Choose a folder outside the instance folder.</value>
+    <value>バックアップディレクトリをインスタンスディレクトリ内に置くことはできません。インスタンスディレクトリ外のフォルダーを選択してください。</value>
   </data>
   <data name="BackupFailure_InstanceDirectoryMissing" xml:space="preserve">
-    <value>The current instance folder does not exist, so a backup cannot be created.</value>
+    <value>現在のインスタンスフォルダーが存在しないため、バックアップを作成できません。</value>
   </data>
   <data name="BackupFailure_Generic" xml:space="preserve">
-    <value>A problem occurred while creating the backup. Please try again later.</value>
+    <value>バックアップ作成中に問題が発生しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_RenamingInstance" xml:space="preserve">
-    <value>Renaming game...</value>
+    <value>バージョンを変更中...</value>
   </data>
   <data name="Status_InstanceRenamedFormat" xml:space="preserve">
-    <value>Renamed version to {0}</value>
+    <value>バージョンを {0} に変更しました</value>
   </data>
   <data name="Status_InstanceRenameResultFormat" xml:space="preserve">
-    <value>Version renamed to {0}</value>
+    <value>バージョンを {0} に変更しました</value>
   </data>
   <data name="Status_InstanceRenameFailed" xml:space="preserve">
-    <value>Failed to rename version. Please try again later.</value>
+    <value>バージョンの変更に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_InstanceRenameUnchanged" xml:space="preserve">
-    <value>The version name and icon have not changed.</value>
+    <value>バージョン名とアイコンは変更されていません。</value>
   </data>
   <data name="Status_InstanceSettingsSaveFailed" xml:space="preserve">
-    <value>Failed to save game settings. Please try again later.</value>
+    <value>ゲーム設定の保存に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Dialog_JavaRequirementNotMetTitle" xml:space="preserve">
-    <value>Java Version Required</value>
+    <value>要件を満たす Java が見つかりません</value>
   </data>
   <data name="Dialog_JavaRequirementNotMetMessage" xml:space="preserve">
-    <value>Automatic Java selection could not find a Java runtime that meets this version requirement. Refresh or import a suitable Java runtime in Settings before launching.</value>
+    <value>Java の自動選択時に、現在のバージョン要件を満たす Java が見つかりませんでした。設定で適切な Java を更新またはインポートしてからゲームを起動してください。</value>
   </data>
   <data name="Dialog_JavaRequirementNotMetMessageFormat" xml:space="preserve">
-    <value>Automatic Java selection could not find a Java runtime that meets this version requirement. This version requires at least Java {0}. Refresh or import a suitable Java runtime in Settings before launching.</value>
+    <value>Java の自動選択時に、現在のバージョン要件を満たす Java が見つかりませんでした。現在のバージョンには少なくとも Java {0} が必要です。設定で適切な Java を更新またはインポートしてからゲームを起動してください。</value>
   </data>
   <data name="Dialog_JavaRuntimeMissingTitle" xml:space="preserve">
-    <value>Java Runtime Missing</value>
+    <value>Java が見つかりません</value>
   </data>
   <data name="Dialog_JavaRuntimeMissingMessage" xml:space="preserve">
-    <value>Automatic Java selection could not find any usable local Java runtime. Refresh or import a suitable Java runtime in Settings before launching.</value>
+    <value>Java の自動選択時に、この PC で利用可能な Java が見つかりませんでした。設定で適切な Java を更新またはインポートしてからゲームを起動してください。</value>
   </data>
   <data name="Dialog_JavaRuntimeMissingMessageFormat" xml:space="preserve">
-    <value>Automatic Java selection could not find any local Java runtime. This version requires at least Java {0}. Refresh or import a suitable Java runtime in Settings before launching.</value>
+    <value>Java の自動選択時に、この PC で利用可能な Java が見つかりませんでした。現在のバージョンには少なくとも Java {0} が必要です。設定で適切な Java を更新またはインポートしてからゲームを起動してください。</value>
   </data>
   <data name="Dialog_JavaManualVersionTooLowTitle" xml:space="preserve">
-    <value>Selected Java Is Too Old</value>
+    <value>Java バージョンが要件を満たしていません</value>
   </data>
   <data name="Dialog_JavaManualVersionTooLowMessageFormat" xml:space="preserve">
-    <value>"{0}" requires at least Java {1}, but the manually selected runtime is Java {2}. Choose a suitable Java runtime in Settings; you can force launch, but the game may still exit abnormally.</value>
+    <value>「{0}」には少なくとも Java {1} が必要ですが、現在手動選択されているのは Java {2} です。設定で適切な Java を選択することを推奨します。強制起動もできますが、ゲームが異常終了する可能性があります。</value>
   </data>
   <data name="Dialog_GoToSettingsButton" xml:space="preserve">
-    <value>Go to Settings</value>
+    <value>設定へ移動</value>
   </data>
   <data name="Dialog_ForceLaunchButton" xml:space="preserve">
-    <value>Force Launch</value>
+    <value>強制起動</value>
   </data>
   <data name="Dialog_CancelLaunchButton" xml:space="preserve">
-    <value>Cancel Launch</value>
+    <value>起動をキャンセル</value>
   </data>
   <data name="Dialog_LaunchStatusFailedTitle" xml:space="preserve">
-    <value>Launch Failed</value>
+    <value>ゲームの起動に失敗しました</value>
   </data>
   <data name="Dialog_LaunchStatusExitedTitle" xml:space="preserve">
-    <value>Game Exited</value>
+    <value>ゲームプロセスは終了しました</value>
   </data>
   <data name="Dialog_LaunchStatusRuntimeFailedTitle" xml:space="preserve">
-    <value>Game Exited Abnormally</value>
+    <value>ゲームが異常終了しました</value>
   </data>
   <data name="Dialog_LaunchStatusMessageFormat" xml:space="preserve">
-    <value>"{0}": {1}</value>
+    <value>「{0}」：{1}</value>
   </data>
   <data name="Dialog_LaunchStatusStartupFailedMessage" xml:space="preserve">
-    <value>The launcher could not complete the game launch preparation.</value>
+    <value>ランチャーはゲーム起動準備を完了できませんでした。</value>
   </data>
   <data name="Dialog_LaunchStatusStartupExitedMessage" xml:space="preserve">
-    <value>The game exited during startup.</value>
+    <value>ゲームプロセスは起動段階で正常終了しましたが、プレイ可能な実行状態には入りませんでした。</value>
   </data>
   <data name="Dialog_LaunchStatusStartupAbnormalMessage" xml:space="preserve">
-    <value>The game process exited abnormally during startup. Exit code: {0}.</value>
+    <value>ゲームプロセスが起動段階で異常終了しました。終了コード：{0}。</value>
   </data>
   <data name="Dialog_LaunchStatusRuntimeAbnormalMessage" xml:space="preserve">
-    <value>The game process exited abnormally while running. Exit code: {0}.</value>
+    <value>ゲーム実行中に異常終了しました。終了コード：{0}。</value>
   </data>
   <data name="Dialog_LaunchStatusUnknownExitCode" xml:space="preserve">
-    <value>Unknown</value>
+    <value>不明</value>
   </data>
   <data name="Dialog_LaunchStatusDiagnosticFileHint" xml:space="preserve">
-    <value>A launch diagnostic log has been generated. Open the log folder for details.</value>
+    <value>起動診断ログを生成しました。ログディレクトリを開いて詳細を確認できます。</value>
   </data>
   <data name="Dialog_LaunchStatusDiagnosticDirectoryHint" xml:space="preserve">
-    <value>Open the log folder to view latest.log and crash reports.</value>
+    <value>ログディレクトリを開いて latest.log とクラッシュレポートを確認できます。</value>
   </data>
   <data name="Dialog_OpenLaunchLogFolderButton" xml:space="preserve">
-    <value>Open Log Folder</value>
+    <value>ログディレクトリを開く</value>
   </data>
   <data name="Dialog_LaunchAnalysisCurrentInstance" xml:space="preserve">
-    <value>Current Game</value>
+    <value>現在のインスタンス</value>
   </data>
   <data name="Dialog_LaunchAnalysisUnknownTitle" xml:space="preserve">
-    <value>Possible Cause</value>
+    <value>考えられる原因</value>
   </data>
   <data name="Dialog_LaunchAnalysisUnknownDetail" xml:space="preserve">
-    <value>The launcher could not identify the exact cause from the current logs.</value>
+    <value>ランチャーは具体的な原因を特定できません。</value>
   </data>
   <data name="Dialog_LaunchAnalysisUnknownRecommendation" xml:space="preserve">
-    <value>Open the log folder for details.</value>
+    <value>ログディレクトリを開いて詳細を確認してください。</value>
   </data>
   <data name="Dialog_LaunchAnalysisJavaVersionTitle" xml:space="preserve">
-    <value>Java Version Mismatch</value>
+    <value>Java バージョンが要件を満たしていません</value>
   </data>
   <data name="Dialog_LaunchAnalysisJavaVersionDetailFormat" xml:space="preserve">
-    <value>{0} requires Java {1} or later, but this instance is using Java {2}.</value>
+    <value>{0} には Java {1} 以上が必要ですが、現在のインスタンスでは Java {2} が使用されています。</value>
   </data>
   <data name="Dialog_LaunchAnalysisJavaVersionRecommendationFormat" xml:space="preserve">
-    <value>Import or select Java {0} or later in Settings, then launch this game again.</value>
+    <value>設定で Java {0} 以上をインポートまたは選択してから、このインスタンスを再起動してください。</value>
   </data>
   <data name="Dialog_LaunchAnalysisModDependencyTitle" xml:space="preserve">
-    <value>Missing Mod Dependency</value>
+    <value>必要な Mod または依存関係が不足しています</value>
   </data>
   <data name="Dialog_LaunchAnalysisModDependencyDetailFormat" xml:space="preserve">
-    <value>{0} requires dependency {1}, but it was not found in this instance.</value>
+    <value>{0} には依存関係 {1} が必要ですが、現在のインスタンスでは見つかりません。</value>
   </data>
   <data name="Dialog_LaunchAnalysisModDependencyDetail" xml:space="preserve">
-    <value>A required mod dependency is missing.</value>
+    <value>現在のインスタンスには必要な Mod または依存関係が不足しています。</value>
   </data>
   <data name="Dialog_LaunchAnalysisModDependencyRecommendation" xml:space="preserve">
-    <value>Install the missing dependency according to the logs, or remove the mod with incomplete dependencies.</value>
+    <value>ログに従って不足している依存関係をインストールするか、依存関係が不完全な Mod を削除してください。</value>
   </data>
   <data name="Dialog_LaunchAnalysisModVersionTitle" xml:space="preserve">
-    <value>Mod Version Conflict</value>
+    <value>Mod バージョンに互換性がありません</value>
   </data>
   <data name="Dialog_LaunchAnalysisModVersionDetail" xml:space="preserve">
-    <value>Some mods in this instance are not compatible with Minecraft, the loader, or other mod versions.</value>
+    <value>現在のインスタンス内の一部の Mod は Minecraft、ローダー、または他の Mod バージョンと互換性がありません。</value>
   </data>
   <data name="Dialog_LaunchAnalysisModVersionRecommendation" xml:space="preserve">
-    <value>Check whether the mods match the current Minecraft and loader versions. Update or remove conflicting mods if needed.</value>
+    <value>Mod が現在の Minecraft とローダーバージョンに一致しているか確認し、必要に応じて競合する Mod を更新または削除してください。</value>
   </data>
   <data name="Dialog_LaunchAnalysisMissingFilesTitle" xml:space="preserve">
-    <value>Missing Game Files</value>
+    <value>ゲームファイルまたはライブラリが不足しています</value>
   </data>
   <data name="Dialog_LaunchAnalysisMissingFilesDetail" xml:space="preserve">
-    <value>Critical game files, libraries, or launch targets are missing during startup.</value>
+    <value>起動中に重要なゲームファイル、ライブラリ、または起動ターゲットが不足しています。</value>
   </data>
   <data name="Dialog_LaunchAnalysisMissingClasspathEntryDetailFormat" xml:space="preserve">
-    <value>The launch command references a missing file: {0}</value>
+    <value>起動コマンドが存在しないファイルを参照しています：{0}</value>
   </data>
   <data name="Dialog_LaunchAnalysisMissingClientJarDetailFormat" xml:space="preserve">
-    <value>This instance is missing the client jar file: {0}</value>
+    <value>現在のインスタンスにはクライアント jar ファイルが不足しています：{0}</value>
   </data>
   <data name="Dialog_LaunchAnalysisMissingFilesRecommendation" xml:space="preserve">
-    <value>Enable pre-launch file checking and try again, or reinstall this instance.</value>
+    <value>起動前のファイルチェックを有効にして再試行するか、このインスタンスを再インストールしてください。</value>
   </data>
   <data name="Dialog_LaunchAnalysisOutOfMemoryTitle" xml:space="preserve">
-    <value>Out of Memory</value>
+    <value>メモリ不足</value>
   </data>
   <data name="Dialog_LaunchAnalysisOutOfMemoryDetail" xml:space="preserve">
-    <value>The Java virtual machine ran out of memory during startup or runtime.</value>
+    <value>Java 仮想マシンが起動時または実行中にメモリ不足になりました。</value>
   </data>
   <data name="Dialog_LaunchAnalysisOutOfMemoryRecommendation" xml:space="preserve">
-    <value>Increase the allocated memory in launch settings, or reduce resource packs, shaders, and large mods.</value>
+    <value>起動設定でメモリを適切に増やすか、リソースパック、シェーダー、大型 Mod を減らしてください。</value>
   </data>
   <data name="Settings_GeneralFilesAndDirectoriesSection" xml:space="preserve">
-    <value>Files and Directories</value>
+    <value>ファイルとディレクトリ</value>
   </data>
   <data name="Settings_MinecraftDirectoryItemTitle" xml:space="preserve">
-    <value>.minecraft Folder</value>
+    <value>.minecraft ディレクトリ</value>
   </data>
   <data name="Settings_MinecraftDirectoryDescription" xml:space="preserve">
-    <value>This controls where the launcher scans instances, versions, and related game files.</value>
+    <value>ここではランチャーがインスタンス、バージョン、関連するゲームファイルをスキャンする場所を指定します。</value>
   </data>
   <data name="Settings_OpenMinecraftDirectoryButton" xml:space="preserve">
-    <value>Open Folder</value>
+    <value>ディレクトリを開く</value>
   </data>
   <data name="Settings_ChangeMinecraftDirectoryButton" xml:space="preserve">
-    <value>Change Folder</value>
+    <value>ディレクトリを変更</value>
   </data>
   <data name="Status_OpenMinecraftDirectoryFailed" xml:space="preserve">
-    <value>Failed to open the Minecraft folder.</value>
+    <value>.minecraft ディレクトリを開けませんでした。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_MinecraftDirectoryChanged" xml:space="preserve">
-    <value>Minecraft folder changed.</value>
+    <value>.minecraft ディレクトリを更新しました。</value>
   </data>
   <data name="Status_MinecraftDirectoryChangeFailed" xml:space="preserve">
-    <value>Failed to change Minecraft folder.</value>
+    <value>.minecraft ディレクトリの変更に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_OpenBackupDirectoryFailed" xml:space="preserve">
-    <value>Failed to open the backup folder.</value>
+    <value>バックアップディレクトリを開けませんでした。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_BackupDirectoryChanged" xml:space="preserve">
-    <value>Backup folder changed.</value>
+    <value>バックアップディレクトリを更新しました。</value>
   </data>
   <data name="Status_BackupDirectoryChangeFailed" xml:space="preserve">
-    <value>Failed to change backup folder.</value>
+    <value>バックアップディレクトリの変更に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_BackupCreating" xml:space="preserve">
-    <value>Creating backup...</value>
+    <value>バックアップ中</value>
   </data>
   <data name="Status_BackupCreated" xml:space="preserve">
-    <value>Backup created.</value>
+    <value>バックアップに成功しました</value>
   </data>
   <data name="Status_LoadBackupsFailed" xml:space="preserve">
-    <value>Failed to load backups.</value>
+    <value>バックアップリストの読み込みに失敗しました。</value>
   </data>
   <data name="Status_OpenBackupLocationFailed" xml:space="preserve">
-    <value>Failed to open backup location.</value>
+    <value>バックアップファイルの場所を開けませんでした。</value>
   </data>
   <data name="Status_BackupDeleted" xml:space="preserve">
-    <value>Backup deleted.</value>
+    <value>バックアップを削除しました。</value>
   </data>
   <data name="Status_BackupDeleteFailed" xml:space="preserve">
-    <value>Failed to delete backup.</value>
+    <value>バックアップの削除に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_SelectedBackupsDeletedFormat" xml:space="preserve">
-    <value>Deleted {0} backups</value>
+    <value>{0} 個のバックアップを削除しました</value>
   </data>
   <data name="Status_BackupRestoring" xml:space="preserve">
-    <value>Restoring backup...</value>
+    <value>バックアップを復元中</value>
   </data>
   <data name="Status_BackupRestored" xml:space="preserve">
-    <value>Backup restored.</value>
+    <value>バックアップを復元しました</value>
   </data>
   <data name="Status_BackupRestoreFailed" xml:space="preserve">
-    <value>Failed to restore backup.</value>
+    <value>バックアップの復元に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="FilePicker_MinecraftDirectoryTitle" xml:space="preserve">
-    <value>Choose .minecraft Folder</value>
+    <value>.minecraft ディレクトリを選択</value>
   </data>
   <data name="FilePicker_BackupDirectoryTitle" xml:space="preserve">
-    <value>Choose Backup Folder</value>
+    <value>バックアップディレクトリを選択</value>
   </data>
   <data name="Settings_LauncherLogDirectoryLabel" xml:space="preserve">
-    <value>Launcher Log Folder</value>
+    <value>ランチャーログディレクトリ</value>
   </data>
   <data name="Settings_LauncherLogDirectoryDescription" xml:space="preserve">
-    <value>Launcher runtime logs and diagnostic logs are stored here.</value>
+    <value>ここにはランチャーの実行ログと診断ログファイルが保存されます。</value>
   </data>
   <data name="Settings_OpenLauncherLogDirectoryButton" xml:space="preserve">
-    <value>Open Folder</value>
+    <value>ディレクトリを開く</value>
   </data>
   <data name="Settings_DownloadSection" xml:space="preserve">
-    <value>Downloads</value>
+    <value>ダウンロード設定</value>
   </data>
   <data name="Settings_DownloadSourceLabel" xml:space="preserve">
-    <value>Game Download Source</value>
+    <value>ゲームのダウンロードソース</value>
   </data>
   <data name="Settings_DownloadSpeedLimitLabel" xml:space="preserve">
-    <value>Download Speed Limit</value>
+    <value>ダウンロード速度を制限</value>
   </data>
   <data name="Settings_DownloadSpeedLimitUnit" xml:space="preserve">
     <value>MB/s</value>
   </data>
   <data name="Settings_DownloadSourceAuto" xml:space="preserve">
-    <value>Auto</value>
+    <value>自動選択</value>
   </data>
   <data name="Settings_DownloadSourceOfficial" xml:space="preserve">
-    <value>Official Source</value>
+    <value>公式ダウンロードソース</value>
   </data>
   <data name="Settings_DownloadSourceBmclApi" xml:space="preserve">
-    <value>BMCLAPI Mirror</value>
+    <value>BMCLAPI</value>
   </data>
   <data name="Settings_LanguageSection" xml:space="preserve">
-    <value>Launcher Language</value>
+    <value>ランチャー言語</value>
   </data>
   <data name="Settings_LauncherLanguageLabel" xml:space="preserve">
-    <value>Launcher Language</value>
+    <value>ランチャー言語</value>
   </data>
   <data name="Settings_LanguageSimplifiedChinese" xml:space="preserve">
     <value>简体中文</value>
@@ -2640,528 +2640,528 @@ The current game folder will be backed up first.</value>
     <value>English</value>
   </data>
   <data name="Settings_LanguageRestartNotice" xml:space="preserve">
-    <value>The language will take effect after restarting the app.</value>
+    <value>言語はアプリの再起動後に有効になります。</value>
   </data>
   <data name="Settings_GameLanguageSection" xml:space="preserve">
-    <value>Game Language</value>
+    <value>ゲーム言語</value>
   </data>
   <data name="Settings_AutoSetGameLanguageToLauncherLanguageLabel" xml:space="preserve">
-    <value>Automatically set game language to launcher language</value>
+    <value>ゲーム言語をランチャー言語に自動設定</value>
   </data>
   <data name="Settings_AccentSection" xml:space="preserve">
-    <value>Accent Color</value>
+    <value>アクセントカラー</value>
   </data>
   <data name="Settings_AccentSelectionLabel" xml:space="preserve">
-    <value>Accent Color</value>
+    <value>ランチャーのアクセントカラー</value>
   </data>
   <data name="Settings_AccentColorBlueTitle" xml:space="preserve">
-    <value>Blue</value>
+    <value>青 Blue</value>
   </data>
   <data name="Settings_AccentColorCyanTitle" xml:space="preserve">
-    <value>Cyan</value>
+    <value>シアン Cyan</value>
   </data>
   <data name="Settings_AccentColorGreenTitle" xml:space="preserve">
-    <value>Green</value>
+    <value>緑 Green</value>
   </data>
   <data name="Settings_AccentColorEmeraldTitle" xml:space="preserve">
-    <value>Emerald</value>
+    <value>エメラルド Emerald</value>
   </data>
   <data name="Settings_AccentColorPurpleTitle" xml:space="preserve">
-    <value>Purple</value>
+    <value>紫 Purple</value>
   </data>
   <data name="Settings_AccentColorPinkTitle" xml:space="preserve">
-    <value>Pink</value>
+    <value>ピンク Pink</value>
   </data>
   <data name="Settings_AccentColorOrangeTitle" xml:space="preserve">
-    <value>Orange</value>
+    <value>オレンジ Orange</value>
   </data>
   <data name="Settings_AccentColorAmberTitle" xml:space="preserve">
-    <value>Amber</value>
+    <value>アンバー Amber</value>
   </data>
   <data name="GameSettings_ModManagementEmptyMessage" xml:space="preserve">
-    <value>No mods installed</value>
+    <value>利用可能な mod はありません</value>
   </data>
   <data name="GameSettings_ModManagementLoading" xml:space="preserve">
-    <value>Loading mods...</value>
+    <value>Mods を読み込み中...</value>
   </data>
   <data name="GameSettings_ModManagementSearchEmptyMessage" xml:space="preserve">
-    <value>No matching mods found</value>
+    <value>一致する mod がありません</value>
   </data>
   <data name="Status_LoadLocalModsFailed" xml:space="preserve">
-    <value>Failed to load local mods.</value>
+    <value>Mod リストの読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="GameSettings_ModManagementMultiSelectButton" xml:space="preserve">
-    <value>Select Multiple</value>
+    <value>複数選択</value>
   </data>
   <data name="GameSettings_ModManagementCancelMultiSelectButton" xml:space="preserve">
-    <value>Cancel Selection</value>
+    <value>複数選択をキャンセル</value>
   </data>
   <data name="GameSettings_ModManagementSelectAllButton" xml:space="preserve">
-    <value>Select All</value>
+    <value>すべて選択</value>
   </data>
   <data name="GameSettings_ModManagementCancelSelectAllButton" xml:space="preserve">
-    <value>Clear Selection</value>
+    <value>全選択を解除</value>
   </data>
   <data name="GameSettings_ModManagementEnableButton" xml:space="preserve">
-    <value>Enable</value>
+    <value>有効化</value>
   </data>
   <data name="GameSettings_ModManagementDisableButton" xml:space="preserve">
-    <value>Disable</value>
+    <value>無効化</value>
   </data>
   <data name="GameSettings_ModManagementDeleteButton" xml:space="preserve">
-    <value>Delete</value>
+    <value>削除</value>
   </data>
   <data name="Dialog_DeleteModsTitle" xml:space="preserve">
-    <value>Delete Mods</value>
+    <value>Mod を削除</value>
   </data>
   <data name="Dialog_DeleteSingleModMessageFormat" xml:space="preserve">
-    <value>Delete mod "{0}"? This cannot be undone.</value>
+    <value>mod「{0}」を削除してもよろしいですか？この操作は元に戻せません。</value>
   </data>
   <data name="Dialog_DeleteMultipleModsMessageFormat" xml:space="preserve">
-    <value>Delete these {0} mods? This cannot be undone.</value>
+    <value>この {0} 個の mod を削除してもよろしいですか？この操作は元に戻せません。</value>
   </data>
   <data name="Status_SelectedModsEnabledFormat" xml:space="preserve">
-    <value>Enabled {0} mods</value>
+    <value>{0} 個の mod を有効化しました</value>
   </data>
   <data name="Status_SelectedModsEnablePartialFailedFormat" xml:space="preserve">
-    <value>Enabled {0} mods, {1} failed</value>
+    <value>{0} 個の mod を有効化しました。{1} 個は失敗しました</value>
   </data>
   <data name="Status_SelectedModsEnableFailed" xml:space="preserve">
-    <value>Failed to enable selected mods.</value>
+    <value>選択した mod の有効化に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_SelectedModsDisabledFormat" xml:space="preserve">
-    <value>Disabled {0} mods</value>
+    <value>{0} 個の mod を無効化しました</value>
   </data>
   <data name="Status_SelectedModsDisablePartialFailedFormat" xml:space="preserve">
-    <value>Disabled {0} mods, {1} failed</value>
+    <value>{0} 個の mod を無効化しました。{1} 個は失敗しました</value>
   </data>
   <data name="Status_SelectedModsDisableFailed" xml:space="preserve">
-    <value>Failed to disable selected mods.</value>
+    <value>選択した mod の無効化に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_SelectedModsDeletedFormat" xml:space="preserve">
-    <value>Deleted {0} mods</value>
+    <value>{0} 個の mod を削除しました</value>
   </data>
   <data name="Status_SelectedModsDeletePartialFailedFormat" xml:space="preserve">
-    <value>Deleted {0} mods, {1} failed</value>
+    <value>{0} 個の mod を削除しました。{1} 個は失敗しました</value>
   </data>
   <data name="Status_SelectedModsDeleteFailed" xml:space="preserve">
-    <value>Failed to delete selected mods.</value>
+    <value>選択した mod の削除に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_OpenModFileLocationFailed" xml:space="preserve">
-    <value>Failed to open mod file location.</value>
+    <value>Mod ファイルの場所を開けませんでした。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_LocalModImportFailed" xml:space="preserve">
-    <value>Failed to import local mod.</value>
+    <value>ローカル Mod のインポートに失敗しました。有効な Mod ファイルを選択しているか確認してください。</value>
   </data>
   <data name="Status_LocalSaveImportFailed" xml:space="preserve">
-    <value>Failed to import local save.</value>
+    <value>ローカルセーブデータのインポートに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="FilePicker_ModFileTitle" xml:space="preserve">
-    <value>Choose Mod File</value>
+    <value>Mod ファイルを選択</value>
   </data>
   <data name="FilePicker_ModFileFilter" xml:space="preserve">
-    <value>Mod files|*.jar|All files|*.*</value>
+    <value>Mod ファイル|*.jar|すべてのファイル|*.*</value>
   </data>
   <data name="FilePicker_ModDownloadDirectoryTitle" xml:space="preserve">
-    <value>Choose Mod Download Location</value>
+    <value>Mod のダウンロード先を選択</value>
   </data>
   <data name="FilePicker_SaveArchiveTitle" xml:space="preserve">
-    <value>Choose Save Archive</value>
+    <value>セーブデータの圧縮ファイルを選択</value>
   </data>
   <data name="FilePicker_SaveArchiveFilter" xml:space="preserve">
-    <value>Archives|*.zip;*.7z;*.rar;*.tar;*.gz;*.tgz;*.bz2;*.tar.gz;*.tar.bz2;*.tbz2|All files|*.*</value>
+    <value>圧縮ファイル|*.zip;*.7z;*.rar;*.tar;*.gz;*.tgz;*.bz2;*.tar.gz;*.tar.bz2;*.tbz2|すべてのファイル|*.*</value>
   </data>
   <data name="Dialog_ReplaceModImportTitle" xml:space="preserve">
-    <value>Replace Mod</value>
+    <value>Mod を置換</value>
   </data>
   <data name="Dialog_ReplaceModImportMessageFormat" xml:space="preserve">
-    <value>A mod named "{0}" already exists. Replace it?</value>
+    <value>「{0}」は既に存在します。置換しますか？</value>
   </data>
   <data name="Dialog_Replace_Button" xml:space="preserve">
-    <value>Replace</value>
+    <value>置換</value>
   </data>
   <data name="GameSettings_ModManagementUnavailableMessage" xml:space="preserve">
-    <value>Mods cannot be installed for the current version.</value>
+    <value>現在のバージョンには mod をインストールできません</value>
   </data>
   <data name="GameSettings_SaveManagementInfoSection" xml:space="preserve">
-    <value>Save Overview</value>
+    <value>セーブデータ概要</value>
   </data>
   <data name="GameSettings_SaveManagementInstalledSummaryFormat" xml:space="preserve">
-    <value>This game has {0} saves</value>
+    <value>現在のゲームには {0} 個のセーブデータがあります</value>
   </data>
   <data name="GameSettings_SaveManagementActionsLabel" xml:space="preserve">
-    <value>Actions</value>
+    <value>操作</value>
   </data>
   <data name="GameSettings_SaveManagementOpenFolderButton" xml:space="preserve">
-    <value>Open Folder</value>
+    <value>セーブデータフォルダーを開く</value>
   </data>
   <data name="GameSettings_SaveManagementLocalImportButton" xml:space="preserve">
-    <value>Import Local File</value>
+    <value>ローカルインポート</value>
   </data>
   <data name="GameSettings_SaveManagementMultiSelectButton" xml:space="preserve">
-    <value>Select Multiple</value>
+    <value>複数選択</value>
   </data>
   <data name="GameSettings_SaveManagementCancelMultiSelectButton" xml:space="preserve">
-    <value>Cancel Selection</value>
+    <value>複数選択をキャンセル</value>
   </data>
   <data name="GameSettings_SaveManagementSelectAllButton" xml:space="preserve">
-    <value>Select All</value>
+    <value>すべて選択</value>
   </data>
   <data name="GameSettings_SaveManagementCancelSelectAllButton" xml:space="preserve">
-    <value>Clear Selection</value>
+    <value>全選択を解除</value>
   </data>
   <data name="GameSettings_SaveManagementDeleteButton" xml:space="preserve">
-    <value>Delete</value>
+    <value>削除</value>
   </data>
   <data name="GameSettings_SaveManagementSaveListSection" xml:space="preserve">
-    <value>Save List</value>
+    <value>セーブデータリスト</value>
   </data>
   <data name="GameSettings_SaveManagementEmptyMessage" xml:space="preserve">
-    <value>No saves installed</value>
+    <value>利用可能なセーブデータはありません</value>
   </data>
   <data name="GameSettings_SaveManagementLoading" xml:space="preserve">
-    <value>Loading saves...</value>
+    <value>セーブデータを読み込み中...</value>
   </data>
   <data name="GameSettings_SaveManagementSearchEmptyMessage" xml:space="preserve">
-    <value>No matching saves found</value>
+    <value>一致するセーブデータがありません</value>
   </data>
   <data name="Dialog_DeleteSavesTitle" xml:space="preserve">
-    <value>Delete Saves</value>
+    <value>セーブデータを削除</value>
   </data>
   <data name="Dialog_DeleteSingleSaveMessageFormat" xml:space="preserve">
-    <value>Delete save "{0}"? This cannot be undone.</value>
+    <value>セーブデータ「{0}」を削除してもよろしいですか？この操作は元に戻せません。</value>
   </data>
   <data name="Dialog_DeleteMultipleSavesMessageFormat" xml:space="preserve">
-    <value>Delete these {0} saves? This cannot be undone.</value>
+    <value>この {0} 個のセーブデータを削除してもよろしいですか？この操作は元に戻せません。</value>
   </data>
   <data name="Dialog_InvalidSaveImportTitle" xml:space="preserve">
-    <value>Cannot Import Save</value>
+    <value>セーブデータをインポートできません</value>
   </data>
   <data name="Dialog_InvalidSaveArchiveMessage" xml:space="preserve">
-    <value>The selected file is not a valid save archive.</value>
+    <value>選択した圧縮ファイルは有効な Minecraft セーブデータではありません。</value>
   </data>
   <data name="Dialog_UnsupportedSaveArchiveMessage" xml:space="preserve">
-    <value>This archive format is not supported.</value>
+    <value>この圧縮形式のインポートにはまだ対応していません。</value>
   </data>
   <data name="Status_SelectedSavesDeletedFormat" xml:space="preserve">
-    <value>Deleted {0} saves</value>
+    <value>{0} 個のセーブデータを削除しました</value>
   </data>
   <data name="Status_SelectedSavesDeletePartialFailedFormat" xml:space="preserve">
-    <value>Deleted {0} saves, {1} failed</value>
+    <value>{0} 個のセーブデータを削除しました。{1} 個は失敗しました</value>
   </data>
   <data name="Status_SelectedSavesDeleteFailed" xml:space="preserve">
-    <value>Failed to delete selected saves.</value>
+    <value>選択したセーブデータの削除に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_OpenLocalSaveFolderFailed" xml:space="preserve">
-    <value>Failed to open local save folder.</value>
+    <value>セーブデータディレクトリを開けませんでした。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_LoadLocalSavesFailed" xml:space="preserve">
-    <value>Failed to load local saves.</value>
+    <value>セーブデータリストの読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="GameSettings_DropImportModsMessage" xml:space="preserve">
-    <value>Drop mod files here to import them.</value>
+    <value>離すと Mod をインポートします</value>
   </data>
   <data name="GameSettings_DropImportSavesMessage" xml:space="preserve">
-    <value>Drop save archives here to import them.</value>
+    <value>離すとセーブデータをインポートします</value>
   </data>
   <data name="GameSettings_DropReleaseToImportMessage" xml:space="preserve">
-    <value>Release to import.</value>
+    <value>離すとファイルをインポートします</value>
   </data>
   <data name="GameSettings_DropUnsupportedFileMessage" xml:space="preserve">
-    <value>This file type is not supported.</value>
+    <value>このページはこの種類のファイルのインポートに対応していません。</value>
   </data>
   <data name="GameSettings_DropModsOnlyMessage" xml:space="preserve">
-    <value>Only .jar mod files can be imported here.</value>
+    <value>現在のページは Mod ファイルのドラッグのみ対応しています。</value>
   </data>
   <data name="GameSettings_DropSaveArchivesOnlyMessage" xml:space="preserve">
-    <value>Only save archives can be imported here.</value>
+    <value>現在のページはセーブデータ圧縮ファイルのドラッグのみ対応しています。</value>
   </data>
   <data name="GameSettings_DropFoldersUnsupportedMessage" xml:space="preserve">
-    <value>Folder import is not supported here.</value>
+    <value>フォルダーのドラッグにはまだ対応していません。</value>
   </data>
   <data name="Status_LocalModsImportedFormat" xml:space="preserve">
-    <value>Imported {0} mods</value>
+    <value>{0} 個の Mod をインポートしました</value>
   </data>
   <data name="Status_LocalSavesImportedFormat" xml:space="preserve">
-    <value>Imported {0} saves</value>
+    <value>{0} 個のセーブデータをインポートしました</value>
   </data>
   <data name="Dialog_DeleteMultipleResourcePacksMessageFormat" xml:space="preserve">
-    <value>Delete these {0} resource packs? This cannot be undone.</value>
+    <value>この {0} 個のリソースパックを削除してもよろしいですか？この操作は元に戻せません。</value>
   </data>
   <data name="Dialog_DeleteResourcePacksTitle" xml:space="preserve">
-    <value>Delete Resource Packs</value>
+    <value>リソースパックを削除</value>
   </data>
   <data name="Dialog_DeleteSingleResourcePackMessageFormat" xml:space="preserve">
-    <value>Delete resource pack "{0}"? This cannot be undone.</value>
+    <value>リソースパック「{0}」を削除してもよろしいですか？この操作は元に戻せません。</value>
   </data>
   <data name="Dialog_InvalidResourcePackImportTitle" xml:space="preserve">
-    <value>Cannot Import Resource Pack</value>
+    <value>リソースパックをインポートできません</value>
   </data>
   <data name="Dialog_UnsupportedResourcePackArchiveMessage" xml:space="preserve">
-    <value>Only .zip resource packs can be imported.</value>
+    <value>現在は .zip リソースパックのインポートのみ対応しています。</value>
   </data>
   <data name="FilePicker_ResourcePackArchiveFilter" xml:space="preserve">
-    <value>Resource pack archive|*.zip|All files|*.*</value>
+    <value>リソースパック圧縮ファイル|*.zip|すべてのファイル|*.*</value>
   </data>
   <data name="FilePicker_ResourcePackArchiveTitle" xml:space="preserve">
-    <value>Choose Resource Pack Archive</value>
+    <value>リソースパック圧縮ファイルを選択</value>
   </data>
   <data name="FilePicker_ResourcePackDownloadDirectoryTitle" xml:space="preserve">
-    <value>Choose Resource Pack Download Folder</value>
+    <value>リソースパックのダウンロードディレクトリを選択</value>
   </data>
   <data name="GameSettings_DetailResourcePacks" xml:space="preserve">
-    <value>Resource Packs</value>
+    <value>リソースパック</value>
   </data>
   <data name="GameSettings_DropImportResourcePacksMessage" xml:space="preserve">
-    <value>Drop resource pack archives here to import them.</value>
+    <value>離すとリソースパックをインポートします</value>
   </data>
   <data name="GameSettings_DropResourcePackArchivesOnlyMessage" xml:space="preserve">
-    <value>Only .zip resource pack archives can be imported here.</value>
+    <value>現在のページはリソースパック圧縮ファイルのドラッグのみ対応しています。</value>
   </data>
   <data name="GameSettings_ResourcePackManagementActionsLabel" xml:space="preserve">
-    <value>Actions</value>
+    <value>操作</value>
   </data>
   <data name="GameSettings_ResourcePackManagementCancelMultiSelectButton" xml:space="preserve">
-    <value>Cancel Selection</value>
+    <value>複数選択をキャンセル</value>
   </data>
   <data name="GameSettings_ResourcePackManagementCancelSelectAllButton" xml:space="preserve">
-    <value>Clear Selection</value>
+    <value>全選択を解除</value>
   </data>
   <data name="GameSettings_ResourcePackManagementDeleteButton" xml:space="preserve">
-    <value>Delete</value>
+    <value>削除</value>
   </data>
   <data name="GameSettings_ResourcePackManagementEmptyMessage" xml:space="preserve">
-    <value>No resource packs installed</value>
+    <value>利用可能なリソースパックはありません</value>
   </data>
   <data name="GameSettings_ResourcePackManagementLoading" xml:space="preserve">
-    <value>Loading resource packs...</value>
+    <value>リソースパックを読み込み中...</value>
   </data>
   <data name="GameSettings_ResourcePackManagementInfoSection" xml:space="preserve">
-    <value>Resource Pack Overview</value>
+    <value>リソースパック概要</value>
   </data>
   <data name="GameSettings_ResourcePackManagementInstalledSummaryFormat" xml:space="preserve">
-    <value>This game has {0} resource packs</value>
+    <value>現在のゲームには {0} 個のリソースパックがあります</value>
   </data>
   <data name="GameSettings_ResourcePackManagementListSection" xml:space="preserve">
-    <value>Resource Pack List</value>
+    <value>リソースパックリスト</value>
   </data>
   <data name="GameSettings_ResourcePackManagementLocalImportButton" xml:space="preserve">
-    <value>Import Local File</value>
+    <value>ローカルインポート</value>
   </data>
   <data name="GameSettings_ResourcePackManagementMultiSelectButton" xml:space="preserve">
-    <value>Select Multiple</value>
+    <value>複数選択</value>
   </data>
   <data name="GameSettings_ResourcePackManagementOpenFolderButton" xml:space="preserve">
-    <value>Open Folder</value>
+    <value>リソースパックフォルダーを開く</value>
   </data>
   <data name="GameSettings_ResourcePackManagementSearchEmptyMessage" xml:space="preserve">
-    <value>No matching resource packs found</value>
+    <value>一致するリソースパックがありません</value>
   </data>
   <data name="GameSettings_ResourcePackManagementSelectAllButton" xml:space="preserve">
-    <value>Select All</value>
+    <value>すべて選択</value>
   </data>
   <data name="Status_LoadLocalResourcePacksFailed" xml:space="preserve">
-    <value>Failed to load local resource packs.</value>
+    <value>リソースパックリストの読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_LocalResourcePackImportFailed" xml:space="preserve">
-    <value>Failed to import local resource pack.</value>
+    <value>ローカルリソースパックのインポートに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_LocalResourcePackImportFileNotFound" xml:space="preserve">
-    <value>The selected resource pack file was not found.</value>
+    <value>インポートするリソースパック圧縮ファイルが見つかりません。</value>
   </data>
   <data name="Status_LocalResourcePackImported" xml:space="preserve">
-    <value>Resource pack imported.</value>
+    <value>ローカルリソースパックをインポートしました</value>
   </data>
   <data name="Status_LocalResourcePacksImportedFormat" xml:space="preserve">
-    <value>Imported {0} resource packs</value>
+    <value>{0} 個のリソースパックをインポートしました</value>
   </data>
   <data name="Status_OpenLocalResourcePackFolderFailed" xml:space="preserve">
-    <value>Failed to open local resource pack folder.</value>
+    <value>リソースパックディレクトリを開けませんでした。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_OpenLocalResourcePackLocationFailed" xml:space="preserve">
-    <value>Failed to open resource pack file location.</value>
+    <value>リソースパックファイルの場所を開けませんでした。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_SelectedResourcePacksDeleteFailed" xml:space="preserve">
-    <value>Failed to delete selected resource packs.</value>
+    <value>選択したリソースパックの削除に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_SelectedResourcePacksDeletePartialFailedFormat" xml:space="preserve">
-    <value>Deleted {0} resource packs, {1} failed</value>
+    <value>{0} 個のリソースパックを削除しました。{1} 個は失敗しました</value>
   </data>
   <data name="Status_SelectedResourcePacksDeletedFormat" xml:space="preserve">
-    <value>Deleted {0} resource packs</value>
+    <value>{0} 個のリソースパックを削除しました</value>
   </data>
   <data name="Dialog_DeleteMultipleShaderPacksMessageFormat" xml:space="preserve">
-    <value>Delete these {0} shader packs? This cannot be undone.</value>
+    <value>この {0} 個のシェーダーパックを削除してもよろしいですか？この操作は元に戻せません。</value>
   </data>
   <data name="Dialog_DeleteShaderPacksTitle" xml:space="preserve">
-    <value>Delete Shader Packs</value>
+    <value>シェーダーパックを削除</value>
   </data>
   <data name="Dialog_DeleteSingleShaderPackMessageFormat" xml:space="preserve">
-    <value>Delete shader pack "{0}"? This cannot be undone.</value>
+    <value>シェーダーパック「{0}」を削除してもよろしいですか？この操作は元に戻せません。</value>
   </data>
   <data name="Dialog_InvalidShaderPackImportTitle" xml:space="preserve">
-    <value>Cannot Import Shader Pack</value>
+    <value>シェーダーパックをインポートできません</value>
   </data>
   <data name="Dialog_UnsupportedShaderPackArchiveMessage" xml:space="preserve">
-    <value>Only .zip shader packs can be imported.</value>
+    <value>現在は .zip シェーダーパックのインポートのみ対応しています。</value>
   </data>
   <data name="FilePicker_ShaderPackArchiveFilter" xml:space="preserve">
-    <value>Shader pack archive|*.zip|All files|*.*</value>
+    <value>シェーダーパック圧縮ファイル|*.zip|すべてのファイル|*.*</value>
   </data>
   <data name="FilePicker_ShaderPackArchiveTitle" xml:space="preserve">
-    <value>Choose Shader Pack Archive</value>
+    <value>シェーダーパック圧縮ファイルを選択</value>
   </data>
   <data name="FilePicker_ShaderPackDownloadDirectoryTitle" xml:space="preserve">
-    <value>Choose Shader Pack Download Folder</value>
+    <value>シェーダーパックのダウンロードディレクトリを選択</value>
   </data>
   <data name="FilePicker_WorldDownloadDirectoryTitle" xml:space="preserve">
-    <value>Choose World Download Folder</value>
+    <value>ワールドのダウンロードディレクトリを選択</value>
   </data>
   <data name="FilePicker_ModpackDownloadDirectoryTitle" xml:space="preserve">
-    <value>Choose Modpack Download Folder</value>
+    <value>Modパックのダウンロードディレクトリを選択</value>
   </data>
   <data name="FilePicker_ModpackExportArchiveTitle" xml:space="preserve">
-    <value>Save CurseForge Modpack</value>
+    <value>CurseForge Modパックを保存</value>
   </data>
   <data name="FilePicker_ModpackExportArchiveFilter" xml:space="preserve">
-    <value>CurseForge modpack (*.zip)|*.zip|All files (*.*)|*.*</value>
+    <value>CurseForge Modパック (*.zip)|*.zip|すべてのファイル (*.*)|*.*</value>
   </data>
   <data name="FilePicker_ModrinthModpackExportArchiveTitle" xml:space="preserve">
-    <value>Save Modrinth Modpack</value>
+    <value>Modrinth Modパックを保存</value>
   </data>
   <data name="FilePicker_ModrinthModpackExportArchiveFilter" xml:space="preserve">
-    <value>Modrinth modpack (*.mrpack)|*.mrpack|All files (*.*)|*.*</value>
+    <value>Modrinth Modパック (*.mrpack)|*.mrpack|すべてのファイル (*.*)|*.*</value>
   </data>
   <data name="GameSettings_DropImportShaderPacksMessage" xml:space="preserve">
-    <value>Drop shader pack archives here to import them.</value>
+    <value>離すとシェーダーパックをインポートします</value>
   </data>
   <data name="GameSettings_DropShaderPackArchivesOnlyMessage" xml:space="preserve">
-    <value>Only .zip shader pack archives can be imported here.</value>
+    <value>現在のページはシェーダーパック圧縮ファイルのドラッグのみ対応しています。</value>
   </data>
   <data name="GameSettings_ShaderPackManagementActionsLabel" xml:space="preserve">
-    <value>Actions</value>
+    <value>操作</value>
   </data>
   <data name="GameSettings_ShaderPackManagementCancelMultiSelectButton" xml:space="preserve">
-    <value>Cancel Selection</value>
+    <value>複数選択をキャンセル</value>
   </data>
   <data name="GameSettings_ShaderPackManagementCancelSelectAllButton" xml:space="preserve">
-    <value>Clear Selection</value>
+    <value>全選択を解除</value>
   </data>
   <data name="GameSettings_ShaderPackManagementDeleteButton" xml:space="preserve">
-    <value>Delete</value>
+    <value>削除</value>
   </data>
   <data name="GameSettings_ShaderPackManagementEmptyMessage" xml:space="preserve">
-    <value>No shader packs installed</value>
+    <value>利用可能なシェーダーパックはありません</value>
   </data>
   <data name="GameSettings_ShaderPackManagementLoading" xml:space="preserve">
-    <value>Loading shader packs...</value>
+    <value>シェーダーパックを読み込み中...</value>
   </data>
   <data name="GameSettings_ShaderPackManagementInfoSection" xml:space="preserve">
-    <value>Shader Pack Overview</value>
+    <value>シェーダーパック概要</value>
   </data>
   <data name="GameSettings_ShaderPackManagementInstalledSummaryFormat" xml:space="preserve">
-    <value>This game has {0} shader packs</value>
+    <value>現在のゲームには {0} 個のシェーダーパックがあります</value>
   </data>
   <data name="GameSettings_ShaderPackManagementListSection" xml:space="preserve">
-    <value>Shader Pack List</value>
+    <value>シェーダーパックリスト</value>
   </data>
   <data name="GameSettings_ShaderPackManagementLocalImportButton" xml:space="preserve">
-    <value>Import Local File</value>
+    <value>ローカルインポート</value>
   </data>
   <data name="GameSettings_ShaderPackManagementMultiSelectButton" xml:space="preserve">
-    <value>Select Multiple</value>
+    <value>複数選択</value>
   </data>
   <data name="GameSettings_ShaderPackManagementOpenFolderButton" xml:space="preserve">
-    <value>Open Folder</value>
+    <value>シェーダーパックフォルダーを開く</value>
   </data>
   <data name="GameSettings_ShaderPackManagementSearchEmptyMessage" xml:space="preserve">
-    <value>No matching shader packs found</value>
+    <value>一致するシェーダーパックがありません</value>
   </data>
   <data name="GameSettings_ShaderPackManagementSelectAllButton" xml:space="preserve">
-    <value>Select All</value>
+    <value>すべて選択</value>
   </data>
   <data name="Status_LoadLocalShaderPacksFailed" xml:space="preserve">
-    <value>Failed to load local shader packs.</value>
+    <value>シェーダーパックリストの読み込みに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_LocalShaderPackImportFailed" xml:space="preserve">
-    <value>Failed to import local shader pack.</value>
+    <value>ローカルシェーダーパックのインポートに失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_LocalShaderPackImportFileNotFound" xml:space="preserve">
-    <value>The selected shader pack file was not found.</value>
+    <value>インポートするシェーダーパック圧縮ファイルが見つかりません。</value>
   </data>
   <data name="Status_LocalShaderPackImported" xml:space="preserve">
-    <value>Shader pack imported.</value>
+    <value>ローカルシェーダーパックをインポートしました</value>
   </data>
   <data name="Status_LocalShaderPacksImportedFormat" xml:space="preserve">
-    <value>Imported {0} shader packs</value>
+    <value>{0} 個のシェーダーパックをインポートしました</value>
   </data>
   <data name="Status_OpenLocalShaderPackFolderFailed" xml:space="preserve">
-    <value>Failed to open local shader pack folder.</value>
+    <value>シェーダーパックディレクトリを開けませんでした。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_OpenLocalShaderPackLocationFailed" xml:space="preserve">
-    <value>Failed to open shader pack file location.</value>
+    <value>シェーダーパックファイルの場所を開けませんでした。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_SelectedShaderPacksDeleteFailed" xml:space="preserve">
-    <value>Failed to delete selected shader packs.</value>
+    <value>選択したシェーダーパックの削除に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_SelectedShaderPacksDeletePartialFailedFormat" xml:space="preserve">
-    <value>Deleted {0} shader packs, {1} failed</value>
+    <value>{0} 個のシェーダーパックを削除しました。{1} 個は失敗しました</value>
   </data>
   <data name="Status_SelectedShaderPacksDeletedFormat" xml:space="preserve">
-    <value>Deleted {0} shader packs</value>
+    <value>{0} 個のシェーダーパックを削除しました</value>
   </data>
   <data name="Dialog_ModpackManualDownloadsTitle" xml:space="preserve">
-    <value>Modpack Import Complete</value>
+    <value>Modパックのインポートが完了しました</value>
   </data>
   <data name="Dialog_ModpackManualDownloadsMessageFormat" xml:space="preserve">
-    <value>Instance "{0}" was created, but {1} files failed to download.</value>
+    <value>インスタンス「{0}」を作成しましたが、{1} 個のファイルのダウンロードに失敗しました。</value>
   </data>
   <data name="Dialog_ModpackManualDownloadsHint" xml:space="preserve">
-    <value>Some files must be downloaded manually. Open the generated list for details.</value>
+    <value>補完リストを開いて、後で再試行するか手動でこれらのファイルを補完できます。</value>
   </data>
   <data name="Dialog_OpenFileButton" xml:space="preserve">
-    <value>Open File</value>
+    <value>ファイルを開く</value>
   </data>
   <data name="Status_ModpackImportedWithManualDownloadsFormat" xml:space="preserve">
-    <value>{0} imported; some files need to be retried later or completed manually.</value>
+    <value>{0} をインポートしました。一部のファイルは後で再試行または手動補完が必要です</value>
   </data>
   <data name="Status_OpenModpackManualDownloadsFileFailed" xml:space="preserve">
-    <value>Failed to open the manual downloads file.</value>
+    <value>補完リストを開けませんでした。しばらくしてから再試行してください。</value>
   </data>
   <data name="Dialog_UpdateAvailableTitle" xml:space="preserve">
-    <value>Update Available</value>
+    <value>新しいバージョンが見つかりました</value>
   </data>
   <data name="Dialog_UpdateAvailableVersionFormat" xml:space="preserve">
-    <value>Available version: {0}</value>
+    <value>利用可能なバージョン：{0}</value>
   </data>
   <data name="Dialog_OpenUpdateChangelogButton" xml:space="preserve">
-    <value>View Changelog</value>
+    <value>更新履歴を開く</value>
   </data>
   <data name="Dialog_UpdateButton" xml:space="preserve">
-    <value>Update</value>
+    <value>更新</value>
   </data>
   <data name="Status_CheckingUpdates" xml:space="preserve">
-    <value>Checking for updates...</value>
+    <value>更新を確認中...</value>
   </data>
   <data name="Status_LauncherAlreadyLatest" xml:space="preserve">
-    <value>Launcher is up to date.</value>
+    <value>現在は最新バージョンです</value>
   </data>
   <data name="Status_CheckUpdatesFailed" xml:space="preserve">
-    <value>Failed to check for updates.</value>
+    <value>更新確認に失敗しました。しばらくしてから再試行してください。</value>
   </data>
   <data name="Status_OpenUpdatePageFailed" xml:space="preserve">
-    <value>Failed to open the update page.</value>
+    <value>更新ページを開けませんでした</value>
   </data>
   <data name="Status_DownloadingLauncherUpdate" xml:space="preserve">
-    <value>Downloading launcher update...</value>
+    <value>更新をダウンロード中...</value>
   </data>
   <data name="Status_UpdateAutoInstallPackageNotFound" xml:space="preserve">
-    <value>No auto-installable update package was found.</value>
+    <value>自動インストール可能な更新パッケージが見つかりません</value>
   </data>
   <data name="Status_LauncherUpdateStartFailed" xml:space="preserve">
-    <value>Failed to start launcher update.</value>
+    <value>更新の開始に失敗しました。新しいバージョンを手動でダウンロードしてください。</value>
   </data>
   <data name="Status_LauncherUpdateRestarting" xml:space="preserve">
-    <value>Installing the update. The launcher will restart automatically.</value>
+    <value>更新をインストール中です。ランチャーは自動的に再起動します。</value>
   </data>
 </root>

@@ -27,6 +27,7 @@ public sealed partial class MainViewModel : ObservableObject
     private bool hasPrimedSettings;
     private bool hasInitialized;
     private bool isSyncingCurrentState;
+    private bool isCloseConfirmed;
     private CancellationTokenSource? floatingMessageHideCancellation;
     private GameInstance? pendingJavaRequirementInstance;
 
@@ -62,6 +63,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private bool isJavaRequirementForceLaunchAvailable;
+
+    [ObservableProperty]
+    private bool isDownloadCloseConfirmationDialogOpen;
 
     public MainViewModel(
         IDownloadSpeedLimitState downloadSpeedLimitState,
@@ -236,6 +240,38 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void CloseWindow()
     {
+        if (CanCloseWindow())
+            windowService.Close();
+    }
+
+    public bool CanCloseWindow()
+    {
+        if (isCloseConfirmed || !DownloadTasksPage.HasRunningTasks)
+            return true;
+
+        logger.LogInformation(
+            "Launcher close requested while downloads are running. RunningTaskCount={RunningTaskCount}",
+            DownloadTasksPage.RunningTaskCount);
+        IsDownloadCloseConfirmationDialogOpen = true;
+        return false;
+    }
+
+    [RelayCommand]
+    private void CancelDownloadCloseConfirmation()
+    {
+        logger.LogInformation("Launcher close canceled because downloads are running.");
+        IsDownloadCloseConfirmationDialogOpen = false;
+    }
+
+    [RelayCommand]
+    private void ConfirmDownloadClose()
+    {
+        logger.LogInformation(
+            "Launcher close confirmed while downloads are running. RunningTaskCount={RunningTaskCount}",
+            DownloadTasksPage.RunningTaskCount);
+        isCloseConfirmed = true;
+        IsDownloadCloseConfirmationDialogOpen = false;
+        DownloadTasksPage.CancelAllRunningTasks();
         windowService.Close();
     }
 

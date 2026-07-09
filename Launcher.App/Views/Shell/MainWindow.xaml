@@ -292,6 +292,41 @@
                 <downloadDialogViews:DownloadModpackManualDownloadsDialogView />
             </controls:DialogHost>
 
+            <controls:DialogHost x:Name="DownloadCloseConfirmationDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="420"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsDownloadCloseConfirmationDialogOpen}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Dialog_CloseWithDownloadsTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <TextBlock Grid.Row="1"
+                               Margin="0,16,0,24"
+                               Text="{x:Static res:Strings.Dialog_CloseWithDownloadsMessage}"
+                               Style="{StaticResource DialogBodyTextStyle}"
+                               TextWrapping="Wrap" />
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                Content="{x:Static res:Strings.Dialog_CloseAnywayButton}"
+                                Command="{Binding ConfirmDownloadCloseCommand}" />
+                        <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                Margin="{StaticResource DialogTrailingButtonMargin}"
+                                Content="{x:Static res:Strings.Cancel_Button}"
+                                Command="{Binding CancelDownloadCloseConfirmationCommand}" />
+                    </StackPanel>
+                </Grid>
+            </controls:DialogHost>
+
             <controls:DialogHost x:Name="ResourcesModFilterDialogHost"
                                  Grid.ColumnSpan="2"
                                  Grid.RowSpan="2"

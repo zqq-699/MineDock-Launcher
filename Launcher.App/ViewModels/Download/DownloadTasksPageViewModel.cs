@@ -44,6 +44,10 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
 
     public bool HasTasks => Tasks.Count > 0;
 
+    public bool HasRunningTasks => RunningTaskCount > 0;
+
+    public int RunningTaskCount => Tasks.Count(task => task.State is DownloadTaskState.Running);
+
     internal int TrackedBackgroundTaskCount
     {
         get
@@ -151,6 +155,8 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(HasTasks));
+        OnPropertyChanged(nameof(HasRunningTasks));
+        OnPropertyChanged(nameof(RunningTaskCount));
     }
 
     private void Task_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -162,6 +168,9 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
             ScheduleRemoval(task);
         else
             CancelScheduledRemoval(task);
+
+        OnPropertyChanged(nameof(HasRunningTasks));
+        OnPropertyChanged(nameof(RunningTaskCount));
     }
 
     private void ScheduleRemoval(DownloadTaskItem task)

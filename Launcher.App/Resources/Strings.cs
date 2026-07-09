@@ -18,6 +18,9 @@ public static class Strings
     public static string Cancel_Button => Get(nameof(Cancel_Button));
     public static string Confirm_Button => Get(nameof(Confirm_Button));
     public static string Delete_Button => Get(nameof(Delete_Button));
+    public static string Dialog_CloseWithDownloadsTitle => Get(nameof(Dialog_CloseWithDownloadsTitle));
+    public static string Dialog_CloseWithDownloadsMessage => Get(nameof(Dialog_CloseWithDownloadsMessage));
+    public static string Dialog_CloseAnywayButton => Get(nameof(Dialog_CloseAnywayButton));
     public static string Refresh_Button => Get(nameof(Refresh_Button));
     public static string ManualImport_Button => Get(nameof(ManualImport_Button));
     public static string Apply_Button => Get(nameof(Apply_Button));
@@ -252,6 +255,8 @@ public static class Strings
     public static string Settings_LanguageSection => Get(nameof(Settings_LanguageSection));
     public static string Settings_LauncherLanguageLabel => Get(nameof(Settings_LauncherLanguageLabel));
     public static string Settings_LanguageSimplifiedChinese => Get(nameof(Settings_LanguageSimplifiedChinese));
+    public static string Settings_LanguageTraditionalChinese => Get(nameof(Settings_LanguageTraditionalChinese));
+    public static string Settings_LanguageJapanese => Get(nameof(Settings_LanguageJapanese));
     public static string Settings_LanguageEnglish => Get(nameof(Settings_LanguageEnglish));
     public static string Settings_LanguageRestartNotice => Get(nameof(Settings_LanguageRestartNotice));
     public static string GetLanguageRestartNotice(CultureInfo culture) => Get(nameof(Settings_LanguageRestartNotice), culture);

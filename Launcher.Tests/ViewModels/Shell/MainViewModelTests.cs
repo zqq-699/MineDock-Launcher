@@ -219,6 +219,63 @@ public sealed class MainViewModelTests
     }
 
     [Fact]
+    public void CloseWindowWithoutRunningDownloadsClosesImmediately()
+    {
+        var windowService = new FakeWindowService();
+        var viewModel = CreateViewModel(new FakeGameInstanceService(), windowService: windowService);
+
+        viewModel.CloseWindowCommand.Execute(null);
+
+        Assert.False(viewModel.IsDownloadCloseConfirmationDialogOpen);
+        Assert.Equal(1, windowService.CloseCallCount);
+    }
+
+    [Fact]
+    public void CloseWindowWithRunningDownloadsOpensConfirmation()
+    {
+        var windowService = new FakeWindowService();
+        var viewModel = CreateViewModel(new FakeGameInstanceService(), windowService: windowService);
+        var task = viewModel.DownloadTasksPage.BeginTask("Minecraft 1.21.4", "Vanilla");
+
+        viewModel.CloseWindowCommand.Execute(null);
+
+        Assert.True(viewModel.IsDownloadCloseConfirmationDialogOpen);
+        Assert.Equal(0, windowService.CloseCallCount);
+        Assert.False(task.IsCancellationRequested);
+    }
+
+    [Fact]
+    public void CancelDownloadCloseConfirmationKeepsLauncherOpen()
+    {
+        var windowService = new FakeWindowService();
+        var viewModel = CreateViewModel(new FakeGameInstanceService(), windowService: windowService);
+        var task = viewModel.DownloadTasksPage.BeginTask("Minecraft 1.21.4", "Vanilla");
+        viewModel.CloseWindowCommand.Execute(null);
+
+        viewModel.CancelDownloadCloseConfirmationCommand.Execute(null);
+
+        Assert.False(viewModel.IsDownloadCloseConfirmationDialogOpen);
+        Assert.Equal(0, windowService.CloseCallCount);
+        Assert.False(task.IsCancellationRequested);
+    }
+
+    [Fact]
+    public void ConfirmDownloadCloseCancelsRunningDownloadsAndCloses()
+    {
+        var windowService = new FakeWindowService();
+        var viewModel = CreateViewModel(new FakeGameInstanceService(), windowService: windowService);
+        var task = viewModel.DownloadTasksPage.BeginTask("Minecraft 1.21.4", "Vanilla");
+        viewModel.CloseWindowCommand.Execute(null);
+
+        viewModel.ConfirmDownloadCloseCommand.Execute(null);
+
+        Assert.False(viewModel.IsDownloadCloseConfirmationDialogOpen);
+        Assert.True(task.IsCancellationRequested);
+        Assert.Equal(1, windowService.CloseCallCount);
+        Assert.True(viewModel.CanCloseWindow());
+    }
+
+    [Fact]
     public async Task AutomaticJavaRequirementFailureOpensDialog()
     {
         var launchService = new FakeLaunchService
@@ -736,6 +793,7 @@ public sealed class MainViewModelTests
     private sealed class FakeWindowService : IWindowService
     {
         public int RestoreAndActivateCallCount { get; private set; }
+        public int CloseCallCount { get; private set; }
 
         public void Attach(Window window)
         {
@@ -752,6 +810,7 @@ public sealed class MainViewModelTests
 
         public void Close()
         {
+            CloseCallCount++;
         }
     }
 

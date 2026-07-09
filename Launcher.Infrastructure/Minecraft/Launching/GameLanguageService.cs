@@ -39,6 +39,8 @@ public sealed class GameLanguageService : IGameLanguageService
         return LauncherLanguages.Normalize(launcherLanguage) switch
         {
             LauncherLanguages.English => "en_us",
+            LauncherLanguages.TraditionalChinese => "zh_tw",
+            LauncherLanguages.Japanese => "ja_jp",
             _ => "zh_cn"
         };
     }
