@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "appId": "MineDock-Launcher",
   "channel": "beta",
-  "versionName": "0.9.1-beta.7",
-  "versionCode": 90107,
-  "publishedAt": "2026-07-09T16:31:58Z",
+  "versionName": "0.9.1-beta.8",
+  "versionCode": 90108,
+  "publishedAt": "2026-07-09T17:09:01Z",
   "mandatory": false,
   "minSupportedVersionCode": 0,
-  "releaseNotes": "# Beta 0.9.1-beta.7\r\n\r\n- Print Gitee attachment upload HTTP status and response body on failure.\r\n- Keep Gitee Release attachments as the first download mirror.",
+  "releaseNotes": "# Beta 0.9.1-beta.8\r\n\r\n- Check for launcher updates in the background on startup.\r\n- Show the existing update dialog only when a new launcher version is available.\r\n- Keep startup update checks silent when the launcher is already up to date or the check fails.",
   "assets": [
     {
       "platform": "windows",
@@ -15,16 +15,16 @@
       "packageType": "exe",
       "fileName": "MineDock_Launcher_x64.exe",
       "size": 7509546,
-      "sha256": "3be52ce8457c6cecec476f850380ff143adc31d6f32f2448b1ed916215f91812",
+      "sha256": "e1dfd1f163890ec2addd0fd1f28c95c88d42c5a448ef22804176be3664dd3d23",
       "urls": [
         {
           "name": "gitee",
-          "url": "https://gitee.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.7/MineDock_Launcher_x64.exe",
+          "url": "https://gitee.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.8/MineDock_Launcher_x64.exe",
           "priority": 1
         },
         {
           "name": "github",
-          "url": "https://github.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.7/MineDock_Launcher_x64.exe",
+          "url": "https://github.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.8/MineDock_Launcher_x64.exe",
           "priority": 2
         }
       ]
