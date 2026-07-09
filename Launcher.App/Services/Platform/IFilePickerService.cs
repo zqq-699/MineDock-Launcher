@@ -1,3 +1,5 @@
+using Launcher.Application.Services;
+
 namespace Launcher.App.Services;
 
 public interface IFilePickerService
@@ -9,6 +11,6 @@ public interface IFilePickerService
     string? PickSaveArchive();
     string? PickResourcePackArchive();
     string? PickShaderPackArchive();
-    string? PickModpackExportArchive(string defaultFileName);
+    string? PickModpackExportArchive(string defaultFileName, ModpackExportKind kind);
     string? PickFolder(string title, string? initialDirectory = null);
 }

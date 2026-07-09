@@ -4,6 +4,7 @@ using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.ViewModels.Account;
 using Launcher.Application.Accounts;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
 namespace Launcher.Tests.Accounts;
@@ -997,7 +998,7 @@ public sealed class AccountPageViewModelTests
             return null;
         }
 
-        public string? PickModpackExportArchive(string defaultFileName)
+        public string? PickModpackExportArchive(string defaultFileName, ModpackExportKind kind)
         {
             return null;
         }

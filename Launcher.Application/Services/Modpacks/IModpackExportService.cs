@@ -43,6 +43,7 @@ public enum ModpackExportFailureReason
     MissingCurseForgeApiKey,
     MissingLoaderVersion,
     CurseForgeApiFailed,
+    ModrinthApiFailed,
     FileSystemError,
     UnexpectedError
 }

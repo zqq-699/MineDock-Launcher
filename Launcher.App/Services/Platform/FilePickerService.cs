@@ -1,5 +1,6 @@
 using System.Windows;
 using Launcher.App.Resources;
+using Launcher.Application.Services;
 using Microsoft.Win32;
 using System.IO;
 
@@ -98,17 +99,22 @@ public sealed class FilePickerService : IFilePickerService
         return dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) == true ? dialog.FileName : null;
     }
 
-    public string? PickModpackExportArchive(string defaultFileName)
+    public string? PickModpackExportArchive(string defaultFileName, ModpackExportKind kind)
     {
+        var isModrinth = kind is ModpackExportKind.Modrinth;
         var dialog = new SaveFileDialog
         {
-            Title = Strings.FilePicker_ModpackExportArchiveTitle,
-            Filter = Strings.FilePicker_ModpackExportArchiveFilter,
+            Title = isModrinth
+                ? Strings.FilePicker_ModrinthModpackExportArchiveTitle
+                : Strings.FilePicker_ModpackExportArchiveTitle,
+            Filter = isModrinth
+                ? Strings.FilePicker_ModrinthModpackExportArchiveFilter
+                : Strings.FilePicker_ModpackExportArchiveFilter,
             FileName = string.IsNullOrWhiteSpace(defaultFileName)
-                ? "modpack.zip"
+                ? isModrinth ? "modpack.mrpack" : "modpack.zip"
                 : defaultFileName,
             AddExtension = true,
-            DefaultExt = ".zip",
+            DefaultExt = isModrinth ? ".mrpack" : ".zip",
             OverwritePrompt = true
         };
 

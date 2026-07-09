@@ -939,6 +939,7 @@ public static class Strings
     public static string Status_ModpackExportMissingCurseForgeApiKey => Get(nameof(Status_ModpackExportMissingCurseForgeApiKey));
     public static string Status_ModpackExportMissingLoaderVersion => Get(nameof(Status_ModpackExportMissingLoaderVersion));
     public static string Status_ModpackExportCurseForgeApiFailed => Get(nameof(Status_ModpackExportCurseForgeApiFailed));
+    public static string Status_ModpackExportModrinthApiFailed => Get(nameof(Status_ModpackExportModrinthApiFailed));
     public static string Status_ModpackExportInvalidRequest => Get(nameof(Status_ModpackExportInvalidRequest));
     public static string Status_ModpackExportFileSystemFailed => Get(nameof(Status_ModpackExportFileSystemFailed));
     public static string Status_ModrinthExportUnsupported => Get(nameof(Status_ModrinthExportUnsupported));
@@ -1016,6 +1017,8 @@ public static class Strings
     public static string FilePicker_ModpackDownloadDirectoryTitle => Get(nameof(FilePicker_ModpackDownloadDirectoryTitle));
     public static string FilePicker_ModpackExportArchiveTitle => Get(nameof(FilePicker_ModpackExportArchiveTitle));
     public static string FilePicker_ModpackExportArchiveFilter => Get(nameof(FilePicker_ModpackExportArchiveFilter));
+    public static string FilePicker_ModrinthModpackExportArchiveTitle => Get(nameof(FilePicker_ModrinthModpackExportArchiveTitle));
+    public static string FilePicker_ModrinthModpackExportArchiveFilter => Get(nameof(FilePicker_ModrinthModpackExportArchiveFilter));
     public static string FilePicker_MinecraftDirectoryTitle => Get(nameof(FilePicker_MinecraftDirectoryTitle));
     public static string FilePicker_BackupDirectoryTitle => Get(nameof(FilePicker_BackupDirectoryTitle));
     public static string Dialog_LaunchStatusFailedTitle => Get(nameof(Dialog_LaunchStatusFailedTitle));

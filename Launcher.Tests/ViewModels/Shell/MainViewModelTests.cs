@@ -1209,7 +1209,7 @@ public sealed class MainViewModelTests
             return null;
         }
 
-        public string? PickModpackExportArchive(string defaultFileName)
+        public string? PickModpackExportArchive(string defaultFileName, ModpackExportKind kind)
         {
             return null;
         }

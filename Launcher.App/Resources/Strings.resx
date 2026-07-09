@@ -702,8 +702,9 @@
   <data name="Status_ModpackExportedFormat" xml:space="preserve"><value>整合包已导出到 {0}</value></data>
   <data name="Status_ModpackExportFailed" xml:space="preserve"><value>导出整合包失败，请稍后重试。</value></data>
   <data name="Status_ModpackExportMissingCurseForgeApiKey" xml:space="preserve"><value>缺少 CurseForge API Key，无法识别本地文件。</value></data>
-  <data name="Status_ModpackExportMissingLoaderVersion" xml:space="preserve"><value>实例加载器版本不完整，无法导出 CurseForge 整合包。</value></data>
+  <data name="Status_ModpackExportMissingLoaderVersion" xml:space="preserve"><value>实例加载器版本不完整，无法导出整合包。</value></data>
   <data name="Status_ModpackExportCurseForgeApiFailed" xml:space="preserve"><value>连接 CurseForge 识别文件失败，请稍后重试。</value></data>
+  <data name="Status_ModpackExportModrinthApiFailed" xml:space="preserve"><value>连接 Modrinth 识别文件失败，请稍后重试。</value></data>
   <data name="Status_ModpackExportInvalidRequest" xml:space="preserve"><value>导出信息不完整，无法导出整合包。</value></data>
   <data name="Status_ModpackExportFileSystemFailed" xml:space="preserve"><value>写入整合包文件失败，请检查保存位置。</value></data>
   <data name="Status_ModrinthExportUnsupported" xml:space="preserve"><value>暂不支持导出 Modrinth 整合包。</value></data>
@@ -1014,6 +1015,8 @@
   <data name="FilePicker_ModpackDownloadDirectoryTitle" xml:space="preserve"><value>选择整合包下载目录</value></data>
   <data name="FilePicker_ModpackExportArchiveTitle" xml:space="preserve"><value>保存 CurseForge 整合包</value></data>
   <data name="FilePicker_ModpackExportArchiveFilter" xml:space="preserve"><value>CurseForge 整合包 (*.zip)|*.zip|所有文件 (*.*)|*.*</value></data>
+  <data name="FilePicker_ModrinthModpackExportArchiveTitle" xml:space="preserve"><value>保存 Modrinth 整合包</value></data>
+  <data name="FilePicker_ModrinthModpackExportArchiveFilter" xml:space="preserve"><value>Modrinth 整合包 (*.mrpack)|*.mrpack|所有文件 (*.*)|*.*</value></data>
   <data name="GameSettings_DropImportShaderPacksMessage" xml:space="preserve"><value>释放以导入光影包</value></data>
   <data name="GameSettings_DropShaderPackArchivesOnlyMessage" xml:space="preserve"><value>当前页面仅支持拖入光影包压缩包。</value></data>
   <data name="GameSettings_ShaderPackManagementActionsLabel" xml:space="preserve"><value>操作</value></data>

@@ -46,6 +46,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IModpackGameInstaller, ModpackGameInstaller>();
         services.AddSingleton<IModpackInstanceStagingService, ModpackInstanceStagingService>();
         services.AddSingleton<CurseForgeApiClient>();
+        services.AddSingleton<ModrinthApiClient>();
         services.AddSingleton<IModpackPackageService, LocalModpackPackageService>();
         services.AddSingleton<IModpackExportService, ModpackExportService>();
         services.AddSingleton<IModpackWorkspaceCleanupService, ModpackWorkspaceCleanupService>();

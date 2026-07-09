@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Net;
 using System.Text.Json;
 using Launcher.Application.Services;
+using Launcher.Infrastructure;
 using Launcher.Infrastructure.CurseForge;
 using Launcher.Infrastructure.Modpacks;
 
@@ -172,6 +173,221 @@ public sealed class ModpackExportServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ExportAsyncCreatesModrinthIndexAndOverrides()
+    {
+        var instance = CreateInstance(LoaderKind.Fabric, "0.16.10");
+        var enabledModPath = CreateFile(instance.InstanceDirectory, "mods/enabled.jar", "enabled mod");
+        var disabledModPath = CreateFile(instance.InstanceDirectory, "mods/disabled.jar.disabled", "disabled mod");
+        var resourcePackPath = CreateFile(instance.InstanceDirectory, "resourcepacks/pack.zip", "resource pack");
+        var shaderPackPath = CreateFile(instance.InstanceDirectory, "shaderpacks/shader.zip", "shader pack");
+        _ = CreateFile(instance.InstanceDirectory, "config/client.toml", "client config");
+        var service = CreateService(
+            new FingerprintMatchHandler(matchCount: 0),
+            apiKey: null,
+            mods:
+            [
+                new LocalMod { FileName = "enabled.jar", FullPath = enabledModPath, IsEnabled = true },
+                new LocalMod { FileName = "disabled.jar.disabled", FullPath = disabledModPath, IsEnabled = false }
+            ],
+            resourcePacks:
+            [
+                new LocalResourcePack { FileName = "pack.zip", FullPath = resourcePackPath }
+            ],
+            shaderPacks:
+            [
+                new LocalShaderPack { FileName = "shader.zip", FullPath = shaderPackPath }
+            ],
+            modrinthHandler: new ModrinthVersionFilesHandler(matchCount: 2));
+        var outputPath = Path.Combine(TempRoot, "export.mrpack");
+
+        var result = await service.ExportAsync(new ModpackExportRequest(
+            instance,
+            ModpackExportKind.Modrinth,
+            "Pack",
+            "Ignored Author",
+            "1.0.0",
+            outputPath,
+            IncludeMods: true,
+            IncludeDisabledMods: false,
+            IncludeResourcePacks: true,
+            IncludeShaderPacks: true,
+            IncludeConfig: true));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.ManifestFileCount);
+        Assert.Equal(2, result.OverrideFileCount);
+        Assert.True(File.Exists(outputPath));
+        using var archive = ZipFile.OpenRead(outputPath);
+        using var index = ReadModrinthIndex(archive);
+        var root = index.RootElement;
+        Assert.Equal(1, root.GetProperty("formatVersion").GetInt32());
+        Assert.Equal("minecraft", root.GetProperty("game").GetString());
+        Assert.Equal("1.0.0", root.GetProperty("versionId").GetString());
+        Assert.Equal("Pack", root.GetProperty("name").GetString());
+        Assert.Equal("1.20.1", root.GetProperty("dependencies").GetProperty("minecraft").GetString());
+        Assert.Equal("0.16.10", root.GetProperty("dependencies").GetProperty("fabric-loader").GetString());
+        Assert.False(root.TryGetProperty("author", out _));
+        var files = root.GetProperty("files");
+        Assert.Equal(2, files.GetArrayLength());
+        Assert.Equal("mods/enabled.jar", files[0].GetProperty("path").GetString());
+        Assert.Equal("required", files[0].GetProperty("env").GetProperty("client").GetString());
+        Assert.Equal("unsupported", files[0].GetProperty("env").GetProperty("server").GetString());
+        Assert.StartsWith("https://cdn.modrinth.test/", files[0].GetProperty("downloads")[0].GetString());
+        Assert.Equal(40, files[0].GetProperty("hashes").GetProperty("sha1").GetString()?.Length);
+        Assert.Equal(128, files[0].GetProperty("hashes").GetProperty("sha512").GetString()?.Length);
+        Assert.True(files[0].GetProperty("fileSize").GetInt64() > 0);
+        Assert.True(EntryExists(archive, "overrides/shaderpacks/shader.zip"));
+        Assert.True(EntryExists(archive, "overrides/config/client.toml"));
+        Assert.False(EntryExists(archive, "overrides/mods/enabled.jar"));
+        Assert.False(EntryExists(archive, "overrides/mods/disabled.jar.disabled"));
+
+        var packageService = new LocalModpackPackageService(new LauncherPathProvider(TempRoot, TempRoot));
+        var recognition = await packageService.RecognizeAsync(outputPath);
+        Assert.True(recognition.IsSuccess);
+    }
+
+    [Fact]
+    public async Task ExportAsyncIncludesDisabledModsAsModrinthOverridesWhenRequested()
+    {
+        var instance = CreateInstance(LoaderKind.Fabric, "0.16.10");
+        var enabledModPath = CreateFile(instance.InstanceDirectory, "mods/enabled.jar", "enabled mod");
+        var disabledModPath = CreateFile(instance.InstanceDirectory, "mods/disabled.jar.disabled", "disabled mod");
+        var service = CreateService(
+            new FingerprintMatchHandler(matchCount: 0),
+            apiKey: null,
+            mods:
+            [
+                new LocalMod { FileName = "enabled.jar", FullPath = enabledModPath, IsEnabled = true },
+                new LocalMod { FileName = "disabled.jar.disabled", FullPath = disabledModPath, IsEnabled = false }
+            ],
+            modrinthHandler: new ModrinthVersionFilesHandler(matchCount: 1));
+        var outputPath = Path.Combine(TempRoot, "disabled-mods.mrpack");
+
+        var result = await service.ExportAsync(new ModpackExportRequest(
+            instance,
+            ModpackExportKind.Modrinth,
+            "Pack",
+            "Author",
+            "1.0.0",
+            outputPath,
+            IncludeMods: true,
+            IncludeDisabledMods: true,
+            IncludeResourcePacks: false,
+            IncludeShaderPacks: false,
+            IncludeConfig: false));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, result.ManifestFileCount);
+        Assert.Equal(1, result.OverrideFileCount);
+        using var archive = ZipFile.OpenRead(outputPath);
+        using var index = ReadModrinthIndex(archive);
+        Assert.Equal(1, index.RootElement.GetProperty("files").GetArrayLength());
+        Assert.True(EntryExists(archive, "overrides/mods/disabled.jar.disabled"));
+        Assert.False(EntryExists(archive, "overrides/mods/enabled.jar"));
+    }
+
+    [Fact]
+    public async Task ExportAsyncDoesNotIncludeModrinthDisabledModsWhenModsAreExcluded()
+    {
+        var instance = CreateInstance(LoaderKind.Fabric, "0.16.10");
+        var enabledModPath = CreateFile(instance.InstanceDirectory, "mods/enabled.jar", "enabled mod");
+        var disabledModPath = CreateFile(instance.InstanceDirectory, "mods/disabled.jar.disabled", "disabled mod");
+        var service = CreateService(
+            new FingerprintMatchHandler(matchCount: 0),
+            apiKey: null,
+            mods:
+            [
+                new LocalMod { FileName = "enabled.jar", FullPath = enabledModPath, IsEnabled = true },
+                new LocalMod { FileName = "disabled.jar.disabled", FullPath = disabledModPath, IsEnabled = false }
+            ],
+            modrinthHandler: new ModrinthVersionFilesHandler(matchCount: 1));
+        var outputPath = Path.Combine(TempRoot, "mods-excluded.mrpack");
+
+        var result = await service.ExportAsync(new ModpackExportRequest(
+            instance,
+            ModpackExportKind.Modrinth,
+            "Pack",
+            "Author",
+            "1.0.0",
+            outputPath,
+            IncludeMods: false,
+            IncludeDisabledMods: true,
+            IncludeResourcePacks: false,
+            IncludeShaderPacks: false,
+            IncludeConfig: false));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.ManifestFileCount);
+        Assert.Equal(0, result.OverrideFileCount);
+        using var archive = ZipFile.OpenRead(outputPath);
+        using var index = ReadModrinthIndex(archive);
+        Assert.Equal(0, index.RootElement.GetProperty("files").GetArrayLength());
+        Assert.False(EntryExists(archive, "overrides/mods/enabled.jar"));
+        Assert.False(EntryExists(archive, "overrides/mods/disabled.jar.disabled"));
+    }
+
+    [Fact]
+    public async Task ExportAsyncCreatesVanillaModrinthDependencies()
+    {
+        var instance = CreateInstance(LoaderKind.Vanilla, loaderVersion: null);
+        var service = CreateService(
+            new FingerprintMatchHandler(matchCount: 0),
+            apiKey: null,
+            modrinthHandler: new ModrinthVersionFilesHandler(matchCount: 0));
+        var outputPath = Path.Combine(TempRoot, "vanilla.mrpack");
+
+        var result = await service.ExportAsync(new ModpackExportRequest(
+            instance,
+            ModpackExportKind.Modrinth,
+            "Pack",
+            "Author",
+            "1.0.0",
+            outputPath,
+            IncludeMods: false,
+            IncludeDisabledMods: false,
+            IncludeResourcePacks: false,
+            IncludeShaderPacks: false,
+            IncludeConfig: false));
+
+        Assert.True(result.IsSuccess);
+        using var archive = ZipFile.OpenRead(outputPath);
+        using var index = ReadModrinthIndex(archive);
+        var dependencies = index.RootElement.GetProperty("dependencies");
+        Assert.Equal("1.20.1", dependencies.GetProperty("minecraft").GetString());
+        Assert.Single(dependencies.EnumerateObject());
+    }
+
+    [Fact]
+    public async Task ExportAsyncFailsWhenModrinthApiFailsAndDoesNotCreateArchive()
+    {
+        var instance = CreateInstance();
+        var modPath = CreateFile(instance.InstanceDirectory, "mods/mod.jar", "mod");
+        var service = CreateService(
+            new FingerprintMatchHandler(matchCount: 0),
+            apiKey: null,
+            mods: [new LocalMod { FileName = "mod.jar", FullPath = modPath, IsEnabled = true }],
+            modrinthHandler: new ModrinthVersionFilesHandler(matchCount: 1, statusCode: HttpStatusCode.InternalServerError));
+        var outputPath = Path.Combine(TempRoot, "api-failed.mrpack");
+
+        var result = await service.ExportAsync(new ModpackExportRequest(
+            instance,
+            ModpackExportKind.Modrinth,
+            "Pack",
+            "Author",
+            "1.0.0",
+            outputPath,
+            IncludeMods: true,
+            IncludeDisabledMods: false,
+            IncludeResourcePacks: false,
+            IncludeShaderPacks: false,
+            IncludeConfig: false));
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ModpackExportFailureReason.ModrinthApiFailed, result.FailureReason);
+        Assert.False(File.Exists(outputPath));
+    }
+
+    [Fact]
     public async Task ExportAsyncFailsWithoutCurseForgeApiKeyAndDoesNotCreateArchive()
     {
         var instance = CreateInstance();
@@ -219,6 +435,17 @@ public sealed class ModpackExportServiceTests : TestTempDirectory
         Assert.False(result.IsSuccess);
         Assert.Equal(ModpackExportFailureReason.MissingLoaderVersion, result.FailureReason);
         Assert.False(File.Exists(outputPath));
+
+        var modrinthOutputPath = Path.Combine(TempRoot, "missing-loader.mrpack");
+
+        var modrinthResult = await service.ExportAsync(CreateRequest(
+            instance,
+            modrinthOutputPath,
+            ModpackExportKind.Modrinth));
+
+        Assert.False(modrinthResult.IsSuccess);
+        Assert.Equal(ModpackExportFailureReason.MissingLoaderVersion, modrinthResult.FailureReason);
+        Assert.False(File.Exists(modrinthOutputPath));
     }
 
     private ModpackExportService CreateService(
@@ -226,14 +453,16 @@ public sealed class ModpackExportServiceTests : TestTempDirectory
         string? apiKey,
         IReadOnlyList<LocalMod>? mods = null,
         IReadOnlyList<LocalResourcePack>? resourcePacks = null,
-        IReadOnlyList<LocalShaderPack>? shaderPacks = null)
+        IReadOnlyList<LocalShaderPack>? shaderPacks = null,
+        HttpMessageHandler? modrinthHandler = null)
     {
         return new ModpackExportService(
             new FakeModService(mods ?? []),
             new FakeResourcePackService(resourcePacks ?? []),
             new FakeShaderPackService(shaderPacks ?? []),
             new FakeCurseForgeApiKeyResolver(apiKey),
-            new CurseForgeApiClient(new HttpClient(handler)));
+            new CurseForgeApiClient(new HttpClient(handler)),
+            new ModrinthApiClient(new HttpClient(modrinthHandler ?? new ModrinthVersionFilesHandler(matchCount: 0))));
     }
 
     private GameInstance CreateInstance(
@@ -253,11 +482,14 @@ public sealed class ModpackExportServiceTests : TestTempDirectory
         };
     }
 
-    private static ModpackExportRequest CreateRequest(GameInstance instance, string outputPath)
+    private static ModpackExportRequest CreateRequest(
+        GameInstance instance,
+        string outputPath,
+        ModpackExportKind kind = ModpackExportKind.CurseForge)
     {
         return new ModpackExportRequest(
             instance,
-            ModpackExportKind.CurseForge,
+            kind,
             "Pack",
             "Author",
             "1.0.0",
@@ -280,6 +512,14 @@ public sealed class ModpackExportServiceTests : TestTempDirectory
     private static JsonDocument ReadManifest(ZipArchive archive)
     {
         var entry = archive.GetEntry("manifest.json") ?? throw new InvalidOperationException("manifest.json missing");
+        using var stream = entry.Open();
+        return JsonDocument.Parse(stream);
+    }
+
+    private static JsonDocument ReadModrinthIndex(ZipArchive archive)
+    {
+        var entry = archive.GetEntry("modrinth.index.json")
+            ?? throw new InvalidOperationException("modrinth.index.json missing");
         using var stream = entry.Open();
         return JsonDocument.Parse(stream);
     }
@@ -326,6 +566,55 @@ public sealed class ModpackExportServiceTests : TestTempDirectory
                       {{string.Join(",", matches)}}
                     ]
                   }
+                }
+                """)
+            };
+        }
+    }
+
+    private sealed class ModrinthVersionFilesHandler(
+        int matchCount,
+        HttpStatusCode statusCode = HttpStatusCode.OK) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            if (statusCode is not HttpStatusCode.OK)
+                return new HttpResponseMessage(statusCode);
+
+            var body = await request.Content!.ReadAsStringAsync(cancellationToken);
+            using var document = JsonDocument.Parse(body);
+            var hashes = document.RootElement
+                .GetProperty("hashes")
+                .EnumerateArray()
+                .Select(hash => hash.GetString())
+                .Where(hash => !string.IsNullOrWhiteSpace(hash))
+                .Cast<string>()
+                .ToArray();
+            var matches = hashes
+                .Take(matchCount)
+                .Select((hash, index) => $$"""
+                "{{hash}}": {
+                  "files": [
+                    {
+                      "hashes": {
+                        "sha1": "{{hash}}",
+                        "sha512": "{{new string((char)('a' + index), 128)}}"
+                      },
+                      "url": "https://cdn.modrinth.test/{{hash}}.jar",
+                      "primary": true,
+                      "size": {{100 + index}}
+                    }
+                  ]
+                }
+                """);
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent($$"""
+                {
+                  {{string.Join(",", matches)}}
                 }
                 """)
             };

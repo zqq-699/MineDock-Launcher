@@ -68,7 +68,6 @@ public sealed partial class InstanceExportSettingsViewModel : GameSettingsDetail
 
     public bool CanExport =>
         !IsExporting
-        && IsCurseForgeSelected
         && modpackExportService is not null
         && Parent.SelectedInstance is not null
         && !IsExportModpackNameEmpty;
@@ -92,7 +91,10 @@ public sealed partial class InstanceExportSettingsViewModel : GameSettingsDetail
         if (selectedInstance is null || modpackExportService is null)
             return;
 
-        var outputPath = filePickerService.PickModpackExportArchive(CreateDefaultArchiveFileName());
+        var exportKind = SelectedExportKind;
+        var outputPath = filePickerService.PickModpackExportArchive(
+            CreateDefaultArchiveFileName(exportKind),
+            exportKind);
         if (string.IsNullOrWhiteSpace(outputPath))
             return;
 
@@ -102,7 +104,7 @@ public sealed partial class InstanceExportSettingsViewModel : GameSettingsDetail
         {
             var result = await modpackExportService.ExportAsync(new ModpackExportRequest(
                 selectedInstance,
-                ModpackExportKind.CurseForge,
+                exportKind,
                 ExportModpackName,
                 ExportAuthor,
                 ResolveExportVersion(),
@@ -154,8 +156,6 @@ public sealed partial class InstanceExportSettingsViewModel : GameSettingsDetail
     partial void OnSelectedExportTypeOptionChanged(InstanceExportTypeOption? value)
     {
         NotifyCanExportChanged();
-        if (value is not null && !IsCurseForgeSelected)
-            statusService.Report(Strings.Status_ModrinthExportUnsupported);
     }
 
     partial void OnIsExportingChanged(bool value)
@@ -163,8 +163,10 @@ public sealed partial class InstanceExportSettingsViewModel : GameSettingsDetail
         NotifyCanExportChanged();
     }
 
-    private bool IsCurseForgeSelected =>
-        string.Equals(SelectedExportTypeOption?.Id, "curseforge", StringComparison.OrdinalIgnoreCase);
+    private ModpackExportKind SelectedExportKind =>
+        string.Equals(SelectedExportTypeOption?.Id, "modrinth", StringComparison.OrdinalIgnoreCase)
+            ? ModpackExportKind.Modrinth
+            : ModpackExportKind.CurseForge;
 
     private void NotifyCanExportChanged()
     {
@@ -173,7 +175,7 @@ public sealed partial class InstanceExportSettingsViewModel : GameSettingsDetail
         ExportCommand.NotifyCanExecuteChanged();
     }
 
-    private string CreateDefaultArchiveFileName()
+    private string CreateDefaultArchiveFileName(ModpackExportKind kind)
     {
         var fileName = string.IsNullOrWhiteSpace(ExportModpackName)
             ? "modpack"
@@ -181,9 +183,10 @@ public sealed partial class InstanceExportSettingsViewModel : GameSettingsDetail
         foreach (var invalidChar in Path.GetInvalidFileNameChars())
             fileName = fileName.Replace(invalidChar, '_');
 
-        return fileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+        var extension = kind is ModpackExportKind.Modrinth ? ".mrpack" : ".zip";
+        return fileName.EndsWith(extension, StringComparison.OrdinalIgnoreCase)
             ? fileName
-            : $"{fileName}.zip";
+            : $"{fileName}{extension}";
     }
 
     private string ResolveExportVersion()
@@ -201,6 +204,7 @@ public sealed partial class InstanceExportSettingsViewModel : GameSettingsDetail
             ModpackExportFailureReason.MissingLoaderVersion => Strings.Status_ModpackExportMissingLoaderVersion,
             ModpackExportFailureReason.UnsupportedType => Strings.Status_ModrinthExportUnsupported,
             ModpackExportFailureReason.CurseForgeApiFailed => Strings.Status_ModpackExportCurseForgeApiFailed,
+            ModpackExportFailureReason.ModrinthApiFailed => Strings.Status_ModpackExportModrinthApiFailed,
             ModpackExportFailureReason.InvalidRequest => Strings.Status_ModpackExportInvalidRequest,
             ModpackExportFailureReason.FileSystemError => Strings.Status_ModpackExportFileSystemFailed,
             _ => Strings.Status_ModpackExportFailed

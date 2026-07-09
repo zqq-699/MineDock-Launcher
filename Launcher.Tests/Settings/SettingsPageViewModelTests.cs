@@ -1022,7 +1022,7 @@ public sealed class SettingsPageViewModelTests
             return null;
         }
 
-        public string? PickModpackExportArchive(string defaultFileName)
+        public string? PickModpackExportArchive(string defaultFileName, ModpackExportKind kind)
         {
             return null;
         }

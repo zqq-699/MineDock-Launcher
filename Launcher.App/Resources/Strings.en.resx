@@ -2081,10 +2081,13 @@ Longer content wraps automatically.</value>
     <value>CurseForge API key is missing, so local files cannot be identified.</value>
   </data>
   <data name="Status_ModpackExportMissingLoaderVersion" xml:space="preserve">
-    <value>The instance loader version is incomplete, so the CurseForge modpack cannot be exported.</value>
+    <value>The instance loader version is incomplete, so the modpack cannot be exported.</value>
   </data>
   <data name="Status_ModpackExportCurseForgeApiFailed" xml:space="preserve">
     <value>Failed to identify files with CurseForge. Please try again later.</value>
+  </data>
+  <data name="Status_ModpackExportModrinthApiFailed" xml:space="preserve">
+    <value>Failed to identify files with Modrinth. Please try again later.</value>
   </data>
   <data name="Status_ModpackExportInvalidRequest" xml:space="preserve">
     <value>Export information is incomplete, so the modpack cannot be exported.</value>
@@ -3007,6 +3010,12 @@ The current game folder will be backed up first.</value>
   </data>
   <data name="FilePicker_ModpackExportArchiveFilter" xml:space="preserve">
     <value>CurseForge modpack (*.zip)|*.zip|All files (*.*)|*.*</value>
+  </data>
+  <data name="FilePicker_ModrinthModpackExportArchiveTitle" xml:space="preserve">
+    <value>Save Modrinth Modpack</value>
+  </data>
+  <data name="FilePicker_ModrinthModpackExportArchiveFilter" xml:space="preserve">
+    <value>Modrinth modpack (*.mrpack)|*.mrpack|All files (*.*)|*.*</value>
   </data>
   <data name="GameSettings_DropImportShaderPacksMessage" xml:space="preserve">
     <value>Drop shader pack archives here to import them.</value>
