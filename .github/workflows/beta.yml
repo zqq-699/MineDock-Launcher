@@ -190,6 +190,11 @@ jobs:
           }
 
           $workspace = $env:GITHUB_WORKSPACE
+          $generatedManifestPath = Join-Path $workspace $env:GENERATED_MANIFEST_PATH
+          if (-not (Test-Path $generatedManifestPath)) {
+            throw "Generated manifest was not found: $generatedManifestPath"
+          }
+
           $mirrorDirectory = Join-Path $env:RUNNER_TEMP "gitee-update-mirror"
           if (Test-Path $mirrorDirectory) {
             Remove-Item $mirrorDirectory -Recurse -Force
@@ -232,7 +237,7 @@ jobs:
             New-Item -ItemType Directory -Force "update/beta" | Out-Null
             Copy-Item (Join-Path $workspace "update/release/latest.json") "update/release/latest.json"
             Copy-Item (Join-Path $workspace "update/beta/latest.json") "update/beta/latest.json"
-            Copy-Item $env:GENERATED_MANIFEST_PATH "update/$($env:CHANNEL)/latest.json" -Force
+            Copy-Item $generatedManifestPath "update/$($env:CHANNEL)/latest.json" -Force
 
             git add -A
             if (git diff --cached --quiet) {

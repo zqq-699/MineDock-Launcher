@@ -41,6 +41,8 @@ public sealed class ReleaseWorkflowTests
         Assert.Contains("Sync Gitee update repository and tag", text);
         Assert.Contains("update/release/latest.json", text);
         Assert.Contains("update/beta/latest.json", text);
+        Assert.Contains("$generatedManifestPath = Join-Path $workspace $env:GENERATED_MANIFEST_PATH", text);
+        Assert.Contains("Copy-Item $generatedManifestPath", text);
         Assert.Contains("git tag $env:GITHUB_REF_NAME", text);
         Assert.Contains("git push origin $env:GITHUB_REF_NAME", text);
 
