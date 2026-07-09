@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "appId": "MineDock-Launcher",
-  "channel": "",
+  "channel": "beta",
   "versionName": "0.9.1-beta.10",
   "versionCode": 90110,
   "publishedAt": "2026-07-09T17:58:14Z",
