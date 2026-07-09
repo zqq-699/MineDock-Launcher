@@ -222,6 +222,7 @@ public static class Strings
     public static string Resources_ModRequiredDependenciesAutoInstallButton => Get(nameof(Resources_ModRequiredDependenciesAutoInstallButton));
     public static string Page_Settings => Get(nameof(Page_Settings));
     public static string Settings_SectionGeneral => Get(nameof(Settings_SectionGeneral));
+    public static string Settings_SectionLanguage => Get(nameof(Settings_SectionLanguage));
     public static string Settings_SectionLaunchMemory => Get(nameof(Settings_SectionLaunchMemory));
     public static string Settings_SectionJava => Get(nameof(Settings_SectionJava));
     public static string Settings_SectionTheme => Get(nameof(Settings_SectionTheme));
@@ -247,6 +248,9 @@ public static class Strings
     public static string Settings_DownloadSourceAuto => Get(nameof(Settings_DownloadSourceAuto));
     public static string Settings_DownloadSourceOfficial => Get(nameof(Settings_DownloadSourceOfficial));
     public static string Settings_DownloadSourceBmclApi => Get(nameof(Settings_DownloadSourceBmclApi));
+    public static string Settings_LanguageSection => Get(nameof(Settings_LanguageSection));
+    public static string Settings_LauncherLanguageLabel => Get(nameof(Settings_LauncherLanguageLabel));
+    public static string Settings_LanguageSimplifiedChinese => Get(nameof(Settings_LanguageSimplifiedChinese));
     public static string Settings_GeneralFilesAndDirectoriesSection => Get(nameof(Settings_GeneralFilesAndDirectoriesSection));
     public static string Settings_DataDirectoryLabel => Get(nameof(Settings_DataDirectoryLabel));
     public static string Settings_MinecraftDirectoryLabel => Get(nameof(Settings_MinecraftDirectoryLabel));

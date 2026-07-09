@@ -44,6 +44,13 @@
                    VerticalAlignment="Center" />
     </DataTemplate>
 
+    <DataTemplate x:Key="LanguageOptionTemplate">
+        <TextBlock Text="{Binding}"
+                   Foreground="{DynamicResource Brush.F4F4F4}"
+                   FontSize="13"
+                   VerticalAlignment="Center" />
+    </DataTemplate>
+
     <Style x:Key="AccentColorPreviewEllipseStyle" TargetType="Ellipse">
         <Setter Property="Width" Value="10" />
         <Setter Property="Height" Value="10" />

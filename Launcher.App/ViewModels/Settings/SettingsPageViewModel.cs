@@ -176,6 +176,10 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             Strings.Settings_SectionGeneral,
             "instance_setting_page/general_setting"));
         Sections.Add(new SettingsSectionItem(
+            SettingsPageSection.Language,
+            Strings.Settings_SectionLanguage,
+            "setting_page/earth"));
+        Sections.Add(new SettingsSectionItem(
             SettingsPageSection.LaunchMemory,
             Strings.Settings_SectionLaunchMemory,
             "instance_setting_page/launch"));
@@ -251,6 +255,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         SelectedControlDemoComboOption = InteractiveControls.FirstOrDefault();
         SelectedInteractiveControl = InteractiveControls.FirstOrDefault();
         General = new GeneralSettingsViewModel(this);
+        Language = new LanguageSettingsViewModel(this);
         LaunchMemory = new LaunchMemorySettingsViewModel(this);
         Java = new JavaSettingsViewModel(this);
         Theme = new ThemeSettingsViewModel(this);
@@ -281,6 +286,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public JavaSettingsEditorViewModel JavaSettings { get; }
 
     public GeneralSettingsViewModel General { get; }
+
+    public LanguageSettingsViewModel Language { get; }
 
     public LaunchMemorySettingsViewModel LaunchMemory { get; }
 
@@ -327,6 +334,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public string SectionTitle => SelectedSection?.Title ?? Strings.Settings_SectionGeneral;
 
     public bool IsGeneralSection => SelectedSection?.Section is SettingsPageSection.General;
+
+    public bool IsLanguageSection => SelectedSection?.Section is SettingsPageSection.Language;
 
     public bool IsLaunchMemorySection => SelectedSection?.Section is SettingsPageSection.LaunchMemory;
 
@@ -385,6 +394,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             FollowSystemTheme = launcherSettings.ThemeFollowSystem;
             SelectedThemeOption = ResolveThemeOption(launcherSettings.Theme);
             SelectedAccentColorOption = ResolveAccentColorOption(launcherSettings.AccentColor);
+            Language.LoadSelection(launcherSettings.LauncherLanguage);
             DisableBackgroundBlur = launcherSettings.DisableBackgroundBlur;
             LauncherBackgroundOpacityPercent = NormalizeLauncherBackgroundOpacity(launcherSettings.LauncherBackgroundOpacityPercent);
             JavaSettings.LoadSelection(launcherSettings.JavaSelectionMode, launcherSettings.SelectedJavaExecutablePath);
@@ -518,6 +528,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
 
         OnPropertyChanged(nameof(SectionTitle));
         OnPropertyChanged(nameof(IsGeneralSection));
+        OnPropertyChanged(nameof(IsLanguageSection));
         OnPropertyChanged(nameof(IsLaunchMemorySection));
         OnPropertyChanged(nameof(IsJavaSection));
         OnPropertyChanged(nameof(IsThemeSection));
@@ -526,6 +537,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         CurrentSectionViewModel = value?.Section switch
         {
             SettingsPageSection.General => General,
+            SettingsPageSection.Language => Language,
             SettingsPageSection.LaunchMemory => LaunchMemory,
             SettingsPageSection.Java => Java,
             SettingsPageSection.Theme => Theme,
@@ -572,6 +584,11 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     partial void OnSelectedAccentColorOptionChanged(SettingsAccentColorOption? value)
     {
         ApplyAccentPreference();
+        ScheduleAutoSave();
+    }
+
+    internal void NotifyLanguagePreferenceChanged()
+    {
         ScheduleAutoSave();
     }
 
@@ -708,6 +725,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         settings.MinecraftDirectory = NormalizeDirectoryPath(MinecraftDirectory, settings.MinecraftDirectory);
         settings.Theme = SelectedThemeOption?.Id ?? LauncherDefaults.DefaultTheme;
         settings.AccentColor = SelectedAccentColorOption?.Id ?? LauncherDefaults.DefaultAccentColor;
+        settings.LauncherLanguage = Language.SelectedLanguageId;
         settings.ThemeFollowSystem = FollowSystemTheme;
         settings.DisableBackgroundBlur = DisableBackgroundBlur;
         settings.LauncherBackgroundOpacityPercent = NormalizeLauncherBackgroundOpacity(LauncherBackgroundOpacityPercent);
@@ -728,6 +746,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             SelectedMemoryModeOption = ResolveMemoryModeOption(settings.DefaultMemorySettingsMode);
             SelectedThemeOption = ResolveThemeOption(settings.Theme);
             SelectedAccentColorOption = ResolveAccentColorOption(settings.AccentColor);
+            Language.LoadSelection(settings.LauncherLanguage);
             DisableBackgroundBlur = settings.DisableBackgroundBlur;
             LauncherBackgroundOpacityPercent = settings.LauncherBackgroundOpacityPercent;
         }

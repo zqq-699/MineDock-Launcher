@@ -21,6 +21,10 @@
             <views:GeneralSettingsView />
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type settings:LanguageSettingsViewModel}">
+            <views:LanguageSettingsView />
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type settings:LaunchMemorySettingsViewModel}">
             <views:LaunchMemorySettingsView />
         </DataTemplate>

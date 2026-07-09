@@ -13,6 +13,7 @@ public partial class SettingsPageView : UserControl
     private static readonly string[] SectionOrder =
     [
         nameof(SettingsPageSection.General),
+        nameof(SettingsPageSection.Language),
         nameof(SettingsPageSection.LaunchMemory),
         nameof(SettingsPageSection.Java),
         nameof(SettingsPageSection.Theme),

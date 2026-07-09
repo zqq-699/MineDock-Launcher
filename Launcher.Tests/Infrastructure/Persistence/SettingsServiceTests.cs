@@ -28,6 +28,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.Equal(DefaultMinecraftDirectory, loaded.MinecraftDirectory);
         Assert.Equal(LauncherDefaults.DefaultTheme, loaded.Theme);
         Assert.Equal(LauncherDefaults.DefaultAccentColor, loaded.AccentColor);
+        Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, loaded.LauncherLanguage);
         Assert.True(loaded.ThemeFollowSystem);
         Assert.False(loaded.IsHomeLaunchMenuPinned);
         Assert.False(loaded.DisableBackgroundBlur);
@@ -104,6 +105,37 @@ public sealed class SettingsServiceTests : TestTempDirectory
         var loaded = await service.LoadAsync();
 
         Assert.Equal(LauncherAccentColors.Purple, loaded.AccentColor);
+    }
+
+    [Fact]
+    public async Task SettingsServiceRoundTripsLauncherLanguage()
+    {
+        var service = new JsonSettingsService(TempRoot);
+        var settings = await service.LoadAsync();
+        settings.LauncherLanguage = LauncherDefaults.DefaultLauncherLanguage;
+
+        await service.SaveAsync(settings);
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, loaded.LauncherLanguage);
+    }
+
+    [Fact]
+    public async Task SettingsServiceBackfillsInvalidLauncherLanguage()
+    {
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(TempRoot, "settings.json"),
+            """
+            {
+              "LauncherLanguage": "en-US"
+            }
+            """);
+        var service = new JsonSettingsService(TempRoot);
+
+        var loaded = await service.LoadAsync();
+
+        Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, loaded.LauncherLanguage);
     }
 
     [Fact]

@@ -10,6 +10,7 @@ public sealed class LauncherSettings
     public bool IsHomeLaunchMenuPinned { get; set; }
     public string Theme { get; set; } = LauncherDefaults.DefaultTheme;
     public string AccentColor { get; set; } = LauncherDefaults.DefaultAccentColor;
+    public string LauncherLanguage { get; set; } = LauncherDefaults.DefaultLauncherLanguage;
     public bool ThemeFollowSystem { get; set; } = true;
     public bool DisableBackgroundBlur { get; set; }
     public int LauncherBackgroundOpacityPercent { get; set; } = LauncherDefaults.DefaultLauncherBackgroundOpacityPercent;

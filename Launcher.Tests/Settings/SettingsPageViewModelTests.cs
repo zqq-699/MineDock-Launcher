@@ -65,9 +65,42 @@ public sealed class SettingsPageViewModelTests
         Assert.False(viewModel.IsThemeSelectionVisible);
         Assert.Equal("Light", viewModel.SelectedThemeOption?.Id);
         Assert.Equal(LauncherAccentColors.Emerald, viewModel.SelectedAccentColorOption?.Id);
+        Assert.Equal(Strings.Settings_LanguageSimplifiedChinese, viewModel.Language.SelectedLanguageOption);
+        Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, viewModel.Language.SelectedLanguageId);
         Assert.True(viewModel.DisableBackgroundBlur);
         Assert.Equal(72, viewModel.LauncherBackgroundOpacityPercent);
         Assert.Equal("72%", viewModel.LauncherBackgroundOpacityText);
+    }
+
+    [Fact]
+    public void SettingsSectionsIncludeLanguageAfterGeneral()
+    {
+        var viewModel = CreateViewModel(out _, out _);
+
+        Assert.Equal(
+            [
+                SettingsPageSection.General,
+                SettingsPageSection.Language,
+                SettingsPageSection.LaunchMemory,
+                SettingsPageSection.Java,
+                SettingsPageSection.Theme,
+                SettingsPageSection.Info
+            ],
+            viewModel.Sections.Select(section => section.Section));
+        Assert.Equal(Strings.Settings_SectionLanguage, viewModel.Sections[1].Title);
+        Assert.Equal("setting_page/earth", viewModel.Sections[1].IconKey);
+    }
+
+    [Fact]
+    public void SelectingLanguageSectionShowsLanguagePage()
+    {
+        var viewModel = CreateViewModel(out _, out _);
+
+        viewModel.SelectSectionCommand.Execute(viewModel.Sections.Single(section => section.Section is SettingsPageSection.Language));
+
+        Assert.True(viewModel.IsLanguageSection);
+        Assert.Equal(Strings.Settings_SectionLanguage, viewModel.SectionTitle);
+        Assert.IsType<LanguageSettingsViewModel>(viewModel.CurrentSectionViewModel);
     }
 
     [Fact]
@@ -279,6 +312,24 @@ public sealed class SettingsPageViewModelTests
         Assert.Equal(LauncherAccentColors.Pink, viewModel.SelectedAccentColorOption?.Id);
         Assert.Equal(LauncherAccentColors.Pink, themeService.LastAccentColor);
         Assert.Equal(1, themeService.ApplyAccentCount);
+    }
+
+    [Fact]
+    public async Task LanguageSelectionPersistsSettings()
+    {
+        var settings = new LauncherSettings { LauncherLanguage = "legacy-language" };
+        var viewModel = CreateViewModel(settings, out var settingsService, out _);
+        viewModel.PrimeFromSettings(settings);
+
+        viewModel.Language.SelectedLanguageOption = null;
+        viewModel.Language.SelectedLanguageOption = viewModel.Language.LanguageOptions.Single();
+
+        await TestAsync.WaitForAsync(() =>
+            settingsService.SaveCount >= 1
+            && settings.LauncherLanguage == LauncherDefaults.DefaultLauncherLanguage);
+
+        Assert.Equal(Strings.Settings_LanguageSimplifiedChinese, viewModel.Language.SelectedLanguageOption);
+        Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, viewModel.Language.SelectedLanguageId);
     }
 
     [Fact]

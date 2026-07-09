@@ -227,6 +227,7 @@
   <data name="Resources_ModpackDownloadFileExistsMessageFormat" xml:space="preserve"><value>下载位置已存在同名文件：{0}</value></data>
   <data name="Page_Settings" xml:space="preserve"><value>全局设置</value></data>
   <data name="Settings_SectionGeneral" xml:space="preserve"><value>通用</value></data>
+  <data name="Settings_SectionLanguage" xml:space="preserve"><value>语言</value></data>
   <data name="Settings_SectionLaunchMemory" xml:space="preserve"><value>启动与内存</value></data>
   <data name="Settings_SectionJava" xml:space="preserve"><value>Java</value></data>
   <data name="Settings_SectionTheme" xml:space="preserve"><value>主题</value></data>
@@ -853,6 +854,9 @@
   <data name="Settings_DownloadSourceAuto" xml:space="preserve"><value>自动选择</value></data>
   <data name="Settings_DownloadSourceOfficial" xml:space="preserve"><value>官方下载源</value></data>
   <data name="Settings_DownloadSourceBmclApi" xml:space="preserve"><value>BMCLAPI</value></data>
+  <data name="Settings_LanguageSection" xml:space="preserve"><value>启动器语言</value></data>
+  <data name="Settings_LauncherLanguageLabel" xml:space="preserve"><value>启动器语言</value></data>
+  <data name="Settings_LanguageSimplifiedChinese" xml:space="preserve"><value>简体中文</value></data>
   <data name="Settings_AccentSection" xml:space="preserve"><value>强调色</value></data>
   <data name="Settings_AccentSelectionLabel" xml:space="preserve"><value>启动器强调色</value></data>
   <data name="Settings_AccentColorBlueTitle" xml:space="preserve"><value>蓝色 Blue</value></data>

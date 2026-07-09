@@ -77,6 +77,7 @@ public sealed class JsonSettingsService : ISettingsService
     private LauncherSettings Normalize(LauncherSettings settings)
     {
         settings.Theme = NormalizeTheme(settings.Theme);
+        settings.LauncherLanguage = NormalizeLauncherLanguage(settings.LauncherLanguage);
         var normalizedAccentColor = LauncherAccentColors.Normalize(settings.AccentColor);
         if (!string.IsNullOrWhiteSpace(settings.AccentColor)
             && !string.Equals(settings.AccentColor, normalizedAccentColor, StringComparison.OrdinalIgnoreCase))
@@ -138,5 +139,12 @@ public sealed class JsonSettingsService : ISettingsService
             return LauncherDefaults.DefaultTheme;
 
         return LauncherDefaults.DefaultTheme;
+    }
+
+    private static string NormalizeLauncherLanguage(string? language)
+    {
+        return string.Equals(language, LauncherDefaults.DefaultLauncherLanguage, StringComparison.OrdinalIgnoreCase)
+            ? LauncherDefaults.DefaultLauncherLanguage
+            : LauncherDefaults.DefaultLauncherLanguage;
     }
 }
