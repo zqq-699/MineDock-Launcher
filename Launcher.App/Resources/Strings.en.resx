@@ -1,0 +1,3044 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="App_Title" xml:space="preserve">
+    <value>MineDock Launcher</value>
+  </data>
+  <data name="Resources_ModRequiredDependenciesDialogTitle" xml:space="preserve">
+    <value>Missing Required Mods</value>
+  </data>
+  <data name="Resources_ModRequiredDependenciesDialogMessage" xml:space="preserve">
+    <value>This mod requires additional mods.</value>
+  </data>
+  <data name="Resources_ModRequiredDependencyInstalled" xml:space="preserve">
+    <value>Installed</value>
+  </data>
+  <data name="Resources_ModRequiredDependencyMissing" xml:space="preserve">
+    <value>Missing</value>
+  </data>
+  <data name="Resources_ModRequiredDependencyUpdateRequired" xml:space="preserve">
+    <value>Update Required</value>
+  </data>
+  <data name="Resources_ModRequiredDependencyVersionFormat" xml:space="preserve">
+    <value>Version: {0}</value>
+  </data>
+  <data name="Resources_ModRequiredDependencyMinimumVersionFormat" xml:space="preserve">
+    <value>Minimum required: {0}</value>
+  </data>
+  <data name="Resources_ModRequiredDependencyInstallVersionFormat" xml:space="preserve">
+    <value>Will install: {0}</value>
+  </data>
+  <data name="Resources_ModRequiredDependencyVersionUnresolved" xml:space="preserve">
+    <value>Unable to resolve</value>
+  </data>
+  <data name="Resources_ModRequiredDependenciesSkipButton" xml:space="preserve">
+    <value>Skip Required Mods</value>
+  </data>
+  <data name="Resources_ModRequiredDependenciesAutoInstallButton" xml:space="preserve">
+    <value>Auto Install Required Mods</value>
+  </data>
+  <data name="Status_ModRequiredDependencyInstallingFormat" xml:space="preserve">
+    <value>Installing required mod: {0}</value>
+  </data>
+  <data name="Status_ModRequiredDependenciesAutoInstallFailedFormat" xml:space="preserve">
+    <value>Could not automatically install required mod: {0}</value>
+  </data>
+  <data name="Resources_ModDownloadFileExistsTitle" xml:space="preserve">
+    <value>File Already Exists</value>
+  </data>
+  <data name="Resources_ModDownloadFileExistsMessageFormat" xml:space="preserve">
+    <value>A file with the same name already exists in the download location: {0}</value>
+  </data>
+  <data name="Resources_ModUnknownInstanceVersionTitle" xml:space="preserve">
+    <value>Game Version Not Recognized</value>
+  </data>
+  <data name="Resources_ModUnknownInstanceVersionMessage" xml:space="preserve">
+    <value>The game version could not be recognized. Please select it manually.</value>
+  </data>
+  <data name="Resources_ResourcePackDownloadFileExistsMessageFormat" xml:space="preserve">
+    <value>A file with the same name already exists in the download location: {0}</value>
+  </data>
+  <data name="Menu_Button" xml:space="preserve">
+    <value>Menu</value>
+  </data>
+  <data name="Search_Placeholder" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="Back_Button" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="Back_Tooltip" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="Cancel_Button" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="Confirm_Button" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="Delete_Button" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Refresh_Button" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="ManualImport_Button" xml:space="preserve">
+    <value>Import</value>
+  </data>
+  <data name="Apply_Button" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="Page_Account" xml:space="preserve">
+    <value>Accounts</value>
+  </data>
+  <data name="Page_Home" xml:space="preserve">
+    <value>Home</value>
+  </data>
+  <data name="Page_Download" xml:space="preserve">
+    <value>Game Downloads</value>
+  </data>
+  <data name="Page_Install" xml:space="preserve">
+    <value>Downloads</value>
+  </data>
+  <data name="Page_GameSettings" xml:space="preserve">
+    <value>Game Settings</value>
+  </data>
+  <data name="Page_Resources" xml:space="preserve">
+    <value>Resources</value>
+  </data>
+  <data name="Resources_SectionMods" xml:space="preserve">
+    <value>Mods</value>
+  </data>
+  <data name="Resources_SectionResourcePacks" xml:space="preserve">
+    <value>Resource Packs</value>
+  </data>
+  <data name="Resources_SectionShaderPacks" xml:space="preserve">
+    <value>Shader Packs</value>
+  </data>
+  <data name="Resources_SectionWorlds" xml:space="preserve">
+    <value>Worlds</value>
+  </data>
+  <data name="Resources_SectionModpacks" xml:space="preserve">
+    <value>Modpacks</value>
+  </data>
+  <data name="Resources_PlaceholderMessage" xml:space="preserve">
+    <value>Select a resource category to browse.</value>
+  </data>
+  <data name="Resources_SelectedPlaceholderMessageFormat" xml:space="preserve">
+    <value>{0} support is coming soon.</value>
+  </data>
+  <data name="Resources_ModFilterVersionLabel" xml:space="preserve">
+    <value>Game Version</value>
+  </data>
+  <data name="Resources_ModFilterAllVersions" xml:space="preserve">
+    <value>All Versions</value>
+  </data>
+  <data name="Resources_ModFilterLoaderLabel" xml:space="preserve">
+    <value>Loader</value>
+  </data>
+  <data name="Resources_ModFilterAllLoaders" xml:space="preserve">
+    <value>All Loaders</value>
+  </data>
+  <data name="Resources_ModFilterSourceLabel" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="Resources_ModFilterAllSources" xml:space="preserve">
+    <value>All Sources</value>
+  </data>
+  <data name="Resources_ModFilterTypeLabel" xml:space="preserve">
+    <value>Category</value>
+  </data>
+  <data name="Resources_ModFilterAllTypes" xml:space="preserve">
+    <value>All Types</value>
+  </data>
+  <data name="Resources_ModFilterTypeOptimization" xml:space="preserve">
+    <value>Optimization</value>
+  </data>
+  <data name="Resources_ModFilterTypeUtility" xml:space="preserve">
+    <value>Utility</value>
+  </data>
+  <data name="Resources_ModFilterTypeAdventure" xml:space="preserve">
+    <value>Adventure</value>
+  </data>
+  <data name="Resources_ModFilterTypeDecoration" xml:space="preserve">
+    <value>Decoration</value>
+  </data>
+  <data name="Resources_ModFilterTypeEquipment" xml:space="preserve">
+    <value>Equipment</value>
+  </data>
+  <data name="Resources_ModFilterTypeTechnology" xml:space="preserve">
+    <value>Technology</value>
+  </data>
+  <data name="Resources_ModFilterTypeMagic" xml:space="preserve">
+    <value>Magic</value>
+  </data>
+  <data name="Resources_ModFilterTypeMobs" xml:space="preserve">
+    <value>Mobs</value>
+  </data>
+  <data name="Resources_ModFilterTypeWorldGeneration" xml:space="preserve">
+    <value>World Generation</value>
+  </data>
+  <data name="Resources_ModFilterTypeStorage" xml:space="preserve">
+    <value>Storage</value>
+  </data>
+  <data name="Resources_ModFilterTypeLibrary" xml:space="preserve">
+    <value>Library/API</value>
+  </data>
+  <data name="Resources_ModFilterButtonLabel" xml:space="preserve">
+    <value>Filters</value>
+  </data>
+  <data name="Resources_ModSourceModrinth" xml:space="preserve">
+    <value>Modrinth</value>
+  </data>
+  <data name="Resources_ModSourceCurseForge" xml:space="preserve">
+    <value>CurseForge</value>
+  </data>
+  <data name="Resources_ModVersionsUnknown" xml:space="preserve">
+    <value>Unknown Versions</value>
+  </data>
+  <data name="Resources_ModLoadersUnknown" xml:space="preserve">
+    <value>Unknown Loaders</value>
+  </data>
+  <data name="Resources_ModProjectsLoading" xml:space="preserve">
+    <value>Loading mods...</value>
+  </data>
+  <data name="Resources_ModProjectsEmpty" xml:space="preserve">
+    <value>No matching mods found</value>
+  </data>
+  <data name="Resources_ModProjectsLoadError" xml:space="preserve">
+    <value>Failed to load the mod list. Please try again later.</value>
+  </data>
+  <data name="Resources_ModProjectsLoadingMore" xml:space="preserve">
+    <value>Loading more mods...</value>
+  </data>
+  <data name="Resources_ModProjectsNoMore" xml:space="preserve">
+    <value>No more mods</value>
+  </data>
+  <data name="Resources_ModProjectsLoadMoreError" xml:space="preserve">
+    <value>Failed to load more mods. Please try again later.</value>
+  </data>
+  <data name="Resources_ModCurseForgeMissingApiKey" xml:space="preserve">
+    <value>No CurseForge API Key is configured; only Modrinth results are shown.</value>
+  </data>
+  <data name="Resources_ModDownloadsFormat" xml:space="preserve">
+    <value>{0} downloads</value>
+  </data>
+  <data name="Resources_ModDownloadsTenThousandFormat" xml:space="preserve">
+    <value>{0:0.##} x 10K</value>
+  </data>
+  <data name="Resources_ModDownloadsHundredMillionFormat" xml:space="preserve">
+    <value>{0:0.##} x 100M</value>
+  </data>
+  <data name="Resources_ModDetailsInfoSection" xml:space="preserve">
+    <value>Mod Info</value>
+  </data>
+  <data name="Resources_ModDetailsVersionLabel" xml:space="preserve">
+    <value>Supported Versions</value>
+  </data>
+  <data name="Resources_ModDetailsLoaderLabel" xml:space="preserve">
+    <value>Loaders</value>
+  </data>
+  <data name="Resources_ModDetailsSourceLabel" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="Resources_ModDetailsDownloadsLabel" xml:space="preserve">
+    <value>Downloads</value>
+  </data>
+  <data name="Resources_ModDetailsDependenciesLabel" xml:space="preserve">
+    <value>Required Mods</value>
+  </data>
+  <data name="Resources_ModInstallTargetSection" xml:space="preserve">
+    <value>Choose a Game to Install To</value>
+  </data>
+  <data name="Resources_ModInstallTargetLocal" xml:space="preserve">
+    <value>Download Locally</value>
+  </data>
+  <data name="Resources_ModInstallTargetsLoading" xml:space="preserve">
+    <value>Loading game list...</value>
+  </data>
+  <data name="Resources_ModInstallTargetsLoadError" xml:space="preserve">
+    <value>Failed to load game list</value>
+  </data>
+  <data name="Resources_ModVersionsLoading" xml:space="preserve">
+    <value>Loading available mod versions...</value>
+  </data>
+  <data name="Resources_ModVersionsEmpty" xml:space="preserve">
+    <value>No mod versions are available for this game</value>
+  </data>
+  <data name="Resources_ModVersionsEmptyLocal" xml:space="preserve">
+    <value>No mod versions available</value>
+  </data>
+  <data name="Resources_ModVersionsFilterEmpty" xml:space="preserve">
+    <value>No matching mod versions found</value>
+  </data>
+  <data name="Resources_ModVersionsLoadError" xml:space="preserve">
+    <value>Failed to load mod versions</value>
+  </data>
+  <data name="Resources_ModVersionsLoadingMore" xml:space="preserve">
+    <value>Loading more mod versions...</value>
+  </data>
+  <data name="Resources_ModVersionsNoMore" xml:space="preserve">
+    <value>No more mod versions</value>
+  </data>
+  <data name="Resources_ModVersionsLoadMoreError" xml:space="preserve">
+    <value>Failed to load more mod versions. Please try again later.</value>
+  </data>
+  <data name="Resources_ModVersionsAllTitle" xml:space="preserve">
+    <value>All Versions</value>
+  </data>
+  <data name="Resources_ResourcePackFilterAllLoaders" xml:space="preserve">
+    <value>All Loaders</value>
+  </data>
+  <data name="Resources_ResourcePackFilterTypeSimplistic" xml:space="preserve">
+    <value>Simplistic</value>
+  </data>
+  <data name="Resources_ResourcePackFilterTypeThemed" xml:space="preserve">
+    <value>Themed</value>
+  </data>
+  <data name="Resources_ResourcePackFilterTypeRealistic" xml:space="preserve">
+    <value>Realistic</value>
+  </data>
+  <data name="Resources_ResourcePackFilterTypeVanillaLike" xml:space="preserve">
+    <value>Vanilla-like</value>
+  </data>
+  <data name="Resources_ResourcePackFilterTypeAudio" xml:space="preserve">
+    <value>Audio</value>
+  </data>
+  <data name="Resources_ResourcePackProjectsLoading" xml:space="preserve">
+    <value>Loading resource packs...</value>
+  </data>
+  <data name="Resources_ResourcePackProjectsEmpty" xml:space="preserve">
+    <value>No matching resource packs found</value>
+  </data>
+  <data name="Resources_ResourcePackProjectsLoadError" xml:space="preserve">
+    <value>Failed to load the resource pack list. Please try again later.</value>
+  </data>
+  <data name="Resources_ResourcePackProjectsLoadingMore" xml:space="preserve">
+    <value>Loading more resource packs...</value>
+  </data>
+  <data name="Resources_ResourcePackProjectsNoMore" xml:space="preserve">
+    <value>No more resource packs</value>
+  </data>
+  <data name="Resources_ResourcePackProjectsLoadMoreError" xml:space="preserve">
+    <value>Failed to load more resource packs. Please try again later.</value>
+  </data>
+  <data name="Resources_ResourcePackCurseForgeMissingApiKey" xml:space="preserve">
+    <value>No CurseForge API Key is configured; only Modrinth results are shown.</value>
+  </data>
+  <data name="Resources_ResourcePackDetailsInfoSection" xml:space="preserve">
+    <value>Resource Pack Info</value>
+  </data>
+  <data name="Resources_ResourcePackInstallTargetSection" xml:space="preserve">
+    <value>Choose a Game to Install To</value>
+  </data>
+  <data name="Resources_ResourcePackInstallTargetLocal" xml:space="preserve">
+    <value>Download Locally</value>
+  </data>
+  <data name="Resources_ResourcePackInstallTargetsLoading" xml:space="preserve">
+    <value>Loading game list...</value>
+  </data>
+  <data name="Resources_ResourcePackInstallTargetsLoadError" xml:space="preserve">
+    <value>Failed to load game list</value>
+  </data>
+  <data name="Resources_ResourcePackVersionsLoading" xml:space="preserve">
+    <value>Loading available resource pack versions...</value>
+  </data>
+  <data name="Resources_ResourcePackVersionsEmpty" xml:space="preserve">
+    <value>No resource pack versions are available for this game</value>
+  </data>
+  <data name="Resources_ResourcePackVersionsEmptyLocal" xml:space="preserve">
+    <value>No resource pack versions available</value>
+  </data>
+  <data name="Resources_ResourcePackVersionsFilterEmpty" xml:space="preserve">
+    <value>No matching resource pack versions found</value>
+  </data>
+  <data name="Resources_ResourcePackVersionsLoadError" xml:space="preserve">
+    <value>Failed to load resource pack versions</value>
+  </data>
+  <data name="Resources_ResourcePackVersionsLoadingMore" xml:space="preserve">
+    <value>Loading more resource pack versions...</value>
+  </data>
+  <data name="Resources_ResourcePackVersionsNoMore" xml:space="preserve">
+    <value>No more resource pack versions</value>
+  </data>
+  <data name="Resources_ResourcePackVersionsLoadMoreError" xml:space="preserve">
+    <value>Failed to load more resource pack versions. Please try again later.</value>
+  </data>
+  <data name="Resources_ResourcePackVersionsAllTitle" xml:space="preserve">
+    <value>All Versions</value>
+  </data>
+  <data name="Resources_ShaderPackFilterAllLoaders" xml:space="preserve">
+    <value>All Loaders</value>
+  </data>
+  <data name="Resources_ShaderPackFilterTypeCartoon" xml:space="preserve">
+    <value>Cartoon</value>
+  </data>
+  <data name="Resources_ShaderPackFilterTypeCursed" xml:space="preserve">
+    <value>Cursed</value>
+  </data>
+  <data name="Resources_ShaderPackFilterTypeFantasy" xml:space="preserve">
+    <value>Fantasy</value>
+  </data>
+  <data name="Resources_ShaderPackFilterTypeRealistic" xml:space="preserve">
+    <value>Realistic</value>
+  </data>
+  <data name="Resources_ShaderPackFilterTypeSemiRealistic" xml:space="preserve">
+    <value>Semi-realistic</value>
+  </data>
+  <data name="Resources_ShaderPackFilterTypeVanillaLike" xml:space="preserve">
+    <value>Vanilla-like</value>
+  </data>
+  <data name="Resources_ShaderPackProjectsLoading" xml:space="preserve">
+    <value>Loading shader packs...</value>
+  </data>
+  <data name="Resources_ShaderPackProjectsEmpty" xml:space="preserve">
+    <value>No matching shader packs found</value>
+  </data>
+  <data name="Resources_ShaderPackProjectsLoadError" xml:space="preserve">
+    <value>Failed to load the shader pack list. Please try again later.</value>
+  </data>
+  <data name="Resources_ShaderPackProjectsLoadingMore" xml:space="preserve">
+    <value>Loading more shader packs...</value>
+  </data>
+  <data name="Resources_ShaderPackProjectsNoMore" xml:space="preserve">
+    <value>No more shader packs</value>
+  </data>
+  <data name="Resources_ShaderPackProjectsLoadMoreError" xml:space="preserve">
+    <value>Failed to load more shader packs. Please try again later.</value>
+  </data>
+  <data name="Resources_ShaderPackCurseForgeMissingApiKey" xml:space="preserve">
+    <value>No CurseForge API Key is configured; only Modrinth results are shown.</value>
+  </data>
+  <data name="Resources_ShaderPackDetailsInfoSection" xml:space="preserve">
+    <value>Shader Pack Info</value>
+  </data>
+  <data name="Resources_ShaderPackInstallTargetSection" xml:space="preserve">
+    <value>Choose a Game to Install To</value>
+  </data>
+  <data name="Resources_ShaderPackInstallTargetLocal" xml:space="preserve">
+    <value>Download Locally</value>
+  </data>
+  <data name="Resources_ShaderPackInstallTargetsLoading" xml:space="preserve">
+    <value>Loading game list...</value>
+  </data>
+  <data name="Resources_ShaderPackInstallTargetsLoadError" xml:space="preserve">
+    <value>Failed to load game list</value>
+  </data>
+  <data name="Resources_ShaderPackVersionsLoading" xml:space="preserve">
+    <value>Loading available shader pack versions...</value>
+  </data>
+  <data name="Resources_ShaderPackVersionsEmpty" xml:space="preserve">
+    <value>No shader pack versions are available for this game</value>
+  </data>
+  <data name="Resources_ShaderPackVersionsEmptyLocal" xml:space="preserve">
+    <value>No shader pack versions available</value>
+  </data>
+  <data name="Resources_ShaderPackVersionsFilterEmpty" xml:space="preserve">
+    <value>No matching shader pack versions found</value>
+  </data>
+  <data name="Resources_ShaderPackVersionsLoadError" xml:space="preserve">
+    <value>Failed to load shader pack versions</value>
+  </data>
+  <data name="Resources_ShaderPackVersionsLoadingMore" xml:space="preserve">
+    <value>Loading more shader pack versions...</value>
+  </data>
+  <data name="Resources_ShaderPackVersionsNoMore" xml:space="preserve">
+    <value>No more shader pack versions</value>
+  </data>
+  <data name="Resources_ShaderPackVersionsLoadMoreError" xml:space="preserve">
+    <value>Failed to load more shader pack versions. Please try again later.</value>
+  </data>
+  <data name="Resources_ShaderPackVersionsAllTitle" xml:space="preserve">
+    <value>All Versions</value>
+  </data>
+  <data name="Resources_ShaderPackDownloadFileExistsMessageFormat" xml:space="preserve">
+    <value>A file with the same name already exists in the download location: {0}</value>
+  </data>
+  <data name="Resources_WorldFilterAllLoaders" xml:space="preserve">
+    <value>All Loaders</value>
+  </data>
+  <data name="Resources_WorldFilterTypeAdventure" xml:space="preserve">
+    <value>Adventure</value>
+  </data>
+  <data name="Resources_WorldFilterTypeCreation" xml:space="preserve">
+    <value>Building/Creation</value>
+  </data>
+  <data name="Resources_WorldFilterTypeGameMap" xml:space="preserve">
+    <value>Game Map</value>
+  </data>
+  <data name="Resources_WorldFilterTypeParkour" xml:space="preserve">
+    <value>Parkour</value>
+  </data>
+  <data name="Resources_WorldFilterTypePuzzle" xml:space="preserve">
+    <value>Puzzle</value>
+  </data>
+  <data name="Resources_WorldFilterTypeSurvival" xml:space="preserve">
+    <value>Survival</value>
+  </data>
+  <data name="Resources_WorldProjectsLoading" xml:space="preserve">
+    <value>Loading worlds...</value>
+  </data>
+  <data name="Resources_WorldProjectsEmpty" xml:space="preserve">
+    <value>No matching worlds found</value>
+  </data>
+  <data name="Resources_WorldProjectsLoadError" xml:space="preserve">
+    <value>Failed to load the world list. Please try again later.</value>
+  </data>
+  <data name="Resources_WorldProjectsLoadingMore" xml:space="preserve">
+    <value>Loading more worlds...</value>
+  </data>
+  <data name="Resources_WorldProjectsNoMore" xml:space="preserve">
+    <value>No more worlds</value>
+  </data>
+  <data name="Resources_WorldProjectsLoadMoreError" xml:space="preserve">
+    <value>Failed to load more worlds. Please try again later.</value>
+  </data>
+  <data name="Resources_WorldCurseForgeMissingApiKey" xml:space="preserve">
+    <value>No CurseForge API Key is configured, so world results cannot be loaded.</value>
+  </data>
+  <data name="Resources_WorldDetailsInfoSection" xml:space="preserve">
+    <value>World Info</value>
+  </data>
+  <data name="Resources_WorldInstallTargetSection" xml:space="preserve">
+    <value>Choose a Game to Install To</value>
+  </data>
+  <data name="Resources_WorldInstallTargetLocal" xml:space="preserve">
+    <value>Download Locally</value>
+  </data>
+  <data name="Resources_WorldInstallTargetsLoading" xml:space="preserve">
+    <value>Loading game list...</value>
+  </data>
+  <data name="Resources_WorldInstallTargetsLoadError" xml:space="preserve">
+    <value>Failed to load game list</value>
+  </data>
+  <data name="Resources_WorldVersionsLoading" xml:space="preserve">
+    <value>Loading available world versions...</value>
+  </data>
+  <data name="Resources_WorldVersionsEmpty" xml:space="preserve">
+    <value>No world versions are available for this game</value>
+  </data>
+  <data name="Resources_WorldVersionsEmptyLocal" xml:space="preserve">
+    <value>No world versions available</value>
+  </data>
+  <data name="Resources_WorldVersionsFilterEmpty" xml:space="preserve">
+    <value>No matching world versions found</value>
+  </data>
+  <data name="Resources_WorldVersionsLoadError" xml:space="preserve">
+    <value>Failed to load world versions</value>
+  </data>
+  <data name="Resources_WorldVersionsLoadingMore" xml:space="preserve">
+    <value>Loading more world versions...</value>
+  </data>
+  <data name="Resources_WorldVersionsNoMore" xml:space="preserve">
+    <value>No more world versions</value>
+  </data>
+  <data name="Resources_WorldVersionsLoadMoreError" xml:space="preserve">
+    <value>Failed to load more world versions. Please try again later.</value>
+  </data>
+  <data name="Resources_WorldVersionsAllTitle" xml:space="preserve">
+    <value>All Versions</value>
+  </data>
+  <data name="Resources_WorldDownloadFileExistsMessageFormat" xml:space="preserve">
+    <value>A file with the same name already exists in the download location: {0}</value>
+  </data>
+  <data name="Resources_ModpackFilterAllLoaders" xml:space="preserve">
+    <value>All Loaders</value>
+  </data>
+  <data name="Resources_ModpackFilterTypeAdventure" xml:space="preserve">
+    <value>Adventure</value>
+  </data>
+  <data name="Resources_ModpackFilterTypeTechnology" xml:space="preserve">
+    <value>Technology</value>
+  </data>
+  <data name="Resources_ModpackFilterTypeMagic" xml:space="preserve">
+    <value>Magic</value>
+  </data>
+  <data name="Resources_ModpackFilterTypeOptimization" xml:space="preserve">
+    <value>Optimization</value>
+  </data>
+  <data name="Resources_ModpackFilterTypeQuests" xml:space="preserve">
+    <value>Quests</value>
+  </data>
+  <data name="Resources_ModpackFilterTypeKitchenSink" xml:space="preserve">
+    <value>Kitchen Sink</value>
+  </data>
+  <data name="Resources_ModpackFilterTypeLightweight" xml:space="preserve">
+    <value>Lightweight</value>
+  </data>
+  <data name="Resources_ModpackFilterTypeMultiplayer" xml:space="preserve">
+    <value>Multiplayer</value>
+  </data>
+  <data name="Resources_ModpackFilterTypeExploration" xml:space="preserve">
+    <value>Exploration</value>
+  </data>
+  <data name="Resources_ModpackProjectsLoading" xml:space="preserve">
+    <value>Loading modpacks...</value>
+  </data>
+  <data name="Resources_ModpackProjectsEmpty" xml:space="preserve">
+    <value>No matching modpacks found</value>
+  </data>
+  <data name="Resources_ModpackProjectsLoadError" xml:space="preserve">
+    <value>Failed to load the modpack list. Please try again later.</value>
+  </data>
+  <data name="Resources_ModpackProjectsLoadingMore" xml:space="preserve">
+    <value>Loading more modpacks...</value>
+  </data>
+  <data name="Resources_ModpackProjectsNoMore" xml:space="preserve">
+    <value>No more modpacks</value>
+  </data>
+  <data name="Resources_ModpackProjectsLoadMoreError" xml:space="preserve">
+    <value>Failed to load more modpacks. Please try again later.</value>
+  </data>
+  <data name="Resources_ModpackCurseForgeMissingApiKey" xml:space="preserve">
+    <value>No CurseForge API Key is configured; only Modrinth results are shown.</value>
+  </data>
+  <data name="Resources_ModpackDetailsInfoSection" xml:space="preserve">
+    <value>Modpack Info</value>
+  </data>
+  <data name="Resources_ModpackInstallTargetSection" xml:space="preserve">
+    <value>Choose Installation Method</value>
+  </data>
+  <data name="Resources_ModpackInstallTargetNewInstance" xml:space="preserve">
+    <value>Install as New Game</value>
+  </data>
+  <data name="Resources_ModpackInstallTargetLocal" xml:space="preserve">
+    <value>Download Locally</value>
+  </data>
+  <data name="Resources_ModpackInstallTargetsLoading" xml:space="preserve">
+    <value>Preparing installation methods...</value>
+  </data>
+  <data name="Resources_ModpackInstallTargetsLoadError" xml:space="preserve">
+    <value>Failed to load installation methods</value>
+  </data>
+  <data name="Resources_ModpackVersionsLoading" xml:space="preserve">
+    <value>Loading available modpack versions...</value>
+  </data>
+  <data name="Resources_ModpackVersionsEmpty" xml:space="preserve">
+    <value>No modpack versions available</value>
+  </data>
+  <data name="Resources_ModpackVersionsEmptyLocal" xml:space="preserve">
+    <value>No local modpack versions available</value>
+  </data>
+  <data name="Resources_ModpackVersionsFilterEmpty" xml:space="preserve">
+    <value>No matching modpack versions found</value>
+  </data>
+  <data name="Resources_ModpackVersionsLoadError" xml:space="preserve">
+    <value>Failed to load modpack versions</value>
+  </data>
+  <data name="Resources_ModpackVersionsLoadingMore" xml:space="preserve">
+    <value>Loading more modpack versions...</value>
+  </data>
+  <data name="Resources_ModpackVersionsNoMore" xml:space="preserve">
+    <value>No more modpack versions</value>
+  </data>
+  <data name="Resources_ModpackVersionsLoadMoreError" xml:space="preserve">
+    <value>Failed to load more modpack versions. Please try again later.</value>
+  </data>
+  <data name="Resources_ModpackVersionsAllTitle" xml:space="preserve">
+    <value>All Versions</value>
+  </data>
+  <data name="Resources_ModpackDownloadFileExistsMessageFormat" xml:space="preserve">
+    <value>A file with the same name already exists in the download location: {0}</value>
+  </data>
+  <data name="Page_Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Settings_SectionGeneral" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="Settings_SectionLanguage" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="Settings_SectionLaunchMemory" xml:space="preserve">
+    <value>Launch &amp; Memory</value>
+  </data>
+  <data name="Settings_SectionJava" xml:space="preserve">
+    <value>Java</value>
+  </data>
+  <data name="Settings_SectionTheme" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="Settings_SectionInfo" xml:space="preserve">
+    <value>Info</value>
+  </data>
+  <data name="Settings_SectionControlList" xml:space="preserve">
+    <value>Controls</value>
+  </data>
+  <data name="Settings_InfoContent" xml:space="preserve">
+    <value>Info</value>
+  </data>
+  <data name="Settings_LauncherVersionSection" xml:space="preserve">
+    <value>Launcher Version</value>
+  </data>
+  <data name="Settings_LauncherVersionUnknown" xml:space="preserve">
+    <value>Unknown Version</value>
+  </data>
+  <data name="Settings_ViewGithubRepositoryButton" xml:space="preserve">
+    <value>View GitHub Repository</value>
+  </data>
+  <data name="Settings_CheckUpdatesButton" xml:space="preserve">
+    <value>Check for Updates</value>
+  </data>
+  <data name="Settings_ReferenceProjectsSection" xml:space="preserve">
+    <value>Referenced Projects</value>
+  </data>
+  <data name="Settings_GeneralAccountSection" xml:space="preserve">
+    <value>Offline Player</value>
+  </data>
+  <data name="Settings_OfflineUsernameLabel" xml:space="preserve">
+    <value>Default Offline Player Name</value>
+  </data>
+  <data name="Settings_GeneralDirectorySection" xml:space="preserve">
+    <value>Directories</value>
+  </data>
+  <data name="Settings_DataDirectoryLabel" xml:space="preserve">
+    <value>Launcher Data Folder</value>
+  </data>
+  <data name="Settings_MinecraftDirectoryLabel" xml:space="preserve">
+    <value>Minecraft Folder</value>
+  </data>
+  <data name="Settings_LaunchDefaultsSection" xml:space="preserve">
+    <value>Default Launch Behavior</value>
+  </data>
+  <data name="Settings_MemorySection" xml:space="preserve">
+    <value>Memory</value>
+  </data>
+  <data name="Settings_DefaultMemoryLabel" xml:space="preserve">
+    <value>Default Maximum Memory</value>
+  </data>
+  <data name="Settings_MemoryOptionFormat" xml:space="preserve">
+    <value>{0} MB</value>
+  </data>
+  <data name="Settings_MemoryModeLabel" xml:space="preserve">
+    <value>Memory Mode</value>
+  </data>
+  <data name="Settings_MemoryModeAuto" xml:space="preserve">
+    <value>Automatic</value>
+  </data>
+  <data name="Settings_MemoryModeManual" xml:space="preserve">
+    <value>Manual</value>
+  </data>
+  <data name="Settings_MaxMemoryLabel" xml:space="preserve">
+    <value>Maximum Memory</value>
+  </data>
+  <data name="Settings_AutomaticMemoryAllocationLabel" xml:space="preserve">
+    <value>Automatic Allocation</value>
+  </data>
+  <data name="Settings_SystemTotalMemoryLabel" xml:space="preserve">
+    <value>Total System Memory</value>
+  </data>
+  <data name="Settings_SystemAvailableMemoryLabel" xml:space="preserve">
+    <value>Available Memory</value>
+  </data>
+  <data name="Settings_SystemMemorySummaryLabel" xml:space="preserve">
+    <value>Available / Total Memory</value>
+  </data>
+  <data name="Settings_SystemMemorySummaryFormat" xml:space="preserve">
+    <value>{0} / {1}</value>
+  </data>
+  <data name="Settings_MemorySizeMbFormat" xml:space="preserve">
+    <value>{0} MB</value>
+  </data>
+  <data name="Settings_MemorySizeGbFormat" xml:space="preserve">
+    <value>{0:F1} GB</value>
+  </data>
+  <data name="Settings_MemoryUnavailable" xml:space="preserve">
+    <value>--</value>
+  </data>
+  <data name="Settings_JavaSection" xml:space="preserve">
+    <value>Java</value>
+  </data>
+  <data name="Settings_JavaSelectionLabel" xml:space="preserve">
+    <value>Java Selection</value>
+  </data>
+  <data name="Settings_JavaSelectionAuto" xml:space="preserve">
+    <value>Auto Select</value>
+  </data>
+  <data name="Settings_JavaSelectionManual" xml:space="preserve">
+    <value>Manual Select</value>
+  </data>
+  <data name="Settings_JavaListLabel" xml:space="preserve">
+    <value>Java List</value>
+  </data>
+  <data name="Settings_JavaListLoading" xml:space="preserve">
+    <value>Scanning local Java runtimes...</value>
+  </data>
+  <data name="Settings_JavaListEmpty" xml:space="preserve">
+    <value>No local Java runtimes found.</value>
+  </data>
+  <data name="Settings_JavaVersionUnknown" xml:space="preserve">
+    <value>Unknown Version</value>
+  </data>
+  <data name="Settings_ThemeSection" xml:space="preserve">
+    <value>Launcher Appearance</value>
+  </data>
+  <data name="Settings_ThemeFollowSystemLabel" xml:space="preserve">
+    <value>Follow System</value>
+  </data>
+  <data name="Settings_ThemeSelectionLabel" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="Settings_BackgroundSection" xml:space="preserve">
+    <value>Launcher Background</value>
+  </data>
+  <data name="Settings_DisableBackgroundBlurLabel" xml:space="preserve">
+    <value>Disable Background Blur</value>
+  </data>
+  <data name="Settings_BackgroundOpacityLabel" xml:space="preserve">
+    <value>Launcher Background Opacity</value>
+  </data>
+  <data name="Settings_ThemeDarkTitle" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="Settings_ThemeLightTitle" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="Settings_ControlDemoButtonsSection" xml:space="preserve">
+    <value>Buttons &amp; Navigation</value>
+  </data>
+  <data name="Settings_ControlDemoInputsSection" xml:space="preserve">
+    <value>Inputs &amp; Toggles</value>
+  </data>
+  <data name="Settings_ControlDemoSelectionSection" xml:space="preserve">
+    <value>Selection Controls</value>
+  </data>
+  <data name="Settings_ControlDemoFeedbackSection" xml:space="preserve">
+    <value>Feedback Controls</value>
+  </data>
+  <data name="Settings_ControlDemoMenuButton" xml:space="preserve">
+    <value>Secondary Menu Item</value>
+  </data>
+  <data name="Settings_ControlDemoListItemTitle" xml:space="preserve">
+    <value>List Item Button</value>
+  </data>
+  <data name="Settings_ControlDemoListItemSubtitle" xml:space="preserve">
+    <value>Includes an icon, title, subtitle, and trailing text</value>
+  </data>
+  <data name="Settings_ControlDemoListItemTrailing" xml:space="preserve">
+    <value>Example</value>
+  </data>
+  <data name="Settings_ControlDemoNormalButton" xml:space="preserve">
+    <value>Button</value>
+  </data>
+  <data name="Settings_ControlDemoPrimaryButton" xml:space="preserve">
+    <value>Primary Button</value>
+  </data>
+  <data name="Settings_ControlDemoDangerButton" xml:space="preserve">
+    <value>Danger Button</value>
+  </data>
+  <data name="Settings_ControlDemoIconButton" xml:space="preserve">
+    <value>Icon Button</value>
+  </data>
+  <data name="Settings_ControlDemoSwitchLabel" xml:space="preserve">
+    <value>Toggle Switch</value>
+  </data>
+  <data name="Settings_ControlDemoSliderLabel" xml:space="preserve">
+    <value>Slider</value>
+  </data>
+  <data name="Settings_ControlDemoTextBoxLabel" xml:space="preserve">
+    <value>Text Box</value>
+  </data>
+  <data name="Settings_ControlDemoMultilineTextBoxLabel" xml:space="preserve">
+    <value>Multiline Text Box</value>
+  </data>
+  <data name="Settings_ControlDemoSearchBoxLabel" xml:space="preserve">
+    <value>Search Box</value>
+  </data>
+  <data name="Settings_ControlDemoReadOnlyFieldLabel" xml:space="preserve">
+    <value>Read-only Field</value>
+  </data>
+  <data name="Settings_ControlDemoComboBoxLabel" xml:space="preserve">
+    <value>Combo Box</value>
+  </data>
+  <data name="Settings_ControlDemoListBoxLabel" xml:space="preserve">
+    <value>Choice List</value>
+  </data>
+  <data name="Settings_ControlDemoProgressLabel" xml:space="preserve">
+    <value>Progress Bar</value>
+  </data>
+  <data name="Settings_ControlDemoStatusLabel" xml:space="preserve">
+    <value>Status Text</value>
+  </data>
+  <data name="Settings_ControlDemoDefaultInput" xml:space="preserve">
+    <value>Type text here</value>
+  </data>
+  <data name="Settings_ControlDemoDefaultMultilineInput" xml:space="preserve">
+    <value>This is a multiline text box example.
+Longer content wraps automatically.</value>
+  </data>
+  <data name="Settings_ControlDemoStatusReady" xml:space="preserve">
+    <value>Waiting for interaction</value>
+  </data>
+  <data name="Settings_ControlDemoStatusClicked" xml:space="preserve">
+    <value>Example interaction triggered</value>
+  </data>
+  <data name="Settings_ControlCategoryNavigation" xml:space="preserve">
+    <value>Navigation</value>
+  </data>
+  <data name="Settings_ControlCategoryButton" xml:space="preserve">
+    <value>Buttons</value>
+  </data>
+  <data name="Settings_ControlCategoryToggle" xml:space="preserve">
+    <value>Toggles</value>
+  </data>
+  <data name="Settings_ControlCategorySelection" xml:space="preserve">
+    <value>Selection</value>
+  </data>
+  <data name="Settings_ControlCategoryInput" xml:space="preserve">
+    <value>Input</value>
+  </data>
+  <data name="Settings_ControlSecondaryMenuButton" xml:space="preserve">
+    <value>Secondary Menu</value>
+  </data>
+  <data name="Settings_ControlListPageItemButton" xml:space="preserve">
+    <value>List Item</value>
+  </data>
+  <data name="Settings_ControlDialogButton" xml:space="preserve">
+    <value>Dialog Button</value>
+  </data>
+  <data name="Settings_ControlPrimaryButton" xml:space="preserve">
+    <value>Primary Button</value>
+  </data>
+  <data name="Settings_ControlDangerButton" xml:space="preserve">
+    <value>Danger Button</value>
+  </data>
+  <data name="Settings_ControlInlineIconButton" xml:space="preserve">
+    <value>Icon Button</value>
+  </data>
+  <data name="Settings_ControlSwitch" xml:space="preserve">
+    <value>Switch</value>
+  </data>
+  <data name="Settings_ControlSlider" xml:space="preserve">
+    <value>Slider</value>
+  </data>
+  <data name="Settings_ControlComboBox" xml:space="preserve">
+    <value>Combo Box</value>
+  </data>
+  <data name="Settings_ControlTextBox" xml:space="preserve">
+    <value>Text Box</value>
+  </data>
+  <data name="Settings_ControlMultilineTextBox" xml:space="preserve">
+    <value>Multiline Text Box</value>
+  </data>
+  <data name="Settings_ControlSearchBox" xml:space="preserve">
+    <value>Search Box</value>
+  </data>
+  <data name="Settings_ControlChoiceList" xml:space="preserve">
+    <value>Choice List</value>
+  </data>
+  <data name="Settings_ControlVirtualizedList" xml:space="preserve">
+    <value>Virtualized List</value>
+  </data>
+  <data name="GameSettings_AllCategory" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="GameSettings_ModLoaderCategory" xml:space="preserve">
+    <value>Mod Loaders</value>
+  </data>
+  <data name="GameSettings_NoInstances" xml:space="preserve">
+    <value>No games yet</value>
+  </data>
+  <data name="GameSettings_NoMatchingInstances" xml:space="preserve">
+    <value>No matching games found</value>
+  </data>
+  <data name="GameSettings_NoCategoryInstancesFormat" xml:space="preserve">
+    <value>No {0} games found.</value>
+  </data>
+  <data name="GameSettings_InstanceSubtitleFormat" xml:space="preserve">
+    <value>Minecraft {0} - {1}</value>
+  </data>
+  <data name="GameSettings_InstanceSubtitleVanillaFormat" xml:space="preserve">
+    <value>{0}</value>
+  </data>
+  <data name="GameSettings_InstanceSubtitleLoaderWithoutVersionFormat" xml:space="preserve">
+    <value>{0} {1}</value>
+  </data>
+  <data name="GameSettings_InstanceSubtitleLoaderFormat" xml:space="preserve">
+    <value>{0} {1} {2}</value>
+  </data>
+  <data name="GameSettings_DetailGeneral" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="GameSettings_DetailLaunch" xml:space="preserve">
+    <value>Launch &amp; Memory</value>
+  </data>
+  <data name="GameSettings_DetailJava" xml:space="preserve">
+    <value>Java</value>
+  </data>
+  <data name="GameSettings_DetailModManagement" xml:space="preserve">
+    <value>Mod Management</value>
+  </data>
+  <data name="GameSettings_DetailSaves" xml:space="preserve">
+    <value>Saves</value>
+  </data>
+  <data name="GameSettings_DetailShaders" xml:space="preserve">
+    <value>Shader Packs</value>
+  </data>
+  <data name="GameSettings_DetailLoader" xml:space="preserve">
+    <value>Loader</value>
+  </data>
+  <data name="GameSettings_DetailAdvanced" xml:space="preserve">
+    <value>Advanced</value>
+  </data>
+  <data name="GameSettings_DetailBackup" xml:space="preserve">
+    <value>Backups</value>
+  </data>
+  <data name="Nav_GameInstanceList" xml:space="preserve">
+    <value>Game Settings</value>
+  </data>
+  <data name="Nav_JavaMemory" xml:space="preserve">
+    <value>Java &amp; Memory</value>
+  </data>
+  <data name="Nav_DirectoryManagement" xml:space="preserve">
+    <value>Directories</value>
+  </data>
+  <data name="Nav_Mod" xml:space="preserve">
+    <value>Mods</value>
+  </data>
+  <data name="Nav_ResourcePacks" xml:space="preserve">
+    <value>Resource Packs</value>
+  </data>
+  <data name="Nav_ShaderPacks" xml:space="preserve">
+    <value>Shader Packs</value>
+  </data>
+  <data name="Nav_Worlds" xml:space="preserve">
+    <value>Worlds</value>
+  </data>
+  <data name="Nav_Modpacks" xml:space="preserve">
+    <value>Modpacks</value>
+  </data>
+  <data name="Nav_Shaders" xml:space="preserve">
+    <value>Shaders</value>
+  </data>
+  <data name="Nav_Maps" xml:space="preserve">
+    <value>Maps</value>
+  </data>
+  <data name="Nav_AppearanceTheme" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="Nav_DefaultSettings" xml:space="preserve">
+    <value>Defaults</value>
+  </data>
+  <data name="Nav_About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="Home_ChooseOrCreateAccount" xml:space="preserve">
+    <value>Choose or create an account to play.</value>
+  </data>
+  <data name="Home_GameSettingsButton" xml:space="preserve">
+    <value>Game Settings &gt;</value>
+  </data>
+  <data name="Home_NoAccountSelected" xml:space="preserve">
+    <value>No account selected</value>
+  </data>
+  <data name="Home_NoVersionSelected" xml:space="preserve">
+    <value>No game selected</value>
+  </data>
+  <data name="Home_LaunchInstanceMenuTitle" xml:space="preserve">
+    <value>Home</value>
+  </data>
+  <data name="Home_PinLaunchMenuTooltip" xml:space="preserve">
+    <value>Pin game menu</value>
+  </data>
+  <data name="Home_UnpinLaunchMenuTooltip" xml:space="preserve">
+    <value>Unpin game menu</value>
+  </data>
+  <data name="Home_LaunchInstanceSubtitleFormat" xml:space="preserve">
+    <value>Minecraft {0} - {1}</value>
+  </data>
+  <data name="Home_NoLaunchInstances" xml:space="preserve">
+    <value>No local games yet.</value>
+  </data>
+  <data name="Launch_Button" xml:space="preserve">
+    <value>Launch</value>
+  </data>
+  <data name="Account_ListTitle" xml:space="preserve">
+    <value>Accounts</value>
+  </data>
+  <data name="Account_AddButton" xml:space="preserve">
+    <value>Add Account</value>
+  </data>
+  <data name="Account_EmptySelection" xml:space="preserve">
+    <value>Select an account to view or change settings.</value>
+  </data>
+  <data name="Account_SkinHeader" xml:space="preserve">
+    <value>Skins</value>
+  </data>
+  <data name="Account_CapeHeader" xml:space="preserve">
+    <value>Capes</value>
+  </data>
+  <data name="Account_ChangeSkinButton" xml:space="preserve">
+    <value>Change Skin</value>
+  </data>
+  <data name="Account_AddSkinButton" xml:space="preserve">
+    <value>Add Skin</value>
+  </data>
+  <data name="Account_ManageSkinButton" xml:space="preserve">
+    <value>Manage Skins</value>
+  </data>
+  <data name="Account_ChangeSkinModelButton" xml:space="preserve">
+    <value>Change Model</value>
+  </data>
+  <data name="Account_SkinActiveState" xml:space="preserve">
+    <value>Active</value>
+  </data>
+  <data name="Account_SkinPreviewEmpty" xml:space="preserve">
+    <value>No skin preview yet. Refresh the profile or upload a skin to show it.</value>
+  </data>
+  <data name="Account_AppearanceOfflineUnsupported" xml:space="preserve">
+    <value>Offline accounts do not support skin/cape management</value>
+  </data>
+  <data name="Account_SkinModelClassicTitle" xml:space="preserve">
+    <value>Default</value>
+  </data>
+  <data name="Account_SkinModelClassicDescription" xml:space="preserve">
+    <value>Steve model with 4-pixel-wide arms.</value>
+  </data>
+  <data name="Account_SkinModelSlimTitle" xml:space="preserve">
+    <value>Slim</value>
+  </data>
+  <data name="Account_SkinModelSlimDescription" xml:space="preserve">
+    <value>Alex model with 3-pixel-wide arms.</value>
+  </data>
+  <data name="Account_UuidHeader" xml:space="preserve">
+    <value>UUID</value>
+  </data>
+  <data name="Account_OfflineUuidModeLabel" xml:space="preserve">
+    <value>UUID Generation Mode</value>
+  </data>
+  <data name="Account_OfflineUuidStandardTitle" xml:space="preserve">
+    <value>Standard Offline UUID</value>
+  </data>
+  <data name="Account_OfflineUuidStandardDescription" xml:space="preserve">
+    <value>Generated consistently from OfflinePlayer:username, compatible with most offline servers.</value>
+  </data>
+  <data name="Account_OfflineUuidRandomTitle" xml:space="preserve">
+    <value>Random Fixed UUID</value>
+  </data>
+  <data name="Account_OfflineUuidRandomDescription" xml:space="preserve">
+    <value>Generated once and saved with the account; it stays unchanged after renaming.</value>
+  </data>
+  <data name="Account_OfflineUuidManualTitle" xml:space="preserve">
+    <value>Manual UUID</value>
+  </data>
+  <data name="Account_OfflineUuidManualDescription" xml:space="preserve">
+    <value>Enter a UUID manually; it is saved with the account after applying.</value>
+  </data>
+  <data name="Account_OfflineUuidInvalid" xml:space="preserve">
+    <value>Invalid UUID format</value>
+  </data>
+  <data name="Account_NoneValue" xml:space="preserve">
+    <value>None</value>
+  </data>
+  <data name="Account_UsernameLabel" xml:space="preserve">
+    <value>Username</value>
+  </data>
+  <data name="Account_NewUsernameLabel" xml:space="preserve">
+    <value>New Username</value>
+  </data>
+  <data name="Account_UsernameValidation" xml:space="preserve">
+    <value>Username must be 3-16 letters, numbers, or underscores</value>
+  </data>
+  <data name="Account_TypeOfflineTitle" xml:space="preserve">
+    <value>Offline Account</value>
+  </data>
+  <data name="Account_TypeOfflineDescription" xml:space="preserve">
+    <value>Use a local username to play.</value>
+  </data>
+  <data name="Account_TypeMicrosoftTitle" xml:space="preserve">
+    <value>Microsoft Account</value>
+  </data>
+  <data name="Account_TypeMicrosoftDescription" xml:space="preserve">
+    <value>Sign in with a Microsoft account to use skins and avatars.</value>
+  </data>
+  <data name="Account_ProfileOfflineUnsupported" xml:space="preserve">
+    <value>Offline accounts do not support skin and cape management</value>
+  </data>
+  <data name="Account_ProfileNoCapes" xml:space="preserve">
+    <value>This account has no available capes</value>
+  </data>
+  <data name="Account_ProfileLoaded" xml:space="preserve">
+    <value>Microsoft account profile loaded</value>
+  </data>
+  <data name="Account_ProfileCacheLoaded" xml:space="preserve">
+    <value>Loaded local cape cache. Refresh to get the latest state.</value>
+  </data>
+  <data name="Account_ProfileRefreshHint" xml:space="preserve">
+    <value>Refresh to load this Microsoft account's cape list</value>
+  </data>
+  <data name="Cape_NoneState" xml:space="preserve">
+    <value>No Cape</value>
+  </data>
+  <data name="Cape_ActiveState" xml:space="preserve">
+    <value>Active</value>
+  </data>
+  <data name="Cape_AvailableState" xml:space="preserve">
+    <value>Available</value>
+  </data>
+  <data name="Cape_UnnamedDisplayName" xml:space="preserve">
+    <value>Unnamed Cape</value>
+  </data>
+  <data name="Dialog_AddAccountTitle" xml:space="preserve">
+    <value>Add Account</value>
+  </data>
+  <data name="Dialog_AddOfflineAccountTitle" xml:space="preserve">
+    <value>Offline Account</value>
+  </data>
+  <data name="Dialog_AddMicrosoftAccountTitle" xml:space="preserve">
+    <value>Microsoft Sign-in</value>
+  </data>
+  <data name="Dialog_AddAccountAlreadyExistsTitle" xml:space="preserve">
+    <value>Account Already Exists</value>
+  </data>
+  <data name="Dialog_LoginSuccessTitle" xml:space="preserve">
+    <value>Sign-in Complete</value>
+  </data>
+  <data name="Dialog_LoginIncompleteTitle" xml:space="preserve">
+    <value>Sign-in Incomplete</value>
+  </data>
+  <data name="Dialog_AddAccountSubtitle" xml:space="preserve">
+    <value>Choose the account type to add.</value>
+  </data>
+  <data name="Dialog_AddOfflineAccountSubtitle" xml:space="preserve">
+    <value>Enter a local username for offline play.</value>
+  </data>
+  <data name="Dialog_AddMicrosoftAccountSubtitle" xml:space="preserve">
+    <value>Complete sign-in on the Microsoft page that opens.</value>
+  </data>
+  <data name="Dialog_AddAccountResultSubtitle" xml:space="preserve">
+    <value>Click OK to return to the account list.</value>
+  </data>
+  <data name="Dialog_DeleteAccountTitle" xml:space="preserve">
+    <value>Delete Account</value>
+  </data>
+  <data name="Dialog_DeleteAccountMessage" xml:space="preserve">
+    <value>Are you sure you want to delete this account?</value>
+  </data>
+  <data name="Dialog_RenameAccountTitle" xml:space="preserve">
+    <value>Change Account Name</value>
+  </data>
+  <data name="Dialog_RenameAccountBusyTitle" xml:space="preserve">
+    <value>Changing</value>
+  </data>
+  <data name="Dialog_RenameAccountSuccessTitle" xml:space="preserve">
+    <value>Changed</value>
+  </data>
+  <data name="Dialog_RenameAccountFailedTitle" xml:space="preserve">
+    <value>Change Failed</value>
+  </data>
+  <data name="Dialog_RenameAccountBusySubtitle" xml:space="preserve">
+    <value>Please wait while the account name is being changed.</value>
+  </data>
+  <data name="Dialog_RenameAccountResultSubtitle" xml:space="preserve">
+    <value>Click OK to return to account details.</value>
+  </data>
+  <data name="Dialog_RenameMicrosoftAccountSubtitle" xml:space="preserve">
+    <value>Microsoft account names can be changed once every 30 days. Be careful.</value>
+  </data>
+  <data name="Dialog_RenameOfflineAccountSubtitle" xml:space="preserve">
+    <value>Enter a new offline account name.</value>
+  </data>
+  <data name="Dialog_SkinModelTitle" xml:space="preserve">
+    <value>Choose Skin Model</value>
+  </data>
+  <data name="Dialog_SkinModelSubtitle" xml:space="preserve">
+    <value>Choose the model used by this skin.</value>
+  </data>
+  <data name="Dialog_SkinManagerTitle" xml:space="preserve">
+    <value>Manage Skins</value>
+  </data>
+  <data name="Dialog_SkinManagerEmpty" xml:space="preserve">
+    <value>No skins added yet</value>
+  </data>
+  <data name="Dialog_SkinFormatErrorTitle" xml:space="preserve">
+    <value>Invalid Skin Format</value>
+  </data>
+  <data name="Dialog_SkinFormatErrorSubtitle" xml:space="preserve">
+    <value>Skin images must be 64x64 or 64x32.</value>
+  </data>
+  <data name="Download_VersionListTitle" xml:space="preserve">
+    <value>Game Downloads</value>
+  </data>
+  <data name="Download_LoadingVersions" xml:space="preserve">
+    <value>Loading Minecraft versions...</value>
+  </data>
+  <data name="Download_InstanceNameLabel" xml:space="preserve">
+    <value>Game Name</value>
+  </data>
+  <data name="Download_LoaderLabel" xml:space="preserve">
+    <value>Loader</value>
+  </data>
+  <data name="Download_InstallButton" xml:space="preserve">
+    <value>Install</value>
+  </data>
+  <data name="Download_ReleaseCategory" xml:space="preserve">
+    <value>Release</value>
+  </data>
+  <data name="Download_SnapshotCategory" xml:space="preserve">
+    <value>Snapshot</value>
+  </data>
+  <data name="Download_BetaCategory" xml:space="preserve">
+    <value>Beta</value>
+  </data>
+  <data name="Download_AlphaCategory" xml:space="preserve">
+    <value>Alpha</value>
+  </data>
+  <data name="Download_LocalImportCategory" xml:space="preserve">
+    <value>Local Import</value>
+  </data>
+  <data name="Download_LocalImportDialogTitle" xml:space="preserve">
+    <value>Local Import</value>
+  </data>
+  <data name="Download_LocalImportDialogSubtitle" xml:space="preserve">
+    <value>Import a local game or modpack by choosing a file or dropping it here.</value>
+  </data>
+  <data name="Download_LocalImportDropZoneTitle" xml:space="preserve">
+    <value>Drop files here</value>
+  </data>
+  <data name="Download_LocalImportDropZoneSubtitle" xml:space="preserve">
+    <value>You can also use the Choose File button in the lower-left corner.</value>
+  </data>
+  <data name="Download_LocalImportSelectedFileLabel" xml:space="preserve">
+    <value>Selected File</value>
+  </data>
+  <data name="Download_LocalImportNoFileSelected" xml:space="preserve">
+    <value>No file selected</value>
+  </data>
+  <data name="Download_LocalImportUnrecognizedMessage" xml:space="preserve">
+    <value>The selected file could not be recognized. Choose a supported modpack file.</value>
+  </data>
+  <data name="Download_LocalImportSelectFileButton" xml:space="preserve">
+    <value>Choose File</value>
+  </data>
+  <data name="Download_LocalImportTaskTitle" xml:space="preserve">
+    <value>Modpack Import</value>
+  </data>
+  <data name="Download_VanillaLoaderTitle" xml:space="preserve">
+    <value>Vanilla</value>
+  </data>
+  <data name="Download_FabricLoaderTitle" xml:space="preserve">
+    <value>Fabric</value>
+  </data>
+  <data name="Download_ForgeLoaderTitle" xml:space="preserve">
+    <value>Forge</value>
+  </data>
+  <data name="Download_NeoForgeLoaderTitle" xml:space="preserve">
+    <value>NeoForge</value>
+  </data>
+  <data name="Download_QuiltLoaderTitle" xml:space="preserve">
+    <value>Quilt</value>
+  </data>
+  <data name="Download_VanillaLoaderSubtitle" xml:space="preserve">
+    <value>Do not install a mod loader</value>
+  </data>
+  <data name="Download_FabricLoaderSubtitle" xml:space="preserve">
+    <value>Choose and install a Fabric version</value>
+  </data>
+  <data name="Download_ForgeLoaderSubtitle" xml:space="preserve">
+    <value>Choose and install a Forge version</value>
+  </data>
+  <data name="Download_NeoForgeLoaderSubtitle" xml:space="preserve">
+    <value>Choose and install a NeoForge version</value>
+  </data>
+  <data name="Download_QuiltLoaderSubtitle" xml:space="preserve">
+    <value>Choose and install a Quilt version</value>
+  </data>
+  <data name="Download_FabricLoaderVersionLabel" xml:space="preserve">
+    <value>Fabric Version</value>
+  </data>
+  <data name="Download_FabricLoaderVersionEmpty" xml:space="preserve">
+    <value>No versions available</value>
+  </data>
+  <data name="Download_LoaderVersionEmptyFormat" xml:space="preserve">
+    <value>No {0} versions available</value>
+  </data>
+  <data name="Download_LoaderVersionStableTag" xml:space="preserve">
+    <value>Stable</value>
+  </data>
+  <data name="Download_LoaderVersionPreviewTag" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="Download_AddonLibraryNone" xml:space="preserve">
+    <value>Do Not Install</value>
+  </data>
+  <data name="Download_AddonLibraryLatestTag" xml:space="preserve">
+    <value>Latest</value>
+  </data>
+  <data name="Download_AddonLibraryLoading" xml:space="preserve">
+    <value>Loading versions...</value>
+  </data>
+  <data name="Download_AddonLibraryEmpty" xml:space="preserve">
+    <value>No versions available</value>
+  </data>
+  <data name="Download_AddonLibraryLoadFailedShort" xml:space="preserve">
+    <value>Load Failed</value>
+  </data>
+  <data name="Download_FabricApiLabel" xml:space="preserve">
+    <value>Install Fabric API (recommended)</value>
+  </data>
+  <data name="Download_QuiltLibraryLabel" xml:space="preserve">
+    <value>Install QFAPI / QSL (recommended)</value>
+  </data>
+  <data name="Download_QuiltLibraryNone" xml:space="preserve">
+    <value>Do Not Install</value>
+  </data>
+  <data name="Download_QuiltLibraryLatestTag" xml:space="preserve">
+    <value>Latest</value>
+  </data>
+  <data name="Download_QuiltLibraryLoading" xml:space="preserve">
+    <value>Loading QFAPI / QSL...</value>
+  </data>
+  <data name="Download_QuiltLibraryEmpty" xml:space="preserve">
+    <value>No versions available</value>
+  </data>
+  <data name="Download_QuiltLibraryLoadFailedShort" xml:space="preserve">
+    <value>Load Failed</value>
+  </data>
+  <data name="Download_SelectVersionPlaceholder" xml:space="preserve">
+    <value>Select Version</value>
+  </data>
+  <data name="Download_LoaderVersionLoadFailedShort" xml:space="preserve">
+    <value>Load Failed</value>
+  </data>
+  <data name="Download_LoaderPendingSubtitle" xml:space="preserve">
+    <value>Installation is not available yet</value>
+  </data>
+  <data name="Install_Empty" xml:space="preserve">
+    <value>No downloads</value>
+  </data>
+  <data name="DownloadTask_Preparing" xml:space="preserve">
+    <value>Preparing download...</value>
+  </data>
+  <data name="DownloadTask_Completed" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="DownloadTask_Failed" xml:space="preserve">
+    <value>Failed</value>
+  </data>
+  <data name="DownloadTask_Running" xml:space="preserve">
+    <value>Downloading</value>
+  </data>
+  <data name="Status_Ready" xml:space="preserve">
+    <value>Ready</value>
+  </data>
+  <data name="Status_NoLaunchableInstance" xml:space="preserve">
+    <value>No launchable game yet</value>
+  </data>
+  <data name="Status_LaunchPreparing" xml:space="preserve">
+    <value>Preparing to launch...</value>
+  </data>
+  <data name="Status_LaunchCheckingInstance" xml:space="preserve">
+    <value>Checking current instance...</value>
+  </data>
+  <data name="Status_LaunchRepairingMetadata" xml:space="preserve">
+    <value>Preparing version metadata...</value>
+  </data>
+  <data name="Status_LaunchRepairingJar" xml:space="preserve">
+    <value>Repairing current instance jar...</value>
+  </data>
+  <data name="Status_LaunchRepairingLibraries" xml:space="preserve">
+    <value>Repairing shared libraries...</value>
+  </data>
+  <data name="Status_LaunchRepairingAssets" xml:space="preserve">
+    <value>Repairing game assets...</value>
+  </data>
+  <data name="Status_LaunchRepairingLogging" xml:space="preserve">
+    <value>Repairing logging configuration...</value>
+  </data>
+  <data name="Status_LaunchCheckingJava" xml:space="preserve">
+    <value>Checking Java runtime...</value>
+  </data>
+  <data name="Status_LaunchRunningPreLaunchCommand" xml:space="preserve">
+    <value>Running pre-launch command...</value>
+  </data>
+  <data name="Status_LaunchPreparingProcess" xml:space="preserve">
+    <value>Preparing launch arguments...</value>
+  </data>
+  <data name="Status_LaunchStartingProcess" xml:space="preserve">
+    <value>Starting game process...</value>
+  </data>
+  <data name="Status_LaunchCheckingFiles" xml:space="preserve">
+    <value>Checking game files...</value>
+  </data>
+  <data name="Status_LaunchDownloadingFiles" xml:space="preserve">
+    <value>Downloading missing game files...</value>
+  </data>
+  <data name="Status_LaunchCanceled" xml:space="preserve">
+    <value>Launch canceled</value>
+  </data>
+  <data name="Status_LaunchAccountUnavailable" xml:space="preserve">
+    <value>The current account cannot launch the game. Sign in again or switch accounts.</value>
+  </data>
+  <data name="Status_LaunchExitedQuickly" xml:space="preserve">
+    <value>The game exited immediately after launch. Diagnostics were saved; check the logs\launcher folder for this instance.</value>
+  </data>
+  <data name="Status_LaunchProcessExited" xml:space="preserve">
+    <value>The game process exited. Diagnostics were saved.</value>
+  </data>
+  <data name="Status_LaunchAbnormalExit" xml:space="preserve">
+    <value>The game exited abnormally during startup. Diagnostics were saved.</value>
+  </data>
+  <data name="Status_LaunchRuntimeAbnormalExit" xml:space="preserve">
+    <value>The game exited abnormally while running. Diagnostics were saved.</value>
+  </data>
+  <data name="Status_LaunchFailed" xml:space="preserve">
+    <value>Launch failed. Please try again later.</value>
+  </data>
+  <data name="Status_LaunchInstanceRepairFailed" xml:space="preserve">
+    <value>The current instance is missing critical files and cannot be repaired without adding a new version. Reinstall this instance or check the version files.</value>
+  </data>
+  <data name="Status_LaunchInstanceSelectedFormat" xml:space="preserve">
+    <value>Current game switched to {0}</value>
+  </data>
+  <data name="Status_LaunchInstanceSelectionFailed" xml:space="preserve">
+    <value>Failed to switch the current game. Refresh and try again.</value>
+  </data>
+  <data name="Status_LoadingVersions" xml:space="preserve">
+    <value>Loading Minecraft versions...</value>
+  </data>
+  <data name="Status_VersionsLoadedFormat" xml:space="preserve">
+    <value>Loaded {0} versions</value>
+  </data>
+  <data name="Status_LoaderVersionsPendingFormat" xml:space="preserve">
+    <value>{0} installation will be added later</value>
+  </data>
+  <data name="Status_LoadingLoaderVersionsFormat" xml:space="preserve">
+    <value>Loading {0} versions...</value>
+  </data>
+  <data name="Status_LoaderVersionsLoadedFormat" xml:space="preserve">
+    <value>{0} versions loaded</value>
+  </data>
+  <data name="Status_SelectMinecraftVersionFirst" xml:space="preserve">
+    <value>Select a Minecraft version first</value>
+  </data>
+  <data name="Status_InstanceCreatedFormat" xml:space="preserve">
+    <value>Game {0} created</value>
+  </data>
+  <data name="Status_LocalModImported" xml:space="preserve">
+    <value>Mod imported.</value>
+  </data>
+  <data name="Status_LocalModImportFileNotFound" xml:space="preserve">
+    <value>Could not find the mod file to import.</value>
+  </data>
+  <data name="Status_LocalSaveImported" xml:space="preserve">
+    <value>Save imported.</value>
+  </data>
+  <data name="Status_LocalSaveImportFileNotFound" xml:space="preserve">
+    <value>Could not find the save archive to import.</value>
+  </data>
+  <data name="Status_SelectInstanceFirst" xml:space="preserve">
+    <value>Select a game first</value>
+  </data>
+  <data name="Status_SearchingModrinth" xml:space="preserve">
+    <value>Searching Modrinth...</value>
+  </data>
+  <data name="Status_ModDownloading" xml:space="preserve">
+    <value>Downloading mod...</value>
+  </data>
+  <data name="Status_ModDownloadingFormat" xml:space="preserve">
+    <value>Downloading {0}</value>
+  </data>
+  <data name="Status_ModCompatibleFileNotFound" xml:space="preserve">
+    <value>No mod file compatible with the current game was found.</value>
+  </data>
+  <data name="Status_ModrinthResultsFoundFormat" xml:space="preserve">
+    <value>Found {0} resources</value>
+  </data>
+  <data name="Status_ModInstalledFormat" xml:space="preserve">
+    <value>{0} installed</value>
+  </data>
+  <data name="Status_ModInstallFailed" xml:space="preserve">
+    <value>Mod installation failed</value>
+  </data>
+  <data name="Status_ModDownloadedFormat" xml:space="preserve">
+    <value>{0} downloaded</value>
+  </data>
+  <data name="Status_ModDownloadFailed" xml:space="preserve">
+    <value>Failed to download mod.</value>
+  </data>
+  <data name="Status_ResourcePackDownloading" xml:space="preserve">
+    <value>Downloading resource pack...</value>
+  </data>
+  <data name="Status_ResourcePackDownloadingFormat" xml:space="preserve">
+    <value>Downloading {0}</value>
+  </data>
+  <data name="Status_ResourcePackInstalledFormat" xml:space="preserve">
+    <value>{0} installed</value>
+  </data>
+  <data name="Status_ResourcePackInstallFailed" xml:space="preserve">
+    <value>Resource pack installation failed</value>
+  </data>
+  <data name="Status_ResourcePackDownloadedFormat" xml:space="preserve">
+    <value>{0} downloaded</value>
+  </data>
+  <data name="Status_ResourcePackDownloadFailed" xml:space="preserve">
+    <value>Failed to download resource pack.</value>
+  </data>
+  <data name="Status_ShaderPackDownloading" xml:space="preserve">
+    <value>Downloading shader pack...</value>
+  </data>
+  <data name="Status_ShaderPackDownloadingFormat" xml:space="preserve">
+    <value>Downloading {0}</value>
+  </data>
+  <data name="Status_ShaderPackInstalledFormat" xml:space="preserve">
+    <value>{0} installed</value>
+  </data>
+  <data name="Status_ShaderPackInstallFailed" xml:space="preserve">
+    <value>Shader pack installation failed</value>
+  </data>
+  <data name="Status_ShaderPackDownloadedFormat" xml:space="preserve">
+    <value>{0} downloaded</value>
+  </data>
+  <data name="Status_ShaderPackDownloadFailed" xml:space="preserve">
+    <value>Failed to download shader pack.</value>
+  </data>
+  <data name="Status_WorldDownloading" xml:space="preserve">
+    <value>Downloading world...</value>
+  </data>
+  <data name="Status_WorldDownloadingFormat" xml:space="preserve">
+    <value>Downloading {0}</value>
+  </data>
+  <data name="Status_WorldInstalledFormat" xml:space="preserve">
+    <value>{0} installed</value>
+  </data>
+  <data name="Status_WorldInstallFailed" xml:space="preserve">
+    <value>World installation failed</value>
+  </data>
+  <data name="Status_WorldDownloadedFormat" xml:space="preserve">
+    <value>{0} downloaded</value>
+  </data>
+  <data name="Status_WorldDownloadFailed" xml:space="preserve">
+    <value>Failed to download world.</value>
+  </data>
+  <data name="Status_SettingsSaved" xml:space="preserve">
+    <value>Launcher settings saved</value>
+  </data>
+  <data name="Status_SettingsSaveFailed" xml:space="preserve">
+    <value>Failed to save launcher settings. Please try again later.</value>
+  </data>
+  <data name="Status_JavaScanFailed" xml:space="preserve">
+    <value>Failed to scan local Java runtimes. Please try again later.</value>
+  </data>
+  <data name="Status_JavaImported" xml:space="preserve">
+    <value>Java runtime imported.</value>
+  </data>
+  <data name="Status_JavaAlreadyExists" xml:space="preserve">
+    <value>This Java runtime already exists</value>
+  </data>
+  <data name="Status_JavaImportFailed" xml:space="preserve">
+    <value>Failed to import Java. Make sure the selected file is a Java executable.</value>
+  </data>
+  <data name="Status_JavaSelectionFailed" xml:space="preserve">
+    <value>Java selection is unavailable. Check Java settings in global settings.</value>
+  </data>
+  <data name="Status_InstanceSettingsSaved" xml:space="preserve">
+    <value>Game settings saved</value>
+  </data>
+  <data name="Status_DefaultInstanceSetFormat" xml:space="preserve">
+    <value>{0} set as the default game</value>
+  </data>
+  <data name="Status_LoadInstancesFailed" xml:space="preserve">
+    <value>Failed to load games. Please try again later.</value>
+  </data>
+  <data name="Status_LoadVersionsFailed" xml:space="preserve">
+    <value>Failed to load the version list. Please try again later.</value>
+  </data>
+  <data name="Status_UnimplementedCategory" xml:space="preserve">
+    <value>This category will be available later.</value>
+  </data>
+  <data name="Status_NoCategoryVersionsFormat" xml:space="preserve">
+    <value>No {0} versions found.</value>
+  </data>
+  <data name="Status_NoMatchingVersions" xml:space="preserve">
+    <value>No matching versions found.</value>
+  </data>
+  <data name="Status_DuplicateInstanceName" xml:space="preserve">
+    <value>An instance with this name already exists.</value>
+  </data>
+  <data name="Status_InstallQueued" xml:space="preserve">
+    <value>Waiting for other installation tasks...</value>
+  </data>
+  <data name="Status_InstallStartingDownload" xml:space="preserve">
+    <value>Starting download</value>
+  </data>
+  <data name="Status_InstallPreparing" xml:space="preserve">
+    <value>Preparing installation...</value>
+  </data>
+  <data name="Status_InstallCheckingFiles" xml:space="preserve">
+    <value>Checking game files...</value>
+  </data>
+  <data name="Status_InstallDownloadingFiles" xml:space="preserve">
+    <value>Downloading game files...</value>
+  </data>
+  <data name="Status_InstallDownloadingLoaderInstaller" xml:space="preserve">
+    <value>Downloading loader installer...</value>
+  </data>
+  <data name="Status_InstallRunningLoaderInstaller" xml:space="preserve">
+    <value>Running loader installer...</value>
+  </data>
+  <data name="Status_InstallFinalizingVersion" xml:space="preserve">
+    <value>Finalizing version files...</value>
+  </data>
+  <data name="Status_InstallCompletingFiles" xml:space="preserve">
+    <value>Completing loader file processing...</value>
+  </data>
+  <data name="Status_InstallingVanillaFormat" xml:space="preserve">
+    <value>Installing Vanilla {0}...</value>
+  </data>
+  <data name="Status_InstallingLoaderFormat" xml:space="preserve">
+    <value>Installing {0} {1}...</value>
+  </data>
+  <data name="Status_InstanceInstalledFormat" xml:space="preserve">
+    <value>Game {0} installed</value>
+  </data>
+  <data name="Status_InstallFailed" xml:space="preserve">
+    <value>Installation failed. Please try again later.</value>
+  </data>
+  <data name="Status_ModpackPreparingArchive" xml:space="preserve">
+    <value>Preparing modpack file</value>
+  </data>
+  <data name="Status_ModpackParsingManifest" xml:space="preserve">
+    <value>Parsing modpack manifest</value>
+  </data>
+  <data name="Status_ModpackResolvingFiles" xml:space="preserve">
+    <value>Resolving modpack files</value>
+  </data>
+  <data name="Status_ModpackResolvingFilesFormat" xml:space="preserve">
+    <value>Resolving modpack files ({0})</value>
+  </data>
+  <data name="Status_ModpackCreatingInstance" xml:space="preserve">
+    <value>Creating game instance</value>
+  </data>
+  <data name="Status_ModpackInstallingMinecraftBase" xml:space="preserve">
+    <value>Installing Minecraft base files</value>
+  </data>
+  <data name="Status_ModpackInstallingLoader" xml:space="preserve">
+    <value>Installing loader</value>
+  </data>
+  <data name="Status_ModpackDownloadingFiles" xml:space="preserve">
+    <value>Downloading modpack files</value>
+  </data>
+  <data name="Status_ModpackDownloadingFileFormat" xml:space="preserve">
+    <value>Downloading {0}</value>
+  </data>
+  <data name="Status_ModpackDownloading" xml:space="preserve">
+    <value>Downloading modpack...</value>
+  </data>
+  <data name="Status_ModpackDownloadingFormat" xml:space="preserve">
+    <value>Downloading {0}</value>
+  </data>
+  <data name="Status_ModpackDownloadedFormat" xml:space="preserve">
+    <value>{0} downloaded</value>
+  </data>
+  <data name="Status_ModpackDownloadFailed" xml:space="preserve">
+    <value>Failed to download modpack.</value>
+  </data>
+  <data name="Status_ModpackCopyingOverrides" xml:space="preserve">
+    <value>Copying modpack overrides</value>
+  </data>
+  <data name="Status_ModpackCleaningUp" xml:space="preserve">
+    <value>Cleaning up import files</value>
+  </data>
+  <data name="Status_ModpackImportedFormat" xml:space="preserve">
+    <value>{0} imported</value>
+  </data>
+  <data name="Status_ModpackInvalidArchive" xml:space="preserve">
+    <value>The modpack format is unsupported or the file is corrupted</value>
+  </data>
+  <data name="Status_ModpackUnsupportedLoader" xml:space="preserve">
+    <value>Only Vanilla, Fabric, Forge, NeoForge, and Quilt modpacks are supported</value>
+  </data>
+  <data name="Status_ModpackMissingCurseForgeApiKey" xml:space="preserve">
+    <value>No CurseForge API Key configured</value>
+  </data>
+  <data name="Status_ModpackHashMismatch" xml:space="preserve">
+    <value>Modpack file verification failed</value>
+  </data>
+  <data name="Status_ModpackInstalling" xml:space="preserve">
+    <value>Installing</value>
+  </data>
+  <data name="Status_ModpackImportFailed" xml:space="preserve">
+    <value>Failed to import modpack</value>
+  </data>
+  <data name="Status_LoaderInstallPending" xml:space="preserve">
+    <value>This loader will be installable in a future version.</value>
+  </data>
+  <data name="Status_FabricLoaderVersionsLoadFailed" xml:space="preserve">
+    <value>Failed to load Fabric versions. Please try again later.</value>
+  </data>
+  <data name="Status_LoaderVersionsLoadFailedFormat" xml:space="preserve">
+    <value>Failed to load {0} versions. Please try again later.</value>
+  </data>
+  <data name="Status_FabricApiVersionsLoadFailed" xml:space="preserve">
+    <value>Failed to load Fabric API versions; it will not be installed.</value>
+  </data>
+  <data name="Status_QuiltLibraryVersionsLoadFailed" xml:space="preserve">
+    <value>Failed to load QFAPI / QSL versions; it will not be installed.</value>
+  </data>
+  <data name="Status_OpeningMicrosoftLogin" xml:space="preserve">
+    <value>Opening the Microsoft sign-in page...</value>
+  </data>
+  <data name="Status_LoginMicrosoftActive" xml:space="preserve">
+    <value>Waiting for Microsoft sign-in to complete.</value>
+  </data>
+  <data name="Status_LoginMissingProfile" xml:space="preserve">
+    <value>Microsoft sign-in failed: Minecraft Java profile was not found</value>
+  </data>
+  <data name="Status_LoginAccountAlreadyAddedFormat" xml:space="preserve">
+    <value>Microsoft account {0} has already been added and is now selected</value>
+  </data>
+  <data name="Status_LoginAccountAddedFormat" xml:space="preserve">
+    <value>Added Microsoft account {0}</value>
+  </data>
+  <data name="Status_LoginCanceled" xml:space="preserve">
+    <value>Microsoft sign-in canceled</value>
+  </data>
+  <data name="Status_LoginFailed" xml:space="preserve">
+    <value>Microsoft sign-in failed. Please try again later.</value>
+  </data>
+  <data name="Status_OfflineAccountAddedFormat" xml:space="preserve">
+    <value>Added offline account {0}</value>
+  </data>
+  <data name="Status_OfflineUuidModeChangedFormat" xml:space="preserve">
+    <value>Offline UUID mode changed to {0}</value>
+  </data>
+  <data name="Status_OfflineUuidModeChangeFailed" xml:space="preserve">
+    <value>Failed to change offline UUID mode. Please try again later.</value>
+  </data>
+  <data name="Status_OfflineUuidInvalid" xml:space="preserve">
+    <value>Invalid UUID format. Check it and try again.</value>
+  </data>
+  <data name="Status_OfflineUuidApplied" xml:space="preserve">
+    <value>Offline UUID applied.</value>
+  </data>
+  <data name="Status_AccountDeletedFormat" xml:space="preserve">
+    <value>Deleted account {0}</value>
+  </data>
+  <data name="Status_AccountDeletedCacheCleanupFailedFormat" xml:space="preserve">
+    <value>Deleted account {0} from the list, but failed to clear sign-in cache.</value>
+  </data>
+  <data name="Status_AccountNameUnchanged" xml:space="preserve">
+    <value>Account name is unchanged</value>
+  </data>
+  <data name="Status_SavingOfflineAccountName" xml:space="preserve">
+    <value>Saving offline account name...</value>
+  </data>
+  <data name="Status_ChangingMicrosoftAccountName" xml:space="preserve">
+    <value>Changing Microsoft account name online...</value>
+  </data>
+  <data name="Status_AccountRenamedFormat" xml:space="preserve">
+    <value>Changed account name to {0}</value>
+  </data>
+  <data name="Status_AccountRenameResultFormat" xml:space="preserve">
+    <value>Account name changed to {0}</value>
+  </data>
+  <data name="Status_AccountRenameFailed" xml:space="preserve">
+    <value>Failed to change account name. Please try again later.</value>
+  </data>
+  <data name="Status_AccountRenameFailedDuplicateName" xml:space="preserve">
+    <value>Failed to change account name: this username is already taken.</value>
+  </data>
+  <data name="Status_AccountRenameFailedNotAllowed" xml:space="preserve">
+    <value>Failed to change account name: this account cannot be renamed yet, likely because the 30-day cooldown has not ended.</value>
+  </data>
+  <data name="Status_AccountRenameFailedInvalidName" xml:space="preserve">
+    <value>Failed to change account name: username format does not meet Minecraft rules.</value>
+  </data>
+  <data name="Status_RefreshingAccountProfile" xml:space="preserve">
+    <value>Refreshing Microsoft account profile...</value>
+  </data>
+  <data name="Status_AccountProfileRefreshed" xml:space="preserve">
+    <value>Microsoft account profile refreshed</value>
+  </data>
+  <data name="Status_AccountProfileRefreshFailed" xml:space="preserve">
+    <value>Failed to refresh Microsoft account profile. Please try again later.</value>
+  </data>
+  <data name="Status_AccountProfileRefreshTooFrequent" xml:space="preserve">
+    <value>Refreshing too often. Try again later.</value>
+  </data>
+  <data name="Status_AccountProfileRefreshOfflineUnsupported" xml:space="preserve">
+    <value>Only Microsoft accounts can refresh profile data</value>
+  </data>
+  <data name="Status_ErrorCodeFormat" xml:space="preserve">
+    <value>Return code: {0}</value>
+  </data>
+  <data name="Status_SkinOfflineUnsupported" xml:space="preserve">
+    <value>Only Microsoft accounts can change skins</value>
+  </data>
+  <data name="Status_AddingSkin" xml:space="preserve">
+    <value>Adding skin...</value>
+  </data>
+  <data name="Status_SkinAdded" xml:space="preserve">
+    <value>Skin added. Click Apply to sync it to the official site.</value>
+  </data>
+  <data name="Status_UploadingSkin" xml:space="preserve">
+    <value>Uploading skin...</value>
+  </data>
+  <data name="Status_SkinUpdated" xml:space="preserve">
+    <value>Skin updated</value>
+  </data>
+  <data name="Status_SkinModelChanged" xml:space="preserve">
+    <value>Skin model changed. Click Apply to sync it to the official site.</value>
+  </data>
+  <data name="Status_SkinDeleted" xml:space="preserve">
+    <value>Skin deleted</value>
+  </data>
+  <data name="Status_SkinDeleteFailed" xml:space="preserve">
+    <value>Failed to delete skin. Please try again later.</value>
+  </data>
+  <data name="Status_SkinUpdateFailed" xml:space="preserve">
+    <value>Failed to change skin. Please try again later.</value>
+  </data>
+  <data name="Status_CapeOfflineUnsupported" xml:space="preserve">
+    <value>Only Microsoft accounts can change capes</value>
+  </data>
+  <data name="Status_ChangingCape" xml:space="preserve">
+    <value>Changing cape...</value>
+  </data>
+  <data name="Status_CapeRemoved" xml:space="preserve">
+    <value>Removed current cape</value>
+  </data>
+  <data name="Status_CapeChangedFormat" xml:space="preserve">
+    <value>Changed cape: {0}</value>
+  </data>
+  <data name="Status_CapeChangeFailed" xml:space="preserve">
+    <value>Failed to change cape. Please try again later.</value>
+  </data>
+  <data name="Status_LoadingAccountProfile" xml:space="preserve">
+    <value>Loading Microsoft account profile...</value>
+  </data>
+  <data name="Status_LoadAccountProfileFailed" xml:space="preserve">
+    <value>Failed to load Microsoft account profile. Please try again later.</value>
+  </data>
+  <data name="FilePicker_MinecraftSkinTitle" xml:space="preserve">
+    <value>Choose Minecraft Skin</value>
+  </data>
+  <data name="FilePicker_MinecraftSkinFilter" xml:space="preserve">
+    <value>PNG Skin (*.png)|*.png</value>
+  </data>
+  <data name="FilePicker_JavaExecutableTitle" xml:space="preserve">
+    <value>Choose Java Executable</value>
+  </data>
+  <data name="FilePicker_JavaExecutableFilter" xml:space="preserve">
+    <value>Java executable (java.exe;java)|java.exe;java|All files (*.*)|*.*</value>
+  </data>
+  <data name="FilePicker_LocalImportFileTitle" xml:space="preserve">
+    <value>Choose Local Game or Modpack File</value>
+  </data>
+  <data name="FilePicker_LocalImportFileFilter" xml:space="preserve">
+    <value>Modpack (*.mrpack;*.zip)|*.mrpack;*.zip|Modrinth modpack (*.mrpack)|*.mrpack|CurseForge modpack (*.zip)|*.zip|All files (*.*)|*.*</value>
+  </data>
+  <data name="GameSettings_DeleteInstanceTooltip" xml:space="preserve">
+    <value>Delete game</value>
+  </data>
+  <data name="GameSettings_OpenInstanceFolderTooltip" xml:space="preserve">
+    <value>Open instance folder</value>
+  </data>
+  <data name="GameSettings_SelectInstanceAndGoHomeTooltip" xml:space="preserve">
+    <value>Select and return home</value>
+  </data>
+  <data name="Dialog_DeleteInstanceTitle" xml:space="preserve">
+    <value>Delete Game</value>
+  </data>
+  <data name="Dialog_DeleteInstanceMessageFormat" xml:space="preserve">
+    <value>Delete version "{0}"?</value>
+  </data>
+  <data name="Status_InstanceDeletedFormat" xml:space="preserve">
+    <value>Deleted version {0}</value>
+  </data>
+  <data name="Status_DeleteInstanceFailed" xml:space="preserve">
+    <value>Failed to delete version. Please try again later.</value>
+  </data>
+  <data name="Status_InstanceFolderNotFound" xml:space="preserve">
+    <value>Instance folder not found.</value>
+  </data>
+  <data name="Status_OpenInstanceFolderFailed" xml:space="preserve">
+    <value>Failed to open the instance folder.</value>
+  </data>
+  <data name="Status_OpenLaunchLogFolderFailed" xml:space="preserve">
+    <value>Failed to open the launch log folder.</value>
+  </data>
+  <data name="Status_OpenGithubRepositoryFailed" xml:space="preserve">
+    <value>Failed to open the GitHub repository.</value>
+  </data>
+  <data name="Status_OpenReferenceProjectFailed" xml:space="preserve">
+    <value>Failed to open the reference project.</value>
+  </data>
+  <data name="Status_UpdateCheckUnavailable" xml:space="preserve">
+    <value>Update checking is currently unavailable.</value>
+  </data>
+  <data name="GameSettings_UnknownMinecraftVersion" xml:space="preserve">
+    <value>Unknown Minecraft version</value>
+  </data>
+  <data name="GameSettings_DetailsPlaceholderHeader" xml:space="preserve">
+    <value>Detailed Settings</value>
+  </data>
+  <data name="GameSettings_DetailsPlaceholderBody" xml:space="preserve">
+    <value>More detailed settings for this version will be added here. More editable options will be added next.</value>
+  </data>
+  <data name="GameSettings_DetailPlaceholderBodyFormat" xml:space="preserve">
+    <value>More settings related to "{0}" will be added here. Editable options will be added next.</value>
+  </data>
+  <data name="GameSettings_GeneralDescriptionSection" xml:space="preserve">
+    <value>Description</value>
+  </data>
+  <data name="GameSettings_GeneralSaveDescriptionButton" xml:space="preserve">
+    <value>Save Description</value>
+  </data>
+  <data name="GameSettings_GeneralInstanceDirectorySection" xml:space="preserve">
+    <value>Instance Folder</value>
+  </data>
+  <data name="GameSettings_GeneralOpenInstanceDirectoryButton" xml:space="preserve">
+    <value>Open Instance Folder</value>
+  </data>
+  <data name="GameSettings_GeneralCreatedAtSection" xml:space="preserve">
+    <value>Created At</value>
+  </data>
+  <data name="GameSettings_DeleteGameButton" xml:space="preserve">
+    <value>Delete Game</value>
+  </data>
+  <data name="GameSettings_BackupInfoSection" xml:space="preserve">
+    <value>Backup Info</value>
+  </data>
+  <data name="GameSettings_BackupListSection" xml:space="preserve">
+    <value>Backup List</value>
+  </data>
+  <data name="GameSettings_BackupInfoSummaryFormat" xml:space="preserve">
+    <value>This game has {0} backups</value>
+  </data>
+  <data name="GameSettings_BackupDirectorySection" xml:space="preserve">
+    <value>Backup Folder</value>
+  </data>
+  <data name="GameSettings_BackupDirectoryNotSelected" xml:space="preserve">
+    <value>No backup folder selected</value>
+  </data>
+  <data name="GameSettings_BackupActionsLabel" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="GameSettings_BackupOpenFolderButton" xml:space="preserve">
+    <value>Open Folder</value>
+  </data>
+  <data name="GameSettings_BackupChangeDirectoryButton" xml:space="preserve">
+    <value>Change Folder</value>
+  </data>
+  <data name="GameSettings_BackupCreateNowButton" xml:space="preserve">
+    <value>Create Backup</value>
+  </data>
+  <data name="GameSettings_BackupMultiSelectButton" xml:space="preserve">
+    <value>Select Multiple</value>
+  </data>
+  <data name="GameSettings_BackupCancelMultiSelectButton" xml:space="preserve">
+    <value>Cancel Selection</value>
+  </data>
+  <data name="GameSettings_BackupSelectAllButton" xml:space="preserve">
+    <value>Select All</value>
+  </data>
+  <data name="GameSettings_BackupCancelSelectAllButton" xml:space="preserve">
+    <value>Clear Selection</value>
+  </data>
+  <data name="GameSettings_BackupDeleteButton" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="GameSettings_BackupDefaultNameFormat" xml:space="preserve">
+    <value>Backup {0}</value>
+  </data>
+  <data name="GameSettings_BackupItemSubtitleFormat" xml:space="preserve">
+    <value>{0} - {1:0.##} MB</value>
+  </data>
+  <data name="GameSettings_BackupLoading" xml:space="preserve">
+    <value>Loading backups...</value>
+  </data>
+  <data name="GameSettings_BackupEmpty" xml:space="preserve">
+    <value>No backups yet</value>
+  </data>
+  <data name="GameSettings_BackupSearchEmpty" xml:space="preserve">
+    <value>No matching backups found</value>
+  </data>
+  <data name="GameSettings_BackupOpenLocationTooltip" xml:space="preserve">
+    <value>Open backup location</value>
+  </data>
+  <data name="GameSettings_BackupRestoreTooltip" xml:space="preserve">
+    <value>Restore backup</value>
+  </data>
+  <data name="GameSettings_BackupRestoreUnavailableTooltip" xml:space="preserve">
+    <value>This backup cannot be restored</value>
+  </data>
+  <data name="GameSettings_BackupPreRestoreNameFormat" xml:space="preserve">
+    <value>Pre-restore backup {0}</value>
+  </data>
+  <data name="GameSettings_ModManagementInfoSection" xml:space="preserve">
+    <value>Mod Overview</value>
+  </data>
+  <data name="GameSettings_ModManagementInstalledSummaryFormat" xml:space="preserve">
+    <value>This game has {0} mods installed, {1} enabled</value>
+  </data>
+  <data name="GameSettings_ModManagementActionsLabel" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="GameSettings_ModManagementFilterLabel" xml:space="preserve">
+    <value>Mod List</value>
+  </data>
+  <data name="GameSettings_ModManagementFilterAllButton" xml:space="preserve">
+    <value>All</value>
+  </data>
+  <data name="GameSettings_ModManagementFilterEnabledButton" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="GameSettings_ModManagementFilterDisabledButton" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="GameSettings_ModManagementOpenFolderButton" xml:space="preserve">
+    <value>Open Folder</value>
+  </data>
+  <data name="GameSettings_ModManagementLocalImportButton" xml:space="preserve">
+    <value>Import Local File</value>
+  </data>
+  <data name="GameSettings_ModManagementOnlineInstallButton" xml:space="preserve">
+    <value>Install Online</value>
+  </data>
+  <data name="GameSettings_ModManagementEnableAllButton" xml:space="preserve">
+    <value>Enable All</value>
+  </data>
+  <data name="GameSettings_ModManagementDisableAllButton" xml:space="preserve">
+    <value>Disable All</value>
+  </data>
+  <data name="GameSettings_ModManagementModListSection" xml:space="preserve">
+    <value>Mod List</value>
+  </data>
+  <data name="GameSettings_ModManagementEnabledState" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="GameSettings_ModManagementDisabledState" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="GameSettings_LaunchSettingsSection" xml:space="preserve">
+    <value>Launch Settings</value>
+  </data>
+  <data name="GameSettings_LaunchSettingsModeLabel" xml:space="preserve">
+    <value>Settings Mode</value>
+  </data>
+  <data name="GameSettings_LaunchSettingsModeUseGlobal" xml:space="preserve">
+    <value>Use Global Settings</value>
+  </data>
+  <data name="GameSettings_LaunchSettingsModePerInstance" xml:space="preserve">
+    <value>Use Custom Settings</value>
+  </data>
+  <data name="GameSettings_LaunchCheckFilesOption" xml:space="preserve">
+    <value>Check files before launch</value>
+  </data>
+  <data name="GameSettings_LaunchAutoRepairOption" xml:space="preserve">
+    <value>Automatically repair missing files</value>
+  </data>
+  <data name="GameSettings_LaunchMinimizeLauncherOption" xml:space="preserve">
+    <value>Minimize launcher after launch</value>
+  </data>
+  <data name="GameSettings_LaunchFullScreenOption" xml:space="preserve">
+    <value>Start in fullscreen</value>
+  </data>
+  <data name="GameSettings_AdvancedLaunchSettingsSection" xml:space="preserve">
+    <value>Advanced Launch Settings</value>
+  </data>
+  <data name="GameSettings_PreLaunchCommandOption" xml:space="preserve">
+    <value>Command before launch</value>
+  </data>
+  <data name="GameSettings_WaitForPreLaunchCommandOption" xml:space="preserve">
+    <value>Wait for pre-launch command</value>
+  </data>
+  <data name="GameSettings_PostExitCommandOption" xml:space="preserve">
+    <value>Command after exit</value>
+  </data>
+  <data name="GameSettings_CustomJvmArgumentsOption" xml:space="preserve">
+    <value>Custom JVM Arguments</value>
+  </data>
+  <data name="GameSettings_CustomGameArgumentsOption" xml:space="preserve">
+    <value>Custom Game Arguments</value>
+  </data>
+  <data name="GameSettings_InstanceNameLabel" xml:space="preserve">
+    <value>Game Name</value>
+  </data>
+  <data name="GameSettings_InstanceIconLabel" xml:space="preserve">
+    <value>Game Icon</value>
+  </data>
+  <data name="GameSettings_InstanceNameValidation" xml:space="preserve">
+    <value>Enter a valid game name.</value>
+  </data>
+  <data name="GameSettings_IconGrassBlock" xml:space="preserve">
+    <value>Grass Block</value>
+  </data>
+  <data name="GameSettings_IconDirtBlock" xml:space="preserve">
+    <value>Dirt Block</value>
+  </data>
+  <data name="GameSettings_IconCraftingTable" xml:space="preserve">
+    <value>Crafting Table</value>
+  </data>
+  <data name="GameSettings_IconStoneBlock" xml:space="preserve">
+    <value>Stone Block</value>
+  </data>
+  <data name="GameSettings_IconFabric" xml:space="preserve">
+    <value>Fabric</value>
+  </data>
+  <data name="GameSettings_IconAnvil" xml:space="preserve">
+    <value>Anvil</value>
+  </data>
+  <data name="GameSettings_IconNeoForge" xml:space="preserve">
+    <value>NeoForge</value>
+  </data>
+  <data name="GameSettings_IconQuilt" xml:space="preserve">
+    <value>Quilt</value>
+  </data>
+  <data name="GameSettings_IconDiamondBlock" xml:space="preserve">
+    <value>Diamond Block</value>
+  </data>
+  <data name="GameSettings_IconBeacon" xml:space="preserve">
+    <value>Beacon</value>
+  </data>
+  <data name="GameSettings_IconFurnace" xml:space="preserve">
+    <value>Furnace</value>
+  </data>
+  <data name="GameSettings_IconTnt" xml:space="preserve">
+    <value>TNT</value>
+  </data>
+  <data name="Dialog_RenameInstanceTitle" xml:space="preserve">
+    <value>Rename Game</value>
+  </data>
+  <data name="Dialog_RenameInstanceSubtitle" xml:space="preserve">
+    <value>Change the name and icon of the current instance.</value>
+  </data>
+  <data name="Dialog_RenameInstanceBusyTitle" xml:space="preserve">
+    <value>Renaming Game</value>
+  </data>
+  <data name="Dialog_RenameInstanceBusySubtitle" xml:space="preserve">
+    <value>Updating the version folder and configuration. Please wait.</value>
+  </data>
+  <data name="Dialog_RenameInstanceSuccessTitle" xml:space="preserve">
+    <value>Renamed</value>
+  </data>
+  <data name="Dialog_RenameInstanceFailedTitle" xml:space="preserve">
+    <value>Rename Failed</value>
+  </data>
+  <data name="Dialog_RenameInstanceResultSubtitle" xml:space="preserve">
+    <value>Click OK to return to version details.</value>
+  </data>
+  <data name="Dialog_CreateBackupTitle" xml:space="preserve">
+    <value>Create Backup</value>
+  </data>
+  <data name="Dialog_CreateBackupSubtitle" xml:space="preserve">
+    <value>Enter a name for this backup.</value>
+  </data>
+  <data name="Dialog_CreateBackupNameLabel" xml:space="preserve">
+    <value>Backup Name</value>
+  </data>
+  <data name="Dialog_CreateBackupNameValidation" xml:space="preserve">
+    <value>Enter a backup name.</value>
+  </data>
+  <data name="Dialog_BackupCreateFailedTitle" xml:space="preserve">
+    <value>Backup Failed</value>
+  </data>
+  <data name="Dialog_BackupCreateFailedMessageFormat" xml:space="preserve">
+    <value>{0}
+
+Exception summary: {1}</value>
+  </data>
+  <data name="Dialog_DeleteBackupTitle" xml:space="preserve">
+    <value>Delete Backup</value>
+  </data>
+  <data name="Dialog_DeleteBackupMessageFormat" xml:space="preserve">
+    <value>Delete backup "{0}"? This cannot be undone.</value>
+  </data>
+  <data name="Dialog_DeleteMultipleBackupsMessageFormat" xml:space="preserve">
+    <value>Delete these {0} backups? This cannot be undone.</value>
+  </data>
+  <data name="Dialog_RestoreBackupTitle" xml:space="preserve">
+    <value>Restore Backup</value>
+  </data>
+  <data name="Dialog_RestoreBackupMessageFormat" xml:space="preserve">
+    <value>Restore backup "{0}"?
+
+The current game folder will be backed up first.</value>
+  </data>
+  <data name="BackupFailure_BackupDirectoryInsideInstance" xml:space="preserve">
+    <value>The backup folder cannot be inside the instance folder. Choose a folder outside the instance folder.</value>
+  </data>
+  <data name="BackupFailure_InstanceDirectoryMissing" xml:space="preserve">
+    <value>The current instance folder does not exist, so a backup cannot be created.</value>
+  </data>
+  <data name="BackupFailure_Generic" xml:space="preserve">
+    <value>A problem occurred while creating the backup. Please try again later.</value>
+  </data>
+  <data name="Status_RenamingInstance" xml:space="preserve">
+    <value>Renaming game...</value>
+  </data>
+  <data name="Status_InstanceRenamedFormat" xml:space="preserve">
+    <value>Renamed version to {0}</value>
+  </data>
+  <data name="Status_InstanceRenameResultFormat" xml:space="preserve">
+    <value>Version renamed to {0}</value>
+  </data>
+  <data name="Status_InstanceRenameFailed" xml:space="preserve">
+    <value>Failed to rename version. Please try again later.</value>
+  </data>
+  <data name="Status_InstanceRenameUnchanged" xml:space="preserve">
+    <value>The version name and icon have not changed.</value>
+  </data>
+  <data name="Status_InstanceSettingsSaveFailed" xml:space="preserve">
+    <value>Failed to save game settings. Please try again later.</value>
+  </data>
+  <data name="Dialog_JavaRequirementNotMetTitle" xml:space="preserve">
+    <value>Java Version Required</value>
+  </data>
+  <data name="Dialog_JavaRequirementNotMetMessage" xml:space="preserve">
+    <value>Automatic Java selection could not find a Java runtime that meets this version requirement. Refresh or import a suitable Java runtime in Settings before launching.</value>
+  </data>
+  <data name="Dialog_JavaRequirementNotMetMessageFormat" xml:space="preserve">
+    <value>Automatic Java selection could not find a Java runtime that meets this version requirement. This version requires at least Java {0}. Refresh or import a suitable Java runtime in Settings before launching.</value>
+  </data>
+  <data name="Dialog_JavaRuntimeMissingTitle" xml:space="preserve">
+    <value>Java Runtime Missing</value>
+  </data>
+  <data name="Dialog_JavaRuntimeMissingMessage" xml:space="preserve">
+    <value>Automatic Java selection could not find any usable local Java runtime. Refresh or import a suitable Java runtime in Settings before launching.</value>
+  </data>
+  <data name="Dialog_JavaRuntimeMissingMessageFormat" xml:space="preserve">
+    <value>Automatic Java selection could not find any local Java runtime. This version requires at least Java {0}. Refresh or import a suitable Java runtime in Settings before launching.</value>
+  </data>
+  <data name="Dialog_JavaManualVersionTooLowTitle" xml:space="preserve">
+    <value>Selected Java Is Too Old</value>
+  </data>
+  <data name="Dialog_JavaManualVersionTooLowMessageFormat" xml:space="preserve">
+    <value>"{0}" requires at least Java {1}, but the manually selected runtime is Java {2}. Choose a suitable Java runtime in Settings; you can force launch, but the game may still exit abnormally.</value>
+  </data>
+  <data name="Dialog_GoToSettingsButton" xml:space="preserve">
+    <value>Go to Settings</value>
+  </data>
+  <data name="Dialog_ForceLaunchButton" xml:space="preserve">
+    <value>Force Launch</value>
+  </data>
+  <data name="Dialog_CancelLaunchButton" xml:space="preserve">
+    <value>Cancel Launch</value>
+  </data>
+  <data name="Dialog_LaunchStatusFailedTitle" xml:space="preserve">
+    <value>Launch Failed</value>
+  </data>
+  <data name="Dialog_LaunchStatusExitedTitle" xml:space="preserve">
+    <value>Game Exited</value>
+  </data>
+  <data name="Dialog_LaunchStatusRuntimeFailedTitle" xml:space="preserve">
+    <value>Game Exited Abnormally</value>
+  </data>
+  <data name="Dialog_LaunchStatusMessageFormat" xml:space="preserve">
+    <value>"{0}": {1}</value>
+  </data>
+  <data name="Dialog_LaunchStatusStartupFailedMessage" xml:space="preserve">
+    <value>The launcher could not complete the game launch preparation.</value>
+  </data>
+  <data name="Dialog_LaunchStatusStartupExitedMessage" xml:space="preserve">
+    <value>The game exited during startup.</value>
+  </data>
+  <data name="Dialog_LaunchStatusStartupAbnormalMessage" xml:space="preserve">
+    <value>The game process exited abnormally during startup. Exit code: {0}.</value>
+  </data>
+  <data name="Dialog_LaunchStatusRuntimeAbnormalMessage" xml:space="preserve">
+    <value>The game process exited abnormally while running. Exit code: {0}.</value>
+  </data>
+  <data name="Dialog_LaunchStatusUnknownExitCode" xml:space="preserve">
+    <value>Unknown</value>
+  </data>
+  <data name="Dialog_LaunchStatusDiagnosticFileHint" xml:space="preserve">
+    <value>A launch diagnostic log has been generated. Open the log folder for details.</value>
+  </data>
+  <data name="Dialog_LaunchStatusDiagnosticDirectoryHint" xml:space="preserve">
+    <value>Open the log folder to view latest.log and crash reports.</value>
+  </data>
+  <data name="Dialog_OpenLaunchLogFolderButton" xml:space="preserve">
+    <value>Open Log Folder</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisCurrentInstance" xml:space="preserve">
+    <value>Current Game</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisUnknownTitle" xml:space="preserve">
+    <value>Possible Cause</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisUnknownDetail" xml:space="preserve">
+    <value>The launcher could not identify the exact cause from the current logs.</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisUnknownRecommendation" xml:space="preserve">
+    <value>Open the log folder for details.</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisJavaVersionTitle" xml:space="preserve">
+    <value>Java Version Mismatch</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisJavaVersionDetailFormat" xml:space="preserve">
+    <value>{0} requires Java {1} or later, but this instance is using Java {2}.</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisJavaVersionRecommendationFormat" xml:space="preserve">
+    <value>Import or select Java {0} or later in Settings, then launch this game again.</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisModDependencyTitle" xml:space="preserve">
+    <value>Missing Mod Dependency</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisModDependencyDetailFormat" xml:space="preserve">
+    <value>{0} requires dependency {1}, but it was not found in this instance.</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisModDependencyDetail" xml:space="preserve">
+    <value>A required mod dependency is missing.</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisModDependencyRecommendation" xml:space="preserve">
+    <value>Install the missing dependency according to the logs, or remove the mod with incomplete dependencies.</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisModVersionTitle" xml:space="preserve">
+    <value>Mod Version Conflict</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisModVersionDetail" xml:space="preserve">
+    <value>Some mods in this instance are not compatible with Minecraft, the loader, or other mod versions.</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisModVersionRecommendation" xml:space="preserve">
+    <value>Check whether the mods match the current Minecraft and loader versions. Update or remove conflicting mods if needed.</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisMissingFilesTitle" xml:space="preserve">
+    <value>Missing Game Files</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisMissingFilesDetail" xml:space="preserve">
+    <value>Critical game files, libraries, or launch targets are missing during startup.</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisMissingClasspathEntryDetailFormat" xml:space="preserve">
+    <value>The launch command references a missing file: {0}</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisMissingClientJarDetailFormat" xml:space="preserve">
+    <value>This instance is missing the client jar file: {0}</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisMissingFilesRecommendation" xml:space="preserve">
+    <value>Enable pre-launch file checking and try again, or reinstall this instance.</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisOutOfMemoryTitle" xml:space="preserve">
+    <value>Out of Memory</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisOutOfMemoryDetail" xml:space="preserve">
+    <value>The Java virtual machine ran out of memory during startup or runtime.</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisOutOfMemoryRecommendation" xml:space="preserve">
+    <value>Increase the allocated memory in launch settings, or reduce resource packs, shaders, and large mods.</value>
+  </data>
+  <data name="Settings_GeneralFilesAndDirectoriesSection" xml:space="preserve">
+    <value>Files and Directories</value>
+  </data>
+  <data name="Settings_MinecraftDirectoryItemTitle" xml:space="preserve">
+    <value>.minecraft Folder</value>
+  </data>
+  <data name="Settings_MinecraftDirectoryDescription" xml:space="preserve">
+    <value>This controls where the launcher scans instances, versions, and related game files.</value>
+  </data>
+  <data name="Settings_OpenMinecraftDirectoryButton" xml:space="preserve">
+    <value>Open Folder</value>
+  </data>
+  <data name="Settings_ChangeMinecraftDirectoryButton" xml:space="preserve">
+    <value>Change Folder</value>
+  </data>
+  <data name="Status_OpenMinecraftDirectoryFailed" xml:space="preserve">
+    <value>Failed to open the Minecraft folder.</value>
+  </data>
+  <data name="Status_MinecraftDirectoryChanged" xml:space="preserve">
+    <value>Minecraft folder changed.</value>
+  </data>
+  <data name="Status_MinecraftDirectoryChangeFailed" xml:space="preserve">
+    <value>Failed to change Minecraft folder.</value>
+  </data>
+  <data name="Status_OpenBackupDirectoryFailed" xml:space="preserve">
+    <value>Failed to open the backup folder.</value>
+  </data>
+  <data name="Status_BackupDirectoryChanged" xml:space="preserve">
+    <value>Backup folder changed.</value>
+  </data>
+  <data name="Status_BackupDirectoryChangeFailed" xml:space="preserve">
+    <value>Failed to change backup folder.</value>
+  </data>
+  <data name="Status_BackupCreating" xml:space="preserve">
+    <value>Creating backup...</value>
+  </data>
+  <data name="Status_BackupCreated" xml:space="preserve">
+    <value>Backup created.</value>
+  </data>
+  <data name="Status_LoadBackupsFailed" xml:space="preserve">
+    <value>Failed to load backups.</value>
+  </data>
+  <data name="Status_OpenBackupLocationFailed" xml:space="preserve">
+    <value>Failed to open backup location.</value>
+  </data>
+  <data name="Status_BackupDeleted" xml:space="preserve">
+    <value>Backup deleted.</value>
+  </data>
+  <data name="Status_BackupDeleteFailed" xml:space="preserve">
+    <value>Failed to delete backup.</value>
+  </data>
+  <data name="Status_SelectedBackupsDeletedFormat" xml:space="preserve">
+    <value>Deleted {0} backups</value>
+  </data>
+  <data name="Status_BackupRestoring" xml:space="preserve">
+    <value>Restoring backup...</value>
+  </data>
+  <data name="Status_BackupRestored" xml:space="preserve">
+    <value>Backup restored.</value>
+  </data>
+  <data name="Status_BackupRestoreFailed" xml:space="preserve">
+    <value>Failed to restore backup.</value>
+  </data>
+  <data name="FilePicker_MinecraftDirectoryTitle" xml:space="preserve">
+    <value>Choose .minecraft Folder</value>
+  </data>
+  <data name="FilePicker_BackupDirectoryTitle" xml:space="preserve">
+    <value>Choose Backup Folder</value>
+  </data>
+  <data name="Settings_LauncherLogDirectoryLabel" xml:space="preserve">
+    <value>Launcher Log Folder</value>
+  </data>
+  <data name="Settings_LauncherLogDirectoryDescription" xml:space="preserve">
+    <value>Launcher runtime logs and diagnostic logs are stored here.</value>
+  </data>
+  <data name="Settings_OpenLauncherLogDirectoryButton" xml:space="preserve">
+    <value>Open Folder</value>
+  </data>
+  <data name="Settings_DownloadSection" xml:space="preserve">
+    <value>Downloads</value>
+  </data>
+  <data name="Settings_DownloadSourceLabel" xml:space="preserve">
+    <value>Game Download Source</value>
+  </data>
+  <data name="Settings_DownloadSpeedLimitLabel" xml:space="preserve">
+    <value>Download Speed Limit</value>
+  </data>
+  <data name="Settings_DownloadSpeedLimitUnit" xml:space="preserve">
+    <value>MB/s</value>
+  </data>
+  <data name="Settings_DownloadSourceAuto" xml:space="preserve">
+    <value>Auto</value>
+  </data>
+  <data name="Settings_DownloadSourceOfficial" xml:space="preserve">
+    <value>Official Source</value>
+  </data>
+  <data name="Settings_DownloadSourceBmclApi" xml:space="preserve">
+    <value>BMCLAPI Mirror</value>
+  </data>
+  <data name="Settings_LanguageSection" xml:space="preserve">
+    <value>Launcher Language</value>
+  </data>
+  <data name="Settings_LauncherLanguageLabel" xml:space="preserve">
+    <value>Launcher Language</value>
+  </data>
+  <data name="Settings_LanguageSimplifiedChinese" xml:space="preserve">
+    <value>Simplified Chinese</value>
+  </data>
+  <data name="Settings_AccentSection" xml:space="preserve">
+    <value>Accent Color</value>
+  </data>
+  <data name="Settings_AccentSelectionLabel" xml:space="preserve">
+    <value>Accent Color</value>
+  </data>
+  <data name="Settings_AccentColorBlueTitle" xml:space="preserve">
+    <value>Blue</value>
+  </data>
+  <data name="Settings_AccentColorCyanTitle" xml:space="preserve">
+    <value>Cyan</value>
+  </data>
+  <data name="Settings_AccentColorGreenTitle" xml:space="preserve">
+    <value>Green</value>
+  </data>
+  <data name="Settings_AccentColorEmeraldTitle" xml:space="preserve">
+    <value>Emerald</value>
+  </data>
+  <data name="Settings_AccentColorPurpleTitle" xml:space="preserve">
+    <value>Purple</value>
+  </data>
+  <data name="Settings_AccentColorPinkTitle" xml:space="preserve">
+    <value>Pink</value>
+  </data>
+  <data name="Settings_AccentColorOrangeTitle" xml:space="preserve">
+    <value>Orange</value>
+  </data>
+  <data name="Settings_AccentColorAmberTitle" xml:space="preserve">
+    <value>Amber</value>
+  </data>
+  <data name="GameSettings_ModManagementEmptyMessage" xml:space="preserve">
+    <value>No mods installed</value>
+  </data>
+  <data name="GameSettings_ModManagementLoading" xml:space="preserve">
+    <value>Loading mods...</value>
+  </data>
+  <data name="GameSettings_ModManagementSearchEmptyMessage" xml:space="preserve">
+    <value>No matching mods found</value>
+  </data>
+  <data name="Status_LoadLocalModsFailed" xml:space="preserve">
+    <value>Failed to load local mods.</value>
+  </data>
+  <data name="GameSettings_ModManagementMultiSelectButton" xml:space="preserve">
+    <value>Select Multiple</value>
+  </data>
+  <data name="GameSettings_ModManagementCancelMultiSelectButton" xml:space="preserve">
+    <value>Cancel Selection</value>
+  </data>
+  <data name="GameSettings_ModManagementSelectAllButton" xml:space="preserve">
+    <value>Select All</value>
+  </data>
+  <data name="GameSettings_ModManagementCancelSelectAllButton" xml:space="preserve">
+    <value>Clear Selection</value>
+  </data>
+  <data name="GameSettings_ModManagementEnableButton" xml:space="preserve">
+    <value>Enable</value>
+  </data>
+  <data name="GameSettings_ModManagementDisableButton" xml:space="preserve">
+    <value>Disable</value>
+  </data>
+  <data name="GameSettings_ModManagementDeleteButton" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Dialog_DeleteModsTitle" xml:space="preserve">
+    <value>Delete Mods</value>
+  </data>
+  <data name="Dialog_DeleteSingleModMessageFormat" xml:space="preserve">
+    <value>Delete mod "{0}"? This cannot be undone.</value>
+  </data>
+  <data name="Dialog_DeleteMultipleModsMessageFormat" xml:space="preserve">
+    <value>Delete these {0} mods? This cannot be undone.</value>
+  </data>
+  <data name="Status_SelectedModsEnabledFormat" xml:space="preserve">
+    <value>Enabled {0} mods</value>
+  </data>
+  <data name="Status_SelectedModsEnablePartialFailedFormat" xml:space="preserve">
+    <value>Enabled {0} mods, {1} failed</value>
+  </data>
+  <data name="Status_SelectedModsEnableFailed" xml:space="preserve">
+    <value>Failed to enable selected mods.</value>
+  </data>
+  <data name="Status_SelectedModsDisabledFormat" xml:space="preserve">
+    <value>Disabled {0} mods</value>
+  </data>
+  <data name="Status_SelectedModsDisablePartialFailedFormat" xml:space="preserve">
+    <value>Disabled {0} mods, {1} failed</value>
+  </data>
+  <data name="Status_SelectedModsDisableFailed" xml:space="preserve">
+    <value>Failed to disable selected mods.</value>
+  </data>
+  <data name="Status_SelectedModsDeletedFormat" xml:space="preserve">
+    <value>Deleted {0} mods</value>
+  </data>
+  <data name="Status_SelectedModsDeletePartialFailedFormat" xml:space="preserve">
+    <value>Deleted {0} mods, {1} failed</value>
+  </data>
+  <data name="Status_SelectedModsDeleteFailed" xml:space="preserve">
+    <value>Failed to delete selected mods.</value>
+  </data>
+  <data name="Status_OpenModFileLocationFailed" xml:space="preserve">
+    <value>Failed to open mod file location.</value>
+  </data>
+  <data name="Status_LocalModImportFailed" xml:space="preserve">
+    <value>Failed to import local mod.</value>
+  </data>
+  <data name="Status_LocalSaveImportFailed" xml:space="preserve">
+    <value>Failed to import local save.</value>
+  </data>
+  <data name="FilePicker_ModFileTitle" xml:space="preserve">
+    <value>Choose Mod File</value>
+  </data>
+  <data name="FilePicker_ModFileFilter" xml:space="preserve">
+    <value>Mod files|*.jar|All files|*.*</value>
+  </data>
+  <data name="FilePicker_ModDownloadDirectoryTitle" xml:space="preserve">
+    <value>Choose Mod Download Location</value>
+  </data>
+  <data name="FilePicker_SaveArchiveTitle" xml:space="preserve">
+    <value>Choose Save Archive</value>
+  </data>
+  <data name="FilePicker_SaveArchiveFilter" xml:space="preserve">
+    <value>Archives|*.zip;*.7z;*.rar;*.tar;*.gz;*.tgz;*.bz2;*.tar.gz;*.tar.bz2;*.tbz2|All files|*.*</value>
+  </data>
+  <data name="Dialog_ReplaceModImportTitle" xml:space="preserve">
+    <value>Replace Mod</value>
+  </data>
+  <data name="Dialog_ReplaceModImportMessageFormat" xml:space="preserve">
+    <value>A mod named "{0}" already exists. Replace it?</value>
+  </data>
+  <data name="Dialog_Replace_Button" xml:space="preserve">
+    <value>Replace</value>
+  </data>
+  <data name="GameSettings_ModManagementUnavailableMessage" xml:space="preserve">
+    <value>Mods cannot be installed for the current version.</value>
+  </data>
+  <data name="GameSettings_SaveManagementInfoSection" xml:space="preserve">
+    <value>Save Overview</value>
+  </data>
+  <data name="GameSettings_SaveManagementInstalledSummaryFormat" xml:space="preserve">
+    <value>This game has {0} saves</value>
+  </data>
+  <data name="GameSettings_SaveManagementActionsLabel" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="GameSettings_SaveManagementOpenFolderButton" xml:space="preserve">
+    <value>Open Folder</value>
+  </data>
+  <data name="GameSettings_SaveManagementLocalImportButton" xml:space="preserve">
+    <value>Import Local File</value>
+  </data>
+  <data name="GameSettings_SaveManagementMultiSelectButton" xml:space="preserve">
+    <value>Select Multiple</value>
+  </data>
+  <data name="GameSettings_SaveManagementCancelMultiSelectButton" xml:space="preserve">
+    <value>Cancel Selection</value>
+  </data>
+  <data name="GameSettings_SaveManagementSelectAllButton" xml:space="preserve">
+    <value>Select All</value>
+  </data>
+  <data name="GameSettings_SaveManagementCancelSelectAllButton" xml:space="preserve">
+    <value>Clear Selection</value>
+  </data>
+  <data name="GameSettings_SaveManagementDeleteButton" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="GameSettings_SaveManagementSaveListSection" xml:space="preserve">
+    <value>Save List</value>
+  </data>
+  <data name="GameSettings_SaveManagementEmptyMessage" xml:space="preserve">
+    <value>No saves installed</value>
+  </data>
+  <data name="GameSettings_SaveManagementLoading" xml:space="preserve">
+    <value>Loading saves...</value>
+  </data>
+  <data name="GameSettings_SaveManagementSearchEmptyMessage" xml:space="preserve">
+    <value>No matching saves found</value>
+  </data>
+  <data name="Dialog_DeleteSavesTitle" xml:space="preserve">
+    <value>Delete Saves</value>
+  </data>
+  <data name="Dialog_DeleteSingleSaveMessageFormat" xml:space="preserve">
+    <value>Delete save "{0}"? This cannot be undone.</value>
+  </data>
+  <data name="Dialog_DeleteMultipleSavesMessageFormat" xml:space="preserve">
+    <value>Delete these {0} saves? This cannot be undone.</value>
+  </data>
+  <data name="Dialog_InvalidSaveImportTitle" xml:space="preserve">
+    <value>Cannot Import Save</value>
+  </data>
+  <data name="Dialog_InvalidSaveArchiveMessage" xml:space="preserve">
+    <value>The selected file is not a valid save archive.</value>
+  </data>
+  <data name="Dialog_UnsupportedSaveArchiveMessage" xml:space="preserve">
+    <value>This archive format is not supported.</value>
+  </data>
+  <data name="Status_SelectedSavesDeletedFormat" xml:space="preserve">
+    <value>Deleted {0} saves</value>
+  </data>
+  <data name="Status_SelectedSavesDeletePartialFailedFormat" xml:space="preserve">
+    <value>Deleted {0} saves, {1} failed</value>
+  </data>
+  <data name="Status_SelectedSavesDeleteFailed" xml:space="preserve">
+    <value>Failed to delete selected saves.</value>
+  </data>
+  <data name="Status_OpenLocalSaveFolderFailed" xml:space="preserve">
+    <value>Failed to open local save folder.</value>
+  </data>
+  <data name="Status_LoadLocalSavesFailed" xml:space="preserve">
+    <value>Failed to load local saves.</value>
+  </data>
+  <data name="GameSettings_DropImportModsMessage" xml:space="preserve">
+    <value>Drop mod files here to import them.</value>
+  </data>
+  <data name="GameSettings_DropImportSavesMessage" xml:space="preserve">
+    <value>Drop save archives here to import them.</value>
+  </data>
+  <data name="GameSettings_DropReleaseToImportMessage" xml:space="preserve">
+    <value>Release to import.</value>
+  </data>
+  <data name="GameSettings_DropUnsupportedFileMessage" xml:space="preserve">
+    <value>This file type is not supported.</value>
+  </data>
+  <data name="GameSettings_DropModsOnlyMessage" xml:space="preserve">
+    <value>Only .jar mod files can be imported here.</value>
+  </data>
+  <data name="GameSettings_DropSaveArchivesOnlyMessage" xml:space="preserve">
+    <value>Only save archives can be imported here.</value>
+  </data>
+  <data name="GameSettings_DropFoldersUnsupportedMessage" xml:space="preserve">
+    <value>Folder import is not supported here.</value>
+  </data>
+  <data name="Status_LocalModsImportedFormat" xml:space="preserve">
+    <value>Imported {0} mods</value>
+  </data>
+  <data name="Status_LocalSavesImportedFormat" xml:space="preserve">
+    <value>Imported {0} saves</value>
+  </data>
+  <data name="Dialog_DeleteMultipleResourcePacksMessageFormat" xml:space="preserve">
+    <value>Delete these {0} resource packs? This cannot be undone.</value>
+  </data>
+  <data name="Dialog_DeleteResourcePacksTitle" xml:space="preserve">
+    <value>Delete Resource Packs</value>
+  </data>
+  <data name="Dialog_DeleteSingleResourcePackMessageFormat" xml:space="preserve">
+    <value>Delete resource pack "{0}"? This cannot be undone.</value>
+  </data>
+  <data name="Dialog_InvalidResourcePackImportTitle" xml:space="preserve">
+    <value>Cannot Import Resource Pack</value>
+  </data>
+  <data name="Dialog_UnsupportedResourcePackArchiveMessage" xml:space="preserve">
+    <value>Only .zip resource packs can be imported.</value>
+  </data>
+  <data name="FilePicker_ResourcePackArchiveFilter" xml:space="preserve">
+    <value>Resource pack archive|*.zip|All files|*.*</value>
+  </data>
+  <data name="FilePicker_ResourcePackArchiveTitle" xml:space="preserve">
+    <value>Choose Resource Pack Archive</value>
+  </data>
+  <data name="FilePicker_ResourcePackDownloadDirectoryTitle" xml:space="preserve">
+    <value>Choose Resource Pack Download Folder</value>
+  </data>
+  <data name="GameSettings_DetailResourcePacks" xml:space="preserve">
+    <value>Resource Packs</value>
+  </data>
+  <data name="GameSettings_DropImportResourcePacksMessage" xml:space="preserve">
+    <value>Drop resource pack archives here to import them.</value>
+  </data>
+  <data name="GameSettings_DropResourcePackArchivesOnlyMessage" xml:space="preserve">
+    <value>Only .zip resource pack archives can be imported here.</value>
+  </data>
+  <data name="GameSettings_ResourcePackManagementActionsLabel" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="GameSettings_ResourcePackManagementCancelMultiSelectButton" xml:space="preserve">
+    <value>Cancel Selection</value>
+  </data>
+  <data name="GameSettings_ResourcePackManagementCancelSelectAllButton" xml:space="preserve">
+    <value>Clear Selection</value>
+  </data>
+  <data name="GameSettings_ResourcePackManagementDeleteButton" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="GameSettings_ResourcePackManagementEmptyMessage" xml:space="preserve">
+    <value>No resource packs installed</value>
+  </data>
+  <data name="GameSettings_ResourcePackManagementLoading" xml:space="preserve">
+    <value>Loading resource packs...</value>
+  </data>
+  <data name="GameSettings_ResourcePackManagementInfoSection" xml:space="preserve">
+    <value>Resource Pack Overview</value>
+  </data>
+  <data name="GameSettings_ResourcePackManagementInstalledSummaryFormat" xml:space="preserve">
+    <value>This game has {0} resource packs</value>
+  </data>
+  <data name="GameSettings_ResourcePackManagementListSection" xml:space="preserve">
+    <value>Resource Pack List</value>
+  </data>
+  <data name="GameSettings_ResourcePackManagementLocalImportButton" xml:space="preserve">
+    <value>Import Local File</value>
+  </data>
+  <data name="GameSettings_ResourcePackManagementMultiSelectButton" xml:space="preserve">
+    <value>Select Multiple</value>
+  </data>
+  <data name="GameSettings_ResourcePackManagementOpenFolderButton" xml:space="preserve">
+    <value>Open Folder</value>
+  </data>
+  <data name="GameSettings_ResourcePackManagementSearchEmptyMessage" xml:space="preserve">
+    <value>No matching resource packs found</value>
+  </data>
+  <data name="GameSettings_ResourcePackManagementSelectAllButton" xml:space="preserve">
+    <value>Select All</value>
+  </data>
+  <data name="Status_LoadLocalResourcePacksFailed" xml:space="preserve">
+    <value>Failed to load local resource packs.</value>
+  </data>
+  <data name="Status_LocalResourcePackImportFailed" xml:space="preserve">
+    <value>Failed to import local resource pack.</value>
+  </data>
+  <data name="Status_LocalResourcePackImportFileNotFound" xml:space="preserve">
+    <value>The selected resource pack file was not found.</value>
+  </data>
+  <data name="Status_LocalResourcePackImported" xml:space="preserve">
+    <value>Resource pack imported.</value>
+  </data>
+  <data name="Status_LocalResourcePacksImportedFormat" xml:space="preserve">
+    <value>Imported {0} resource packs</value>
+  </data>
+  <data name="Status_OpenLocalResourcePackFolderFailed" xml:space="preserve">
+    <value>Failed to open local resource pack folder.</value>
+  </data>
+  <data name="Status_OpenLocalResourcePackLocationFailed" xml:space="preserve">
+    <value>Failed to open resource pack file location.</value>
+  </data>
+  <data name="Status_SelectedResourcePacksDeleteFailed" xml:space="preserve">
+    <value>Failed to delete selected resource packs.</value>
+  </data>
+  <data name="Status_SelectedResourcePacksDeletePartialFailedFormat" xml:space="preserve">
+    <value>Deleted {0} resource packs, {1} failed</value>
+  </data>
+  <data name="Status_SelectedResourcePacksDeletedFormat" xml:space="preserve">
+    <value>Deleted {0} resource packs</value>
+  </data>
+  <data name="Dialog_DeleteMultipleShaderPacksMessageFormat" xml:space="preserve">
+    <value>Delete these {0} shader packs? This cannot be undone.</value>
+  </data>
+  <data name="Dialog_DeleteShaderPacksTitle" xml:space="preserve">
+    <value>Delete Shader Packs</value>
+  </data>
+  <data name="Dialog_DeleteSingleShaderPackMessageFormat" xml:space="preserve">
+    <value>Delete shader pack "{0}"? This cannot be undone.</value>
+  </data>
+  <data name="Dialog_InvalidShaderPackImportTitle" xml:space="preserve">
+    <value>Cannot Import Shader Pack</value>
+  </data>
+  <data name="Dialog_UnsupportedShaderPackArchiveMessage" xml:space="preserve">
+    <value>Only .zip shader packs can be imported.</value>
+  </data>
+  <data name="FilePicker_ShaderPackArchiveFilter" xml:space="preserve">
+    <value>Shader pack archive|*.zip|All files|*.*</value>
+  </data>
+  <data name="FilePicker_ShaderPackArchiveTitle" xml:space="preserve">
+    <value>Choose Shader Pack Archive</value>
+  </data>
+  <data name="FilePicker_ShaderPackDownloadDirectoryTitle" xml:space="preserve">
+    <value>Choose Shader Pack Download Folder</value>
+  </data>
+  <data name="FilePicker_WorldDownloadDirectoryTitle" xml:space="preserve">
+    <value>Choose World Download Folder</value>
+  </data>
+  <data name="FilePicker_ModpackDownloadDirectoryTitle" xml:space="preserve">
+    <value>Choose Modpack Download Folder</value>
+  </data>
+  <data name="GameSettings_DropImportShaderPacksMessage" xml:space="preserve">
+    <value>Drop shader pack archives here to import them.</value>
+  </data>
+  <data name="GameSettings_DropShaderPackArchivesOnlyMessage" xml:space="preserve">
+    <value>Only .zip shader pack archives can be imported here.</value>
+  </data>
+  <data name="GameSettings_ShaderPackManagementActionsLabel" xml:space="preserve">
+    <value>Actions</value>
+  </data>
+  <data name="GameSettings_ShaderPackManagementCancelMultiSelectButton" xml:space="preserve">
+    <value>Cancel Selection</value>
+  </data>
+  <data name="GameSettings_ShaderPackManagementCancelSelectAllButton" xml:space="preserve">
+    <value>Clear Selection</value>
+  </data>
+  <data name="GameSettings_ShaderPackManagementDeleteButton" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="GameSettings_ShaderPackManagementEmptyMessage" xml:space="preserve">
+    <value>No shader packs installed</value>
+  </data>
+  <data name="GameSettings_ShaderPackManagementLoading" xml:space="preserve">
+    <value>Loading shader packs...</value>
+  </data>
+  <data name="GameSettings_ShaderPackManagementInfoSection" xml:space="preserve">
+    <value>Shader Pack Overview</value>
+  </data>
+  <data name="GameSettings_ShaderPackManagementInstalledSummaryFormat" xml:space="preserve">
+    <value>This game has {0} shader packs</value>
+  </data>
+  <data name="GameSettings_ShaderPackManagementListSection" xml:space="preserve">
+    <value>Shader Pack List</value>
+  </data>
+  <data name="GameSettings_ShaderPackManagementLocalImportButton" xml:space="preserve">
+    <value>Import Local File</value>
+  </data>
+  <data name="GameSettings_ShaderPackManagementMultiSelectButton" xml:space="preserve">
+    <value>Select Multiple</value>
+  </data>
+  <data name="GameSettings_ShaderPackManagementOpenFolderButton" xml:space="preserve">
+    <value>Open Folder</value>
+  </data>
+  <data name="GameSettings_ShaderPackManagementSearchEmptyMessage" xml:space="preserve">
+    <value>No matching shader packs found</value>
+  </data>
+  <data name="GameSettings_ShaderPackManagementSelectAllButton" xml:space="preserve">
+    <value>Select All</value>
+  </data>
+  <data name="Status_LoadLocalShaderPacksFailed" xml:space="preserve">
+    <value>Failed to load local shader packs.</value>
+  </data>
+  <data name="Status_LocalShaderPackImportFailed" xml:space="preserve">
+    <value>Failed to import local shader pack.</value>
+  </data>
+  <data name="Status_LocalShaderPackImportFileNotFound" xml:space="preserve">
+    <value>The selected shader pack file was not found.</value>
+  </data>
+  <data name="Status_LocalShaderPackImported" xml:space="preserve">
+    <value>Shader pack imported.</value>
+  </data>
+  <data name="Status_LocalShaderPacksImportedFormat" xml:space="preserve">
+    <value>Imported {0} shader packs</value>
+  </data>
+  <data name="Status_OpenLocalShaderPackFolderFailed" xml:space="preserve">
+    <value>Failed to open local shader pack folder.</value>
+  </data>
+  <data name="Status_OpenLocalShaderPackLocationFailed" xml:space="preserve">
+    <value>Failed to open shader pack file location.</value>
+  </data>
+  <data name="Status_SelectedShaderPacksDeleteFailed" xml:space="preserve">
+    <value>Failed to delete selected shader packs.</value>
+  </data>
+  <data name="Status_SelectedShaderPacksDeletePartialFailedFormat" xml:space="preserve">
+    <value>Deleted {0} shader packs, {1} failed</value>
+  </data>
+  <data name="Status_SelectedShaderPacksDeletedFormat" xml:space="preserve">
+    <value>Deleted {0} shader packs</value>
+  </data>
+  <data name="Dialog_ModpackManualDownloadsTitle" xml:space="preserve">
+    <value>Modpack Import Complete</value>
+  </data>
+  <data name="Dialog_ModpackManualDownloadsMessageFormat" xml:space="preserve">
+    <value>Instance "{0}" was created, but {1} files failed to download.</value>
+  </data>
+  <data name="Dialog_ModpackManualDownloadsHint" xml:space="preserve">
+    <value>Some files must be downloaded manually. Open the generated list for details.</value>
+  </data>
+  <data name="Dialog_OpenFileButton" xml:space="preserve">
+    <value>Open File</value>
+  </data>
+  <data name="Status_ModpackImportedWithManualDownloadsFormat" xml:space="preserve">
+    <value>{0} imported; some files need to be retried later or completed manually.</value>
+  </data>
+  <data name="Status_OpenModpackManualDownloadsFileFailed" xml:space="preserve">
+    <value>Failed to open the manual downloads file.</value>
+  </data>
+  <data name="Dialog_UpdateAvailableTitle" xml:space="preserve">
+    <value>Update Available</value>
+  </data>
+  <data name="Dialog_UpdateAvailableVersionFormat" xml:space="preserve">
+    <value>Available version: {0}</value>
+  </data>
+  <data name="Dialog_OpenUpdateChangelogButton" xml:space="preserve">
+    <value>View Changelog</value>
+  </data>
+  <data name="Dialog_UpdateButton" xml:space="preserve">
+    <value>Update</value>
+  </data>
+  <data name="Status_CheckingUpdates" xml:space="preserve">
+    <value>Checking for updates...</value>
+  </data>
+  <data name="Status_LauncherAlreadyLatest" xml:space="preserve">
+    <value>Launcher is up to date.</value>
+  </data>
+  <data name="Status_CheckUpdatesFailed" xml:space="preserve">
+    <value>Failed to check for updates.</value>
+  </data>
+  <data name="Status_OpenUpdatePageFailed" xml:space="preserve">
+    <value>Failed to open the update page.</value>
+  </data>
+  <data name="Status_DownloadingLauncherUpdate" xml:space="preserve">
+    <value>Downloading launcher update...</value>
+  </data>
+  <data name="Status_UpdateAutoInstallPackageNotFound" xml:space="preserve">
+    <value>No auto-installable update package was found.</value>
+  </data>
+  <data name="Status_LauncherUpdateStartFailed" xml:space="preserve">
+    <value>Failed to start launcher update.</value>
+  </data>
+  <data name="Status_LauncherUpdateRestarting" xml:space="preserve">
+    <value>Installing the update. The launcher will restart automatically.</value>
+  </data>
+</root>
