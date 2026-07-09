@@ -19,9 +19,12 @@ public sealed class ReleaseWorkflowTests
         Assert.Contains("Write back", text);
         Assert.DoesNotContain("$versionName = $manifest.versionName", text, StringComparison.OrdinalIgnoreCase);
 
+        var finalManifestIndex = text.IndexOf("Generate final", StringComparison.Ordinal);
         var releaseIndex = text.IndexOf("Create GitHub", StringComparison.Ordinal);
         var writeBackIndex = text.IndexOf("Write back", StringComparison.Ordinal);
+        Assert.True(finalManifestIndex >= 0);
         Assert.True(releaseIndex >= 0);
+        Assert.True(releaseIndex > finalManifestIndex);
         Assert.True(writeBackIndex > releaseIndex);
         Assert.Contains($"CHANNEL: {channel}", text);
     }
@@ -37,6 +40,7 @@ public sealed class ReleaseWorkflowTests
         Assert.Contains("GITEE_REPO: MineDock-Launcher", text);
         Assert.Contains("GITEE_BRANCH: master", text);
         Assert.Contains("GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}", text);
+        Assert.Contains("Reserve Gitee", text);
         Assert.Contains("Create Gitee", text);
         Assert.Contains("Sync Gitee update repository and tag", text);
         Assert.Contains("update/release/latest.json", text);
@@ -44,6 +48,7 @@ public sealed class ReleaseWorkflowTests
         Assert.Contains("$generatedManifestPath = Join-Path $workspace $env:GENERATED_MANIFEST_PATH", text);
         Assert.Contains("Copy-Item $generatedManifestPath", text);
         Assert.Contains("TimeoutSec 60", text);
+        Assert.Contains("\"--max-time\", \"600\"", text);
         Assert.Contains("attach_files?access_token=$encodedToken", text);
         Assert.Contains("curl.exe", text);
         Assert.Contains("--write-out", text);
@@ -54,20 +59,29 @@ public sealed class ReleaseWorkflowTests
         Assert.DoesNotContain("--form\", \"access_token=", text);
         Assert.Contains("git tag $env:GITHUB_REF_NAME", text);
         Assert.Contains("git push origin $env:GITHUB_REF_NAME", text);
+        Assert.Contains("git tag -f $env:GITHUB_REF_NAME", text);
+        Assert.Contains("GITEE_RELEASE_ID=$($release.id)", text);
+        Assert.Contains("GITHUB_RELEASE_CREATED=true", text);
+        Assert.Contains("Cleanup failed", text);
+        Assert.Contains("gh release delete $env:GITHUB_REF_NAME --yes", text);
+        Assert.Contains("Invoke-RestMethod -Method Delete", text);
+        Assert.Contains("git push origin \":refs/tags/$($env:GITHUB_REF_NAME)\"", text);
+        Assert.DoesNotContain("Upload final manifest to GitHub", text);
 
         var githubReleaseIndex = text.IndexOf("Create GitHub", StringComparison.Ordinal);
         var finalManifestIndex = text.IndexOf("Generate final", StringComparison.Ordinal);
+        var reserveGiteeTagIndex = text.IndexOf("Reserve Gitee", StringComparison.Ordinal);
         var syncGiteeIndex = text.IndexOf("Sync Gitee update repository and tag", StringComparison.Ordinal);
         var giteeReleaseIndex = text.IndexOf("Create Gitee", StringComparison.Ordinal);
-        var githubManifestUploadIndex = text.IndexOf("Upload final manifest to GitHub", StringComparison.Ordinal);
         var writeBackIndex = text.IndexOf("Write back", StringComparison.Ordinal);
 
         Assert.True(githubReleaseIndex >= 0);
-        Assert.True(finalManifestIndex > githubReleaseIndex);
-        Assert.True(syncGiteeIndex > finalManifestIndex);
-        Assert.True(giteeReleaseIndex > syncGiteeIndex);
-        Assert.True(githubManifestUploadIndex > giteeReleaseIndex);
-        Assert.True(writeBackIndex > githubManifestUploadIndex);
+        Assert.True(finalManifestIndex >= 0);
+        Assert.True(reserveGiteeTagIndex > finalManifestIndex);
+        Assert.True(giteeReleaseIndex > reserveGiteeTagIndex);
+        Assert.True(githubReleaseIndex > giteeReleaseIndex);
+        Assert.True(syncGiteeIndex > githubReleaseIndex);
+        Assert.True(writeBackIndex > syncGiteeIndex);
     }
 
     [Fact]

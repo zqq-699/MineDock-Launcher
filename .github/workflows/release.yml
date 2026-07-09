@@ -145,13 +145,6 @@ jobs:
           "GITEE_DOWNLOAD_URL=$giteeDownloadUrl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "RELEASE_TITLE=$releaseTitle" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Create GitHub release
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create $env:GITHUB_REF_NAME $env:ASSET_PATH $env:SHA_PATH --title $env:RELEASE_TITLE --notes-file $env:NOTES_PATH --latest
-
       - name: Generate final release manifest
         shell: pwsh
         run: |
@@ -181,19 +174,13 @@ jobs:
 
           $manifest | ConvertTo-Json -Depth 20 | Set-Content -Path $env:GENERATED_MANIFEST_PATH -Encoding utf8
 
-      - name: Sync Gitee update repository and tag
+      - name: Reserve Gitee release tag
         shell: pwsh
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:GITEE_TOKEN)) {
             throw "Repository secret GITEE_TOKEN is not configured. Configure it before publishing a release."
-          }
-
-          $workspace = $env:GITHUB_WORKSPACE
-          $generatedManifestPath = Join-Path $workspace $env:GENERATED_MANIFEST_PATH
-          if (-not (Test-Path $generatedManifestPath)) {
-            throw "Generated manifest was not found: $generatedManifestPath"
           }
 
           $mirrorDirectory = Join-Path $env:RUNNER_TEMP "gitee-update-mirror"
@@ -227,29 +214,18 @@ jobs:
             }
 
             if ([string]::IsNullOrWhiteSpace($branchRef)) {
-              git checkout -B $env:GITEE_BRANCH
-            } else {
-              git fetch origin $env:GITEE_BRANCH
-              git checkout -B $env:GITEE_BRANCH FETCH_HEAD
+              throw "Gitee branch '$($env:GITEE_BRANCH)' does not exist. Sync update manifests before publishing a release."
             }
 
-            Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
-            New-Item -ItemType Directory -Force "update/release" | Out-Null
-            New-Item -ItemType Directory -Force "update/beta" | Out-Null
-            Copy-Item (Join-Path $workspace "update/release/latest.json") "update/release/latest.json"
-            Copy-Item (Join-Path $workspace "update/beta/latest.json") "update/beta/latest.json"
-            Copy-Item $generatedManifestPath "update/$($env:CHANNEL)/latest.json" -Force
-
-            git add -A
-            if (git diff --cached --quiet) {
-              Write-Host "No Gitee manifest changes to commit."
-            } else {
-              git commit -m "Update $($env:CHANNEL) manifest for $($env:VERSION_NAME) [skip ci]"
-            }
-
-            git push origin HEAD:$($env:GITEE_BRANCH)
+            git fetch origin $env:GITEE_BRANCH
+            git checkout -B $env:GITEE_BRANCH FETCH_HEAD
             git tag $env:GITHUB_REF_NAME
             git push origin $env:GITHUB_REF_NAME
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to push Gitee release tag '$($env:GITHUB_REF_NAME)'."
+            }
+
+            "GITEE_TAG_CREATED=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           } finally {
             Pop-Location
           }
@@ -281,6 +257,8 @@ jobs:
           }
 
           Write-Host "Gitee release created. ReleaseId=$($release.id)"
+          "GITEE_RELEASE_ID=$($release.id)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GITEE_RELEASE_CREATED=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           $encodedToken = [uri]::EscapeDataString($env:GITEE_TOKEN)
           $uploadUri = "https://gitee.com/api/v5/repos/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases/$($release.id)/attach_files?access_token=$encodedToken"
 
@@ -293,7 +271,7 @@ jobs:
               "--show-error",
               "--location",
               "--connect-timeout", "30",
-              "--max-time", "300",
+              "--max-time", "600",
               "--retry", "2",
               "--retry-delay", "5",
               "--request", "POST",
@@ -321,12 +299,92 @@ jobs:
             Write-Host "Uploaded Gitee release attachment. File=$($file.Name)"
           }
 
-      - name: Upload final manifest to GitHub release
+      - name: Create GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload $env:GITHUB_REF_NAME $env:GENERATED_MANIFEST_PATH
+          gh release create $env:GITHUB_REF_NAME $env:ASSET_PATH $env:SHA_PATH $env:GENERATED_MANIFEST_PATH --title $env:RELEASE_TITLE --notes-file $env:NOTES_PATH --latest
+          "GITHUB_RELEASE_CREATED=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Sync Gitee update repository and tag
+        shell: pwsh
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:GITEE_TOKEN)) {
+            throw "Repository secret GITEE_TOKEN is not configured. Configure it before publishing a release."
+          }
+
+          $workspace = $env:GITHUB_WORKSPACE
+          $generatedManifestPath = Join-Path $workspace $env:GENERATED_MANIFEST_PATH
+          if (-not (Test-Path $generatedManifestPath)) {
+            throw "Generated manifest was not found: $generatedManifestPath"
+          }
+
+          $mirrorDirectory = Join-Path $env:RUNNER_TEMP "gitee-update-mirror-final"
+          if (Test-Path $mirrorDirectory) {
+            Remove-Item $mirrorDirectory -Recurse -Force
+          }
+
+          New-Item -ItemType Directory -Force $mirrorDirectory | Out-Null
+          Push-Location $mirrorDirectory
+          $branchBase = $null
+          try {
+            git init
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            $encodedToken = [uri]::EscapeDataString($env:GITEE_TOKEN)
+            $remoteUrl = "https://oauth2:$encodedToken@gitee.com/$($env:GITEE_OWNER)/$($env:GITEE_REPO).git"
+            git remote add origin $remoteUrl
+
+            $branchRef = & git ls-remote --heads origin $env:GITEE_BRANCH
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($branchRef)) {
+              throw "Failed to query Gitee branch '$($env:GITEE_BRANCH)'."
+            }
+
+            $branchBase = ($branchRef -split "\s+")[0]
+            "GITEE_BRANCH_BASE=$branchBase" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            git fetch origin $env:GITEE_BRANCH
+            git checkout -B $env:GITEE_BRANCH FETCH_HEAD
+
+            Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
+            New-Item -ItemType Directory -Force "update/release" | Out-Null
+            New-Item -ItemType Directory -Force "update/beta" | Out-Null
+            Copy-Item (Join-Path $workspace "update/release/latest.json") "update/release/latest.json"
+            Copy-Item (Join-Path $workspace "update/beta/latest.json") "update/beta/latest.json"
+            Copy-Item $generatedManifestPath "update/$($env:CHANNEL)/latest.json" -Force
+
+            git add -A
+            if (git diff --cached --quiet) {
+              Write-Host "No Gitee manifest changes to commit."
+            } else {
+              git commit -m "Update $($env:CHANNEL) manifest for $($env:VERSION_NAME) [skip ci]"
+            }
+
+            git push origin HEAD:$($env:GITEE_BRANCH)
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to push Gitee manifest branch '$($env:GITEE_BRANCH)'."
+            }
+
+            git tag -f $env:GITHUB_REF_NAME
+            git push --force origin refs/tags/$($env:GITHUB_REF_NAME)
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to move Gitee release tag '$($env:GITHUB_REF_NAME)' to the final manifest commit."
+            }
+
+            "GITEE_MANIFEST_SYNCED=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          } catch {
+            Write-Host "Rolling back Gitee manifest sync after failure."
+            if (-not [string]::IsNullOrWhiteSpace($branchBase)) {
+              git push --force-with-lease origin "$branchBase`:refs/heads/$($env:GITEE_BRANCH)"
+            }
+
+            throw
+          } finally {
+            Pop-Location
+          }
 
       - name: Write back release manifest
         shell: pwsh
@@ -348,4 +406,57 @@ jobs:
           } else {
             git commit -m "Update $($env:CHANNEL) manifest for $($env:VERSION_NAME) [skip ci]"
             git push origin HEAD:$branch
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to push GitHub manifest update to '$branch'."
+            }
+          }
+
+      - name: Cleanup failed release publish
+        if: failure()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          if ($env:GITHUB_RELEASE_CREATED -eq "true") {
+            Write-Host "Deleting GitHub release created by failed workflow. Tag=$($env:GITHUB_REF_NAME)"
+            gh release delete $env:GITHUB_REF_NAME --yes
+          }
+
+          if (-not [string]::IsNullOrWhiteSpace($env:GITEE_TOKEN) -and -not [string]::IsNullOrWhiteSpace($env:GITEE_RELEASE_ID)) {
+            Write-Host "Deleting Gitee release created by failed workflow. ReleaseId=$($env:GITEE_RELEASE_ID)"
+            $deleteUri = "https://gitee.com/api/v5/repos/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases/$($env:GITEE_RELEASE_ID)"
+            try {
+              Invoke-RestMethod -Method Delete -Uri $deleteUri -TimeoutSec 60 -Body @{ access_token = $env:GITEE_TOKEN } | Out-Null
+            } catch {
+              Write-Host "Failed to delete Gitee release: $($_.Exception.Message)"
+            }
+          }
+
+          if (-not [string]::IsNullOrWhiteSpace($env:GITEE_TOKEN) -and $env:GITEE_MANIFEST_SYNCED -eq "true" -and -not [string]::IsNullOrWhiteSpace($env:GITEE_BRANCH_BASE)) {
+            Write-Host "Rolling back Gitee manifest branch to $($env:GITEE_BRANCH_BASE)."
+            $encodedToken = [uri]::EscapeDataString($env:GITEE_TOKEN)
+            $remoteUrl = "https://oauth2:$encodedToken@gitee.com/$($env:GITEE_OWNER)/$($env:GITEE_REPO).git"
+            git init "$env:RUNNER_TEMP/gitee-cleanup"
+            Push-Location "$env:RUNNER_TEMP/gitee-cleanup"
+            try {
+              git remote add origin $remoteUrl
+              git push --force-with-lease origin "$($env:GITEE_BRANCH_BASE):refs/heads/$($env:GITEE_BRANCH)"
+            } finally {
+              Pop-Location
+            }
+          }
+
+          if (-not [string]::IsNullOrWhiteSpace($env:GITEE_TOKEN) -and $env:GITEE_TAG_CREATED -eq "true") {
+            Write-Host "Deleting Gitee tag created by failed workflow. Tag=$($env:GITHUB_REF_NAME)"
+            $encodedToken = [uri]::EscapeDataString($env:GITEE_TOKEN)
+            $remoteUrl = "https://oauth2:$encodedToken@gitee.com/$($env:GITEE_OWNER)/$($env:GITEE_REPO).git"
+            git init "$env:RUNNER_TEMP/gitee-tag-cleanup"
+            Push-Location "$env:RUNNER_TEMP/gitee-tag-cleanup"
+            try {
+              git remote add origin $remoteUrl
+              git push origin ":refs/tags/$($env:GITHUB_REF_NAME)"
+            } finally {
+              Pop-Location
+            }
           }
