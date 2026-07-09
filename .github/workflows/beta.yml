@@ -280,7 +280,8 @@ jobs:
           }
 
           Write-Host "Gitee beta release created. ReleaseId=$($release.id)"
-          $uploadUri = "https://gitee.com/api/v5/repos/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases/$($release.id)/attach_files"
+          $encodedToken = [uri]::EscapeDataString($env:GITEE_TOKEN)
+          $uploadUri = "https://gitee.com/api/v5/repos/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases/$($release.id)/attach_files?access_token=$encodedToken"
 
           foreach ($filePath in @($env:ASSET_PATH, $env:SHA_PATH, $env:GENERATED_MANIFEST_PATH)) {
             $file = Get-Item $filePath
@@ -296,7 +297,6 @@ jobs:
               "--retry-delay", "5",
               "--request", "POST",
               $uploadUri,
-              "--form", "access_token=$($env:GITEE_TOKEN)",
               "--form", "file=@$($file.FullName)"
             )
 
