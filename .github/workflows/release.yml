@@ -265,7 +265,9 @@ jobs:
 
           $releaseNotes = Get-Content -Raw -Encoding UTF8 $env:NOTES_PATH
           $releaseUri = "https://gitee.com/api/v5/repos/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases"
-          $release = Invoke-RestMethod -Method Post -Uri $releaseUri -Body @{
+
+          Write-Host "Creating Gitee release. Tag=$($env:GITHUB_REF_NAME)"
+          $release = Invoke-RestMethod -Method Post -Uri $releaseUri -TimeoutSec 60 -Body @{
             access_token = $env:GITEE_TOKEN
             tag_name = $env:GITHUB_REF_NAME
             target_commitish = $env:GITEE_BRANCH
@@ -278,10 +280,34 @@ jobs:
             throw "Gitee release response did not include an id."
           }
 
+          Write-Host "Gitee release created. ReleaseId=$($release.id)"
           $uploadUri = "https://gitee.com/api/v5/repos/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases/$($release.id)/attach_files"
-          Invoke-RestMethod -Method Post -Uri $uploadUri -Form @{ access_token = $env:GITEE_TOKEN; file = Get-Item $env:ASSET_PATH } | Out-Null
-          Invoke-RestMethod -Method Post -Uri $uploadUri -Form @{ access_token = $env:GITEE_TOKEN; file = Get-Item $env:SHA_PATH } | Out-Null
-          Invoke-RestMethod -Method Post -Uri $uploadUri -Form @{ access_token = $env:GITEE_TOKEN; file = Get-Item $env:GENERATED_MANIFEST_PATH } | Out-Null
+
+          foreach ($filePath in @($env:ASSET_PATH, $env:SHA_PATH, $env:GENERATED_MANIFEST_PATH)) {
+            $file = Get-Item $filePath
+            Write-Host "Uploading Gitee release attachment. File=$($file.Name) Size=$($file.Length)"
+            $curlArgs = @(
+              "--fail",
+              "--show-error",
+              "--silent",
+              "--location",
+              "--connect-timeout", "30",
+              "--max-time", "300",
+              "--retry", "2",
+              "--retry-delay", "5",
+              "--request", "POST",
+              $uploadUri,
+              "--form", "access_token=$($env:GITEE_TOKEN)",
+              "--form", "file=@$($file.FullName)"
+            )
+
+            & curl.exe @curlArgs | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to upload Gitee release attachment '$($file.Name)'. curl exit code: $LASTEXITCODE"
+            }
+
+            Write-Host "Uploaded Gitee release attachment. File=$($file.Name)"
+          }
 
       - name: Upload final manifest to GitHub release
         shell: pwsh

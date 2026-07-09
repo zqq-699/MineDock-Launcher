@@ -43,6 +43,10 @@ public sealed class ReleaseWorkflowTests
         Assert.Contains("update/beta/latest.json", text);
         Assert.Contains("$generatedManifestPath = Join-Path $workspace $env:GENERATED_MANIFEST_PATH", text);
         Assert.Contains("Copy-Item $generatedManifestPath", text);
+        Assert.Contains("TimeoutSec 60", text);
+        Assert.Contains("curl.exe", text);
+        Assert.Contains("--max-time", text);
+        Assert.Contains("Uploading Gitee release attachment", text);
         Assert.Contains("git tag $env:GITHUB_REF_NAME", text);
         Assert.Contains("git push origin $env:GITHUB_REF_NAME", text);
 
