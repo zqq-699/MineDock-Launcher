@@ -18,6 +18,7 @@ public sealed class ReleaseWorkflowTests
         Assert.Contains("LauncherVersionCode", text);
         Assert.Contains("MANIFEST_PATH: update/latest.template.json", text);
         Assert.Contains("Sync GitHub", text);
+        Assert.Contains("$manifest.channel = $env:CHANNEL", text);
         Assert.DoesNotContain("$versionName = $manifest.versionName", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("github.event.repository.default_branch", text);
         Assert.DoesNotContain("Write back", text);

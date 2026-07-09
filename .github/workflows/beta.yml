@@ -416,6 +416,7 @@ jobs:
 
           $releaseNotes = Get-Content -Raw -Encoding UTF8 $env:NOTES_PATH
           $manifest = Get-Content -Raw -Encoding UTF8 $env:MANIFEST_PATH | ConvertFrom-Json
+          $manifest.channel = $env:CHANNEL
           $manifest.versionName = $env:VERSION_NAME
           $manifest.versionCode = [int]$env:VERSION_CODE
           $manifest.publishedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
