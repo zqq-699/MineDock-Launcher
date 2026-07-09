@@ -25,12 +25,12 @@
     <RootNamespace>Launcher.App</RootNamespace>
     <Title>MineDock Launcher</Title>
     <Product>MineDock Launcher</Product>
-    <Version>0.9.1-beta.10</Version>
+    <Version>0.9.1-beta.11</Version>
     <LauncherBuildChannel>beta</LauncherBuildChannel>
-    <LauncherVersionCode>90110</LauncherVersionCode>
+    <LauncherVersionCode>90111</LauncherVersionCode>
     <AssemblyVersion>0.9.1.0</AssemblyVersion>
     <FileVersion>0.9.1.0</FileVersion>
-    <InformationalVersion>0.9.1-beta.10</InformationalVersion>
+    <InformationalVersion>0.9.1-beta.11</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>Assets\Icons\app_icon_concept.ico</ApplicationIcon>
     <OutputType>WinExe</OutputType>
