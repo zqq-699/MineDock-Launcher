@@ -9,5 +9,6 @@ public interface IFilePickerService
     string? PickSaveArchive();
     string? PickResourcePackArchive();
     string? PickShaderPackArchive();
+    string? PickModpackExportArchive(string defaultFileName);
     string? PickFolder(string title, string? initialDirectory = null);
 }

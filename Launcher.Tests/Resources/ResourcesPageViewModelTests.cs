@@ -2110,6 +2110,8 @@ public sealed class ResourcesPageViewModelTests
 
         public string? PickShaderPackArchive() => null;
 
+        public string? PickModpackExportArchive(string defaultFileName) => null;
+
         public string? PickFolder(string title, string? initialDirectory = null)
         {
             LastFolderPickerTitle = title;

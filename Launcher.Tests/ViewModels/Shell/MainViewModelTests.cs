@@ -1209,6 +1209,11 @@ public sealed class MainViewModelTests
             return null;
         }
 
+        public string? PickModpackExportArchive(string defaultFileName)
+        {
+            return null;
+        }
+
         public string? PickLocalImportFile()
         {
             return null;

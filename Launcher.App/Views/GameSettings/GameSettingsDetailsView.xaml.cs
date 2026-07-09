@@ -19,7 +19,8 @@ public partial class GameSettingsDetailsView : UserControl
         "saves",
         "resource_packs",
         "shaders",
-        "backup"
+        "backup",
+        "export"
     ];
 
     private INotifyPropertyChanged? currentViewModelNotifier;

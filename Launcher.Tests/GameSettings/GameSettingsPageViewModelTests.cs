@@ -273,7 +273,7 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Equal(Strings.GameSettings_DetailGeneral, viewModel.Details.SectionTitle);
         Assert.IsType<InstanceGeneralSettingsViewModel>(viewModel.Details.CurrentSectionViewModel);
         Assert.True(viewModel.DetailSections.First(section => section.Id == "general").IsSelected);
-        Assert.Equal(8, viewModel.DetailSections.Count);
+        Assert.Equal(9, viewModel.DetailSections.Count);
         Assert.Equal(
             [
                 Strings.GameSettings_DetailGeneral,
@@ -283,7 +283,8 @@ public sealed class GameSettingsPageViewModelTests
                 Strings.GameSettings_DetailSaves,
                 Strings.GameSettings_DetailResourcePacks,
                 Strings.GameSettings_DetailShaders,
-                Strings.GameSettings_DetailBackup
+                Strings.GameSettings_DetailBackup,
+                Strings.GameSettings_DetailExport
             ],
             viewModel.DetailSections.Select(section => section.Title));
     }
@@ -1491,6 +1492,89 @@ public sealed class GameSettingsPageViewModelTests
         Assert.Equal("Vanilla World", viewModel.SelectedInstance?.Name);
     }
 
+    [Fact]
+    public void ExportCanExportRequiresFieldsSelectedInstanceAndCurseForge()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var viewModel = CreateViewModel([instance], modpackExportService: new FakeModpackExportService());
+        viewModel.ShowInstanceDetails(instance, "export");
+        var export = viewModel.Details.Export;
+
+        Assert.False(export.CanExport);
+        Assert.True(export.IsExportModpackNameEmpty);
+
+        export.ExportModpackName = "Pack";
+
+        Assert.True(export.CanExport);
+        Assert.False(export.IsExportModpackNameEmpty);
+
+        export.SelectedExportTypeOption = export.ExportTypeOptions.Single(option => option.Id == "modrinth");
+
+        Assert.False(export.CanExport);
+    }
+
+    [Fact]
+    public void ExportDisabledModsToggleDependsOnExportModsToggle()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var viewModel = CreateViewModel([instance], modpackExportService: new FakeModpackExportService());
+        viewModel.ShowInstanceDetails(instance, "export");
+        var export = viewModel.Details.Export;
+
+        Assert.True(export.PackMods);
+        Assert.True(export.CanPackDisabledMods);
+        Assert.False(export.PackDisabledMods);
+
+        export.PackDisabledMods = true;
+        export.PackMods = false;
+
+        Assert.False(export.PackMods);
+        Assert.False(export.CanPackDisabledMods);
+        Assert.False(export.PackDisabledMods);
+
+        export.PackMods = true;
+
+        Assert.True(export.CanPackDisabledMods);
+        Assert.False(export.PackDisabledMods);
+    }
+
+    [Fact]
+    public async Task ExportCommandPicksArchiveAndCallsExportService()
+    {
+        var instance = CreateInstance("Fabric Pack", "1.20.1", LoaderKind.Fabric);
+        var outputPath = Path.Combine(Path.GetTempPath(), "launcher-tests", Guid.NewGuid().ToString("N"), "pack.zip");
+        var filePickerService = new FakeFilePickerService { ModpackExportArchivePath = outputPath };
+        var floatingMessageService = new FakeFloatingMessageService();
+        var statusService = new FakeStatusService();
+        var exportService = new FakeModpackExportService
+        {
+            Result = new ModpackExportResult(true, OutputArchivePath: outputPath)
+        };
+        var viewModel = CreateViewModel(
+            [instance],
+            statusService: statusService,
+            filePickerService: filePickerService,
+            floatingMessageService: floatingMessageService,
+            modpackExportService: exportService);
+        viewModel.ShowInstanceDetails(instance, "export");
+        var export = viewModel.Details.Export;
+        export.ExportModpackName = "Pack";
+        export.PackDisabledMods = true;
+
+        await export.ExportCommand.ExecuteAsync(null);
+
+        Assert.Equal("Pack.zip", filePickerService.LastModpackExportArchiveDefaultFileName);
+        Assert.Single(exportService.Requests);
+        Assert.Equal(instance.Id, exportService.Requests[0].Instance.Id);
+        Assert.Equal(outputPath, exportService.Requests[0].OutputArchivePath);
+        Assert.Equal("Pack", exportService.Requests[0].Name);
+        Assert.Equal(string.Empty, exportService.Requests[0].Author);
+        Assert.Equal("1.0.0", exportService.Requests[0].Version);
+        Assert.True(exportService.Requests[0].IncludeDisabledMods);
+        Assert.Equal(Strings.Status_ModpackExported, floatingMessageService.LastMessage);
+        Assert.Contains(outputPath, statusService.LastMessage);
+    }
+
     private static GameSettingsDetailSectionItem GetDetailSection(GameSettingsPageViewModel viewModel, string sectionId)
     {
         return viewModel.DetailSections.Single(section => section.Id == sectionId);
@@ -1571,7 +1655,8 @@ public sealed class GameSettingsPageViewModelTests
         ILocalSaveService? saveService = null,
         ILocalResourcePackService? resourcePackService = null,
         ILocalShaderPackService? shaderPackService = null,
-        IInstanceBackupService? backupService = null)
+        IInstanceBackupService? backupService = null,
+        IModpackExportService? modpackExportService = null)
     {
         var instanceService = new FakeGameInstanceService();
         instanceService.CreatedInstances.AddRange(instances);
@@ -1588,7 +1673,8 @@ public sealed class GameSettingsPageViewModelTests
             saveService ?? new FakeSaveService(),
             resourcePackService ?? new FakeResourcePackService(),
             shaderPackService ?? new FakeShaderPackService(),
-            backupService ?? new FakeInstanceBackupService());
+            backupService ?? new FakeInstanceBackupService(),
+            modpackExportService);
     }
 
     private static GameSettingsPageViewModel CreateViewModel(
@@ -1604,7 +1690,8 @@ public sealed class GameSettingsPageViewModelTests
         ILocalSaveService? saveService = null,
         ILocalResourcePackService? resourcePackService = null,
         ILocalShaderPackService? shaderPackService = null,
-        IInstanceBackupService? backupService = null)
+        IInstanceBackupService? backupService = null,
+        IModpackExportService? modpackExportService = null)
     {
         var resolvedModService = modService ?? new FakeModService();
         var resolvedSaveService = saveService ?? new FakeSaveService();
@@ -1624,7 +1711,8 @@ public sealed class GameSettingsPageViewModelTests
             new LocalShaderPacksViewModel(resolvedShaderPackService, statusService),
             javaRuntimeDiscoveryService ?? new FakeJavaRuntimeDiscoveryService(),
             filePickerService ?? new FakeFilePickerService(),
-            floatingMessageService ?? new FakeFloatingMessageService());
+            floatingMessageService ?? new FakeFloatingMessageService(),
+            modpackExportService: modpackExportService);
     }
 
     private static void CreateModJar(string path, string fabricMetadataJson)
@@ -1846,9 +1934,11 @@ public sealed class GameSettingsPageViewModelTests
         public string? SaveArchivePath { get; init; }
         public string? ResourcePackArchivePath { get; init; }
         public string? ShaderPackArchivePath { get; init; }
+        public string? ModpackExportArchivePath { get; init; }
         public string? FolderPath { get; init; }
         public string? LastFolderPickerTitle { get; private set; }
         public string? LastFolderPickerInitialDirectory { get; private set; }
+        public string? LastModpackExportArchiveDefaultFileName { get; private set; }
 
         public string? PickMinecraftSkin()
         {
@@ -1878,6 +1968,12 @@ public sealed class GameSettingsPageViewModelTests
         public string? PickShaderPackArchive()
         {
             return ShaderPackArchivePath;
+        }
+
+        public string? PickModpackExportArchive(string defaultFileName)
+        {
+            LastModpackExportArchiveDefaultFileName = defaultFileName;
+            return ModpackExportArchivePath;
         }
 
         public string? PickLocalImportFile()
@@ -2019,6 +2115,21 @@ public sealed class GameSettingsPageViewModelTests
         {
             LastMessage = message;
             MessageRequested?.Invoke(message);
+        }
+    }
+
+    private sealed class FakeModpackExportService : IModpackExportService
+    {
+        public List<ModpackExportRequest> Requests { get; } = [];
+
+        public ModpackExportResult Result { get; init; } = new(true, OutputArchivePath: "export.zip");
+
+        public Task<ModpackExportResult> ExportAsync(
+            ModpackExportRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Requests.Add(request);
+            return Task.FromResult(Result);
         }
     }
 

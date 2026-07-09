@@ -15,7 +15,8 @@ internal static class GameSettingsDetailSectionFactory
             new GameSettingsDetailSectionItem("saves", Strings.GameSettings_DetailSaves, "instance_setting_page/saves"),
             new GameSettingsDetailSectionItem("resource_packs", Strings.GameSettings_DetailResourcePacks, "main_menu_library"),
             new GameSettingsDetailSectionItem("shaders", Strings.GameSettings_DetailShaders, "instance_setting_page/shader"),
-            new GameSettingsDetailSectionItem("backup", Strings.GameSettings_DetailBackup, "instance_setting_page/backup")
+            new GameSettingsDetailSectionItem("backup", Strings.GameSettings_DetailBackup, "instance_setting_page/backup"),
+            new GameSettingsDetailSectionItem("export", Strings.GameSettings_DetailExport, "instance_setting_page/export")
         ];
     }
 }

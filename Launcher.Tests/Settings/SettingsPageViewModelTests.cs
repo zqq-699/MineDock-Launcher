@@ -1022,6 +1022,11 @@ public sealed class SettingsPageViewModelTests
             return null;
         }
 
+        public string? PickModpackExportArchive(string defaultFileName)
+        {
+            return null;
+        }
+
         public string? PickLocalImportFile()
         {
             return null;

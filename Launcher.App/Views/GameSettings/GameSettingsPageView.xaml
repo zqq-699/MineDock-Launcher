@@ -484,6 +484,23 @@
                     </Grid>
                 </Grid>
             </controls:ListPageFrame.ListContent>
+
+            <controls:ListPageFrame.FloatingContent>
+                <Button Content="{x:Static res:Strings.GameSettings_DetailExport}"
+                        Command="{Binding Details.Export.ExportCommand}"
+                        IsEnabled="{Binding Details.Export.CanExport}">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource DownloadNextStepButtonStyle}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsExportDetailsStep}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </controls:ListPageFrame.FloatingContent>
         </controls:ListPageFrame>
 
     </Grid>

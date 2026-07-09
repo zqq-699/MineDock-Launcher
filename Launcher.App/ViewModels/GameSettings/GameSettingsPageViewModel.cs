@@ -99,7 +99,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
         IFilePickerService filePickerService,
         IFloatingMessageService floatingMessageService,
-        ILogger<GameSettingsPageViewModel>? logger = null)
+        ILogger<GameSettingsPageViewModel>? logger = null,
+        IModpackExportService? modpackExportService = null)
     {
         this.instanceService = instanceService;
         this.gameVersionService = gameVersionService;
@@ -122,7 +123,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             localShaderPacksViewModel,
             javaRuntimeDiscoveryService,
             filePickerService,
-            floatingMessageService);
+            floatingMessageService,
+            modpackExportService);
         EditDialog.InstanceUpdated += EditDialog_InstanceUpdated;
         EditDialog.InstanceRenameStarting += EditDialog_InstanceRenameStarting;
         EditDialog.InstanceRenameFinished += EditDialog_InstanceRenameFinished;
@@ -211,6 +213,9 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     public bool IsBackupManagementDetailsStep => IsDetailsStep
         && string.Equals(Details.SelectedSection?.Id, "backup", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsExportDetailsStep => IsDetailsStep
+        && string.Equals(Details.SelectedSection?.Id, "export", StringComparison.OrdinalIgnoreCase);
 
     public bool IsTopResourceManagementDetailsStep => IsModManagementDetailsStep
         || IsSaveManagementDetailsStep
@@ -1214,6 +1219,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(IsResourcePackManagementDetailsStep));
         OnPropertyChanged(nameof(IsShaderPackManagementDetailsStep));
         OnPropertyChanged(nameof(IsBackupManagementDetailsStep));
+        OnPropertyChanged(nameof(IsExportDetailsStep));
         OnPropertyChanged(nameof(IsTopResourceManagementDetailsStep));
         OnPropertyChanged(nameof(IsTopSearchVisible));
         OnPropertyChanged(nameof(TopSearchQuery));

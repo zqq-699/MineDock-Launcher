@@ -105,7 +105,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         LocalShaderPacksViewModel localShaderPacksViewModel,
         IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
         IFilePickerService filePickerService,
-        IFloatingMessageService floatingMessageService)
+        IFloatingMessageService floatingMessageService,
+        IModpackExportService? modpackExportService = null)
     {
         this.editDialog = editDialog;
         this.instanceService = instanceService;
@@ -174,6 +175,12 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             instanceFolderService,
             filePickerService,
             floatingMessageService);
+        Export = new InstanceExportSettingsViewModel(
+            this,
+            filePickerService,
+            statusService,
+            floatingMessageService,
+            modpackExportService);
         Placeholder = new InstancePlaceholderSettingsViewModel(this);
         CurrentSectionViewModel = General;
     }
@@ -270,6 +277,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
     public InstanceShaderPackManagementSettingsViewModel ShaderPackManagement { get; }
 
     public InstanceBackupSettingsViewModel Backup { get; }
+
+    public InstanceExportSettingsViewModel Export { get; }
 
     public InstancePlaceholderSettingsViewModel Placeholder { get; }
 
@@ -476,6 +485,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
         ResourcePackManagement.OnSelectedInstanceChanged(value?.Instance);
         ShaderPackManagement.OnSelectedInstanceChanged(value?.Instance);
         Backup.OnSelectedInstanceChanged(value?.Instance);
+        Export.OnSelectedInstanceChanged(value?.Instance);
         _ = RefreshEnabledModCountAsync(value?.Instance);
 
         RefreshSystemMemorySnapshot();
@@ -495,6 +505,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             | ResourcePackManagement.RefreshSelectedInstanceReference(value?.Instance)
             | ShaderPackManagement.RefreshSelectedInstanceReference(value?.Instance);
         Backup.OnSelectedInstanceChanged(value?.Instance);
+        Export.OnSelectedInstanceChanged(value?.Instance);
 
         RefreshSystemMemorySnapshot();
         if (shouldReactivateCurrentSection && CurrentSectionViewModel is not null)
@@ -563,6 +574,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject
             "resource_packs" => ResourcePackManagement,
             "shaders" => ShaderPackManagement,
             "backup" => Backup,
+            "export" => Export,
             _ => Placeholder
         };
         if (CurrentSectionViewModel is not null)

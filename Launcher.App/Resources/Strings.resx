@@ -340,6 +340,7 @@
   <data name="GameSettings_DetailLoader" xml:space="preserve"><value>加载器</value></data>
   <data name="GameSettings_DetailAdvanced" xml:space="preserve"><value>高级设置</value></data>
   <data name="GameSettings_DetailBackup" xml:space="preserve"><value>备份</value></data>
+  <data name="GameSettings_DetailExport" xml:space="preserve"><value>导出</value></data>
   <data name="Nav_GameInstanceList" xml:space="preserve"><value>游戏设置</value></data>
   <data name="Nav_JavaMemory" xml:space="preserve"><value>Java/内存</value></data>
   <data name="Nav_DirectoryManagement" xml:space="preserve"><value>目录管理</value></data>
@@ -680,6 +681,32 @@
   <data name="GameSettings_DeleteGameButton" xml:space="preserve"><value>删除游戏</value></data>
   <data name="GameSettings_BackupInfoSection" xml:space="preserve"><value>备份概览</value></data>
   <data name="GameSettings_BackupListSection" xml:space="preserve"><value>备份列表</value></data>
+  <data name="GameSettings_ExportSettingsSection" xml:space="preserve"><value>导出设置</value></data>
+  <data name="GameSettings_ExportModpackTypeLabel" xml:space="preserve"><value>导出整合包类型</value></data>
+  <data name="GameSettings_ExportTypeCurseForge" xml:space="preserve"><value>CurseForge</value></data>
+  <data name="GameSettings_ExportTypeModrinth" xml:space="preserve"><value>Modrinth</value></data>
+  <data name="GameSettings_ExportModpackInfoSection" xml:space="preserve"><value>整合包信息</value></data>
+  <data name="GameSettings_ExportModpackNameLabel" xml:space="preserve"><value>整合包名称</value></data>
+  <data name="GameSettings_ExportModpackNameRequired" xml:space="preserve"><value>整合包名称不可为空</value></data>
+  <data name="GameSettings_ExportAuthorLabel" xml:space="preserve"><value>作者</value></data>
+  <data name="GameSettings_ExportAuthorHint" xml:space="preserve"><value>作者仅对 CurseForge 整合包格式生效，Modrinth 格式不包含作者字段。</value></data>
+  <data name="GameSettings_ExportVersionLabel" xml:space="preserve"><value>版本</value></data>
+  <data name="GameSettings_ExportVersionPlaceholder" xml:space="preserve"><value>1.0.0</value></data>
+  <data name="GameSettings_ExportPackModsLabel" xml:space="preserve"><value>导出Mods</value></data>
+  <data name="GameSettings_ExportPackDisabledModsLabel" xml:space="preserve"><value>导出已禁用Mod</value></data>
+  <data name="GameSettings_ExportPackResourcePacksLabel" xml:space="preserve"><value>导出资源包</value></data>
+  <data name="GameSettings_ExportPackShaderPacksLabel" xml:space="preserve"><value>导出光影包</value></data>
+  <data name="GameSettings_ExportPackSavesLabel" xml:space="preserve"><value>导出配置</value></data>
+  <data name="Status_ModpackExporting" xml:space="preserve"><value>正在导出整合包...</value></data>
+  <data name="Status_ModpackExported" xml:space="preserve"><value>整合包已导出</value></data>
+  <data name="Status_ModpackExportedFormat" xml:space="preserve"><value>整合包已导出到 {0}</value></data>
+  <data name="Status_ModpackExportFailed" xml:space="preserve"><value>导出整合包失败，请稍后重试。</value></data>
+  <data name="Status_ModpackExportMissingCurseForgeApiKey" xml:space="preserve"><value>缺少 CurseForge API Key，无法识别本地文件。</value></data>
+  <data name="Status_ModpackExportMissingLoaderVersion" xml:space="preserve"><value>实例加载器版本不完整，无法导出 CurseForge 整合包。</value></data>
+  <data name="Status_ModpackExportCurseForgeApiFailed" xml:space="preserve"><value>连接 CurseForge 识别文件失败，请稍后重试。</value></data>
+  <data name="Status_ModpackExportInvalidRequest" xml:space="preserve"><value>导出信息不完整，无法导出整合包。</value></data>
+  <data name="Status_ModpackExportFileSystemFailed" xml:space="preserve"><value>写入整合包文件失败，请检查保存位置。</value></data>
+  <data name="Status_ModrinthExportUnsupported" xml:space="preserve"><value>暂不支持导出 Modrinth 整合包。</value></data>
   <data name="GameSettings_BackupInfoSummaryFormat" xml:space="preserve"><value>当前游戏有 {0} 个备份</value></data>
   <data name="GameSettings_BackupDirectorySection" xml:space="preserve"><value>备份目录</value></data>
   <data name="GameSettings_BackupDirectoryNotSelected" xml:space="preserve"><value>未选择备份目录</value></data>
@@ -985,6 +1012,8 @@
   <data name="FilePicker_ShaderPackDownloadDirectoryTitle" xml:space="preserve"><value>&#x9009;&#x62E9;&#x5149;&#x5F71;&#x5305;&#x4E0B;&#x8F7D;&#x76EE;&#x5F55;</value></data>
   <data name="FilePicker_WorldDownloadDirectoryTitle" xml:space="preserve"><value>&#x9009;&#x62E9;&#x4E16;&#x754C;&#x4E0B;&#x8F7D;&#x76EE;&#x5F55;</value></data>
   <data name="FilePicker_ModpackDownloadDirectoryTitle" xml:space="preserve"><value>选择整合包下载目录</value></data>
+  <data name="FilePicker_ModpackExportArchiveTitle" xml:space="preserve"><value>保存 CurseForge 整合包</value></data>
+  <data name="FilePicker_ModpackExportArchiveFilter" xml:space="preserve"><value>CurseForge 整合包 (*.zip)|*.zip|所有文件 (*.*)|*.*</value></data>
   <data name="GameSettings_DropImportShaderPacksMessage" xml:space="preserve"><value>释放以导入光影包</value></data>
   <data name="GameSettings_DropShaderPackArchivesOnlyMessage" xml:space="preserve"><value>当前页面仅支持拖入光影包压缩包。</value></data>
   <data name="GameSettings_ShaderPackManagementActionsLabel" xml:space="preserve"><value>操作</value></data>

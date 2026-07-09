@@ -994,6 +994,9 @@ Longer content wraps automatically.</value>
   <data name="GameSettings_DetailBackup" xml:space="preserve">
     <value>Backups</value>
   </data>
+  <data name="GameSettings_DetailExport" xml:space="preserve">
+    <value>Export</value>
+  </data>
   <data name="Nav_GameInstanceList" xml:space="preserve">
     <value>Game Settings</value>
   </data>
@@ -2014,6 +2017,84 @@ Longer content wraps automatically.</value>
   <data name="GameSettings_BackupListSection" xml:space="preserve">
     <value>Backup List</value>
   </data>
+  <data name="GameSettings_ExportSettingsSection" xml:space="preserve">
+    <value>Export Settings</value>
+  </data>
+  <data name="GameSettings_ExportModpackTypeLabel" xml:space="preserve">
+    <value>Export Modpack Type</value>
+  </data>
+  <data name="GameSettings_ExportTypeCurseForge" xml:space="preserve">
+    <value>CurseForge</value>
+  </data>
+  <data name="GameSettings_ExportTypeModrinth" xml:space="preserve">
+    <value>Modrinth</value>
+  </data>
+  <data name="GameSettings_ExportModpackInfoSection" xml:space="preserve">
+    <value>Modpack Information</value>
+  </data>
+  <data name="GameSettings_ExportModpackNameLabel" xml:space="preserve">
+    <value>Modpack Name</value>
+  </data>
+  <data name="GameSettings_ExportModpackNameRequired" xml:space="preserve">
+    <value>Modpack name cannot be empty</value>
+  </data>
+  <data name="GameSettings_ExportAuthorLabel" xml:space="preserve">
+    <value>Author</value>
+  </data>
+  <data name="GameSettings_ExportAuthorHint" xml:space="preserve">
+    <value>Author only applies to the CurseForge modpack format. Modrinth does not include an author field.</value>
+  </data>
+  <data name="GameSettings_ExportVersionLabel" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="GameSettings_ExportVersionPlaceholder" xml:space="preserve">
+    <value>1.0.0</value>
+  </data>
+  <data name="GameSettings_ExportPackModsLabel" xml:space="preserve">
+    <value>Export Mods</value>
+  </data>
+  <data name="GameSettings_ExportPackDisabledModsLabel" xml:space="preserve">
+    <value>Export Disabled Mods</value>
+  </data>
+  <data name="GameSettings_ExportPackResourcePacksLabel" xml:space="preserve">
+    <value>Export Resource Packs</value>
+  </data>
+  <data name="GameSettings_ExportPackShaderPacksLabel" xml:space="preserve">
+    <value>Export Shader Packs</value>
+  </data>
+  <data name="GameSettings_ExportPackSavesLabel" xml:space="preserve">
+    <value>Export Config</value>
+  </data>
+  <data name="Status_ModpackExporting" xml:space="preserve">
+    <value>Exporting modpack...</value>
+  </data>
+  <data name="Status_ModpackExported" xml:space="preserve">
+    <value>Modpack exported.</value>
+  </data>
+  <data name="Status_ModpackExportedFormat" xml:space="preserve">
+    <value>Modpack exported to {0}</value>
+  </data>
+  <data name="Status_ModpackExportFailed" xml:space="preserve">
+    <value>Failed to export modpack. Please try again later.</value>
+  </data>
+  <data name="Status_ModpackExportMissingCurseForgeApiKey" xml:space="preserve">
+    <value>CurseForge API key is missing, so local files cannot be identified.</value>
+  </data>
+  <data name="Status_ModpackExportMissingLoaderVersion" xml:space="preserve">
+    <value>The instance loader version is incomplete, so the CurseForge modpack cannot be exported.</value>
+  </data>
+  <data name="Status_ModpackExportCurseForgeApiFailed" xml:space="preserve">
+    <value>Failed to identify files with CurseForge. Please try again later.</value>
+  </data>
+  <data name="Status_ModpackExportInvalidRequest" xml:space="preserve">
+    <value>Export information is incomplete, so the modpack cannot be exported.</value>
+  </data>
+  <data name="Status_ModpackExportFileSystemFailed" xml:space="preserve">
+    <value>Failed to write the modpack file. Check the save location.</value>
+  </data>
+  <data name="Status_ModrinthExportUnsupported" xml:space="preserve">
+    <value>Modrinth modpack export is not supported yet.</value>
+  </data>
   <data name="GameSettings_BackupInfoSummaryFormat" xml:space="preserve">
     <value>This game has {0} backups</value>
   </data>
@@ -2920,6 +3001,12 @@ The current game folder will be backed up first.</value>
   </data>
   <data name="FilePicker_ModpackDownloadDirectoryTitle" xml:space="preserve">
     <value>Choose Modpack Download Folder</value>
+  </data>
+  <data name="FilePicker_ModpackExportArchiveTitle" xml:space="preserve">
+    <value>Save CurseForge Modpack</value>
+  </data>
+  <data name="FilePicker_ModpackExportArchiveFilter" xml:space="preserve">
+    <value>CurseForge modpack (*.zip)|*.zip|All files (*.*)|*.*</value>
   </data>
   <data name="GameSettings_DropImportShaderPacksMessage" xml:space="preserve">
     <value>Drop shader pack archives here to import them.</value>

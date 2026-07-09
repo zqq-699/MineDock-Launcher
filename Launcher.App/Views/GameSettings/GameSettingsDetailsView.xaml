@@ -37,6 +37,10 @@
             <views:InstanceBackupSettingsView />
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type gameSettings:InstanceExportSettingsViewModel}">
+            <views:InstanceExportSettingsView />
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type gameSettings:InstancePlaceholderSettingsViewModel}">
             <views:InstancePlaceholderSettingsView />
         </DataTemplate>
