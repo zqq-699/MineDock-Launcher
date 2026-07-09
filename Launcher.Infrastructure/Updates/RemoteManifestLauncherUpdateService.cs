@@ -218,7 +218,7 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
         return channel is LauncherUpdateChannel.Beta ? "beta" : "release";
     }
 
-    private static bool TryCalculateVersionCode(string? value, out int versionCode)
+    public static bool TryCalculateVersionCode(string? value, out int versionCode)
     {
         versionCode = 0;
         if (string.IsNullOrWhiteSpace(value))
@@ -232,9 +232,20 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
         if (metadataIndex >= 0)
             text = text[..metadataIndex];
 
+        var betaRevision = 99;
         var preReleaseIndex = text.IndexOf('-', StringComparison.Ordinal);
         if (preReleaseIndex >= 0)
+        {
+            var preRelease = text[(preReleaseIndex + 1)..];
             text = text[..preReleaseIndex];
+            if (!preRelease.StartsWith("beta.", StringComparison.OrdinalIgnoreCase)
+                || !int.TryParse(preRelease["beta.".Length..], out betaRevision)
+                || betaRevision <= 0
+                || betaRevision > 98)
+            {
+                return false;
+            }
+        }
 
         var segments = text.Split('.');
         if (segments.Length < 2)
@@ -253,7 +264,10 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
         if (major < 0 || minor < 0 || patch < 0)
             return false;
 
-        versionCode = major * 10000 + minor * 100 + patch;
+        if (major > 99 || minor > 99 || patch > 99)
+            return false;
+
+        versionCode = major * 1000000 + minor * 10000 + patch * 100 + betaRevision;
         return true;
     }
 

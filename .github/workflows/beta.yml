@@ -1,24 +1,23 @@
-name: Release
+name: Beta Release
 
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*.*.*-beta*'
 
 permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build and publish release
+  beta:
+    name: Build and publish beta
     runs-on: windows-latest
-    if: ${{ !contains(github.ref_name, '-') }}
 
     env:
-      CHANNEL: release
+      CHANNEL: beta
       PUBLISH_DIR: publish/MineDock Launcher-win-x64-fdd-single
       ASSET_PATH: publish/MineDock Launcher-win-x64-fdd-single/MineDock_Launcher_x64.exe
-      MANIFEST_PATH: update/release/latest.json
+      MANIFEST_PATH: update/beta/latest.json
 
     steps:
       - name: Checkout
@@ -29,25 +28,25 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Resolve release metadata
+      - name: Resolve beta metadata
         shell: pwsh
         run: |
           $tag = $env:GITHUB_REF_NAME
-          if ($tag -notmatch '^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$') {
-            throw "Release tag must match vX.Y.Z. Actual tag: $tag"
+          if ($tag -notmatch '^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)-beta\.(?<beta>\d+)$') {
+            throw "Beta tag must match vX.Y.Z-beta.N. Actual tag: $tag"
           }
 
           $versionName = $tag.Substring(1)
-          $versionCode = ([int]$Matches.major * 1000000) + ([int]$Matches.minor * 10000) + ([int]$Matches.patch * 100) + 99
+          $versionCode = ([int]$Matches.major * 1000000) + ([int]$Matches.minor * 10000) + ([int]$Matches.patch * 100) + [int]$Matches.beta
           $notesPath = "update/$($env:CHANNEL)/notes/$versionName.md"
 
           if (-not (Test-Path $notesPath)) {
-            throw "Release notes file is missing: $notesPath"
+            throw "Beta release notes file is missing: $notesPath"
           }
 
           $releaseNotes = Get-Content -Raw -Encoding UTF8 $notesPath
           if ([string]::IsNullOrWhiteSpace($releaseNotes)) {
-            throw "Release notes file is empty: $notesPath"
+            throw "Beta release notes file is empty: $notesPath"
           }
 
           [xml]$project = Get-Content "Launcher.App/Launcher.App.csproj"
@@ -67,7 +66,7 @@ jobs:
           "VERSION_NAME=$versionName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "VERSION_CODE=$versionCode" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "NOTES_PATH=$notesPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "GENERATED_MANIFEST_PATH=$($env:PUBLISH_DIR)/latest-release.json" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GENERATED_MANIFEST_PATH=$($env:PUBLISH_DIR)/latest-beta.json" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Restore
         run: dotnet restore Launcher.sln
@@ -75,7 +74,7 @@ jobs:
       - name: Test
         run: dotnet test Launcher.sln --no-restore
 
-      - name: Verify release manifest template
+      - name: Verify beta manifest template
         shell: pwsh
         run: |
           $manifest = Get-Content -Raw -Encoding UTF8 $env:MANIFEST_PATH | ConvertFrom-Json
@@ -105,7 +104,7 @@ jobs:
           CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:CURSEFORGE_API_KEY)) {
-            throw "Repository secret CURSEFORGE_API_KEY is not configured. Configure it before publishing a release."
+            throw "Repository secret CURSEFORGE_API_KEY is not configured. Configure it before publishing a beta release."
           }
 
           New-Item -ItemType Directory -Force ".local-secrets" | Out-Null
@@ -114,11 +113,11 @@ jobs:
       - name: Publish win-x64 single file
         run: dotnet publish Launcher.App/Launcher.App.csproj -c Release -p:PublishProfile=WinX64FrameworkDependentSingleFile
 
-      - name: Prepare release artifacts
+      - name: Prepare beta artifacts
         shell: pwsh
         run: |
           if (-not (Test-Path $env:ASSET_PATH)) {
-            throw "Expected release asset was not created: $($env:ASSET_PATH)"
+            throw "Expected beta asset was not created: $($env:ASSET_PATH)"
           }
 
           $assetName = Split-Path $env:ASSET_PATH -Leaf
@@ -152,18 +151,18 @@ jobs:
 
           $manifest | ConvertTo-Json -Depth 20 | Set-Content -Path $env:GENERATED_MANIFEST_PATH -Encoding utf8
 
-      - name: Create GitHub release
+      - name: Create GitHub beta release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $assetName = Split-Path $env:ASSET_PATH -Leaf
           $shaPath = Join-Path $env:PUBLISH_DIR "$assetName.sha256"
-          $title = "MineDock Launcher $($env:VERSION_NAME)"
+          $title = "MineDock Launcher $($env:VERSION_NAME) Beta"
 
-          gh release create $env:GITHUB_REF_NAME $env:ASSET_PATH $shaPath $env:GENERATED_MANIFEST_PATH --title $title --notes-file $env:NOTES_PATH --latest
+          gh release create $env:GITHUB_REF_NAME $env:ASSET_PATH $shaPath $env:GENERATED_MANIFEST_PATH --title $title --notes-file $env:NOTES_PATH --prerelease --latest=false
 
-      - name: Write back release manifest
+      - name: Write back beta manifest
         shell: pwsh
         run: |
           $manifestJson = Get-Content -Raw -Encoding UTF8 $env:GENERATED_MANIFEST_PATH

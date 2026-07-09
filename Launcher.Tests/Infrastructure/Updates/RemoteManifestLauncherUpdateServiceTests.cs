@@ -14,7 +14,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
         var handler = new ManifestHandler();
         handler.Respond(
             "https://github.test/update/release/latest.json",
-            CreateManifest(versionCode: 10001, channel: "release"));
+            CreateManifest(versionCode: 1000199, channel: "release"));
         var service = CreateService(handler);
 
         var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
@@ -22,7 +22,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
         Assert.False(result.IsFailed);
         Assert.True(result.IsUpdateAvailable);
         Assert.Equal("1.0.1", result.Update?.Version);
-        Assert.Equal(10001, result.Update?.VersionCode);
+        Assert.Equal(1000199, result.Update?.VersionCode);
         Assert.Equal("https://download.test/MineDock_Launcher_x64.exe", result.Update?.DownloadUrl);
         Assert.Equal("MineDock_Launcher_x64.exe", result.Update?.DownloadFileName);
         Assert.Equal(LauncherUpdateAssetKind.WindowsX64Executable, result.Update?.AssetKind);
@@ -39,7 +39,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
         var handler = new ManifestHandler();
         handler.Respond(
             "https://github.test/update/beta/latest.json",
-            CreateManifest(versionCode: 10002, channel: "beta", versionName: "1.0.2-beta.1"));
+            CreateManifest(versionCode: 1000201, channel: "beta", versionName: "1.0.2-beta.1"));
         var service = CreateService(handler);
 
         var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Beta);
@@ -66,7 +66,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
             CreateFailureResponse(failureMode));
         handler.Respond(
             "https://gitee.test/update/release/latest.json",
-            CreateManifest(versionCode: 10003, channel: "release", versionName: "1.0.3"));
+            CreateManifest(versionCode: 1000399, channel: "release", versionName: "1.0.3"));
         var service = CreateService(handler);
 
         var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
@@ -107,7 +107,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
         var handler = new ManifestHandler();
         handler.Respond(
             "https://github.test/update/release/latest.json",
-            CreateManifest(versionCode: 10000, channel: "release", versionName: "1.0.0"));
+            CreateManifest(versionCode: 1000099, channel: "release", versionName: "1.0.0"));
         var service = CreateService(handler);
 
         var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
@@ -129,10 +129,10 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
               "appId": "MineDock-Launcher",
               "channel": "release",
               "versionName": "1.0.4",
-              "versionCode": 10004,
+              "versionCode": 1000499,
               "publishedAt": "2026-01-01T00:00:00+08:00",
               "mandatory": false,
-              "minSupportedVersionCode": 10001,
+              "minSupportedVersionCode": 1000199,
               "releaseNotes": "notes",
               "assets": [
                 {
@@ -158,13 +158,26 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
         Assert.True(result.IsUpdateAvailable);
         Assert.NotNull(result.Update);
         Assert.True(result.Update.IsMandatory);
-        Assert.Equal(10001, result.Update.MinSupportedVersionCode);
+        Assert.Equal(1000199, result.Update.MinSupportedVersionCode);
         Assert.Equal(123, result.Update.SizeBytes);
         Assert.Equal("ABCDEF", result.Update.Sha256);
         Assert.Equal("https://download.test/github.exe", result.Update.DownloadUrl);
         Assert.Equal(
             ["github", "oss"],
             result.Update.DownloadUrls!.Select(url => url.Name));
+    }
+
+    [Theory]
+    [InlineData("0.9.1", 90199)]
+    [InlineData("0.9.1-beta.1", 90101)]
+    [InlineData("1.1.0", 1010099)]
+    [InlineData("1.1.0-beta.1", 1010001)]
+    public void TryCalculateVersionCodeUsesReleaseAndBetaSuffixRules(
+        string version,
+        int expectedVersionCode)
+    {
+        Assert.True(RemoteManifestLauncherUpdateService.TryCalculateVersionCode(version, out var versionCode));
+        Assert.Equal(expectedVersionCode, versionCode);
     }
 
     private static RemoteManifestLauncherUpdateService CreateService(ManifestHandler handler)
@@ -219,9 +232,9 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
             ManifestFailureMode.Timeout => ManifestResponse.Timeout,
             ManifestFailureMode.NonSuccessStatusCode => new ManifestResponse(HttpStatusCode.BadGateway, "{}"),
             ManifestFailureMode.InvalidJson => new ManifestResponse(HttpStatusCode.OK, "{"),
-            ManifestFailureMode.InvalidSchema => new ManifestResponse(HttpStatusCode.OK, CreateManifest(10001, "release").Replace("\"schemaVersion\": 1", "\"schemaVersion\": 99")),
-            ManifestFailureMode.InvalidAppId => new ManifestResponse(HttpStatusCode.OK, CreateManifest(10001, "release").Replace("MineDock-Launcher", "Other")),
-            ManifestFailureMode.InvalidChannel => new ManifestResponse(HttpStatusCode.OK, CreateManifest(10001, "beta")),
+            ManifestFailureMode.InvalidSchema => new ManifestResponse(HttpStatusCode.OK, CreateManifest(1000199, "release").Replace("\"schemaVersion\": 1", "\"schemaVersion\": 99")),
+            ManifestFailureMode.InvalidAppId => new ManifestResponse(HttpStatusCode.OK, CreateManifest(1000199, "release").Replace("MineDock-Launcher", "Other")),
+            ManifestFailureMode.InvalidChannel => new ManifestResponse(HttpStatusCode.OK, CreateManifest(1000199, "beta")),
             _ => throw new ArgumentOutOfRangeException(nameof(failureMode), failureMode, null)
         };
     }
