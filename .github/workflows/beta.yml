@@ -286,23 +286,35 @@ jobs:
           foreach ($filePath in @($env:ASSET_PATH, $env:SHA_PATH, $env:GENERATED_MANIFEST_PATH)) {
             $file = Get-Item $filePath
             Write-Host "Uploading Gitee release attachment. File=$($file.Name) Size=$($file.Length)"
+            $responsePath = Join-Path $env:RUNNER_TEMP "gitee-upload-$($file.Name).json"
+            $statusPath = Join-Path $env:RUNNER_TEMP "gitee-upload-$($file.Name).status"
             $curlArgs = @(
-              "--fail",
               "--show-error",
-              "--silent",
               "--location",
               "--connect-timeout", "30",
               "--max-time", "300",
               "--retry", "2",
               "--retry-delay", "5",
               "--request", "POST",
+              "--output", $responsePath,
+              "--write-out", "%{http_code}",
               $uploadUri,
               "--form", "file=@$($file.FullName)"
             )
 
-            & curl.exe @curlArgs | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-              throw "Failed to upload Gitee release attachment '$($file.Name)'. curl exit code: $LASTEXITCODE"
+            & curl.exe @curlArgs | Set-Content -Path $statusPath -Encoding ascii
+            $curlExitCode = $LASTEXITCODE
+            $httpStatus = if (Test-Path $statusPath) { (Get-Content -Raw $statusPath).Trim() } else { "" }
+            $responseText = if (Test-Path $responsePath) { Get-Content -Raw -Encoding UTF8 $responsePath } else { "" }
+
+            Write-Host "Gitee upload completed. File=$($file.Name) CurlExitCode=$curlExitCode HttpStatus=$httpStatus"
+            if ($curlExitCode -ne 0 -or $httpStatus -notmatch '^2\d\d$') {
+              if (-not [string]::IsNullOrWhiteSpace($responseText)) {
+                Write-Host "Gitee upload response body:"
+                Write-Host ($responseText.Substring(0, [Math]::Min($responseText.Length, 4000)))
+              }
+
+              throw "Failed to upload Gitee release attachment '$($file.Name)'. curl exit code: $curlExitCode HTTP status: $httpStatus"
             }
 
             Write-Host "Uploaded Gitee release attachment. File=$($file.Name)"

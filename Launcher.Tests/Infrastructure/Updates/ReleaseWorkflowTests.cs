@@ -46,6 +46,10 @@ public sealed class ReleaseWorkflowTests
         Assert.Contains("TimeoutSec 60", text);
         Assert.Contains("attach_files?access_token=$encodedToken", text);
         Assert.Contains("curl.exe", text);
+        Assert.Contains("--write-out", text);
+        Assert.Contains("%{http_code}", text);
+        Assert.Contains("Gitee upload response body:", text);
+        Assert.Contains("HTTP status", text);
         Assert.Contains("--form\", \"file=@", text);
         Assert.DoesNotContain("--form\", \"access_token=", text);
         Assert.Contains("git tag $env:GITHUB_REF_NAME", text);
