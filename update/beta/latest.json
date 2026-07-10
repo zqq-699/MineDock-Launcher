@@ -1,30 +1,30 @@
 {
   "schemaVersion": 1,
-  "appId": "MineDock-Launcher",
+  "appId": "BlockHelm-Launcher",
   "channel": "beta",
-  "versionName": "0.9.1-beta.11",
-  "versionCode": 90111,
-  "publishedAt": "2026-07-09T18:11:48Z",
+  "versionName": "0.9.2-beta.1",
+  "versionCode": 90201,
+  "publishedAt": "2026-07-10T10:05:09Z",
   "mandatory": false,
   "minSupportedVersionCode": 0,
-  "releaseNotes": "# Beta 0.9.1-beta.11\r\n\r\n- Fix generated update manifests so beta and release channels are written explicitly.\r\n- Repair the beta update manifest path used by launcher update checks.",
+  "releaseNotes": "# Beta 0.9.2-beta.1\r\n\r\n- Rename the launcher to BlockHelm-Launcher and update GitHub and Gitee release links.\r\n- Rename package, updater, data-directory, log, and HTTP identifiers to BlockHelm/BHL.\r\n- Improve Minecraft download reliability with source-aware retries, timeout and redirect handling, atomic file replacement, integrity validation, and expanded tests.\r\n- Remove the unused List preview submenu and page from Settings.",
   "assets": [
     {
       "platform": "windows",
       "arch": "x64",
       "packageType": "exe",
-      "fileName": "MineDock_Launcher_x64.exe",
-      "size": 7509548,
-      "sha256": "a7278d00feb1cbe89646e47638276ce730f72f9c8d6ed72a7d18fbe3e8000b28",
+      "fileName": "BlockHelm_Launcher_x64.exe",
+      "size": 7586360,
+      "sha256": "5de7a21b80612ba928d621060361edb0f7e2bd5eb7ff4d87c9218e657c1e8410",
       "urls": [
         {
           "name": "gitee",
-          "url": "https://gitee.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.11/MineDock_Launcher_x64.exe",
+          "url": "https://gitee.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.2-beta.1/BlockHelm_Launcher_x64.exe",
           "priority": 1
         },
         {
           "name": "github",
-          "url": "https://github.com/zqq-699/MineDock-Launcher/releases/download/v0.9.1-beta.11/MineDock_Launcher_x64.exe",
+          "url": "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.2-beta.1/BlockHelm_Launcher_x64.exe",
           "priority": 2
         }
       ]
