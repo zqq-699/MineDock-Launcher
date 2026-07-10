@@ -192,8 +192,12 @@ public sealed class ListPageFrameProgressiveBlurTests
                     expectedLayout,
                     expectedLayout.VerticalMaximumRadius);
                 Assert.Equal(70d, VerticalEdgeOpacityMask.GetTopFadeLength(view.ProgressiveBlurLayerElement));
+                Assert.Equal(30d,
+                    VerticalEdgeOpacityMask.GetTopIntermediateLength(view.ProgressiveBlurLayerElement));
                 Assert.Equal(72d, VerticalEdgeOpacityMask.GetBottomFadeLength(view.ProgressiveBlurLayerElement));
                 Assert.Equal(0d, VerticalEdgeOpacityMask.GetTopMinimumOpacity(view.ProgressiveBlurLayerElement));
+                Assert.Equal(0.4d,
+                    VerticalEdgeOpacityMask.GetTopIntermediateOpacity(view.ProgressiveBlurLayerElement));
 
                 var brush = view.ProgressiveBlurBrush;
                 view.DetailsScrollViewerElement.ScrollToVerticalOffset(200d);
@@ -221,7 +225,7 @@ public sealed class ListPageFrameProgressiveBlurTests
                 Assert.Null(view.ProgressiveBlurDirectHostElement.Clip);
                 Assert.True(double.IsNaN(
                     VerticalEdgeOpacityMask.GetTopMinimumOpacity(view.ProgressiveBlurLayerElement)));
-                Assert.Equal(1d,
+                Assert.Equal(0.1d,
                     VerticalEdgeOpacityMask.GetTopIntermediateOpacity(view.ProgressiveBlurLayerElement));
             }
             finally
@@ -735,6 +739,7 @@ public sealed class ListPageFrameProgressiveBlurTests
         Assert.Equal(expectedLayout.DirectListStart, directListClip.Rect.Y, 10);
         Assert.Null(frame.BlurBandViewportElement.OpacityMask);
         Assert.Equal(expected, VerticalEdgeOpacityMask.GetTopFadeLength(frame.ListLayerElement));
+        Assert.Equal(expected - 40d, VerticalEdgeOpacityMask.GetTopIntermediateLength(frame.ListLayerElement));
     }
 
     private static ProgressiveBlurRenderLayout CalculateExpectedLayout(

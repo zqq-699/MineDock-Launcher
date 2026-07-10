@@ -12,8 +12,14 @@
           Background="Transparent"
           behaviors:VerticalEdgeOpacityMask.IsEnabled="True"
           behaviors:VerticalEdgeOpacityMask.TopFadeLength="70"
+          behaviors:VerticalEdgeOpacityMask.TopIntermediateLength="30"
           behaviors:VerticalEdgeOpacityMask.BottomFadeLength="72"
           behaviors:VerticalEdgeOpacityMask.MinimumOpacity="0">
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Setter Property="behaviors:VerticalEdgeOpacityMask.TopIntermediateOpacity" Value="0.1" />
+            </Style>
+        </Grid.Style>
         <Grid x:Name="PART_ProgressiveBlurDirectHost"
               SnapsToDevicePixels="True">
             <Grid x:Name="PART_ProgressiveBlurVisualSource"

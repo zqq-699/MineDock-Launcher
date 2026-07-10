@@ -31,7 +31,7 @@
                         </MultiDataTrigger>
                         <DataTrigger Binding="{Binding IsSearchVisible, ElementName=Root}" Value="False">
                             <Setter Property="behaviors:VerticalEdgeOpacityMask.TopFadeLength" Value="70" />
-                            <Setter Property="behaviors:VerticalEdgeOpacityMask.TopIntermediateLength" Value="50" />
+                            <Setter Property="behaviors:VerticalEdgeOpacityMask.TopIntermediateLength" Value="30" />
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
