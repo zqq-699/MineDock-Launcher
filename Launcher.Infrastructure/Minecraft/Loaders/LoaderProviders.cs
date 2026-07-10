@@ -21,7 +21,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ILogger<VanillaLoaderProvider>? logger = null)
     {
-        this.httpClient = httpClient ?? new HttpClient();
+        this.httpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.logger = logger ?? NullLogger<VanillaLoaderProvider>.Instance;
     }
@@ -189,11 +189,24 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         var bandwidthLimiter = DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
         parameters.HttpClient = new HttpClient(new DownloadSourceRoutingHttpMessageHandler(
             downloadSourcePreference,
-            DownloadConcurrencyCategory.Runtime,
-            new HttpClientHandler(),
+            DownloadConcurrencyCategory.Metadata,
+            MinecraftHttpClientFactory.CreateTransportHandler(),
             logger,
-            bandwidthLimiter));
-        parameters.GameInstaller = DownloadSpeedTrackingGameInstaller.CreateAsCoreCount(parameters.HttpClient, progress);
+            bandwidthLimiter))
+        {
+            Timeout = Timeout.InfiniteTimeSpan
+        };
+        var runtimeHttpClient = MinecraftHttpClientFactory.CreateTransportClient();
+        var runtimeExecutor = new MinecraftDownloadRequestExecutor(
+            runtimeHttpClient,
+            logger,
+            bandwidthLimiter,
+            category: DownloadConcurrencyCategory.Runtime);
+        parameters.GameInstaller = DownloadSpeedTrackingGameInstaller.CreateAsCoreCount(
+            parameters.HttpClient,
+            runtimeExecutor,
+            downloadSourcePreference,
+            progress);
         return new MinecraftLauncher(parameters);
     }
 }
@@ -210,7 +223,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ILogger<FabricLoaderProvider>? logger = null)
     {
-        this.httpClient = httpClient ?? new HttpClient();
+        this.httpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.logger = logger ?? NullLogger<FabricLoaderProvider>.Instance;
     }
@@ -224,44 +237,45 @@ public sealed class FabricLoaderProvider : ILoaderProvider
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {
-        try
-        {
-            var executor = new MinecraftDownloadRequestExecutor(
-                httpClient,
-                logger,
-                DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
-                category: DownloadConcurrencyCategory.Metadata);
-            using var response = await executor.GetAsync(
-                $"https://meta.fabricmc.net/v2/versions/loader/{minecraftVersion}",
-                downloadSourcePreference,
-                categoryHint: "Fabric",
-                cancellationToken);
+        var executor = new MinecraftDownloadRequestExecutor(
+            httpClient,
+            logger,
+            DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
+            category: DownloadConcurrencyCategory.Metadata);
+        var result = await executor.ExecuteLookupAsync(
+            $"https://meta.fabricmc.net/v2/versions/loader/{minecraftVersion}",
+            downloadSourcePreference,
+            categoryHint: "Fabric",
+            async (context, token) =>
+            {
+                await using var stream = await context.Response.Content.ReadAsStreamAsync(token);
+                using var json = await JsonDocument.ParseAsync(stream, cancellationToken: token);
+                if (json.RootElement.ValueKind is not JsonValueKind.Array)
+                {
+                    throw new DownloadContentValidationException(
+                        "Fabric loader metadata is not a JSON array.");
+                }
 
-            if (response.Response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
-                return [];
+                var entries = json.RootElement.EnumerateArray().ToList();
+                if (entries.Count == 0)
+                    throw new DownloadNoResultException("Fabric returned an empty loader list.");
 
-            response.Response.EnsureSuccessStatusCode();
+                var versions = entries
+                    .Select(ReadLoaderVersion)
+                    .Where(version => version is not null)
+                    .Select(version => version!)
+                    .ToList();
+                if (versions.Count == 0)
+                {
+                    throw new DownloadContentValidationException(
+                        "Fabric loader metadata contains no valid loader entries.");
+                }
 
-            await using var stream = await response.Response.Content.ReadAsStreamAsync(cancellationToken);
-            using var json = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-            if (json.RootElement.ValueKind is not JsonValueKind.Array)
-                return [];
-
-            return json.RootElement
-                .EnumerateArray()
-                .Select(ReadLoaderVersion)
-                .Where(version => version is not null)
-                .Select(version => version!)
-                .ToList();
-        }
-        catch (HttpRequestException exception) when (exception.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
-        {
-            return [];
-        }
-        catch (Exception exception) when (IsNoAvailableVersionException(exception, minecraftVersion))
-        {
-            return [];
-        }
+                return (IReadOnlyList<LoaderVersionInfo>)versions;
+            },
+            statusCode => statusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound,
+            cancellationToken);
+        return result.Found ? result.Value! : [];
     }
 
     public async Task<string> InstallAsync(

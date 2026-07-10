@@ -19,7 +19,7 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
             new HttpClient(new DownloadHandler("new launcher")),
             logger: null,
             baseDirectory: tempRoot,
-            currentExecutablePath: Path.Combine(tempRoot, "MineDock Launcher.exe"),
+            currentExecutablePath: Path.Combine(tempRoot, "BlockHelm-Launcher.exe"),
             currentProcessId: 1234,
             startProcess: startInfo =>
             {
@@ -30,9 +30,9 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
             "1.0.1",
             "1.0.1",
             "https://example.test/release",
-            "https://example.test/MineDock_Launcher_x64.exe",
+            "https://example.test/BlockHelm_Launcher_x64.exe",
             null,
-            "MineDock_Launcher_x64.exe",
+            "BlockHelm_Launcher_x64.exe",
             LauncherUpdateAssetKind.WindowsX64Executable);
 
         var result = await service.StartUpdateAsync(update);
@@ -49,7 +49,7 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
         Assert.Contains("--source", startedProcess.ArgumentList);
         Assert.Contains(result.DownloadedFilePath, startedProcess.ArgumentList);
         Assert.Contains("--target", startedProcess.ArgumentList);
-        Assert.Contains(Path.Combine(tempRoot, "MineDock Launcher.exe"), startedProcess.ArgumentList);
+        Assert.Contains(Path.Combine(tempRoot, "BlockHelm-Launcher.exe"), startedProcess.ArgumentList);
         Assert.Contains("--restart", startedProcess.ArgumentList);
     }
 
@@ -64,7 +64,7 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
             new HttpClient(handler),
             logger: null,
             baseDirectory: tempRoot,
-            currentExecutablePath: Path.Combine(tempRoot, "MineDock Launcher.exe"),
+            currentExecutablePath: Path.Combine(tempRoot, "BlockHelm-Launcher.exe"),
             currentProcessId: 1234,
             startProcess: _ => true);
         var update = new LauncherUpdateInfo(
@@ -73,7 +73,7 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
             "https://example.test/release",
             "https://example.test/primary.exe",
             null,
-            "MineDock_Launcher_x64.exe",
+            "BlockHelm_Launcher_x64.exe",
             LauncherUpdateAssetKind.WindowsX64Executable,
             DownloadUrls:
             [
@@ -95,21 +95,21 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
         Directory.CreateDirectory(tempRoot);
         var payload = "new launcher";
         var handler = new DownloadHandler();
-        handler.Respond("https://example.test/MineDock_Launcher_x64.exe", HttpStatusCode.OK, payload);
+        handler.Respond("https://example.test/BlockHelm_Launcher_x64.exe", HttpStatusCode.OK, payload);
         var service = new LauncherSelfUpdateService(
             new HttpClient(handler),
             logger: null,
             baseDirectory: tempRoot,
-            currentExecutablePath: Path.Combine(tempRoot, "MineDock Launcher.exe"),
+            currentExecutablePath: Path.Combine(tempRoot, "BlockHelm-Launcher.exe"),
             currentProcessId: 1234,
             startProcess: _ => true);
         var update = new LauncherUpdateInfo(
             "1.0.1",
             "1.0.1",
             "https://example.test/release",
-            "https://example.test/MineDock_Launcher_x64.exe",
+            "https://example.test/BlockHelm_Launcher_x64.exe",
             null,
-            "MineDock_Launcher_x64.exe",
+            "BlockHelm_Launcher_x64.exe",
             LauncherUpdateAssetKind.WindowsX64Executable,
             Sha256: Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(payload))));
 
@@ -126,16 +126,16 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
             new HttpClient(new DownloadHandler("new launcher")),
             logger: null,
             baseDirectory: tempRoot,
-            currentExecutablePath: Path.Combine(tempRoot, "MineDock Launcher.exe"),
+            currentExecutablePath: Path.Combine(tempRoot, "BlockHelm-Launcher.exe"),
             currentProcessId: 1234,
             startProcess: _ => true);
         var update = new LauncherUpdateInfo(
             "1.0.1",
             "1.0.1",
             "https://example.test/release",
-            "https://example.test/MineDock_Launcher_x64.exe",
+            "https://example.test/BlockHelm_Launcher_x64.exe",
             null,
-            "MineDock_Launcher_x64.exe",
+            "BlockHelm_Launcher_x64.exe",
             LauncherUpdateAssetKind.WindowsX64Executable,
             Sha256: new string('0', 64));
 
@@ -152,16 +152,16 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
             new HttpClient(new DownloadHandler("new launcher")),
             logger: null,
             baseDirectory: tempRoot,
-            currentExecutablePath: Path.Combine(tempRoot, "MineDock Launcher.exe"),
+            currentExecutablePath: Path.Combine(tempRoot, "BlockHelm-Launcher.exe"),
             currentProcessId: 1234,
             startProcess: _ => true);
         var update = new LauncherUpdateInfo(
             "1.0.1",
             "1.0.1",
             "https://example.test/release",
-            "https://example.test/MineDock_Launcher_x64.exe",
+            "https://example.test/BlockHelm_Launcher_x64.exe",
             null,
-            "MineDock_Launcher_x64.exe",
+            "BlockHelm_Launcher_x64.exe",
             LauncherUpdateAssetKind.WindowsX64Executable,
             SizeBytes: 999);
 
@@ -171,9 +171,9 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
     }
 
     [Theory]
-    [InlineData("ftp://example.test/MineDock_Launcher_x64.exe")]
-    [InlineData("https://example.test/MineDock_Launcher_x64.exe.asc")]
-    [InlineData("https://example.test/MineDock_Launcher_x64.zip")]
+    [InlineData("ftp://example.test/BlockHelm_Launcher_x64.exe")]
+    [InlineData("https://example.test/BlockHelm_Launcher_x64.exe.asc")]
+    [InlineData("https://example.test/BlockHelm_Launcher_x64.zip")]
     public async Task StartUpdateRejectsInvalidDownloadUrl(string downloadUrl)
     {
         Directory.CreateDirectory(tempRoot);
@@ -181,7 +181,7 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
             new HttpClient(new DownloadHandler("new launcher")),
             logger: null,
             baseDirectory: tempRoot,
-            currentExecutablePath: Path.Combine(tempRoot, "MineDock Launcher.exe"),
+            currentExecutablePath: Path.Combine(tempRoot, "BlockHelm-Launcher.exe"),
             currentProcessId: 1234,
             startProcess: _ => true);
         var update = new LauncherUpdateInfo(
@@ -206,16 +206,16 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
             new HttpClient(new DownloadHandler(string.Empty)),
             logger: null,
             baseDirectory: tempRoot,
-            currentExecutablePath: Path.Combine(tempRoot, "MineDock Launcher.exe"),
+            currentExecutablePath: Path.Combine(tempRoot, "BlockHelm-Launcher.exe"),
             currentProcessId: 1234,
             startProcess: _ => true);
         var update = new LauncherUpdateInfo(
             "1.0.1",
             "1.0.1",
             "https://example.test/release",
-            "https://example.test/MineDock_Launcher_x64.exe",
+            "https://example.test/BlockHelm_Launcher_x64.exe",
             null,
-            "MineDock_Launcher_x64.exe",
+            "BlockHelm_Launcher_x64.exe",
             LauncherUpdateAssetKind.WindowsX64Executable);
 
         var result = await service.StartUpdateAsync(update);

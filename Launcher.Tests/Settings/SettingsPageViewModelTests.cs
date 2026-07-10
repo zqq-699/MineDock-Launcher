@@ -160,7 +160,6 @@ public sealed class SettingsPageViewModelTests
                 SettingsPageSection.LaunchMemory,
                 SettingsPageSection.Java,
                 SettingsPageSection.Theme,
-                SettingsPageSection.ListPreview,
                 SettingsPageSection.Info
             ],
             viewModel.Sections.Select(section => section.Section));
@@ -178,21 +177,6 @@ public sealed class SettingsPageViewModelTests
         Assert.True(viewModel.IsLanguageSection);
         Assert.Equal(Strings.Settings_SectionLanguage, viewModel.SectionTitle);
         Assert.IsType<LanguageSettingsViewModel>(viewModel.CurrentSectionViewModel);
-    }
-
-    [Fact]
-    public void SelectingListPreviewSectionShowsVirtualizedBlurDemoList()
-    {
-        var viewModel = CreateViewModel(out _, out _);
-
-        viewModel.SelectSectionCommand.Execute(viewModel.Sections.Single(section =>
-            section.Section is SettingsPageSection.ListPreview));
-
-        Assert.True(viewModel.IsListPreviewSection);
-        Assert.Equal(Strings.Settings_SectionListPreview, viewModel.SectionTitle);
-        var listPreview = Assert.IsType<ListPreviewSettingsViewModel>(viewModel.CurrentSectionViewModel);
-        Assert.Equal(48, listPreview.Items.Count);
-        Assert.Equal(string.Format(Strings.Settings_ListPreviewItemTitleFormat, 1), listPreview.Items[0].Title);
     }
 
     [Fact]
@@ -276,14 +260,14 @@ public sealed class SettingsPageViewModelTests
                 "1.0.1",
                 "1.0.1",
                 "https://example.test/releases/v1.0.1",
-                "https://example.test/downloads/MineDock_Launcher_x64.exe",
+                "https://example.test/downloads/BlockHelm_Launcher_x64.exe",
                 "Release notes",
-                "MineDock_Launcher_x64.exe",
+                "BlockHelm_Launcher_x64.exe",
                 LauncherUpdateAssetKind.WindowsX64Executable));
 
         await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
 
-        Assert.Equal("0.9.1-beta.11", updateService.LastCurrentVersion);
+        Assert.Equal("0.9.2-beta.1", updateService.LastCurrentVersion);
         Assert.Equal(LauncherUpdateChannel.Release, updateService.LastChannel);
         Assert.True(viewModel.Info.IsUpdateAvailableDialogOpen);
         Assert.Equal("1.0.1", viewModel.Info.UpdateDialogVersionText);
@@ -311,14 +295,14 @@ public sealed class SettingsPageViewModelTests
                 "1.0.1",
                 "1.0.1",
                 "https://example.test/releases/v1.0.1",
-                "https://example.test/downloads/MineDock_Launcher_x64.exe",
+                "https://example.test/downloads/BlockHelm_Launcher_x64.exe",
                 "Release notes",
-                "MineDock_Launcher_x64.exe",
+                "BlockHelm_Launcher_x64.exe",
                 LauncherUpdateAssetKind.WindowsX64Executable));
 
         await viewModel.Info.CheckUpdatesOnStartupAsync();
 
-        Assert.Equal("0.9.1-beta.11", updateService.LastCurrentVersion);
+        Assert.Equal("0.9.2-beta.1", updateService.LastCurrentVersion);
         Assert.Equal(LauncherUpdateChannel.Release, updateService.LastChannel);
         Assert.True(viewModel.Info.IsUpdateAvailableDialogOpen);
         Assert.Equal("1.0.1", viewModel.Info.UpdateDialogVersionText);
@@ -430,9 +414,9 @@ public sealed class SettingsPageViewModelTests
                 "1.0.1",
                 "1.0.1",
                 "https://example.test/releases/v1.0.1",
-                "https://example.test/downloads/MineDock_Launcher_x64.exe",
+                "https://example.test/downloads/BlockHelm_Launcher_x64.exe",
                 null,
-                "MineDock_Launcher_x64.exe",
+                "BlockHelm_Launcher_x64.exe",
                 LauncherUpdateAssetKind.WindowsX64Executable));
 
         await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);
@@ -461,9 +445,9 @@ public sealed class SettingsPageViewModelTests
                 "1.0.1",
                 "1.0.1",
                 "https://example.test/releases/v1.0.1",
-                "https://example.test/downloads/MineDock_Launcher_x64.exe",
+                "https://example.test/downloads/BlockHelm_Launcher_x64.exe",
                 null,
-                "MineDock_Launcher_x64.exe",
+                "BlockHelm_Launcher_x64.exe",
                 LauncherUpdateAssetKind.WindowsX64Executable));
 
         await viewModel.Info.CheckUpdatesCommand.ExecuteAsync(null);

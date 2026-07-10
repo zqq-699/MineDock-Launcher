@@ -23,8 +23,8 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
         Assert.True(result.IsUpdateAvailable);
         Assert.Equal("1.0.1", result.Update?.Version);
         Assert.Equal(1000199, result.Update?.VersionCode);
-        Assert.Equal("https://download.test/MineDock_Launcher_x64.exe", result.Update?.DownloadUrl);
-        Assert.Equal("MineDock_Launcher_x64.exe", result.Update?.DownloadFileName);
+        Assert.Equal("https://download.test/BlockHelm_Launcher_x64.exe", result.Update?.DownloadUrl);
+        Assert.Equal("BlockHelm_Launcher_x64.exe", result.Update?.DownloadFileName);
         Assert.Equal(LauncherUpdateAssetKind.WindowsX64Executable, result.Update?.AssetKind);
         Assert.True(result.Update?.CanAutoInstall);
         Assert.Equal(
@@ -126,7 +126,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
             """
             {
               "schemaVersion": 1,
-              "appId": "MineDock-Launcher",
+              "appId": "BlockHelm-Launcher",
               "channel": "release",
               "versionName": "1.0.4",
               "versionCode": 1000499,
@@ -139,7 +139,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
                   "platform": "windows",
                   "arch": "x64",
                   "packageType": "exe",
-                  "fileName": "MineDock_Launcher_x64.exe",
+                  "fileName": "BlockHelm_Launcher_x64.exe",
                   "size": 123,
                   "sha256": "ABCDEF",
                   "urls": [
@@ -200,7 +200,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
         return $$"""
         {
           "schemaVersion": 1,
-          "appId": "MineDock-Launcher",
+          "appId": "BlockHelm-Launcher",
           "channel": "{{channel}}",
           "versionName": "{{versionName}}",
           "versionCode": {{versionCode}},
@@ -213,11 +213,11 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
               "platform": "windows",
               "arch": "x64",
               "packageType": "exe",
-              "fileName": "MineDock_Launcher_x64.exe",
+              "fileName": "BlockHelm_Launcher_x64.exe",
               "size": 0,
               "sha256": "",
               "urls": [
-                { "name": "gitee", "url": "https://download.test/MineDock_Launcher_x64.exe", "priority": 1 }
+                { "name": "gitee", "url": "https://download.test/BlockHelm_Launcher_x64.exe", "priority": 1 }
               ]
             }
           ]
@@ -233,7 +233,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
             ManifestFailureMode.NonSuccessStatusCode => new ManifestResponse(HttpStatusCode.BadGateway, "{}"),
             ManifestFailureMode.InvalidJson => new ManifestResponse(HttpStatusCode.OK, "{"),
             ManifestFailureMode.InvalidSchema => new ManifestResponse(HttpStatusCode.OK, CreateManifest(1000199, "release").Replace("\"schemaVersion\": 1", "\"schemaVersion\": 99")),
-            ManifestFailureMode.InvalidAppId => new ManifestResponse(HttpStatusCode.OK, CreateManifest(1000199, "release").Replace("MineDock-Launcher", "Other")),
+            ManifestFailureMode.InvalidAppId => new ManifestResponse(HttpStatusCode.OK, CreateManifest(1000199, "release").Replace("BlockHelm-Launcher", "Other")),
             ManifestFailureMode.InvalidChannel => new ManifestResponse(HttpStatusCode.OK, CreateManifest(1000199, "beta")),
             _ => throw new ArgumentOutOfRangeException(nameof(failureMode), failureMode, null)
         };

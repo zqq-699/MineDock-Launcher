@@ -19,7 +19,7 @@ public sealed class QuiltLoaderProvider : ILoaderProvider
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ILogger<QuiltLoaderProvider>? logger = null)
     {
-        this.httpClient = httpClient ?? new HttpClient();
+        this.httpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.logger = logger ?? NullLogger<QuiltLoaderProvider>.Instance;
     }
@@ -38,51 +38,56 @@ public sealed class QuiltLoaderProvider : ILoaderProvider
             "Loading Quilt versions. MinecraftVersion={MinecraftVersion}",
             minecraftVersion);
 
-        try
-        {
-            var executor = new MinecraftDownloadRequestExecutor(
-                httpClient,
-                logger,
-                DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
-                category: DownloadConcurrencyCategory.Metadata);
-            using var response = await executor.GetAsync(
-                $"https://meta.quiltmc.org/v3/versions/loader/{minecraftVersion}",
-                downloadSourcePreference,
-                categoryHint: "Quilt",
-                cancellationToken);
+        var executor = new MinecraftDownloadRequestExecutor(
+            httpClient,
+            logger,
+            DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
+            category: DownloadConcurrencyCategory.Metadata);
+        var result = await executor.ExecuteLookupAsync(
+            $"https://meta.quiltmc.org/v3/versions/loader/{minecraftVersion}",
+            downloadSourcePreference,
+            categoryHint: "Quilt",
+            async (context, token) =>
+            {
+                await using var stream = await context.Response.Content.ReadAsStreamAsync(token);
+                using var json = await JsonDocument.ParseAsync(stream, cancellationToken: token);
+                if (json.RootElement.ValueKind is not JsonValueKind.Array)
+                {
+                    throw new DownloadContentValidationException(
+                        "Quilt loader metadata is not a JSON array.");
+                }
 
-            if (response.Response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
-                return [];
+                var entries = json.RootElement.EnumerateArray().ToList();
+                if (entries.Count == 0)
+                    throw new DownloadNoResultException("Quilt returned an empty loader list.");
 
-            response.Response.EnsureSuccessStatusCode();
+                var versions = entries
+                    .Select(ReadLoaderVersion)
+                    .Where(version => version is not null)
+                    .Select(version => version!)
+                    .GroupBy(version => version.Version, StringComparer.OrdinalIgnoreCase)
+                    .Select(group => group.First())
+                    .OrderByDescending(version => version.IsStable)
+                    .ThenByDescending(version => ParseVersionKey(version.Version), QuiltVersionKeyComparer.Instance)
+                    .ThenByDescending(version => version.Version, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                if (versions.Count == 0)
+                {
+                    throw new DownloadContentValidationException(
+                        "Quilt loader metadata contains no valid loader entries.");
+                }
 
-            await using var stream = await response.Response.Content.ReadAsStreamAsync(cancellationToken);
-            using var json = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-            if (json.RootElement.ValueKind is not JsonValueKind.Array)
-                return [];
+                return (IReadOnlyList<LoaderVersionInfo>)versions;
+            },
+            statusCode => statusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound,
+            cancellationToken);
 
-            var versions = json.RootElement
-                .EnumerateArray()
-                .Select(ReadLoaderVersion)
-                .Where(version => version is not null)
-                .Select(version => version!)
-                .GroupBy(version => version.Version, StringComparer.OrdinalIgnoreCase)
-                .Select(group => group.First())
-                .OrderByDescending(version => version.IsStable)
-                .ThenByDescending(version => ParseVersionKey(version.Version), QuiltVersionKeyComparer.Instance)
-                .ThenByDescending(version => version.Version, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            logger.LogInformation(
-                "Loaded Quilt versions. MinecraftVersion={MinecraftVersion} Count={Count}",
-                minecraftVersion,
-                versions.Count);
-            return versions;
-        }
-        catch (HttpRequestException exception) when (exception.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound)
-        {
-            return [];
-        }
+        var resolvedVersions = result.Found ? result.Value! : [];
+        logger.LogInformation(
+            "Loaded Quilt versions. MinecraftVersion={MinecraftVersion} Count={Count}",
+            minecraftVersion,
+            resolvedVersions.Count);
+        return resolvedVersions;
     }
 
     public async Task<string> InstallAsync(

@@ -159,7 +159,7 @@ public sealed class ProgressiveBlurSupportTests
     }
 
     [Fact]
-    public void BlurBandDoesNotDuplicateListsAndOptInListsRemainRecycling()
+    public void BlurBandDoesNotDuplicateListsAndOptInListRemainsRecycling()
     {
         var solutionDirectory = FindSolutionDirectory().FullName;
         var listPageFrameXaml = File.ReadAllText(Path.Combine(
@@ -174,18 +174,10 @@ public sealed class ProgressiveBlurSupportTests
             "Views",
             "Resources",
             "ResourcesModPageView.xaml"));
-        var settingsPreviewXaml = File.ReadAllText(Path.Combine(
-            solutionDirectory,
-            "Launcher.App",
-            "Views",
-            "Settings",
-            "ListPreviewSettingsView.xaml"));
-
         Assert.Single(Regex.Matches(listPageFrameXaml, @"<VisualBrush\b"));
         Assert.DoesNotContain("<ListBox", listPageFrameXaml, StringComparison.Ordinal);
         Assert.DoesNotContain("<ListView", listPageFrameXaml, StringComparison.Ordinal);
         Assert.Contains("VirtualizingPanel.VirtualizationMode=\"Recycling\"", resourcesListXaml, StringComparison.Ordinal);
-        Assert.Contains("VirtualizingPanel.VirtualizationMode=\"Recycling\"", settingsPreviewXaml, StringComparison.Ordinal);
     }
 
     private static DirectoryInfo FindSolutionDirectory()

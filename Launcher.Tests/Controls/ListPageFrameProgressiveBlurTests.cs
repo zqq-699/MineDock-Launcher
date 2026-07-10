@@ -689,13 +689,13 @@ public sealed class ListPageFrameProgressiveBlurTests
         application.Resources.MergedDictionaries.Add(new ResourceDictionary
         {
             Source = new Uri(
-                "pack://application:,,,/MineDock_Launcher_x64;component/Resources/ThemeResources.xaml",
+                "pack://application:,,,/BlockHelm_Launcher_x64;component/Resources/ThemeResources.xaml",
                 UriKind.Absolute)
         });
         application.Resources.MergedDictionaries.Add(new ResourceDictionary
         {
             Source = new Uri(
-                "pack://application:,,,/MineDock_Launcher_x64;component/Styles/ControlStyles.xaml",
+                "pack://application:,,,/BlockHelm_Launcher_x64;component/Styles/ControlStyles.xaml",
                 UriKind.Absolute)
         });
     }

@@ -128,16 +128,23 @@ internal static class FabricVersionComposer
             logger,
             DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
             category: DownloadConcurrencyCategory.Metadata);
-        using var profileResponse = await executor.GetAsync(
+        return await executor.ExecuteAsync(
             profileUrl,
             downloadSourcePreference,
             categoryHint: "Fabric",
+            async (context, token) =>
+            {
+                await using var profileStream = await context.Response.Content.ReadAsStreamAsync(token);
+                var profileNode = await JsonNode.ParseAsync(profileStream, cancellationToken: token);
+                if (profileNode is not JsonObject profileObject)
+                {
+                    throw new DownloadContentValidationException(
+                        $"Fabric profile metadata is not a JSON object: {minecraftVersion} {loaderVersion}");
+                }
+
+                return profileObject;
+            },
             cancellationToken);
-        profileResponse.Response.EnsureSuccessStatusCode();
-        await using var profileStream = await profileResponse.Response.Content.ReadAsStreamAsync(cancellationToken);
-        var profileNode = await JsonNode.ParseAsync(profileStream, cancellationToken: cancellationToken)
-            ?? throw new InvalidDataException($"Fabric profile metadata is empty: {minecraftVersion} {loaderVersion}");
-        return profileNode.AsObject();
     }
 
     private static async Task DownloadClientJarAsync(
@@ -159,15 +166,15 @@ internal static class FabricVersionComposer
             logger,
             DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
             category: DownloadConcurrencyCategory.Runtime);
-        using var jarResponse = await executor.GetAsync(
+        await executor.DownloadFileAsync(
             clientUrl,
             downloadSourcePreference,
             categoryHint: "Mojang",
+            destinationJarPath,
+            VanillaVersionMetadataClient.GetClientJarSha1(baseVersionJson),
+            VanillaVersionMetadataClient.GetClientJarSize(baseVersionJson),
+            reportDownloadedBytes: null,
             cancellationToken);
-        jarResponse.Response.EnsureSuccessStatusCode();
-        await using var jarStream = await jarResponse.Response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var destinationStream = File.Create(destinationJarPath);
-        await jarStream.CopyToAsync(destinationStream, cancellationToken);
     }
 
 }

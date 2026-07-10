@@ -26,7 +26,6 @@ internal interface IManagedVersionRepairService
 internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
 {
     private const int MaxRepairDownloadConcurrency = 8;
-    private const int DownloadBufferSize = 81920;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private static readonly StringComparer PathComparer = OperatingSystem.IsWindows()
         ? StringComparer.OrdinalIgnoreCase
@@ -40,7 +39,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ILogger? logger = null)
     {
-        this.httpClient = httpClient ?? new HttpClient();
+        this.httpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.logger = logger ?? NullLogger.Instance;
     }
@@ -164,7 +163,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
                 versionJson,
                 File.Exists(jarPath) ? jarPath : null,
                 VanillaVersionMetadataClient.GetClientJarUrl(versionJson),
-                WasModified: false);
+                WasModified: false,
+                ClientJarSha1: VanillaVersionMetadataClient.GetClientJarSha1(versionJson),
+                ClientJarSize: VanillaVersionMetadataClient.GetClientJarSize(versionJson));
         }
 
         var result = await ResolveCurrentVersionAsync(
@@ -207,7 +208,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
                 versionJson,
                 File.Exists(currentJarPath) ? currentJarPath : null,
                 currentJarUrl,
-                WasModified: false);
+                WasModified: false,
+                ClientJarSha1: VanillaVersionMetadataClient.GetClientJarSha1(versionJson),
+                ClientJarSize: VanillaVersionMetadataClient.GetClientJarSize(versionJson));
         }
 
         var parent = await ResolveParentVersionAsync(
@@ -223,7 +226,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             mergedVersion,
             parent.LocalJarPath,
             VanillaVersionMetadataClient.GetClientJarUrl(mergedVersion) ?? parent.ClientJarUrl ?? currentJarUrl,
-            WasModified: true);
+            WasModified: true,
+            ClientJarSha1: VanillaVersionMetadataClient.GetClientJarSha1(mergedVersion) ?? parent.ClientJarSha1,
+            ClientJarSize: VanillaVersionMetadataClient.GetClientJarSize(mergedVersion) ?? parent.ClientJarSize);
     }
 
     private async Task<ResolvedVersionMetadata> ResolveParentVersionAsync(
@@ -270,7 +275,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             NormalizeVersionJson(remoteVersionJson, parentVersionName),
             LocalJarPath: null,
             VanillaVersionMetadataClient.GetClientJarUrl(remoteVersionJson),
-            WasModified: false);
+            WasModified: false,
+            ClientJarSha1: VanillaVersionMetadataClient.GetClientJarSha1(remoteVersionJson),
+            ClientJarSize: VanillaVersionMetadataClient.GetClientJarSize(remoteVersionJson));
     }
 
     private static JsonObject NormalizeVersionJson(JsonObject versionJson, string versionName)
@@ -325,7 +332,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
                     jarPath,
                     ResourceCategory: "Mojang",
                     LibraryName: null,
-                    ArtifactPath: $"{versionName}.jar"),
+                    ArtifactPath: $"{versionName}.jar",
+                    ExpectedSha1: resolvedVersion.ClientJarSha1,
+                    ExpectedSize: resolvedVersion.ClientJarSize),
                 downloadSourcePreference,
                 downloadSpeedReporter,
                 cancellationToken,
@@ -374,7 +383,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
                     destinationPath,
                     artifact.ResourceCategory,
                     artifact.LibraryName,
-                    artifact.RelativePath));
+                    artifact.RelativePath,
+                    artifact.Sha1,
+                    artifact.Size));
             }
         }
 
@@ -417,7 +428,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
                     indexPath,
                     ResourceCategory: "Mojang",
                     LibraryName: null,
-                    ArtifactPath: $"assets/indexes/{assetIndexId}.json"),
+                    ArtifactPath: $"assets/indexes/{assetIndexId}.json",
+                    ExpectedSha1: GetStringProperty(assetIndex, "sha1"),
+                    ExpectedSize: GetLongProperty(assetIndex, "size")),
                 downloadSourcePreference,
                 downloadSpeedReporter,
                 cancellationToken,
@@ -458,7 +471,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
                 objectPath,
                 ResourceCategory: "Mojang",
                 LibraryName: null,
-                ArtifactPath: $"assets/objects/{hash[..2]}/{hash}"));
+                ArtifactPath: $"assets/objects/{hash[..2]}/{hash}",
+                ExpectedSha1: hash,
+                ExpectedSize: GetLongProperty(assetObject, "size")));
         }
 
         await DownloadFilesAsync(
@@ -504,7 +519,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
                 logConfigPath,
                 ResourceCategory: "Mojang",
                 LibraryName: null,
-                ArtifactPath: id),
+                ArtifactPath: id,
+                ExpectedSha1: GetStringProperty(loggingFile, "sha1"),
+                ExpectedSize: GetLongProperty(loggingFile, "size")),
             downloadSourcePreference,
             downloadSpeedReporter,
             cancellationToken,
@@ -578,7 +595,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             url,
             relativePath,
             string.IsNullOrWhiteSpace(libraryName) ? null : libraryName,
-            ResolveResourceCategory(url));
+            ResolveResourceCategory(url),
+            GetStringProperty(artifact, "sha1"),
+            GetLongProperty(artifact, "size"));
     }
 
     private LibraryArtifact? TryCreateLibraryArtifactFromName(JsonObject library, string? classifier)
@@ -793,44 +812,32 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
                 logger,
                 bandwidthLimiter ?? DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
                 category: DownloadConcurrencyCategory.Runtime);
-            using var resolvedResponse = await executor.GetAsync(
+            await executor.DownloadFileAsync(
                 download.OriginalUrl,
                 downloadSourcePreference,
                 download.ResourceCategory,
+                download.DestinationPath,
+                download.ExpectedSha1,
+                download.ExpectedSize,
+                downloadSpeedReporter.ReportDownloadedBytes,
                 cancellationToken);
-            if (!resolvedResponse.Response.IsSuccessStatusCode)
-            {
-                throw CreateDownloadException(
-                    download,
-                    resolvedResponse.Resolution,
-                    resolvedResponse.Response.StatusCode,
-                    null);
-            }
-
-            await using var source = await resolvedResponse.Response.Content.ReadAsStreamAsync(cancellationToken);
-            await using var destination = File.Create(download.DestinationPath);
-            var buffer = new byte[DownloadBufferSize];
-            while (true)
-            {
-                var read = await source.ReadAsync(buffer, cancellationToken);
-                if (read <= 0)
-                    break;
-
-                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-                downloadSpeedReporter.ReportDownloadedBytes(read);
-            }
         }
         catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)
         {
-            throw CreateDownloadException(download, exception.Resolution, statusCode: null, exception);
+            var statusCode = exception.Failures
+                .OfType<DownloadAttemptException>()
+                .LastOrDefault(failure => failure.StatusCode is not null)?
+                .StatusCode;
+            throw CreateDownloadException(download, exception.Resolution, statusCode, exception);
         }
         catch (Exception exception) when (exception is not OperationCanceledException and not InstanceRepairException)
         {
-            var resolution = MinecraftDownloadSourceResolver.ResolveRequest(
-                download.OriginalUrl,
-                downloadSourcePreference,
-                useBmclApi: downloadSourcePreference is DownloadSourcePreference.BmclApi,
-                download.ResourceCategory);
+            var resolution = MinecraftDownloadSourceResolver
+                .EnumerateRequests(
+                    download.OriginalUrl,
+                    downloadSourcePreference,
+                    download.ResourceCategory)
+                .First();
             throw CreateDownloadException(download, resolution, statusCode: null, exception);
         }
     }
@@ -919,6 +926,11 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         return node[propertyName]?.GetValue<string>() ?? string.Empty;
     }
 
+    private static long? GetLongProperty(JsonObject node, string propertyName)
+    {
+        return node[propertyName]?.GetValue<long?>();
+    }
+
     private static void ReportProgress(
         IProgress<LauncherProgress>? progress,
         string stage,
@@ -933,14 +945,18 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         JsonObject VersionJson,
         string? LocalJarPath,
         string? ClientJarUrl,
-        bool WasModified);
+        bool WasModified,
+        string? ClientJarSha1 = null,
+        long? ClientJarSize = null);
 
     private sealed record DownloadRequest(
         string OriginalUrl,
         string DestinationPath,
         string ResourceCategory,
         string? LibraryName,
-        string? ArtifactPath);
+        string? ArtifactPath,
+        string? ExpectedSha1 = null,
+        long? ExpectedSize = null);
 
     private sealed class RepairDownloadSpeedReporter
     {
@@ -1016,5 +1032,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         string Url,
         string RelativePath,
         string? LibraryName,
-        string ResourceCategory);
+        string ResourceCategory,
+        string? Sha1 = null,
+        long? Size = null);
 }

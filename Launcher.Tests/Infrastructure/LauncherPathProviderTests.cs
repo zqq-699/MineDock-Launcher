@@ -10,6 +10,7 @@ public sealed class LauncherPathProviderTests : TestTempDirectory
     {
         var pathProvider = new LauncherPathProvider(applicationBaseDirectory: TempRoot);
 
+        Assert.Equal("BHL", LauncherApplicationIdentity.StorageDirectoryName);
         Assert.Equal(Path.Combine(TempRoot, LauncherApplicationIdentity.StorageDirectoryName), pathProvider.DefaultDataDirectory);
         Assert.Equal(LauncherApplicationIdentity.StorageDirectoryName, pathProvider.ApplicationId);
     }

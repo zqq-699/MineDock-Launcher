@@ -101,7 +101,6 @@ internal sealed class ForgeInstallerRunner : IForgeInstallerRunner
 
 public sealed class ForgeLoaderProvider : ILoaderProvider
 {
-    private const string ForgePromotionsUrl = "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json";
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private static readonly Regex InstallerUrlRegex = new(
         @"https://maven\.minecraftforge\.net/net/minecraftforge/forge/(?<fullVersion>[^""'<>\s]+)/forge-(?<artifactVersion>[^""'<>\s]+)-installer\.jar",
@@ -115,7 +114,6 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
     private readonly string tempRootDirectory;
     private readonly SemaphoreSlim catalogLock = new(1, 1);
     private readonly Dictionary<string, IReadOnlyDictionary<string, ForgeCatalogEntry>> catalogCache = new(StringComparer.OrdinalIgnoreCase);
-    private HashSet<string>? supportedMinecraftVersions;
 
     public ForgeLoaderProvider(
         HttpClient? httpClient = null,
@@ -142,7 +140,7 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ILogger? logger = null)
     {
-        this.httpClient = httpClient ?? new HttpClient();
+        this.httpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.installerRunner = installerRunner ?? new ForgeInstallerRunner();
         this.finalVersionInstaller = finalVersionInstaller ?? new FinalVersionInstaller();
         this.downloadSpeedLimitState = downloadSpeedLimitState;
@@ -306,112 +304,62 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
             if (catalogCache.TryGetValue(cacheKey, out var cached))
                 return cached;
 
-            var supportedVersions = await GetSupportedMinecraftVersionsAsync(
-                downloadSourcePreference,
-                cancellationToken,
-                downloadSpeedLimitMbPerSecond);
-            if (supportedVersions is not null && !supportedVersions.Contains(minecraftVersion))
-            {
-                catalogCache[cacheKey] = EmptyCatalog();
-                return catalogCache[cacheKey];
-            }
-
-            if (downloadSourcePreference is DownloadSourcePreference.BmclApi)
-            {
-                var versions = await LoadCatalogEntriesFromBmclApiAsync(
-                    minecraftVersion,
-                    cancellationToken,
-                    downloadSpeedLimitMbPerSecond);
-                catalogCache[cacheKey] = versions;
-                return versions;
-            }
-
             var executor = new MinecraftDownloadRequestExecutor(
                 httpClient,
                 logger,
                 DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
                 category: DownloadConcurrencyCategory.Metadata);
-            using var response = await executor.GetAsync(
+            var result = await executor.ExecuteLookupAsync(
                 GetForgeIndexUrl(minecraftVersion),
                 downloadSourcePreference,
                 categoryHint: "Forge",
-                cancellationToken);
-            if (response.Response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest)
-            {
-                catalogCache[cacheKey] = EmptyCatalog();
-                return catalogCache[cacheKey];
-            }
+                async (context, token) =>
+                {
+                    IReadOnlyDictionary<string, ForgeCatalogEntry> entries;
+                    if (context.Resolution.ResolvedSourceKind.Equals("BmclApiForge", StringComparison.Ordinal))
+                    {
+                        await using var stream = await context.Response.Content.ReadAsStreamAsync(token);
+                        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: token);
+                        if (document.RootElement.ValueKind is not JsonValueKind.Array)
+                        {
+                            throw new DownloadContentValidationException(
+                                "BMCLAPI Forge catalog is not a JSON array.");
+                        }
 
-            response.Response.EnsureSuccessStatusCode();
-            var html = await response.Response.Content.ReadAsStringAsync(cancellationToken);
-            catalogCache[cacheKey] = ParseCatalogEntries(minecraftVersion, html);
+                        entries = ParseBmclCatalogEntries(minecraftVersion, document.RootElement);
+                        if (document.RootElement.GetArrayLength() > 0 && entries.Count == 0)
+                        {
+                            throw new DownloadContentValidationException(
+                                "BMCLAPI Forge catalog contains no valid loader entries.");
+                        }
+                    }
+                    else
+                    {
+                        var html = await context.Response.Content.ReadAsStringAsync(token);
+                        if (!html.Contains("<html", StringComparison.OrdinalIgnoreCase)
+                            && !html.Contains("<!doctype", StringComparison.OrdinalIgnoreCase))
+                        {
+                            throw new DownloadContentValidationException(
+                                "Forge catalog response is not an HTML document.");
+                        }
+
+                        entries = ParseCatalogEntries(minecraftVersion, html);
+                    }
+
+                    if (entries.Count == 0)
+                        throw new DownloadNoResultException("Forge returned no matching loader versions.");
+
+                    return entries;
+                },
+                statusCode => statusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest,
+                cancellationToken);
+            catalogCache[cacheKey] = result.Found ? result.Value! : EmptyCatalog();
             return catalogCache[cacheKey];
         }
         finally
         {
             catalogLock.Release();
         }
-    }
-
-    private async Task<HashSet<string>?> GetSupportedMinecraftVersionsAsync(
-        DownloadSourcePreference downloadSourcePreference,
-        CancellationToken cancellationToken,
-        int downloadSpeedLimitMbPerSecond = 0)
-    {
-        if (supportedMinecraftVersions is not null)
-            return supportedMinecraftVersions;
-
-        try
-        {
-            if (downloadSourcePreference is DownloadSourcePreference.BmclApi)
-                return null;
-
-            var executor = new MinecraftDownloadRequestExecutor(
-                httpClient,
-                logger,
-                DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
-                category: DownloadConcurrencyCategory.Metadata);
-            using var response = await executor.GetAsync(
-                ForgePromotionsUrl,
-                downloadSourcePreference,
-                categoryHint: "Forge",
-                cancellationToken);
-            if (response.Response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest)
-            {
-                supportedMinecraftVersions = [];
-                return supportedMinecraftVersions;
-            }
-
-            response.Response.EnsureSuccessStatusCode();
-            await using var stream = await response.Response.Content.ReadAsStreamAsync(cancellationToken);
-            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-            if (!document.RootElement.TryGetProperty("promos", out var promos)
-                || promos.ValueKind is not JsonValueKind.Object)
-            {
-                supportedMinecraftVersions = [];
-                return supportedMinecraftVersions;
-            }
-
-            supportedMinecraftVersions = promos.EnumerateObject()
-                .Select(property => ExtractMinecraftVersion(property.Name))
-                .Where(version => !string.IsNullOrWhiteSpace(version))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            return supportedMinecraftVersions;
-        }
-        catch (HttpRequestException)
-        {
-            return null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    private static string ExtractMinecraftVersion(string key)
-    {
-        var separatorIndex = key.LastIndexOf('-');
-        return separatorIndex <= 0 ? string.Empty : key[..separatorIndex];
     }
 
     private static IReadOnlyDictionary<string, ForgeCatalogEntry> ParseCatalogEntries(string minecraftVersion, string html)
@@ -472,16 +420,15 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
             logger,
             DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
             category: DownloadConcurrencyCategory.Runtime);
-        using var response = await executor.GetAsync(
+        await executor.DownloadFileAsync(
             installerUrl.AbsoluteUri,
             downloadSourcePreference,
             categoryHint: "Forge",
+            destinationPath,
+            expectedSha1: null,
+            expectedSize: null,
+            reportDownloadedBytes: null,
             cancellationToken);
-        response.Response.EnsureSuccessStatusCode();
-
-        await using var source = await response.Response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var destination = File.Create(destinationPath);
-        await source.CopyToAsync(destination, cancellationToken);
     }
 
     private static HashSet<string> GetVersionDirectoryNames(string gameDirectory)
@@ -645,32 +592,12 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
             downloadSpeedLimitMbPerSecond: downloadSpeedLimitMbPerSecond);
     }
 
-    private async Task<IReadOnlyDictionary<string, ForgeCatalogEntry>> LoadCatalogEntriesFromBmclApiAsync(
+    private static IReadOnlyDictionary<string, ForgeCatalogEntry> ParseBmclCatalogEntries(
         string minecraftVersion,
-        CancellationToken cancellationToken,
-        int downloadSpeedLimitMbPerSecond = 0)
+        JsonElement root)
     {
-        var executor = new MinecraftDownloadRequestExecutor(
-            httpClient,
-            logger,
-            DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
-            category: DownloadConcurrencyCategory.Metadata);
-        using var response = await executor.GetAsync(
-            $"https://files.minecraftforge.net/net/minecraftforge/forge/index_{minecraftVersion}.html",
-            DownloadSourcePreference.BmclApi,
-            categoryHint: "Forge",
-            cancellationToken);
-        if (response.Response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest)
-            return EmptyCatalog();
-
-        response.Response.EnsureSuccessStatusCode();
-        await using var stream = await response.Response.Content.ReadAsStreamAsync(cancellationToken);
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-        if (document.RootElement.ValueKind is not JsonValueKind.Array)
-            return EmptyCatalog();
-
         var entries = new Dictionary<string, ForgeCatalogEntry>(StringComparer.OrdinalIgnoreCase);
-        foreach (var item in document.RootElement.EnumerateArray())
+        foreach (var item in root.EnumerateArray())
         {
             if (!item.TryGetProperty("version", out var versionProperty)
                 || versionProperty.ValueKind is not JsonValueKind.String)

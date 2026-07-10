@@ -5,7 +5,7 @@ namespace Launcher.App.Effects;
 internal static class ProgressiveGaussianBlurShader
 {
     internal const string PackUri =
-        "pack://application:,,,/MineDock_Launcher_x64;component/Effects/Shaders/ProgressiveGaussianBlur.ps";
+        "pack://application:,,,/BlockHelm_Launcher_x64;component/Effects/Shaders/ProgressiveGaussianBlur.ps";
 
     private static readonly object SyncRoot = new();
     private static PixelShader? pixelShader;

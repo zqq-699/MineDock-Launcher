@@ -17,14 +17,19 @@ public sealed class DownloadRequestExecutorLeaseTests
         var executor = new MinecraftDownloadRequestExecutor(
             httpClient,
             limiter: limiter,
-            category: DownloadConcurrencyCategory.Metadata);
+            category: DownloadConcurrencyCategory.Metadata,
+            retryOptions: new DownloadRetryOptions
+            {
+                ResponseHeadersTimeout = TimeSpan.FromMinutes(1)
+            });
         using var cancellation = new CancellationTokenSource();
 
         var requests = Enumerable.Range(0, 2)
-            .Select(index => executor.GetAsync(
+            .Select(index => executor.ExecuteAsync(
                 $"https://example.test/metadata/{index}.json",
                 DownloadSourcePreference.Official,
                 categoryHint: "Mojang",
+                static (_, _) => Task.FromResult(true),
                 cancellation.Token))
             .ToArray();
 
@@ -51,7 +56,11 @@ public sealed class DownloadSourceRoutingLeaseTests
             DownloadSourcePreference.Official,
             DownloadConcurrencyCategory.Runtime,
             handler,
-            limiter: limiter));
+            limiter: limiter,
+            retryOptions: new DownloadRetryOptions
+            {
+                ResponseHeadersTimeout = TimeSpan.FromMinutes(1)
+            }));
         using var cancellation = new CancellationTokenSource();
 
         var requests = Enumerable.Range(0, 8)
@@ -77,11 +86,16 @@ public sealed class DownloadSourceRoutingLeaseTests
             DownloadSourcePreference.Official,
             DownloadConcurrencyCategory.Runtime,
             new ThrowingRequestHandler(),
-            limiter: limiter));
+            limiter: limiter,
+            retryOptions: new DownloadRetryOptions
+            {
+                MaxAttemptsPerSource = 1,
+                RetryDelay = TimeSpan.Zero
+            }));
 
         foreach (var index in Enumerable.Range(0, 8))
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(
+            await Assert.ThrowsAsync<DownloadAttemptException>(
                 () => httpClient.GetAsync($"https://example.test/runtime/{index}.jar"));
         }
 

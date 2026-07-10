@@ -5,7 +5,7 @@ cd /d "%~dp0"
 
 set "PROJECT=Launcher.App\Launcher.App.csproj"
 set "PROFILE=WinX64FrameworkDependentSingleFile"
-set "OUTPUT=publish\MineDock Launcher-win-x64-fdd-single"
+set "OUTPUT=publish\BlockHelm-Launcher-win-x64-fdd-single"
 
 echo Publishing %PROJECT%...
 dotnet publish "%PROJECT%" -c Release -p:PublishProfile=%PROFILE%

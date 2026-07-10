@@ -1,5 +1,8 @@
+using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Text.Json;
+using System.Xml;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Modpacks;
@@ -10,93 +13,291 @@ namespace Launcher.Infrastructure.Minecraft;
 
 internal sealed class MinecraftDownloadRequestExecutor
 {
-    private readonly HttpClient httpClient;
+    private readonly MinecraftDownloadTransport transport;
     private readonly ILogger logger;
     private readonly DownloadBandwidthLimiter? bandwidthLimiter;
     private readonly IImportConcurrencyLimiter limiter;
     private readonly DownloadConcurrencyCategory category;
+    private readonly DownloadRetryOptions retryOptions;
 
     public MinecraftDownloadRequestExecutor(
         HttpClient httpClient,
         ILogger? logger = null,
         DownloadBandwidthLimiter? bandwidthLimiter = null,
         IImportConcurrencyLimiter? limiter = null,
-        DownloadConcurrencyCategory category = DownloadConcurrencyCategory.Metadata)
+        DownloadConcurrencyCategory category = DownloadConcurrencyCategory.Metadata,
+        DownloadRetryOptions? retryOptions = null)
     {
-        this.httpClient = httpClient;
         this.logger = logger ?? NullLogger.Instance;
         this.bandwidthLimiter = bandwidthLimiter;
         this.limiter = limiter ?? ImportConcurrencyLimiter.Shared;
         this.category = category;
+        this.retryOptions = retryOptions ?? DownloadRetryOptions.Default;
+        transport = new MinecraftDownloadTransport(httpClient, this.retryOptions);
     }
 
-    public async Task<ResolvedHttpResponse> GetAsync(
+    public async Task<T> ExecuteAsync<T>(
         string originalUrl,
         DownloadSourcePreference preference,
         string? categoryHint,
+        Func<DownloadAttemptContext, CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken)
     {
-        DownloadSourceRequestException? lastException = null;
-        var candidates = MinecraftDownloadSourceResolver.EnumerateRequests(originalUrl, preference, categoryHint).ToList();
-        for (var index = 0; index < candidates.Count; index++)
+        var result = await ExecuteCoreAsync(
+            originalUrl,
+            preference,
+            categoryHint,
+            operation,
+            noResultStatus: null,
+            lookupMode: false,
+            cancellationToken).ConfigureAwait(false);
+        return result.Value!;
+    }
+
+    public Task<DownloadLookupResult<T>> ExecuteLookupAsync<T>(
+        string originalUrl,
+        DownloadSourcePreference preference,
+        string? categoryHint,
+        Func<DownloadAttemptContext, CancellationToken, Task<T>> operation,
+        Func<HttpStatusCode, bool> noResultStatus,
+        CancellationToken cancellationToken)
+    {
+        return ExecuteCoreAsync(
+            originalUrl,
+            preference,
+            categoryHint,
+            operation,
+            noResultStatus,
+            lookupMode: true,
+            cancellationToken);
+    }
+
+    public Task<ResolvedDownloadRequest> DownloadFileAsync(
+        string originalUrl,
+        DownloadSourcePreference preference,
+        string? categoryHint,
+        string destinationPath,
+        string? expectedSha1,
+        long? expectedSize,
+        Action<long>? reportDownloadedBytes,
+        CancellationToken cancellationToken,
+        Action<int, long, long?>? reportAttemptProgress = null)
+    {
+        MinecraftDownloadFileWriter.PrepareDestination(destinationPath, expectedSha1);
+
+        return ExecuteAsync(
+            originalUrl,
+            preference,
+            categoryHint,
+            async (context, token) =>
+            {
+                await MinecraftDownloadFileWriter.WriteAsync(
+                    context.Response,
+                    destinationPath,
+                    expectedSha1,
+                    expectedSize,
+                    reportDownloadedBytes,
+                    context.AttemptNumber,
+                    reportAttemptProgress,
+                    token).ConfigureAwait(false);
+                return context.Resolution;
+            },
+            cancellationToken);
+    }
+
+    private async Task<DownloadLookupResult<T>> ExecuteCoreAsync<T>(
+        string originalUrl,
+        DownloadSourcePreference preference,
+        string? categoryHint,
+        Func<DownloadAttemptContext, CancellationToken, Task<T>> operation,
+        Func<HttpStatusCode, bool>? noResultStatus,
+        bool lookupMode,
+        CancellationToken cancellationToken)
+    {
+        var candidates = MinecraftDownloadSourceResolver
+            .EnumerateRequests(originalUrl, preference, categoryHint)
+            .ToList();
+        var failures = new List<Exception>();
+        var noResultSourceCount = 0;
+        ResolvedDownloadRequest? lastResolution = null;
+
+        foreach (var resolution in candidates)
         {
-            var resolution = candidates[index];
-            var hasFallback = index < candidates.Count - 1;
-            var lease = await AcquireLeaseAsync(cancellationToken).ConfigureAwait(false);
-            var leaseTransferred = false;
-            HttpResponseMessage? response = null;
-            try
+            lastResolution = resolution;
+            var sourceReportedNoResult = false;
+
+            for (var attempt = 1; attempt <= retryOptions.MaxAttemptsPerSource; attempt++)
             {
-                response = await httpClient.GetAsync(resolution.ActualUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-                if (response.IsSuccessStatusCode || !hasFallback)
+                cancellationToken.ThrowIfCancellationRequested();
+
+                try
                 {
-                    await DownloadResponseThrottler.ApplyAsync(response, bandwidthLimiter, cancellationToken, lease).ConfigureAwait(false);
-                    leaseTransferred = true;
-                    LogResolvedRequest(resolution, response.StatusCode, fallbackUsed: index > 0);
-                    return new ResolvedHttpResponse(resolution, response);
+                    var value = await ExecuteAttemptAsync(
+                        resolution,
+                        attempt,
+                        operation,
+                        noResultStatus,
+                        cancellationToken).ConfigureAwait(false);
+                    LogResolvedRequest(resolution, attempt);
+                    return DownloadLookupResult<T>.Success(value);
                 }
+                catch (DownloadNoResultException exception)
+                {
+                    sourceReportedNoResult = true;
+                    logger.LogInformation(
+                        exception,
+                        "Download source explicitly reported no result. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} Attempt={Attempt}",
+                        preference,
+                        resolution.ResourceCategory,
+                        resolution.OriginalUrl,
+                        resolution.ActualUrl,
+                        resolution.ResolvedSourceKind,
+                        attempt);
+                    break;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    var failure = ClassifyException(exception);
+                    if (failure.Disposition is DownloadFailureDisposition.Abort)
+                        throw failure;
 
-                var statusCode = response.StatusCode;
-                response.Dispose();
-                response = null;
+                    failures.Add(failure);
+                    var retryCurrentSource = failure.Disposition is DownloadFailureDisposition.RetryCurrentSource
+                        && attempt < retryOptions.MaxAttemptsPerSource;
+                    LogFailure(resolution, attempt, failure, retryCurrentSource);
 
-                logger.LogWarning(
-                    "Download request failed and will fall back to BMCLAPI. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} StatusCode={StatusCode}",
-                    preference,
-                    resolution.ResourceCategory,
-                    resolution.OriginalUrl,
-                    resolution.ActualUrl,
-                    resolution.ResolvedSourceKind,
-                    (int)statusCode);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                response?.Dispose();
-                var wrapped = new DownloadSourceRequestException(resolution, exception);
-                if (!hasFallback)
-                    throw wrapped;
+                    if (!retryCurrentSource)
+                        break;
 
-                lastException = wrapped;
-                logger.LogWarning(
-                    exception,
-                    "Download request threw before fallback. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind}",
-                    preference,
-                    resolution.ResourceCategory,
-                    resolution.OriginalUrl,
-                    resolution.ActualUrl,
-                    resolution.ResolvedSourceKind);
+                    await Task.Delay(retryOptions.RetryDelay, cancellationToken).ConfigureAwait(false);
+                }
             }
-            finally
-            {
-                if (!leaseTransferred)
-                    await lease.DisposeAsync().ConfigureAwait(false);
-            }
+
+            if (sourceReportedNoResult)
+                noResultSourceCount++;
         }
 
-        if (lastException is not null)
-            throw lastException;
+        if (lookupMode && noResultSourceCount == candidates.Count)
+            return DownloadLookupResult<T>.NotFound();
 
-        throw new InvalidOperationException($"No download candidates were available for {originalUrl}.");
+        var finalResolution = lastResolution
+            ?? throw new InvalidOperationException($"No download candidates were available for {originalUrl}.");
+        var finalException = failures.LastOrDefault()
+            ?? new InvalidOperationException($"No download source returned a usable result for {originalUrl}.");
+        throw new DownloadSourceRequestException(finalResolution, finalException, failures);
+    }
+
+    private async Task<T> ExecuteAttemptAsync<T>(
+        ResolvedDownloadRequest resolution,
+        int attempt,
+        Func<DownloadAttemptContext, CancellationToken, Task<T>> operation,
+        Func<HttpStatusCode, bool>? noResultStatus,
+        CancellationToken cancellationToken)
+    {
+        await using var lease = await AcquireLeaseAsync(cancellationToken).ConfigureAwait(false);
+        using var response = await transport.SendAsync(resolution.ActualUrl, cancellationToken).ConfigureAwait(false);
+
+        if (noResultStatus?.Invoke(response.StatusCode) is true)
+        {
+            throw new DownloadNoResultException(
+                $"The source returned HTTP {(int)response.StatusCode} for a lookup request.");
+        }
+
+        if (!response.IsSuccessStatusCode)
+            throw CreateStatusFailure(response.StatusCode);
+
+        await DownloadResponseThrottler.ApplyAsync(
+            response,
+            bandwidthLimiter,
+            cancellationToken,
+            bodyIdleTimeout: retryOptions.BodyIdleTimeout).ConfigureAwait(false);
+
+        try
+        {
+            return await operation(
+                new DownloadAttemptContext(resolution, response, attempt),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (DownloadNoResultException)
+        {
+            throw;
+        }
+        catch (DownloadAttemptException)
+        {
+            throw;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException exception)
+        {
+            throw new DownloadBodyInterruptedException("The response body read timed out.", exception);
+        }
+        catch (JsonException exception)
+        {
+            throw new DownloadContentValidationException("The response body is not valid JSON.", exception);
+        }
+        catch (XmlException exception)
+        {
+            throw new DownloadContentValidationException("The response body is not valid XML.", exception);
+        }
+        catch (HttpRequestException exception)
+        {
+            throw new DownloadBodyInterruptedException("The response body network read failed.", exception);
+        }
+        catch (IOException exception)
+        {
+            throw new DownloadBodyInterruptedException("The response body ended unexpectedly.", exception);
+        }
+    }
+
+    private static DownloadAttemptException CreateStatusFailure(HttpStatusCode statusCode)
+    {
+        var value = (int)statusCode;
+        var retry = statusCode is HttpStatusCode.RequestTimeout
+            or HttpStatusCode.TooManyRequests
+            || value is >= 500 and <= 599
+            || value is < 400 or > 499;
+        return new DownloadAttemptException(
+            retry
+                ? DownloadFailureDisposition.RetryCurrentSource
+                : DownloadFailureDisposition.SwitchSource,
+            DownloadFailureReason.HttpStatus,
+            $"The source returned HTTP {value} ({statusCode}).",
+            statusCode: statusCode);
+    }
+
+    private static DownloadAttemptException ClassifyException(Exception exception)
+    {
+        if (exception is DownloadAttemptException downloadAttemptException)
+            return downloadAttemptException;
+
+        if (exception is JsonException or XmlException)
+        {
+            return new DownloadContentValidationException(
+                "The response content could not be parsed.",
+                exception);
+        }
+
+        if (exception is HttpRequestException or IOException or OperationCanceledException)
+        {
+            return new DownloadAttemptException(
+                DownloadFailureDisposition.RetryCurrentSource,
+                DownloadFailureReason.Network,
+                "The download attempt failed due to a transient network error.",
+                exception);
+        }
+
+        return new DownloadAttemptException(
+            DownloadFailureDisposition.Abort,
+            DownloadFailureReason.LocalFileSystem,
+            "The download attempt failed due to a non-network error.",
+            exception);
     }
 
     private ValueTask<IAsyncDisposable> AcquireLeaseAsync(CancellationToken cancellationToken)
@@ -110,38 +311,53 @@ internal sealed class MinecraftDownloadRequestExecutor
         };
     }
 
-    private void LogResolvedRequest(ResolvedDownloadRequest resolution, HttpStatusCode statusCode, bool fallbackUsed)
+    private void LogResolvedRequest(ResolvedDownloadRequest resolution, int attempt)
     {
         logger.LogInformation(
-            "Download request resolved. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} StatusCode={StatusCode} FallbackUsed={FallbackUsed}",
+            "Download resource completed. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} Attempt={Attempt}",
             resolution.RequestedSourcePreference,
             resolution.ResourceCategory,
             resolution.OriginalUrl,
             resolution.ActualUrl,
             resolution.ResolvedSourceKind,
-            (int)statusCode,
-            fallbackUsed);
+            attempt);
     }
 
-    internal sealed record ResolvedHttpResponse(
-        ResolvedDownloadRequest Resolution,
-        HttpResponseMessage Response)
-        : IDisposable
+    private void LogFailure(
+        ResolvedDownloadRequest resolution,
+        int attempt,
+        DownloadAttemptException failure,
+        bool retryCurrentSource)
     {
-        public void Dispose()
-        {
-            Response.Dispose();
-        }
+        logger.LogWarning(
+            failure,
+            "Download resource attempt failed. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} Attempt={Attempt} FailureReason={FailureReason} FailureDisposition={FailureDisposition} StatusCode={StatusCode} RetryCurrentSource={RetryCurrentSource}",
+            resolution.RequestedSourcePreference,
+            resolution.ResourceCategory,
+            resolution.OriginalUrl,
+            resolution.ActualUrl,
+            resolution.ResolvedSourceKind,
+            attempt,
+            failure.Reason,
+            failure.Disposition,
+            failure.StatusCode is null ? null : (int)failure.StatusCode.Value,
+            retryCurrentSource);
     }
 
     internal sealed class DownloadSourceRequestException : Exception
     {
-        public DownloadSourceRequestException(ResolvedDownloadRequest resolution, Exception innerException)
+        public DownloadSourceRequestException(
+            ResolvedDownloadRequest resolution,
+            Exception innerException,
+            IReadOnlyList<Exception>? failures = null)
             : base($"Download request failed for {resolution.ActualUrl}", innerException)
         {
             Resolution = resolution;
+            Failures = failures ?? [innerException];
         }
 
         public ResolvedDownloadRequest Resolution { get; }
+        public IReadOnlyList<Exception> Failures { get; }
     }
+
 }

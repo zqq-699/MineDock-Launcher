@@ -230,12 +230,8 @@ public static class Strings
     public static string Settings_SectionLaunchMemory => Get(nameof(Settings_SectionLaunchMemory));
     public static string Settings_SectionJava => Get(nameof(Settings_SectionJava));
     public static string Settings_SectionTheme => Get(nameof(Settings_SectionTheme));
-    public static string Settings_SectionListPreview => Get(nameof(Settings_SectionListPreview));
     public static string Settings_SectionInfo => Get(nameof(Settings_SectionInfo));
     public static string Settings_SectionControlList => Get(nameof(Settings_SectionControlList));
-    public static string Settings_ListPreviewItemTitleFormat => Get(nameof(Settings_ListPreviewItemTitleFormat));
-    public static string Settings_ListPreviewItemSubtitle => Get(nameof(Settings_ListPreviewItemSubtitle));
-    public static string Settings_ListPreviewItemTrailingFormat => Get(nameof(Settings_ListPreviewItemTrailingFormat));
     public static string Settings_InfoContent => Get(nameof(Settings_InfoContent));
     public static string Settings_LauncherVersionSection => Get(nameof(Settings_LauncherVersionSection));
     public static string Settings_LauncherVersionUnknown => Get(nameof(Settings_LauncherVersionUnknown));

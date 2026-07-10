@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.IO;
 using CmlLib.Core;
 using CmlLib.Core.Files;
 using CmlLib.Core.Installers;
@@ -9,20 +10,28 @@ namespace Launcher.Infrastructure.Minecraft;
 internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
 {
     private readonly DownloadSpeedAggregator speedAggregator;
+    private readonly MinecraftDownloadRequestExecutor downloadExecutor;
+    private readonly DownloadSourcePreference downloadSourcePreference;
 
     private DownloadSpeedTrackingGameInstaller(
         int maxChecker,
         int maxDownloader,
         int boundedCapacity,
         HttpClient httpClient,
+        MinecraftDownloadRequestExecutor downloadExecutor,
+        DownloadSourcePreference downloadSourcePreference,
         IProgress<LauncherProgress>? progress)
         : base(maxChecker, maxDownloader, boundedCapacity, httpClient)
     {
+        this.downloadExecutor = downloadExecutor;
+        this.downloadSourcePreference = downloadSourcePreference;
         speedAggregator = new DownloadSpeedAggregator(progress);
     }
 
     public static DownloadSpeedTrackingGameInstaller CreateAsCoreCount(
         HttpClient httpClient,
+        MinecraftDownloadRequestExecutor downloadExecutor,
+        DownloadSourcePreference downloadSourcePreference,
         IProgress<LauncherProgress>? progress)
     {
         var maxChecker = Environment.ProcessorCount;
@@ -33,7 +42,14 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         maxDownloader = Math.Max(4, maxDownloader);
         maxDownloader = Math.Min(8, maxDownloader);
 
-        return new DownloadSpeedTrackingGameInstaller(maxChecker, maxDownloader, 2048, httpClient, progress);
+        return new DownloadSpeedTrackingGameInstaller(
+            maxChecker,
+            maxDownloader,
+            2048,
+            httpClient,
+            downloadExecutor,
+            downloadSourcePreference,
+            progress);
     }
 
     protected override Task Download(
@@ -41,9 +57,42 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         IProgress<ByteProgress>? progress,
         CancellationToken cancellationToken)
     {
+        return DownloadGameFileAsync(file, progress, cancellationToken);
+    }
+
+    internal Task DownloadGameFileAsync(
+        GameFile file,
+        IProgress<ByteProgress>? progress,
+        CancellationToken cancellationToken)
+    {
         speedAggregator.ReportDownloadStarted();
-        var downloadProgress = new NetworkDownloadProgress(progress, speedAggregator);
-        return base.Download(file, downloadProgress, cancellationToken);
+        var fileUrl = file.Url
+            ?? throw new InvalidDataException($"CmlLib game file URL is missing: {file.Name}");
+        var filePath = file.Path
+            ?? throw new InvalidDataException($"CmlLib game file path is missing: {file.Name}");
+        NetworkDownloadProgress? attemptProgress = null;
+        var currentAttempt = 0;
+        return downloadExecutor.DownloadFileAsync(
+            fileUrl,
+            downloadSourcePreference,
+            categoryHint: null,
+            filePath,
+            file.Hash,
+            file.Size > 0 ? file.Size : null,
+            reportDownloadedBytes: null,
+            cancellationToken,
+            (attempt, progressedBytes, totalBytes) =>
+            {
+                if (attempt != currentAttempt)
+                {
+                    currentAttempt = attempt;
+                    attemptProgress = new NetworkDownloadProgress(progress, speedAggregator);
+                }
+
+                attemptProgress!.Report(new ByteProgress(
+                    progressedBytes,
+                    totalBytes.GetValueOrDefault(file.Size)));
+            });
     }
 
     private sealed class NetworkDownloadProgress : IProgress<ByteProgress>

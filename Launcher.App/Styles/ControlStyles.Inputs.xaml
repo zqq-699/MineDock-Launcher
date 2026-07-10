@@ -6,8 +6,8 @@
                     xmlns:converters="clr-namespace:Launcher.App.Converters"
                     xmlns:res="clr-namespace:Launcher.App.Resources">
     <ResourceDictionary.MergedDictionaries>
-        <ResourceDictionary Source="pack://application:,,,/MineDock_Launcher_x64;component/Styles/ControlStyles.Scroll.xaml" />
-        <ResourceDictionary Source="pack://application:,,,/MineDock_Launcher_x64;component/Styles/ControlStyles.Dialogs.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/BlockHelm_Launcher_x64;component/Styles/ControlStyles.Scroll.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/BlockHelm_Launcher_x64;component/Styles/ControlStyles.Dialogs.xaml" />
     </ResourceDictionary.MergedDictionaries>
 
     <Style x:Key="DialogTextBoxStyle" TargetType="TextBox">

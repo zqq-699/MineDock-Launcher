@@ -58,7 +58,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             ?? new LocalSaveService(resolvedPathProvider);
 
         if (!this.httpClient.DefaultRequestHeaders.UserAgent.Any())
-            this.httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("MDL/0.1 (MineDock-Launcher)");
+            this.httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("BHL/0.1 (BlockHelm-Launcher)");
     }
 
     public async Task<ResourceCatalogSearchResult> SearchModsAsync(

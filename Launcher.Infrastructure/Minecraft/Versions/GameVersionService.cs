@@ -18,7 +18,7 @@ public sealed class GameVersionService : IGameVersionService
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ILogger<GameVersionService>? logger = null)
     {
-        this.httpClient = httpClient ?? new HttpClient();
+        this.httpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.logger = logger ?? NullLogger<GameVersionService>.Instance;
     }
@@ -34,21 +34,33 @@ public sealed class GameVersionService : IGameVersionService
             logger,
             bandwidthLimiter,
             category: DownloadConcurrencyCategory.Metadata);
-        using var manifestResponse = await executor.GetAsync(
+        var manifestResult = await executor.ExecuteAsync(
             "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
             downloadSourcePreference,
             categoryHint: "Mojang",
+            async (context, token) =>
+            {
+                await using var stream = await context.Response.Content.ReadAsStreamAsync(token);
+                var manifestNode = await JsonNode.ParseAsync(stream, cancellationToken: token);
+                if (manifestNode is not JsonObject manifestObject
+                    || manifestObject["versions"] is not JsonArray versionEntries)
+                {
+                    throw new DownloadContentValidationException(
+                        "Minecraft version manifest is missing a versions array.");
+                }
+
+                if (versionEntries.Any(entry => !IsValidVersionEntry(entry)))
+                {
+                    throw new DownloadContentValidationException(
+                        "Minecraft version manifest contains an invalid version entry.");
+                }
+
+                return (VersionEntries: versionEntries, context.Resolution);
+            },
             cancellationToken);
-        manifestResponse.Response.EnsureSuccessStatusCode();
 
-        await using var stream = await manifestResponse.Response.Content.ReadAsStreamAsync(cancellationToken);
-        var manifestNode = await JsonNode.ParseAsync(stream, cancellationToken: cancellationToken)
-            ?? throw new InvalidOperationException("Minecraft version manifest is empty.");
-        var versionEntries = manifestNode["versions"]?.AsArray()
-            ?? throw new InvalidOperationException("Minecraft version manifest is missing versions.");
-
-        var versions = versionEntries
-            .Select(entry => entry?.AsObject())
+        var versions = manifestResult.VersionEntries
+            .Select(entry => entry as JsonObject)
             .Where(entry => entry is not null)
             .Select(entry => new MinecraftVersionInfo(
                 entry!["id"]?.GetValue<string>() ?? string.Empty,
@@ -65,7 +77,7 @@ public sealed class GameVersionService : IGameVersionService
         logger.LogInformation(
             "Minecraft versions loaded. RequestedSourcePreference={RequestedSourcePreference} ResolvedSourceKind={ResolvedSourceKind} VersionCount={VersionCount}",
             downloadSourcePreference,
-            manifestResponse.Resolution.ResolvedSourceKind,
+            manifestResult.Resolution.ResolvedSourceKind,
             versions.Count);
         return versions;
     }
@@ -80,6 +92,22 @@ public sealed class GameVersionService : IGameVersionService
             "old_alpha" => 3,
             _ => 4
         };
+    }
+
+    private static bool IsValidVersionEntry(JsonNode? entry)
+    {
+        if (entry is not JsonObject versionObject
+            || versionObject["id"] is not JsonValue idValue
+            || !idValue.TryGetValue<string>(out var id)
+            || string.IsNullOrWhiteSpace(id)
+            || versionObject["type"] is not JsonValue typeValue
+            || !typeValue.TryGetValue<string>(out var type)
+            || string.IsNullOrWhiteSpace(type))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static Version VersionSortKey(string name)

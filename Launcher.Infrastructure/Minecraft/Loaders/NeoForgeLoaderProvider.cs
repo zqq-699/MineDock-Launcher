@@ -50,7 +50,7 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ILogger? logger = null)
     {
-        this.httpClient = httpClient ?? new HttpClient();
+        this.httpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.installerRunner = installerRunner ?? new ForgeInstallerRunner();
         this.finalVersionInstaller = finalVersionInstaller ?? new FinalVersionInstaller();
         this.downloadSpeedLimitState = downloadSpeedLimitState;
@@ -81,45 +81,50 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
             minecraftVersion,
             versionPrefix);
 
-        try
-        {
-            var executor = new MinecraftDownloadRequestExecutor(
-                httpClient,
-                logger,
-                DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
-                category: DownloadConcurrencyCategory.Metadata);
-            using var response = await executor.GetAsync(
-                MetadataUrl,
-                downloadSourcePreference,
-                categoryHint: "NeoForge",
-                cancellationToken);
-            if (response.Response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest)
-                return [];
+        var executor = new MinecraftDownloadRequestExecutor(
+            httpClient,
+            logger,
+            DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
+            category: DownloadConcurrencyCategory.Metadata);
+        var result = await executor.ExecuteLookupAsync(
+            MetadataUrl,
+            downloadSourcePreference,
+            categoryHint: "NeoForge",
+            async (context, token) =>
+            {
+                await using var stream = await context.Response.Content.ReadAsStreamAsync(token);
+                var document = await XDocument.LoadAsync(stream, LoadOptions.None, token);
+                if (document.Root?.Name.LocalName is not "metadata"
+                    || document.Descendants("versions").FirstOrDefault() is null)
+                {
+                    throw new DownloadContentValidationException(
+                        "NeoForge Maven metadata has an invalid structure.");
+                }
 
-            response.Response.EnsureSuccessStatusCode();
-            await using var stream = await response.Response.Content.ReadAsStreamAsync(cancellationToken);
-            var document = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
-            var versions = document.Descendants("version")
-                .Select(element => element.Value?.Trim())
-                .Where(version => !string.IsNullOrWhiteSpace(version))
-                .Select(version => version!)
-                .Where(version => version.StartsWith(versionPrefix, StringComparison.OrdinalIgnoreCase))
-                .Select(CreateLoaderVersionInfo)
-                .OrderByDescending(info => info.IsStable)
-                .ThenByDescending(info => ParseVersionKey(info.Version), NeoForgeVersionKeyComparer.Instance)
-                .ThenByDescending(info => info.Version, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+                var versions = document.Descendants("version")
+                    .Select(element => element.Value?.Trim())
+                    .Where(version => !string.IsNullOrWhiteSpace(version))
+                    .Select(version => version!)
+                    .Where(version => version.StartsWith(versionPrefix, StringComparison.OrdinalIgnoreCase))
+                    .Select(CreateLoaderVersionInfo)
+                    .OrderByDescending(info => info.IsStable)
+                    .ThenByDescending(info => ParseVersionKey(info.Version), NeoForgeVersionKeyComparer.Instance)
+                    .ThenByDescending(info => info.Version, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                if (versions.Count == 0)
+                    throw new DownloadNoResultException("NeoForge returned no matching loader versions.");
 
-            logger.LogInformation(
-                "Loaded NeoForge versions. MinecraftVersion={MinecraftVersion} Count={Count}",
-                minecraftVersion,
-                versions.Count);
-            return versions;
-        }
-        catch (HttpRequestException exception) when (exception.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.BadRequest)
-        {
-            return [];
-        }
+                return (IReadOnlyList<LoaderVersionInfo>)versions;
+            },
+            statusCode => statusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound,
+            cancellationToken);
+
+        var resolvedVersions = result.Found ? result.Value! : [];
+        logger.LogInformation(
+            "Loaded NeoForge versions. MinecraftVersion={MinecraftVersion} Count={Count}",
+            minecraftVersion,
+            resolvedVersions.Count);
+        return resolvedVersions;
     }
 
     public async Task<string> InstallAsync(
@@ -238,16 +243,15 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
             logger,
             DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
             category: DownloadConcurrencyCategory.Runtime);
-        using var response = await executor.GetAsync(
+        await executor.DownloadFileAsync(
             $"{ArtifactBaseUrl}/{loaderVersion}/neoforge-{loaderVersion}-installer.jar",
             downloadSourcePreference,
             categoryHint: "NeoForge",
+            destinationPath,
+            expectedSha1: null,
+            expectedSize: null,
+            reportDownloadedBytes: null,
             cancellationToken);
-        response.Response.EnsureSuccessStatusCode();
-
-        await using var source = await response.Response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var destination = File.Create(destinationPath);
-        await source.CopyToAsync(destination, cancellationToken);
     }
 
     private async Task EnsureFinalVersionIsSelfContainedAsync(

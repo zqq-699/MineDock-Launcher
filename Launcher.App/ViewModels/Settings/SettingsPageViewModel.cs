@@ -201,10 +201,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             Strings.Settings_SectionTheme,
             "setting_page/theme"));
         Sections.Add(new SettingsSectionItem(
-            SettingsPageSection.ListPreview,
-            Strings.Settings_SectionListPreview,
-            "instance_setting_page/list_view"));
-        Sections.Add(new SettingsSectionItem(
             SettingsPageSection.Info,
             Strings.Settings_SectionInfo,
             "setting_page/info"));
@@ -280,7 +276,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         LaunchMemory = new LaunchMemorySettingsViewModel(this);
         Java = new JavaSettingsViewModel(this);
         Theme = new ThemeSettingsViewModel(this);
-        ListPreview = new ListPreviewSettingsViewModel(this);
         Info = new InfoSettingsViewModel(
             this,
             statusService,
@@ -319,8 +314,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public JavaSettingsViewModel Java { get; }
 
     public ThemeSettingsViewModel Theme { get; }
-
-    public ListPreviewSettingsViewModel ListPreview { get; }
 
     public InfoSettingsViewModel Info { get; }
 
@@ -369,8 +362,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public bool IsJavaSection => SelectedSection?.Section is SettingsPageSection.Java;
 
     public bool IsThemeSection => SelectedSection?.Section is SettingsPageSection.Theme;
-
-    public bool IsListPreviewSection => SelectedSection?.Section is SettingsPageSection.ListPreview;
 
     public bool IsInfoSection => SelectedSection?.Section is SettingsPageSection.Info;
 
@@ -564,7 +555,6 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(IsLaunchMemorySection));
         OnPropertyChanged(nameof(IsJavaSection));
         OnPropertyChanged(nameof(IsThemeSection));
-        OnPropertyChanged(nameof(IsListPreviewSection));
         OnPropertyChanged(nameof(IsInfoSection));
         OnPropertyChanged(nameof(IsControlListSection));
         CurrentSectionViewModel = value?.Section switch
@@ -574,18 +564,10 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             SettingsPageSection.LaunchMemory => LaunchMemory,
             SettingsPageSection.Java => Java,
             SettingsPageSection.Theme => Theme,
-            SettingsPageSection.ListPreview => ListPreview,
             SettingsPageSection.Info => Info,
             SettingsPageSection.ControlList => ControlList,
             _ => General
         };
-
-        if (value?.Section is SettingsPageSection.ListPreview)
-        {
-            logger.LogInformation(
-                "Settings progressive blur list preview opened. ItemCount={ItemCount}",
-                ListPreview.Items.Count);
-        }
     }
 
     partial void OnSelectedDownloadSourceOptionChanged(SettingsDownloadSourceOption? value)

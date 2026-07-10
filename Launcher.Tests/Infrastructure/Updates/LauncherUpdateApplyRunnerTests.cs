@@ -11,8 +11,8 @@ public sealed class LauncherUpdateApplyRunnerTests : IDisposable
     public void RunReplacesTargetExecutable()
     {
         Directory.CreateDirectory(tempRoot);
-        var sourcePath = Path.Combine(tempRoot, "MineDock_Launcher_x64.exe");
-        var targetPath = Path.Combine(tempRoot, "MineDock Launcher.exe");
+        var sourcePath = Path.Combine(tempRoot, "BlockHelm_Launcher_x64.exe");
+        var targetPath = Path.Combine(tempRoot, "BlockHelm-Launcher.exe");
         var logDirectory = Path.Combine(tempRoot, "log");
         File.WriteAllText(sourcePath, "new");
         File.WriteAllText(targetPath, "old");
@@ -34,8 +34,8 @@ public sealed class LauncherUpdateApplyRunnerTests : IDisposable
     public void RunStartsTargetExecutableWhenRestartIsRequested()
     {
         Directory.CreateDirectory(tempRoot);
-        var sourcePath = Path.Combine(tempRoot, "MineDock_Launcher_x64.exe");
-        var targetPath = Path.Combine(tempRoot, "MineDock Launcher.exe");
+        var sourcePath = Path.Combine(tempRoot, "BlockHelm_Launcher_x64.exe");
+        var targetPath = Path.Combine(tempRoot, "BlockHelm-Launcher.exe");
         var logDirectory = Path.Combine(tempRoot, "log");
         File.WriteAllText(sourcePath, "new");
         File.WriteAllText(targetPath, "old");
@@ -58,7 +58,7 @@ public sealed class LauncherUpdateApplyRunnerTests : IDisposable
     public void RunRejectsMissingSourceExecutable()
     {
         Directory.CreateDirectory(tempRoot);
-        var targetPath = Path.Combine(tempRoot, "MineDock Launcher.exe");
+        var targetPath = Path.Combine(tempRoot, "BlockHelm-Launcher.exe");
         var logDirectory = Path.Combine(tempRoot, "log");
         File.WriteAllText(targetPath, "old");
         var runner = new LauncherUpdateApplyRunner();

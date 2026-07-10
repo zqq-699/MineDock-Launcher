@@ -93,7 +93,8 @@ internal static class DownloadResponseThrottler
         HttpResponseMessage response,
         DownloadBandwidthLimiter? bandwidthLimiter,
         CancellationToken cancellationToken,
-        IAsyncDisposable? completionLease = null)
+        IAsyncDisposable? completionLease = null,
+        TimeSpan? bodyIdleTimeout = null)
     {
         if (response.Content is null)
         {
@@ -102,17 +103,101 @@ internal static class DownloadResponseThrottler
             return;
         }
 
-        if (bandwidthLimiter is null && completionLease is null)
+        if (bandwidthLimiter is null && completionLease is null && bodyIdleTimeout is null)
             return;
 
         var originalContent = response.Content;
         var originalStream = await originalContent.ReadAsStreamAsync(cancellationToken);
+        Stream networkStream = bodyIdleTimeout is { } idleTimeout
+            ? new IdleTimeoutReadStream(originalStream, idleTimeout, cancellationToken)
+            : originalStream;
         var throttledContent = new StreamContent(
-            new ThrottledReadStream(originalStream, originalContent, bandwidthLimiter, completionLease));
+            new ThrottledReadStream(networkStream, originalContent, bandwidthLimiter, completionLease));
         foreach (var header in originalContent.Headers)
             throttledContent.Headers.TryAddWithoutValidation(header.Key, header.Value);
 
         response.Content = throttledContent;
+    }
+
+    private sealed class IdleTimeoutReadStream : Stream
+    {
+        private readonly Stream innerStream;
+        private readonly TimeSpan idleTimeout;
+        private readonly CancellationToken operationCancellationToken;
+
+        public IdleTimeoutReadStream(
+            Stream innerStream,
+            TimeSpan idleTimeout,
+            CancellationToken operationCancellationToken)
+        {
+            this.innerStream = innerStream;
+            this.idleTimeout = idleTimeout;
+            this.operationCancellationToken = operationCancellationToken;
+        }
+
+        public override bool CanRead => innerStream.CanRead;
+        public override bool CanSeek => innerStream.CanSeek;
+        public override bool CanWrite => false;
+        public override long Length => innerStream.Length;
+        public override long Position
+        {
+            get => innerStream.Position;
+            set => innerStream.Position = value;
+        }
+
+        public override void Flush() => innerStream.Flush();
+        public override int Read(byte[] buffer, int offset, int count) => innerStream.Read(buffer, offset, count);
+        public override int Read(Span<byte> buffer) => innerStream.Read(buffer);
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
+                operationCancellationToken,
+                cancellationToken);
+            timeout.CancelAfter(idleTimeout);
+
+            try
+            {
+                return await innerStream.ReadAsync(buffer, timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException exception)
+                when (!operationCancellationToken.IsCancellationRequested
+                    && !cancellationToken.IsCancellationRequested)
+            {
+                throw new DownloadBodyInterruptedException(
+                    $"The response body produced no data for {idleTimeout}.",
+                    exception);
+            }
+        }
+
+        public override Task<int> ReadAsync(
+            byte[] buffer,
+            int offset,
+            int count,
+            CancellationToken cancellationToken)
+        {
+            return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => innerStream.Seek(offset, origin);
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Write(ReadOnlySpan<byte> buffer) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                innerStream.Dispose();
+            base.Dispose(disposing);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            await innerStream.DisposeAsync().ConfigureAwait(false);
+            await base.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     private sealed class ThrottledReadStream : Stream

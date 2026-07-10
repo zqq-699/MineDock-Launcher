@@ -1,0 +1,715 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text.Json;
+using CmlLib.Core.Files;
+using Launcher.Domain.Models;
+using Launcher.Infrastructure.Minecraft;
+using Launcher.Infrastructure.Modpacks;
+
+namespace Launcher.Tests.Infrastructure.Minecraft;
+
+public sealed class MinecraftDownloadRetryTests
+{
+    private const string ManifestUrl = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
+
+    [Theory]
+    [InlineData(HttpStatusCode.RequestTimeout)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task TransientStatusesConsumeFourAttemptBudget(HttpStatusCode statusCode)
+    {
+        var handler = new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(CreateResponse(statusCode, string.Empty, request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient);
+
+        await Assert.ThrowsAsync<MinecraftDownloadRequestExecutor.DownloadSourceRequestException>(
+            () => executor.ExecuteAsync(
+                ManifestUrl,
+                DownloadSourcePreference.Official,
+                categoryHint: "Mojang",
+                static (_, _) => Task.FromResult(true),
+                CancellationToken.None));
+
+        Assert.Equal(4, handler.RequestUris.Count);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.MethodNotAllowed)]
+    [InlineData(HttpStatusCode.Gone)]
+    public async Task PermanentStatusesDoNotRetry(HttpStatusCode statusCode)
+    {
+        var handler = new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(CreateResponse(statusCode, string.Empty, request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient);
+
+        await Assert.ThrowsAsync<MinecraftDownloadRequestExecutor.DownloadSourceRequestException>(
+            () => executor.ExecuteAsync(
+                ManifestUrl,
+                DownloadSourcePreference.Official,
+                categoryHint: "Mojang",
+                static (_, _) => Task.FromResult(true),
+                CancellationToken.None));
+
+        Assert.Single(handler.RequestUris);
+    }
+
+    [Fact]
+    public async Task TransientStatusRetriesFourTimesThenSwitchesSource()
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+            Task.FromResult(CreateResponse(
+                requestNumber <= 4 ? HttpStatusCode.InternalServerError : HttpStatusCode.OK,
+                "{}",
+                request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient);
+
+        var result = await executor.ExecuteAsync(
+            ManifestUrl,
+            DownloadSourcePreference.Auto,
+            categoryHint: "Mojang",
+            async (context, token) => await context.Response.Content.ReadAsStringAsync(token),
+            CancellationToken.None);
+
+        Assert.Equal("{}", result);
+        Assert.Equal(5, handler.RequestUris.Count);
+        Assert.All(handler.RequestUris.Take(4), uri => Assert.Equal(handler.RequestUris[0], uri));
+        Assert.NotEqual(handler.RequestUris[0], handler.RequestUris[4]);
+    }
+
+    [Fact]
+    public async Task PermanentStatusSwitchesSourceWithoutRetry()
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+            Task.FromResult(CreateResponse(
+                requestNumber == 1 ? HttpStatusCode.Forbidden : HttpStatusCode.OK,
+                "{}",
+                request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient);
+
+        await executor.ExecuteAsync(
+            ManifestUrl,
+            DownloadSourcePreference.Auto,
+            categoryHint: "Mojang",
+            static (_, _) => Task.FromResult(true),
+            CancellationToken.None);
+
+        Assert.Equal(2, handler.RequestUris.Count);
+        Assert.NotEqual(handler.RequestUris[0], handler.RequestUris[1]);
+    }
+
+    [Fact]
+    public async Task LoaderLookupDoesNotReturnEmptyWhenAnotherSourceFails()
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+            Task.FromResult(CreateResponse(
+                requestNumber == 1 ? HttpStatusCode.NotFound : HttpStatusCode.InternalServerError,
+                "[]",
+                request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient);
+
+        await Assert.ThrowsAsync<MinecraftDownloadRequestExecutor.DownloadSourceRequestException>(
+            () => executor.ExecuteLookupAsync(
+                ManifestUrl,
+                DownloadSourcePreference.Auto,
+                categoryHint: "Mojang",
+                static (_, _) => Task.FromResult<IReadOnlyList<string>>(["value"]),
+                statusCode => statusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound,
+                CancellationToken.None));
+
+        Assert.Equal(5, handler.RequestUris.Count);
+    }
+
+    [Fact]
+    public async Task LoaderLookupReturnsEmptyOnlyWhenEverySourceReportsNoResult()
+    {
+        var handler = new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(CreateResponse(HttpStatusCode.NotFound, "[]", request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient);
+
+        var result = await executor.ExecuteLookupAsync(
+            ManifestUrl,
+            DownloadSourcePreference.Auto,
+            categoryHint: "Mojang",
+            static (_, _) => Task.FromResult<IReadOnlyList<string>>(["value"]),
+            statusCode => statusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound,
+            CancellationToken.None);
+
+        Assert.False(result.Found);
+        Assert.Equal(2, handler.RequestUris.Count);
+    }
+
+    [Fact]
+    public async Task LoaderLookupDoesNotReturnEmptyAfterAnotherSourceHasInvalidContent()
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+            Task.FromResult(CreateResponse(
+                requestNumber == 1 ? HttpStatusCode.OK : HttpStatusCode.NotFound,
+                requestNumber == 1 ? "<html>error</html>" : "[]",
+                request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient);
+
+        await Assert.ThrowsAsync<MinecraftDownloadRequestExecutor.DownloadSourceRequestException>(
+            () => executor.ExecuteLookupAsync(
+                ManifestUrl,
+                DownloadSourcePreference.Auto,
+                categoryHint: "Mojang",
+                async (context, token) =>
+                {
+                    await using var stream = await context.Response.Content.ReadAsStreamAsync(token);
+                    using var document = await JsonDocument.ParseAsync(stream, cancellationToken: token);
+                    return (IReadOnlyList<string>)["value"];
+                },
+                statusCode => statusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound,
+                CancellationToken.None));
+
+        Assert.Equal(2, handler.RequestUris.Count);
+    }
+
+    [Fact]
+    public async Task InvalidJsonSwitchesSourceWithoutRetry()
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+            Task.FromResult(CreateResponse(
+                HttpStatusCode.OK,
+                requestNumber == 1 ? "<html>error</html>" : "{\"versions\":[]}",
+                request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient);
+
+        await executor.ExecuteAsync(
+            ManifestUrl,
+            DownloadSourcePreference.Auto,
+            categoryHint: "Mojang",
+            async (context, token) =>
+            {
+                await using var stream = await context.Response.Content.ReadAsStreamAsync(token);
+                using var document = await JsonDocument.ParseAsync(stream, cancellationToken: token);
+                return document.RootElement.GetProperty("versions").GetArrayLength();
+            },
+            CancellationToken.None);
+
+        Assert.Equal(2, handler.RequestUris.Count);
+    }
+
+    [Fact]
+    public async Task InterruptedBodyRetriesSameSourceAndReplacesOnlyCompleteFile()
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+        {
+            HttpContent content = requestNumber == 1
+                ? new StreamContent(new FaultingReadStream("partial"u8.ToArray()))
+                : new ByteArrayContent("complete"u8.ToArray());
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = content
+            });
+        });
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient);
+        var directory = CreateTempDirectory();
+        var destination = Path.Combine(directory, "client.jar");
+
+        try
+        {
+            await executor.DownloadFileAsync(
+                ManifestUrl,
+                DownloadSourcePreference.Official,
+                categoryHint: "Mojang",
+                destination,
+                expectedSha1: null,
+                expectedSize: 8,
+                reportDownloadedBytes: null,
+                CancellationToken.None);
+
+            Assert.Equal("complete", await File.ReadAllTextAsync(destination));
+            Assert.Equal(2, handler.RequestUris.Count);
+            Assert.Equal(handler.RequestUris[0], handler.RequestUris[1]);
+            Assert.Empty(Directory.GetFiles(directory, "*.tmp"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task HashMismatchSwitchesSourceWithoutRetry()
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+            Task.FromResult(CreateResponse(
+                HttpStatusCode.OK,
+                requestNumber == 1 ? "baad" : "good",
+                request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient);
+        var directory = CreateTempDirectory();
+        var destination = Path.Combine(directory, "library.jar");
+        var expectedSha1 = Convert.ToHexString(SHA1.HashData("good"u8.ToArray()));
+
+        try
+        {
+            await executor.DownloadFileAsync(
+                ManifestUrl,
+                DownloadSourcePreference.Auto,
+                categoryHint: "Mojang",
+                destination,
+                expectedSha1,
+                expectedSize: 4,
+                reportDownloadedBytes: null,
+                CancellationToken.None);
+
+            Assert.Equal("good", await File.ReadAllTextAsync(destination));
+            Assert.Equal(2, handler.RequestUris.Count);
+            Assert.NotEqual(handler.RequestUris[0], handler.RequestUris[1]);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task BodyIdleTimeoutRetriesWithinSameSourceBudget()
+    {
+        var handler = new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new StreamContent(new BlockingReadStream())
+            }));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient, new DownloadRetryOptions
+        {
+            MaxAttemptsPerSource = 2,
+            RetryDelay = TimeSpan.Zero,
+            ResponseHeadersTimeout = TimeSpan.FromSeconds(1),
+            BodyIdleTimeout = TimeSpan.FromMilliseconds(20),
+            MaxRedirects = 10
+        });
+
+        await Assert.ThrowsAsync<MinecraftDownloadRequestExecutor.DownloadSourceRequestException>(
+            () => executor.ExecuteAsync(
+                ManifestUrl,
+                DownloadSourcePreference.Official,
+                categoryHint: "Mojang",
+                async (context, token) => await context.Response.Content.ReadAsByteArrayAsync(token),
+                CancellationToken.None));
+
+        Assert.Equal(2, handler.RequestUris.Count);
+    }
+
+    [Fact]
+    public async Task ResponseHeadersTimeoutRetriesWithinSameSourceBudget()
+    {
+        var handler = new CallbackRequestHandler(async (_, _, token) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            throw new InvalidOperationException("Unreachable");
+        });
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient, new DownloadRetryOptions
+        {
+            MaxAttemptsPerSource = 2,
+            RetryDelay = TimeSpan.Zero,
+            ResponseHeadersTimeout = TimeSpan.FromMilliseconds(20),
+            BodyIdleTimeout = TimeSpan.FromSeconds(1),
+            MaxRedirects = 10
+        });
+
+        await Assert.ThrowsAsync<MinecraftDownloadRequestExecutor.DownloadSourceRequestException>(
+            () => executor.ExecuteAsync(
+                ManifestUrl,
+                DownloadSourcePreference.Official,
+                categoryHint: "Mojang",
+                static (_, _) => Task.FromResult(true),
+                CancellationToken.None));
+
+        Assert.Equal(2, handler.RequestUris.Count);
+    }
+
+    [Fact]
+    public async Task UserCancellationDuringRetryDelayStopsImmediately()
+    {
+        var handler = new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(CreateResponse(HttpStatusCode.InternalServerError, string.Empty, request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient, new DownloadRetryOptions
+        {
+            MaxAttemptsPerSource = 4,
+            RetryDelay = TimeSpan.FromSeconds(10),
+            ResponseHeadersTimeout = TimeSpan.FromSeconds(1),
+            BodyIdleTimeout = TimeSpan.FromSeconds(1),
+            MaxRedirects = 10
+        });
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => executor.ExecuteAsync(
+                ManifestUrl,
+                DownloadSourcePreference.Official,
+                categoryHint: "Mojang",
+                static (_, _) => Task.FromResult(true),
+                cancellation.Token));
+
+        Assert.Single(handler.RequestUris);
+    }
+
+    [Fact]
+    public async Task BandwidthDelayDoesNotTriggerNetworkIdleTimeout()
+    {
+        var handler = new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(CreateResponse(HttpStatusCode.OK, "payload", request)));
+        using var httpClient = CreateClient(handler);
+        var limiter = DownloadBandwidthLimiter.Create(37)!;
+        await limiter.ThrottleAsync(37 * 1024 * 1024, CancellationToken.None);
+        var executor = new MinecraftDownloadRequestExecutor(
+            httpClient,
+            bandwidthLimiter: limiter,
+            limiter: new ImportConcurrencyLimiter(),
+            retryOptions: new DownloadRetryOptions
+            {
+                MaxAttemptsPerSource = 1,
+                RetryDelay = TimeSpan.Zero,
+                ResponseHeadersTimeout = TimeSpan.FromSeconds(1),
+                BodyIdleTimeout = TimeSpan.FromMilliseconds(20),
+                MaxRedirects = 10
+            });
+
+        var result = await executor.ExecuteAsync(
+            ManifestUrl,
+            DownloadSourcePreference.Official,
+            categoryHint: "Mojang",
+            async (context, token) => await context.Response.Content.ReadAsStringAsync(token),
+            CancellationToken.None);
+
+        Assert.Equal("payload", result);
+        Assert.Single(handler.RequestUris);
+    }
+
+    [Fact]
+    public async Task ContentTypeIsNotUsedAsAValidityGate()
+    {
+        var handler = new CallbackRequestHandler((_, request, _) =>
+        {
+            var response = CreateResponse(HttpStatusCode.OK, "{\"versions\":[]}", request);
+            response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+            return Task.FromResult(response);
+        });
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient);
+
+        var count = await executor.ExecuteAsync(
+            ManifestUrl,
+            DownloadSourcePreference.Official,
+            categoryHint: "Mojang",
+            async (context, token) =>
+            {
+                await using var stream = await context.Response.Content.ReadAsStreamAsync(token);
+                using var document = await JsonDocument.ParseAsync(stream, cancellationToken: token);
+                return document.RootElement.GetProperty("versions").GetArrayLength();
+            },
+            CancellationToken.None);
+
+        Assert.Equal(0, count);
+    }
+
+    [Fact]
+    public async Task ValidRedirectStaysInsideOneTopLevelAttempt()
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+        {
+            if (requestNumber == 1)
+            {
+                var redirect = new HttpResponseMessage(HttpStatusCode.Redirect)
+                {
+                    RequestMessage = request
+                };
+                redirect.Headers.Location = new Uri("/redirected", UriKind.Relative);
+                return Task.FromResult(redirect);
+            }
+
+            return Task.FromResult(CreateResponse(HttpStatusCode.OK, "{}", request));
+        });
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient, new DownloadRetryOptions
+        {
+            MaxAttemptsPerSource = 1,
+            RetryDelay = TimeSpan.Zero,
+            ResponseHeadersTimeout = TimeSpan.FromSeconds(1),
+            BodyIdleTimeout = TimeSpan.FromSeconds(1),
+            MaxRedirects = 10
+        });
+
+        var attempt = await executor.ExecuteAsync(
+            ManifestUrl,
+            DownloadSourcePreference.Official,
+            categoryHint: "Mojang",
+            static (context, _) => Task.FromResult(context.AttemptNumber),
+            CancellationToken.None);
+
+        Assert.Equal(1, attempt);
+        Assert.Equal(2, handler.RequestUris.Count);
+    }
+
+    [Fact]
+    public async Task RedirectLoopSwitchesSourceWithoutRetry()
+    {
+        var handler = new CallbackRequestHandler((_, request, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.Redirect)
+            {
+                RequestMessage = request
+            };
+            response.Headers.Location = request.RequestUri;
+            return Task.FromResult(response);
+        });
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient);
+
+        await Assert.ThrowsAsync<MinecraftDownloadRequestExecutor.DownloadSourceRequestException>(
+            () => executor.ExecuteAsync(
+                ManifestUrl,
+                DownloadSourcePreference.Auto,
+                categoryHint: "Mojang",
+                static (_, _) => Task.FromResult(true),
+                CancellationToken.None));
+
+        Assert.Equal(2, handler.RequestUris.Count);
+    }
+
+    [Fact]
+    public async Task CmlLibGameInstallerUsesSingleExecutorBudgetForBodyFailure()
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+        {
+            HttpContent content = requestNumber == 1
+                ? new StreamContent(new FaultingReadStream("part"u8.ToArray()))
+                : new ByteArrayContent("complete"u8.ToArray());
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = content
+            });
+        });
+        using var runtimeClient = CreateClient(handler);
+        using var metadataClient = CreateClient(new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(CreateResponse(HttpStatusCode.OK, "{}", request))));
+        var executor = CreateExecutor(runtimeClient);
+        var installer = DownloadSpeedTrackingGameInstaller.CreateAsCoreCount(
+            metadataClient,
+            executor,
+            DownloadSourcePreference.Official,
+            progress: null);
+        var directory = CreateTempDirectory();
+        var destination = Path.Combine(directory, "game-file.jar");
+        var file = new GameFile("game-file.jar")
+        {
+            Url = ManifestUrl,
+            Path = destination,
+            Size = 8,
+            Hash = Convert.ToHexString(SHA1.HashData("complete"u8.ToArray()))
+        };
+
+        try
+        {
+            await installer.DownloadGameFileAsync(file, progress: null, CancellationToken.None);
+
+            Assert.Equal("complete", await File.ReadAllTextAsync(destination));
+            Assert.Equal(2, handler.RequestUris.Count);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task CmlLibMetadataHandlerSwitchesSourceAfterInvalidJson()
+    {
+        var transport = new CallbackRequestHandler((requestNumber, request, _) =>
+            Task.FromResult(CreateResponse(
+                HttpStatusCode.OK,
+                requestNumber == 1 ? "<html>error</html>" : "{\"versions\":[]}",
+                request)));
+        using var httpClient = new HttpClient(new DownloadSourceRoutingHttpMessageHandler(
+            DownloadSourcePreference.Auto,
+            DownloadConcurrencyCategory.Metadata,
+            transport,
+            limiter: new ImportConcurrencyLimiter(),
+            retryOptions: new DownloadRetryOptions
+            {
+                MaxAttemptsPerSource = 4,
+                RetryDelay = TimeSpan.Zero,
+                ResponseHeadersTimeout = TimeSpan.FromSeconds(1),
+                BodyIdleTimeout = TimeSpan.FromSeconds(1),
+                MaxRedirects = 10
+            }))
+        {
+            Timeout = Timeout.InfiniteTimeSpan
+        };
+
+        var body = await httpClient.GetStringAsync(ManifestUrl);
+
+        Assert.Equal("{\"versions\":[]}", body);
+        Assert.Equal(2, transport.RequestUris.Count);
+    }
+
+    [Fact]
+    public async Task LocalDestinationFailureDoesNotStartNetworkRetry()
+    {
+        var handler = new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(CreateResponse(HttpStatusCode.OK, "payload", request)));
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient);
+        var directory = CreateTempDirectory();
+        var fileAsDirectory = Path.Combine(directory, "not-a-directory");
+        await File.WriteAllTextAsync(fileAsDirectory, "file");
+
+        try
+        {
+            await Assert.ThrowsAnyAsync<IOException>(
+                () => executor.DownloadFileAsync(
+                    ManifestUrl,
+                    DownloadSourcePreference.Official,
+                    categoryHint: "Mojang",
+                    Path.Combine(fileAsDirectory, "client.jar"),
+                    expectedSha1: null,
+                    expectedSize: null,
+                    reportDownloadedBytes: null,
+                    CancellationToken.None));
+
+            Assert.Empty(handler.RequestUris);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private static MinecraftDownloadRequestExecutor CreateExecutor(
+        HttpClient httpClient,
+        DownloadRetryOptions? options = null)
+    {
+        return new MinecraftDownloadRequestExecutor(
+            httpClient,
+            limiter: new ImportConcurrencyLimiter(),
+            retryOptions: options ?? new DownloadRetryOptions
+            {
+                MaxAttemptsPerSource = 4,
+                RetryDelay = TimeSpan.Zero,
+                ResponseHeadersTimeout = TimeSpan.FromSeconds(1),
+                BodyIdleTimeout = TimeSpan.FromSeconds(1),
+                MaxRedirects = 10
+            });
+    }
+
+    private static HttpClient CreateClient(HttpMessageHandler handler)
+    {
+        return new HttpClient(handler)
+        {
+            Timeout = Timeout.InfiniteTimeSpan
+        };
+    }
+
+    private static HttpResponseMessage CreateResponse(
+        HttpStatusCode statusCode,
+        string content,
+        HttpRequestMessage request)
+    {
+        return new HttpResponseMessage(statusCode)
+        {
+            RequestMessage = request,
+            Content = new StringContent(content)
+        };
+    }
+
+    private static string CreateTempDirectory()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "launcher-download-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    private sealed class CallbackRequestHandler(
+        Func<int, HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> callback)
+        : HttpMessageHandler
+    {
+        private int requestCount;
+
+        public List<Uri> RequestUris { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestUris.Add(request.RequestUri!);
+            return callback(Interlocked.Increment(ref requestCount), request, cancellationToken);
+        }
+    }
+
+    private sealed class FaultingReadStream(byte[] firstChunk) : Stream
+    {
+        private bool returnedFirstChunk;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            if (returnedFirstChunk)
+                return ValueTask.FromException<int>(new IOException("The network stream ended."));
+
+            returnedFirstChunk = true;
+            firstChunk.AsSpan().CopyTo(buffer.Span);
+            return ValueTask.FromResult(firstChunk.Length);
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    private sealed class BlockingReadStream : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+}

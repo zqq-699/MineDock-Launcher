@@ -16,11 +16,11 @@ jobs:
 
     env:
       CHANNEL: release
-      PUBLISH_DIR: publish/MineDock Launcher-win-x64-fdd-single
-      ASSET_PATH: publish/MineDock Launcher-win-x64-fdd-single/MineDock_Launcher_x64.exe
+      PUBLISH_DIR: publish/BlockHelm-Launcher-win-x64-fdd-single
+      ASSET_PATH: publish/BlockHelm-Launcher-win-x64-fdd-single/BlockHelm_Launcher_x64.exe
       MANIFEST_PATH: update/latest.template.json
       GITEE_OWNER: zqq-699
-      GITEE_REPO: MineDock-Launcher
+      GITEE_REPO: BlockHelm-Launcher
       GITEE_BRANCH: update-manifests
       GITHUB_MANIFEST_BRANCH: update-manifests
 
@@ -88,7 +88,7 @@ jobs:
             throw "Unsupported update manifest schemaVersion: $($manifest.schemaVersion)"
           }
 
-          if ($manifest.appId -ne "MineDock-Launcher") {
+          if ($manifest.appId -ne "BlockHelm-Launcher") {
             throw "Unexpected update manifest appId: $($manifest.appId)"
           }
 
@@ -143,7 +143,7 @@ jobs:
           $encodedTag = [uri]::EscapeDataString($env:GITHUB_REF_NAME)
           $encodedAssetName = [uri]::EscapeDataString($assetName)
           $giteeFallbackDownloadUrl = "https://gitee.com/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases/download/$encodedTag/$encodedAssetName"
-          $releaseTitle = "MineDock Launcher $($env:VERSION_NAME)"
+          $releaseTitle = "BlockHelm-Launcher $($env:VERSION_NAME)"
 
           Set-Content -Path $shaPath -Value "$sha256  $assetName" -Encoding ascii
 

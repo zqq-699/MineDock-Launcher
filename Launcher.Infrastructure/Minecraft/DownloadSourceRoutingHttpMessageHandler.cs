@@ -1,4 +1,7 @@
+using System.Net;
 using System.Net.Http;
+using System.Text.Json;
+using System.Xml.Linq;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Modpacks;
@@ -9,11 +12,9 @@ namespace Launcher.Infrastructure.Minecraft;
 
 internal sealed class DownloadSourceRoutingHttpMessageHandler : DelegatingHandler
 {
+    private readonly HttpClient transportClient;
+    private readonly MinecraftDownloadRequestExecutor executor;
     private readonly DownloadSourcePreference preference;
-    private readonly DownloadConcurrencyCategory category;
-    private readonly ILogger logger;
-    private readonly DownloadBandwidthLimiter? bandwidthLimiter;
-    private readonly IImportConcurrencyLimiter limiter;
 
     public DownloadSourceRoutingHttpMessageHandler(
         DownloadSourcePreference preference,
@@ -21,116 +22,157 @@ internal sealed class DownloadSourceRoutingHttpMessageHandler : DelegatingHandle
         HttpMessageHandler innerHandler,
         ILogger? logger = null,
         DownloadBandwidthLimiter? bandwidthLimiter = null,
-        IImportConcurrencyLimiter? limiter = null)
+        IImportConcurrencyLimiter? limiter = null,
+        DownloadRetryOptions? retryOptions = null)
         : base(innerHandler)
     {
         this.preference = preference;
-        this.category = category;
-        this.logger = logger ?? NullLogger.Instance;
-        this.bandwidthLimiter = bandwidthLimiter;
-        this.limiter = limiter ?? ImportConcurrencyLimiter.Shared;
-    }
-
-    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-    {
-        var originalUrl = request.RequestUri?.AbsoluteUri
-            ?? throw new InvalidOperationException("Download request URL is missing.");
-        var candidates = MinecraftDownloadSourceResolver.EnumerateRequests(originalUrl, preference).ToList();
-
-        for (var index = 0; index < candidates.Count; index++)
+        transportClient = new HttpClient(innerHandler, disposeHandler: false)
         {
-            var resolution = candidates[index];
-            var clonedRequest = await CloneRequestAsync(request, resolution.ActualUrl, cancellationToken);
-            var lease = await AcquireLeaseAsync(cancellationToken).ConfigureAwait(false);
-            var leaseTransferred = false;
-            HttpResponseMessage? response = null;
-            try
-            {
-                response = await base.SendAsync(clonedRequest, cancellationToken);
-                if (response.IsSuccessStatusCode || index == candidates.Count - 1)
-                {
-                    await DownloadResponseThrottler.ApplyAsync(response, bandwidthLimiter, cancellationToken, lease).ConfigureAwait(false);
-                    leaseTransferred = true;
-                    logger.LogInformation(
-                        "HTTP download routed. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} StatusCode={StatusCode} FallbackUsed={FallbackUsed}",
-                        preference,
-                        resolution.ResourceCategory,
-                        resolution.OriginalUrl,
-                        resolution.ActualUrl,
-                        resolution.ResolvedSourceKind,
-                        (int)response.StatusCode,
-                        index > 0);
-                    return response;
-                }
-
-                var statusCode = response.StatusCode;
-                response.Dispose();
-                response = null;
-                logger.LogWarning(
-                    "HTTP download route failed and will fall back. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind} StatusCode={StatusCode}",
-                    preference,
-                    resolution.ResourceCategory,
-                    resolution.OriginalUrl,
-                    resolution.ActualUrl,
-                    resolution.ResolvedSourceKind,
-                    (int)statusCode);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException && index < candidates.Count - 1)
-            {
-                response?.Dispose();
-                logger.LogWarning(
-                    exception,
-                    "HTTP download route threw before fallback. RequestedSourcePreference={RequestedSourcePreference} ResourceCategory={ResourceCategory} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} ResolvedSourceKind={ResolvedSourceKind}",
-                    preference,
-                    resolution.ResourceCategory,
-                    resolution.OriginalUrl,
-                    resolution.ActualUrl,
-                    resolution.ResolvedSourceKind);
-            }
-            finally
-            {
-                if (!leaseTransferred)
-                    await lease.DisposeAsync().ConfigureAwait(false);
-            }
-        }
-
-        throw new InvalidOperationException($"Download route could not be resolved for {originalUrl}.");
-    }
-
-    private ValueTask<IAsyncDisposable> AcquireLeaseAsync(CancellationToken cancellationToken)
-    {
-        return category switch
-        {
-            DownloadConcurrencyCategory.Metadata => limiter.AcquireMetadataSlotAsync(cancellationToken),
-            DownloadConcurrencyCategory.Modpack => limiter.AcquireModpackDownloadSlotAsync(cancellationToken),
-            DownloadConcurrencyCategory.Runtime => limiter.AcquireRuntimeDownloadSlotAsync(cancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(category), category, "Unsupported download concurrency category.")
+            Timeout = Timeout.InfiniteTimeSpan
         };
+        executor = new MinecraftDownloadRequestExecutor(
+            transportClient,
+            logger ?? NullLogger.Instance,
+            bandwidthLimiter,
+            limiter,
+            category,
+            retryOptions);
     }
 
-    private static async Task<HttpRequestMessage> CloneRequestAsync(
+    protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
-        string actualUrl,
         CancellationToken cancellationToken)
     {
-        var clonedRequest = new HttpRequestMessage(request.Method, actualUrl)
+        if (request.Method != HttpMethod.Get)
+            return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
+
+        var originalUrl = request.RequestUri?.AbsoluteUri
+            ?? throw new InvalidOperationException("Download request URL is missing.");
+        var buffered = await executor.ExecuteAsync(
+            originalUrl,
+            preference,
+            categoryHint: null,
+            async (context, token) =>
+            {
+                var bytes = await context.Response.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false);
+                ValidateBufferedMetadata(originalUrl, bytes);
+                return BufferedResponse.Capture(context.Response, bytes);
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        return buffered.CreateResponse(request);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+            transportClient.Dispose();
+        base.Dispose(disposing);
+    }
+
+    private static void ValidateBufferedMetadata(string originalUrl, byte[] bytes)
+    {
+        var firstContentByte = bytes.FirstOrDefault(value => !char.IsWhiteSpace((char)value));
+        var path = new Uri(originalUrl, UriKind.Absolute).AbsolutePath;
+        var expectsJson = path.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+            || path.Contains("version_manifest", StringComparison.OrdinalIgnoreCase);
+        var expectsXml = path.EndsWith(".xml", StringComparison.OrdinalIgnoreCase);
+
+        if (firstContentByte is (byte)'{' or (byte)'[' || expectsJson)
         {
-            Version = request.Version,
-            VersionPolicy = request.VersionPolicy
-        };
+            try
+            {
+                using var document = JsonDocument.Parse(bytes);
+                if (document.RootElement.ValueKind is not (JsonValueKind.Object or JsonValueKind.Array))
+                {
+                    throw new DownloadContentValidationException(
+                        "CmlLib metadata JSON has an invalid root value.");
+                }
 
-        foreach (var header in request.Headers)
-            clonedRequest.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                if (path.Contains("version_manifest", StringComparison.OrdinalIgnoreCase)
+                    && (!document.RootElement.TryGetProperty("versions", out var versions)
+                        || versions.ValueKind is not JsonValueKind.Array))
+                {
+                    throw new DownloadContentValidationException(
+                        "Minecraft version manifest is missing a versions array.");
+                }
+            }
+            catch (DownloadContentValidationException)
+            {
+                throw;
+            }
+            catch (JsonException exception)
+            {
+                throw new DownloadContentValidationException(
+                    "CmlLib metadata response is not valid JSON.",
+                    exception);
+            }
 
-        if (request.Content is null)
-            return clonedRequest;
+            return;
+        }
 
-        var contentBytes = await request.Content.ReadAsByteArrayAsync(cancellationToken);
-        var clonedContent = new ByteArrayContent(contentBytes);
-        foreach (var header in request.Content.Headers)
-            clonedContent.Headers.TryAddWithoutValidation(header.Key, header.Value);
+        if (firstContentByte == (byte)'<' || expectsXml)
+        {
+            try
+            {
+                var document = XDocument.Parse(System.Text.Encoding.UTF8.GetString(bytes));
+                if (document.Root?.Name.LocalName.Equals("html", StringComparison.OrdinalIgnoreCase) is true)
+                {
+                    throw new DownloadContentValidationException(
+                        "CmlLib metadata endpoint returned an HTML document.");
+                }
+            }
+            catch (DownloadContentValidationException)
+            {
+                throw;
+            }
+            catch (System.Xml.XmlException exception)
+            {
+                throw new DownloadContentValidationException(
+                    "CmlLib metadata response is not valid XML.",
+                    exception);
+            }
+        }
+    }
 
-        clonedRequest.Content = clonedContent;
-        return clonedRequest;
+    private sealed record BufferedResponse(
+        HttpStatusCode StatusCode,
+        string? ReasonPhrase,
+        Version Version,
+        IReadOnlyList<KeyValuePair<string, string[]>> Headers,
+        IReadOnlyList<KeyValuePair<string, string[]>> ContentHeaders,
+        byte[] Content)
+    {
+        public static BufferedResponse Capture(HttpResponseMessage response, byte[] content)
+        {
+            return new BufferedResponse(
+                response.StatusCode,
+                response.ReasonPhrase,
+                response.Version,
+                response.Headers.Select(header =>
+                    new KeyValuePair<string, string[]>(header.Key, header.Value.ToArray())).ToList(),
+                response.Content.Headers.Select(header =>
+                    new KeyValuePair<string, string[]>(header.Key, header.Value.ToArray())).ToList(),
+                content);
+        }
+
+        public HttpResponseMessage CreateResponse(HttpRequestMessage request)
+        {
+            var content = new ByteArrayContent(Content);
+            foreach (var header in ContentHeaders)
+                content.Headers.TryAddWithoutValidation(header.Key, header.Value);
+
+            var response = new HttpResponseMessage(StatusCode)
+            {
+                ReasonPhrase = ReasonPhrase,
+                Version = Version,
+                RequestMessage = request,
+                Content = content
+            };
+            foreach (var header in Headers)
+                response.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            return response;
+        }
     }
 }

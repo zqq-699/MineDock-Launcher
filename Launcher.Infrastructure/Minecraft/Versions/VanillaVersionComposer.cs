@@ -121,14 +121,14 @@ internal static class VanillaVersionComposer
             logger,
             DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
             category: DownloadConcurrencyCategory.Runtime);
-        using var jarResponse = await executor.GetAsync(
+        await executor.DownloadFileAsync(
             clientUrl,
             downloadSourcePreference,
             categoryHint: "Mojang",
+            destinationJarPath,
+            VanillaVersionMetadataClient.GetClientJarSha1(baseVersionJson),
+            VanillaVersionMetadataClient.GetClientJarSize(baseVersionJson),
+            reportDownloadedBytes: null,
             cancellationToken);
-        jarResponse.Response.EnsureSuccessStatusCode();
-        await using var jarStream = await jarResponse.Response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var destinationStream = File.Create(destinationJarPath);
-        await jarStream.CopyToAsync(destinationStream, cancellationToken);
     }
 }

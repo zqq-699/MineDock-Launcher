@@ -6,6 +6,7 @@ namespace Launcher.Infrastructure.Minecraft;
 internal static class MinecraftDownloadSourceResolver
 {
     private const string BmclApiHost = "bmclapi2.bangbang93.com";
+    private const string ChinaStandardTimeZoneId = "China Standard Time";
     private const string OfficialManifestUrl = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
     private const string BmclManifestUrl = "https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json";
     private static readonly Regex ForgeIndexPathRegex = new(
@@ -15,15 +16,22 @@ internal static class MinecraftDownloadSourceResolver
     public static IEnumerable<ResolvedDownloadRequest> EnumerateRequests(
         string originalUrl,
         DownloadSourcePreference preference,
-        string? categoryHint = null)
+        string? categoryHint = null,
+        Func<string>? localTimeZoneIdProvider = null)
     {
-        var primary = ResolveRequest(originalUrl, preference, useBmclApi: preference is DownloadSourcePreference.BmclApi, categoryHint);
+        var useBmclApiFirst = preference switch
+        {
+            DownloadSourcePreference.Auto => ShouldPreferBmclApi(localTimeZoneIdProvider),
+            DownloadSourcePreference.BmclApi => true,
+            _ => false
+        };
+        var primary = ResolveRequest(originalUrl, preference, useBmclApi: useBmclApiFirst, categoryHint);
         yield return primary;
 
         if (preference is not DownloadSourcePreference.Auto)
             yield break;
 
-        var fallback = ResolveRequest(originalUrl, preference, useBmclApi: true, categoryHint);
+        var fallback = ResolveRequest(originalUrl, preference, useBmclApi: !useBmclApiFirst, categoryHint);
         if (string.Equals(primary.ActualUrl, fallback.ActualUrl, StringComparison.OrdinalIgnoreCase)
             && string.Equals(primary.ResolvedSourceKind, fallback.ResolvedSourceKind, StringComparison.Ordinal))
         {
@@ -31,6 +39,19 @@ internal static class MinecraftDownloadSourceResolver
         }
 
         yield return fallback;
+    }
+
+    private static bool ShouldPreferBmclApi(Func<string>? localTimeZoneIdProvider)
+    {
+        try
+        {
+            var localTimeZoneId = localTimeZoneIdProvider?.Invoke() ?? TimeZoneInfo.Local.Id;
+            return string.Equals(localTimeZoneId, ChinaStandardTimeZoneId, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return true;
+        }
     }
 
     public static ResolvedDownloadRequest ResolveRequest(

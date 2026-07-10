@@ -10,10 +10,10 @@ internal static class LauncherLogConfiguration
     public const int RetainedDays = 30;
     public const long FileSizeLimitBytes = 20 * 1024 * 1024;
     public const bool RollOnFileSizeLimit = true;
-    public const string LogFileNamePattern = "mdl-.log";
+    public const string LogFileNamePattern = "bhl-.log";
 
     private const string LogDirectoryName = "log";
-    private const string LogFileSearchPattern = "mdl*.log";
+    private const string LogFileSearchPattern = "bhl*.log";
 
     public static Serilog.ILogger CreateLogger()
     {

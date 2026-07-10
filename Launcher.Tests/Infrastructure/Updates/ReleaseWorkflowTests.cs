@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Launcher.Application;
 
 namespace Launcher.Tests.Infrastructure.Updates;
 
@@ -41,7 +42,7 @@ public sealed class ReleaseWorkflowTests
         var text = File.ReadAllText(Path.Combine(FindRepositoryRoot().FullName, workflowPath));
 
         Assert.Contains("GITEE_OWNER: zqq-699", text);
-        Assert.Contains("GITEE_REPO: MineDock-Launcher", text);
+        Assert.Contains("GITEE_REPO: BlockHelm-Launcher", text);
         Assert.Contains("GITEE_BRANCH: update-manifests", text);
         Assert.Contains("GITHUB_MANIFEST_BRANCH: update-manifests", text);
         Assert.Contains("GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}", text);
@@ -142,6 +143,21 @@ public sealed class ReleaseWorkflowTests
     }
 
     [Fact]
+    public void ProjectLinksUseBlockHelmRepositories()
+    {
+        Assert.Equal("BlockHelm-Launcher", LauncherProjectLinks.GitHubRepositoryName);
+        Assert.Equal("BlockHelm-Launcher", LauncherProjectLinks.GitHubUserAgent);
+        Assert.Equal("https://github.com/zqq-699/BlockHelm-Launcher", LauncherProjectLinks.GitHubRepositoryUrl);
+        Assert.Equal("https://gitee.com/zqq-699/BlockHelm-Launcher", LauncherProjectLinks.GiteeRepositoryUrl);
+        Assert.Equal(
+            "https://raw.githubusercontent.com/zqq-699/BlockHelm-Launcher/update-manifests/update/{0}/latest.json",
+            LauncherProjectLinks.GitHubUpdateManifestUrlTemplate);
+        Assert.Equal(
+            "https://gitee.com/zqq-699/BlockHelm-Launcher/raw/update-manifests/update/{0}/latest.json",
+            LauncherProjectLinks.GiteeUpdateManifestUrlTemplate);
+    }
+
+    [Fact]
     public void DefaultBranchUpdateDirectoryContainsOnlyNotesReadmeAndTemplate()
     {
         var root = FindRepositoryRoot();
@@ -160,7 +176,7 @@ public sealed class ReleaseWorkflowTests
         using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(root.FullName, "update", "latest.template.json")));
         var rootElement = document.RootElement;
         Assert.Equal(1, rootElement.GetProperty("schemaVersion").GetInt32());
-        Assert.Equal("MineDock-Launcher", rootElement.GetProperty("appId").GetString());
+        Assert.Equal("BlockHelm-Launcher", rootElement.GetProperty("appId").GetString());
 
         var urls = rootElement
             .GetProperty("assets")[0]

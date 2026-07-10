@@ -191,7 +191,7 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
         if (manifest.SchemaVersion != 1)
             throw new InvalidOperationException("Unsupported update manifest schema version.");
 
-        if (!string.Equals(manifest.AppId?.Trim(), "MineDock-Launcher", StringComparison.Ordinal))
+        if (!string.Equals(manifest.AppId?.Trim(), "BlockHelm-Launcher", StringComparison.Ordinal))
             throw new InvalidOperationException("Update manifest appId does not match this launcher.");
 
         if (!string.Equals(manifest.Channel?.Trim(), expectedChannel, StringComparison.OrdinalIgnoreCase))

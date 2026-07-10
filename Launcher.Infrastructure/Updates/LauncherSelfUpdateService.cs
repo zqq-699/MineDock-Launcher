@@ -14,7 +14,7 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
     private const string UpdatesDirectoryName = "updates";
     private const string CacheDirectoryName = "cache";
     private const string LogDirectoryName = "log";
-    private const string UserAgent = "MineDock-Launcher";
+    private const string UserAgent = "BlockHelm-Launcher";
 
     private readonly HttpClient httpClient;
     private readonly ILogger<LauncherSelfUpdateService>? logger;

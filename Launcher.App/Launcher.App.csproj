@@ -22,16 +22,16 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <AssemblyName>MineDock_Launcher_x64</AssemblyName>
+    <AssemblyName>BlockHelm_Launcher_x64</AssemblyName>
     <RootNamespace>Launcher.App</RootNamespace>
-    <Title>MineDock Launcher</Title>
-    <Product>MineDock Launcher</Product>
-    <Version>0.9.1-beta.11</Version>
+    <Title>BlockHelm-Launcher</Title>
+    <Product>BlockHelm-Launcher</Product>
+    <Version>0.9.2-beta.1</Version>
     <LauncherBuildChannel>beta</LauncherBuildChannel>
-    <LauncherVersionCode>90111</LauncherVersionCode>
-    <AssemblyVersion>0.9.1.0</AssemblyVersion>
-    <FileVersion>0.9.1.0</FileVersion>
-    <InformationalVersion>0.9.1-beta.11</InformationalVersion>
+    <LauncherVersionCode>90201</LauncherVersionCode>
+    <AssemblyVersion>0.9.2.0</AssemblyVersion>
+    <FileVersion>0.9.2.0</FileVersion>
+    <InformationalVersion>0.9.2-beta.1</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>Assets\Icons\app_icon_concept.ico</ApplicationIcon>
     <OutputType>WinExe</OutputType>

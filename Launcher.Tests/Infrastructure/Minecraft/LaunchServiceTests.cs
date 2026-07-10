@@ -98,7 +98,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
 
         Assert.True(File.Exists(Path.Combine(minecraftDirectory, "libraries", "com", "example", "demo", "1.0.0", "demo-1.0.0.jar")));
         Assert.True(File.Exists(Path.Combine(minecraftDirectory, "assets", "indexes", "1.20.1.json")));
-        Assert.True(File.Exists(Path.Combine(minecraftDirectory, "assets", "objects", "aa", "aa00000000000000000000000000000000000000")));
+        Assert.True(File.Exists(Path.Combine(minecraftDirectory, "assets", "objects", "05", "05fac94380a70241f23780e7aef62b190894238f")));
         Assert.True(File.Exists(Path.Combine(minecraftDirectory, "assets", "log_configs", "client-1.12.xml")));
         Assert.Equal(["Fabric Pack"], Directory.GetDirectories(Path.Combine(minecraftDirectory, "versions")).Select(Path.GetFileName));
         Assert.Contains(progress.Items, item => item.Stage == LaunchProgressStages.RepairingLibraries);
@@ -141,8 +141,18 @@ public sealed class LaunchServiceTests : TestTempDirectory
             CancellationToken.None);
 
         Assert.True(handler.MaxConcurrentAssetRequests > 1);
-        Assert.True(File.Exists(Path.Combine(minecraftDirectory, "assets", "objects", "aa", ConcurrentAssetRepairHttpHandler.AssetHashes[0])));
-        Assert.True(File.Exists(Path.Combine(minecraftDirectory, "assets", "objects", "dd", ConcurrentAssetRepairHttpHandler.AssetHashes[3])));
+        Assert.True(File.Exists(Path.Combine(
+            minecraftDirectory,
+            "assets",
+            "objects",
+            ConcurrentAssetRepairHttpHandler.AssetHashes[0][..2],
+            ConcurrentAssetRepairHttpHandler.AssetHashes[0])));
+        Assert.True(File.Exists(Path.Combine(
+            minecraftDirectory,
+            "assets",
+            "objects",
+            ConcurrentAssetRepairHttpHandler.AssetHashes[3][..2],
+            ConcurrentAssetRepairHttpHandler.AssetHashes[3])));
     }
 
     [Fact]
@@ -1988,13 +1998,13 @@ public sealed class LaunchServiceTests : TestTempDirectory
                     {
                       "objects": {
                         "minecraft/lang/zh_cn.json": {
-                          "hash": "aa00000000000000000000000000000000000000",
-                          "size": 4
+                          "hash": "05fac94380a70241f23780e7aef62b190894238f",
+                          "size": 5
                         }
                       }
                     }
                     """),
-                "https://resources.download.minecraft.net/aa/aa00000000000000000000000000000000000000" => CreateBinaryResponse(request, "asset"),
+                "https://resources.download.minecraft.net/05/05fac94380a70241f23780e7aef62b190894238f" => CreateBinaryResponse(request, "asset"),
                 "https://example.test/logging/client.xml" => CreateBinaryResponse(request, "<xml />"),
                 "https://maven.minecraftforge.net/net/minecraftforge/forge/26.1.2-64.0.9/forge-26.1.2-64.0.9-client.jar" => CreateBinaryResponse(request, "forge client"),
                 "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json" when includeVanilla1201 => CreateJsonResponse(request, """
@@ -2077,11 +2087,13 @@ public sealed class LaunchServiceTests : TestTempDirectory
     {
         public static readonly string[] AssetHashes =
         [
-            "aa00000000000000000000000000000000000000",
-            "bb00000000000000000000000000000000000000",
-            "cc00000000000000000000000000000000000000",
-            "dd00000000000000000000000000000000000000"
+            "dd62e3af358f6ed9c34db858bad9d994ba775f11",
+            "2be39f7ad5f2b1f93f00f2e9d0be2eee704760f3",
+            "873f9bed4fe20776cd8d7b41dd99571cfab30d91",
+            "bcf38a606ab4a3564b30318dc75e2f2932fb690d"
         ];
+
+        private static readonly string[] AssetContents = ["asset-a", "asset-b", "asset-c", "asset-d"];
 
         private int activeAssetRequests;
         private int maxConcurrentAssetRequests;
@@ -2096,23 +2108,27 @@ public sealed class LaunchServiceTests : TestTempDirectory
                 return CreateJsonResponse(request, $$"""
                     {
                       "objects": {
-                        "asset/a.txt": { "hash": "{{AssetHashes[0]}}", "size": 4 },
-                        "asset/b.txt": { "hash": "{{AssetHashes[1]}}", "size": 4 },
-                        "asset/c.txt": { "hash": "{{AssetHashes[2]}}", "size": 4 },
-                        "asset/d.txt": { "hash": "{{AssetHashes[3]}}", "size": 4 }
+                        "asset/a.txt": { "hash": "{{AssetHashes[0]}}", "size": 7 },
+                        "asset/b.txt": { "hash": "{{AssetHashes[1]}}", "size": 7 },
+                        "asset/c.txt": { "hash": "{{AssetHashes[2]}}", "size": 7 },
+                        "asset/d.txt": { "hash": "{{AssetHashes[3]}}", "size": 7 }
                       }
                     }
                     """);
             }
 
-            if (AssetHashes.Any(hash => uri == $"https://resources.download.minecraft.net/{hash[..2]}/{hash}"))
-                return await CreateDelayedAssetResponseAsync(request, cancellationToken);
+            var assetIndex = Array.FindIndex(
+                AssetHashes,
+                hash => uri == $"https://resources.download.minecraft.net/{hash[..2]}/{hash}");
+            if (assetIndex >= 0)
+                return await CreateDelayedAssetResponseAsync(request, AssetContents[assetIndex], cancellationToken);
 
             throw new InvalidOperationException($"Unexpected request: {uri}");
         }
 
         private async Task<HttpResponseMessage> CreateDelayedAssetResponseAsync(
             HttpRequestMessage request,
+            string content,
             CancellationToken cancellationToken)
         {
             var activeRequests = Interlocked.Increment(ref activeAssetRequests);
@@ -2120,7 +2136,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
             try
             {
                 await Task.Delay(100, cancellationToken);
-                return CreateBinaryResponse(request, "asset");
+                return CreateBinaryResponse(request, content);
             }
             finally
             {

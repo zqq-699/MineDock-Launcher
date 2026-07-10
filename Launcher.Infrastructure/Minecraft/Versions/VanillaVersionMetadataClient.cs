@@ -25,45 +25,100 @@ internal static class VanillaVersionMetadataClient
             logger,
             DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
             category: DownloadConcurrencyCategory.Metadata);
-        string? versionUrl;
-        {
-            using var manifestResponse = await executor.GetAsync(
-                VersionManifestUrl,
-                downloadSourcePreference,
-                categoryHint: "Mojang",
-                cancellationToken);
-            manifestResponse.Response.EnsureSuccessStatusCode();
+        var versionUrl = await executor.ExecuteAsync(
+            VersionManifestUrl,
+            downloadSourcePreference,
+            categoryHint: "Mojang",
+            async (context, token) =>
+            {
+                await using var manifestStream = await context.Response.Content.ReadAsStreamAsync(token);
+                var manifestNode = await JsonNode.ParseAsync(manifestStream, cancellationToken: token);
+                if (manifestNode is not JsonObject manifestObject
+                    || manifestObject["versions"] is not JsonArray versionEntries)
+                {
+                    throw new DownloadContentValidationException(
+                        "Minecraft version manifest is missing a versions array.");
+                }
 
-            await using var manifestStream = await manifestResponse.Response.Content.ReadAsStreamAsync(cancellationToken);
-            var manifestNode = await JsonNode.ParseAsync(manifestStream, cancellationToken: cancellationToken)
-                ?? throw new InvalidDataException("Minecraft version manifest is empty.");
+                if (versionEntries.Any(entry => !IsValidManifestEntry(entry)))
+                {
+                    throw new DownloadContentValidationException(
+                        "Minecraft version manifest contains an invalid version entry.");
+                }
 
-            var versionEntries = manifestNode["versions"]?.AsArray()
-                ?? throw new InvalidDataException("Minecraft version manifest is missing versions.");
-            versionUrl = versionEntries
-                .Select(entry => entry?.AsObject())
-                .FirstOrDefault(entry =>
-                    string.Equals(entry?["id"]?.GetValue<string>(), minecraftVersion, StringComparison.OrdinalIgnoreCase))?["url"]?.GetValue<string>();
-        }
+                var resolvedVersionUrl = FindVersionUrl(versionEntries, minecraftVersion);
+                if (string.IsNullOrWhiteSpace(resolvedVersionUrl))
+                {
+                    throw new DownloadContentValidationException(
+                        $"Minecraft version manifest does not contain {minecraftVersion}.");
+                }
 
-        if (string.IsNullOrWhiteSpace(versionUrl))
-            throw new InvalidOperationException($"Minecraft version metadata not found: {minecraftVersion}");
+                return resolvedVersionUrl;
+            },
+            cancellationToken);
 
-        using var versionResponse = await executor.GetAsync(
+        return await executor.ExecuteAsync(
             versionUrl,
             downloadSourcePreference,
             categoryHint: "Mojang",
-            cancellationToken);
-        versionResponse.Response.EnsureSuccessStatusCode();
+            async (context, token) =>
+            {
+                await using var versionStream = await context.Response.Content.ReadAsStreamAsync(token);
+                var versionNode = await JsonNode.ParseAsync(versionStream, cancellationToken: token);
+                if (versionNode is not JsonObject versionObject)
+                {
+                    throw new DownloadContentValidationException(
+                        $"Minecraft version metadata is not a JSON object: {minecraftVersion}");
+                }
 
-        await using var versionStream = await versionResponse.Response.Content.ReadAsStreamAsync(cancellationToken);
-        var versionNode = await JsonNode.ParseAsync(versionStream, cancellationToken: cancellationToken)
-            ?? throw new InvalidDataException($"Minecraft version metadata is empty: {minecraftVersion}");
-        return versionNode.AsObject();
+                return versionObject;
+            },
+            cancellationToken);
     }
 
     public static string? GetClientJarUrl(JsonObject versionJson)
     {
         return versionJson["downloads"]?["client"]?["url"]?.GetValue<string>();
+    }
+
+    private static string? FindVersionUrl(JsonArray versionEntries, string minecraftVersion)
+    {
+        foreach (var entry in versionEntries.OfType<JsonObject>())
+        {
+            if (entry["id"] is not JsonValue idValue
+                || !idValue.TryGetValue<string>(out var id)
+                || !string.Equals(id, minecraftVersion, StringComparison.OrdinalIgnoreCase)
+                || entry["url"] is not JsonValue urlValue
+                || !urlValue.TryGetValue<string>(out var url)
+                || string.IsNullOrWhiteSpace(url))
+            {
+                continue;
+            }
+
+            return url;
+        }
+
+        return null;
+    }
+
+    private static bool IsValidManifestEntry(JsonNode? entry)
+    {
+        return entry is JsonObject versionObject
+            && versionObject["id"] is JsonValue idValue
+            && idValue.TryGetValue<string>(out var id)
+            && !string.IsNullOrWhiteSpace(id)
+            && versionObject["url"] is JsonValue urlValue
+            && urlValue.TryGetValue<string>(out var url)
+            && !string.IsNullOrWhiteSpace(url);
+    }
+
+    public static string? GetClientJarSha1(JsonObject versionJson)
+    {
+        return versionJson["downloads"]?["client"]?["sha1"]?.GetValue<string>();
+    }
+
+    public static long? GetClientJarSize(JsonObject versionJson)
+    {
+        return versionJson["downloads"]?["client"]?["size"]?.GetValue<long?>();
     }
 }

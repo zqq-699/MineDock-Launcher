@@ -12,7 +12,7 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="App_Title" xml:space="preserve"><value>MineDock Launcher</value></data>
+  <data name="App_Title" xml:space="preserve"><value>BlockHelm-Launcher</value></data>
   <data name="Resources_ModRequiredDependenciesDialogTitle" xml:space="preserve"><value>缺少前置模组</value></data>
   <data name="Resources_ModRequiredDependenciesDialogMessage" xml:space="preserve"><value>当前的模组需要前置模组</value></data>
   <data name="Resources_ModRequiredDependencyInstalled" xml:space="preserve"><value>已安装</value></data>
@@ -234,12 +234,8 @@
   <data name="Settings_SectionLaunchMemory" xml:space="preserve"><value>启动与内存</value></data>
   <data name="Settings_SectionJava" xml:space="preserve"><value>Java</value></data>
   <data name="Settings_SectionTheme" xml:space="preserve"><value>主题</value></data>
-  <data name="Settings_SectionListPreview" xml:space="preserve"><value>列表</value></data>
   <data name="Settings_SectionInfo" xml:space="preserve"><value>信息</value></data>
   <data name="Settings_SectionControlList" xml:space="preserve"><value>控件列表</value></data>
-  <data name="Settings_ListPreviewItemTitleFormat" xml:space="preserve"><value>示例列表项 {0:D2}</value></data>
-  <data name="Settings_ListPreviewItemSubtitle" xml:space="preserve"><value>向下滚动以观察渐进模糊效果</value></data>
-  <data name="Settings_ListPreviewItemTrailingFormat" xml:space="preserve"><value>第 {0:D2} 项</value></data>
   <data name="Settings_InfoContent" xml:space="preserve"><value>信息</value></data>
   <data name="Settings_LauncherVersionSection" xml:space="preserve"><value>启动器版本</value></data>
   <data name="Settings_LauncherVersionUnknown" xml:space="preserve"><value>未知版本</value></data>
