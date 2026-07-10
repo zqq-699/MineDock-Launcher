@@ -72,6 +72,19 @@ public sealed class StringResourceTests
         Assert.Equal(defaultEntries.Count, japaneseEntries.Count);
     }
 
+    [Theory]
+    [InlineData("Strings.resx")]
+    [InlineData("Strings.zh-Hans.resx")]
+    [InlineData("Strings.zh-Hant.resx")]
+    [InlineData("Strings.ja-JP.resx")]
+    [InlineData("Strings.en.resx")]
+    public void ApplicationTitleUsesDisplayNameWithSpaces(string fileName)
+    {
+        var entries = LoadResourceEntries(fileName);
+
+        Assert.Equal("BlockHelm Launcher", entries["App_Title"]);
+    }
+
     [Fact]
     public void EnglishResourcePlaceholdersMatchDefaultResource()
     {

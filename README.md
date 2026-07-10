@@ -1,4 +1,4 @@
-# BlockHelm-Launcher
+# BlockHelm Launcher
 
 [中文](#chinese) | [English](#english)
 
@@ -8,7 +8,7 @@
 
 ### 简介
 
-`BlockHelm-Launcher` 是一个 Minecraft 启动器，目标是把日常启动、实例管理、资源安装和账户管理做得更清楚、更顺手。
+`BlockHelm Launcher` 是一个 Minecraft 启动器，目标是把日常启动、实例管理、资源安装和账户管理做得更清楚、更顺手。
 
 这是一个 **纯 AI 编写、设计并持续迭代** 的项目。人工主要负责提出需求、判断体验、验收结果和决定下一步方向；代码、界面、文案和功能实现都由 AI 完成。
 
@@ -101,7 +101,7 @@ dotnet run --project Launcher.App\Launcher.App.csproj
 
 ### Overview
 
-`BlockHelm-Launcher` is a Minecraft launcher focused on everyday launching, instance management, resource installation, account management, and a clean user experience.
+`BlockHelm Launcher` is a Minecraft launcher focused on everyday launching, instance management, resource installation, account management, and a clean user experience.
 
 This project is **written, designed, and continuously iterated entirely by AI**. Human involvement is mainly about giving product direction, reviewing the experience, accepting results, and deciding what should be improved next.
 
@@ -163,7 +163,7 @@ It is still under active development, but it already covers many common launcher
 
 ### Status
 
-BlockHelm-Launcher is still under active development. Existing features will continue to be polished, and unfinished entry points will be completed over time. This README aims to describe what is currently present without presenting planned work as finished.
+BlockHelm Launcher is still under active development. Existing features will continue to be polished, and unfinished entry points will be completed over time. This README aims to describe what is currently present without presenting planned work as finished.
 
 ### Run
 

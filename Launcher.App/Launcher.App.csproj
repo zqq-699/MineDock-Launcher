@@ -24,8 +24,9 @@
   <PropertyGroup>
     <AssemblyName>BlockHelm_Launcher_x64</AssemblyName>
     <RootNamespace>Launcher.App</RootNamespace>
-    <Title>BlockHelm-Launcher</Title>
-    <Product>BlockHelm-Launcher</Product>
+    <AssemblyTitle>BlockHelm Launcher</AssemblyTitle>
+    <Title>BlockHelm Launcher</Title>
+    <Product>BlockHelm Launcher</Product>
     <Version>0.9.2-beta.1</Version>
     <LauncherBuildChannel>beta</LauncherBuildChannel>
     <LauncherVersionCode>90201</LauncherVersionCode>

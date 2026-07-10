@@ -1,7 +1,7 @@
-# BlockHelm-Launcher Remote Update Manifests
+# BlockHelm Launcher Remote Update Manifests
 
 This directory stores release notes and the update manifest template for
-BlockHelm-Launcher releases. The default branch does not store live
+BlockHelm Launcher releases. The default branch does not store live
 `latest.json` manifests.
 
 The `update` directory is not used as the launcher's local runtime configuration.

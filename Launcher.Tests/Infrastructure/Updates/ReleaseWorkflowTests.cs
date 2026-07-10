@@ -35,6 +35,17 @@ public sealed class ReleaseWorkflowTests
     }
 
     [Theory]
+    [InlineData(".github/workflows/release.yml", "$releaseTitle = \"BlockHelm Launcher $($env:VERSION_NAME)\"")]
+    [InlineData(".github/workflows/beta.yml", "$releaseTitle = \"BlockHelm Launcher $($env:VERSION_NAME) Beta\"")]
+    public void WorkflowUsesDisplayNameWithSpacesForReleaseTitle(string workflowPath, string expectedTitle)
+    {
+        var text = File.ReadAllText(Path.Combine(FindRepositoryRoot().FullName, workflowPath));
+
+        Assert.Contains(expectedTitle, text);
+        Assert.DoesNotContain("$releaseTitle = \"BlockHelm-Launcher", text, StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData(".github/workflows/release.yml")]
     [InlineData(".github/workflows/beta.yml")]
     public void WorkflowPublishesManifestsToUpdateManifestBranches(string workflowPath)
