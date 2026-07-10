@@ -17,40 +17,461 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Launcher.App.Resources;
+using Launcher.App.Services;
 using Launcher.Domain.Models;
+using Launcher.Application.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Launcher.App.ViewModels.Resources;
 
-public sealed partial class ResourcesProjectListViewModel : ObservableObject
+public sealed partial class ResourcesProjectListViewModel : ObservableObject, IDisposable
 {
-    private readonly ResourcesOnlineProjectPageOptions options;
+    private const int SearchDebounceMilliseconds = 350;
+    private const int CatalogPageSize = 20;
+    private const int InitialProjectBatchSize = 12;
+    private const int AppendProjectBatchSize = 8;
 
-    public ResourcesProjectListViewModel(ResourcesOnlineProjectPageOptions options)
+    private readonly ResourcesOnlineProjectPageOptions options;
+    private readonly IResourceCatalogService? resourceCatalogService;
+    private readonly IGameVersionService? gameVersionService;
+    private readonly IUiDispatcher uiDispatcher;
+    private readonly ILogger? logger;
+    private readonly object releaseVersionGate = new();
+    private CancellationTokenSource? requestCancellation;
+    private Task<ReleaseVersionData>? releaseVersionDataTask;
+    private bool hasRequestedInitialLoad;
+    private bool isApplyingVersionOptions;
+    private bool isApplyingInstanceFilters;
+
+    internal ResourcesProjectListViewModel(
+        ResourcesOnlineProjectPageOptions options,
+        IResourceCatalogService? resourceCatalogService,
+        IGameVersionService? gameVersionService,
+        IUiDispatcher uiDispatcher,
+        ILogger? logger)
     {
         this.options = options;
+        this.resourceCatalogService = resourceCatalogService;
+        this.gameVersionService = gameVersionService;
+        this.uiDispatcher = uiDispatcher;
+        this.logger = logger;
+
+        VersionOptions = [new ResourcesFilterOptionItem { Id = "all", Title = options.AllVersionsText }];
+        LoaderOptions = CreateLoaderOptions(options);
+        SourceOptions = CreateSourceOptions(options);
+        TypeOptions = CreateTypeOptions(options);
+        selectedVersionOption = VersionOptions[0];
+        selectedLoaderOption = LoaderOptions[0];
+        selectedSourceOption = SourceOptions[0];
+        selectedTypeOption = TypeOptions[0];
     }
+
+    public event Action<ResourcesModProjectItemViewModel>? ProjectSelected;
+
+    public event Action? NavigationResetRequested;
+
+    public ObservableCollection<ResourcesFilterOptionItem> VersionOptions { get; }
+
+    public ObservableCollection<ResourcesFilterOptionItem> LoaderOptions { get; }
+
+    public ObservableCollection<ResourcesFilterOptionItem> SourceOptions { get; }
+
+    public ObservableCollection<ResourcesFilterOptionItem> TypeOptions { get; }
+
+    public ObservableCollection<ResourcesModProjectItemViewModel> VisibleProjects { get; } = [];
+
+    public ObservableCollection<object> ListItems { get; } = [];
+
+    public bool ShowsLoaderFilters => options.ShowsLoaderFilters;
+
+    public bool ShowsSourceFilters => SourceOptions.Count > 1;
+
+    public string LoadingMessage => options.ProjectsLoadingText;
+
+    public string EmptyMessage => options.ProjectsEmptyText;
+
+    [ObservableProperty]
+    private string searchQuery = string.Empty;
+
+    [ObservableProperty]
+    private bool isLoading;
+
+    [ObservableProperty]
+    private bool isLoadingMore;
+
+    [ObservableProperty]
+    private string loadErrorMessage = string.Empty;
+
+    [ObservableProperty]
+    private string loadMoreMessage = string.Empty;
+
+    [ObservableProperty]
+    private string partialWarningMessage = string.Empty;
+
+    [ObservableProperty]
+    private int listEntranceAnimationToken;
+
+    [ObservableProperty]
+    private bool hasMore;
 
     [ObservableProperty]
     private int nextPageOffset;
 
-    public ResourceCatalogSearchRequest CreateSearchRequest(
-        string query,
-        ResourcesFilterOptionItem? versionOption,
-        ResourcesFilterOptionItem? loaderOption,
-        ResourcesFilterOptionItem? sourceOption,
-        ResourcesFilterOptionItem? typeOption,
-        int offset,
-        int pageSize)
+    [ObservableProperty]
+    private ResourcesFilterOptionItem? selectedVersionOption;
+
+    [ObservableProperty]
+    private ResourcesFilterOptionItem? selectedLoaderOption;
+
+    [ObservableProperty]
+    private ResourcesFilterOptionItem? selectedSourceOption;
+
+    [ObservableProperty]
+    private ResourcesFilterOptionItem? selectedTypeOption;
+
+    [ObservableProperty]
+    private ResourcesFilterOptionItem? pendingVersionOption;
+
+    [ObservableProperty]
+    private ResourcesFilterOptionItem? pendingLoaderOption;
+
+    [ObservableProperty]
+    private ResourcesFilterOptionItem? pendingSourceOption;
+
+    [ObservableProperty]
+    private ResourcesFilterOptionItem? pendingTypeOption;
+
+    [ObservableProperty]
+    private bool isFilterDialogOpen;
+
+    public bool HasVisibleProjects => VisibleProjects.Count > 0;
+
+    public bool HasLoadErrorMessage => !string.IsNullOrWhiteSpace(LoadErrorMessage);
+
+    public bool HasPartialWarningMessage => !string.IsNullOrWhiteSpace(PartialWarningMessage);
+
+    public bool CanShowLoadingState => IsLoading && !HasVisibleProjects;
+
+    public bool CanShowEmptyState => !IsLoading && !HasVisibleProjects && !HasLoadErrorMessage;
+
+    public bool CanShowLoadErrorState => !IsLoading && !HasVisibleProjects && HasLoadErrorMessage;
+
+    public bool CanShowLoadMoreState => HasVisibleProjects
+        && (IsLoadingMore || !string.IsNullOrWhiteSpace(LoadMoreMessage));
+
+    public void BeginEnsureLoaded()
     {
-        var minecraftVersions = ResolveMinecraftVersions(versionOption);
+        BeginEnsureVersionOptionsLoaded();
+        if (hasRequestedInitialLoad || resourceCatalogService is null)
+            return;
+
+        Observe(RefreshAsync(), "load initial resource projects");
+    }
+
+    public void BeginLoadMore()
+    {
+        if (resourceCatalogService is null || !HasVisibleProjects || !HasMore || IsLoading || IsLoadingMore)
+            return;
+
+        Observe(LoadMoreAsync(), "load more resource projects");
+    }
+
+    [RelayCommand]
+    public Task RefreshAsync()
+    {
+        if (resourceCatalogService is null)
+            return Task.CompletedTask;
+
+        var token = BeginRequest();
+        return LoadAsync(CreateSearchRequest(0), append: false, token);
+    }
+
+    [RelayCommand]
+    public Task LoadMoreAsync()
+    {
+        if (resourceCatalogService is null || !HasVisibleProjects || !HasMore || IsLoading || IsLoadingMore)
+            return Task.CompletedTask;
+
+        IsLoadingMore = true;
+        LoadMoreMessage = options.ProjectsLoadingMoreText;
+        UpdateFooter();
+        return LoadAsync(CreateSearchRequest(NextPageOffset), append: true, requestCancellation?.Token ?? CancellationToken.None);
+    }
+
+    [RelayCommand]
+    private void SelectProject(ResourcesModProjectItemViewModel? project)
+    {
+        if (project is not null)
+            ProjectSelected?.Invoke(project);
+    }
+
+    [RelayCommand]
+    private void OpenFilterDialog()
+    {
+        PendingVersionOption = SelectedVersionOption;
+        PendingLoaderOption = SelectedLoaderOption;
+        PendingSourceOption = SelectedSourceOption;
+        PendingTypeOption = SelectedTypeOption;
+        IsFilterDialogOpen = true;
+    }
+
+    [RelayCommand]
+    private void CancelFilterDialog()
+    {
+        IsFilterDialogOpen = false;
+    }
+
+    [RelayCommand]
+    private void ConfirmFilterDialog()
+    {
+        ApplyPendingOption(PendingVersionOption, SelectedVersionOption, value => SelectedVersionOption = value);
+        ApplyPendingOption(PendingLoaderOption, SelectedLoaderOption, value => SelectedLoaderOption = value);
+        ApplyPendingOption(PendingSourceOption, SelectedSourceOption, value => SelectedSourceOption = value);
+        ApplyPendingOption(PendingTypeOption, SelectedTypeOption, value => SelectedTypeOption = value);
+        IsFilterDialogOpen = false;
+    }
+
+    public async Task ApplyInstanceFiltersAsync(GameInstance instance)
+    {
+        await EnsureVersionOptionsLoadedAsync().ConfigureAwait(true);
+
+        try
+        {
+            isApplyingInstanceFilters = true;
+            SelectedVersionOption = ResolveVersionOption(instance);
+            SelectedLoaderOption = ResolveLoaderOption(instance);
+        }
+        finally
+        {
+            isApplyingInstanceFilters = false;
+        }
+
+        NavigationResetRequested?.Invoke();
+        logger?.LogInformation(
+            "Applied resource project filters from instance. Kind={Kind} InstanceId={InstanceId} VersionFilter={VersionFilter} LoaderFilter={LoaderFilter}",
+            options.Kind,
+            instance.Id,
+            SelectedVersionOption?.Id,
+            SelectedLoaderOption?.Id);
+        await RefreshAsync().ConfigureAwait(true);
+    }
+
+    public void Dispose()
+    {
+        var cancellation = Interlocked.Exchange(ref requestCancellation, null);
+        cancellation?.Cancel();
+        cancellation?.Dispose();
+    }
+
+    partial void OnSearchQueryChanged(string value) => ScheduleRefresh();
+
+    partial void OnSelectedVersionOptionChanged(ResourcesFilterOptionItem? value)
+    {
+        if (!isApplyingVersionOptions && !isApplyingInstanceFilters)
+            FilterChanged("version", value);
+    }
+
+    partial void OnSelectedLoaderOptionChanged(ResourcesFilterOptionItem? value)
+    {
+        if (!isApplyingInstanceFilters)
+            FilterChanged("loader", value);
+    }
+
+    partial void OnSelectedSourceOptionChanged(ResourcesFilterOptionItem? value) => FilterChanged("source", value);
+
+    partial void OnSelectedTypeOptionChanged(ResourcesFilterOptionItem? value) => FilterChanged("type", value);
+
+    partial void OnIsFilterDialogOpenChanged(bool value)
+    {
+        if (!value)
+        {
+            PendingVersionOption = null;
+            PendingLoaderOption = null;
+            PendingSourceOption = null;
+            PendingTypeOption = null;
+        }
+    }
+
+    private void FilterChanged(string filter, ResourcesFilterOptionItem? value)
+    {
+        NavigationResetRequested?.Invoke();
+        logger?.LogInformation(
+            "Resource project filter selected. Kind={Kind} FilterId={FilterId} OptionId={OptionId}",
+            options.Kind,
+            filter,
+            value?.Id);
+        ScheduleRefresh();
+    }
+
+    private void ScheduleRefresh()
+    {
+        if (resourceCatalogService is null)
+            return;
+
+        var token = BeginRequest();
+        Observe(ScheduleRefreshAsync(token), "refresh resource projects after filter change");
+    }
+
+    private async Task ScheduleRefreshAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(SearchDebounceMilliseconds, cancellationToken).ConfigureAwait(false);
+            await LoadAsync(CreateSearchRequest(0), append: false, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private CancellationToken BeginRequest()
+    {
+        hasRequestedInitialLoad = true;
+        var replacement = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref requestCancellation, replacement);
+        previous?.Cancel();
+        previous?.Dispose();
+
+        IsLoading = true;
+        IsLoadingMore = false;
+        HasMore = false;
+        NextPageOffset = 0;
+        LoadErrorMessage = string.Empty;
+        LoadMoreMessage = string.Empty;
+        PartialWarningMessage = string.Empty;
+        UpdateFooter();
+        RaiseStateChanged();
+        return replacement.Token;
+    }
+
+    private async Task LoadAsync(ResourceCatalogSearchRequest request, bool append, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var releaseOrderTask = GetReleaseVersionOrderAsync(cancellationToken);
+            var result = await resourceCatalogService!.SearchProjectsAsync(request, cancellationToken).ConfigureAwait(false);
+            var releaseOrder = await releaseOrderTask.ConfigureAwait(false);
+            var items = result.Projects
+                .Select(project => new ResourcesModProjectItemViewModel(project, releaseOrder, options.FallbackIconKey))
+                .ToList();
+
+            cancellationToken.ThrowIfCancellationRequested();
+            uiDispatcher.Invoke(() => ApplyResult(result, items, request.Offset, append, cancellationToken));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                return;
+
+            uiDispatcher.Invoke(() => ApplyFailure(exception, append, cancellationToken));
+        }
+    }
+
+    private void ApplyResult(
+        ResourceCatalogSearchResult result,
+        IReadOnlyList<ResourcesModProjectItemViewModel> items,
+        int offset,
+        bool append,
+        CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+            return;
+
+        if (!append)
+        {
+            VisibleProjects.Clear();
+            ListItems.Clear();
+            ListEntranceAnimationToken++;
+        }
+
+        NextPageOffset = offset + CatalogPageSize;
+        HasMore = result.HasMore && items.Count > 0;
+        LoadMoreMessage = HasMore || items.Count == 0 ? string.Empty : options.ProjectsNoMoreText;
+        PartialWarningMessage = result.IsCurseForgeApiKeyMissing ? options.CurseForgeMissingApiKeyText : string.Empty;
+
+        var batchSize = append ? AppendProjectBatchSize : InitialProjectBatchSize;
+        AddBatch(items, 0, batchSize);
+        if (items.Count > batchSize)
+            Observe(AppendRemainingBatchesAsync(items, batchSize, cancellationToken), "append resource project batches");
+
+        IsLoading = false;
+        IsLoadingMore = false;
+        UpdateFooter();
+        RaiseStateChanged();
+        logger?.LogInformation(
+            append ? "Resource projects appended. Kind={Kind} ResultCount={ResultCount}" : "Resource projects loaded. Kind={Kind} ResultCount={ResultCount}",
+            options.Kind,
+            items.Count);
+    }
+
+    private async Task AppendRemainingBatchesAsync(
+        IReadOnlyList<ResourcesModProjectItemViewModel> items,
+        int startIndex,
+        CancellationToken cancellationToken)
+    {
+        for (var index = startIndex; index < items.Count; index += AppendProjectBatchSize)
+        {
+            await Task.Yield();
+            cancellationToken.ThrowIfCancellationRequested();
+            var batchStart = index;
+            uiDispatcher.Invoke(() =>
+            {
+                if (!cancellationToken.IsCancellationRequested)
+                    AddBatch(items, batchStart, AppendProjectBatchSize);
+            });
+        }
+    }
+
+    private void AddBatch(IReadOnlyList<ResourcesModProjectItemViewModel> items, int startIndex, int count)
+    {
+        RemoveFooter();
+        foreach (var item in items.Skip(startIndex).Take(count))
+        {
+            VisibleProjects.Add(item);
+            ListItems.Add(item);
+        }
+        UpdateFooter();
+        RaiseStateChanged();
+    }
+
+    private void ApplyFailure(Exception exception, bool append, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+            return;
+
+        if (append)
+        {
+            IsLoadingMore = false;
+            LoadMoreMessage = options.ProjectsLoadMoreErrorText;
+        }
+        else
+        {
+            IsLoading = false;
+            LoadErrorMessage = options.ProjectsLoadErrorText;
+        }
+
+        UpdateFooter();
+        RaiseStateChanged();
+        logger?.LogError(exception, "Failed to load resource projects. Kind={Kind} Append={Append}", options.Kind, append);
+    }
+
+    private ResourceCatalogSearchRequest CreateSearchRequest(int offset)
+    {
+        var versions = ResolveMinecraftVersions(SelectedVersionOption);
         return new ResourceCatalogSearchRequest
         {
             Kind = options.Kind,
-            Query = query,
-            MinecraftVersion = minecraftVersions.Count == 1 ? minecraftVersions[0] : string.Empty,
-            MinecraftVersions = minecraftVersions,
-            Loader = !options.ShowsLoaderFilters ? LoaderKind.Vanilla : loaderOption?.Id switch
+            Query = SearchQuery,
+            MinecraftVersion = versions.Count == 1 ? versions[0] : string.Empty,
+            MinecraftVersions = versions,
+            Loader = !options.ShowsLoaderFilters ? LoaderKind.Vanilla : SelectedLoaderOption?.Id switch
             {
                 "fabric" => LoaderKind.Fabric,
                 "forge" => LoaderKind.Forge,
@@ -58,26 +479,174 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject
                 "quilt" => LoaderKind.Quilt,
                 _ => LoaderKind.Vanilla
             },
-            Source = sourceOption?.Id switch
+            Source = SelectedSourceOption?.Id switch
             {
                 "modrinth" => ResourceProjectSource.Modrinth,
                 "curseforge" => ResourceProjectSource.CurseForge,
                 _ => null
             },
-            Category = ResolveCategory(typeOption),
+            Category = ResolveCategory(SelectedTypeOption),
             Offset = offset,
-            PageSize = pageSize
+            PageSize = CatalogPageSize
         };
     }
 
-    public void ResetPagination()
+    private async Task<IReadOnlyList<string>?> GetReleaseVersionOrderAsync(CancellationToken cancellationToken)
     {
-        NextPageOffset = 0;
+        return (await GetReleaseVersionDataAsync(cancellationToken).ConfigureAwait(false)).ReleaseVersionOrder;
     }
 
-    public void AdvancePagination(int resultOffset, int pageSize)
+    private void BeginEnsureVersionOptionsLoaded()
     {
-        NextPageOffset = resultOffset + pageSize;
+        if (gameVersionService is not null)
+            Observe(GetReleaseVersionDataAsync(CancellationToken.None), "load resource version filters");
+    }
+
+    private async Task EnsureVersionOptionsLoadedAsync()
+    {
+        var data = await GetReleaseVersionDataAsync(CancellationToken.None).ConfigureAwait(false);
+        if (data.VersionOptions.Count > 0)
+            uiDispatcher.Invoke(() => ApplyVersionOptions(data.VersionOptions));
+    }
+
+    private async Task<ReleaseVersionData> GetReleaseVersionDataAsync(CancellationToken cancellationToken)
+    {
+        if (gameVersionService is null)
+            return new ReleaseVersionData([], []);
+
+        Task<ReleaseVersionData> task;
+        lock (releaseVersionGate)
+        {
+            releaseVersionDataTask ??= LoadReleaseVersionDataAsync();
+            task = releaseVersionDataTask;
+        }
+
+        return await task.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ReleaseVersionData> LoadReleaseVersionDataAsync()
+    {
+        try
+        {
+            var versions = await gameVersionService!.GetVersionsAsync().ConfigureAwait(false);
+            var order = versions
+                .Where(version => string.Equals(version.Type, "release", StringComparison.OrdinalIgnoreCase))
+                .Select(version => version.Name)
+                .Where(version => !string.IsNullOrWhiteSpace(version))
+                .ToList();
+            var filterOptions = CreateVersionFilterOptions(order);
+            uiDispatcher.Post(() => ApplyVersionOptions(filterOptions));
+            return new ReleaseVersionData(order, filterOptions);
+        }
+        catch (Exception exception)
+        {
+            logger?.LogWarning(exception, "Failed to load Minecraft release versions for resource filters. Kind={Kind}", options.Kind);
+            return new ReleaseVersionData([], []);
+        }
+    }
+
+    private void ApplyVersionOptions(IReadOnlyList<ResourcesFilterOptionItem> values)
+    {
+        if (values.Count == 0)
+            return;
+
+        var selectedId = SelectedVersionOption?.Id ?? "all";
+        VersionOptions.Clear();
+        VersionOptions.Add(new ResourcesFilterOptionItem { Id = "all", Title = options.AllVersionsText });
+        foreach (var option in values)
+            VersionOptions.Add(option);
+
+        try
+        {
+            isApplyingVersionOptions = true;
+            SelectedVersionOption = VersionOptions.FirstOrDefault(option =>
+                string.Equals(option.Id, selectedId, StringComparison.OrdinalIgnoreCase)) ?? VersionOptions[0];
+        }
+        finally
+        {
+            isApplyingVersionOptions = false;
+        }
+    }
+
+    private ResourcesFilterOptionItem ResolveVersionOption(GameInstance instance)
+    {
+        var all = VersionOptions.FirstOrDefault(option => option.Id == "all") ?? VersionOptions[0];
+        if (string.IsNullOrWhiteSpace(instance.MinecraftVersion))
+            return all;
+
+        return VersionOptions.FirstOrDefault(option => option.Id != "all"
+            && (string.Equals(option.Id, instance.MinecraftVersion, StringComparison.OrdinalIgnoreCase)
+                || option.MinecraftVersions.Contains(instance.MinecraftVersion, StringComparer.OrdinalIgnoreCase))) ?? all;
+    }
+
+    private ResourcesFilterOptionItem ResolveLoaderOption(GameInstance instance)
+    {
+        var id = instance.Loader switch
+        {
+            LoaderKind.Fabric => "fabric",
+            LoaderKind.Forge => "forge",
+            LoaderKind.NeoForge => "neoforge",
+            LoaderKind.Quilt => "quilt",
+            _ => "all"
+        };
+        return LoaderOptions.FirstOrDefault(option => string.Equals(option.Id, id, StringComparison.OrdinalIgnoreCase))
+            ?? LoaderOptions[0];
+    }
+
+    private void UpdateFooter()
+    {
+        RemoveFooter();
+        if (CanShowLoadMoreState && !string.IsNullOrWhiteSpace(LoadMoreMessage))
+            ListItems.Add(new ResourcesListFooterStatusItem(LoadMoreMessage));
+    }
+
+    private void RemoveFooter()
+    {
+        for (var index = ListItems.Count - 1; index >= 0; index--)
+        {
+            if (ListItems[index] is ResourcesListFooterStatusItem)
+                ListItems.RemoveAt(index);
+        }
+    }
+
+    private void RaiseStateChanged()
+    {
+        OnPropertyChanged(nameof(HasVisibleProjects));
+        OnPropertyChanged(nameof(HasLoadErrorMessage));
+        OnPropertyChanged(nameof(HasPartialWarningMessage));
+        OnPropertyChanged(nameof(CanShowLoadingState));
+        OnPropertyChanged(nameof(CanShowEmptyState));
+        OnPropertyChanged(nameof(CanShowLoadErrorState));
+        OnPropertyChanged(nameof(CanShowLoadMoreState));
+    }
+
+    private void Observe(Task task, string operation)
+    {
+        _ = ObserveAsync(task, operation);
+    }
+
+    private async Task ObserveAsync(Task task, string operation)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            logger?.LogError(exception, "Unhandled resource list operation failure. Operation={Operation} Kind={Kind}", operation, options.Kind);
+        }
+    }
+
+    private static void ApplyPendingOption(
+        ResourcesFilterOptionItem? pending,
+        ResourcesFilterOptionItem? current,
+        Action<ResourcesFilterOptionItem?> apply)
+    {
+        if (!ReferenceEquals(pending, current))
+            apply(pending);
     }
 
     private static IReadOnlyList<string> ResolveMinecraftVersions(ResourcesFilterOptionItem? option)
@@ -87,15 +656,85 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject
         return option.MinecraftVersions.Count > 0 ? option.MinecraftVersions : [option.Id];
     }
 
-    private ResourceProjectCategory? ResolveCategory(ResourcesFilterOptionItem? typeOption)
+    private ResourceProjectCategory? ResolveCategory(ResourcesFilterOptionItem? option)
     {
-        var selectedId = typeOption?.Id;
-        if (string.IsNullOrWhiteSpace(selectedId)
-            || string.Equals(selectedId, "all", StringComparison.OrdinalIgnoreCase))
-        {
+        if (option is null || option.Id == "all")
             return null;
-        }
-        return options.TypeOptions.FirstOrDefault(option =>
-            string.Equals(option.Id, selectedId, StringComparison.OrdinalIgnoreCase))?.Category;
+        return options.TypeOptions.FirstOrDefault(value =>
+            string.Equals(value.Id, option.Id, StringComparison.OrdinalIgnoreCase))?.Category;
     }
+
+    private static IReadOnlyList<ResourcesFilterOptionItem> CreateVersionFilterOptions(IReadOnlyList<string> releases)
+    {
+        return releases
+            .Select(version => new { Original = version.Trim(), Major = TryNormalizeMajorMinecraftVersion(version) })
+            .Where(version => !string.IsNullOrWhiteSpace(version.Original) && version.Major is not null)
+            .GroupBy(version => version.Major!, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new ResourcesFilterOptionItem
+            {
+                Id = group.Key,
+                Title = group.Key,
+                MinecraftVersions = group.Select(value => value.Original).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+            })
+            .ToList();
+    }
+
+    private static string? TryNormalizeMajorMinecraftVersion(string? version)
+    {
+        if (string.IsNullOrWhiteSpace(version))
+            return null;
+        var parts = version.Trim().Split('.');
+        if (parts.Length == 1 && int.TryParse(parts[0], out var single))
+            return single.ToString();
+        if (parts.Length < 2 || !TryParseLeadingNumber(parts[0], out var major) || !TryParseLeadingNumber(parts[1], out var minor))
+            return null;
+        return major == 1 ? $"{major}.{minor}" : major.ToString();
+    }
+
+    private static bool TryParseLeadingNumber(string value, out int number)
+    {
+        var length = value.TakeWhile(char.IsDigit).Count();
+        return int.TryParse(value[..length], out number);
+    }
+
+    private static ObservableCollection<ResourcesFilterOptionItem> CreateLoaderOptions(ResourcesOnlineProjectPageOptions options)
+    {
+        if (!options.ShowsLoaderFilters)
+            return [new ResourcesFilterOptionItem { Id = "all", Title = options.AllLoadersText }];
+        return
+        [
+            new ResourcesFilterOptionItem { Id = "all", Title = options.AllLoadersText },
+            new ResourcesFilterOptionItem { Id = "fabric", Title = Strings.Download_FabricLoaderTitle },
+            new ResourcesFilterOptionItem { Id = "forge", Title = Strings.Download_ForgeLoaderTitle },
+            new ResourcesFilterOptionItem { Id = "neoforge", Title = Strings.Download_NeoForgeLoaderTitle },
+            new ResourcesFilterOptionItem { Id = "quilt", Title = Strings.Download_QuiltLoaderTitle }
+        ];
+    }
+
+    private static ObservableCollection<ResourcesFilterOptionItem> CreateSourceOptions(ResourcesOnlineProjectPageOptions options)
+    {
+        if (options.SourceOptions is { Count: > 0 } configured)
+            return [.. configured];
+        return
+        [
+            new ResourcesFilterOptionItem { Id = "all", Title = Strings.Resources_ModFilterAllSources },
+            new ResourcesFilterOptionItem { Id = "modrinth", Title = Strings.Resources_ModSourceModrinth },
+            new ResourcesFilterOptionItem { Id = "curseforge", Title = Strings.Resources_ModSourceCurseForge }
+        ];
+    }
+
+    private static ObservableCollection<ResourcesFilterOptionItem> CreateTypeOptions(ResourcesOnlineProjectPageOptions options)
+    {
+        var values = new ObservableCollection<ResourcesFilterOptionItem>
+        {
+            new() { Id = "all", Title = Strings.Resources_ModFilterAllTypes }
+        };
+        foreach (var option in options.TypeOptions)
+            values.Add(new ResourcesFilterOptionItem { Id = option.Id, Title = option.Title });
+        return values;
+    }
+
+    private sealed record ReleaseVersionData(
+        IReadOnlyList<string> ReleaseVersionOrder,
+        IReadOnlyList<ResourcesFilterOptionItem> VersionOptions);
 }

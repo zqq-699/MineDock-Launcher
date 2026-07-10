@@ -162,6 +162,45 @@ public sealed class LayerDependencyContractTests
         Assert.Empty(asyncVoidViewModels);
     }
 
+    [Fact]
+    public void OnlineResourcePageDoesNotReabsorbChildRequestState()
+    {
+        var root = FindRepositoryRoot();
+        var source = File.ReadAllText(Path.Combine(
+            root.FullName,
+            "Launcher.App",
+            "ViewModels",
+            "Resources",
+            "ResourcesModPageViewModel.cs"));
+
+        Assert.DoesNotContain("CancellationTokenSource", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ObservableCollection", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SearchQuery", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("LoadAvailableVersionsAsync", source, StringComparison.Ordinal);
+        Assert.Contains("ResourcesProjectListViewModel ProjectList", source, StringComparison.Ordinal);
+        Assert.Contains("ResourcesProjectVersionsViewModel Versions", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AccountAppearanceParentOnlyComposesAccountSubmodules()
+    {
+        var root = FindRepositoryRoot();
+        var source = File.ReadAllText(Path.Combine(
+            root.FullName,
+            "Launcher.App",
+            "ViewModels",
+            "Account",
+            "AccountAppearanceViewModel.cs"));
+
+        Assert.DoesNotContain("[RelayCommand", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("UploadSkinAsync", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetActiveCapeAsync", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefreshAccountProfileAsync", source, StringComparison.Ordinal);
+        Assert.Contains("AccountProfileViewModel Profile", source, StringComparison.Ordinal);
+        Assert.Contains("AccountSkinLibraryViewModel SkinLibrary", source, StringComparison.Ordinal);
+        Assert.Contains("AccountCapeViewModel Cape", source, StringComparison.Ordinal);
+    }
+
     private static void AssertProjectReferences(DirectoryInfo root, string project, params string[] expectedReferences)
     {
         var projectPath = Path.Combine(root.FullName, project, $"{project}.csproj");

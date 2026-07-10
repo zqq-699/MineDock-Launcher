@@ -30,6 +30,35 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
     private static readonly string InstanceMetadataDirectoryName = LauncherApplicationIdentity.StorageDirectoryName;
 
     [Fact]
+    public async Task DiscoverInstalledVersionsResolvesInheritedForgeMetadata()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
+        var vanillaDirectory = Path.Combine(versionsDirectory, "1.20.1");
+        var forgeDirectory = Path.Combine(versionsDirectory, "forge-profile");
+        Directory.CreateDirectory(vanillaDirectory);
+        Directory.CreateDirectory(forgeDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(vanillaDirectory, "1.20.1.json"),
+            """{"id":"1.20.1","type":"release","minecraftVersion":"1.20.1"}""");
+        await File.WriteAllTextAsync(
+            Path.Combine(forgeDirectory, "forge-profile.json"),
+            """{"id":"forge-profile","inheritsFrom":"1.20.1","libraries":[{"name":"net.minecraftforge:forge:1.20.1-47.2.0"}]}""");
+        var repository = new JsonGameInstanceRepository(new TestSettingsService(new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = minecraftDirectory
+        }));
+
+        var versions = await repository.DiscoverInstalledVersionsAsync(minecraftDirectory);
+
+        var forge = Assert.Single(versions, version => version.VersionName == "forge-profile");
+        Assert.Equal("1.20.1", forge.MinecraftVersion);
+        Assert.Equal(LoaderKind.Forge, forge.Loader);
+        Assert.Equal("47.2.0", forge.LoaderVersion);
+    }
+
+    [Fact]
     public async Task SaveAllAsyncWritesInstanceSettingsIntoVersionLauncherDirectory()
     {
         var settings = new LauncherSettings

@@ -82,7 +82,7 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || skinModelDialogHost is null)
             return;
 
-        accountPage.Appearance.SkinModelDialog.Open(skinFilePath);
+        accountPage.Appearance.SkinLibrary.SkinModelDialog.Open(skinFilePath);
         skinModelDialogHost.Show();
     }
 
@@ -91,7 +91,7 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || skinModelDialogHost is null)
             return;
 
-        accountPage.Appearance.SkinModelDialog.OpenForExistingSkin(skinModel);
+        accountPage.Appearance.SkinLibrary.SkinModelDialog.OpenForExistingSkin(skinModel);
         skinModelDialogHost.Show();
     }
 
@@ -100,7 +100,7 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || skinModelDialogHost is null)
             return;
 
-        accountPage.Appearance.SkinModelDialog.OpenFormatError();
+        accountPage.Appearance.SkinLibrary.SkinModelDialog.OpenFormatError();
         skinModelDialogHost.Show();
     }
 
@@ -109,7 +109,7 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || skinManagerDialogHost is null)
             return;
 
-        accountPage.Appearance.OpenSkinManagerDialog();
+        accountPage.Appearance.SkinLibrary.OpenManagerDialog();
         if (accountPage.Appearance.SkinLibrary.IsManagerDialogOpen)
             skinManagerDialogHost.Show();
     }
@@ -216,8 +216,8 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || skinModelDialogHost is null)
             return;
 
-        accountPage.Appearance.SkinModelDialog.Cancel();
-        skinModelDialogHost.Hide(accountPage.Appearance.SkinModelDialog.Reset);
+        accountPage.Appearance.SkinLibrary.SkinModelDialog.Cancel();
+        skinModelDialogHost.Hide(accountPage.Appearance.SkinLibrary.SkinModelDialog.Reset);
     }
 
     public async Task ConfirmSkinModelDialogAsync()
@@ -225,17 +225,17 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || skinModelDialogHost is null)
             return;
 
-        var confirmTask = accountPage.Appearance.ConfirmSkinModelDialogAsync();
-        if (!accountPage.Appearance.SkinModelDialog.IsSkinModelDialogOpen)
+        var confirmTask = accountPage.Appearance.SkinLibrary.ConfirmSkinModelDialogAsync();
+        if (!accountPage.Appearance.SkinLibrary.SkinModelDialog.IsSkinModelDialogOpen)
         {
-            skinModelDialogHost.Hide(accountPage.Appearance.SkinModelDialog.Reset);
+            skinModelDialogHost.Hide(accountPage.Appearance.SkinLibrary.SkinModelDialog.Reset);
             await confirmTask;
             return;
         }
 
         await confirmTask;
-        if (!accountPage.Appearance.SkinModelDialog.IsSkinModelDialogOpen)
-            skinModelDialogHost.Hide(accountPage.Appearance.SkinModelDialog.Reset);
+        if (!accountPage.Appearance.SkinLibrary.SkinModelDialog.IsSkinModelDialogOpen)
+            skinModelDialogHost.Hide(accountPage.Appearance.SkinLibrary.SkinModelDialog.Reset);
     }
 
     public void CancelSkinManagerDialog()
@@ -243,7 +243,7 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || skinManagerDialogHost is null)
             return;
 
-        accountPage.Appearance.CloseSkinManagerDialog();
+        accountPage.Appearance.SkinLibrary.CloseManagerDialog();
         skinManagerDialogHost.Hide();
     }
 

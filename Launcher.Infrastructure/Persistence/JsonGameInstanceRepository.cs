@@ -35,21 +35,12 @@ namespace Launcher.Infrastructure.Persistence;
 
 public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 {
-    private const int RenameDirectoryMoveMaxAttempts = 5;
-    private static readonly TimeSpan RenameDirectoryMoveRetryDelay = TimeSpan.FromMilliseconds(150);
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-    private const string LauncherDirectoryName = LauncherApplicationIdentity.StorageDirectoryName;
-    private const string InstanceSettingsFileName = "instance-settings.json";
-    private static readonly Regex NeoForgeVersionArgumentRegex = new(
-        "--fml\\.(?:neoForgeVersion|forgeVersion)\\s+(?<version>[^\\s]+)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
-    private static readonly Regex MinecraftVersionRegex = new(
-        "(?<version>(?:[1-9][0-9]w[0-9]{2}[a-z])|(?:(?:1|[2-9][0-9])\\.[0-9]+(?:\\.[0-9]+)?(?:-(?:pre|rc|snapshot-?)[0-9]+| Pre-Release [0-9]+)?)|(?:[ab][0-9]\\.[0-9]+(?:\\.[0-9]+)?))",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private readonly ISettingsService settingsService;
     private readonly ILogger<JsonGameInstanceRepository> logger;
     private readonly GameInstanceSettingsStore instanceSettingsStore;
-    private readonly Func<string, string, CancellationToken, Task> moveDirectoryAsync;
+    private readonly VersionDirectoryManager directoryManager;
+    private readonly VersionRenameTransaction renameTransaction;
+    private readonly InstalledVersionMetadataReader metadataReader;
     private readonly SemaphoreSlim ioLock = new(1, 1);
 
     public JsonGameInstanceRepository(
@@ -60,7 +51,9 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         this.settingsService = settingsService;
         this.logger = logger ?? NullLogger<JsonGameInstanceRepository>.Instance;
         instanceSettingsStore = new GameInstanceSettingsStore(this.logger);
-        this.moveDirectoryAsync = moveDirectoryAsync ?? MoveDirectoryAsync;
+        directoryManager = new VersionDirectoryManager(this.logger);
+        renameTransaction = new VersionRenameTransaction(directoryManager, this.logger, moveDirectoryAsync);
+        metadataReader = new InstalledVersionMetadataReader(this.logger);
     }
 
     public async Task<IReadOnlyList<GameInstance>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -117,6 +110,75 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         string minecraftDirectory,
         CancellationToken cancellationToken = default)
     {
+        return metadataReader.DiscoverAsync(minecraftDirectory, cancellationToken);
+    }
+
+    public string GetUniqueInstanceDirectory(string dataDirectory, string name)
+    {
+        return directoryManager.GetUniqueInstanceDirectory(dataDirectory, name);
+    }
+
+    public string GetVersionDirectory(string minecraftDirectory, string versionName)
+    {
+        return directoryManager.GetVersionDirectory(minecraftDirectory, versionName);
+    }
+
+    public bool IsInstanceInstalled(GameInstance instance, string minecraftDirectory)
+    {
+        var versionName = GetVersionName(instance);
+        if (string.IsNullOrWhiteSpace(versionName))
+            return false;
+
+        return metadataReader.Exists(GetVersionDirectory(minecraftDirectory, versionName), versionName);
+    }
+
+    public void CreateInstanceDirectories(string directory)
+    {
+        directoryManager.CreateInstanceDirectories(directory);
+    }
+
+    public void DeleteVersionDirectory(string minecraftDirectory, string versionName)
+    {
+        directoryManager.DeleteVersionDirectory(minecraftDirectory, versionName);
+    }
+
+    public async Task RenameVersionAsync(
+        string minecraftDirectory,
+        string oldVersionName,
+        string newVersionName,
+        CancellationToken cancellationToken = default)
+    {
+        await renameTransaction.ExecuteAsync(
+            minecraftDirectory,
+            oldVersionName,
+            newVersionName,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string GetVersionName(GameInstance instance)
+    {
+        return string.IsNullOrWhiteSpace(instance.VersionName)
+            ? instance.MinecraftVersion
+            : instance.VersionName;
+    }
+
+}
+
+internal sealed class InstalledVersionMetadataReader(ILogger logger)
+{
+    private const string LauncherDirectoryName = LauncherApplicationIdentity.StorageDirectoryName;
+    private const string InstanceSettingsFileName = "instance-settings.json";
+    private static readonly Regex NeoForgeVersionArgumentRegex = new(
+        "--fml\\.(?:neoForgeVersion|forgeVersion)\\s+(?<version>[^\\s]+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex MinecraftVersionRegex = new(
+        "(?<version>(?:[1-9][0-9]w[0-9]{2}[a-z])|(?:(?:1|[2-9][0-9])\\.[0-9]+(?:\\.[0-9]+)?(?:-(?:pre|rc|snapshot-?)[0-9]+| Pre-Release [0-9]+)?)|(?:[ab][0-9]\\.[0-9]+(?:\\.[0-9]+)?))",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+
+    public Task<IReadOnlyList<InstalledGameVersion>> DiscoverAsync(
+        string minecraftDirectory,
+        CancellationToken cancellationToken)
+    {
         var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
         if (!Directory.Exists(versionsDirectory))
             return Task.FromResult<IReadOnlyList<InstalledGameVersion>>([]);
@@ -125,15 +187,12 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         foreach (var versionDirectory in EnumerateDirectories(versionsDirectory))
         {
             cancellationToken.ThrowIfCancellationRequested();
-
             var versionName = Path.GetFileName(versionDirectory);
             if (string.IsNullOrWhiteSpace(versionName))
                 continue;
-
             var metadata = TryReadVersionMetadata(versionDirectory, versionName, logger);
             if (metadata is null)
                 continue;
-
             var loader = ResolveLoader(metadata);
             var minecraftVersion = ResolveMinecraftVersion(
                 metadata,
@@ -156,290 +215,8 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         return Task.FromResult<IReadOnlyList<InstalledGameVersion>>(installedVersions);
     }
 
-    public string GetUniqueInstanceDirectory(string dataDirectory, string name)
-    {
-        var baseDirectory = Path.Combine(dataDirectory, "instances");
-        Directory.CreateDirectory(baseDirectory);
-
-        var candidate = Path.Combine(baseDirectory, name);
-        var suffix = 2;
-        while (Directory.Exists(candidate))
-        {
-            candidate = Path.Combine(baseDirectory, $"{name}-{suffix}");
-            suffix++;
-        }
-
-        return candidate;
-    }
-
-    public string GetVersionDirectory(string minecraftDirectory, string versionName)
-    {
-        if (!VersionDirectoryName.IsSafeDirectoryName(versionName))
-            throw new ArgumentException($"Version name is not a safe directory name: {versionName}", nameof(versionName));
-
-        var versionsDirectory = Path.GetFullPath(Path.Combine(minecraftDirectory, "versions"));
-        var versionDirectory = Path.GetFullPath(Path.Combine(versionsDirectory, versionName));
-        var parentDirectory = Path.GetDirectoryName(versionDirectory);
-        if (!string.Equals(parentDirectory, versionsDirectory, StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException($"Version directory resolved outside the versions directory: {versionName}", nameof(versionName));
-
-        return versionDirectory;
-    }
-
-    public bool IsInstanceInstalled(GameInstance instance, string minecraftDirectory)
-    {
-        var versionName = GetVersionName(instance);
-        if (string.IsNullOrWhiteSpace(versionName))
-            return false;
-
-        return TryReadVersionMetadata(GetVersionDirectory(minecraftDirectory, versionName), versionName, logger) is not null;
-    }
-
-    public void CreateInstanceDirectories(string directory)
-    {
-        Directory.CreateDirectory(directory);
-        Directory.CreateDirectory(Path.Combine(directory, "mods"));
-        Directory.CreateDirectory(Path.Combine(directory, "config"));
-        Directory.CreateDirectory(Path.Combine(directory, "saves"));
-        Directory.CreateDirectory(Path.Combine(directory, "resourcepacks"));
-        Directory.CreateDirectory(Path.Combine(directory, "shaderpacks"));
-        logger.LogDebug("Instance directories ensured. InstanceDirectory={InstanceDirectory}", directory);
-    }
-
-    public void DeleteVersionDirectory(string minecraftDirectory, string versionName)
-    {
-        var versionDirectory = GetVersionDirectory(minecraftDirectory, versionName);
-        if (Directory.Exists(versionDirectory))
-        {
-            Directory.Delete(versionDirectory, recursive: true);
-            logger.LogInformation("Version directory deleted. VersionName={VersionName} VersionDirectory={VersionDirectory}", versionName, versionDirectory);
-        }
-    }
-
-    public async Task RenameVersionAsync(
-        string minecraftDirectory,
-        string oldVersionName,
-        string newVersionName,
-        CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(oldVersionName)
-            || string.IsNullOrWhiteSpace(newVersionName)
-            || string.Equals(oldVersionName, newVersionName, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
-        var sourceDirectory = GetVersionDirectory(minecraftDirectory, oldVersionName);
-        var destinationDirectory = GetVersionDirectory(minecraftDirectory, newVersionName);
-        var sourceJsonPath = Path.Combine(sourceDirectory, $"{oldVersionName}.json");
-        var destinationJsonPath = Path.Combine(destinationDirectory, $"{newVersionName}.json");
-        var destinationJarPath = Path.Combine(destinationDirectory, $"{newVersionName}.jar");
-        var movedJsonPath = Path.Combine(destinationDirectory, $"{oldVersionName}.json");
-        var movedJarPath = Path.Combine(destinationDirectory, $"{oldVersionName}.jar");
-        var temporaryJsonPath = Path.Combine(destinationDirectory, $"{LauncherDirectoryName}-rename-{Guid.NewGuid():N}.json.tmp");
-        var backupJsonPath = Path.Combine(destinationDirectory, $"{LauncherDirectoryName}-rename-{Guid.NewGuid():N}.json.bak");
-
-        if (!Directory.Exists(sourceDirectory))
-            throw new DirectoryNotFoundException($"Version directory not found: {sourceDirectory}");
-
-        if (!File.Exists(sourceJsonPath))
-            throw new FileNotFoundException($"Version JSON not found: {sourceJsonPath}", sourceJsonPath);
-
-        if (Directory.Exists(destinationDirectory))
-            throw new IOException($"Version directory already exists: {destinationDirectory}");
-
-        var versionJson = await ReadVersionJsonAsync(sourceJsonPath, cancellationToken);
-        RewriteVersionIdentity(versionJson, oldVersionName, newVersionName);
-        var rewrittenVersionJson = versionJson.ToJsonString(JsonOptions);
-        var oldJarExists = File.Exists(Path.Combine(sourceDirectory, $"{oldVersionName}.jar"));
-        var stopwatch = Stopwatch.StartNew();
-        var directoryMoved = false;
-        var jsonMoved = false;
-        var jarMoved = false;
-        var jsonReplaced = false;
-
-        logger.LogInformation(
-            "Version directory rename started. OldVersionName={OldVersionName} NewVersionName={NewVersionName}",
-            oldVersionName,
-            newVersionName);
-
-        try
-        {
-            await MoveDirectoryWithRetryAsync(sourceDirectory, destinationDirectory, cancellationToken).ConfigureAwait(false);
-            directoryMoved = true;
-
-            cancellationToken.ThrowIfCancellationRequested();
-            File.Move(movedJsonPath, destinationJsonPath);
-            jsonMoved = true;
-
-            cancellationToken.ThrowIfCancellationRequested();
-            if (oldJarExists)
-            {
-                File.Move(movedJarPath, destinationJarPath);
-                jarMoved = true;
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            await File.WriteAllTextAsync(temporaryJsonPath, rewrittenVersionJson, cancellationToken);
-            File.Replace(temporaryJsonPath, destinationJsonPath, backupJsonPath, ignoreMetadataErrors: true);
-            jsonReplaced = true;
-
-            if (File.Exists(backupJsonPath))
-                File.Delete(backupJsonPath);
-
-            logger.LogInformation(
-                "Version directory renamed. OldVersionName={OldVersionName} NewVersionName={NewVersionName} ElapsedMs={ElapsedMs}",
-                oldVersionName,
-                newVersionName,
-                stopwatch.ElapsedMilliseconds);
-        }
-        catch (Exception exception)
-        {
-            var rollbackSucceeded = TryRollbackRename(
-                sourceDirectory,
-                destinationDirectory,
-                movedJsonPath,
-                destinationJsonPath,
-                movedJarPath,
-                destinationJarPath,
-                temporaryJsonPath,
-                backupJsonPath,
-                directoryMoved,
-                jsonMoved,
-                jarMoved,
-                jsonReplaced);
-            logger.LogError(
-                exception,
-                "Version directory rename failed. OldVersionName={OldVersionName} NewVersionName={NewVersionName} ElapsedMs={ElapsedMs} RollbackSucceeded={RollbackSucceeded}",
-                oldVersionName,
-                newVersionName,
-                stopwatch.ElapsedMilliseconds,
-                rollbackSucceeded);
-            throw;
-        }
-    }
-
-    private async Task MoveDirectoryWithRetryAsync(
-        string sourceDirectory,
-        string destinationDirectory,
-        CancellationToken cancellationToken)
-    {
-        for (var attempt = 1; ; attempt++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                await moveDirectoryAsync(sourceDirectory, destinationDirectory, cancellationToken).ConfigureAwait(false);
-                return;
-            }
-            catch (Exception exception) when (
-                attempt < RenameDirectoryMoveMaxAttempts
-                && exception is IOException or UnauthorizedAccessException)
-            {
-                logger.LogWarning(
-                    exception,
-                    "Version directory move failed and will be retried. SourceDirectory={SourceDirectory} DestinationDirectory={DestinationDirectory} Attempt={Attempt} MaxAttempts={MaxAttempts}",
-                    sourceDirectory,
-                    destinationDirectory,
-                    attempt,
-                    RenameDirectoryMoveMaxAttempts);
-                await Task.Delay(RenameDirectoryMoveRetryDelay, cancellationToken).ConfigureAwait(false);
-            }
-        }
-    }
-
-    private static Task MoveDirectoryAsync(
-        string sourceDirectory,
-        string destinationDirectory,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        Directory.Move(sourceDirectory, destinationDirectory);
-        return Task.CompletedTask;
-    }
-
-    private static async Task<JsonObject> ReadVersionJsonAsync(string versionJsonPath, CancellationToken cancellationToken)
-    {
-        await using var stream = File.OpenRead(versionJsonPath);
-        var jsonNode = await JsonNode.ParseAsync(stream, cancellationToken: cancellationToken)
-            ?? throw new InvalidDataException($"Version JSON is empty: {versionJsonPath}");
-        return jsonNode.AsObject();
-    }
-
-    private static void RewriteVersionIdentity(JsonObject versionObject, string oldVersionName, string newVersionName)
-    {
-        versionObject["id"] = newVersionName;
-
-        if (versionObject["jar"] is JsonValue jarValue
-            && string.Equals(jarValue.ToString(), oldVersionName, StringComparison.OrdinalIgnoreCase))
-        {
-            versionObject["jar"] = newVersionName;
-        }
-    }
-
-    private static bool TryRollbackRename(
-        string sourceDirectory,
-        string destinationDirectory,
-        string movedJsonPath,
-        string destinationJsonPath,
-        string movedJarPath,
-        string destinationJarPath,
-        string temporaryJsonPath,
-        string backupJsonPath,
-        bool directoryMoved,
-        bool jsonMoved,
-        bool jarMoved,
-        bool jsonReplaced)
-    {
-        try
-        {
-            TryDeleteFile(temporaryJsonPath);
-
-            if (jsonReplaced)
-                RestoreReplacedJson(destinationJsonPath, backupJsonPath);
-            else
-                TryDeleteFile(backupJsonPath);
-
-            if (jarMoved && File.Exists(destinationJarPath) && !File.Exists(movedJarPath))
-                File.Move(destinationJarPath, movedJarPath);
-
-            if (jsonMoved && File.Exists(destinationJsonPath) && !File.Exists(movedJsonPath))
-                File.Move(destinationJsonPath, movedJsonPath);
-
-            if (directoryMoved && Directory.Exists(destinationDirectory) && !Directory.Exists(sourceDirectory))
-                Directory.Move(destinationDirectory, sourceDirectory);
-
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static void RestoreReplacedJson(string destinationJsonPath, string backupJsonPath)
-    {
-        if (!File.Exists(backupJsonPath))
-            return;
-
-        if (File.Exists(destinationJsonPath))
-            File.Delete(destinationJsonPath);
-
-        File.Move(backupJsonPath, destinationJsonPath);
-    }
-
-    private static void TryDeleteFile(string path)
-    {
-        if (File.Exists(path))
-            File.Delete(path);
-    }
-
-    private static string GetVersionName(GameInstance instance)
-    {
-        return string.IsNullOrWhiteSpace(instance.VersionName)
-            ? instance.MinecraftVersion
-            : instance.VersionName;
-    }
+    public bool Exists(string versionDirectory, string versionName) =>
+        TryReadVersionMetadata(versionDirectory, versionName, logger) is not null;
 
     private static IEnumerable<string> EnumerateDirectories(string directory)
     {

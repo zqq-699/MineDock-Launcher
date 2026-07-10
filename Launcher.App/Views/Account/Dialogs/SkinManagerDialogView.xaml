@@ -155,7 +155,7 @@
                      ItemsSource="{Binding Appearance.SkinLibrary.Skins}"
                      SelectedItem="{Binding Appearance.SkinLibrary.SelectedSkin, Mode=TwoWay}"
                      Style="{StaticResource SkinManagerTileListStyle}"
-                     Visibility="{Binding Appearance.HasSelectedAccountSkins, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                     Visibility="{Binding Appearance.SkinLibrary.HasSkins, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
                         <UniformGrid Columns="4" />
@@ -177,12 +177,12 @@
                                         HorizontalAlignment="Center">
                                 <Button Style="{StaticResource SkinManagerTileButtonStyle}"
                                         Content="{x:Static res:Strings.Account_ChangeSkinModelButton}"
-                                        Command="{Binding DataContext.Appearance.ChangeAccountSkinModelCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                        Command="{Binding DataContext.Appearance.SkinLibrary.ChangeSkinModelCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
                                         CommandParameter="{Binding}" />
                                 <Button Style="{StaticResource SkinManagerTileDangerButtonStyle}"
                                         Margin="0,5,0,0"
                                         Content="{x:Static res:Strings.Delete_Button}"
-                                        Command="{Binding DataContext.Appearance.DeleteAccountSkinCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
+                                        Command="{Binding DataContext.Appearance.SkinLibrary.DeleteSkinCommand, RelativeSource={RelativeSource AncestorType={x:Type ListBox}}}"
                                         CommandParameter="{Binding}" />
                             </StackPanel>
                         </StackPanel>
@@ -198,14 +198,14 @@
                        TextWrapping="Wrap"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
-                       Visibility="{Binding Appearance.CanShowSkinManagerEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                       Visibility="{Binding Appearance.SkinLibrary.CanShowManagerEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
         </Grid>
 
         <StackPanel Grid.Row="2"
                     Style="{StaticResource DialogFooterStyle}">
             <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                     Content="{x:Static res:Strings.Confirm_Button}"
-                    Command="{Binding Appearance.RequestCancelSkinManagerDialogCommand}" />
+                    Command="{Binding Appearance.SkinLibrary.RequestCancelManagerDialogCommand}" />
         </StackPanel>
     </Grid>
 </UserControl>

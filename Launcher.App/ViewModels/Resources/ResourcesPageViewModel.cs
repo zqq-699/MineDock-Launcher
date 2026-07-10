@@ -72,6 +72,7 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             resourceProjectInstallationService: resourceProjectInstallationService,
             resourceDependencyPlanningService: resourceDependencyPlanningService);
         ModPage.PropertyChanged += ModPage_PropertyChanged;
+        SubscribeOnlinePageChildren(ModPage);
         ResourcePacksPage = new ResourcesResourcePacksPageViewModel(
             this,
             resourceCatalogService,
@@ -86,6 +87,7 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             resourceProjectInstallationService,
             resourceDependencyPlanningService);
         ResourcePacksPage.PropertyChanged += OnlineProjectPage_PropertyChanged;
+        SubscribeOnlinePageChildren(ResourcePacksPage);
         ShaderPacksPage = new ResourcesShaderPacksPageViewModel(
             this,
             resourceCatalogService,
@@ -100,6 +102,7 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             resourceProjectInstallationService,
             resourceDependencyPlanningService);
         ShaderPacksPage.PropertyChanged += OnlineProjectPage_PropertyChanged;
+        SubscribeOnlinePageChildren(ShaderPacksPage);
         WorldsPage = new ResourcesWorldsPageViewModel(
             this,
             resourceCatalogService,
@@ -114,6 +117,7 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             resourceProjectInstallationService,
             resourceDependencyPlanningService);
         WorldsPage.PropertyChanged += OnlineProjectPage_PropertyChanged;
+        SubscribeOnlinePageChildren(WorldsPage);
         ModpacksPage = new ResourcesModpacksPageViewModel(
             this,
             resourceCatalogService,
@@ -128,6 +132,7 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             resourceProjectInstallationService,
             resourceDependencyPlanningService);
         ModpacksPage.PropertyChanged += OnlineProjectPage_PropertyChanged;
+        SubscribeOnlinePageChildren(ModpacksPage);
         ModpacksPage.ModpackImported += (_, instance) => ModpackImported?.Invoke(this, instance);
         ModpacksPage.ModpackManualDownloadsRequested += (_, args) => ModpackManualDownloadsRequested?.Invoke(this, args);
 
@@ -186,8 +191,8 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
                 return string.Empty;
 
             return onlineProjectPage.IsProjectVersionsStep
-                ? onlineProjectPage.AvailableVersionSearchQuery
-                : onlineProjectPage.SearchQuery;
+                ? onlineProjectPage.Versions.SearchQuery
+                : onlineProjectPage.ProjectList.SearchQuery;
         }
         set
         {
@@ -196,9 +201,9 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
                 return;
 
             if (onlineProjectPage.IsProjectVersionsStep)
-                onlineProjectPage.AvailableVersionSearchQuery = value;
+                onlineProjectPage.Versions.SearchQuery = value;
             else
-                onlineProjectPage.SearchQuery = value;
+                onlineProjectPage.ProjectList.SearchQuery = value;
 
             OnPropertyChanged();
         }
@@ -272,7 +277,6 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
     private void OnlineProjectPage_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(ResourcesModPageViewModel.CurrentStep)
-            or nameof(ResourcesModPageViewModel.SelectedProject)
             or nameof(ResourcesModPageViewModel.PageTitle)
             or nameof(ResourcesModPageViewModel.PageTitleIconSource))
         {
@@ -286,11 +290,27 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             OnPropertyChanged(nameof(ActiveModSearchQuery));
         }
 
-        if (e.PropertyName is nameof(ResourcesModPageViewModel.SearchQuery)
-            or nameof(ResourcesModPageViewModel.AvailableVersionSearchQuery))
+    }
+
+    private void SubscribeOnlinePageChildren(ResourcesModPageViewModel page)
+    {
+        page.ProjectList.PropertyChanged += OnlineProjectChild_PropertyChanged;
+        page.Versions.PropertyChanged += OnlineProjectChild_PropertyChanged;
+    }
+
+    private void OnlineProjectChild_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        var currentPage = CurrentOnlineProjectPage;
+        if (currentPage is null
+            || !ReferenceEquals(sender, currentPage.ProjectList) && !ReferenceEquals(sender, currentPage.Versions))
         {
-            if (ReferenceEquals(sender, CurrentOnlineProjectPage))
-                OnPropertyChanged(nameof(ActiveModSearchQuery));
+            return;
+        }
+
+        if (e.PropertyName is nameof(ResourcesProjectListViewModel.SearchQuery)
+            or nameof(ResourcesProjectVersionsViewModel.SearchQuery))
+        {
+            OnPropertyChanged(nameof(ActiveModSearchQuery));
         }
     }
 }

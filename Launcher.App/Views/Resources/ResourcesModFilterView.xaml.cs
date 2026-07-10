@@ -101,7 +101,7 @@ public partial class ResourcesModFilterView : UserControl
 
     private bool ShowsLoaderFilters()
     {
-        return DataContext is not ResourcesModPageViewModel viewModel || viewModel.ShowsLoaderFilters;
+        return DataContext is not ResourcesModPageViewModel viewModel || viewModel.ProjectList.ShowsLoaderFilters;
     }
 
     private void ApplyFilterColumnLayout(bool showsLoaderFilters)

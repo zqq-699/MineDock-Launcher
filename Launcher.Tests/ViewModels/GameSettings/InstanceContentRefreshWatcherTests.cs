@@ -18,6 +18,7 @@
  */
 
 using Launcher.App.ViewModels.GameSettings;
+using Launcher.App.Services;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -74,6 +75,39 @@ public sealed class InstanceContentRefreshWatcherTests
         Assert.True(firstWatch.IsDisposed);
         Assert.Equal(2, monitor.WatchCount);
         Assert.NotSame(firstWatch, monitor.Current);
+    }
+
+    [Fact]
+    public async Task RefreshCoordinatorDiscardsResultFromPreviousInstance()
+    {
+        var monitor = new RecordingDirectoryMonitor();
+        var firstSource = new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondSource = new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        IReadOnlyList<string> applied = [];
+        var first = CreateInstance();
+        var second = CreateInstance();
+        using var coordinator = new LocalContentRefreshCoordinator<string>(
+            monitor,
+            InstanceDirectoryKind.Saves,
+            (instance, _) => string.Equals(instance.Id, first.Id, StringComparison.Ordinal)
+                ? firstSource.Task
+                : secondSource.Task,
+            values => applied = values,
+            () => applied = [],
+            _ => { },
+            ImmediateUiDispatcher.Instance,
+            NullLogger.Instance);
+
+        coordinator.SetInstance(first);
+        var firstRefresh = coordinator.RefreshAsync();
+        coordinator.SetInstance(second);
+        var secondRefresh = coordinator.RefreshAsync();
+        secondSource.SetResult(["second"]);
+        await secondRefresh;
+        firstSource.SetResult(["first"]);
+        await firstRefresh;
+
+        Assert.Equal(["second"], applied);
     }
 
     private static GameInstance CreateInstance()

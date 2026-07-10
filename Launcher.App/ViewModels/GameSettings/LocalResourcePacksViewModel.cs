@@ -29,15 +29,10 @@ namespace Launcher.App.ViewModels.GameSettings;
 
 public sealed class LocalResourcePacksViewModel : IDisposable
 {
-    private readonly ILocalResourcePackService localResourcePackService;
+    private readonly ILocalResourcePackService service;
     private readonly IStatusService statusService;
-    private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<LocalResourcePacksViewModel> logger;
-    private readonly InstanceContentRefreshWatcher contentWatcher;
-    private CancellationTokenSource? refreshCancellationTokenSource;
-    private GameInstance? selectedInstance;
-    private IReadOnlyList<LocalResourcePack> currentResourcePacks = Array.Empty<LocalResourcePack>();
-    private int resourcePackRefreshVersion;
+    private readonly LocalContentRefreshCoordinator<LocalResourcePack> refreshCoordinator;
 
     public LocalResourcePacksViewModel(
         ILocalResourcePackService localResourcePackService,
@@ -46,15 +41,17 @@ public sealed class LocalResourcePacksViewModel : IDisposable
         IUiDispatcher? uiDispatcher = null,
         ILogger<LocalResourcePacksViewModel>? logger = null)
     {
-        this.localResourcePackService = localResourcePackService;
+        service = localResourcePackService;
         this.statusService = statusService;
-        this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<LocalResourcePacksViewModel>.Instance;
-        contentWatcher = new InstanceContentRefreshWatcher(
+        refreshCoordinator = new LocalContentRefreshCoordinator<LocalResourcePack>(
             instanceDirectoryMonitor,
             InstanceDirectoryKind.ResourcePacks,
-            RefreshResourcePacksAsync,
-            _ => this.uiDispatcher.Post(() => ReportStatus(Strings.Status_LoadLocalResourcePacksFailed)),
+            localResourcePackService.GetResourcePacksAsync,
+            Apply,
+            Clear,
+            _ => ReportStatus(Strings.Status_LoadLocalResourcePacksFailed),
+            uiDispatcher ?? ImmediateUiDispatcher.Instance,
             this.logger);
     }
 
@@ -62,35 +59,15 @@ public sealed class LocalResourcePacksViewModel : IDisposable
 
     public ObservableCollection<LocalResourcePack> ResourcePacks { get; } = [];
 
-    public IReadOnlyList<LocalResourcePack> CurrentResourcePacks => currentResourcePacks;
+    public IReadOnlyList<LocalResourcePack> CurrentResourcePacks => refreshCoordinator.CurrentItems;
 
-    public void SetSelectedInstance(GameInstance? instance)
-    {
-        selectedInstance = instance;
-        Interlocked.Increment(ref resourcePackRefreshVersion);
-        CancelRefresh();
-        contentWatcher.SetInstance(instance);
-        ClearResourcePacks();
-        logger.LogInformation(
-            "Selected instance changed for local resource packs view. InstanceId={InstanceId}",
-            instance?.Id ?? "<none>");
-    }
+    public void SetSelectedInstance(GameInstance? instance) => refreshCoordinator.SetInstance(instance);
 
-    public void SetWatcherEnabled(bool enabled)
-    {
-        contentWatcher.SetEnabled(enabled);
-    }
+    public void SetWatcherEnabled(bool enabled) => refreshCoordinator.SetWatcherEnabled(enabled);
 
-    public void SuspendWatcherForInstanceRename()
-    {
-        contentWatcher.Suspend();
-        CancelRefresh();
-    }
+    public void SuspendWatcherForInstanceRename() => refreshCoordinator.SuspendForRename();
 
-    public void ResumeWatcherAfterInstanceRename()
-    {
-        contentWatcher.Resume();
-    }
+    public void ResumeWatcherAfterInstanceRename() => refreshCoordinator.ResumeAfterRename();
 
     public Task SetSelectedInstanceAsync(GameInstance? instance)
     {
@@ -99,154 +76,54 @@ public sealed class LocalResourcePacksViewModel : IDisposable
         return RefreshResourcePacksAsync();
     }
 
-    public async Task RefreshResourcePacksAsync()
-    {
-        var refreshVersion = Interlocked.Increment(ref resourcePackRefreshVersion);
-        var refreshCts = ReplaceRefreshCancellationTokenSource();
-        var instance = selectedInstance;
-
-        if (instance is null)
-        {
-            ClearResourcePacks();
-            logger.LogInformation("Local resource packs view cleared because no instance is selected.");
-            return;
-        }
-
-        IReadOnlyList<LocalResourcePack> loadedResourcePacks;
-        try
-        {
-            loadedResourcePacks = await localResourcePackService.GetResourcePacksAsync(instance, refreshCts.Token);
-        }
-        catch (OperationCanceledException) when (refreshCts.IsCancellationRequested)
-        {
-            return;
-        }
-        catch (Exception exception)
-        {
-            logger.LogError(
-                exception,
-                "Failed to load local resource packs. InstanceId={InstanceId}",
-                instance.Id);
-            throw;
-        }
-        finally
-        {
-            ReleaseRefreshCancellationTokenSource(refreshCts);
-        }
-
-        if (refreshVersion != resourcePackRefreshVersion
-            || !string.Equals(instance.Id, selectedInstance?.Id, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        uiDispatcher.Invoke(() =>
-        {
-            currentResourcePacks = loadedResourcePacks;
-            ResourcePacks.ReplaceWith(loadedResourcePacks);
-            ResourcePacksChanged?.Invoke(this, EventArgs.Empty);
-        });
-        logger.LogInformation(
-            "Local resource packs view refreshed. InstanceId={InstanceId} Count={ResourcePackCount}",
-            instance.Id,
-            ResourcePacks.Count);
-    }
+    public Task RefreshResourcePacksAsync() => refreshCoordinator.RefreshAsync();
 
     public async Task<int> DeleteResourcePacksAsync(IEnumerable<LocalResourcePack> resourcePacks)
     {
-        ArgumentNullException.ThrowIfNull(resourcePacks);
-
-        var failedCount = 0;
-        foreach (var resourcePack in resourcePacks.DistinctBy(resourcePack => resourcePack.FullPath, StringComparer.OrdinalIgnoreCase))
-        {
-            try
-            {
-                await localResourcePackService.DeleteAsync(resourcePack);
-            }
-            catch (Exception exception)
-            {
-                failedCount++;
-                logger.LogWarning(
-                    exception,
-                    "Failed to delete local resource pack. Path={Path}",
-                    resourcePack.FullPath);
-            }
-        }
-
+        var failed = await LocalContentBatchExecutor.ExecuteAsync(
+            resourcePacks,
+            item => item.FullPath,
+            item => service.DeleteAsync(item),
+            (item, exception) => logger.LogWarning(exception, "Failed to delete local resource pack. Path={Path}", item.FullPath));
         await RefreshResourcePacksAsync();
-        return failedCount;
+        return failed;
     }
 
     public async Task<LocalResourcePackImportResult> ImportResourcePackAsync(string archivePath, bool reportStatus = true)
     {
-        if (selectedInstance is null || string.IsNullOrWhiteSpace(archivePath))
+        var instance = refreshCoordinator.SelectedInstance;
+        if (instance is null || string.IsNullOrWhiteSpace(archivePath))
             return LocalResourcePackImportResult.Failure(LocalResourcePackImportFailureReason.UnexpectedError);
-
-        var result = await localResourcePackService.ImportAsync(selectedInstance, archivePath);
+        var result = await service.ImportAsync(instance, archivePath);
         if (!result.IsSuccess)
         {
-            switch (result.FailureReason)
+            if (reportStatus)
             {
-                case LocalResourcePackImportFailureReason.FileNotFound:
-                    if (reportStatus)
-                        ReportStatus(Strings.Status_LocalResourcePackImportFileNotFound);
-                    break;
-                case LocalResourcePackImportFailureReason.UnexpectedError:
-                    if (reportStatus)
-                        ReportStatus(Strings.Status_LocalResourcePackImportFailed);
-                    break;
+                ReportStatus(result.FailureReason is LocalResourcePackImportFailureReason.FileNotFound
+                    ? Strings.Status_LocalResourcePackImportFileNotFound
+                    : Strings.Status_LocalResourcePackImportFailed);
             }
-
             return result;
         }
-
         await RefreshResourcePacksAsync();
         if (reportStatus)
             ReportStatus(Strings.Status_LocalResourcePackImported);
         return result;
     }
 
-    public void Dispose()
+    public void Dispose() => refreshCoordinator.Dispose();
+
+    private void Apply(IReadOnlyList<LocalResourcePack> items)
     {
-        contentWatcher.Dispose();
-        CancelRefresh();
+        ResourcePacks.ReplaceWith(items);
+        ResourcePacksChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void ReportStatus(string message)
+    private void Clear()
     {
-        statusService.Report(message);
+        ResourcePacks.Clear();
+        ResourcePacksChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void ClearResourcePacks()
-    {
-        uiDispatcher.Invoke(() =>
-        {
-            currentResourcePacks = Array.Empty<LocalResourcePack>();
-            ResourcePacks.Clear();
-            ResourcePacksChanged?.Invoke(this, EventArgs.Empty);
-        });
-    }
-
-    private void CancelRefresh()
-    {
-        refreshCancellationTokenSource?.Cancel();
-        refreshCancellationTokenSource?.Dispose();
-        refreshCancellationTokenSource = null;
-    }
-
-    private CancellationTokenSource ReplaceRefreshCancellationTokenSource()
-    {
-        var next = new CancellationTokenSource();
-        var previous = Interlocked.Exchange(ref refreshCancellationTokenSource, next);
-        previous?.Cancel();
-        previous?.Dispose();
-        return next;
-    }
-
-    private void ReleaseRefreshCancellationTokenSource(CancellationTokenSource refreshCts)
-    {
-        var current = Interlocked.CompareExchange(ref refreshCancellationTokenSource, null, refreshCts);
-        if (ReferenceEquals(current, refreshCts))
-            refreshCts.Dispose();
-    }
+    private void ReportStatus(string message) => statusService.Report(message);
 }

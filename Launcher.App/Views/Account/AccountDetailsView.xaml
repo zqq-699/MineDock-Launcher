@@ -190,18 +190,18 @@
                                         VerticalAlignment="Center">
                                 <Button Style="{StaticResource LauncherDialogButtonStyle}"
                                         Content="{x:Static res:Strings.Account_AddSkinButton}"
-                                        IsEnabled="{Binding Appearance.CanChangeSelectedAccountSkin}"
-                                        Command="{Binding Appearance.PickAndChangeSelectedAccountSkinCommand}" />
+                                        IsEnabled="{Binding Appearance.SkinLibrary.CanChangeSkin}"
+                                        Command="{Binding Appearance.SkinLibrary.PickAndChangeSkinCommand}" />
                                 <Button Style="{StaticResource LauncherDialogButtonStyle}"
                                         Margin="10,0,0,0"
                                         Content="{x:Static res:Strings.Account_ManageSkinButton}"
-                                        IsEnabled="{Binding Appearance.CanManageSelectedAccountSkins}"
-                                        Command="{Binding Appearance.RequestOpenSkinManagerDialogCommand}" />
+                                        IsEnabled="{Binding Appearance.SkinLibrary.CanManageSkins}"
+                                        Command="{Binding Appearance.SkinLibrary.RequestOpenManagerDialogCommand}" />
                                 <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                                         Margin="10,0,0,0"
                                         Content="{x:Static res:Strings.Apply_Button}"
-                                        IsEnabled="{Binding Appearance.CanApplySelectedAccountSkin}"
-                                        Command="{Binding Appearance.ApplySelectedAccountSkinCommand}" />
+                                        IsEnabled="{Binding Appearance.SkinLibrary.CanApplySkin}"
+                                        Command="{Binding Appearance.SkinLibrary.ApplySkinCommand}" />
                             </StackPanel>
                         </Grid>
                     </GroupBox.Header>
@@ -211,12 +211,12 @@
                                                                    Width="540"
                                                                    Height="206"
                                                                    HorizontalAlignment="Center"
-                                                                   PreviousSkin="{Binding Appearance.PreviousAccountSkin}"
+                                                                   PreviousSkin="{Binding Appearance.SkinLibrary.PreviousSkin}"
                                                                    SelectedSkin="{Binding Appearance.SkinLibrary.SelectedSkin}"
-                                                                   NextSkin="{Binding Appearance.NextAccountSkin}"
-                                                                   PreviousCommand="{Binding Appearance.SelectPreviousAccountSkinCommand}"
-                                                                   NextCommand="{Binding Appearance.SelectNextAccountSkinCommand}"
-                                                                   Visibility="{Binding Appearance.HasSelectedAccountSkinPreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                                                                   NextSkin="{Binding Appearance.SkinLibrary.NextSkin}"
+                                                                   PreviousCommand="{Binding Appearance.SkinLibrary.SelectPreviousCommand}"
+                                                                   NextCommand="{Binding Appearance.SkinLibrary.SelectNextCommand}"
+                                                                   Visibility="{Binding Appearance.SkinLibrary.HasPreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                             <TextBlock Width="240"
                                        Margin="14"
                                        Text="{x:Static res:Strings.Account_SkinPreviewEmpty}"
@@ -226,7 +226,7 @@
                                        TextWrapping="Wrap"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
-                                       Visibility="{Binding Appearance.CanShowSelectedAccountSkinPreviewEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                                       Visibility="{Binding Appearance.SkinLibrary.CanShowPreviewEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                             <TextBlock Width="260"
                                        Margin="14"
                                        Text="{x:Static res:Strings.Account_AppearanceOfflineUnsupported}"
@@ -236,7 +236,7 @@
                                        TextWrapping="Wrap"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
-                                       Visibility="{Binding Appearance.CanShowSelectedAccountAppearanceOfflineState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                                       Visibility="{Binding Appearance.SkinLibrary.IsOffline, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                         </Grid>
                     </StackPanel>
                 </GroupBox>
@@ -261,13 +261,13 @@
                                         VerticalAlignment="Center">
                                 <Button Style="{StaticResource LauncherDialogButtonStyle}"
                                         Content="{x:Static res:Strings.Refresh_Button}"
-                                        IsEnabled="{Binding Appearance.CanEditSelectedMicrosoftAccount}"
-                                        Command="{Binding Appearance.RefreshSelectedAccountProfileCommand}" />
+                                        IsEnabled="{Binding Appearance.Cape.CanRefresh}"
+                                        Command="{Binding Appearance.Cape.RefreshCommand}" />
                                 <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                                         Margin="10,0,0,0"
                                         Content="{x:Static res:Strings.Apply_Button}"
-                                        IsEnabled="{Binding Appearance.CanApplySelectedCape}"
-                                        Command="{Binding Appearance.ApplySelectedAccountCapeCommand}" />
+                                        IsEnabled="{Binding Appearance.Cape.CanApply}"
+                                        Command="{Binding Appearance.Cape.ApplyCommand}" />
                             </StackPanel>
                         </Grid>
                     </GroupBox.Header>
@@ -276,12 +276,12 @@
                             <accountControls:CapeCarousel3DControl Width="540"
                                                                    Height="192"
                                                                    HorizontalAlignment="Center"
-                                                                   PreviousCape="{Binding Appearance.PreviousAccountCape}"
+                                                                   PreviousCape="{Binding Appearance.Cape.PreviousOption}"
                                                                    SelectedCape="{Binding Appearance.Cape.SelectedOption}"
-                                                                   NextCape="{Binding Appearance.NextAccountCape}"
-                                                                   PreviousCommand="{Binding Appearance.SelectPreviousAccountCapeCommand}"
-                                                                   NextCommand="{Binding Appearance.SelectNextAccountCapeCommand}"
-                                                                   Visibility="{Binding Appearance.HasSelectedAccountCapePreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                                                                   NextCape="{Binding Appearance.Cape.NextOption}"
+                                                                   PreviousCommand="{Binding Appearance.Cape.SelectPreviousCommand}"
+                                                                   NextCommand="{Binding Appearance.Cape.SelectNextCommand}"
+                                                                   Visibility="{Binding Appearance.Cape.HasPreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                             <TextBlock Width="260"
                                        Margin="14"
                                        Text="{x:Static res:Strings.Account_AppearanceOfflineUnsupported}"
@@ -291,10 +291,10 @@
                                        TextWrapping="Wrap"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
-                                       Visibility="{Binding Appearance.CanShowSelectedAccountAppearanceOfflineState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                                       Visibility="{Binding Appearance.Cape.IsOffline, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                         </Grid>
                         <StackPanel HorizontalAlignment="Center"
-                                    Visibility="{Binding Appearance.HasSelectedAccountCapePreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                                    Visibility="{Binding Appearance.Cape.HasPreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
                             <TextBlock Text="{Binding Appearance.Cape.SelectedOption, Converter={StaticResource CapeDisplayNameConverter}}"
                                        Foreground="{DynamicResource Brush.F4F4F4}"
                                        FontSize="13"

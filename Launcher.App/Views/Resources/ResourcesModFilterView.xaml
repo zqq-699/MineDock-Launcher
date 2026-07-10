@@ -81,8 +81,8 @@
 
                 <controls:AnimatedComboBox x:Name="VersionFilterComboBox"
                                            Grid.Column="1"
-                                           ItemsSource="{Binding VersionOptions}"
-                                           SelectedItem="{Binding SelectedVersionOption, Mode=TwoWay}"
+                                           ItemsSource="{Binding ProjectList.VersionOptions}"
+                                           SelectedItem="{Binding ProjectList.SelectedVersionOption, Mode=TwoWay}"
                                            ItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
                                            SelectionItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
                                            Style="{StaticResource ResourcesFilterComboBoxStyle}" />
@@ -90,7 +90,7 @@
 
             <Grid x:Name="LoaderFilterGroup"
                   Grid.Column="2"
-                  Visibility="{Binding ShowsLoaderFilters, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                  Visibility="{Binding ProjectList.ShowsLoaderFilters, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
@@ -102,8 +102,8 @@
 
                 <controls:AnimatedComboBox x:Name="LoaderFilterComboBox"
                                            Grid.Column="1"
-                                           ItemsSource="{Binding LoaderOptions}"
-                                           SelectedItem="{Binding SelectedLoaderOption, Mode=TwoWay}"
+                                           ItemsSource="{Binding ProjectList.LoaderOptions}"
+                                           SelectedItem="{Binding ProjectList.SelectedLoaderOption, Mode=TwoWay}"
                                            ItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
                                            SelectionItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
                                            Style="{StaticResource ResourcesFilterComboBoxStyle}" />
@@ -111,7 +111,7 @@
 
             <Grid x:Name="SourceFilterGroup"
                   Grid.Column="4"
-                  Visibility="{Binding ShowsSourceFilters, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                  Visibility="{Binding ProjectList.ShowsSourceFilters, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
@@ -123,8 +123,8 @@
 
                 <controls:AnimatedComboBox x:Name="SourceFilterComboBox"
                                            Grid.Column="1"
-                                           ItemsSource="{Binding SourceOptions}"
-                                           SelectedItem="{Binding SelectedSourceOption, Mode=TwoWay}"
+                                           ItemsSource="{Binding ProjectList.SourceOptions}"
+                                           SelectedItem="{Binding ProjectList.SelectedSourceOption, Mode=TwoWay}"
                                            ItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
                                            SelectionItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
                                            Style="{StaticResource ResourcesFilterComboBoxStyle}" />
@@ -143,8 +143,8 @@
 
                 <controls:AnimatedComboBox x:Name="TypeFilterComboBox"
                                            Grid.Column="1"
-                                           ItemsSource="{Binding TypeOptions}"
-                                           SelectedItem="{Binding SelectedTypeOption, Mode=TwoWay}"
+                                           ItemsSource="{Binding ProjectList.TypeOptions}"
+                                           SelectedItem="{Binding ProjectList.SelectedTypeOption, Mode=TwoWay}"
                                            ItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
                                            SelectionItemTemplate="{StaticResource ResourcesFilterOptionTemplate}"
                                            Style="{StaticResource ResourcesFilterComboBoxStyle}" />
@@ -157,6 +157,6 @@
                 Content="{x:Static res:Strings.Resources_ModFilterButtonLabel}"
                 Style="{StaticResource ResourcesCompactFilterButtonStyle}"
                 Visibility="Collapsed"
-                Command="{Binding OpenFilterDialogCommand}" />
+                Command="{Binding ProjectList.OpenFilterDialogCommand}" />
     </Grid>
 </UserControl>

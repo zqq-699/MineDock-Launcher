@@ -35,6 +35,7 @@ public partial class ResourcesModPageView : UserControl
     private ScrollViewer? scrollViewer;
     private ScrollViewer? versionScrollViewer;
     private INotifyPropertyChanged? currentViewModelNotifier;
+    private INotifyPropertyChanged? currentVersionsNotifier;
     private bool isVersionAutoLoadQueued;
 
     public ResourcesModPageView()
@@ -90,6 +91,12 @@ public partial class ResourcesModPageView : UserControl
         if (currentViewModelNotifier is not null)
             currentViewModelNotifier.PropertyChanged += ResourcesModPageViewModel_OnPropertyChanged;
 
+        if (e.NewValue is ResourcesModPageViewModel viewModel)
+        {
+            currentVersionsNotifier = viewModel.Versions;
+            currentVersionsNotifier.PropertyChanged += ResourcesProjectVersionsViewModel_OnPropertyChanged;
+        }
+
         stepTransition.Sync(IsProjectContentStep());
         detailsTransition.Sync(IsProjectVersionsStep());
     }
@@ -105,7 +112,11 @@ public partial class ResourcesModPageView : UserControl
         if (currentViewModelNotifier is not null)
             currentViewModelNotifier.PropertyChanged -= ResourcesModPageViewModel_OnPropertyChanged;
 
+        if (currentVersionsNotifier is not null)
+            currentVersionsNotifier.PropertyChanged -= ResourcesProjectVersionsViewModel_OnPropertyChanged;
+
         currentViewModelNotifier = null;
+        currentVersionsNotifier = null;
     }
 
     private void ResourcesModPageViewModel_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -122,11 +133,15 @@ public partial class ResourcesModPageView : UserControl
             }
         }
 
-        if (sender is ResourcesModPageViewModel
-            && e.PropertyName is nameof(ResourcesModPageViewModel.IsLoadingAvailableVersions)
-                or nameof(ResourcesModPageViewModel.IsLoadingMoreAvailableVersions)
-                or nameof(ResourcesModPageViewModel.HasMoreAvailableVersions)
-                or nameof(ResourcesModPageViewModel.VisibleAvailableVersionCount))
+    }
+
+    private void ResourcesProjectVersionsViewModel_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is ResourcesProjectVersionsViewModel
+            && e.PropertyName is nameof(ResourcesProjectVersionsViewModel.IsLoading)
+                or nameof(ResourcesProjectVersionsViewModel.IsLoadingMore)
+                or nameof(ResourcesProjectVersionsViewModel.HasMore)
+                or nameof(ResourcesProjectVersionsViewModel.VisibleVersionCount))
         {
             QueueVersionAutoLoadIfNeeded();
         }
@@ -231,9 +246,9 @@ public partial class ResourcesModPageView : UserControl
     {
         if (DataContext is not ResourcesModPageViewModel viewModel
             || viewModel.CurrentStep is not ResourcesModPageStep.ProjectVersions
-            || !viewModel.HasMoreAvailableVersions
-            || viewModel.IsLoadingAvailableVersions
-            || viewModel.IsLoadingMoreAvailableVersions)
+            || !viewModel.Versions.HasMore
+            || viewModel.Versions.IsLoading
+            || viewModel.Versions.IsLoadingMore)
         {
             return;
         }

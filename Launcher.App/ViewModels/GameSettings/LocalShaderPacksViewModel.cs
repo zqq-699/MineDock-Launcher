@@ -29,15 +29,10 @@ namespace Launcher.App.ViewModels.GameSettings;
 
 public sealed class LocalShaderPacksViewModel : IDisposable
 {
-    private readonly ILocalShaderPackService localShaderPackService;
+    private readonly ILocalShaderPackService service;
     private readonly IStatusService statusService;
-    private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<LocalShaderPacksViewModel> logger;
-    private readonly InstanceContentRefreshWatcher contentWatcher;
-    private CancellationTokenSource? refreshCancellationTokenSource;
-    private GameInstance? selectedInstance;
-    private IReadOnlyList<LocalShaderPack> currentShaderPacks = Array.Empty<LocalShaderPack>();
-    private int shaderPackRefreshVersion;
+    private readonly LocalContentRefreshCoordinator<LocalShaderPack> refreshCoordinator;
 
     public LocalShaderPacksViewModel(
         ILocalShaderPackService localShaderPackService,
@@ -46,15 +41,17 @@ public sealed class LocalShaderPacksViewModel : IDisposable
         IUiDispatcher? uiDispatcher = null,
         ILogger<LocalShaderPacksViewModel>? logger = null)
     {
-        this.localShaderPackService = localShaderPackService;
+        service = localShaderPackService;
         this.statusService = statusService;
-        this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<LocalShaderPacksViewModel>.Instance;
-        contentWatcher = new InstanceContentRefreshWatcher(
+        refreshCoordinator = new LocalContentRefreshCoordinator<LocalShaderPack>(
             instanceDirectoryMonitor,
             InstanceDirectoryKind.ShaderPacks,
-            RefreshShaderPacksAsync,
-            _ => this.uiDispatcher.Post(() => ReportStatus(Strings.Status_LoadLocalShaderPacksFailed)),
+            localShaderPackService.GetShaderPacksAsync,
+            Apply,
+            Clear,
+            _ => ReportStatus(Strings.Status_LoadLocalShaderPacksFailed),
+            uiDispatcher ?? ImmediateUiDispatcher.Instance,
             this.logger);
     }
 
@@ -62,35 +59,15 @@ public sealed class LocalShaderPacksViewModel : IDisposable
 
     public ObservableCollection<LocalShaderPack> ShaderPacks { get; } = [];
 
-    public IReadOnlyList<LocalShaderPack> CurrentShaderPacks => currentShaderPacks;
+    public IReadOnlyList<LocalShaderPack> CurrentShaderPacks => refreshCoordinator.CurrentItems;
 
-    public void SetSelectedInstance(GameInstance? instance)
-    {
-        selectedInstance = instance;
-        Interlocked.Increment(ref shaderPackRefreshVersion);
-        CancelRefresh();
-        contentWatcher.SetInstance(instance);
-        ClearShaderPacks();
-        logger.LogInformation(
-            "Selected instance changed for local shader packs view. InstanceId={InstanceId}",
-            instance?.Id ?? "<none>");
-    }
+    public void SetSelectedInstance(GameInstance? instance) => refreshCoordinator.SetInstance(instance);
 
-    public void SetWatcherEnabled(bool enabled)
-    {
-        contentWatcher.SetEnabled(enabled);
-    }
+    public void SetWatcherEnabled(bool enabled) => refreshCoordinator.SetWatcherEnabled(enabled);
 
-    public void SuspendWatcherForInstanceRename()
-    {
-        contentWatcher.Suspend();
-        CancelRefresh();
-    }
+    public void SuspendWatcherForInstanceRename() => refreshCoordinator.SuspendForRename();
 
-    public void ResumeWatcherAfterInstanceRename()
-    {
-        contentWatcher.Resume();
-    }
+    public void ResumeWatcherAfterInstanceRename() => refreshCoordinator.ResumeAfterRename();
 
     public Task SetSelectedInstanceAsync(GameInstance? instance)
     {
@@ -99,154 +76,54 @@ public sealed class LocalShaderPacksViewModel : IDisposable
         return RefreshShaderPacksAsync();
     }
 
-    public async Task RefreshShaderPacksAsync()
-    {
-        var refreshVersion = Interlocked.Increment(ref shaderPackRefreshVersion);
-        var refreshCts = ReplaceRefreshCancellationTokenSource();
-        var instance = selectedInstance;
-
-        if (instance is null)
-        {
-            ClearShaderPacks();
-            logger.LogInformation("Local shader packs view cleared because no instance is selected.");
-            return;
-        }
-
-        IReadOnlyList<LocalShaderPack> loadedShaderPacks;
-        try
-        {
-            loadedShaderPacks = await localShaderPackService.GetShaderPacksAsync(instance, refreshCts.Token);
-        }
-        catch (OperationCanceledException) when (refreshCts.IsCancellationRequested)
-        {
-            return;
-        }
-        catch (Exception exception)
-        {
-            logger.LogError(
-                exception,
-                "Failed to load local shader packs. InstanceId={InstanceId}",
-                instance.Id);
-            throw;
-        }
-        finally
-        {
-            ReleaseRefreshCancellationTokenSource(refreshCts);
-        }
-
-        if (refreshVersion != shaderPackRefreshVersion
-            || !string.Equals(instance.Id, selectedInstance?.Id, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        uiDispatcher.Invoke(() =>
-        {
-            currentShaderPacks = loadedShaderPacks;
-            ShaderPacks.ReplaceWith(loadedShaderPacks);
-            ShaderPacksChanged?.Invoke(this, EventArgs.Empty);
-        });
-        logger.LogInformation(
-            "Local shader packs view refreshed. InstanceId={InstanceId} Count={ShaderPackCount}",
-            instance.Id,
-            ShaderPacks.Count);
-    }
+    public Task RefreshShaderPacksAsync() => refreshCoordinator.RefreshAsync();
 
     public async Task<int> DeleteShaderPacksAsync(IEnumerable<LocalShaderPack> shaderPacks)
     {
-        ArgumentNullException.ThrowIfNull(shaderPacks);
-
-        var failedCount = 0;
-        foreach (var shaderPack in shaderPacks.DistinctBy(shaderPack => shaderPack.FullPath, StringComparer.OrdinalIgnoreCase))
-        {
-            try
-            {
-                await localShaderPackService.DeleteAsync(shaderPack);
-            }
-            catch (Exception exception)
-            {
-                failedCount++;
-                logger.LogWarning(
-                    exception,
-                    "Failed to delete local shader pack. Path={Path}",
-                    shaderPack.FullPath);
-            }
-        }
-
+        var failed = await LocalContentBatchExecutor.ExecuteAsync(
+            shaderPacks,
+            item => item.FullPath,
+            item => service.DeleteAsync(item),
+            (item, exception) => logger.LogWarning(exception, "Failed to delete local shader pack. Path={Path}", item.FullPath));
         await RefreshShaderPacksAsync();
-        return failedCount;
+        return failed;
     }
 
     public async Task<LocalShaderPackImportResult> ImportShaderPackAsync(string archivePath, bool reportStatus = true)
     {
-        if (selectedInstance is null || string.IsNullOrWhiteSpace(archivePath))
+        var instance = refreshCoordinator.SelectedInstance;
+        if (instance is null || string.IsNullOrWhiteSpace(archivePath))
             return LocalShaderPackImportResult.Failure(LocalShaderPackImportFailureReason.UnexpectedError);
-
-        var result = await localShaderPackService.ImportAsync(selectedInstance, archivePath);
+        var result = await service.ImportAsync(instance, archivePath);
         if (!result.IsSuccess)
         {
-            switch (result.FailureReason)
+            if (reportStatus)
             {
-                case LocalShaderPackImportFailureReason.FileNotFound:
-                    if (reportStatus)
-                        ReportStatus(Strings.Status_LocalShaderPackImportFileNotFound);
-                    break;
-                case LocalShaderPackImportFailureReason.UnexpectedError:
-                    if (reportStatus)
-                        ReportStatus(Strings.Status_LocalShaderPackImportFailed);
-                    break;
+                ReportStatus(result.FailureReason is LocalShaderPackImportFailureReason.FileNotFound
+                    ? Strings.Status_LocalShaderPackImportFileNotFound
+                    : Strings.Status_LocalShaderPackImportFailed);
             }
-
             return result;
         }
-
         await RefreshShaderPacksAsync();
         if (reportStatus)
             ReportStatus(Strings.Status_LocalShaderPackImported);
         return result;
     }
 
-    public void Dispose()
+    public void Dispose() => refreshCoordinator.Dispose();
+
+    private void Apply(IReadOnlyList<LocalShaderPack> items)
     {
-        contentWatcher.Dispose();
-        CancelRefresh();
+        ShaderPacks.ReplaceWith(items);
+        ShaderPacksChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void ReportStatus(string message)
+    private void Clear()
     {
-        statusService.Report(message);
+        ShaderPacks.Clear();
+        ShaderPacksChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void ClearShaderPacks()
-    {
-        uiDispatcher.Invoke(() =>
-        {
-            currentShaderPacks = Array.Empty<LocalShaderPack>();
-            ShaderPacks.Clear();
-            ShaderPacksChanged?.Invoke(this, EventArgs.Empty);
-        });
-    }
-
-    private void CancelRefresh()
-    {
-        refreshCancellationTokenSource?.Cancel();
-        refreshCancellationTokenSource?.Dispose();
-        refreshCancellationTokenSource = null;
-    }
-
-    private CancellationTokenSource ReplaceRefreshCancellationTokenSource()
-    {
-        var next = new CancellationTokenSource();
-        var previous = Interlocked.Exchange(ref refreshCancellationTokenSource, next);
-        previous?.Cancel();
-        previous?.Dispose();
-        return next;
-    }
-
-    private void ReleaseRefreshCancellationTokenSource(CancellationTokenSource refreshCts)
-    {
-        var current = Interlocked.CompareExchange(ref refreshCancellationTokenSource, null, refreshCts);
-        if (ReferenceEquals(current, refreshCts))
-            refreshCts.Dispose();
-    }
+    private void ReportStatus(string message) => statusService.Report(message);
 }

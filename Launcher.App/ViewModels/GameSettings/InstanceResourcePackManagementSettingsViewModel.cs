@@ -704,72 +704,21 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
 
     private void SetVisibleResourcePacks(IReadOnlyList<ResourcePackManagementItemViewModel> resourcePacks)
     {
-        if (IsSameVisibleResourcePacks(resourcePacks))
+        if (LocalContentListPresentation.HasSameReferences(VisibleResourcePacks, resourcePacks))
             return;
 
         VisibleResourcePacks = resourcePacks;
     }
 
-    private bool IsSameVisibleResourcePacks(IReadOnlyList<ResourcePackManagementItemViewModel> resourcePacks)
-    {
-        if (VisibleResourcePacks.Count != resourcePacks.Count)
-            return false;
-
-        for (var index = 0; index < resourcePacks.Count; index++)
-        {
-            if (!ReferenceEquals(VisibleResourcePacks[index], resourcePacks[index]))
-                return false;
-        }
-
-        return true;
-    }
-
     private void RefreshVisibleResourcePackListItems()
     {
-        if (!CanShowResourcePackInfoSection)
-        {
-            if (VisibleResourcePackListItems.Count > 0)
-                VisibleResourcePackListItems = Array.Empty<object>();
-            return;
-        }
-
-        if (IsSameVisibleResourcePackListItems())
-            return;
-
-        var hasListSection = VisibleResourcePacks.Count > 0;
-        var items = new object[VisibleResourcePacks.Count + (hasListSection ? 2 : 1)];
-        items[0] = ResourcePackManagementInfoPanelItem.Instance;
-        if (hasListSection)
-            items[1] = ResourcePackManagementListSectionItem.Instance;
-
-        for (var index = 0; index < VisibleResourcePacks.Count; index++)
-            items[index + (hasListSection ? 2 : 1)] = VisibleResourcePacks[index];
-
-        VisibleResourcePackListItems = items;
-    }
-
-    private bool IsSameVisibleResourcePackListItems()
-    {
-        var hasListSection = VisibleResourcePacks.Count > 0;
-        if (VisibleResourcePackListItems.Count != VisibleResourcePacks.Count + (hasListSection ? 2 : 1))
-            return false;
-
-        if (!ReferenceEquals(VisibleResourcePackListItems[0], ResourcePackManagementInfoPanelItem.Instance))
-            return false;
-
-        if (!hasListSection)
-            return true;
-
-        if (!ReferenceEquals(VisibleResourcePackListItems[1], ResourcePackManagementListSectionItem.Instance))
-            return false;
-
-        for (var index = 0; index < VisibleResourcePacks.Count; index++)
-        {
-            if (!ReferenceEquals(VisibleResourcePackListItems[index + 2], VisibleResourcePacks[index]))
-                return false;
-        }
-
-        return true;
+        var items = LocalContentListPresentation.CreateSectionedItems(
+            VisibleResourcePacks,
+            ResourcePackManagementInfoPanelItem.Instance,
+            ResourcePackManagementListSectionItem.Instance,
+            CanShowResourcePackInfoSection);
+        if (!LocalContentListPresentation.HasSameReferences(VisibleResourcePackListItems, items))
+            VisibleResourcePackListItems = items;
     }
 
     private async Task ImportResourcePackArchivesAsync(IReadOnlyList<string> archivePaths, ImportTriggerSource source)
@@ -847,11 +796,12 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         string invalidTypeMessage,
         out string failureMessage)
     {
-        var validation = importPathValidator.Validate(paths, InstanceContentImportKind.ResourcePack);
-        failureMessage = validation.Failure is InstanceContentImportPathFailure.DirectoryNotSupported
-            ? Strings.GameSettings_DropFoldersUnsupportedMessage
-            : validation.IsValid ? string.Empty : invalidTypeMessage;
-        return validation.IsValid;
+        return LocalContentImportPathEvaluator.TryValidate(
+            importPathValidator,
+            paths,
+            InstanceContentImportKind.ResourcePack,
+            invalidTypeMessage,
+            out failureMessage);
     }
 }
 

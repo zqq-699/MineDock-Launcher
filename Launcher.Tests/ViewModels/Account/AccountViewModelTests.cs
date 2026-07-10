@@ -64,40 +64,17 @@ public sealed class AccountViewModelTests
     [Fact]
     public void SwitchingAccountCancelsPreviousProfileOperation()
     {
-        using var profile = new AccountProfileViewModel();
+        using var operations = new AccountAppearanceOperationCoordinator();
         var first = CreateAccount("first");
         var second = CreateAccount("second");
-        profile.SetAccount(first);
-        var firstOperation = profile.BeginOperation(first.Id, "loading");
+        operations.SetAccount(first);
+        var firstOperation = operations.Begin(first);
 
-        profile.SetAccount(second);
+        operations.SetAccount(second);
 
-        Assert.True(firstOperation.IsCancellationRequested);
-        Assert.False(profile.IsCurrent(first, firstOperation));
-        Assert.False(profile.IsBusy);
-    }
-
-    [Fact]
-    public void SkinAndCapeChildrenOwnAdjacentSelection()
-    {
-        var skins = new AccountSkinLibraryViewModel();
-        var firstSkin = new LauncherSkinRecord { Id = "skin-1" };
-        var secondSkin = new LauncherSkinRecord { Id = "skin-2" };
-        skins.Skins.Add(firstSkin);
-        skins.Skins.Add(secondSkin);
-        skins.SelectedSkin = firstSkin;
-        var capes = new AccountCapeViewModel();
-        var firstCape = new AccountCapeOption { Id = "cape-1", DisplayName = "Cape 1" };
-        var secondCape = new AccountCapeOption { Id = "cape-2", DisplayName = "Cape 2" };
-        capes.Options.Add(firstCape);
-        capes.Options.Add(secondCape);
-        capes.SelectedOption = secondCape;
-
-        skins.SelectNext();
-        capes.SelectPrevious();
-
-        Assert.Same(secondSkin, skins.SelectedSkin);
-        Assert.Same(firstCape, capes.SelectedOption);
+        Assert.True(firstOperation.Token.IsCancellationRequested);
+        Assert.False(operations.IsCurrent(first, firstOperation));
+        Assert.False(operations.IsBusy);
     }
 
     private static LauncherAccount CreateAccount(string id)

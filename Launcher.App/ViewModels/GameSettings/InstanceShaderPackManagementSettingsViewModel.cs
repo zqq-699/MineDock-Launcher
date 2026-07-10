@@ -704,72 +704,21 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
 
     private void SetVisibleShaderPacks(IReadOnlyList<ShaderPackManagementItemViewModel> shaderPacks)
     {
-        if (IsSameVisibleShaderPacks(shaderPacks))
+        if (LocalContentListPresentation.HasSameReferences(VisibleShaderPacks, shaderPacks))
             return;
 
         VisibleShaderPacks = shaderPacks;
     }
 
-    private bool IsSameVisibleShaderPacks(IReadOnlyList<ShaderPackManagementItemViewModel> shaderPacks)
-    {
-        if (VisibleShaderPacks.Count != shaderPacks.Count)
-            return false;
-
-        for (var index = 0; index < shaderPacks.Count; index++)
-        {
-            if (!ReferenceEquals(VisibleShaderPacks[index], shaderPacks[index]))
-                return false;
-        }
-
-        return true;
-    }
-
     private void RefreshVisibleShaderPackListItems()
     {
-        if (!CanShowShaderPackInfoSection)
-        {
-            if (VisibleShaderPackListItems.Count > 0)
-                VisibleShaderPackListItems = Array.Empty<object>();
-            return;
-        }
-
-        if (IsSameVisibleShaderPackListItems())
-            return;
-
-        var hasListSection = VisibleShaderPacks.Count > 0;
-        var items = new object[VisibleShaderPacks.Count + (hasListSection ? 2 : 1)];
-        items[0] = ShaderPackManagementInfoPanelItem.Instance;
-        if (hasListSection)
-            items[1] = ShaderPackManagementListSectionItem.Instance;
-
-        for (var index = 0; index < VisibleShaderPacks.Count; index++)
-            items[index + (hasListSection ? 2 : 1)] = VisibleShaderPacks[index];
-
-        VisibleShaderPackListItems = items;
-    }
-
-    private bool IsSameVisibleShaderPackListItems()
-    {
-        var hasListSection = VisibleShaderPacks.Count > 0;
-        if (VisibleShaderPackListItems.Count != VisibleShaderPacks.Count + (hasListSection ? 2 : 1))
-            return false;
-
-        if (!ReferenceEquals(VisibleShaderPackListItems[0], ShaderPackManagementInfoPanelItem.Instance))
-            return false;
-
-        if (!hasListSection)
-            return true;
-
-        if (!ReferenceEquals(VisibleShaderPackListItems[1], ShaderPackManagementListSectionItem.Instance))
-            return false;
-
-        for (var index = 0; index < VisibleShaderPacks.Count; index++)
-        {
-            if (!ReferenceEquals(VisibleShaderPackListItems[index + 2], VisibleShaderPacks[index]))
-                return false;
-        }
-
-        return true;
+        var items = LocalContentListPresentation.CreateSectionedItems(
+            VisibleShaderPacks,
+            ShaderPackManagementInfoPanelItem.Instance,
+            ShaderPackManagementListSectionItem.Instance,
+            CanShowShaderPackInfoSection);
+        if (!LocalContentListPresentation.HasSameReferences(VisibleShaderPackListItems, items))
+            VisibleShaderPackListItems = items;
     }
 
     private async Task ImportShaderPackArchivesAsync(IReadOnlyList<string> archivePaths, ImportTriggerSource source)
@@ -847,11 +796,12 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         string invalidTypeMessage,
         out string failureMessage)
     {
-        var validation = importPathValidator.Validate(paths, InstanceContentImportKind.ShaderPack);
-        failureMessage = validation.Failure is InstanceContentImportPathFailure.DirectoryNotSupported
-            ? Strings.GameSettings_DropFoldersUnsupportedMessage
-            : validation.IsValid ? string.Empty : invalidTypeMessage;
-        return validation.IsValid;
+        return LocalContentImportPathEvaluator.TryValidate(
+            importPathValidator,
+            paths,
+            InstanceContentImportKind.ShaderPack,
+            invalidTypeMessage,
+            out failureMessage);
     }
 }
 

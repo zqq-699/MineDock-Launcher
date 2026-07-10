@@ -17,7 +17,9 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.Utilities;
@@ -39,9 +41,19 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger? logger;
     private readonly Action<string> reportStatus;
+    private TaskCompletionSource<RequiredDependenciesDialogChoice>? pendingDependenciesChoice;
 
     [ObservableProperty]
     private bool isInstalling;
+
+    [ObservableProperty]
+    private bool isFileExistsDialogOpen;
+
+    [ObservableProperty]
+    private string fileExistsDialogMessage = string.Empty;
+
+    [ObservableProperty]
+    private bool isRequiredDependenciesDialogOpen;
 
     internal ResourcesProjectInstallViewModel(
         ResourcesOnlineProjectPageOptions options,
@@ -65,17 +77,41 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
         this.reportStatus = reportStatus;
     }
 
-    public event Action<ResourcesModVersionItemViewModel>? FileExistsRequested;
-
     public event EventHandler<GameInstance>? ModpackImported;
 
     public event EventHandler<ResourcesModpackManualDownloadsRequestedEventArgs>? ModpackManualDownloadsRequested;
 
+    public ObservableCollection<ResourcesModDependencyRequirementItemViewModel> RequiredDependencyDialogItems { get; } = [];
+
+    [RelayCommand]
+    private void CloseFileExistsDialog()
+    {
+        IsFileExistsDialogOpen = false;
+        FileExistsDialogMessage = string.Empty;
+    }
+
+    [RelayCommand]
+    private void CancelRequiredDependenciesDialog()
+    {
+        ResolveDependenciesDialog(RequiredDependenciesDialogChoice.Cancel);
+    }
+
+    [RelayCommand]
+    private void ContinueWithoutRequiredDependencies()
+    {
+        ResolveDependenciesDialog(RequiredDependenciesDialogChoice.ContinueWithoutDependencies);
+    }
+
+    [RelayCommand]
+    private void AutoInstallRequiredDependencies()
+    {
+        ResolveDependenciesDialog(RequiredDependenciesDialogChoice.AutoInstallDependencies);
+    }
+
     internal async Task InstallAsync(
         ResourcesModVersionItemViewModel? item,
         ResourcesModInstallTargetItemViewModel? target,
-        ResourcesModProjectItemViewModel? selectedProject,
-        Func<IReadOnlyList<ResourcesModDependencyRequirementItemViewModel>, Task<RequiredDependenciesDialogChoice>> requestDependenciesDialogAsync)
+        ResourcesModProjectItemViewModel? selectedProject)
     {
         if (item is null || target is null || installationService is null || IsInstalling)
             return;
@@ -95,7 +131,7 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
                     TargetDirectory: targetDirectory);
                 if ((await installationService.PrepareAsync(request).ConfigureAwait(false)).TargetExists)
                 {
-                    FileExistsRequested?.Invoke(item);
+                    ShowFileExists(item);
                     return;
                 }
 
@@ -147,7 +183,7 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
                 Instance: instance);
             if ((await installationService.PrepareAsync(instanceRequest).ConfigureAwait(false)).TargetExists)
             {
-                FileExistsRequested?.Invoke(item);
+                ShowFileExists(item);
                 return;
             }
 
@@ -155,7 +191,7 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
                 item,
                 instance,
                 selectedProject?.Project.ProjectId,
-                requestDependenciesDialogAsync,
+                RequestDependenciesDialogAsync,
                 CancellationToken.None).ConfigureAwait(false);
             if (dependencyPlan.Choice is RequiredDependenciesDialogChoice.Cancel)
                 return;
@@ -227,6 +263,40 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
         {
             IsInstalling = false;
         }
+    }
+
+    private void ShowFileExists(ResourcesModVersionItemViewModel item)
+    {
+        uiDispatcher.Invoke(() =>
+        {
+            var fileName = string.IsNullOrWhiteSpace(item.Version.FileName) ? item.Title : item.Version.FileName;
+            FileExistsDialogMessage = string.Format(options.FileExistsMessageFormat, fileName);
+            IsFileExistsDialogOpen = true;
+        });
+    }
+
+    private async Task<RequiredDependenciesDialogChoice> RequestDependenciesDialogAsync(
+        IReadOnlyList<ResourcesModDependencyRequirementItemViewModel> items)
+    {
+        pendingDependenciesChoice?.TrySetResult(RequiredDependenciesDialogChoice.Cancel);
+        var completion = new TaskCompletionSource<RequiredDependenciesDialogChoice>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        pendingDependenciesChoice = completion;
+        uiDispatcher.Invoke(() =>
+        {
+            RequiredDependencyDialogItems.Clear();
+            foreach (var item in items)
+                RequiredDependencyDialogItems.Add(item);
+            IsRequiredDependenciesDialogOpen = true;
+        });
+        return await completion.Task.ConfigureAwait(false);
+    }
+
+    private void ResolveDependenciesDialog(RequiredDependenciesDialogChoice choice)
+    {
+        uiDispatcher.Invoke(() => IsRequiredDependenciesDialogOpen = false);
+        pendingDependenciesChoice?.TrySetResult(choice);
+        pendingDependenciesChoice = null;
     }
 
     private void CompleteModpackImport(

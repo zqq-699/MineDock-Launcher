@@ -246,10 +246,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
     [RelayCommand]
     private void BackToVersionList()
     {
-        CancelOptionsNavigation();
-        CurrentStep = DownloadPageStep.VersionList;
-        InstanceOptions.Deactivate();
-        VersionList.ClearSelectedVersion();
+        ShowVersionList();
     }
 
     [RelayCommand(CanExecute = nameof(CanInstallSelectedVersion), AllowConcurrentExecutions = true)]
@@ -287,13 +284,16 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
         optionsNavigationCancellation = cancellation;
         try
         {
-            await InstanceOptions.PrepareAsync(version, cancellation.Token);
+            var preparation = InstanceOptions.PrepareAsync(version, cancellation.Token);
             if (!ReferenceEquals(optionsNavigationCancellation, cancellation)
                 || !ReferenceEquals(VersionList.SelectedMinecraftVersion, version))
             {
+                await preparation;
                 return;
             }
+
             CurrentStep = DownloadPageStep.InstanceOptions;
+            await preparation;
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
@@ -329,6 +329,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
         switch (e.PropertyName)
         {
             case nameof(DownloadVersionListViewModel.SelectedVersionCategory):
+                if (IsInstanceOptionsStep)
+                    ShowVersionList();
                 OnPropertyChanged(nameof(PageTitle));
                 break;
             case nameof(DownloadVersionListViewModel.SelectedMinecraftVersion):
@@ -384,6 +386,14 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
     {
         var cancellation = Interlocked.Exchange(ref optionsNavigationCancellation, null);
         cancellation?.Cancel();
+    }
+
+    private void ShowVersionList()
+    {
+        CancelOptionsNavigation();
+        CurrentStep = DownloadPageStep.VersionList;
+        InstanceOptions.Deactivate();
+        VersionList.ClearSelectedVersion();
     }
 
     private sealed class NullFilePickerService : IFilePickerService

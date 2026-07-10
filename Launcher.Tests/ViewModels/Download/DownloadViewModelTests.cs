@@ -100,6 +100,49 @@ public sealed class DownloadViewModelTests
     }
 
     [Fact]
+    public async Task SelectingVersionShowsOptionsBeforeNameAvailabilityRefreshCompletes()
+    {
+        var nameRefreshGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var instanceService = new FakeGameInstanceService
+        {
+            WaitBeforeGetInstances = nameRefreshGate.Task
+        };
+        using var viewModel = CreatePageViewModel(
+            instanceService,
+            [new MinecraftVersionInfo("1.21", "release", false)]);
+        await viewModel.EnsureVersionsLoadedAsync();
+
+        viewModel.VersionList.SelectMinecraftVersionCommand.Execute(Assert.Single(viewModel.VersionList.VisibleVersions));
+        await instanceService.GetInstancesStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(DownloadPageStep.InstanceOptions, viewModel.CurrentStep);
+
+        viewModel.BackToVersionListCommand.Execute(null);
+    }
+
+    [Fact]
+    public async Task SelectingCategoryFromOptionsReturnsToMatchingVersionList()
+    {
+        using var viewModel = CreatePageViewModel(
+            new FakeGameInstanceService(),
+            [
+                new MinecraftVersionInfo("1.21", "release", false),
+                new MinecraftVersionInfo("25w01a", "snapshot", false)
+            ]);
+        await viewModel.EnsureVersionsLoadedAsync();
+        viewModel.VersionList.SelectMinecraftVersionCommand.Execute(Assert.Single(viewModel.VersionList.VisibleVersions));
+        await WaitUntilAsync(() => viewModel.CurrentStep is DownloadPageStep.InstanceOptions);
+
+        var snapshot = viewModel.VersionList.VersionCategories.Single(category => category.Id == "snapshot");
+        viewModel.VersionList.SelectVersionCategoryCommand.Execute(snapshot);
+
+        Assert.Equal(DownloadPageStep.VersionList, viewModel.CurrentStep);
+        Assert.Same(snapshot, viewModel.VersionList.SelectedVersionCategory);
+        Assert.Equal("25w01a", Assert.Single(viewModel.VersionList.VisibleVersions).Name);
+        Assert.Null(viewModel.VersionList.SelectedMinecraftVersion);
+    }
+
+    [Fact]
     public async Task ParallelInstallationsAreTrackedUntilBothComplete()
     {
         var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -171,6 +214,17 @@ public sealed class DownloadViewModelTests
             ImmediateUiDispatcher.Instance,
             new RecordingFloatingMessageService(),
             NullLogger<DownloadInstallViewModel>.Instance);
+    }
+
+    private static DownloadPageViewModel CreatePageViewModel(
+        FakeGameInstanceService instanceService,
+        IReadOnlyList<MinecraftVersionInfo> versions)
+    {
+        return new DownloadPageViewModel(
+            new StubGameVersionService(versions),
+            instanceService,
+            new DownloadTasksPageViewModel(TimeSpan.Zero),
+            []);
     }
 
     private static DownloadInstallRequest CreateInstallRequest(string instanceName)

@@ -109,7 +109,7 @@
                                              IsPreviousItemHighlighted="{Binding Tag.IsPreviousItemHighlighted, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
                                              ShouldPlayEnterAnimation="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}, Mode=TwoWay}"
                                              EnterAnimationIndex="{Binding Tag.EnterAnimationIndex, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
-                                             Command="{Binding DataContext.SelectProjectCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                                             Command="{Binding DataContext.ProjectList.SelectProjectCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                                              CommandParameter="{Binding}"
                                              Style="{StaticResource ListPageItemButtonEntranceStyle}" />
             </DataTemplate>
@@ -125,7 +125,7 @@
                                              IsPreviousItemHighlighted="{Binding Tag.IsPreviousItemHighlighted, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
                                              ShouldPlayEnterAnimation="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}, Mode=TwoWay}"
                                              EnterAnimationIndex="{Binding Tag.EnterAnimationIndex, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
-                                             Command="{Binding DataContext.InstallAvailableVersionCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                                             Command="{Binding DataContext.Versions.InstallVersionCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                                              CommandParameter="{Binding}"
                                              Style="{StaticResource ListPageItemButtonEntranceStyle}" />
             </DataTemplate>
@@ -142,7 +142,7 @@
             </Grid.RenderTransform>
 
             <ListBox x:Name="ResourcesModListBox"
-                     ItemsSource="{Binding ProjectListItems}"
+                     ItemsSource="{Binding ProjectList.ListItems}"
                      ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
                      Style="{StaticResource ListPageVirtualizedListBoxStyle}"
                      VirtualizingPanel.IsVirtualizing="True"
@@ -150,7 +150,7 @@
                      VirtualizingPanel.ScrollUnit="Pixel"
                      ScrollViewer.CanContentScroll="True"
                      behaviors:VirtualizedListItemStateBehavior.IsEnabled="True"
-                     behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding ListEntranceAnimationToken}"
+                     behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding ProjectList.ListEntranceAnimationToken}"
                      behaviors:VirtualizedListItemStateBehavior.ContentTopOffset="172">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -163,19 +163,19 @@
             </ListBox>
 
             <TextBlock Margin="0,260,12,0"
-                       Text="{Binding ProjectsLoadingMessage}"
+                       Text="{Binding ProjectList.LoadingMessage}"
                        Style="{StaticResource PageEmptyStateTextStyle}"
-                       Visibility="{Binding CanShowLoadingState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                       Visibility="{Binding ProjectList.CanShowLoadingState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
             <TextBlock Margin="0,260,12,0"
-                       Text="{Binding EmptyMessage}"
+                       Text="{Binding ProjectList.EmptyMessage}"
                        Style="{StaticResource PageEmptyStateTextStyle}"
-                       Visibility="{Binding CanShowEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                       Visibility="{Binding ProjectList.CanShowEmptyState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
             <TextBlock Margin="0,260,12,0"
-                       Text="{Binding LoadErrorMessage}"
+                       Text="{Binding ProjectList.LoadErrorMessage}"
                        Style="{StaticResource PageEmptyStateTextStyle}"
-                       Visibility="{Binding CanShowLoadErrorState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                       Visibility="{Binding ProjectList.CanShowLoadErrorState, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
         </Grid>
 
         <Grid x:Name="ProjectDetailsStep"
@@ -205,7 +205,7 @@
                         <StackPanel MaxWidth="{StaticResource DetailPageContentMaxWidth}"
                                     HorizontalAlignment="Stretch"
                                     Margin="0,82,0,64">
-                    <GroupBox Header="{Binding DataContext.DetailsInfoSectionText, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                    <GroupBox Header="{Binding DataContext.Details.InfoSectionText, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                               Style="{StaticResource LauncherContentSectionStyle}">
                         <Border Style="{StaticResource SectionFieldSurfaceStyle}">
                             <StackPanel>
@@ -317,7 +317,7 @@
                                 </Grid>
 
                                 <Grid Style="{StaticResource ResourcesModDetailFieldRowStyle}"
-                                      Visibility="{Binding DataContext.CanShowRequiredDependencies, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                                      Visibility="{Binding DataContext.Details.HasRequiredDependencies, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="128" />
                                         <ColumnDefinition Width="*" />
@@ -325,7 +325,7 @@
                                     <TextBlock Text="{x:Static res:Strings.Resources_ModDetailsDependenciesLabel}"
                                                Style="{StaticResource ResourcesModDetailLabelTextStyle}" />
                                     <ItemsControl Grid.Column="1"
-                                                  ItemsSource="{Binding DataContext.RequiredDependencies, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}">
+                                                  ItemsSource="{Binding DataContext.Details.RequiredDependencies, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <WrapPanel />
@@ -335,7 +335,7 @@
                                             <DataTemplate>
                                                 <Button Margin="0,0,8,6"
                                                         Style="{StaticResource LauncherDialogButtonStyle}"
-                                                        Command="{Binding DataContext.OpenDependencyProjectCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                                                        Command="{Binding DataContext.Details.OpenDependencyCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                                                         CommandParameter="{Binding}">
                                                     <StackPanel Orientation="Horizontal">
                                                         <Grid Width="18"
@@ -391,15 +391,15 @@
                         </Border>
                     </GroupBox>
 
-                    <GroupBox Header="{Binding DataContext.InstallTargetSectionText, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                    <GroupBox Header="{Binding DataContext.Versions.InstallTargetSectionText, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                               Margin="0,16,0,0"
                               Style="{StaticResource LauncherContentSectionStyle}">
                         <StackPanel>
-                            <TextBlock Text="{Binding DataContext.InstallTargetsLoadingMessage, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                            <TextBlock Text="{Binding DataContext.Versions.InstallTargetsLoadingMessage, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                                        Style="{StaticResource ResourcesModInstallTargetStateTextStyle}"
-                                       Visibility="{Binding DataContext.CanShowInstallTargetsLoadingState, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                                       Visibility="{Binding DataContext.Versions.CanShowTargetsLoadingState, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
-                            <ItemsControl ItemsSource="{Binding DataContext.InstallTargets, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}">
+                            <ItemsControl ItemsSource="{Binding DataContext.Versions.InstallTargets, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <controls:ListPageItemButton Title="{Binding Title}"
@@ -409,15 +409,15 @@
                                                                      IsFirstVisible="{Binding IsFirstVisible}"
                                                                      IsLastVisible="{Binding IsLastVisible}"
                                                                      IsPreviousItemHighlighted="{Binding IsPreviousItemHighlighted}"
-                                                                     Command="{Binding DataContext.SelectInstallTargetCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                                                                     Command="{Binding DataContext.Versions.SelectTargetCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                                                                      CommandParameter="{Binding}" />
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
-                            <TextBlock Text="{Binding DataContext.InstallTargetsLoadErrorMessage, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                            <TextBlock Text="{Binding DataContext.Versions.TargetsLoadErrorMessage, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                                        Style="{StaticResource ResourcesModInstallTargetStateTextStyle}"
-                                       Visibility="{Binding DataContext.CanShowInstallTargetsLoadErrorState, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                                       Visibility="{Binding DataContext.Versions.CanShowTargetsLoadErrorState, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                         </StackPanel>
                     </GroupBox>
                         </StackPanel>
@@ -434,7 +434,7 @@
 
                     <ListBox x:Name="ResourcesModVersionListBox"
                              Margin="0,0,12,0"
-                             ItemsSource="{Binding DataContext.AvailableVersionListItems, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                             ItemsSource="{Binding DataContext.Versions.ListItems, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                              ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
                              Style="{StaticResource ListPageVirtualizedListBoxStyle}"
                              VirtualizingPanel.IsVirtualizing="True"
@@ -442,7 +442,7 @@
                              VirtualizingPanel.ScrollUnit="Pixel"
                              ScrollViewer.CanContentScroll="True"
                              behaviors:VirtualizedListItemStateBehavior.IsEnabled="True"
-                             behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding DataContext.AvailableVersionListEntranceAnimationToken, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                             behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding DataContext.Versions.ListEntranceAnimationToken, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                              behaviors:VirtualizedListItemStateBehavior.ContentTopOffset="172">
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -455,19 +455,19 @@
                     </ListBox>
 
                     <TextBlock Margin="0,260,12,64"
-                               Text="{Binding DataContext.VersionsLoadingMessage, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                               Text="{Binding DataContext.Versions.LoadingMessage, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                                Style="{StaticResource PageEmptyStateTextStyle}"
-                               Visibility="{Binding DataContext.CanShowAvailableVersionsLoadingState, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                               Visibility="{Binding DataContext.Versions.CanShowLoadingState, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
                     <TextBlock Margin="0,260,12,64"
-                               Text="{Binding DataContext.AvailableVersionsEmptyMessage, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                               Text="{Binding DataContext.Versions.EmptyMessage, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                                Style="{StaticResource PageEmptyStateTextStyle}"
-                               Visibility="{Binding DataContext.CanShowAvailableVersionsEmptyState, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                               Visibility="{Binding DataContext.Versions.CanShowEmptyState, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
                     <TextBlock Margin="0,260,12,64"
-                               Text="{Binding DataContext.AvailableVersionsLoadErrorMessage, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                               Text="{Binding DataContext.Versions.LoadErrorMessage, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                                Style="{StaticResource PageEmptyStateTextStyle}"
-                               Visibility="{Binding DataContext.CanShowAvailableVersionsLoadErrorState, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                               Visibility="{Binding DataContext.Versions.CanShowLoadErrorState, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
                 </Grid>
             </Grid>

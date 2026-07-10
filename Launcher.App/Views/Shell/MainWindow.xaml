@@ -352,7 +352,7 @@
                                  DialogWidth="360"
                                  UseIntegratedOverlay="True"
                                  IsOpen="{Binding IsFilterDialogOpen}"
-                                 DataContext="{Binding ResourcesPage.CurrentOnlineProjectPage}">
+                                 DataContext="{Binding ResourcesPage.CurrentOnlineProjectPage.ProjectList}">
                 <controls:DialogHost.Resources>
                     <DataTemplate x:Key="ResourcesModFilterDialogOptionTemplate">
                         <TextBlock Text="{Binding Title}"
@@ -510,8 +510,8 @@
                                  Grid.RowSpan="2"
                                  DialogWidth="380"
                                  UseIntegratedOverlay="True"
-                                 IsOpen="{Binding IsProjectVersionFileExistsDialogOpen}"
-                                 DataContext="{Binding ResourcesPage.CurrentOnlineProjectPage}">
+                                 IsOpen="{Binding IsFileExistsDialogOpen}"
+                                 DataContext="{Binding ResourcesPage.CurrentOnlineProjectPage.Install}">
                 <Grid Style="{StaticResource DialogContentGridStyle}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -524,7 +524,7 @@
 
                     <TextBlock Grid.Row="1"
                                Margin="0,16,0,24"
-                               Text="{Binding ProjectVersionFileExistsDialogMessage}"
+                               Text="{Binding FileExistsDialogMessage}"
                                Style="{StaticResource DialogBodyTextStyle}"
                                TextWrapping="Wrap" />
 
@@ -532,7 +532,7 @@
                                 Style="{StaticResource DialogFooterStyle}">
                         <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                                 Content="{x:Static res:Strings.Confirm_Button}"
-                                Command="{Binding CloseProjectVersionFileExistsDialogCommand}" />
+                                Command="{Binding CloseFileExistsDialogCommand}" />
                     </StackPanel>
                 </Grid>
             </controls:DialogHost>
@@ -543,7 +543,7 @@
                                  DialogWidth="380"
                                  UseIntegratedOverlay="True"
                                  IsOpen="{Binding IsUnknownInstanceVersionDialogOpen}"
-                                 DataContext="{Binding ResourcesPage.CurrentOnlineProjectPage}">
+                                 DataContext="{Binding ResourcesPage.CurrentOnlineProjectPage.Versions}">
                 <Grid Style="{StaticResource DialogContentGridStyle}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -575,7 +575,7 @@
                                  DialogWidth="460"
                                  UseIntegratedOverlay="True"
                                  IsOpen="{Binding IsRequiredDependenciesDialogOpen}"
-                                 DataContext="{Binding ResourcesPage.CurrentOnlineProjectPage}">
+                                 DataContext="{Binding ResourcesPage.CurrentOnlineProjectPage.Install}">
                 <Grid Style="{StaticResource DialogContentGridStyle}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />

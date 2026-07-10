@@ -65,15 +65,15 @@
                        Style="{StaticResource ResourcesAvailableVersionFilterLabelStyle}" />
 
             <controls:AnimatedComboBox Grid.Column="1"
-                                       ItemsSource="{Binding AvailableVersionFilterOptions}"
-                                       SelectedItem="{Binding SelectedAvailableVersionFilterOption, Mode=TwoWay}"
+                                       ItemsSource="{Binding Versions.VersionFilterOptions}"
+                                       SelectedItem="{Binding Versions.SelectedVersionFilter, Mode=TwoWay}"
                                        ItemTemplate="{StaticResource ResourcesAvailableVersionFilterOptionTemplate}"
                                        SelectionItemTemplate="{StaticResource ResourcesAvailableVersionFilterOptionTemplate}"
                                        Style="{StaticResource ResourcesAvailableVersionFilterComboBoxStyle}" />
         </Grid>
 
         <Grid Grid.Column="2"
-              Visibility="{Binding ShowsLoaderFilters, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+              Visibility="{Binding ProjectList.ShowsLoaderFilters, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -83,8 +83,8 @@
                        Style="{StaticResource ResourcesAvailableVersionFilterLabelStyle}" />
 
             <controls:AnimatedComboBox Grid.Column="1"
-                                       ItemsSource="{Binding AvailableLoaderFilterOptions}"
-                                       SelectedItem="{Binding SelectedAvailableLoaderFilterOption, Mode=TwoWay}"
+                                       ItemsSource="{Binding Versions.LoaderFilterOptions}"
+                                       SelectedItem="{Binding Versions.SelectedLoaderFilter, Mode=TwoWay}"
                                        ItemTemplate="{StaticResource ResourcesAvailableVersionFilterOptionTemplate}"
                                        SelectionItemTemplate="{StaticResource ResourcesAvailableVersionFilterOptionTemplate}"
                                        Style="{StaticResource ResourcesAvailableVersionFilterComboBoxStyle}" />

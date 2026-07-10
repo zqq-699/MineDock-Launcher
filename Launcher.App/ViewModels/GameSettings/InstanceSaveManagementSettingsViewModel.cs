@@ -704,72 +704,21 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
 
     private void SetVisibleSaves(IReadOnlyList<SaveManagementSaveItemViewModel> saves)
     {
-        if (IsSameVisibleSaves(saves))
+        if (LocalContentListPresentation.HasSameReferences(VisibleSaves, saves))
             return;
 
         VisibleSaves = saves;
     }
 
-    private bool IsSameVisibleSaves(IReadOnlyList<SaveManagementSaveItemViewModel> saves)
-    {
-        if (VisibleSaves.Count != saves.Count)
-            return false;
-
-        for (var index = 0; index < saves.Count; index++)
-        {
-            if (!ReferenceEquals(VisibleSaves[index], saves[index]))
-                return false;
-        }
-
-        return true;
-    }
-
     private void RefreshVisibleSaveListItems()
     {
-        if (!CanShowSaveInfoSection)
-        {
-            if (VisibleSaveListItems.Count > 0)
-                VisibleSaveListItems = Array.Empty<object>();
-            return;
-        }
-
-        if (IsSameVisibleSaveListItems())
-            return;
-
-        var hasListSection = VisibleSaves.Count > 0;
-        var items = new object[VisibleSaves.Count + (hasListSection ? 2 : 1)];
-        items[0] = SaveManagementInfoPanelItem.Instance;
-        if (hasListSection)
-            items[1] = SaveManagementListSectionItem.Instance;
-
-        for (var index = 0; index < VisibleSaves.Count; index++)
-            items[index + (hasListSection ? 2 : 1)] = VisibleSaves[index];
-
-        VisibleSaveListItems = items;
-    }
-
-    private bool IsSameVisibleSaveListItems()
-    {
-        var hasListSection = VisibleSaves.Count > 0;
-        if (VisibleSaveListItems.Count != VisibleSaves.Count + (hasListSection ? 2 : 1))
-            return false;
-
-        if (!ReferenceEquals(VisibleSaveListItems[0], SaveManagementInfoPanelItem.Instance))
-            return false;
-
-        if (!hasListSection)
-            return true;
-
-        if (!ReferenceEquals(VisibleSaveListItems[1], SaveManagementListSectionItem.Instance))
-            return false;
-
-        for (var index = 0; index < VisibleSaves.Count; index++)
-        {
-            if (!ReferenceEquals(VisibleSaveListItems[index + 2], VisibleSaves[index]))
-                return false;
-        }
-
-        return true;
+        var items = LocalContentListPresentation.CreateSectionedItems(
+            VisibleSaves,
+            SaveManagementInfoPanelItem.Instance,
+            SaveManagementListSectionItem.Instance,
+            CanShowSaveInfoSection);
+        if (!LocalContentListPresentation.HasSameReferences(VisibleSaveListItems, items))
+            VisibleSaveListItems = items;
     }
 
     private async Task ImportSaveArchivesAsync(IReadOnlyList<string> archivePaths, ImportTriggerSource source)
@@ -848,11 +797,12 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         string invalidTypeMessage,
         out string failureMessage)
     {
-        var validation = importPathValidator.Validate(paths, InstanceContentImportKind.SaveArchive);
-        failureMessage = validation.Failure is InstanceContentImportPathFailure.DirectoryNotSupported
-            ? Strings.GameSettings_DropFoldersUnsupportedMessage
-            : validation.IsValid ? string.Empty : invalidTypeMessage;
-        return validation.IsValid;
+        return LocalContentImportPathEvaluator.TryValidate(
+            importPathValidator,
+            paths,
+            InstanceContentImportKind.SaveArchive,
+            invalidTypeMessage,
+            out failureMessage);
     }
 }
 
