@@ -20,7 +20,6 @@
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
-using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Launcher.Application.Services;
@@ -55,7 +54,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
 
     private readonly HttpClient httpClient;
     private readonly ICurseForgeApiKeyResolver curseForgeApiKeyResolver;
-    private readonly ILocalSaveService localSaveService;
+    private readonly ResourceProjectStorage storage;
     private readonly ILogger<ResourceCatalogService> logger;
     private readonly object curseForgeCategoriesGate = new();
     private readonly Dictionary<ResourceProjectKind, Task<IReadOnlyList<CurseForgeCategory>>> curseForgeCategoriesTasks = [];
@@ -73,8 +72,9 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         this.logger = logger ?? NullLogger<ResourceCatalogService>.Instance;
         this.curseForgeApiKeyResolver = curseForgeApiKeyResolver
             ?? new CurseForgeApiKeyResolver(resolvedPathProvider, settingsService);
-        this.localSaveService = localSaveService
+        var resolvedLocalSaveService = localSaveService
             ?? new LocalSaveService(resolvedPathProvider);
+        storage = new ResourceProjectStorage(this.httpClient, resolvedLocalSaveService, this.logger);
 
         if (!this.httpClient.DefaultRequestHeaders.UserAgent.Any())
             this.httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("BHL/0.1 (BlockHelm-Launcher)");
@@ -750,15 +750,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         GameInstance instance,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(instance.InstanceDirectory))
-            throw new InvalidOperationException("The target instance directory is empty.");
-
-        if (version.Kind is ResourceProjectKind.World)
-            return await InstallWorldProjectVersionAsync(version, instance, cancellationToken).ConfigureAwait(false);
-
-        var installDirectory = ResolveInstallDirectory(instance, version.Kind);
-        Directory.CreateDirectory(installDirectory);
-        var target = await DownloadProjectVersionCoreAsync(version, installDirectory, cancellationToken).ConfigureAwait(false);
+        var target = await storage.InstallAsync(version, instance, cancellationToken).ConfigureAwait(false);
 
         logger.LogInformation(
             "Resource project version installed. VersionId={VersionId} Target={Target}",
@@ -772,11 +764,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         string targetDirectory,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(targetDirectory))
-            throw new InvalidOperationException("The target download directory is empty.");
-
-        Directory.CreateDirectory(targetDirectory);
-        var target = await DownloadProjectVersionCoreAsync(version, targetDirectory, cancellationToken)
+        var target = await storage.DownloadAsync(version, targetDirectory, cancellationToken)
             .ConfigureAwait(false);
 
         logger.LogInformation(
@@ -791,11 +779,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         string targetDirectory,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(targetDirectory))
-            return Task.FromResult(false);
-
-        var target = Path.Combine(targetDirectory, ResolveProjectVersionFileName(version));
-        return Task.FromResult(File.Exists(target));
+        return Task.FromResult(storage.DownloadExists(version, targetDirectory));
     }
 
     public Task<bool> ProjectVersionInstallExistsAsync(
@@ -803,14 +787,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         GameInstance instance,
         CancellationToken cancellationToken = default)
     {
-        if (version.Kind is ResourceProjectKind.World)
-            return Task.FromResult(false);
-
-        if (string.IsNullOrWhiteSpace(instance.InstanceDirectory))
-            return Task.FromResult(false);
-
-        var target = Path.Combine(ResolveInstallDirectory(instance, version.Kind), ResolveProjectVersionFileName(version));
-        return Task.FromResult(File.Exists(target));
+        return Task.FromResult(storage.InstallExists(version, instance));
     }
 
     private async Task<ResourceCatalogSourceSearchResult> SearchCurseForgeProjectsAsync(
@@ -1243,126 +1220,6 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             3 => "alpha",
             _ => string.Empty
         };
-    }
-
-    private async Task<string> DownloadProjectVersionCoreAsync(
-        ResourceProjectVersion version,
-        string targetDirectory,
-        CancellationToken cancellationToken)
-    {
-        var fileName = ResolveProjectVersionFileName(version);
-        var target = Path.Combine(targetDirectory, fileName);
-        var urls = new[] { version.PrimaryDownloadUrl }
-            .Concat(version.FallbackDownloadUrls)
-            .Where(url => !string.IsNullOrWhiteSpace(url))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        if (urls.Count == 0)
-            throw new InvalidOperationException($"Resource project version has no download URL: {version.VersionId}");
-
-        Exception? lastException = null;
-        foreach (var url in urls)
-        {
-            try
-            {
-                await DownloadFileAsync(url, target, cancellationToken).ConfigureAwait(false);
-                return target;
-            }
-            catch (Exception exception) when (exception is HttpRequestException or IOException)
-            {
-                lastException = exception;
-                logger.LogWarning(
-                    exception,
-                    "Failed to download resource project version candidate. VersionId={VersionId} Url={Url}",
-                    version.VersionId,
-                    url);
-            }
-        }
-
-        throw new InvalidOperationException($"Failed to download resource project version: {version.VersionId}", lastException);
-    }
-
-    private static string ResolveProjectVersionFileName(ResourceProjectVersion version)
-    {
-        var fileName = Path.GetFileName(version.FileName);
-        return string.IsNullOrWhiteSpace(fileName)
-            ? $"{version.VersionId}{ResolveDefaultFileExtension(version.Kind)}"
-            : fileName;
-    }
-
-    private static string ResolveDefaultFileExtension(ResourceProjectKind kind)
-    {
-        return kind switch
-        {
-            ResourceProjectKind.Modpack => ".mrpack",
-            ResourceProjectKind.ResourcePack or ResourceProjectKind.ShaderPack or ResourceProjectKind.World => ".zip",
-            _ => ".jar"
-        };
-    }
-
-    private static string ResolveInstallDirectory(GameInstance instance, ResourceProjectKind kind)
-    {
-        var directoryName = kind switch
-        {
-            ResourceProjectKind.ResourcePack => "resourcepacks",
-            ResourceProjectKind.ShaderPack => "shaderpacks",
-            ResourceProjectKind.World => "saves",
-            _ => "mods"
-        };
-
-        return Path.Combine(instance.InstanceDirectory, directoryName);
-    }
-
-    private async Task<string> InstallWorldProjectVersionAsync(
-        ResourceProjectVersion version,
-        GameInstance instance,
-        CancellationToken cancellationToken)
-    {
-        var tempDirectory = Path.Combine(Path.GetTempPath(), $"launcher-world-install-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempDirectory);
-
-        try
-        {
-            var archivePath = await DownloadProjectVersionCoreAsync(version, tempDirectory, cancellationToken)
-                .ConfigureAwait(false);
-            var result = await localSaveService.ImportFromArchiveAsync(instance, archivePath, cancellationToken)
-                .ConfigureAwait(false);
-            if (!result.IsSuccess || result.ImportedSave is null)
-            {
-                throw new InvalidOperationException(
-                    $"Failed to import world archive. FailureReason={result.FailureReason}");
-            }
-
-            logger.LogInformation(
-                "Resource world version installed. VersionId={VersionId} SaveDirectory={SaveDirectory}",
-                version.VersionId,
-                result.ImportedSave.FullPath);
-            return result.ImportedSave.FullPath;
-        }
-        finally
-        {
-            SafeDeleteDirectory(tempDirectory);
-        }
-    }
-
-    private void SafeDeleteDirectory(string directory)
-    {
-        try
-        {
-            if (Directory.Exists(directory))
-                Directory.Delete(directory, recursive: true);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            logger.LogWarning(exception, "Failed to delete temporary resource world directory. Directory={Directory}", directory);
-        }
-    }
-
-    private async Task DownloadFileAsync(string url, string target, CancellationToken cancellationToken)
-    {
-        await using var stream = await httpClient.GetStreamAsync(url, cancellationToken).ConfigureAwait(false);
-        await using var destination = File.Create(target);
-        await stream.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
     }
 
     private static IReadOnlyList<string> CreateCurseForgeFallbackUrls(long fileId, string fileName, string? primaryUrl)

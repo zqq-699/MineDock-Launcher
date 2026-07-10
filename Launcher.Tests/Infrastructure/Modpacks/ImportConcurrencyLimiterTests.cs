@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using Launcher.Application.Services;
 using Launcher.Infrastructure.Modpacks;
 
 namespace Launcher.Tests.Infrastructure.Modpacks;
@@ -86,8 +87,24 @@ public sealed class ImportConcurrencyLimiterTests
         }
     }
 
+    [Fact]
+    public async Task SynchronousLeaseDisposalReleasesSlot()
+    {
+        var limiter = new ImportConcurrencyLimiter();
+        var first = await limiter.AcquireMetadataSlotAsync();
+        var second = await limiter.AcquireMetadataSlotAsync();
+
+        first.Dispose();
+        await using var replacement = await limiter
+            .AcquireMetadataSlotAsync()
+            .AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(1));
+
+        await second.DisposeAsync();
+    }
+
     private static async Task<int> MeasureMaxConcurrencyAsync(
-        Func<CancellationToken, ValueTask<IAsyncDisposable>> acquireAsync,
+        Func<CancellationToken, ValueTask<IImportConcurrencyLease>> acquireAsync,
         int requestCount)
     {
         var activeCount = 0;

@@ -471,8 +471,12 @@ public sealed partial class HomePageViewModel : ObservableObject
 
                 ReportLaunchFailure(exitResult.FailureReport);
             }
-            catch
+            catch (Exception exception)
             {
+                logger.LogWarning(
+                    exception,
+                    "Failed to observe Minecraft process exit. InstanceId={InstanceId}",
+                    session.InstanceId);
             }
         });
     }

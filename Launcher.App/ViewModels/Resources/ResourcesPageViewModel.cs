@@ -44,8 +44,8 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
         IFilePickerService? filePickerService = null,
         IFloatingMessageService? floatingMessageService = null,
         DownloadTasksPageViewModel? downloadTasksPage = null,
-        ILocalModpackImportService? localModpackImportService = null,
-        IModService? modService = null)
+        IResourceProjectInstallationService? resourceProjectInstallationService = null,
+        IResourceDependencyPlanningService? resourceDependencyPlanningService = null)
     {
         this.logger = logger;
 
@@ -69,7 +69,8 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             filePickerService,
             floatingMessageService,
             downloadTasksPage,
-            modService: modService);
+            resourceProjectInstallationService: resourceProjectInstallationService,
+            resourceDependencyPlanningService: resourceDependencyPlanningService);
         ModPage.PropertyChanged += ModPage_PropertyChanged;
         ResourcePacksPage = new ResourcesResourcePacksPageViewModel(
             this,
@@ -81,7 +82,9 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             statusService,
             filePickerService,
             floatingMessageService,
-            downloadTasksPage);
+            downloadTasksPage,
+            resourceProjectInstallationService,
+            resourceDependencyPlanningService);
         ResourcePacksPage.PropertyChanged += OnlineProjectPage_PropertyChanged;
         ShaderPacksPage = new ResourcesShaderPacksPageViewModel(
             this,
@@ -93,7 +96,9 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             statusService,
             filePickerService,
             floatingMessageService,
-            downloadTasksPage);
+            downloadTasksPage,
+            resourceProjectInstallationService,
+            resourceDependencyPlanningService);
         ShaderPacksPage.PropertyChanged += OnlineProjectPage_PropertyChanged;
         WorldsPage = new ResourcesWorldsPageViewModel(
             this,
@@ -105,7 +110,9 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             statusService,
             filePickerService,
             floatingMessageService,
-            downloadTasksPage);
+            downloadTasksPage,
+            resourceProjectInstallationService,
+            resourceDependencyPlanningService);
         WorldsPage.PropertyChanged += OnlineProjectPage_PropertyChanged;
         ModpacksPage = new ResourcesModpacksPageViewModel(
             this,
@@ -118,7 +125,8 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
             filePickerService,
             floatingMessageService,
             downloadTasksPage,
-            localModpackImportService);
+            resourceProjectInstallationService,
+            resourceDependencyPlanningService);
         ModpacksPage.PropertyChanged += OnlineProjectPage_PropertyChanged;
         ModpacksPage.ModpackImported += (_, instance) => ModpackImported?.Invoke(this, instance);
         ModpacksPage.ModpackManualDownloadsRequested += (_, args) => ModpackManualDownloadsRequested?.Invoke(this, args);

@@ -28,12 +28,15 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public List<GameInstance> CreatedInstances { get; } = [];
     public Exception? CreateException { get; init; }
     public Exception? RenameException { get; init; }
+    public Exception? SaveException { get; set; }
     public bool ReturnNewInstanceOnRename { get; init; }
     public Action? RenameCallback { get; set; }
     public TaskCompletionSource<bool> CreateStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Task? WaitBeforeCreate { get; init; }
     public TaskCompletionSource<bool> GetInstancesStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public Task? WaitBeforeGetInstances { get; set; }
+    public Task? WaitBeforeSave { get; set; }
+    public TaskCompletionSource<bool> SaveStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public string? LastMinecraftVersion { get; private set; }
     public LoaderKind LastLoader { get; private set; }
     public string? LastLoaderVersion { get; private set; }
@@ -145,8 +148,16 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
         return instance;
     }
 
-    public Task SaveInstanceAsync(GameInstance instance, CancellationToken cancellationToken = default)
+    public async Task SaveInstanceAsync(GameInstance instance, CancellationToken cancellationToken = default)
     {
+        SaveStarted.TrySetResult(true);
+        if (WaitBeforeSave is not null)
+            await WaitBeforeSave.WaitAsync(cancellationToken);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        if (SaveException is not null)
+            throw SaveException;
+
         lock (syncRoot)
         {
             SaveCallCount++;
@@ -158,8 +169,6 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
             else
                 CreatedInstances.Add(instance);
         }
-
-        return Task.CompletedTask;
     }
 
     public Task<GameInstance> RenameInstanceAsync(

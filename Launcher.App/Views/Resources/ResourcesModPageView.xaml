@@ -180,7 +180,7 @@
 
         <Grid x:Name="ProjectDetailsStep"
               Tag="ProjectDetailsStep"
-              DataContext="{Binding SelectedProject}"
+              DataContext="{Binding Details.CurrentProject}"
               Opacity="0"
               Visibility="Collapsed">
             <Grid.RenderTransform>

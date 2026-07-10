@@ -30,6 +30,7 @@ public partial class DownloadPageView : UserControl
     private readonly SlidingContentTransitionCoordinator stepTransition;
     private readonly DownloadVersionListView downloadVersionList;
     private INotifyPropertyChanged? currentViewModelNotifier;
+    private INotifyPropertyChanged? currentVersionListNotifier;
 
     public DownloadPageView()
     {
@@ -63,22 +64,21 @@ public partial class DownloadPageView : UserControl
     {
         if (currentViewModelNotifier is not null)
             currentViewModelNotifier.PropertyChanged -= DownloadPageViewModel_OnPropertyChanged;
+        if (currentVersionListNotifier is not null)
+            currentVersionListNotifier.PropertyChanged -= DownloadVersionListViewModel_OnPropertyChanged;
 
         currentViewModelNotifier = e.NewValue as INotifyPropertyChanged;
         if (currentViewModelNotifier is not null)
             currentViewModelNotifier.PropertyChanged += DownloadPageViewModel_OnPropertyChanged;
+        currentVersionListNotifier = (e.NewValue as DownloadPageViewModel)?.VersionList;
+        if (currentVersionListNotifier is not null)
+            currentVersionListNotifier.PropertyChanged += DownloadVersionListViewModel_OnPropertyChanged;
 
         stepTransition.Sync(IsInstanceOptionsStep());
     }
 
     private void DownloadPageViewModel_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(DownloadPageViewModel.SelectedVersionCategory)
-            or nameof(DownloadPageViewModel.VersionSearchQuery))
-        {
-            ResetVersionListScrollPosition();
-        }
-
         if (e.PropertyName is nameof(DownloadPageViewModel.ContentRefreshToken))
         {
             RefreshRightContentView();
@@ -88,6 +88,15 @@ public partial class DownloadPageView : UserControl
             && sender is DownloadPageViewModel viewModel)
         {
             stepTransition.AnimateTo(viewModel.CurrentStep is DownloadPageStep.InstanceOptions);
+        }
+    }
+
+    private void DownloadVersionListViewModel_OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(DownloadVersionListViewModel.SelectedVersionCategory)
+            or nameof(DownloadVersionListViewModel.VersionSearchQuery))
+        {
+            ResetVersionListScrollPosition();
         }
     }
 

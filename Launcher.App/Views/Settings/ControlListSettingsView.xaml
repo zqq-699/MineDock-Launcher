@@ -22,7 +22,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
              xmlns:res="clr-namespace:Launcher.App.Resources"
-             DataContext="{Binding Parent}"
              Focusable="False">
     <UserControl.Resources>
         <ResourceDictionary>

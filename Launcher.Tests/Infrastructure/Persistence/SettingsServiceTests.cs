@@ -10,6 +10,36 @@ namespace Launcher.Tests.Infrastructure.Persistence;
 
 public sealed class SettingsServiceTests : TestTempDirectory
 {
+    [Theory]
+    [InlineData("zh-Hans", "zh-Hans")]
+    [InlineData("ja-JP", "ja-JP")]
+    [InlineData("unknown", LauncherDefaults.DefaultLauncherLanguage)]
+    public async Task BootstrapLanguageReaderUsesPersistedLanguageWithoutRewritingSettings(
+        string persistedLanguage,
+        string expectedLanguage)
+    {
+        Directory.CreateDirectory(TempRoot);
+        var settingsPath = Path.Combine(TempRoot, "settings.json");
+        var originalJson = $$"""{"LauncherLanguage":"{{persistedLanguage}}","FutureSetting":true}""";
+        await File.WriteAllTextAsync(settingsPath, originalJson);
+
+        var language = new JsonSettingsService(TempRoot).LoadLauncherLanguageForBootstrap();
+
+        Assert.Equal(expectedLanguage, language);
+        Assert.Equal(originalJson, await File.ReadAllTextAsync(settingsPath));
+    }
+
+    [Fact]
+    public async Task BootstrapLanguageReaderFallsBackForMalformedSettings()
+    {
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(Path.Combine(TempRoot, "settings.json"), "{invalid");
+
+        var language = new JsonSettingsService(TempRoot).LoadLauncherLanguageForBootstrap();
+
+        Assert.Equal(LauncherDefaults.DefaultLauncherLanguage, language);
+    }
+
     [Fact]
     public async Task SettingsRoundTripAsOneContract()
     {
@@ -71,5 +101,37 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.DoesNotContain("OfflineUsername", json);
         Assert.DoesNotContain("SelectedAccountId", json);
         Assert.DoesNotContain("Accounts", json);
+    }
+
+    [Fact]
+    public async Task CanceledSavePreservesPreviouslyWrittenSettings()
+    {
+        var service = new JsonSettingsService(TempRoot);
+        var settings = await service.LoadAsync();
+        settings.Theme = "Light";
+        await service.SaveAsync(settings);
+
+        settings.Theme = "Dark";
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.SaveAsync(settings, cancellation.Token));
+
+        var loaded = await service.LoadAsync();
+        Assert.Equal("Light", loaded.Theme);
+        Assert.Empty(Directory.EnumerateFiles(TempRoot, "*.tmp", SearchOption.TopDirectoryOnly));
+    }
+
+    [Fact]
+    public async Task UnknownSettingsFieldsAreIgnoredWithoutChangingKnownValues()
+    {
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(TempRoot, "settings.json"),
+            """{"Theme":"Light","FutureSetting":{"enabled":true}}""");
+
+        var loaded = await new JsonSettingsService(TempRoot).LoadAsync();
+
+        Assert.Equal("Light", loaded.Theme);
     }
 }

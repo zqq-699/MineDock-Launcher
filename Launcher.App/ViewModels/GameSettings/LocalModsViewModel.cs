@@ -38,21 +38,19 @@ public sealed class LocalModsViewModel : IDisposable
     private readonly IStatusService statusService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<LocalModsViewModel> logger;
+    private readonly InstanceContentRefreshWatcher contentWatcher;
     private readonly object ignoredWatcherPathsLock = new();
     private readonly Dictionary<string, DateTimeOffset> ignoredWatcherPaths = new(StringComparer.OrdinalIgnoreCase);
-    private FileSystemWatcher? modsWatcher;
     private CancellationTokenSource? refreshCancellationTokenSource;
     private CancellationTokenSource? iconEnrichmentCancellationTokenSource;
-    private CancellationTokenSource? watcherRefreshCancellationTokenSource;
     private GameInstance? selectedInstance;
     private IReadOnlyList<LocalMod> currentMods = Array.Empty<LocalMod>();
-    private bool watcherEnabled;
-    private bool watcherSuspendedForRename;
     private int modRefreshVersion;
 
     public LocalModsViewModel(
         IModService modService,
         IStatusService statusService,
+        IInstanceDirectoryMonitor instanceDirectoryMonitor,
         IUiDispatcher? uiDispatcher = null,
         ILocalModIconEnrichmentService? iconEnrichmentService = null,
         ILogger<LocalModsViewModel>? logger = null)
@@ -62,6 +60,13 @@ public sealed class LocalModsViewModel : IDisposable
         this.statusService = statusService;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<LocalModsViewModel>.Instance;
+        contentWatcher = new InstanceContentRefreshWatcher(
+            instanceDirectoryMonitor,
+            InstanceDirectoryKind.Mods,
+            RefreshModsAsync,
+            _ => this.uiDispatcher.Post(() => ReportStatus(Strings.Status_LoadLocalModsFailed)),
+            this.logger,
+            ShouldRefreshForDirectoryChange);
     }
 
     public event EventHandler? ModsChanged;
@@ -76,7 +81,7 @@ public sealed class LocalModsViewModel : IDisposable
         Interlocked.Increment(ref modRefreshVersion);
         CancelRefresh();
         CancelIconEnrichment();
-        ResetWatcher();
+        contentWatcher.SetInstance(instance);
         ClearMods();
         logger.LogInformation(
             "Selected instance changed for local mods view. InstanceId={InstanceId}",
@@ -85,24 +90,18 @@ public sealed class LocalModsViewModel : IDisposable
 
     public void SetWatcherEnabled(bool enabled)
     {
-        watcherEnabled = enabled;
-        ResetWatcher();
+        contentWatcher.SetEnabled(enabled);
     }
 
     public void SuspendWatcherForInstanceRename()
     {
-        watcherSuspendedForRename = true;
-        ResetWatcher();
+        contentWatcher.Suspend();
         CancelRefresh();
     }
 
     public void ResumeWatcherAfterInstanceRename()
     {
-        if (!watcherSuspendedForRename)
-            return;
-
-        watcherSuspendedForRename = false;
-        ResetWatcher();
+        contentWatcher.Resume();
     }
 
     public Task SetSelectedInstanceAsync(GameInstance? instance)
@@ -342,126 +341,9 @@ public sealed class LocalModsViewModel : IDisposable
 
     public void Dispose()
     {
-        modsWatcher?.Dispose();
-        modsWatcher = null;
+        contentWatcher.Dispose();
         CancelRefresh();
         CancelIconEnrichment();
-        watcherRefreshCancellationTokenSource?.Cancel();
-        watcherRefreshCancellationTokenSource?.Dispose();
-        watcherRefreshCancellationTokenSource = null;
-    }
-
-    private void ResetWatcher()
-    {
-        modsWatcher?.Dispose();
-        modsWatcher = null;
-        watcherRefreshCancellationTokenSource?.Cancel();
-        watcherRefreshCancellationTokenSource?.Dispose();
-        watcherRefreshCancellationTokenSource = null;
-
-        if (!watcherEnabled || watcherSuspendedForRename)
-            return;
-
-        var instance = selectedInstance;
-        if (instance is null || string.IsNullOrWhiteSpace(instance.InstanceDirectory))
-            return;
-
-        var modsDirectory = Path.Combine(instance.InstanceDirectory, "mods");
-        Directory.CreateDirectory(modsDirectory);
-
-        try
-        {
-            modsWatcher = new FileSystemWatcher(modsDirectory, "*")
-            {
-                IncludeSubdirectories = false,
-                NotifyFilter = NotifyFilters.DirectoryName
-                    | NotifyFilters.FileName
-                    | NotifyFilters.LastWrite
-                    | NotifyFilters.Size
-                    | NotifyFilters.CreationTime
-            };
-            modsWatcher.Changed += ModsWatcher_StateChanged;
-            modsWatcher.Created += ModsWatcher_StateChanged;
-            modsWatcher.Deleted += ModsWatcher_StateChanged;
-            modsWatcher.Renamed += ModsWatcher_StateRenamed;
-            modsWatcher.EnableRaisingEvents = true;
-            logger.LogInformation(
-                "Local mod watcher started. InstanceId={InstanceId} InstanceDirectory={InstanceDirectory}",
-                instance.Id,
-                instance.InstanceDirectory);
-        }
-        catch (Exception exception) when (
-            exception is IOException
-            or UnauthorizedAccessException
-            or ArgumentException)
-        {
-            logger.LogWarning(
-                exception,
-                "Failed to start local mod watcher. InstanceId={InstanceId} InstanceDirectory={InstanceDirectory}",
-                instance.Id,
-                instance.InstanceDirectory);
-        }
-    }
-
-    private void ModsWatcher_StateChanged(object sender, FileSystemEventArgs e)
-    {
-        if (!IsTrackedModPath(e.FullPath))
-            return;
-
-        if (ShouldIgnoreWatcherPath(e.FullPath))
-            return;
-
-        QueueWatcherRefresh(e.ChangeType.ToString(), e.FullPath);
-    }
-
-    private void ModsWatcher_StateRenamed(object sender, RenamedEventArgs e)
-    {
-        if (!IsTrackedModPath(e.FullPath) && !IsTrackedModPath(e.OldFullPath))
-            return;
-
-        if (ShouldIgnoreWatcherPath(e.FullPath) || ShouldIgnoreWatcherPath(e.OldFullPath))
-            return;
-
-        QueueWatcherRefresh("Renamed", e.FullPath);
-    }
-
-    private void QueueWatcherRefresh(string changeType, string fullPath)
-    {
-        var instance = selectedInstance;
-        if (instance is null)
-            return;
-
-        var previousCts = Interlocked.Exchange(
-            ref watcherRefreshCancellationTokenSource,
-            new CancellationTokenSource());
-        previousCts?.Cancel();
-        previousCts?.Dispose();
-
-        var refreshCts = watcherRefreshCancellationTokenSource!;
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(200, refreshCts.Token);
-                logger.LogInformation(
-                    "Detected local mod folder change. InstanceId={InstanceId} ChangeType={ChangeType} Path={Path}",
-                    instance.Id,
-                    changeType,
-                    fullPath);
-                await RefreshModsAsync();
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception exception)
-            {
-                logger.LogError(
-                    exception,
-                    "Failed to refresh local mods after watcher update. InstanceId={InstanceId}",
-                    instance.Id);
-                uiDispatcher.Post(() => ReportStatus(Strings.Status_LoadLocalModsFailed));
-            }
-        });
     }
 
     private void ReportStatus(string message)
@@ -619,6 +501,15 @@ public sealed class LocalModsViewModel : IDisposable
         return !string.IsNullOrWhiteSpace(fullPath)
             && (fullPath.EndsWith(EnabledModExtension, StringComparison.OrdinalIgnoreCase)
                 || fullPath.EndsWith(DisabledModExtension, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool ShouldRefreshForDirectoryChange(InstanceDirectoryChangedEventArgs change)
+    {
+        if (!IsTrackedModPath(change.FullPath) && !IsTrackedModPath(change.OldFullPath))
+            return false;
+
+        return !ShouldIgnoreWatcherPath(change.FullPath)
+            && !ShouldIgnoreWatcherPath(change.OldFullPath);
     }
 
     private void ApplyEnabledStateLocally(LocalMod mod, string targetPath, bool enabled, bool raiseChanged)

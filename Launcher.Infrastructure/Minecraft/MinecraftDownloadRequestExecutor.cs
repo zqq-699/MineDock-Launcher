@@ -319,7 +319,7 @@ internal sealed class MinecraftDownloadRequestExecutor
             exception);
     }
 
-    private ValueTask<IAsyncDisposable> AcquireLeaseAsync(CancellationToken cancellationToken)
+    private ValueTask<IImportConcurrencyLease> AcquireLeaseAsync(CancellationToken cancellationToken)
     {
         return category switch
         {

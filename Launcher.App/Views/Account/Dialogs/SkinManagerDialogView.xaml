@@ -152,8 +152,8 @@
               Margin="0,18,0,18"
               MinHeight="220">
             <ListBox MaxHeight="420"
-                     ItemsSource="{Binding Appearance.SelectedAccountSkins}"
-                     SelectedItem="{Binding Appearance.SelectedAccountSkin, Mode=TwoWay}"
+                     ItemsSource="{Binding Appearance.SkinLibrary.Skins}"
+                     SelectedItem="{Binding Appearance.SkinLibrary.SelectedSkin, Mode=TwoWay}"
                      Style="{StaticResource SkinManagerTileListStyle}"
                      Visibility="{Binding Appearance.HasSelectedAccountSkins, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
                 <ListBox.ItemsPanel>

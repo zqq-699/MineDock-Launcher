@@ -84,7 +84,7 @@ public partial class SettingsPageView : UserControl
     private void RefreshMemorySnapshot()
     {
         if (DataContext is SettingsPageViewModel viewModel)
-            viewModel.RefreshSystemMemorySnapshot();
+            viewModel.LaunchMemory.RefreshSystemMemorySnapshot();
     }
 
     private void SettingsPageView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

@@ -18,7 +18,6 @@
  */
 
 using System.Collections.ObjectModel;
-using System.IO;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application.Services;
@@ -34,19 +33,16 @@ public sealed class LocalResourcePacksViewModel : IDisposable
     private readonly IStatusService statusService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<LocalResourcePacksViewModel> logger;
+    private readonly InstanceContentRefreshWatcher contentWatcher;
     private CancellationTokenSource? refreshCancellationTokenSource;
-    private FileSystemWatcher? resourcePacksWatcher;
-    private CancellationTokenSource? watcherRefreshCancellationTokenSource;
     private GameInstance? selectedInstance;
     private IReadOnlyList<LocalResourcePack> currentResourcePacks = Array.Empty<LocalResourcePack>();
-    private string? watchedResourcePacksDirectory;
-    private bool watcherEnabled;
-    private bool watcherSuspendedForRename;
     private int resourcePackRefreshVersion;
 
     public LocalResourcePacksViewModel(
         ILocalResourcePackService localResourcePackService,
         IStatusService statusService,
+        IInstanceDirectoryMonitor instanceDirectoryMonitor,
         IUiDispatcher? uiDispatcher = null,
         ILogger<LocalResourcePacksViewModel>? logger = null)
     {
@@ -54,6 +50,12 @@ public sealed class LocalResourcePacksViewModel : IDisposable
         this.statusService = statusService;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<LocalResourcePacksViewModel>.Instance;
+        contentWatcher = new InstanceContentRefreshWatcher(
+            instanceDirectoryMonitor,
+            InstanceDirectoryKind.ResourcePacks,
+            RefreshResourcePacksAsync,
+            _ => this.uiDispatcher.Post(() => ReportStatus(Strings.Status_LoadLocalResourcePacksFailed)),
+            this.logger);
     }
 
     public event EventHandler? ResourcePacksChanged;
@@ -67,7 +69,7 @@ public sealed class LocalResourcePacksViewModel : IDisposable
         selectedInstance = instance;
         Interlocked.Increment(ref resourcePackRefreshVersion);
         CancelRefresh();
-        ResetWatcher();
+        contentWatcher.SetInstance(instance);
         ClearResourcePacks();
         logger.LogInformation(
             "Selected instance changed for local resource packs view. InstanceId={InstanceId}",
@@ -76,24 +78,18 @@ public sealed class LocalResourcePacksViewModel : IDisposable
 
     public void SetWatcherEnabled(bool enabled)
     {
-        watcherEnabled = enabled;
-        ResetWatcher();
+        contentWatcher.SetEnabled(enabled);
     }
 
     public void SuspendWatcherForInstanceRename()
     {
-        watcherSuspendedForRename = true;
-        ResetWatcher();
+        contentWatcher.Suspend();
         CancelRefresh();
     }
 
     public void ResumeWatcherAfterInstanceRename()
     {
-        if (!watcherSuspendedForRename)
-            return;
-
-        watcherSuspendedForRename = false;
-        ResetWatcher();
+        contentWatcher.Resume();
     }
 
     public Task SetSelectedInstanceAsync(GameInstance? instance)
@@ -212,130 +208,8 @@ public sealed class LocalResourcePacksViewModel : IDisposable
 
     public void Dispose()
     {
-        resourcePacksWatcher?.Dispose();
-        resourcePacksWatcher = null;
+        contentWatcher.Dispose();
         CancelRefresh();
-        watcherRefreshCancellationTokenSource?.Cancel();
-        watcherRefreshCancellationTokenSource?.Dispose();
-        watcherRefreshCancellationTokenSource = null;
-    }
-
-    private void ResetWatcher()
-    {
-        resourcePacksWatcher?.Dispose();
-        resourcePacksWatcher = null;
-        watcherRefreshCancellationTokenSource?.Cancel();
-        watcherRefreshCancellationTokenSource?.Dispose();
-        watcherRefreshCancellationTokenSource = null;
-        watchedResourcePacksDirectory = null;
-
-        if (!watcherEnabled || watcherSuspendedForRename)
-            return;
-
-        var instance = selectedInstance;
-        if (instance is null || string.IsNullOrWhiteSpace(instance.InstanceDirectory))
-            return;
-
-        watchedResourcePacksDirectory = Path.Combine(instance.InstanceDirectory, "resourcepacks");
-        Directory.CreateDirectory(watchedResourcePacksDirectory);
-
-        try
-        {
-            resourcePacksWatcher = new FileSystemWatcher(watchedResourcePacksDirectory, "*")
-            {
-                IncludeSubdirectories = false,
-                NotifyFilter = NotifyFilters.DirectoryName
-                    | NotifyFilters.FileName
-                    | NotifyFilters.LastWrite
-                    | NotifyFilters.Size
-                    | NotifyFilters.CreationTime
-            };
-            resourcePacksWatcher.Changed += ResourcePacksWatcher_StateChanged;
-            resourcePacksWatcher.Created += ResourcePacksWatcher_StateChanged;
-            resourcePacksWatcher.Deleted += ResourcePacksWatcher_StateChanged;
-            resourcePacksWatcher.Renamed += ResourcePacksWatcher_StateRenamed;
-            resourcePacksWatcher.EnableRaisingEvents = true;
-            logger.LogInformation(
-                "Local resource pack watcher started. InstanceId={InstanceId} ResourcePacksDirectory={ResourcePacksDirectory}",
-                instance.Id,
-                watchedResourcePacksDirectory);
-        }
-        catch (Exception exception) when (
-            exception is IOException
-            or UnauthorizedAccessException
-            or ArgumentException)
-        {
-            logger.LogWarning(
-                exception,
-                "Failed to start local resource pack watcher. InstanceId={InstanceId} ResourcePacksDirectory={ResourcePacksDirectory}",
-                instance.Id,
-                watchedResourcePacksDirectory);
-        }
-    }
-
-    private void ResourcePacksWatcher_StateChanged(object sender, FileSystemEventArgs e)
-    {
-        if (!IsTrackedResourcePackPath(e.FullPath))
-            return;
-
-        QueueWatcherRefresh(e.ChangeType.ToString(), e.FullPath);
-    }
-
-    private void ResourcePacksWatcher_StateRenamed(object sender, RenamedEventArgs e)
-    {
-        if (!IsTrackedResourcePackPath(e.FullPath) && !IsTrackedResourcePackPath(e.OldFullPath))
-            return;
-
-        QueueWatcherRefresh("Renamed", e.FullPath);
-    }
-
-    private void QueueWatcherRefresh(string changeType, string fullPath)
-    {
-        var instance = selectedInstance;
-        if (instance is null)
-            return;
-
-        var previousCts = Interlocked.Exchange(
-            ref watcherRefreshCancellationTokenSource,
-            new CancellationTokenSource());
-        previousCts?.Cancel();
-        previousCts?.Dispose();
-
-        var refreshCts = watcherRefreshCancellationTokenSource!;
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(200, refreshCts.Token);
-                logger.LogInformation(
-                    "Detected local resource pack folder change. InstanceId={InstanceId} ChangeType={ChangeType} Path={Path}",
-                    instance.Id,
-                    changeType,
-                    fullPath);
-                await RefreshResourcePacksAsync();
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception exception)
-            {
-                logger.LogError(
-                    exception,
-                    "Failed to refresh local resource packs after watcher update. InstanceId={InstanceId}",
-                    instance.Id);
-                uiDispatcher.Post(() => ReportStatus(Strings.Status_LoadLocalResourcePacksFailed));
-            }
-        });
-    }
-
-    private bool IsTrackedResourcePackPath(string? fullPath)
-    {
-        if (string.IsNullOrWhiteSpace(fullPath) || string.IsNullOrWhiteSpace(watchedResourcePacksDirectory))
-            return false;
-
-        var normalizedRoot = Path.GetFullPath(watchedResourcePacksDirectory);
-        var normalizedPath = Path.GetFullPath(fullPath);
-        return normalizedPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
     }
 
     private void ReportStatus(string message)

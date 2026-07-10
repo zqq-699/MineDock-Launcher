@@ -17,7 +17,6 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-using System.IO;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -42,18 +41,10 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private readonly IGameVersionService? gameVersionService;
     private readonly IGameInstanceService? gameInstanceService;
     private readonly IStatusService? statusService;
-    private readonly IFilePickerService? filePickerService;
-    private readonly IFloatingMessageService? floatingMessageService;
-    private readonly DownloadTasksPageViewModel? downloadTasksPage;
-    private readonly ILocalModpackImportService? localModpackImportService;
-    private readonly IModService? modService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger? logger;
     private readonly ResourcesOnlineProjectPageOptions options;
-    private readonly ResourcesAvailableVersionListBuilder availableVersionListBuilder;
-    private readonly ResourcesRequiredDependencyPlanner requiredDependencyPlanner;
     private readonly object releaseVersionOrderGate = new();
-    private readonly Stack<ResourcesModProjectItemViewModel> projectDetailsBackStack = new();
     private CancellationTokenSource? refreshCancellationTokenSource;
     private CancellationTokenSource? installTargetsCancellationTokenSource;
     private CancellationTokenSource? projectVersionsCancellationTokenSource;
@@ -62,9 +53,6 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private bool isApplyingVersionFilterOptions;
     private bool isApplyingInstanceFilters;
     private bool isApplyingAvailableVersionFilterOptions;
-    private IReadOnlyList<ResourceProjectVersion> availableVersionSourceVersions = [];
-    private readonly HashSet<string> loadedAvailableVersionIds = new(StringComparer.OrdinalIgnoreCase);
-    private int nextAvailableVersionOffset;
     private Task<ReleaseVersionData?>? releaseVersionDataTask;
     private TaskCompletionSource<RequiredDependenciesDialogChoice>? pendingRequiredDependenciesDialogChoiceSource;
 
@@ -79,8 +67,8 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         IFilePickerService? filePickerService = null,
         IFloatingMessageService? floatingMessageService = null,
         DownloadTasksPageViewModel? downloadTasksPage = null,
-        ILocalModpackImportService? localModpackImportService = null,
-        IModService? modService = null)
+        IResourceProjectInstallationService? resourceProjectInstallationService = null,
+        IResourceDependencyPlanningService? resourceDependencyPlanningService = null)
         : this(
             parent,
             CreateModOptions(),
@@ -93,8 +81,8 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             filePickerService,
             floatingMessageService,
             downloadTasksPage,
-            localModpackImportService,
-            modService)
+            resourceProjectInstallationService,
+            resourceDependencyPlanningService)
     {
     }
 
@@ -110,8 +98,8 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         IFilePickerService? filePickerService = null,
         IFloatingMessageService? floatingMessageService = null,
         DownloadTasksPageViewModel? downloadTasksPage = null,
-        ILocalModpackImportService? localModpackImportService = null,
-        IModService? modService = null)
+        IResourceProjectInstallationService? resourceProjectInstallationService = null,
+        IResourceDependencyPlanningService? resourceDependencyPlanningService = null)
         : base(parent, options.Title)
     {
         this.options = options;
@@ -119,28 +107,36 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         this.gameVersionService = gameVersionService;
         this.gameInstanceService = gameInstanceService;
         this.statusService = statusService;
-        this.filePickerService = filePickerService;
-        this.floatingMessageService = floatingMessageService;
-        this.downloadTasksPage = downloadTasksPage;
-        this.localModpackImportService = localModpackImportService;
-        this.modService = modService;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger;
-        availableVersionListBuilder = new ResourcesAvailableVersionListBuilder(options);
-        requiredDependencyPlanner = new ResourcesRequiredDependencyPlanner(
-            resourceCatalogService,
-            modService,
+        Details = new ResourcesProjectDetailsViewModel();
+        ProjectList = new ResourcesProjectListViewModel(options);
+        Versions = new ResourcesProjectVersionsViewModel(options);
+        var requiredDependencyPlanner = new ResourcesRequiredDependencyPlanner(
+            resourceDependencyPlanningService,
             options,
             logger,
-            ReportStatus,
-            AvailableVersionPageSize);
+            ReportStatus);
+        Install = new ResourcesProjectInstallViewModel(
+            options,
+            resourceProjectInstallationService,
+            requiredDependencyPlanner,
+            filePickerService,
+            floatingMessageService,
+            downloadTasksPage,
+            this.uiDispatcher,
+            logger,
+            ReportStatus);
+        Install.FileExistsRequested += ShowProjectVersionFileExistsDialog;
+        Install.ModpackImported += (_, instance) => ModpackImported?.Invoke(this, instance);
+        Install.ModpackManualDownloadsRequested += (_, args) => ModpackManualDownloadsRequested?.Invoke(this, args);
 
         VersionOptions = [new ResourcesFilterOptionItem { Id = "all", Title = options.AllVersionsText }];
         LoaderOptions = CreateLoaderOptions(options);
         SourceOptions = CreateSourceOptions(options);
         TypeOptions = CreateTypeOptions(options);
-        AvailableVersionFilterOptions = [availableVersionListBuilder.CreateAllVersionFilterOption()];
-        AvailableLoaderFilterOptions = [.. availableVersionListBuilder.CreateDefaultLoaderFilterOptions()];
+        AvailableVersionFilterOptions = [Versions.Builder.CreateAllVersionFilterOption()];
+        AvailableLoaderFilterOptions = [.. Versions.Builder.CreateDefaultLoaderFilterOptions()];
 
         selectedVersionOption = VersionOptions[0];
         selectedLoaderOption = LoaderOptions[0];
@@ -153,6 +149,14 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     public event EventHandler<GameInstance>? ModpackImported;
 
     public event EventHandler<ResourcesModpackManualDownloadsRequestedEventArgs>? ModpackManualDownloadsRequested;
+
+    public ResourcesProjectInstallViewModel Install { get; }
+
+    public ResourcesProjectDetailsViewModel Details { get; }
+
+    public ResourcesProjectListViewModel ProjectList { get; }
+
+    public ResourcesProjectVersionsViewModel Versions { get; }
 
     public ObservableCollection<ResourcesFilterOptionItem> VersionOptions { get; }
 
@@ -327,9 +331,6 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private bool hasMoreAvailableVersions;
 
     [ObservableProperty]
-    private bool isInstallingAvailableVersion;
-
-    [ObservableProperty]
     private ResourcesFilterOptionItem? pendingVersionOption;
 
     [ObservableProperty]
@@ -344,8 +345,6 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanShowLoadMoreState))]
     private bool hasMoreProjects;
-
-    private int nextPageOffset;
 
     public bool HasVisibleProjects => VisibleProjects.Count > 0;
 
@@ -408,7 +407,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             && SelectedAvailableLoaderFilterOption?.Id is { } loaderId
             && !string.Equals(loaderId, "all", StringComparison.OrdinalIgnoreCase));
 
-    public string AvailableVersionsTitle => availableVersionListBuilder.FormatTitle(SelectedInstallTarget);
+    public string AvailableVersionsTitle => Versions.Builder.FormatTitle(SelectedInstallTarget);
 
     public string PageTitle => IsProjectVersionsStep && SelectedInstallTarget?.IsLocalDownload == false
         ? SelectedInstallTarget.Title
@@ -498,7 +497,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         if (project is null)
             return;
 
-        projectDetailsBackStack.Clear();
+        Details.SelectRoot(project);
         OpenProjectDetails(project);
     }
 
@@ -508,9 +507,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         if (project is null)
             return;
 
-        if (SelectedProject is not null)
-            projectDetailsBackStack.Push(SelectedProject);
-
+        Details.OpenDependency(project);
         OpenProjectDetails(project);
         logger?.LogInformation(
             "Resource project dependency selected. Kind={Kind}, Source={Source}, ProjectId={ProjectId}",
@@ -521,6 +518,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 
     private void OpenProjectDetails(ResourcesModProjectItemViewModel project)
     {
+        Details.SetCurrent(project);
         SelectedProject = project;
         CurrentStep = ResourcesModPageStep.ProjectDetails;
         SelectedInstallTarget = null;
@@ -548,7 +546,8 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         }
 
         if (CurrentStep is ResourcesModPageStep.ProjectDetails
-            && projectDetailsBackStack.TryPop(out var previousProject))
+            && Details.TryGoBack(out var previousProject)
+            && previousProject is not null)
         {
             OpenProjectDetails(previousProject);
             return;
@@ -559,7 +558,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 
     public void ResetToProjectList()
     {
-        projectDetailsBackStack.Clear();
+        Details.Reset();
         ResolveRequiredDependenciesDialog(RequiredDependenciesDialogChoice.Cancel);
         CancelProjectDependenciesLoad();
         ClearRequiredDependencies();
@@ -855,257 +854,14 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     }
 
     [RelayCommand]
-    private async Task InstallAvailableVersionAsync(ResourcesModVersionItemViewModel? item)
+    private Task InstallAvailableVersionAsync(ResourcesModVersionItemViewModel? item)
     {
-        var target = SelectedInstallTarget;
-        if (item is null || target is null || resourceCatalogService is null || IsInstallingAvailableVersion)
-            return;
-
-        IsInstallingAvailableVersion = true;
-        DownloadTaskItem? downloadTask = null;
-        try
-        {
-            if (target.IsLocalDownload)
-            {
-                var targetDirectory = filePickerService?.PickFolder(options.DownloadDirectoryPickerTitle);
-                if (string.IsNullOrWhiteSpace(targetDirectory))
-                    return;
-
-                if (await resourceCatalogService.ProjectVersionDownloadExistsAsync(item.Version, targetDirectory).ConfigureAwait(false))
-                {
-                    ShowProjectVersionFileExistsDialog(item);
-                    logger?.LogInformation(
-                        "Skipped resource project local download because target file exists. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId} TargetDirectory={TargetDirectory}",
-                        options.Kind,
-                        SelectedProject?.Project.ProjectId,
-                        item.Version.VersionId,
-                        targetDirectory);
-                    return;
-                }
-
-                downloadTask = BeginModDownloadTask(item, targetDirectory);
-                floatingMessageService?.Show(options.DownloadingText);
-                ReportStatus(string.Format(options.DownloadingFormat, item.Title));
-                await resourceCatalogService.DownloadProjectVersionAsync(
-                        item.Version,
-                        targetDirectory,
-                        downloadTask?.CancellationToken ?? CancellationToken.None)
-                    .ConfigureAwait(false);
-                if (CompleteCanceledModDownloadTask(downloadTask))
-                    return;
-
-                var downloadedMessage = string.Format(options.DownloadedFormat, ResolveVersionFileNameForDisplay(item));
-                CompleteModDownloadTask(downloadTask, downloadedMessage);
-                ReportStatus(downloadedMessage);
-                logger?.LogInformation(
-                    "Resource project version downloaded locally. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId} TargetDirectory={TargetDirectory}",
-                    options.Kind,
-                    SelectedProject?.Project.ProjectId,
-                    item.Version.VersionId,
-                    targetDirectory);
-                return;
-            }
-
-            if (target.IsNewInstanceInstall)
-            {
-                if (localModpackImportService is null)
-                    throw new InvalidOperationException("The local modpack import service is unavailable.");
-
-                downloadTask = BeginModDownloadTask(item, target.Title);
-                floatingMessageService?.Show(options.DownloadingText);
-                ReportStatus(string.Format(options.DownloadingFormat, item.Title));
-
-                var tempDirectory = Path.Combine(Path.GetTempPath(), $"launcher-modpack-install-{Guid.NewGuid():N}");
-                Directory.CreateDirectory(tempDirectory);
-
-                try
-                {
-                    var archivePath = await resourceCatalogService.DownloadProjectVersionAsync(
-                            item.Version,
-                            tempDirectory,
-                            downloadTask?.CancellationToken ?? CancellationToken.None)
-                        .ConfigureAwait(false);
-                    if (CompleteCanceledModDownloadTask(downloadTask))
-                        return;
-
-                    var result = await localModpackImportService.ImportFromArchiveAsync(
-                            archivePath,
-                            CreateModpackImportProgressReporter(downloadTask),
-                            downloadTask?.CancellationToken ?? CancellationToken.None)
-                        .ConfigureAwait(false);
-                    if (CompleteCanceledModDownloadTask(downloadTask))
-                        return;
-
-                    if (result.IsSuccess && result.ImportedInstance is not null)
-                    {
-                        var importedMessage = result.HasManualDownloads
-                            ? string.Format(Strings.Status_ModpackImportedWithManualDownloadsFormat, result.ImportedInstance.Name)
-                            : string.Format(options.InstalledFormat, result.ImportedInstance.Name);
-                        CompleteModDownloadTask(downloadTask, importedMessage);
-                        ReportStatus(importedMessage);
-                        uiDispatcher.Invoke(() =>
-                        {
-                            ModpackImported?.Invoke(this, result.ImportedInstance);
-                            if (result.HasManualDownloads)
-                            {
-                                ModpackManualDownloadsRequested?.Invoke(
-                                    this,
-                                    new ResourcesModpackManualDownloadsRequestedEventArgs(
-                                        result.ImportedInstance,
-                                        result.ManualDownloads));
-                            }
-                        });
-                        logger?.LogInformation(
-                            "Resource modpack imported as new instance. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId} HasManualDownloads={HasManualDownloads}",
-                            options.Kind,
-                            SelectedProject?.Project.ProjectId,
-                            item.Version.VersionId,
-                            result.ImportedInstance.Id,
-                            result.HasManualDownloads);
-                        return;
-                    }
-
-                    var failureMessage = MapModpackImportFailureMessage(result.FailureReason);
-                    floatingMessageService?.Show(failureMessage);
-                    ReportStatus(failureMessage);
-                    FailModDownloadTask(downloadTask, failureMessage);
-                    logger?.LogWarning(
-                        "Resource modpack import failed. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId} FailureReason={FailureReason}",
-                        options.Kind,
-                        SelectedProject?.Project.ProjectId,
-                        item.Version.VersionId,
-                        result.FailureReason);
-                    return;
-                }
-                finally
-                {
-                    SafeDeleteDirectory(tempDirectory);
-                }
-            }
-
-            var instance = target.Instance;
-            if (instance is null)
-                return;
-
-            if (await resourceCatalogService.ProjectVersionInstallExistsAsync(item.Version, instance).ConfigureAwait(false))
-            {
-                ShowProjectVersionFileExistsDialog(item);
-                logger?.LogInformation(
-                    "Skipped resource project version install because target file exists. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId}",
-                    options.Kind,
-                    SelectedProject?.Project.ProjectId,
-                    item.Version.VersionId,
-                    instance.Id);
-                return;
-            }
-
-            var dependencyPlan = await requiredDependencyPlanner.ResolveInstallPlanAsync(
-                    item,
-                    instance,
-                    SelectedProject?.Project.ProjectId,
-                    RequestRequiredDependenciesDialogAsync,
-                    CancellationToken.None)
-                .ConfigureAwait(false);
-            if (dependencyPlan.Choice is RequiredDependenciesDialogChoice.Cancel)
-                return;
-
-            downloadTask = BeginModDownloadTask(item, target.Title);
-            floatingMessageService?.Show(options.DownloadingText);
-            if (dependencyPlan.Choice is RequiredDependenciesDialogChoice.AutoInstallDependencies)
-            {
-                try
-                {
-                    await requiredDependencyPlanner.InstallRequiredDependenciesAsync(
-                            dependencyPlan.MissingDependencies,
-                            instance,
-                            SelectedProject?.Project.ProjectId,
-                            progress => ReportModDownloadTask(downloadTask, progress),
-                            downloadTask?.CancellationToken ?? CancellationToken.None)
-                        .ConfigureAwait(false);
-                }
-                catch (RequiredDependencyInstallException exception)
-                {
-                    var failureMessage = string.Format(
-                        Strings.Status_ModRequiredDependenciesAutoInstallFailedFormat,
-                        exception.DependencyTitle);
-                    floatingMessageService?.Show(failureMessage);
-                    ReportStatus(failureMessage);
-                    FailModDownloadTask(downloadTask, failureMessage);
-                    logger?.LogWarning(
-                        exception,
-                        "Failed to auto-install required resource project dependency. Kind={Kind}, ProjectId={ProjectId}, DependencyProjectId={DependencyProjectId}, InstanceId={InstanceId}",
-                        options.Kind,
-                        SelectedProject?.Project.ProjectId,
-                        exception.DependencyProjectId,
-                        instance.Id);
-                    return;
-                }
-            }
-
-            ReportStatus(string.Format(options.DownloadingFormat, item.Title));
-            ReportModDownloadTask(downloadTask, new LauncherProgress(
-                ModProgressStages.DownloadingFile,
-                string.Format(options.DownloadingFormat, item.Title)));
-            await resourceCatalogService.InstallProjectVersionAsync(
-                    item.Version,
-                    instance,
-                    downloadTask?.CancellationToken ?? CancellationToken.None)
-                .ConfigureAwait(false);
-            if (CompleteCanceledModDownloadTask(downloadTask))
-                return;
-
-            var installedMessage = string.Format(options.InstalledFormat, SelectedProject?.Title ?? item.Title);
-            CompleteModDownloadTask(downloadTask, installedMessage);
-            ReportStatus(installedMessage);
-            logger?.LogInformation(
-                "Resource project version installed. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId}",
-                options.Kind,
-                SelectedProject?.Project.ProjectId,
-                item.Version.VersionId,
-                instance.Id);
-        }
-        catch (OperationCanceledException) when (downloadTask?.IsCancellationRequested == true)
-        {
-            CompleteCanceledModDownloadTask(downloadTask);
-            logger?.LogInformation(
-                "Resource project version download canceled. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId}",
-                options.Kind,
-                SelectedProject?.Project.ProjectId,
-                item.Version.VersionId);
-        }
-        catch (Exception exception)
-        {
-            ReportStatus(target.IsLocalDownload ? options.DownloadFailedText : options.InstallFailedText);
-            if (target.IsLocalDownload)
-            {
-                floatingMessageService?.Show(options.DownloadFailedText);
-                FailModDownloadTask(downloadTask, options.DownloadFailedText);
-                logger?.LogError(
-                    exception,
-                    "Failed to download resource project version locally. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId}",
-                    options.Kind,
-                    SelectedProject?.Project.ProjectId,
-                    item.Version.VersionId);
-            }
-            else
-            {
-                floatingMessageService?.Show(options.InstallFailedText);
-                FailModDownloadTask(downloadTask, options.InstallFailedText);
-                logger?.LogError(
-                    exception,
-                    "Failed to install resource project version. Kind={Kind}, ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId}",
-                    options.Kind,
-                    SelectedProject?.Project.ProjectId,
-                    item.Version.VersionId,
-                    target.Instance?.Id);
-            }
-        }
-        finally
-        {
-            IsInstallingAvailableVersion = false;
-        }
+        return Install.InstallAsync(
+            item,
+            SelectedInstallTarget,
+            SelectedProject,
+            RequestRequiredDependenciesDialogAsync);
     }
-
     public void BeginEnsureProjectsLoaded()
     {
         BeginEnsureVersionOptionsLoaded();
@@ -1538,7 +1294,12 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         return end > 0 && int.TryParse(value[..end], out number);
     }
 
-    private async void ScheduleProjectsRefresh()
+    private void ScheduleProjectsRefresh()
+    {
+        _ = ScheduleProjectsRefreshAsync();
+    }
+
+    private async Task ScheduleProjectsRefreshAsync()
     {
         if (resourceCatalogService is null)
             return;
@@ -1552,6 +1313,13 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         }
         catch (OperationCanceledException)
         {
+        }
+        catch (Exception exception)
+        {
+            logger?.LogWarning(
+                exception,
+                "Failed to refresh resource projects after a filter change. Kind={Kind}",
+                options.Kind);
         }
     }
 
@@ -1578,7 +1346,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         var cancellationToken = refreshCancellationTokenSource?.Token ?? CancellationToken.None;
         IsLoadingMoreProjects = true;
         LoadMoreMessage = options.ProjectsLoadingMoreText;
-        return QueueProjectLoadAsync(CreateSearchRequest(nextPageOffset), ProjectLoadKind.LoadMore, cancellationToken);
+        return QueueProjectLoadAsync(CreateSearchRequest(ProjectList.NextPageOffset), ProjectLoadKind.LoadMore, cancellationToken);
     }
 
     private CancellationToken BeginProjectLoad()
@@ -1591,7 +1359,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         IsLoadingProjects = true;
         IsLoadingMoreProjects = false;
         HasMoreProjects = false;
-        nextPageOffset = 0;
+        ProjectList.ResetPagination();
         LoadErrorMessage = string.Empty;
         LoadMoreMessage = string.Empty;
         PartialWarningMessage = string.Empty;
@@ -1635,7 +1403,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             VisibleProjects.Clear();
             ProjectListItems.Clear();
             PartialWarningMessage = string.Empty;
-            nextPageOffset = result.Offset + CatalogPageSize;
+            ProjectList.AdvancePagination(result.Offset, CatalogPageSize);
             HasMoreProjects = result.CatalogResult.HasMore;
             LoadMoreMessage = HasMoreProjects || result.Items.Count == 0
                 ? string.Empty
@@ -1678,7 +1446,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
                 return;
             }
 
-            nextPageOffset = result.Offset + CatalogPageSize;
+            ProjectList.AdvancePagination(result.Offset, CatalogPageSize);
             HasMoreProjects = result.CatalogResult.HasMore;
             if (result.Items.Count == 0)
                 HasMoreProjects = false;
@@ -1900,7 +1668,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 
         AvailableVersions.Clear();
         AvailableVersionListItems.Clear();
-        availableVersionSourceVersions = versions.ToList();
+        Versions.SetSourceVersions(versions);
         foreach (var version in versions)
             AvailableVersions.Add(new ResourcesModVersionItemViewModel(version, SelectedProject, options.FallbackIconKey));
 
@@ -1923,14 +1691,12 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         if (cancellationToken.IsCancellationRequested)
             return;
 
-        var sourceVersions = availableVersionSourceVersions.ToList();
-        sourceVersions.AddRange(versions);
-        availableVersionSourceVersions = sourceVersions;
+        Versions.AppendSourceVersions(versions);
 
         foreach (var version in versions)
             AvailableVersions.Add(new ResourcesModVersionItemViewModel(version, SelectedProject, options.FallbackIconKey));
 
-        UpdateAvailableVersionFilterOptionsPreservingSelection(availableVersionSourceVersions);
+        UpdateAvailableVersionFilterOptionsPreservingSelection(Versions.SourceVersions);
         AppendAvailableVersionListItems(versions);
 
         HasMoreAvailableVersions = hasMore;
@@ -1969,8 +1735,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 
     private void BeginAvailableVersionRequestState()
     {
-        nextAvailableVersionOffset = 0;
-        loadedAvailableVersionIds.Clear();
+        Versions.Reset();
     }
 
     private async Task<AvailableVersionPageResult> LoadNextAvailableVersionPageAsync(
@@ -1983,8 +1748,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         var request = CreateProjectVersionsRequest(project);
         var result = await resourceCatalogService.GetProjectVersionsAsync(request, cancellationToken)
             .ConfigureAwait(false);
-        var versions = DeduplicateAvailableVersions(result.Versions);
-        nextAvailableVersionOffset = request.Offset + AvailableVersionPageSize;
+        var versions = Versions.AcceptPage(result.Versions, request.Offset, AvailableVersionPageSize);
 
         logger?.LogInformation(
             "Resource project versions page loaded. Kind={Kind}, ProjectId={ProjectId} Offset={Offset} PageSize={PageSize} ResultCount={ResultCount} UniqueCount={UniqueCount} HasMore={HasMore}",
@@ -2010,82 +1774,22 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             MinecraftVersion = string.Empty,
             Loader = LoaderKind.Vanilla,
             IncludeAllVersions = true,
-            Offset = nextAvailableVersionOffset,
+            Offset = Versions.NextPageOffset,
             PageSize = AvailableVersionPageSize
         };
     }
 
-    private IReadOnlyList<ResourceProjectVersion> DeduplicateAvailableVersions(IReadOnlyList<ResourceProjectVersion> versions)
-    {
-        var uniqueVersions = new List<ResourceProjectVersion>();
-        foreach (var version in versions)
-        {
-            var key = string.IsNullOrWhiteSpace(version.VersionId)
-                ? version.FileName
-                : version.VersionId;
-            if (string.IsNullOrWhiteSpace(key) || !loadedAvailableVersionIds.Add(key))
-                continue;
-
-            uniqueVersions.Add(version);
-        }
-
-        return uniqueVersions;
-    }
-
     private ResourceCatalogSearchRequest CreateSearchRequest(int offset)
     {
-        var selectedMinecraftVersions = SelectedVersionOption?.Id is { } versionId && versionId != "all"
-            ? ResolveSelectedMinecraftVersions(SelectedVersionOption)
-            : Array.Empty<string>();
-
-        return new ResourceCatalogSearchRequest
-        {
-            Kind = options.Kind,
-            Query = SearchQuery,
-            MinecraftVersion = selectedMinecraftVersions.Count == 1 ? selectedMinecraftVersions[0] : string.Empty,
-            MinecraftVersions = selectedMinecraftVersions,
-            Loader = !options.ShowsLoaderFilters ? LoaderKind.Vanilla : SelectedLoaderOption?.Id switch
-            {
-                "fabric" => LoaderKind.Fabric,
-                "forge" => LoaderKind.Forge,
-                "neoforge" => LoaderKind.NeoForge,
-                "quilt" => LoaderKind.Quilt,
-                _ => LoaderKind.Vanilla
-            },
-            Source = SelectedSourceOption?.Id switch
-            {
-                "modrinth" => ResourceProjectSource.Modrinth,
-                "curseforge" => ResourceProjectSource.CurseForge,
-                _ => null
-            },
-            Category = ResolveSelectedCategory(),
-            Offset = offset,
-            PageSize = CatalogPageSize
-        };
+        return ProjectList.CreateSearchRequest(
+            SearchQuery,
+            SelectedVersionOption,
+            SelectedLoaderOption,
+            SelectedSourceOption,
+            SelectedTypeOption,
+            offset,
+            CatalogPageSize);
     }
-
-    private static IReadOnlyList<string> ResolveSelectedMinecraftVersions(ResourcesFilterOptionItem? option)
-    {
-        if (option is null || option.Id == "all")
-            return [];
-
-        if (option.MinecraftVersions.Count > 0)
-            return option.MinecraftVersions;
-
-        return [option.Id];
-    }
-
-    private ResourceProjectCategory? ResolveSelectedCategory()
-    {
-        var selectedId = SelectedTypeOption?.Id;
-        if (string.IsNullOrWhiteSpace(selectedId) || string.Equals(selectedId, "all", StringComparison.OrdinalIgnoreCase))
-            return null;
-
-        return options.TypeOptions
-            .FirstOrDefault(option => string.Equals(option.Id, selectedId, StringComparison.OrdinalIgnoreCase))
-            ?.Category;
-    }
-
     private void RaiseProjectStatePropertiesChanged()
     {
         OnPropertyChanged(nameof(HasVisibleProjects));
@@ -2175,14 +1879,12 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
 
     private void ClearAvailableVersionState(bool resetFilters)
     {
-        availableVersionSourceVersions = [];
+        Versions.Reset();
         AvailableVersionListItems.Clear();
         VisibleAvailableVersionCount = 0;
         HasMoreAvailableVersions = false;
         IsLoadingMoreAvailableVersions = false;
         AvailableVersionsLoadMoreMessage = string.Empty;
-        nextAvailableVersionOffset = 0;
-        loadedAvailableVersionIds.Clear();
 
         if (!resetFilters)
             return;
@@ -2204,9 +1906,9 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private void ResetAvailableVersionFilterOptions()
     {
         AvailableVersionFilterOptions.Clear();
-        AvailableVersionFilterOptions.Add(availableVersionListBuilder.CreateAllVersionFilterOption());
+        AvailableVersionFilterOptions.Add(Versions.Builder.CreateAllVersionFilterOption());
         AvailableLoaderFilterOptions.Clear();
-        foreach (var option in availableVersionListBuilder.CreateDefaultLoaderFilterOptions())
+        foreach (var option in Versions.Builder.CreateDefaultLoaderFilterOptions())
             AvailableLoaderFilterOptions.Add(option);
 
         SelectedAvailableVersionFilterOption = AvailableVersionFilterOptions[0];
@@ -2217,15 +1919,15 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     {
         var selectedVersionId = SelectedAvailableVersionFilterOption?.Id ?? "all";
         var selectedLoaderId = SelectedAvailableLoaderFilterOption?.Id ?? "all";
-        var versionOptions = availableVersionListBuilder.CreateVersionFilterOptions(versions);
-        var loaderOptions = availableVersionListBuilder.CreateLoaderFilterOptions(versions);
+        var versionOptions = Versions.Builder.CreateVersionFilterOptions(versions);
+        var loaderOptions = Versions.Builder.CreateLoaderFilterOptions(versions);
 
         try
         {
             isApplyingAvailableVersionFilterOptions = true;
 
             AvailableVersionFilterOptions.Clear();
-            AvailableVersionFilterOptions.Add(availableVersionListBuilder.CreateAllVersionFilterOption());
+            AvailableVersionFilterOptions.Add(Versions.Builder.CreateAllVersionFilterOption());
             foreach (var option in versionOptions)
                 AvailableVersionFilterOptions.Add(option);
 
@@ -2250,16 +1952,16 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
         IReadOnlyList<ResourceProjectVersion> versions,
         ResourcesModInstallTargetItemViewModel? target)
     {
-        var selectedVersionId = availableVersionListBuilder.ResolveDefaultVersionFilterId(target);
-        var selectedLoaderId = availableVersionListBuilder.ResolveDefaultLoaderFilterId(target);
-        var versionOptions = availableVersionListBuilder.CreateVersionFilterOptions(versions);
-        var loaderOptions = availableVersionListBuilder.CreateLoaderFilterOptions(versions);
+        var selectedVersionId = Versions.Builder.ResolveDefaultVersionFilterId(target);
+        var selectedLoaderId = Versions.Builder.ResolveDefaultLoaderFilterId(target);
+        var versionOptions = Versions.Builder.CreateVersionFilterOptions(versions);
+        var loaderOptions = Versions.Builder.CreateLoaderFilterOptions(versions);
 
         try
         {
             isApplyingAvailableVersionFilterOptions = true;
             AvailableVersionFilterOptions.Clear();
-            AvailableVersionFilterOptions.Add(availableVersionListBuilder.CreateAllVersionFilterOption());
+            AvailableVersionFilterOptions.Add(Versions.Builder.CreateAllVersionFilterOption());
             foreach (var option in versionOptions)
                 AvailableVersionFilterOptions.Add(option);
 
@@ -2301,14 +2003,14 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             return;
         }
 
-        AvailableLoaderFilterOptions.Add(new ResourcesFilterOptionItem { Id = loaderId, Title = availableVersionListBuilder.GetLoaderTitle(loaderId) });
+        AvailableLoaderFilterOptions.Add(new ResourcesFilterOptionItem { Id = loaderId, Title = Versions.Builder.GetLoaderTitle(loaderId) });
     }
 
     private void RebuildAvailableVersionListItems(bool playEntranceAnimation = true)
     {
         AvailableVersionListItems.Clear();
-        var result = availableVersionListBuilder.Build(
-            availableVersionSourceVersions,
+        var result = Versions.Builder.Build(
+            Versions.SourceVersions,
             AvailableVersionsTitle,
             SelectedProject,
             options.FallbackIconKey,
@@ -2330,7 +2032,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
     private void AppendAvailableVersionListItems(IReadOnlyList<ResourceProjectVersion> versions)
     {
         RemoveAvailableVersionFooterItem();
-        var appendedCount = availableVersionListBuilder.Append(
+        var appendedCount = Versions.Builder.Append(
             AvailableVersionListItems,
             versions,
             AvailableVersionsTitle,
@@ -2398,86 +2100,6 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase
             options.Kind,
             filterId,
             option.Id);
-    }
-
-    private DownloadTaskItem? BeginModDownloadTask(ResourcesModVersionItemViewModel item, string subtitle)
-    {
-        var task = downloadTasksPage?.BeginTask(item.Title, subtitle);
-        ReportModDownloadTask(task, new LauncherProgress(
-            ModProgressStages.DownloadingFile,
-            string.Format(options.DownloadingFormat, item.Title)));
-        return task;
-    }
-
-    private void ReportModDownloadTask(DownloadTaskItem? task, LauncherProgress progress)
-    {
-        if (task is null)
-            return;
-
-        uiDispatcher.Invoke(() => task.Report(progress));
-    }
-
-    private void CompleteModDownloadTask(DownloadTaskItem? task, string message)
-    {
-        if (task is null)
-            return;
-
-        uiDispatcher.Invoke(() => task.Complete(message));
-    }
-
-    private void FailModDownloadTask(DownloadTaskItem? task, string message)
-    {
-        if (task is null)
-            return;
-
-        uiDispatcher.Invoke(() => task.Fail(message));
-    }
-
-    private bool CompleteCanceledModDownloadTask(DownloadTaskItem? task)
-    {
-        return task?.IsCancellationRequested == true;
-    }
-
-    private IProgress<LauncherProgress>? CreateModpackImportProgressReporter(DownloadTaskItem? task)
-    {
-        if (task is null)
-            return null;
-
-        return new Progress<LauncherProgress>(progress =>
-        {
-            ReportModDownloadTask(task, progress with { Message = LauncherProgressTextFormatter.Format(progress) });
-        });
-    }
-
-    private string MapModpackImportFailureMessage(ModpackImportFailureReason failureReason)
-    {
-        return failureReason switch
-        {
-            ModpackImportFailureReason.FileNotFound
-                or ModpackImportFailureReason.UnsupportedArchive
-                or ModpackImportFailureReason.InvalidManifest
-                => Strings.Status_ModpackInvalidArchive,
-            ModpackImportFailureReason.UnsupportedLoader
-                => Strings.Status_ModpackUnsupportedLoader,
-            ModpackImportFailureReason.MissingCurseForgeApiKey
-                => Strings.Status_ModpackMissingCurseForgeApiKey,
-            ModpackImportFailureReason.HashMismatch
-                => Strings.Status_ModpackHashMismatch,
-            _ => options.InstallFailedText
-        };
-    }
-
-    private void SafeDeleteDirectory(string directory)
-    {
-        try
-        {
-            if (Directory.Exists(directory))
-                Directory.Delete(directory, recursive: true);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            logger?.LogWarning(exception, "Failed to delete temporary resource modpack directory. Directory={Directory}", directory);
-        }
     }
 
     private void ReportStatus(string message)

@@ -73,9 +73,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILocalShaderPackService, LocalShaderPackService>();
         services.AddSingleton<IModrinthService, ModrinthService>();
         services.AddSingleton<IResourceCatalogService, ResourceCatalogService>();
+        services.AddSingleton<IResourceProjectInstallationService, ResourceProjectInstallationService>();
         services.AddSingleton<ILauncherUpdateService, RemoteManifestLauncherUpdateService>();
         services.AddSingleton<ILauncherSelfUpdateService, LauncherSelfUpdateService>();
         services.AddSingleton<ILauncherStateMonitor, LauncherStateMonitor>();
+        services.AddSingleton<IInstanceDirectoryMonitor, InstanceDirectoryMonitor>();
+        services.AddSingleton<IInstanceContentImportPathValidator, InstanceContentImportPathValidator>();
+        services.AddSingleton<IExistingFilePathValidator, ExistingFilePathValidator>();
         services.AddSingleton<IMicrosoftAccountService, MicrosoftAccountService>();
         services.AddSingleton<IAccountSkinLibraryService, AccountSkinLibraryService>();
         services.AddSingleton<IMinecraftSkinFileValidator, MinecraftSkinFileValidator>();

@@ -757,23 +757,22 @@ public sealed class LaunchService : ILaunchService
             return;
 
         process.EnableRaisingEvents = true;
-        process.Exited += (_, _) =>
+        process.Exited += (_, _) => _ = RunPostExitCommandAsync(postExitCommand, workingDirectory);
+    }
+
+    private async Task RunPostExitCommandAsync(string postExitCommand, string workingDirectory)
+    {
+        try
         {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await commandRunner.RunAsync(
-                        postExitCommand,
-                        workingDirectory,
-                        waitForExit: false,
-                        CancellationToken.None);
-                }
-                catch (Exception exception)
-                {
-                    logger.LogWarning(exception, "Post-exit command failed. WorkingDirectory={WorkingDirectory}", workingDirectory);
-                }
-            });
-        };
+            await commandRunner.RunAsync(
+                postExitCommand,
+                workingDirectory,
+                waitForExit: false,
+                CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Post-exit command failed. WorkingDirectory={WorkingDirectory}", workingDirectory);
+        }
     }
 }

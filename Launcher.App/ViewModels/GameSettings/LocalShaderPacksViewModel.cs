@@ -18,7 +18,6 @@
  */
 
 using System.Collections.ObjectModel;
-using System.IO;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application.Services;
@@ -34,19 +33,16 @@ public sealed class LocalShaderPacksViewModel : IDisposable
     private readonly IStatusService statusService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<LocalShaderPacksViewModel> logger;
+    private readonly InstanceContentRefreshWatcher contentWatcher;
     private CancellationTokenSource? refreshCancellationTokenSource;
-    private FileSystemWatcher? shaderPacksWatcher;
-    private CancellationTokenSource? watcherRefreshCancellationTokenSource;
     private GameInstance? selectedInstance;
     private IReadOnlyList<LocalShaderPack> currentShaderPacks = Array.Empty<LocalShaderPack>();
-    private string? watchedShaderPacksDirectory;
-    private bool watcherEnabled;
-    private bool watcherSuspendedForRename;
     private int shaderPackRefreshVersion;
 
     public LocalShaderPacksViewModel(
         ILocalShaderPackService localShaderPackService,
         IStatusService statusService,
+        IInstanceDirectoryMonitor instanceDirectoryMonitor,
         IUiDispatcher? uiDispatcher = null,
         ILogger<LocalShaderPacksViewModel>? logger = null)
     {
@@ -54,6 +50,12 @@ public sealed class LocalShaderPacksViewModel : IDisposable
         this.statusService = statusService;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<LocalShaderPacksViewModel>.Instance;
+        contentWatcher = new InstanceContentRefreshWatcher(
+            instanceDirectoryMonitor,
+            InstanceDirectoryKind.ShaderPacks,
+            RefreshShaderPacksAsync,
+            _ => this.uiDispatcher.Post(() => ReportStatus(Strings.Status_LoadLocalShaderPacksFailed)),
+            this.logger);
     }
 
     public event EventHandler? ShaderPacksChanged;
@@ -67,7 +69,7 @@ public sealed class LocalShaderPacksViewModel : IDisposable
         selectedInstance = instance;
         Interlocked.Increment(ref shaderPackRefreshVersion);
         CancelRefresh();
-        ResetWatcher();
+        contentWatcher.SetInstance(instance);
         ClearShaderPacks();
         logger.LogInformation(
             "Selected instance changed for local shader packs view. InstanceId={InstanceId}",
@@ -76,24 +78,18 @@ public sealed class LocalShaderPacksViewModel : IDisposable
 
     public void SetWatcherEnabled(bool enabled)
     {
-        watcherEnabled = enabled;
-        ResetWatcher();
+        contentWatcher.SetEnabled(enabled);
     }
 
     public void SuspendWatcherForInstanceRename()
     {
-        watcherSuspendedForRename = true;
-        ResetWatcher();
+        contentWatcher.Suspend();
         CancelRefresh();
     }
 
     public void ResumeWatcherAfterInstanceRename()
     {
-        if (!watcherSuspendedForRename)
-            return;
-
-        watcherSuspendedForRename = false;
-        ResetWatcher();
+        contentWatcher.Resume();
     }
 
     public Task SetSelectedInstanceAsync(GameInstance? instance)
@@ -212,130 +208,8 @@ public sealed class LocalShaderPacksViewModel : IDisposable
 
     public void Dispose()
     {
-        shaderPacksWatcher?.Dispose();
-        shaderPacksWatcher = null;
+        contentWatcher.Dispose();
         CancelRefresh();
-        watcherRefreshCancellationTokenSource?.Cancel();
-        watcherRefreshCancellationTokenSource?.Dispose();
-        watcherRefreshCancellationTokenSource = null;
-    }
-
-    private void ResetWatcher()
-    {
-        shaderPacksWatcher?.Dispose();
-        shaderPacksWatcher = null;
-        watcherRefreshCancellationTokenSource?.Cancel();
-        watcherRefreshCancellationTokenSource?.Dispose();
-        watcherRefreshCancellationTokenSource = null;
-        watchedShaderPacksDirectory = null;
-
-        if (!watcherEnabled || watcherSuspendedForRename)
-            return;
-
-        var instance = selectedInstance;
-        if (instance is null || string.IsNullOrWhiteSpace(instance.InstanceDirectory))
-            return;
-
-        watchedShaderPacksDirectory = Path.Combine(instance.InstanceDirectory, "shaderpacks");
-        Directory.CreateDirectory(watchedShaderPacksDirectory);
-
-        try
-        {
-            shaderPacksWatcher = new FileSystemWatcher(watchedShaderPacksDirectory, "*")
-            {
-                IncludeSubdirectories = false,
-                NotifyFilter = NotifyFilters.DirectoryName
-                    | NotifyFilters.FileName
-                    | NotifyFilters.LastWrite
-                    | NotifyFilters.Size
-                    | NotifyFilters.CreationTime
-            };
-            shaderPacksWatcher.Changed += ShaderPacksWatcher_StateChanged;
-            shaderPacksWatcher.Created += ShaderPacksWatcher_StateChanged;
-            shaderPacksWatcher.Deleted += ShaderPacksWatcher_StateChanged;
-            shaderPacksWatcher.Renamed += ShaderPacksWatcher_StateRenamed;
-            shaderPacksWatcher.EnableRaisingEvents = true;
-            logger.LogInformation(
-                "Local shader pack watcher started. InstanceId={InstanceId} ShaderPacksDirectory={ShaderPacksDirectory}",
-                instance.Id,
-                watchedShaderPacksDirectory);
-        }
-        catch (Exception exception) when (
-            exception is IOException
-            or UnauthorizedAccessException
-            or ArgumentException)
-        {
-            logger.LogWarning(
-                exception,
-                "Failed to start local shader pack watcher. InstanceId={InstanceId} ShaderPacksDirectory={ShaderPacksDirectory}",
-                instance.Id,
-                watchedShaderPacksDirectory);
-        }
-    }
-
-    private void ShaderPacksWatcher_StateChanged(object sender, FileSystemEventArgs e)
-    {
-        if (!IsTrackedShaderPackPath(e.FullPath))
-            return;
-
-        QueueWatcherRefresh(e.ChangeType.ToString(), e.FullPath);
-    }
-
-    private void ShaderPacksWatcher_StateRenamed(object sender, RenamedEventArgs e)
-    {
-        if (!IsTrackedShaderPackPath(e.FullPath) && !IsTrackedShaderPackPath(e.OldFullPath))
-            return;
-
-        QueueWatcherRefresh("Renamed", e.FullPath);
-    }
-
-    private void QueueWatcherRefresh(string changeType, string fullPath)
-    {
-        var instance = selectedInstance;
-        if (instance is null)
-            return;
-
-        var previousCts = Interlocked.Exchange(
-            ref watcherRefreshCancellationTokenSource,
-            new CancellationTokenSource());
-        previousCts?.Cancel();
-        previousCts?.Dispose();
-
-        var refreshCts = watcherRefreshCancellationTokenSource!;
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(200, refreshCts.Token);
-                logger.LogInformation(
-                    "Detected local shader pack folder change. InstanceId={InstanceId} ChangeType={ChangeType} Path={Path}",
-                    instance.Id,
-                    changeType,
-                    fullPath);
-                await RefreshShaderPacksAsync();
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception exception)
-            {
-                logger.LogError(
-                    exception,
-                    "Failed to refresh local shader packs after watcher update. InstanceId={InstanceId}",
-                    instance.Id);
-                uiDispatcher.Post(() => ReportStatus(Strings.Status_LoadLocalShaderPacksFailed));
-            }
-        });
-    }
-
-    private bool IsTrackedShaderPackPath(string? fullPath)
-    {
-        if (string.IsNullOrWhiteSpace(fullPath) || string.IsNullOrWhiteSpace(watchedShaderPacksDirectory))
-            return false;
-
-        var normalizedRoot = Path.GetFullPath(watchedShaderPacksDirectory);
-        var normalizedPath = Path.GetFullPath(fullPath);
-        return normalizedPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
     }
 
     private void ReportStatus(string message)

@@ -17,12 +17,11 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-using CommunityToolkit.Mvvm.ComponentModel;
 using Launcher.Domain.Models;
 
 namespace Launcher.Application.Accounts;
 
-public sealed partial class LauncherAccount : ObservableObject
+public sealed class LauncherAccount
 {
     public const string DefaultSteveAvatarUrl = "https://minotar.net/avatar/Steve/32.png";
 
@@ -52,7 +51,4 @@ public sealed partial class LauncherAccount : ObservableObject
             return $"https://crafatar.com/avatars/{Uuid}?size=32&overlay";
         }
     }
-
-    [ObservableProperty]
-    private bool isSelected;
 }

@@ -79,7 +79,7 @@ public partial class GameSettingsPageView : UserControl
     private void RefreshMemorySnapshot()
     {
         if (DataContext is GameSettingsPageViewModel viewModel)
-            viewModel.Details.RefreshSystemMemorySnapshot();
+            viewModel.Details.Launch.RefreshSystemMemorySnapshot();
     }
 
     private void GameSettingsPageView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

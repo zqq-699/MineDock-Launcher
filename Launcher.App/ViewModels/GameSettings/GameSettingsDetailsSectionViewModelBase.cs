@@ -24,12 +24,19 @@ namespace Launcher.App.ViewModels.GameSettings;
 
 public abstract class GameSettingsDetailsSectionViewModelBase : ObservableObject
 {
-    protected GameSettingsDetailsSectionViewModelBase(GameSettingsDetailsViewModel parent)
+    private readonly GameSettingsDetailsViewModel? parent;
+
+    protected GameSettingsDetailsSectionViewModelBase()
     {
-        Parent = parent;
     }
 
-    public GameSettingsDetailsViewModel Parent { get; }
+    protected GameSettingsDetailsSectionViewModelBase(GameSettingsDetailsViewModel parent)
+    {
+        this.parent = parent;
+    }
+
+    public GameSettingsDetailsViewModel Parent => parent
+        ?? throw new InvalidOperationException("This settings section does not use a parent view model.");
 
     public virtual bool UsesFullViewportLayout => false;
 

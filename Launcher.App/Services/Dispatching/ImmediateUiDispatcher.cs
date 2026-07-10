@@ -38,5 +38,9 @@ public sealed class ImmediateUiDispatcher : IUiDispatcher
     {
         action();
     }
-}
 
+    public Task InvokeAsync(Func<Task> action)
+    {
+        return action();
+    }
+}

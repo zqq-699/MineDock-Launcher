@@ -382,10 +382,10 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         foreach (var libraryNode in libraries)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (libraryNode is not JsonObject library || !IsLibraryAllowed(library))
+            if (libraryNode is not JsonObject library || !ManagedLibraryArtifactResolver.IsAllowed(library))
                 continue;
 
-            foreach (var artifact in EnumerateLibraryDownloads(library))
+            foreach (var artifact in ManagedLibraryArtifactResolver.EnumerateDownloads(library))
             {
                 var destinationPath = Path.Combine(minecraftDirectory, "libraries", artifact.RelativePath.Replace('/', Path.DirectorySeparatorChar));
                 if (File.Exists(destinationPath))
@@ -548,236 +548,6 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             bandwidthLimiter);
     }
 
-    private IEnumerable<LibraryArtifact> EnumerateLibraryDownloads(JsonObject library)
-    {
-        if (library["downloads"] is JsonObject downloads)
-        {
-            if (downloads["artifact"] is JsonObject artifact)
-            {
-                var resolved = TryCreateLibraryArtifact(library, artifact);
-                if (resolved is not null)
-                    yield return resolved;
-            }
-
-            if (downloads["classifiers"] is JsonObject classifiers)
-            {
-                var classifierKey = ResolveNativeClassifierKey(library);
-                if (!string.IsNullOrWhiteSpace(classifierKey)
-                    && classifiers[classifierKey] is JsonObject classifierArtifact)
-                {
-                    var resolved = TryCreateLibraryArtifact(library, classifierArtifact, classifierKey);
-                    if (resolved is not null)
-                        yield return resolved;
-                    yield break;
-                }
-            }
-        }
-
-        if (library["downloads"] is null)
-        {
-            var resolved = TryCreateLibraryArtifactFromName(library, classifier: null);
-            if (resolved is not null)
-                yield return resolved;
-
-            var classifierKey = ResolveNativeClassifierKey(library);
-            if (!string.IsNullOrWhiteSpace(classifierKey))
-            {
-                var classifierArtifact = TryCreateLibraryArtifactFromName(library, classifierKey);
-                if (classifierArtifact is not null)
-                    yield return classifierArtifact;
-            }
-        }
-    }
-
-    private LibraryArtifact? TryCreateLibraryArtifact(JsonObject library, JsonObject artifact, string? classifier = null)
-    {
-        var libraryName = GetStringProperty(library, "name");
-        var url = GetStringProperty(artifact, "url");
-        var relativePath = GetStringProperty(artifact, "path");
-        if (string.IsNullOrWhiteSpace(relativePath))
-        {
-            relativePath = TryCreateLibraryArtifactFromName(library, classifier)?.RelativePath ?? string.Empty;
-        }
-
-        if (string.IsNullOrWhiteSpace(relativePath))
-            return null;
-
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            url = TryResolveLibraryUrl(library, relativePath);
-        }
-
-        if (string.IsNullOrWhiteSpace(url))
-            return null;
-
-        return new LibraryArtifact(
-            url,
-            relativePath,
-            string.IsNullOrWhiteSpace(libraryName) ? null : libraryName,
-            ResolveResourceCategory(url),
-            GetStringProperty(artifact, "sha1"),
-            GetLongProperty(artifact, "size"));
-    }
-
-    private LibraryArtifact? TryCreateLibraryArtifactFromName(JsonObject library, string? classifier)
-    {
-        var name = GetStringProperty(library, "name");
-        if (string.IsNullOrWhiteSpace(name))
-            return null;
-
-        if (!TryBuildMavenPath(name, classifier, out var relativePath))
-            return null;
-
-        var baseUrl = ResolveLibraryBaseUrl(library);
-        if (string.IsNullOrWhiteSpace(baseUrl))
-            return null;
-
-        return new LibraryArtifact(
-            new Uri(new Uri(baseUrl, UriKind.Absolute), relativePath).AbsoluteUri,
-            relativePath,
-            name,
-            ResolveResourceCategory(baseUrl));
-    }
-
-    private static string? TryResolveLibraryUrl(JsonObject library, string relativePath)
-    {
-        var baseUrl = ResolveLibraryBaseUrl(library);
-        if (string.IsNullOrWhiteSpace(baseUrl))
-            return null;
-
-        return new Uri(new Uri(baseUrl, UriKind.Absolute), relativePath).AbsoluteUri;
-    }
-
-    private static bool TryBuildMavenPath(string mavenName, string? classifierOverride, out string relativePath)
-    {
-        relativePath = string.Empty;
-        var parts = mavenName.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (parts.Length < 3 || parts.Length > 4)
-            return false;
-
-        var extension = "jar";
-        var versionPart = parts[2];
-        var versionAndExtension = versionPart.Split('@', 2, StringSplitOptions.TrimEntries);
-        var version = versionAndExtension[0];
-        if (versionAndExtension.Length == 2 && !string.IsNullOrWhiteSpace(versionAndExtension[1]))
-            extension = versionAndExtension[1];
-
-        var classifier = classifierOverride;
-        if (string.IsNullOrWhiteSpace(classifier) && parts.Length == 4)
-        {
-            var classifierAndExtension = parts[3].Split('@', 2, StringSplitOptions.TrimEntries);
-            classifier = classifierAndExtension[0];
-            if (classifierAndExtension.Length == 2 && !string.IsNullOrWhiteSpace(classifierAndExtension[1]))
-                extension = classifierAndExtension[1];
-        }
-
-        var groupPath = parts[0].Replace('.', '/');
-        var artifact = parts[1];
-        var fileName = string.IsNullOrWhiteSpace(classifier)
-            ? $"{artifact}-{version}.{extension}"
-            : $"{artifact}-{version}-{classifier}.{extension}";
-
-        relativePath = $"{groupPath}/{artifact}/{version}/{fileName}";
-        return true;
-    }
-
-    private static string? ResolveLibraryBaseUrl(JsonObject library)
-    {
-        var baseUrl = GetStringProperty(library, "url");
-        if (!string.IsNullOrWhiteSpace(baseUrl))
-            return EnsureTrailingSlash(baseUrl);
-
-        var name = GetStringProperty(library, "name");
-        if (name.StartsWith("net.minecraftforge:", StringComparison.OrdinalIgnoreCase))
-            return "https://maven.minecraftforge.net/";
-
-        if (name.StartsWith("net.fabricmc:", StringComparison.OrdinalIgnoreCase))
-            return "https://maven.fabricmc.net/";
-
-        if (name.StartsWith("net.neoforged:", StringComparison.OrdinalIgnoreCase))
-            return "https://maven.neoforged.net/releases/";
-
-        if (name.StartsWith("org.quiltmc:", StringComparison.OrdinalIgnoreCase))
-            return "https://maven.quiltmc.org/repository/release/";
-
-        return "https://libraries.minecraft.net/";
-    }
-
-    private static string EnsureTrailingSlash(string baseUrl)
-    {
-        return baseUrl.EndsWith("/", StringComparison.Ordinal)
-            ? baseUrl
-            : $"{baseUrl}/";
-    }
-
-    private static string ResolveResourceCategory(string url, string? categoryHint = null)
-    {
-        return MinecraftDownloadSourceResolver.ResolveRequest(
-            url,
-            DownloadSourcePreference.Official,
-            useBmclApi: false,
-            categoryHint).ResourceCategory;
-    }
-
-    private static string? ResolveNativeClassifierKey(JsonObject library)
-    {
-        if (library["natives"] is not JsonObject natives)
-            return null;
-
-        var osName = GetCurrentOsName();
-        var classifier = GetStringProperty(natives, osName);
-        if (string.IsNullOrWhiteSpace(classifier))
-            return null;
-
-        return classifier.Replace("${arch}", Environment.Is64BitOperatingSystem ? "64" : "32", StringComparison.Ordinal);
-    }
-
-    private static bool IsLibraryAllowed(JsonObject library)
-    {
-        if (library["rules"] is not JsonArray rules || rules.Count == 0)
-            return true;
-
-        var allowed = false;
-        foreach (var ruleNode in rules)
-        {
-            if (ruleNode is not JsonObject rule || !DoesRuleMatch(rule))
-                continue;
-
-            var action = GetStringProperty(rule, "action");
-            allowed = !string.Equals(action, "disallow", StringComparison.OrdinalIgnoreCase);
-        }
-
-        return allowed;
-    }
-
-    private static bool DoesRuleMatch(JsonObject rule)
-    {
-        if (rule["features"] is JsonObject)
-            return false;
-
-        if (rule["os"] is not JsonObject os)
-            return true;
-
-        var name = GetStringProperty(os, "name");
-        if (!string.IsNullOrWhiteSpace(name)
-            && !string.Equals(name, GetCurrentOsName(), StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        var arch = GetStringProperty(os, "arch");
-        if (!string.IsNullOrWhiteSpace(arch))
-        {
-            if (Environment.Is64BitOperatingSystem && !arch.Contains("64", StringComparison.Ordinal))
-                return false;
-
-            if (!Environment.Is64BitOperatingSystem && arch.Contains("64", StringComparison.Ordinal))
-                return false;
-        }
-
-        return true;
-    }
-
     private async Task DownloadFilesAsync(
         IEnumerable<DownloadRequest> downloads,
         DownloadSourcePreference downloadSourcePreference,
@@ -931,15 +701,6 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             : normalizedInstance;
     }
 
-    private static string GetCurrentOsName()
-    {
-        if (OperatingSystem.IsWindows())
-            return "windows";
-        if (OperatingSystem.IsMacOS())
-            return "osx";
-        return "linux";
-    }
-
     private static string GetStringProperty(JsonObject node, string propertyName)
     {
         return node[propertyName]?.GetValue<string>() ?? string.Empty;
@@ -1047,11 +808,4 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         }
     }
 
-    private sealed record LibraryArtifact(
-        string Url,
-        string RelativePath,
-        string? LibraryName,
-        string ResourceCategory,
-        string? Sha1 = null,
-        long? Size = null);
 }

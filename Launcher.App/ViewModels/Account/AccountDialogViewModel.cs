@@ -225,7 +225,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
 
             if (existing is not null)
             {
-                accountList.SelectAccount(existing, persistSelection: false);
+                accountList.SelectItem(existing, persistSelection: false);
                 await accountList.PersistAccountOrderAsync();
                 var message = string.Format(Strings.Status_LoginAccountAlreadyAddedFormat, existing.DisplayName);
                 ReportStatus(message);

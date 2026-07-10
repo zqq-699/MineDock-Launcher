@@ -18,15 +18,49 @@
  */
 
 using CommunityToolkit.Mvvm.ComponentModel;
+using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.Settings;
 
 public abstract class SettingsSectionViewModelBase : ObservableObject
 {
-    protected SettingsSectionViewModelBase(SettingsPageViewModel parent)
+    private readonly SettingsPersistenceCoordinator persistence;
+    private bool isLoading;
+
+    private protected SettingsSectionViewModelBase(SettingsPersistenceCoordinator persistence)
     {
-        Parent = parent;
+        this.persistence = persistence;
     }
 
-    public SettingsPageViewModel Parent { get; }
+    private protected LauncherSettings Settings => persistence.Settings;
+
+    private protected bool CanPersist => persistence.IsPrimed && !isLoading;
+
+    private protected void LoadState(Action load)
+    {
+        isLoading = true;
+        try
+        {
+            load();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private protected void Persist(Action<LauncherSettings> update)
+    {
+        if (CanPersist)
+            persistence.Update(update);
+    }
+
+    private protected Task PersistImmediatelyAsync(
+        Action<LauncherSettings> update,
+        CancellationToken cancellationToken = default)
+    {
+        return CanPersist
+            ? persistence.SaveImmediatelyAsync(update, cancellationToken)
+            : Task.CompletedTask;
+    }
 }

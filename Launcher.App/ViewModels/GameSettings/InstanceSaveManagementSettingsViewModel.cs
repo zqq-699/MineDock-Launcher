@@ -22,6 +22,7 @@ using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.ViewModels.Shared;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -35,22 +36,10 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
     private readonly IFilePickerService filePickerService;
+    private readonly IInstanceContentImportPathValidator importPathValidator;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<InstanceSaveManagementSettingsViewModel> logger;
     private readonly LocalContentSelectionState<SaveManagementSaveItemViewModel> selectionState;
-    private static readonly string[] SupportedSaveArchiveExtensions =
-    [
-        ".zip",
-        ".7z",
-        ".rar",
-        ".tar",
-        ".gz",
-        ".tgz",
-        ".bz2",
-        ".tar.gz",
-        ".tar.bz2",
-        ".tbz2"
-    ];
     private Task? loadTask;
     private GameInstance? selectedInstance;
     private bool hasPendingVisualRefresh;
@@ -94,6 +83,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         IStatusService statusService,
         IInstanceFolderService instanceFolderService,
         IFilePickerService filePickerService,
+        IInstanceContentImportPathValidator importPathValidator,
         IUiDispatcher? uiDispatcher = null,
         ILogger<InstanceSaveManagementSettingsViewModel>? logger = null)
         : base(parent)
@@ -102,6 +92,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
         this.filePickerService = filePickerService;
+        this.importPathValidator = importPathValidator;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<InstanceSaveManagementSettingsViewModel>.Instance;
         selectionState = new LocalContentSelectionState<SaveManagementSaveItemViewModel>(
@@ -857,30 +848,11 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         string invalidTypeMessage,
         out string failureMessage)
     {
-        failureMessage = string.Empty;
-        if (paths.Count == 0)
-        {
-            failureMessage = invalidTypeMessage;
-            return false;
-        }
-
-        foreach (var path in paths)
-        {
-            if (Directory.Exists(path))
-            {
-                failureMessage = Strings.GameSettings_DropFoldersUnsupportedMessage;
-                return false;
-            }
-
-            if (!File.Exists(path)
-                || !SupportedSaveArchiveExtensions.Any(extension => path.EndsWith(extension, StringComparison.OrdinalIgnoreCase)))
-            {
-                failureMessage = invalidTypeMessage;
-                return false;
-            }
-        }
-
-        return true;
+        var validation = importPathValidator.Validate(paths, InstanceContentImportKind.SaveArchive);
+        failureMessage = validation.Failure is InstanceContentImportPathFailure.DirectoryNotSupported
+            ? Strings.GameSettings_DropFoldersUnsupportedMessage
+            : validation.IsValid ? string.Empty : invalidTypeMessage;
+        return validation.IsValid;
     }
 }
 

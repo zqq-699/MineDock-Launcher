@@ -75,6 +75,16 @@ internal sealed class DownloadBandwidthLimiter
         await sharedBudgetState.ThrottleAsync(bytesRead, bytesPerSecond, cancellationToken).ConfigureAwait(false);
     }
 
+    public void Throttle(int bytesRead)
+    {
+        if (bytesRead <= 0)
+            return;
+
+        var bytesPerSecond = ResolveBytesPerSecond();
+        if (bytesPerSecond > 0)
+            sharedBudgetState.Throttle(bytesRead, bytesPerSecond);
+    }
+
     private double ResolveBytesPerSecond()
     {
         var limitMbPerSecond = downloadSpeedLimitState?.DownloadSpeedLimitMbPerSecond
@@ -91,17 +101,28 @@ internal sealed class DownloadBandwidthLimiter
 
         public async ValueTask ThrottleAsync(int bytesRead, double bytesPerSecond, CancellationToken cancellationToken)
         {
-            TimeSpan delay;
+            var delay = Reserve(bytesRead, bytesPerSecond);
+            if (delay > TimeSpan.Zero)
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+        }
+
+        public void Throttle(int bytesRead, double bytesPerSecond)
+        {
+            var delay = Reserve(bytesRead, bytesPerSecond);
+            if (delay > TimeSpan.Zero)
+                Thread.Sleep(delay);
+        }
+
+        private TimeSpan Reserve(int bytesRead, double bytesPerSecond)
+        {
             lock (syncRoot)
             {
                 var now = DateTime.UtcNow;
                 var startAt = now > nextAvailableAtUtc ? now : nextAvailableAtUtc;
-                delay = startAt - now;
+                var delay = startAt - now;
                 nextAvailableAtUtc = startAt.AddSeconds(bytesRead / bytesPerSecond);
+                return delay;
             }
-
-            if (delay > TimeSpan.Zero)
-                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
         }
     }
 }
@@ -112,7 +133,7 @@ internal static class DownloadResponseThrottler
         HttpResponseMessage response,
         DownloadBandwidthLimiter? bandwidthLimiter,
         CancellationToken cancellationToken,
-        IAsyncDisposable? completionLease = null,
+        IImportConcurrencyLease? completionLease = null,
         TimeSpan? bodyIdleTimeout = null)
     {
         if (response.Content is null)
@@ -224,13 +245,13 @@ internal static class DownloadResponseThrottler
         private readonly Stream innerStream;
         private readonly HttpContent ownedContent;
         private readonly DownloadBandwidthLimiter? bandwidthLimiter;
-        private readonly IAsyncDisposable? completionLease;
+        private readonly IImportConcurrencyLease? completionLease;
 
         public ThrottledReadStream(
             Stream innerStream,
             HttpContent ownedContent,
             DownloadBandwidthLimiter? bandwidthLimiter,
-            IAsyncDisposable? completionLease)
+            IImportConcurrencyLease? completionLease)
         {
             this.innerStream = innerStream;
             this.ownedContent = ownedContent;
@@ -257,7 +278,7 @@ internal static class DownloadResponseThrottler
         {
             var read = innerStream.Read(buffer, offset, count);
             if (read > 0 && bandwidthLimiter is not null)
-                bandwidthLimiter.ThrottleAsync(read, CancellationToken.None).AsTask().GetAwaiter().GetResult();
+                bandwidthLimiter.Throttle(read);
 
             return read;
         }
@@ -266,7 +287,7 @@ internal static class DownloadResponseThrottler
         {
             var read = innerStream.Read(buffer);
             if (read > 0 && bandwidthLimiter is not null)
-                bandwidthLimiter.ThrottleAsync(read, CancellationToken.None).AsTask().GetAwaiter().GetResult();
+                bandwidthLimiter.Throttle(read);
 
             return read;
         }
@@ -325,8 +346,7 @@ internal static class DownloadResponseThrottler
             {
                 innerStream.Dispose();
                 ownedContent.Dispose();
-                if (completionLease is not null)
-                    completionLease.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                completionLease?.Dispose();
             }
 
             base.Dispose(disposing);

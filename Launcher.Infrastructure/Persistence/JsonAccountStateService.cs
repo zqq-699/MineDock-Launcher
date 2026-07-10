@@ -86,9 +86,8 @@ public sealed class JsonAccountStateService : IAccountStateService
 
     private async Task SaveCoreAsync(LauncherAccountState state, CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(accountStatePath)!);
-        await using var stream = File.Create(accountStatePath);
-        await JsonSerializer.SerializeAsync(stream, state, JsonOptions, cancellationToken);
+        await AtomicJsonFileWriter.WriteAsync(accountStatePath, state, JsonOptions, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private LauncherAccountState Normalize(LauncherAccountState state)

@@ -21,12 +21,8 @@ using System.Buffers.Binary;
 using System.Globalization;
 using System.IO;
 using System.Net.Http;
-using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Windows.Media.Imaging;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.CurseForge;
@@ -37,26 +33,19 @@ namespace Launcher.Infrastructure.FileSystem;
 
 public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentService
 {
-    private const string ModrinthBaseUrl = "https://api.modrinth.com/v2";
-    private const string CurseForgeBaseUrl = "https://api.curseforge.com/v1";
-    private const int MinecraftGameId = 432;
     private const long MaxIconBytes = 1024L * 1024L;
     private const long MaxCacheBytes = 50L * 1024L * 1024L;
     private const long TargetCacheBytes = 40L * 1024L * 1024L;
     private static readonly TimeSpan RefreshAfter = TimeSpan.FromDays(30);
     private static readonly TimeSpan UnusedExpiration = TimeSpan.FromDays(30);
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true
-    };
 
     private readonly HttpClient httpClient;
     private readonly LauncherPathProvider pathProvider;
-    private readonly ICurseForgeApiKeyResolver curseForgeApiKeyResolver;
+    private readonly RemoteModIconProviderClient providerClient;
     private readonly ILogger<LocalModIconEnrichmentService> logger;
     private readonly SemaphoreSlim cacheLock = new(1, 1);
     private readonly string cacheDirectory;
-    private readonly string indexPath;
+    private readonly RemoteIconCacheIndexStore cacheIndexStore;
     private bool cleanupCompleted;
 
     public LocalModIconEnrichmentService(
@@ -67,11 +56,11 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
     {
         this.pathProvider = pathProvider ?? new LauncherPathProvider();
         this.httpClient = httpClient ?? new HttpClient();
-        this.curseForgeApiKeyResolver = curseForgeApiKeyResolver
-            ?? new CurseForgeApiKeyResolver(this.pathProvider);
         this.logger = logger ?? NullLogger<LocalModIconEnrichmentService>.Instance;
+        var apiKeyResolver = curseForgeApiKeyResolver ?? new CurseForgeApiKeyResolver(this.pathProvider);
+        providerClient = new RemoteModIconProviderClient(this.httpClient, apiKeyResolver, this.logger);
         cacheDirectory = Path.Combine(this.pathProvider.DefaultDataDirectory, "cache", "mods", "remote-icons");
-        indexPath = Path.Combine(cacheDirectory, "index.json");
+        cacheIndexStore = new RemoteIconCacheIndexStore(cacheDirectory, this.logger);
     }
 
     public async Task<IReadOnlyDictionary<string, string>> ResolveMissingIconSourcesAsync(
@@ -105,7 +94,7 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         try
         {
             Directory.CreateDirectory(cacheDirectory);
-            index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+            index = await cacheIndexStore.LoadAsync(cancellationToken).ConfigureAwait(false);
 
             foreach (var mod in candidates)
             {
@@ -142,7 +131,7 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
 
             if (result.Count > 0 || staleResults.Count > 0)
             {
-                await SaveIndexAsync(index, cancellationToken).ConfigureAwait(false);
+                await cacheIndexStore.SaveAsync(index, cancellationToken).ConfigureAwait(false);
                 ReportProgress(progress, result);
                 ReportProgress(progress, staleResults);
                 logger.LogInformation(
@@ -208,7 +197,7 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         await cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+            var index = await cacheIndexStore.LoadAsync(cancellationToken).ConfigureAwait(false);
             foreach (var mod in candidates)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -248,7 +237,7 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var unresolved = candidates.ToDictionary(candidate => candidate.Sha1, StringComparer.OrdinalIgnoreCase);
 
-        var modrinthIcons = await ResolveModrinthIconsAsync(candidates, cancellationToken).ConfigureAwait(false);
+        var modrinthIcons = await providerClient.ResolveModrinthAsync(candidates, cancellationToken).ConfigureAwait(false);
         foreach (var (sha1, icon) in modrinthIcons)
         {
             if (!unresolved.TryGetValue(sha1, out var candidate))
@@ -265,7 +254,7 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
 
         if (unresolved.Count > 0)
         {
-            var curseForgeIcons = await ResolveCurseForgeIconsAsync(unresolved.Values.ToList(), cancellationToken)
+            var curseForgeIcons = await providerClient.ResolveCurseForgeAsync(unresolved.Values.ToList(), cancellationToken)
                 .ConfigureAwait(false);
             foreach (var (sha1, icon) in curseForgeIcons)
             {
@@ -332,181 +321,6 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         }
     }
 
-    private async Task<IReadOnlyDictionary<string, RemoteIconCandidate>> ResolveModrinthIconsAsync(
-        IReadOnlyList<ModIconLookupCandidate> candidates,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var hashes = candidates.Select(candidate => candidate.Sha1).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            using var response = await httpClient.PostAsJsonAsync(
-                    $"{ModrinthBaseUrl}/version_files",
-                    new ModrinthVersionFilesRequest(hashes, "sha1"),
-                    JsonOptions,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode)
-            {
-                logger.LogWarning(
-                    "Modrinth local mod icon lookup was rejected. StatusCode={StatusCode}",
-                    response.StatusCode);
-                return new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
-            }
-
-            var versions = await response.Content.ReadFromJsonAsync<Dictionary<string, ModrinthVersionFileMatch>>(
-                    JsonOptions,
-                    cancellationToken)
-                .ConfigureAwait(false)
-                ?? new Dictionary<string, ModrinthVersionFileMatch>(StringComparer.OrdinalIgnoreCase);
-            var projectIds = versions.Values
-                .Select(match => match.ProjectId)
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            if (projectIds.Length == 0)
-                return new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
-
-            var projectsParameter = Uri.EscapeDataString(JsonSerializer.Serialize(projectIds, JsonOptions));
-            var projects = await httpClient.GetFromJsonAsync<List<ModrinthProject>>(
-                    $"{ModrinthBaseUrl}/projects?ids={projectsParameter}",
-                    JsonOptions,
-                    cancellationToken)
-                .ConfigureAwait(false)
-                ?? [];
-            var projectsById = projects
-                .Where(project => !string.IsNullOrWhiteSpace(project.Id))
-                .ToDictionary(project => project.Id, StringComparer.OrdinalIgnoreCase);
-
-            var result = new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (sha1, version) in versions)
-            {
-                if (string.IsNullOrWhiteSpace(version.ProjectId)
-                    || !projectsById.TryGetValue(version.ProjectId, out var project)
-                    || string.IsNullOrWhiteSpace(project.IconUrl))
-                {
-                    continue;
-                }
-
-                result[sha1] = new RemoteIconCandidate("modrinth", version.ProjectId, project.IconUrl);
-            }
-
-            logger.LogInformation(
-                "Modrinth resolved remote local mod icons. RequestedCount={RequestedCount} ResolvedCount={ResolvedCount}",
-                hashes.Length,
-                result.Count);
-            return result;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            logger.LogWarning(exception, "Failed to resolve remote local mod icons from Modrinth.");
-            return new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
-        }
-    }
-
-    private async Task<IReadOnlyDictionary<string, RemoteIconCandidate>> ResolveCurseForgeIconsAsync(
-        IReadOnlyList<ModIconLookupCandidate> candidates,
-        CancellationToken cancellationToken)
-    {
-        var apiKey = await curseForgeApiKeyResolver.TryResolveAsync(cancellationToken).ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            logger.LogInformation("Skipping CurseForge local mod icon lookup because API key is not configured.");
-            return new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
-        }
-
-        try
-        {
-            var fingerprints = candidates.Select(candidate => candidate.CurseForgeFingerprint).Distinct().ToArray();
-            using var fingerprintRequest = new HttpRequestMessage(
-                HttpMethod.Post,
-                $"{CurseForgeBaseUrl}/fingerprints/{MinecraftGameId}")
-            {
-                Content = JsonContent.Create(new CurseForgeFingerprintRequest(fingerprints), options: JsonOptions)
-            };
-            fingerprintRequest.Headers.Add("x-api-key", apiKey);
-
-            using var fingerprintResponse = await httpClient.SendAsync(fingerprintRequest, cancellationToken)
-                .ConfigureAwait(false);
-            if (!fingerprintResponse.IsSuccessStatusCode)
-            {
-                logger.LogWarning(
-                    "CurseForge local mod fingerprint lookup was rejected. StatusCode={StatusCode}",
-                    fingerprintResponse.StatusCode);
-                return new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
-            }
-
-            await using var fingerprintStream = await fingerprintResponse.Content.ReadAsStreamAsync(cancellationToken)
-                .ConfigureAwait(false);
-            var projectByFingerprint = await ParseCurseForgeFingerprintMatchesAsync(fingerprintStream, cancellationToken)
-                .ConfigureAwait(false);
-            if (projectByFingerprint.Count == 0)
-                return new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
-
-            var projectIds = projectByFingerprint.Values.Distinct().ToArray();
-            using var modsRequest = new HttpRequestMessage(HttpMethod.Post, $"{CurseForgeBaseUrl}/mods")
-            {
-                Content = JsonContent.Create(new CurseForgeModsRequest(projectIds), options: JsonOptions)
-            };
-            modsRequest.Headers.Add("x-api-key", apiKey);
-
-            using var modsResponse = await httpClient.SendAsync(modsRequest, cancellationToken).ConfigureAwait(false);
-            if (!modsResponse.IsSuccessStatusCode)
-            {
-                logger.LogWarning(
-                    "CurseForge local mod icon metadata lookup was rejected. StatusCode={StatusCode}",
-                    modsResponse.StatusCode);
-                return new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
-            }
-
-            var mods = await modsResponse.Content.ReadFromJsonAsync<CurseForgeModsResponse>(
-                    JsonOptions,
-                    cancellationToken)
-                .ConfigureAwait(false)
-                ?? new CurseForgeModsResponse();
-            var modsById = mods.Data.ToDictionary(mod => mod.Id);
-            var candidatesByFingerprint = candidates.ToDictionary(
-                candidate => candidate.CurseForgeFingerprint,
-                candidate => candidate,
-                EqualityComparer<long>.Default);
-            var result = new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (fingerprint, projectId) in projectByFingerprint)
-            {
-                if (!candidatesByFingerprint.TryGetValue(fingerprint, out var candidate)
-                    || !modsById.TryGetValue(projectId, out var mod))
-                {
-                    continue;
-                }
-
-                var iconUrl = string.IsNullOrWhiteSpace(mod.Logo?.Url)
-                    ? mod.Logo?.ThumbnailUrl
-                    : mod.Logo.Url;
-                if (string.IsNullOrWhiteSpace(iconUrl))
-                    continue;
-
-                result[candidate.Sha1] = new RemoteIconCandidate("curseforge", projectId.ToString(), iconUrl);
-            }
-
-            logger.LogInformation(
-                "CurseForge resolved remote local mod icons. RequestedCount={RequestedCount} ResolvedCount={ResolvedCount}",
-                candidates.Count,
-                result.Count);
-            return result;
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            logger.LogWarning(exception, "Failed to resolve remote local mod icons from CurseForge.");
-            return new Dictionary<string, RemoteIconCandidate>(StringComparer.OrdinalIgnoreCase);
-        }
-    }
-
     private async Task<string?> CacheRemoteIconAsync(
         ModIconLookupCandidate lookup,
         RemoteIconCandidate icon,
@@ -543,7 +357,10 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
 
             await using var remoteStream = await response.Content.ReadAsStreamAsync(cancellationToken)
                 .ConfigureAwait(false);
-            imageBytes = await ReadLimitedAsync(remoteStream, MaxIconBytes, cancellationToken).ConfigureAwait(false);
+            imageBytes = await RemoteIconImageEncoder.ReadLimitedAsync(
+                remoteStream,
+                MaxIconBytes,
+                cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -563,15 +380,14 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         try
         {
             Directory.CreateDirectory(cacheDirectory);
-            var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+            var index = await cacheIndexStore.LoadAsync(cancellationToken).ConfigureAwait(false);
             var now = DateTimeOffset.UtcNow;
             var entryKey = $"{icon.Source}:{icon.ProjectId}";
             var cachePath = GetIconCachePath(entryKey);
 
             try
             {
-                await using var input = new MemoryStream(imageBytes);
-                SaveRemoteIconAsPng(input, cachePath);
+                RemoteIconImageEncoder.SaveAsPng(imageBytes, cachePath);
             }
             catch (Exception exception) when (
                 exception is NotSupportedException
@@ -600,7 +416,7 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
             };
             index.Aliases[lookup.Sha1Alias] = entryKey;
             index.FileAliases[lookup.FileAlias] = entryKey;
-            await SaveIndexAsync(index, cancellationToken).ConfigureAwait(false);
+            await cacheIndexStore.SaveAsync(index, cancellationToken).ConfigureAwait(false);
 
             logger.LogInformation(
                 "Remote local mod icon cached. Source={Source} ProjectId={ProjectId} SizeBytes={SizeBytes}",
@@ -678,7 +494,7 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
                 return;
 
             Directory.CreateDirectory(cacheDirectory);
-            var index = await LoadIndexAsync(cancellationToken).ConfigureAwait(false);
+            var index = await cacheIndexStore.LoadAsync(cancellationToken).ConfigureAwait(false);
             var now = DateTimeOffset.UtcNow;
             var removed = 0;
 
@@ -729,7 +545,7 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
                 index.FileAliases.Remove(alias);
             }
 
-            await SaveIndexAsync(index, cancellationToken).ConfigureAwait(false);
+            await cacheIndexStore.SaveAsync(index, cancellationToken).ConfigureAwait(false);
             cleanupCompleted = true;
             logger.LogInformation(
                 "Remote local mod icon cache cleanup completed. RemovedCount={RemovedCount} TotalBytes={TotalBytes}",
@@ -802,42 +618,6 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         }
     }
 
-    private async Task<RemoteIconCacheIndex> LoadIndexAsync(CancellationToken cancellationToken)
-    {
-        if (!File.Exists(indexPath))
-            return new RemoteIconCacheIndex();
-
-        try
-        {
-            await using var stream = File.OpenRead(indexPath);
-            return await JsonSerializer.DeserializeAsync<RemoteIconCacheIndex>(stream, JsonOptions, cancellationToken)
-                    .ConfigureAwait(false)
-                ?? new RemoteIconCacheIndex();
-        }
-        catch (JsonException exception)
-        {
-            logger.LogWarning(exception, "Failed to parse remote local mod icon cache index.");
-            return new RemoteIconCacheIndex();
-        }
-        catch (IOException exception)
-        {
-            logger.LogWarning(exception, "Failed to read remote local mod icon cache index.");
-            return new RemoteIconCacheIndex();
-        }
-    }
-
-    private async Task SaveIndexAsync(RemoteIconCacheIndex index, CancellationToken cancellationToken)
-    {
-        Directory.CreateDirectory(cacheDirectory);
-        var tempPath = indexPath + ".tmp";
-        await using (var stream = File.Create(tempPath))
-        {
-            await JsonSerializer.SerializeAsync(stream, index, JsonOptions, cancellationToken).ConfigureAwait(false);
-        }
-
-        File.Move(tempPath, indexPath, overwrite: true);
-    }
-
     private void CacheFileAlias(RemoteIconCacheIndex index, ModIconLookupCandidate lookup)
     {
         if (index.Aliases.TryGetValue(lookup.Sha1Alias, out var entryKey))
@@ -866,123 +646,10 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         }
     }
 
-    private static async Task<byte[]> ReadLimitedAsync(
-        Stream stream,
-        long maxBytes,
-        CancellationToken cancellationToken)
-    {
-        using var buffer = new MemoryStream();
-        var chunk = new byte[81920];
-        while (true)
-        {
-            var read = await stream.ReadAsync(chunk, cancellationToken).ConfigureAwait(false);
-            if (read == 0)
-                return buffer.ToArray();
-
-            if (buffer.Length + read > maxBytes)
-                throw new InvalidDataException("Remote local mod icon exceeds the maximum allowed size.");
-
-            buffer.Write(chunk, 0, read);
-        }
-    }
-
-    private void SaveRemoteIconAsPng(Stream source, string path)
-    {
-        var decoder = BitmapDecoder.Create(
-            source,
-            BitmapCreateOptions.PreservePixelFormat,
-            BitmapCacheOption.OnLoad);
-        var frame = decoder.Frames.FirstOrDefault()
-            ?? throw new InvalidDataException("Remote local mod icon contains no frames.");
-        frame.Freeze();
-
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(frame, null, null, null));
-        using var output = File.Create(path);
-        encoder.Save(output);
-    }
-
     private string GetIconCachePath(string entryKey)
     {
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(entryKey))).ToLowerInvariant();
         return Path.Combine(cacheDirectory, $"{hash}.png");
-    }
-
-    private static async Task<Dictionary<long, long>> ParseCurseForgeFingerprintMatchesAsync(
-        Stream stream,
-        CancellationToken cancellationToken)
-    {
-        var result = new Dictionary<long, long>();
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
-        if (!document.RootElement.TryGetProperty("data", out var data)
-            || !data.TryGetProperty("exactMatches", out var exactMatches)
-            || exactMatches.ValueKind is not JsonValueKind.Array)
-        {
-            return result;
-        }
-
-        foreach (var match in exactMatches.EnumerateArray())
-        {
-            var projectId = TryReadLong(match, "id")
-                            ?? TryReadLong(match, "modId")
-                            ?? TryReadLong(match, "projectId");
-            JsonElement? file = match.TryGetProperty("file", out var fileElement) ? fileElement : null;
-            if (projectId is null && file is not null)
-                projectId = TryReadLong(file.Value, "modId") ?? TryReadLong(file.Value, "projectId");
-
-            var fingerprint = TryReadLong(match, "fileFingerprint")
-                              ?? TryReadLong(match, "fingerprint");
-            if (fingerprint is null && file is not null)
-            {
-                fingerprint = TryReadLong(file.Value, "fileFingerprint")
-                              ?? TryReadLong(file.Value, "fingerprint")
-                              ?? TryReadFirstFingerprint(file.Value);
-            }
-
-            if (projectId is not null && fingerprint is not null)
-                result[fingerprint.Value] = projectId.Value;
-        }
-
-        return result;
-    }
-
-    private static long? TryReadFirstFingerprint(JsonElement element)
-    {
-        if (!element.TryGetProperty("fingerprints", out var fingerprints)
-            || fingerprints.ValueKind is not JsonValueKind.Array)
-        {
-            return null;
-        }
-
-        foreach (var fingerprint in fingerprints.EnumerateArray())
-        {
-            var value = fingerprint.ValueKind is JsonValueKind.Object
-                ? TryReadLong(fingerprint, "value")
-                : TryReadLong(fingerprint);
-            if (value is not null)
-                return value;
-        }
-
-        return null;
-    }
-
-    private static long? TryReadLong(JsonElement element, string propertyName)
-    {
-        return element.TryGetProperty(propertyName, out var property)
-            ? TryReadLong(property)
-            : null;
-    }
-
-    private static long? TryReadLong(JsonElement element)
-    {
-        return element.ValueKind switch
-        {
-            JsonValueKind.Number when element.TryGetInt64(out var value) => value,
-            JsonValueKind.String when long.TryParse(element.GetString(), out var value) => value,
-            _ => null
-        };
     }
 
     private static void DeleteFileIfExists(string path)
@@ -1040,87 +707,4 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         hash ^= hash >> 15;
         return hash;
     }
-
-    private sealed record ModIconLookupCandidate(string FullPath, string Sha1, string FileAlias, long CurseForgeFingerprint)
-    {
-        public string Sha1Alias => $"sha1:{Sha1}";
-    }
-
-    private sealed record RemoteIconCandidate(string Source, string ProjectId, string IconUrl);
-
-    private sealed record ModrinthVersionFilesRequest(
-        [property: JsonPropertyName("hashes")] IReadOnlyList<string> Hashes,
-        [property: JsonPropertyName("algorithm")] string Algorithm);
-
-    private sealed class ModrinthVersionFileMatch
-    {
-        [JsonPropertyName("project_id")]
-        public string ProjectId { get; init; } = string.Empty;
-    }
-
-    private sealed class ModrinthProject
-    {
-        [JsonPropertyName("id")]
-        public string Id { get; init; } = string.Empty;
-
-        [JsonPropertyName("icon_url")]
-        public string? IconUrl { get; init; }
-    }
-
-    private sealed record CurseForgeFingerprintRequest(
-        [property: JsonPropertyName("fingerprints")] IReadOnlyList<long> Fingerprints);
-
-    private sealed record CurseForgeModsRequest(
-        [property: JsonPropertyName("modIds")] IReadOnlyList<long> ModIds);
-
-    private sealed class CurseForgeModsResponse
-    {
-        [JsonPropertyName("data")]
-        public List<CurseForgeMod> Data { get; init; } = [];
-    }
-
-    private sealed class CurseForgeMod
-    {
-        [JsonPropertyName("id")]
-        public long Id { get; init; }
-
-        [JsonPropertyName("logo")]
-        public CurseForgeModLogo? Logo { get; init; }
-    }
-
-    private sealed class CurseForgeModLogo
-    {
-        [JsonPropertyName("thumbnailUrl")]
-        public string? ThumbnailUrl { get; init; }
-
-        [JsonPropertyName("url")]
-        public string? Url { get; init; }
-    }
-
-    private sealed class RemoteIconCacheIndex
-    {
-        public Dictionary<string, RemoteIconCacheEntry> Entries { get; init; } = new(StringComparer.OrdinalIgnoreCase);
-
-        public Dictionary<string, string> Aliases { get; init; } = new(StringComparer.OrdinalIgnoreCase);
-
-        public Dictionary<string, string> FileAliases { get; init; } = new(StringComparer.OrdinalIgnoreCase);
-    }
-
-    private sealed class RemoteIconCacheEntry
-    {
-        public string Source { get; init; } = string.Empty;
-
-        public string ProjectId { get; init; } = string.Empty;
-
-        public string IconUrl { get; init; } = string.Empty;
-
-        public string FileName { get; init; } = string.Empty;
-
-        public DateTimeOffset CachedAt { get; init; }
-
-        public DateTimeOffset LastUsedAt { get; set; }
-
-        public long SizeBytes { get; set; }
-    }
-
 }

@@ -110,7 +110,7 @@ public sealed class AccountDialogService : IAccountDialogService
             return;
 
         accountPage.Appearance.OpenSkinManagerDialog();
-        if (accountPage.Appearance.IsSkinManagerDialogOpen)
+        if (accountPage.Appearance.SkinLibrary.IsManagerDialogOpen)
             skinManagerDialogHost.Show();
     }
 

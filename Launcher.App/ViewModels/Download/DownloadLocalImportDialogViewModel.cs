@@ -44,6 +44,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
     private readonly IUiDispatcher uiDispatcher;
     private readonly IFloatingMessageService floatingMessageService;
     private readonly DownloadModpackManualDownloadsDialogViewModel modpackManualDownloadsDialog;
+    private readonly IExistingFilePathValidator existingFilePathValidator;
     private readonly ILogger<DownloadLocalImportDialogViewModel> logger;
     private DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto;
     private int downloadSpeedLimitMbPerSecond;
@@ -73,6 +74,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
         IUiDispatcher uiDispatcher,
         IFloatingMessageService floatingMessageService,
         DownloadModpackManualDownloadsDialogViewModel modpackManualDownloadsDialog,
+        IExistingFilePathValidator existingFilePathValidator,
         ILogger<DownloadLocalImportDialogViewModel>? logger = null)
     {
         this.filePickerService = filePickerService;
@@ -81,6 +83,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
         this.uiDispatcher = uiDispatcher;
         this.floatingMessageService = floatingMessageService;
         this.modpackManualDownloadsDialog = modpackManualDownloadsDialog;
+        this.existingFilePathValidator = existingFilePathValidator;
         this.logger = logger ?? NullLogger<DownloadLocalImportDialogViewModel>.Instance;
     }
 
@@ -376,18 +379,13 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
             DialogState = DownloadLocalImportDialogState.Selection;
     }
 
-    private static bool TryResolveSingleFile(IReadOnlyList<string> paths, out string resolvedPath)
+    private bool TryResolveSingleFile(IReadOnlyList<string> paths, out string resolvedPath)
     {
         resolvedPath = string.Empty;
         if (paths.Count != 1)
             return false;
 
-        var path = paths[0];
-        if (string.IsNullOrWhiteSpace(path) || Directory.Exists(path) || !File.Exists(path))
-            return false;
-
-        resolvedPath = Path.GetFullPath(path);
-        return true;
+        return existingFilePathValidator.TryNormalize(paths[0], out resolvedPath);
     }
 
     private static IProgress<LauncherProgress> CreateProgressReporter(DownloadTaskItem importTask)

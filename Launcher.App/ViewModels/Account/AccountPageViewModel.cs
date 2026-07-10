@@ -95,9 +95,9 @@ public sealed partial class AccountPageViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void RequestDeleteAccount(LauncherAccount account)
+    private void RequestDeleteAccount(AccountItemViewModel item)
     {
-        dialogService.ShowDeleteAccountDialog(account);
+        dialogService.ShowDeleteAccountDialog(item.Account);
     }
 
     [RelayCommand]

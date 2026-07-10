@@ -38,7 +38,9 @@ public sealed class ResourcesShaderPacksPageViewModel : ResourcesModPageViewMode
         IStatusService? statusService = null,
         IFilePickerService? filePickerService = null,
         IFloatingMessageService? floatingMessageService = null,
-        DownloadTasksPageViewModel? downloadTasksPage = null)
+        DownloadTasksPageViewModel? downloadTasksPage = null,
+        IResourceProjectInstallationService? resourceProjectInstallationService = null,
+        IResourceDependencyPlanningService? resourceDependencyPlanningService = null)
         : base(
             parent,
             CreateShaderPackOptions(),
@@ -50,7 +52,9 @@ public sealed class ResourcesShaderPacksPageViewModel : ResourcesModPageViewMode
             statusService,
             filePickerService,
             floatingMessageService,
-            downloadTasksPage)
+            downloadTasksPage,
+            resourceProjectInstallationService: resourceProjectInstallationService,
+            resourceDependencyPlanningService: resourceDependencyPlanningService)
     {
     }
 

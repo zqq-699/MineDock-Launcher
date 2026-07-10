@@ -17,12 +17,42 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Launcher.App.Resources;
+
 namespace Launcher.App.ViewModels.Settings;
 
-public sealed class ControlListSettingsViewModel : SettingsSectionViewModelBase
+public sealed partial class ControlListSettingsViewModel : SettingsSectionViewModelBase
 {
-    public ControlListSettingsViewModel(SettingsPageViewModel parent)
-        : base(parent)
+    internal ControlListSettingsViewModel(SettingsPersistenceCoordinator persistence)
+        : base(persistence)
     {
+        foreach (var control in SettingsInteractiveControlCatalog.Create())
+            InteractiveControls.Add(control);
+        selectedControlDemoComboOption = InteractiveControls.FirstOrDefault();
+        selectedInteractiveControl = InteractiveControls.FirstOrDefault();
+    }
+
+    public ObservableCollection<SettingsInteractiveControlItem> InteractiveControls { get; } = [];
+
+    [ObservableProperty] private string controlDemoInputText = Strings.Settings_ControlDemoDefaultInput;
+    [ObservableProperty] private string controlDemoMultilineText = Strings.Settings_ControlDemoDefaultMultilineInput;
+    [ObservableProperty] private string controlDemoSearchText = string.Empty;
+    [ObservableProperty] private string controlDemoStatusText = Strings.Settings_ControlDemoStatusReady;
+    [ObservableProperty] private bool controlDemoSwitchEnabled = true;
+    [ObservableProperty] private double controlDemoSliderValue = 48;
+    [ObservableProperty] private bool controlDemoSecondaryMenuSelected = true;
+    [ObservableProperty] private int controlDemoProgress = 64;
+    [ObservableProperty] private SettingsInteractiveControlItem? selectedControlDemoComboOption;
+    [ObservableProperty] private SettingsInteractiveControlItem? selectedInteractiveControl;
+
+    [RelayCommand]
+    private void RunControlDemoAction()
+    {
+        ControlDemoProgress = ControlDemoProgress >= 100 ? 20 : ControlDemoProgress + 20;
+        ControlDemoStatusText = Strings.Settings_ControlDemoStatusClicked;
+        ControlDemoSecondaryMenuSelected = !ControlDemoSecondaryMenuSelected;
     }
 }

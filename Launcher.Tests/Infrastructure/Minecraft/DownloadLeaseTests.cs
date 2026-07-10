@@ -19,6 +19,7 @@
 
 using System.Net;
 using System.Net.Http;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
 using Launcher.Infrastructure.Modpacks;
@@ -156,10 +157,10 @@ internal sealed class ThrowingRequestHandler : HttpMessageHandler
     }
 }
 
-internal sealed class SlotLeaseSet(IReadOnlyList<IAsyncDisposable> leases) : IAsyncDisposable
+internal sealed class SlotLeaseSet(IReadOnlyList<IImportConcurrencyLease> leases) : IAsyncDisposable
 {
     public static async Task<SlotLeaseSet> AcquireAsync(
-        Func<CancellationToken, ValueTask<IAsyncDisposable>> acquireAsync,
+        Func<CancellationToken, ValueTask<IImportConcurrencyLease>> acquireAsync,
         int slotCount)
     {
         var leases = await Task.WhenAll(

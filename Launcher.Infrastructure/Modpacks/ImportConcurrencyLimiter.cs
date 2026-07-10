@@ -31,40 +31,47 @@ internal sealed class ImportConcurrencyLimiter : IImportConcurrencyLimiter
     private readonly SemaphoreSlim runtimeDownloadSemaphore = new(8, 8);
     private readonly SemaphoreSlim hashSemaphore = new(2, 2);
 
-    public ValueTask<IAsyncDisposable> AcquireMetadataSlotAsync(CancellationToken cancellationToken = default)
+    public ValueTask<IImportConcurrencyLease> AcquireMetadataSlotAsync(CancellationToken cancellationToken = default)
     {
         return AcquireAsync(metadataSemaphore, cancellationToken);
     }
 
-    public ValueTask<IAsyncDisposable> AcquireModpackDownloadSlotAsync(CancellationToken cancellationToken = default)
+    public ValueTask<IImportConcurrencyLease> AcquireModpackDownloadSlotAsync(CancellationToken cancellationToken = default)
     {
         return AcquireAsync(modpackDownloadSemaphore, cancellationToken);
     }
 
-    public ValueTask<IAsyncDisposable> AcquireRuntimeDownloadSlotAsync(CancellationToken cancellationToken = default)
+    public ValueTask<IImportConcurrencyLease> AcquireRuntimeDownloadSlotAsync(CancellationToken cancellationToken = default)
     {
         return AcquireAsync(runtimeDownloadSemaphore, cancellationToken);
     }
 
-    public ValueTask<IAsyncDisposable> AcquireHashSlotAsync(CancellationToken cancellationToken = default)
+    public ValueTask<IImportConcurrencyLease> AcquireHashSlotAsync(CancellationToken cancellationToken = default)
     {
         return AcquireAsync(hashSemaphore, cancellationToken);
     }
 
-    private static async ValueTask<IAsyncDisposable> AcquireAsync(SemaphoreSlim semaphore, CancellationToken cancellationToken)
+    private static async ValueTask<IImportConcurrencyLease> AcquireAsync(
+        SemaphoreSlim semaphore,
+        CancellationToken cancellationToken)
     {
         await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
         return new SemaphoreLease(semaphore);
     }
 
-    private sealed class SemaphoreLease(SemaphoreSlim semaphore) : IAsyncDisposable
+    private sealed class SemaphoreLease(SemaphoreSlim semaphore) : IImportConcurrencyLease
     {
         private SemaphoreSlim? semaphore = semaphore;
 
         public ValueTask DisposeAsync()
         {
-            Interlocked.Exchange(ref semaphore, null)?.Release();
+            Dispose();
             return ValueTask.CompletedTask;
+        }
+
+        public void Dispose()
+        {
+            Interlocked.Exchange(ref semaphore, null)?.Release();
         }
     }
 }

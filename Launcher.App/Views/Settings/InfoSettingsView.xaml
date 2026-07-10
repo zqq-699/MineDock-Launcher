@@ -90,8 +90,8 @@
                                Style="{StaticResource SettingsOptionTextStyle}" />
 
                     <controls:AnimatedComboBox Grid.Column="1"
-                                               ItemsSource="{Binding Parent.UpdateChannelOptions}"
-                                               SelectedItem="{Binding Parent.SelectedUpdateChannelOption, Mode=TwoWay}"
+                                               ItemsSource="{Binding UpdateChannelOptions}"
+                                               SelectedItem="{Binding SelectedUpdateChannelOption, Mode=TwoWay}"
                                                ItemTemplate="{StaticResource UpdateChannelOptionTemplate}"
                                                SelectionItemTemplate="{StaticResource UpdateChannelOptionTemplate}"
                                                Style="{StaticResource LauncherComboBoxStyle}" />

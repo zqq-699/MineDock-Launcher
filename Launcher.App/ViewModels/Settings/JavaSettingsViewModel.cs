@@ -17,12 +17,66 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using Launcher.App.Services;
+using Launcher.Application.Services;
+using Launcher.Domain.Models;
+
 namespace Launcher.App.ViewModels.Settings;
 
 public sealed class JavaSettingsViewModel : SettingsSectionViewModelBase
 {
-    public JavaSettingsViewModel(SettingsPageViewModel parent)
-        : base(parent)
+    internal JavaSettingsViewModel(
+        SettingsPersistenceCoordinator persistence,
+        IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
+        IStatusService statusService,
+        IFilePickerService filePickerService,
+        IFloatingMessageService floatingMessageService,
+        Func<string> minecraftDirectoryProvider)
+        : base(persistence)
     {
+        Editor = new JavaSettingsEditorViewModel(
+            javaRuntimeDiscoveryService,
+            statusService,
+            filePickerService,
+            floatingMessageService,
+            minecraftDirectoryProvider);
+        Editor.JavaSelectionChanged += Editor_JavaSelectionChanged;
+    }
+
+    public event EventHandler? LaunchDefaultsChanged;
+
+    public JavaSettingsEditorViewModel Editor { get; }
+
+    public void Load(LauncherSettings settings)
+    {
+        LoadState(() => Editor.LoadSelection(settings.JavaSelectionMode, settings.SelectedJavaExecutablePath));
+        _ = RefreshForDisplayAsync();
+    }
+
+    private async Task RefreshForDisplayAsync()
+    {
+        try
+        {
+            await Editor.RefreshJavaRuntimesForDisplayAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void Editor_JavaSelectionChanged(object? sender, EventArgs e)
+    {
+        if (!CanPersist)
+            return;
+
+        Persist(settings =>
+        {
+            settings.JavaSelectionMode = Editor.SelectedMode;
+            settings.SelectedJavaExecutablePath = Editor.SelectedMode is JavaSelectionMode.Manual
+                && !string.IsNullOrWhiteSpace(Editor.SelectedExecutablePath)
+                ? Editor.SelectedExecutablePath
+                : null;
+        });
+        LaunchDefaultsChanged?.Invoke(this, EventArgs.Empty);
     }
 }

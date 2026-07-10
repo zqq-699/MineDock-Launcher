@@ -178,7 +178,7 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
             selectedLoaderVersion,
             isolatedVersionName);
 
-        var existingVersionNames = GetVersionDirectoryNames(gameDirectory);
+        var existingVersionNames = LoaderVersionDirectoryTransaction.CaptureExistingVersions(gameDirectory);
         var installerSessionDirectory = Path.Combine(tempRootDirectory, "launcher-neoforge", Guid.NewGuid().ToString("N"));
         var installerJarPath = Path.Combine(installerSessionDirectory, $"neoforge-{selectedLoaderVersion}-installer.jar");
         var installerMinecraftDirectory = Path.Combine(installerSessionDirectory, ".minecraft");
@@ -186,7 +186,7 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
 
         try
         {
-            EnsureLauncherProfileExists(installerMinecraftDirectory);
+            LoaderVersionDirectoryTransaction.EnsureLauncherProfileExists(installerMinecraftDirectory);
 
             progress?.Report(new LauncherProgress(InstallProgressStages.DownloadingLoaderInstaller, string.Empty));
             await DownloadInstallerAsync(
@@ -228,10 +228,10 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
 
-            CopyFinalVersionDirectory(installerMinecraftDirectory, gameDirectory, finalVersionName);
+            LoaderVersionDirectoryTransaction.CopyFinalVersionDirectory(installerMinecraftDirectory, gameDirectory, finalVersionName);
             MinecraftSharedContentCopier.CopySharedRuntimeContent(installerMinecraftDirectory, gameDirectory, logger);
 
-            CleanupCreatedVersionDirectories(gameDirectory, existingVersionNames, finalVersionName);
+            LoaderVersionDirectoryTransaction.CleanupCreatedVersionDirectories(gameDirectory, existingVersionNames, finalVersionName);
             logger.LogInformation(
                 "NeoForge installation completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} FinalVersionName={FinalVersionName}",
                 minecraftVersion,
@@ -241,12 +241,12 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
         }
         catch
         {
-            CleanupCreatedVersionDirectories(gameDirectory, existingVersionNames, preserveVersionName: null);
+            LoaderVersionDirectoryTransaction.CleanupCreatedVersionDirectories(gameDirectory, existingVersionNames, preserveVersionName: null);
             throw;
         }
         finally
         {
-            TryDeleteDirectory(installerSessionDirectory);
+            LoaderVersionDirectoryTransaction.TryDeleteDirectory(installerSessionDirectory);
         }
     }
 
@@ -331,37 +331,6 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
         return new NeoForgeVersionKey(values);
     }
 
-    private static HashSet<string> GetVersionDirectoryNames(string gameDirectory)
-    {
-        var versionsDirectory = Path.Combine(gameDirectory, "versions");
-        if (!Directory.Exists(versionsDirectory))
-            return [];
-
-        return Directory.GetDirectories(versionsDirectory)
-            .Select(Path.GetFileName)
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Select(name => name!)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-    }
-
-    private static void EnsureLauncherProfileExists(string gameDirectory)
-    {
-        Directory.CreateDirectory(gameDirectory);
-
-        var launcherProfilesPath = Path.Combine(gameDirectory, "launcher_profiles.json");
-        var microsoftStoreProfilesPath = Path.Combine(gameDirectory, "launcher_profiles_microsoft_store.json");
-        if (File.Exists(launcherProfilesPath) || File.Exists(microsoftStoreProfilesPath))
-            return;
-
-        File.WriteAllText(
-            launcherProfilesPath,
-            """
-            {
-              "profiles": {}
-            }
-            """);
-    }
-
     private static string FindInstalledSourceVersionName(
         string gameDirectory,
         string loaderVersion,
@@ -434,7 +403,11 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
                     isolatedVersionName,
                     gameDirectory,
                     cancellationToken);
-                await WriteLauncherMetadataAsync(gameDirectory, finalVersionName, minecraftVersion, cancellationToken);
+                await LoaderVersionDirectoryTransaction.WriteLauncherMetadataAsync(
+                    gameDirectory,
+                    finalVersionName,
+                    minecraftVersion,
+                    cancellationToken);
                 return finalVersionName;
             }
             catch (FileNotFoundException)
@@ -447,80 +420,12 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
             isolatedVersionName,
             gameDirectory,
             cancellationToken: cancellationToken);
-        await WriteLauncherMetadataAsync(gameDirectory, finalVersionName, minecraftVersion, cancellationToken);
-        return finalVersionName;
-    }
-
-    private static async Task WriteLauncherMetadataAsync(
-        string gameDirectory,
-        string versionName,
-        string minecraftVersion,
-        CancellationToken cancellationToken)
-    {
-        var versionJsonPath = Path.Combine(gameDirectory, "versions", versionName, $"{versionName}.json");
-        JsonNode versionJson;
-        await using (var jsonStream = File.OpenRead(versionJsonPath))
-        {
-            versionJson = await JsonNode.ParseAsync(jsonStream, cancellationToken: cancellationToken)
-                ?? throw new InvalidDataException($"Version JSON is empty: {versionJsonPath}");
-        }
-
-        var versionObject = versionJson.AsObject();
-        LauncherVersionMetadata.Apply(versionObject, minecraftVersion);
-        await File.WriteAllTextAsync(
-            versionJsonPath,
-            versionObject.ToJsonString(new JsonSerializerOptions { WriteIndented = true }),
+        await LoaderVersionDirectoryTransaction.WriteLauncherMetadataAsync(
+            gameDirectory,
+            finalVersionName,
+            minecraftVersion,
             cancellationToken);
-    }
-
-    private static void CopyFinalVersionDirectory(
-        string sourceGameDirectory,
-        string destinationGameDirectory,
-        string versionName)
-    {
-        MinecraftVersionDirectoryCopier.CopyVersionDirectory(
-            sourceGameDirectory,
-            destinationGameDirectory,
-            versionName,
-            allowExistingDestination: true);
-    }
-
-    private static void CleanupCreatedVersionDirectories(
-        string gameDirectory,
-        HashSet<string> existingVersionNames,
-        string? preserveVersionName)
-    {
-        var versionsDirectory = Path.Combine(gameDirectory, "versions");
-        if (!Directory.Exists(versionsDirectory))
-            return;
-
-        foreach (var directory in Directory.GetDirectories(versionsDirectory))
-        {
-            var versionName = Path.GetFileName(directory);
-            if (string.IsNullOrWhiteSpace(versionName)
-                || existingVersionNames.Contains(versionName)
-                || string.Equals(versionName, preserveVersionName, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            TryDeleteDirectory(directory);
-        }
-    }
-
-    private static void TryDeleteDirectory(string directory)
-    {
-        try
-        {
-            if (Directory.Exists(directory))
-                Directory.Delete(directory, recursive: true);
-        }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
+        return finalVersionName;
     }
 
     private static VersionJsonMetadata? TryReadVersionMetadata(string versionDirectory, string versionName)

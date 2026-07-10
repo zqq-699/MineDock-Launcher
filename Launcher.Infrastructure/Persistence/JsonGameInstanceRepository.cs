@@ -38,16 +38,17 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
     private const int RenameDirectoryMoveMaxAttempts = 5;
     private static readonly TimeSpan RenameDirectoryMoveRetryDelay = TimeSpan.FromMilliseconds(150);
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private const string LauncherDirectoryName = LauncherApplicationIdentity.StorageDirectoryName;
+    private const string InstanceSettingsFileName = "instance-settings.json";
     private static readonly Regex NeoForgeVersionArgumentRegex = new(
         "--fml\\.(?:neoForgeVersion|forgeVersion)\\s+(?<version>[^\\s]+)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly Regex MinecraftVersionRegex = new(
         "(?<version>(?:[1-9][0-9]w[0-9]{2}[a-z])|(?:(?:1|[2-9][0-9])\\.[0-9]+(?:\\.[0-9]+)?(?:-(?:pre|rc|snapshot-?)[0-9]+| Pre-Release [0-9]+)?)|(?:[ab][0-9]\\.[0-9]+(?:\\.[0-9]+)?))",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
-    private const string LauncherDirectoryName = LauncherApplicationIdentity.StorageDirectoryName;
-    private const string InstanceSettingsFileName = "instance-settings.json";
     private readonly ISettingsService settingsService;
     private readonly ILogger<JsonGameInstanceRepository> logger;
+    private readonly GameInstanceSettingsStore instanceSettingsStore;
     private readonly Func<string, string, CancellationToken, Task> moveDirectoryAsync;
     private readonly SemaphoreSlim ioLock = new(1, 1);
 
@@ -58,6 +59,7 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
     {
         this.settingsService = settingsService;
         this.logger = logger ?? NullLogger<JsonGameInstanceRepository>.Instance;
+        instanceSettingsStore = new GameInstanceSettingsStore(this.logger);
         this.moveDirectoryAsync = moveDirectoryAsync ?? MoveDirectoryAsync;
     }
 
@@ -74,7 +76,8 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         await ioLock.WaitAsync(cancellationToken);
         try
         {
-            var instances = await ReadPerInstanceSettingsAsync(minecraftDirectory, cancellationToken);
+            var instances = await instanceSettingsStore.LoadAsync(minecraftDirectory, cancellationToken)
+                .ConfigureAwait(false);
             logger.LogDebug(
                 "Game instances loaded. Count={InstanceCount} MinecraftDirectory={MinecraftDirectory}",
                 instances.Count,
@@ -93,38 +96,15 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         await ioLock.WaitAsync(cancellationToken);
         try
         {
-            var persistedSettingsPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var persistedVersionNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var instance in instances)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                var versionName = GetVersionName(instance);
-                if (string.IsNullOrWhiteSpace(versionName))
-                    continue;
-
-                if (!persistedVersionNames.Add(versionName))
-                    continue;
-
-                var versionDirectory = ResolveVersionDirectory(settings.MinecraftDirectory, instance, versionName);
-                if (!Directory.Exists(versionDirectory))
-                    continue;
-
-                var settingsPath = GetInstanceSettingsPath(versionDirectory);
-                Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
-
-                await using var stream = File.Create(settingsPath);
-                var snapshot = CreateStorageSnapshot(instance, versionDirectory, versionName);
-                await JsonSerializer.SerializeAsync(stream, snapshot, JsonOptions, cancellationToken);
-                persistedSettingsPaths.Add(Path.GetFullPath(settingsPath));
-            }
-
-            CleanupOrphanedInstanceSettingsFiles(settings.MinecraftDirectory, persistedSettingsPaths);
+            var persistedCount = await instanceSettingsStore.SaveAsync(
+                    instances,
+                    settings.MinecraftDirectory,
+                    cancellationToken)
+                .ConfigureAwait(false);
             logger.LogDebug(
                 "Game instances saved. RequestedCount={RequestedCount} PersistedCount={PersistedCount} MinecraftDirectory={MinecraftDirectory}",
                 instances.Count,
-                persistedSettingsPaths.Count,
+                persistedCount,
                 settings.MinecraftDirectory);
         }
         finally
@@ -339,11 +319,6 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         }
     }
 
-    private static string GetInstanceSettingsPath(string versionDirectory)
-    {
-        return Path.Combine(versionDirectory, LauncherDirectoryName, InstanceSettingsFileName);
-    }
-
     private async Task MoveDirectoryWithRetryAsync(
         string sourceDirectory,
         string destinationDirectory,
@@ -381,147 +356,6 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         cancellationToken.ThrowIfCancellationRequested();
         Directory.Move(sourceDirectory, destinationDirectory);
         return Task.CompletedTask;
-    }
-
-    private static string ResolveVersionDirectory(string minecraftDirectory, GameInstance instance, string versionName)
-    {
-        return Path.Combine(minecraftDirectory, "versions", versionName);
-    }
-
-    private static async Task<List<GameInstance>> ReadPerInstanceSettingsAsync(
-        string minecraftDirectory,
-        CancellationToken cancellationToken)
-    {
-        var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
-        if (!Directory.Exists(versionsDirectory))
-            return [];
-
-        var storedInstances = new List<GameInstance>();
-        foreach (var versionDirectory in EnumerateDirectories(versionsDirectory))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var settingsPath = GetInstanceSettingsPath(versionDirectory);
-            if (!File.Exists(settingsPath))
-                continue;
-
-            var instance = await TryReadInstanceSettingsAsync(settingsPath, cancellationToken);
-            if (instance is null)
-                continue;
-
-            var versionName = Path.GetFileName(versionDirectory);
-            if (string.IsNullOrWhiteSpace(instance.VersionName))
-                instance.VersionName = versionName;
-
-            instance.InstanceDirectory = versionDirectory;
-            storedInstances.Add(instance);
-        }
-
-        return storedInstances;
-    }
-
-    private static async Task<GameInstance?> TryReadInstanceSettingsAsync(
-        string settingsPath,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await using var stream = File.OpenRead(settingsPath);
-            var instance = await JsonSerializer.DeserializeAsync<GameInstance>(stream, JsonOptions, cancellationToken);
-            if (instance is not null)
-                NormalizeInstanceSettings(instance);
-
-            return instance;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-        catch (IOException)
-        {
-            return null;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
-
-    private static void NormalizeInstanceSettings(GameInstance instance)
-    {
-        if (!Enum.IsDefined(instance.MemorySettingsMode))
-            instance.MemorySettingsMode = MemorySettingsMode.Manual;
-
-        if (instance.MemoryMb <= 0)
-            instance.MemoryMb = LauncherDefaults.DefaultMemoryMb;
-    }
-
-    private static GameInstance CreateStorageSnapshot(GameInstance instance, string versionDirectory, string versionName)
-    {
-        return new GameInstance
-        {
-            Id = instance.Id,
-            Name = instance.Name,
-            MinecraftVersion = instance.MinecraftVersion,
-            Loader = instance.Loader,
-            LoaderVersion = instance.LoaderVersion,
-            VersionName = versionName,
-            VersionType = instance.VersionType,
-            Description = instance.Description,
-            IconSource = instance.IconSource,
-            InstanceDirectory = versionDirectory,
-            BackupDirectory = instance.BackupDirectory,
-            MemorySettingsMode = instance.MemorySettingsMode,
-            MemoryMb = instance.MemoryMb,
-            WindowWidth = instance.WindowWidth,
-            WindowHeight = instance.WindowHeight,
-            PreLaunchCommand = instance.PreLaunchCommand,
-            WaitForPreLaunchCommand = instance.WaitForPreLaunchCommand,
-            PostExitCommand = instance.PostExitCommand,
-            JvmArguments = instance.JvmArguments,
-            GameArguments = instance.GameArguments,
-            LaunchSettingsMode = instance.LaunchSettingsMode,
-            JavaSettingsMode = instance.JavaSettingsMode,
-            JavaSelectionMode = instance.JavaSelectionMode,
-            SelectedJavaExecutablePath = instance.SelectedJavaExecutablePath,
-            CheckFilesBeforeLaunch = instance.CheckFilesBeforeLaunch,
-            AutoRepairMissingFiles = instance.AutoRepairMissingFiles,
-            MinimizeLauncherAfterLaunch = instance.MinimizeLauncherAfterLaunch,
-            LaunchFullScreen = instance.LaunchFullScreen,
-            CreatedAt = instance.CreatedAt,
-            UpdatedAt = instance.UpdatedAt
-        };
-    }
-
-    private static void CleanupOrphanedInstanceSettingsFiles(
-        string minecraftDirectory,
-        IReadOnlySet<string> persistedSettingsPaths)
-    {
-        var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
-        if (!Directory.Exists(versionsDirectory))
-            return;
-
-        foreach (var versionDirectory in EnumerateDirectories(versionsDirectory))
-        {
-            var settingsPath = GetInstanceSettingsPath(versionDirectory);
-            if (!File.Exists(settingsPath))
-                continue;
-
-            var fullSettingsPath = Path.GetFullPath(settingsPath);
-            if (persistedSettingsPaths.Contains(fullSettingsPath))
-                continue;
-
-            try
-            {
-                File.Delete(fullSettingsPath);
-            }
-            catch (IOException)
-            {
-            }
-            catch (UnauthorizedAccessException)
-            {
-            }
-        }
     }
 
     private static async Task<JsonObject> ReadVersionJsonAsync(string versionJsonPath, CancellationToken cancellationToken)

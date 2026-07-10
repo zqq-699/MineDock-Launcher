@@ -22,6 +22,7 @@ using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.ViewModels.Shared;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -35,6 +36,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
     private readonly IFilePickerService filePickerService;
+    private readonly IInstanceContentImportPathValidator importPathValidator;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<InstanceResourcePackManagementSettingsViewModel> logger;
     private readonly LocalContentSelectionState<ResourcePackManagementItemViewModel> selectionState;
@@ -81,6 +83,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         IStatusService statusService,
         IInstanceFolderService instanceFolderService,
         IFilePickerService filePickerService,
+        IInstanceContentImportPathValidator importPathValidator,
         IUiDispatcher? uiDispatcher = null,
         ILogger<InstanceResourcePackManagementSettingsViewModel>? logger = null)
         : base(parent)
@@ -89,6 +92,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
         this.filePickerService = filePickerService;
+        this.importPathValidator = importPathValidator;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<InstanceResourcePackManagementSettingsViewModel>.Instance;
         selectionState = new LocalContentSelectionState<ResourcePackManagementItemViewModel>(
@@ -843,29 +847,11 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         string invalidTypeMessage,
         out string failureMessage)
     {
-        failureMessage = string.Empty;
-        if (paths.Count == 0)
-        {
-            failureMessage = invalidTypeMessage;
-            return false;
-        }
-
-        foreach (var path in paths)
-        {
-            if (Directory.Exists(path))
-            {
-                failureMessage = Strings.GameSettings_DropFoldersUnsupportedMessage;
-                return false;
-            }
-
-            if (!File.Exists(path) || !path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-            {
-                failureMessage = invalidTypeMessage;
-                return false;
-            }
-        }
-
-        return true;
+        var validation = importPathValidator.Validate(paths, InstanceContentImportKind.ResourcePack);
+        failureMessage = validation.Failure is InstanceContentImportPathFailure.DirectoryNotSupported
+            ? Strings.GameSettings_DropFoldersUnsupportedMessage
+            : validation.IsValid ? string.Empty : invalidTypeMessage;
+        return validation.IsValid;
     }
 }
 

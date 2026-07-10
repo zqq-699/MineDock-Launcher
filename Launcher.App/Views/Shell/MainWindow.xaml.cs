@@ -26,41 +26,45 @@ using System.Windows.Threading;
 using Launcher.App.Controls;
 using Launcher.App.Models;
 using Launcher.App.Services;
-using Launcher.Application.Services;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.Views.Shell;
 
 public partial class MainWindow : Window
 {
+    private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(5);
+
     public static readonly DependencyProperty IsMenuExpandedProperty =
         DependencyProperty.Register(nameof(IsMenuExpanded), typeof(bool), typeof(MainWindow), new PropertyMetadata(false));
 
     private readonly NavigationMenuAnimationService navigationMenuService;
     private readonly IAccountDialogService accountDialogService;
-    private readonly ILauncherStateMonitor launcherStateMonitor;
+    private readonly LauncherStateSyncService stateSyncService;
+    private readonly LauncherShutdownService shutdownService;
     private readonly PageTransitionService pageTransitionService;
-    private readonly DispatcherTimer stateSyncDebounceTimer;
     private readonly MainViewModel viewModel;
-    private int stateSyncDispatchQueued;
+    private readonly ILogger<MainWindow> logger;
+    private bool isShutdownInProgress;
+    private bool isShutdownComplete;
 
     public MainWindow(
         MainViewModel viewModel,
         IWindowService windowService,
         IAccountDialogService accountDialogService,
-        ILauncherStateMonitor launcherStateMonitor,
-        IThemeService themeService)
+        LauncherStateSyncService stateSyncService,
+        LauncherShutdownService shutdownService,
+        IThemeService themeService,
+        ILogger<MainWindow>? logger = null)
     {
         InitializeComponent();
         this.viewModel = viewModel;
         this.accountDialogService = accountDialogService;
-        this.launcherStateMonitor = launcherStateMonitor;
+        this.stateSyncService = stateSyncService;
+        this.shutdownService = shutdownService;
+        this.logger = logger ?? NullLogger<MainWindow>.Instance;
         navigationMenuService = new NavigationMenuAnimationService(MenuColumn);
         pageTransitionService = new PageTransitionService(Dispatcher, ResolvePageRoot, viewModel.CurrentPage);
-        stateSyncDebounceTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
-        {
-            Interval = TimeSpan.FromMilliseconds(300)
-        };
-        stateSyncDebounceTimer.Tick += StateSyncDebounceTimer_Tick;
 
         DataContext = viewModel;
         windowService.Attach(this);
@@ -73,24 +77,12 @@ public partial class MainWindow : Window
             SkinManagerDialogHost);
 
         viewModel.PropertyChanged += ViewModel_PropertyChanged;
-        launcherStateMonitor.StateChanged += LauncherStateMonitor_StateChanged;
         AcrylicWindow.Enable(this, themeService);
         NativeCaptionButtons.Hide(this);
-        Loaded += async (_, _) =>
-        {
-            await viewModel.InitializeCommand.ExecuteAsync(null);
-            IsMenuExpanded = viewModel.IsMenuExpanded;
-            navigationMenuService.SetExpanded(IsMenuExpanded);
-            launcherStateMonitor.Watch(viewModel.Settings);
-            _ = Dispatcher.BeginInvoke(PrewarmTransientUi, DispatcherPriority.ContextIdle);
-        };
-        Activated += (_, _) => QueueStateSync();
+        Loaded += MainWindow_Loaded;
+        Activated += (_, _) => stateSyncService.RequestSync();
         Closing += Window_OnClosing;
-        Closed += (_, _) =>
-        {
-            launcherStateMonitor.StateChanged -= LauncherStateMonitor_StateChanged;
-            launcherStateMonitor.Stop();
-        };
+        Closed += (_, _) => stateSyncService.Stop();
     }
 
     public bool IsMenuExpanded
@@ -177,40 +169,52 @@ public partial class MainWindow : Window
             comboBox.ApplyTemplate();
     }
 
-    private async void StateSyncDebounceTimer_Tick(object? sender, EventArgs e)
+    private async void MainWindow_Loaded(object? sender, RoutedEventArgs e)
     {
-        stateSyncDebounceTimer.Stop();
-        Interlocked.Exchange(ref stateSyncDispatchQueued, 0);
-        await viewModel.SyncCurrentStateAsync();
-        launcherStateMonitor.Watch(viewModel.Settings);
+        try
+        {
+            await viewModel.InitializeCommand.ExecuteAsync(null);
+            IsMenuExpanded = viewModel.IsMenuExpanded;
+            navigationMenuService.SetExpanded(IsMenuExpanded);
+            stateSyncService.Start(() => viewModel.Settings, viewModel.SyncCurrentStateAsync);
+            _ = Dispatcher.BeginInvoke(PrewarmTransientUi, DispatcherPriority.ContextIdle);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Failed to initialize the main window.");
+        }
     }
 
-    private void QueueStateSync()
+    private async void Window_OnClosing(object? sender, CancelEventArgs e)
     {
-        if (!IsLoaded)
+        if (isShutdownComplete)
             return;
 
-        stateSyncDebounceTimer.Stop();
-        stateSyncDebounceTimer.Start();
-    }
-
-    private void LauncherStateMonitor_StateChanged(object? sender, EventArgs e)
-    {
-        QueueStateSyncFromWatcher();
-    }
-
-    private void Window_OnClosing(object? sender, CancelEventArgs e)
-    {
         if (!viewModel.CanCloseWindow())
+        {
             e.Cancel = true;
-    }
+            return;
+        }
 
-    private void QueueStateSyncFromWatcher()
-    {
-        if (Interlocked.Exchange(ref stateSyncDispatchQueued, 1) == 1)
+        e.Cancel = true;
+        if (isShutdownInProgress)
             return;
 
-        Dispatcher.BeginInvoke(QueueStateSync, DispatcherPriority.Background);
+        isShutdownInProgress = true;
+        try
+        {
+            await shutdownService.PrepareForExitAsync(ShutdownTimeout);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Unexpected failure while preparing the launcher to exit.");
+        }
+        finally
+        {
+            isShutdownInProgress = false;
+            isShutdownComplete = true;
+            Close();
+        }
     }
 
     private static IEnumerable<T> FindVisualChildren<T>(DependencyObject root) where T : DependencyObject
@@ -270,19 +274,26 @@ public partial class MainWindow : Window
 
     private async void Window_OnPreviewDrop(object sender, DragEventArgs e)
     {
-        if (HandleDownloadLocalImportDrop(e))
-            return;
+        try
+        {
+            if (HandleDownloadLocalImportDrop(e))
+                return;
 
-        if (await HandleLocalImportPageDropAsync(e))
-            return;
+            if (await HandleLocalImportPageDropAsync(e))
+                return;
 
-        var paths = TryGetDroppedPaths(e);
-        if (paths is null)
-            return;
+            var paths = TryGetDroppedPaths(e);
+            if (paths is null)
+                return;
 
-        e.Handled = true;
-        e.Effects = DragDropEffects.None;
-        await viewModel.GameSettingsPage.HandleImportDropAsync(paths);
+            e.Handled = true;
+            e.Effects = DragDropEffects.None;
+            await viewModel.GameSettingsPage.HandleImportDropAsync(paths);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Failed to handle files dropped onto the main window.");
+        }
     }
 
     private void HandleFileDropPreview(DragEventArgs e)

@@ -35,7 +35,6 @@ namespace Launcher.App;
 
 public partial class App : System.Windows.Application
 {
-    private static readonly TimeSpan ExitBackgroundTaskWaitTimeout = TimeSpan.FromSeconds(5);
     private ServiceProvider? serviceProvider;
     private bool isUpdateApplyMode;
 
@@ -43,7 +42,10 @@ public partial class App : System.Windows.Application
     {
         var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
         if (LauncherUpdateApplyOptions.Parse(args) is null)
-            ApplyLauncherCulture(new JsonSettingsService().LoadAsync().GetAwaiter().GetResult().LauncherLanguage);
+        {
+            ApplyLauncherCulture(
+                new JsonSettingsService().LoadLauncherLanguageForBootstrap());
+        }
     }
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -63,8 +65,6 @@ public partial class App : System.Windows.Application
         try
         {
             Log.Information("Launcher startup started. ArgumentCount={ArgumentCount}", e.Args.Length);
-            Log.Information("Launcher culture initialized. Language={Language}", CultureInfo.CurrentUICulture.Name);
-            base.OnStartup(e);
 
             var services = new ServiceCollection();
             services.AddLogging(builder =>
@@ -86,6 +86,9 @@ public partial class App : System.Windows.Application
             services.AddSingleton<IUiDispatcher, WpfUiDispatcher>();
             services.AddSingleton<IThemeService, ThemeService>();
             services.AddSingleton<IHomePageViewModelFactory, HomePageViewModelFactory>();
+            services.AddSingleton<LauncherSessionCoordinator>();
+            services.AddSingleton<LauncherStateSyncService>();
+            services.AddSingleton<LauncherShutdownService>();
             services.AddSingleton<LaunchStatusDialogViewModel>();
             services.AddSingleton<AccountListViewModel>();
             services.AddSingleton<AccountDialogViewModel>();
@@ -113,10 +116,15 @@ public partial class App : System.Windows.Application
             serviceProvider = services.BuildServiceProvider();
             Log.Information("Service provider built.");
 
+            var startupSettings = await serviceProvider.GetRequiredService<ISettingsService>().LoadAsync();
+            ApplyLauncherCulture(startupSettings.LauncherLanguage);
+            Log.Information("Launcher culture initialized. Language={Language}", CultureInfo.CurrentUICulture.Name);
+            base.OnStartup(e);
+
             await CleanupModpackWorkspacesOnStartupAsync();
 
             var mainViewModel = serviceProvider.GetRequiredService<MainViewModel>();
-            await mainViewModel.PrimeAsync();
+            await mainViewModel.PrimeAsync(startupSettings);
             serviceProvider.GetRequiredService<IThemeService>().ApplyPreference(
                 mainViewModel.Settings.Theme,
                 mainViewModel.Settings.ThemeFollowSystem,
@@ -131,8 +139,7 @@ public partial class App : System.Windows.Application
         catch (Exception exception)
         {
             Log.Fatal(exception, "Launcher startup failed.");
-            Log.CloseAndFlush();
-            throw;
+            Shutdown(-1);
         }
     }
 
@@ -169,7 +176,6 @@ public partial class App : System.Windows.Application
         try
         {
             Log.Information("Launcher exit started. ExitCode={ExitCode}", e.ApplicationExitCode);
-            CancelAndCleanupBackgroundDownloadsOnExit();
             serviceProvider?.Dispose();
             LauncherLogConfiguration.PruneOldLogFiles(
                 LauncherLogConfiguration.ResolveLogDirectory(),
@@ -197,43 +203,6 @@ public partial class App : System.Windows.Application
         catch (Exception exception)
         {
             Log.Warning(exception, "Failed to clean modpack workspace cache on startup.");
-        }
-    }
-
-    private void CancelAndCleanupBackgroundDownloadsOnExit()
-    {
-        if (serviceProvider is null)
-            return;
-
-        try
-        {
-            var downloadTasksPage = serviceProvider.GetService<DownloadTasksPageViewModel>();
-            if (downloadTasksPage is not null)
-            {
-                downloadTasksPage.CancelAllRunningTasks();
-                var completed = downloadTasksPage
-                    .WaitForTrackedBackgroundTasksAsync(ExitBackgroundTaskWaitTimeout)
-                    .GetAwaiter()
-                    .GetResult();
-                if (!completed)
-                    Log.Warning("Timed out waiting for background download tasks during launcher exit.");
-            }
-        }
-        catch (Exception exception)
-        {
-            Log.Warning(exception, "Failed to cancel background download tasks during launcher exit.");
-        }
-
-        try
-        {
-            serviceProvider.GetRequiredService<IModpackWorkspaceCleanupService>()
-                .CleanupAllAsync()
-                .GetAwaiter()
-                .GetResult();
-        }
-        catch (Exception exception)
-        {
-            Log.Warning(exception, "Failed to clean modpack workspace cache during launcher exit.");
         }
     }
 

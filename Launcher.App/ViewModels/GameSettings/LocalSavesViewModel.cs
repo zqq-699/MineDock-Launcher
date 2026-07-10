@@ -24,7 +24,6 @@ using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.IO;
 
 namespace Launcher.App.ViewModels.GameSettings;
 
@@ -34,19 +33,16 @@ public sealed class LocalSavesViewModel : IDisposable
     private readonly IStatusService statusService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<LocalSavesViewModel> logger;
+    private readonly InstanceContentRefreshWatcher contentWatcher;
     private CancellationTokenSource? refreshCancellationTokenSource;
-    private FileSystemWatcher? savesWatcher;
-    private CancellationTokenSource? watcherRefreshCancellationTokenSource;
     private GameInstance? selectedInstance;
     private IReadOnlyList<LocalSave> currentSaves = Array.Empty<LocalSave>();
-    private string? watchedSavesDirectory;
-    private bool watcherEnabled;
-    private bool watcherSuspendedForRename;
     private int saveRefreshVersion;
 
     public LocalSavesViewModel(
         ILocalSaveService localSaveService,
         IStatusService statusService,
+        IInstanceDirectoryMonitor instanceDirectoryMonitor,
         IUiDispatcher? uiDispatcher = null,
         ILogger<LocalSavesViewModel>? logger = null)
     {
@@ -54,6 +50,12 @@ public sealed class LocalSavesViewModel : IDisposable
         this.statusService = statusService;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<LocalSavesViewModel>.Instance;
+        contentWatcher = new InstanceContentRefreshWatcher(
+            instanceDirectoryMonitor,
+            InstanceDirectoryKind.Saves,
+            RefreshSavesAsync,
+            _ => this.uiDispatcher.Post(() => ReportStatus(Strings.Status_LoadLocalSavesFailed)),
+            this.logger);
     }
 
     public event EventHandler? SavesChanged;
@@ -67,7 +69,7 @@ public sealed class LocalSavesViewModel : IDisposable
         selectedInstance = instance;
         Interlocked.Increment(ref saveRefreshVersion);
         CancelRefresh();
-        ResetWatcher();
+        contentWatcher.SetInstance(instance);
         ClearSaves();
         logger.LogInformation(
             "Selected instance changed for local saves view. InstanceId={InstanceId}",
@@ -76,24 +78,18 @@ public sealed class LocalSavesViewModel : IDisposable
 
     public void SetWatcherEnabled(bool enabled)
     {
-        watcherEnabled = enabled;
-        ResetWatcher();
+        contentWatcher.SetEnabled(enabled);
     }
 
     public void SuspendWatcherForInstanceRename()
     {
-        watcherSuspendedForRename = true;
-        ResetWatcher();
+        contentWatcher.Suspend();
         CancelRefresh();
     }
 
     public void ResumeWatcherAfterInstanceRename()
     {
-        if (!watcherSuspendedForRename)
-            return;
-
-        watcherSuspendedForRename = false;
-        ResetWatcher();
+        contentWatcher.Resume();
     }
 
     public Task SetSelectedInstanceAsync(GameInstance? instance)
@@ -218,130 +214,8 @@ public sealed class LocalSavesViewModel : IDisposable
 
     public void Dispose()
     {
-        savesWatcher?.Dispose();
-        savesWatcher = null;
+        contentWatcher.Dispose();
         CancelRefresh();
-        watcherRefreshCancellationTokenSource?.Cancel();
-        watcherRefreshCancellationTokenSource?.Dispose();
-        watcherRefreshCancellationTokenSource = null;
-    }
-
-    private void ResetWatcher()
-    {
-        savesWatcher?.Dispose();
-        savesWatcher = null;
-        watcherRefreshCancellationTokenSource?.Cancel();
-        watcherRefreshCancellationTokenSource?.Dispose();
-        watcherRefreshCancellationTokenSource = null;
-        watchedSavesDirectory = null;
-
-        if (!watcherEnabled || watcherSuspendedForRename)
-            return;
-
-        var instance = selectedInstance;
-        if (instance is null || string.IsNullOrWhiteSpace(instance.InstanceDirectory))
-            return;
-
-        watchedSavesDirectory = Path.Combine(instance.InstanceDirectory, "saves");
-        Directory.CreateDirectory(watchedSavesDirectory);
-
-        try
-        {
-            savesWatcher = new FileSystemWatcher(watchedSavesDirectory, "*")
-            {
-                IncludeSubdirectories = true,
-                NotifyFilter = NotifyFilters.DirectoryName
-                    | NotifyFilters.FileName
-                    | NotifyFilters.LastWrite
-                    | NotifyFilters.Size
-                    | NotifyFilters.CreationTime
-            };
-            savesWatcher.Changed += SavesWatcher_StateChanged;
-            savesWatcher.Created += SavesWatcher_StateChanged;
-            savesWatcher.Deleted += SavesWatcher_StateChanged;
-            savesWatcher.Renamed += SavesWatcher_StateRenamed;
-            savesWatcher.EnableRaisingEvents = true;
-            logger.LogInformation(
-                "Local save watcher started. InstanceId={InstanceId} SavesDirectory={SavesDirectory}",
-                instance.Id,
-                watchedSavesDirectory);
-        }
-        catch (Exception exception) when (
-            exception is IOException
-            or UnauthorizedAccessException
-            or ArgumentException)
-        {
-            logger.LogWarning(
-                exception,
-                "Failed to start local save watcher. InstanceId={InstanceId} SavesDirectory={SavesDirectory}",
-                instance.Id,
-                watchedSavesDirectory);
-        }
-    }
-
-    private void SavesWatcher_StateChanged(object sender, FileSystemEventArgs e)
-    {
-        if (!IsTrackedSavePath(e.FullPath))
-            return;
-
-        QueueWatcherRefresh(e.ChangeType.ToString(), e.FullPath);
-    }
-
-    private void SavesWatcher_StateRenamed(object sender, RenamedEventArgs e)
-    {
-        if (!IsTrackedSavePath(e.FullPath) && !IsTrackedSavePath(e.OldFullPath))
-            return;
-
-        QueueWatcherRefresh("Renamed", e.FullPath);
-    }
-
-    private void QueueWatcherRefresh(string changeType, string fullPath)
-    {
-        var instance = selectedInstance;
-        if (instance is null)
-            return;
-
-        var previousCts = Interlocked.Exchange(
-            ref watcherRefreshCancellationTokenSource,
-            new CancellationTokenSource());
-        previousCts?.Cancel();
-        previousCts?.Dispose();
-
-        var refreshCts = watcherRefreshCancellationTokenSource!;
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(200, refreshCts.Token);
-                logger.LogInformation(
-                    "Detected local save folder change. InstanceId={InstanceId} ChangeType={ChangeType} Path={Path}",
-                    instance.Id,
-                    changeType,
-                    fullPath);
-                await RefreshSavesAsync();
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception exception)
-            {
-                logger.LogError(
-                    exception,
-                    "Failed to refresh local saves after watcher update. InstanceId={InstanceId}",
-                    instance.Id);
-                uiDispatcher.Post(() => ReportStatus(Strings.Status_LoadLocalSavesFailed));
-            }
-        });
-    }
-
-    private bool IsTrackedSavePath(string? fullPath)
-    {
-        if (string.IsNullOrWhiteSpace(fullPath) || string.IsNullOrWhiteSpace(watchedSavesDirectory))
-            return false;
-
-        var normalizedRoot = Path.GetFullPath(watchedSavesDirectory);
-        var normalizedPath = Path.GetFullPath(fullPath);
-        return normalizedPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
     }
 
     private void ReportStatus(string message)

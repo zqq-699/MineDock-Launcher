@@ -1,4 +1,4 @@
-﻿/*
+/*
  * BlockHelm Launcher
  * Copyright (C) 2026 Quan Zhou
  *
@@ -43,24 +43,6 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     private readonly IFloatingMessageService floatingMessageService;
     private LauncherSkinRecord? skinPendingModelChange;
 
-    [ObservableProperty]
-    private AccountCapeOption? selectedAccountCapeOption;
-
-    [ObservableProperty]
-    private LauncherSkinRecord? selectedAccountSkin;
-
-    [ObservableProperty]
-    private bool isAccountProfileBusy;
-
-    [ObservableProperty]
-    private bool isSkinManagerDialogOpen;
-
-    [ObservableProperty]
-    private string accountProfileMessage = string.Empty;
-
-    [ObservableProperty]
-    private string accountProfileErrorCodeMessage = string.Empty;
-
     public AccountAppearanceViewModel(
         AccountListViewModel accountList,
         IMicrosoftAccountService microsoftAccountService,
@@ -81,14 +63,22 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         this.skinFileValidator = skinFileValidator;
         this.logger = logger ?? NullLogger<AccountAppearanceViewModel>.Instance;
         this.floatingMessageService = floatingMessageService ?? NullFloatingMessageService.Instance;
+        Profile = new AccountProfileViewModel();
+        SkinLibrary = new AccountSkinLibraryViewModel();
+        Cape = new AccountCapeViewModel();
+        Profile.PropertyChanged += Profile_PropertyChanged;
+        SkinLibrary.PropertyChanged += SkinLibrary_PropertyChanged;
+        Cape.PropertyChanged += Cape_PropertyChanged;
         this.accountList.PropertyChanged += AccountList_PropertyChanged;
     }
 
-    public ObservableCollection<AccountCapeOption> SelectedAccountCapeOptions { get; } = [];
-
-    public ObservableCollection<LauncherSkinRecord> SelectedAccountSkins { get; } = [];
-
     public AccountSkinModelDialogViewModel SkinModelDialog { get; }
+
+    public AccountProfileViewModel Profile { get; }
+
+    public AccountSkinLibraryViewModel SkinLibrary { get; }
+
+    public AccountCapeViewModel Cape { get; }
 
     public bool CanChangeSelectedAccountSkin => accountList.SelectedAccount is not null
         && !accountList.SelectedAccount.IsOffline;
@@ -98,69 +88,69 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
     public bool CanApplySelectedAccountSkin => accountList.SelectedAccount is not null
         && !accountList.SelectedAccount.IsOffline
-        && !IsAccountProfileBusy
-        && SelectedAccountSkin is not null
-        && !IsSelectedSkinAlreadyApplied(accountList.SelectedAccount, SelectedAccountSkin);
+        && !Profile.IsBusy
+        && SkinLibrary.SelectedSkin is not null
+        && !IsSelectedSkinAlreadyApplied(accountList.SelectedAccount, SkinLibrary.SelectedSkin);
 
     public bool CanEditSelectedAccountSkinLibraryItem => accountList.SelectedAccount is not null
         && !accountList.SelectedAccount.IsOffline
-        && !IsAccountProfileBusy
-        && SelectedAccountSkin is not null;
+        && !Profile.IsBusy
+        && SkinLibrary.SelectedSkin is not null;
 
     public bool CanDeleteSelectedAccountSkin => CanEditSelectedAccountSkinLibraryItem
         && accountList.SelectedAccount is not null
-        && SelectedAccountSkin is not null
-        && !string.Equals(accountList.SelectedAccount.ActiveSkinId, SelectedAccountSkin.Id, StringComparison.Ordinal);
+        && SkinLibrary.SelectedSkin is not null
+        && !string.Equals(accountList.SelectedAccount.ActiveSkinId, SkinLibrary.SelectedSkin.Id, StringComparison.Ordinal);
 
     public bool CanEditSelectedMicrosoftAccount => accountList.SelectedAccount is not null
         && !accountList.SelectedAccount.IsOffline
-        && !IsAccountProfileBusy;
+        && !Profile.IsBusy;
 
     public bool CanShowSelectedAccountAppearanceOfflineState => accountList.SelectedAccount?.IsOffline == true;
 
     public bool CanApplySelectedCape => accountList.SelectedAccount is not null
         && !accountList.SelectedAccount.IsOffline
-        && !IsAccountProfileBusy
-        && SelectedAccountCapeOption is not null
-        && !SelectedAccountCapeOption.IsActive;
+        && !Profile.IsBusy
+        && Cape.SelectedOption is not null
+        && !Cape.SelectedOption.IsActive;
 
-    public bool HasSelectedAccountCapes => SelectedAccountCapeOptions.Count > 0;
+    public bool HasSelectedAccountCapes => Cape.Options.Count > 0;
 
     public bool HasSelectedAccountCapePreview => !CanShowSelectedAccountAppearanceOfflineState
-        && SelectedAccountCapeOption is not null;
+        && Cape.SelectedOption is not null;
 
     public bool CanShowSelectedAccountCapePreviewEmptyState => accountList.SelectedAccount is not null
         && !CanShowSelectedAccountAppearanceOfflineState
         && !HasSelectedAccountCapePreview;
 
-    public bool HasSelectedAccountSkins => SelectedAccountSkins.Count > 0;
+    public bool HasSelectedAccountSkins => SkinLibrary.Skins.Count > 0;
 
     public bool CanShowSkinManagerEmptyState => !HasSelectedAccountSkins;
 
     public bool HasSelectedAccountSkinPreview => !CanShowSelectedAccountAppearanceOfflineState
-        && SelectedAccountSkin is not null;
+        && SkinLibrary.SelectedSkin is not null;
 
     public bool CanShowSelectedAccountSkinPreviewEmptyState => accountList.SelectedAccount is not null
         && !CanShowSelectedAccountAppearanceOfflineState
         && !HasSelectedAccountSkinPreview;
 
-    public LauncherSkinRecord? PreviousAccountSkin => GetAdjacentSkin(-1);
+    public LauncherSkinRecord? PreviousAccountSkin => SkinLibrary.PreviousSkin;
 
-    public LauncherSkinRecord? NextAccountSkin => GetAdjacentSkin(1);
+    public LauncherSkinRecord? NextAccountSkin => SkinLibrary.NextSkin;
 
     public bool HasPreviousAccountSkin => PreviousAccountSkin is not null;
 
     public bool HasNextAccountSkin => NextAccountSkin is not null;
 
-    public AccountCapeOption? PreviousAccountCape => GetAdjacentCape(-1);
+    public AccountCapeOption? PreviousAccountCape => Cape.PreviousOption;
 
-    public AccountCapeOption? NextAccountCape => GetAdjacentCape(1);
+    public AccountCapeOption? NextAccountCape => Cape.NextOption;
 
     public bool HasPreviousAccountCape => PreviousAccountCape is not null;
 
     public bool HasNextAccountCape => NextAccountCape is not null;
 
-    public bool HasAccountProfileErrorCode => !string.IsNullOrWhiteSpace(AccountProfileErrorCodeMessage);
+    public bool HasAccountProfileErrorCode => !string.IsNullOrWhiteSpace(Profile.ErrorCodeMessage);
 
     public string? ActiveSkinId => accountList.SelectedAccount?.ActiveSkinId;
 
@@ -194,7 +184,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
         if (account.IsOffline)
         {
-            AccountProfileMessage = Strings.Status_SkinOfflineUnsupported;
+            Profile.Message = Strings.Status_SkinOfflineUnsupported;
             return;
         }
 
@@ -227,7 +217,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         }
         finally
         {
-            IsAccountProfileBusy = false;
+            Profile.IsBusy = false;
         }
     }
 
@@ -235,13 +225,13 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     public async Task ApplySelectedAccountSkinAsync()
     {
         var account = accountList.SelectedAccount;
-        var skin = SelectedAccountSkin;
+        var skin = SkinLibrary.SelectedSkin;
         if (account is null || skin is null || !CanApplySelectedAccountSkin)
             return;
 
         if (account.IsOffline)
         {
-            AccountProfileMessage = Strings.Status_SkinOfflineUnsupported;
+            Profile.Message = Strings.Status_SkinOfflineUnsupported;
             return;
         }
 
@@ -277,7 +267,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         }
         finally
         {
-            IsAccountProfileBusy = false;
+            Profile.IsBusy = false;
         }
     }
 
@@ -315,30 +305,30 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         if (!CanManageSelectedAccountSkins)
             return;
 
-        IsSkinManagerDialogOpen = true;
+        SkinLibrary.IsManagerDialogOpen = true;
     }
 
     public void CloseSkinManagerDialog()
     {
-        IsSkinManagerDialogOpen = false;
+        SkinLibrary.IsManagerDialogOpen = false;
     }
 
     [RelayCommand]
     public void SelectAccountSkin(LauncherSkinRecord? skin)
     {
-        if (skin is null || !SelectedAccountSkins.Any(candidate =>
+        if (skin is null || !SkinLibrary.Skins.Any(candidate =>
             string.Equals(candidate.Id, skin.Id, StringComparison.Ordinal)))
         {
             return;
         }
 
-        SelectedAccountSkin = skin;
+        SkinLibrary.SelectedSkin = skin;
     }
 
     [RelayCommand(CanExecute = nameof(CanEditSelectedAccountSkinLibraryItem))]
     public void ChangeSelectedAccountSkinModel()
     {
-        var skin = SelectedAccountSkin;
+        var skin = SkinLibrary.SelectedSkin;
         if (skin is null || !CanEditSelectedAccountSkinLibraryItem)
             return;
 
@@ -352,7 +342,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         if (!CanChangeAccountSkinModel(skin))
             return;
 
-        SelectedAccountSkin = skin;
+        SkinLibrary.SelectedSkin = skin;
         ChangeSelectedAccountSkinModel();
     }
 
@@ -360,7 +350,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     {
         return accountList.SelectedAccount is not null
             && !accountList.SelectedAccount.IsOffline
-            && !IsAccountProfileBusy
+            && !Profile.IsBusy
             && skin is not null;
     }
 
@@ -368,7 +358,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     public async Task DeleteSelectedAccountSkinAsync()
     {
         var account = accountList.SelectedAccount;
-        var skin = SelectedAccountSkin;
+        var skin = SkinLibrary.SelectedSkin;
         if (account is null || skin is null || !CanDeleteSelectedAccountSkin)
             return;
 
@@ -402,7 +392,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         }
         finally
         {
-            IsAccountProfileBusy = false;
+            Profile.IsBusy = false;
         }
     }
 
@@ -412,7 +402,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         if (!CanDeleteAccountSkin(skin))
             return;
 
-        SelectedAccountSkin = skin;
+        SkinLibrary.SelectedSkin = skin;
         await DeleteSelectedAccountSkinAsync();
     }
 
@@ -420,7 +410,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     {
         return accountList.SelectedAccount is not null
             && !accountList.SelectedAccount.IsOffline
-            && !IsAccountProfileBusy
+            && !Profile.IsBusy
             && skin is not null
             && !string.Equals(accountList.SelectedAccount.ActiveSkinId, skin.Id, StringComparison.Ordinal);
     }
@@ -454,19 +444,24 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
         if (account.IsOffline)
         {
-            AccountProfileMessage = Strings.Status_AccountProfileRefreshOfflineUnsupported;
+            Profile.Message = Strings.Status_AccountProfileRefreshOfflineUnsupported;
             return;
         }
 
+        var cancellationToken = Profile.BeginOperation(account.Id, Strings.Status_RefreshingAccountProfile);
         try
         {
-            BeginAccountProfileOperation(Strings.Status_RefreshingAccountProfile);
-            var refreshedAccount = await microsoftAccountService.RefreshAccountProfileAsync(account);
+            var refreshedAccount = await microsoftAccountService.RefreshAccountProfileAsync(account, cancellationToken);
+            if (!Profile.IsCurrent(account, cancellationToken))
+                return;
             var updatedAccount = AccountMapper.WithCapeCache(refreshedAccount, account.CachedCapeOptions);
             accountList.ReplaceSelectedAccount(account, updatedAccount);
             PopulateSelectedAccountSkins(updatedAccount, updatedAccount.ActiveSkinId);
             await accountList.PersistAccountOrderAsync();
             SetAccountProfileMessage(Strings.Status_AccountProfileRefreshed);
+        }
+        catch (OperationCanceledException) when (!Profile.IsCurrent(account, cancellationToken))
+        {
         }
         catch (Exception ex)
         {
@@ -483,7 +478,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         }
         finally
         {
-            IsAccountProfileBusy = false;
+            Profile.Complete(account, cancellationToken);
         }
     }
 
@@ -491,6 +486,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     {
         var accounts = accountList.Accounts
             .Where(account => !account.IsOffline)
+            .Select(account => account.Account)
             .ToList();
         var hasChanges = false;
 
@@ -515,7 +511,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             if (currentAccount is null)
                 continue;
 
-            if (IsAccountProfileBusy && IsSelectedAccount(currentAccount))
+            if (Profile.IsBusy && IsSelectedAccount(currentAccount))
                 continue;
 
             var updatedAccount = AccountMapper.WithCapeCache(
@@ -539,7 +535,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
     public async Task RefreshCurrentSecondaryContentAsync()
     {
-        if (accountList.SelectedAccount is null || IsAccountProfileBusy)
+        if (accountList.SelectedAccount is null || Profile.IsBusy)
             return;
 
         await RefreshSelectedAccountProfileAsync();
@@ -549,13 +545,13 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     public async Task ApplySelectedAccountCapeAsync()
     {
         var account = accountList.SelectedAccount;
-        var cape = SelectedAccountCapeOption;
+        var cape = Cape.SelectedOption;
         if (account is null || cape is null || !CanApplySelectedCape)
             return;
 
         if (account.IsOffline)
         {
-            AccountProfileMessage = Strings.Status_CapeOfflineUnsupported;
+            Profile.Message = Strings.Status_CapeOfflineUnsupported;
             return;
         }
 
@@ -574,49 +570,29 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         {
             logger.LogWarning(exception, "Microsoft account cape change failed. AccountId={AccountId} HasCape={HasCape}", account.Id, !cape.IsNone);
             SetAccountProfileMessage(Strings.Status_CapeChangeFailed, showFloating: true);
-            AccountProfileErrorCodeMessage = string.Empty;
+            Profile.ErrorCodeMessage = string.Empty;
         }
         finally
         {
-            IsAccountProfileBusy = false;
+            Profile.IsBusy = false;
         }
-    }
-
-    partial void OnSelectedAccountCapeOptionChanged(AccountCapeOption? value)
-    {
-        NotifySelectedAccountCapePropertiesChanged();
-    }
-
-    partial void OnSelectedAccountSkinChanged(LauncherSkinRecord? value)
-    {
-        NotifySelectedAccountSkinPropertiesChanged();
-    }
-
-    partial void OnIsAccountProfileBusyChanged(bool value)
-    {
-        NotifySelectedAccountProfileActionPropertiesChanged();
-    }
-
-    partial void OnAccountProfileErrorCodeMessageChanged(string value)
-    {
-        OnPropertyChanged(nameof(HasAccountProfileErrorCode));
     }
 
     private void BeginAccountProfileOperation()
     {
-        IsAccountProfileBusy = true;
-        AccountProfileErrorCodeMessage = string.Empty;
+        Profile.IsBusy = true;
+        Profile.ErrorCodeMessage = string.Empty;
     }
 
     private void BeginAccountProfileOperation(string message)
     {
         BeginAccountProfileOperation();
-        AccountProfileMessage = message;
+        Profile.Message = message;
     }
 
     private void SetAccountProfileMessage(string message, bool showFloating = false)
     {
-        AccountProfileMessage = message;
+        Profile.Message = message;
         if (showFloating)
             floatingMessageService.Show(message);
     }
@@ -624,7 +600,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     private void SetAccountProfileError(Exception exception, string message, bool showFloating = false)
     {
         SetAccountProfileMessage(message, showFloating);
-        AccountProfileErrorCodeMessage = FormatAccountProfileError(exception);
+        Profile.ErrorCodeMessage = FormatAccountProfileError(exception);
     }
 
     private static string FormatAccountProfileError(Exception exception)
@@ -639,24 +615,27 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
         if (account.IsOffline)
         {
-            AccountProfileMessage = Strings.Account_ProfileOfflineUnsupported;
+            Profile.Message = Strings.Account_ProfileOfflineUnsupported;
             return;
         }
 
+        var cancellationToken = Profile.BeginOperation(account.Id, Strings.Status_LoadingAccountProfile);
         try
         {
-            BeginAccountProfileOperation(Strings.Status_LoadingAccountProfile);
-            var capes = await microsoftAccountService.GetCapesAsync(account);
-            if (!IsSelectedAccount(account))
+            var capes = await microsoftAccountService.GetCapesAsync(account, cancellationToken);
+            if (!Profile.IsCurrent(account, cancellationToken) || !IsSelectedAccount(account))
                 return;
 
             var hasAvailableCapes = capes.Any(cape => !cape.IsNone);
             PopulateSelectedAccountCapeOptions(capes);
             await StoreSelectedAccountCapeCacheAsync();
             OnPropertyChanged(nameof(CanApplySelectedCape));
-            AccountProfileMessage = hasAvailableCapes
+            Profile.Message = hasAvailableCapes
                 ? Strings.Account_ProfileLoaded
                 : Strings.Account_ProfileNoCapes;
+        }
+        catch (OperationCanceledException) when (!Profile.IsCurrent(account, cancellationToken))
+        {
         }
         catch (Exception ex)
         {
@@ -676,8 +655,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         }
         finally
         {
-            if (IsSelectedAccount(account))
-                IsAccountProfileBusy = false;
+            Profile.Complete(account, cancellationToken);
         }
     }
 
@@ -715,15 +693,18 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
     private void ResetSelectedAccountProfileState(LauncherAccount? account)
     {
-        SelectedAccountCapeOptions.Clear();
-        SelectedAccountCapeOption = null;
-        SelectedAccountSkins.Clear();
-        SelectedAccountSkin = null;
+        Profile.SetAccount(account);
+        Cape.Options.Clear();
+        Cape.SelectedOption = null;
+        SkinLibrary.Skins.Clear();
+        SkinLibrary.SelectedSkin = null;
+        Cape.NotifyCollectionChanged();
+        SkinLibrary.NotifyCollectionChanged();
 
         if (account is null)
         {
-            AccountProfileMessage = string.Empty;
-            AccountProfileErrorCodeMessage = string.Empty;
+            Profile.Message = string.Empty;
+            Profile.ErrorCodeMessage = string.Empty;
             CloseSkinManagerDialog();
             NotifyAccountSelectionPropertiesChanged();
             return;
@@ -733,8 +714,8 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
             PopulateSelectedAccountCapeOptions(account.CachedCapeOptions);
 
         PopulateSelectedAccountSkins(account, account.ActiveSkinId);
-        AccountProfileErrorCodeMessage = string.Empty;
-        AccountProfileMessage = account.IsOffline
+        Profile.ErrorCodeMessage = string.Empty;
+        Profile.Message = account.IsOffline
             ? Strings.Account_ProfileOfflineUnsupported
             : account.CachedCapeOptions.Count > 0
                 ? Strings.Account_ProfileCacheLoaded
@@ -745,26 +726,28 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     private void PopulateSelectedAccountCapeOptions(IEnumerable<AccountCapeOption> capes)
     {
         var normalizedCapes = NormalizeCapeOptions(capes).ToList();
-        SelectedAccountCapeOptions.Clear();
+        Cape.Options.Clear();
         foreach (var cape in normalizedCapes)
-            SelectedAccountCapeOptions.Add(cape);
+            Cape.Options.Add(cape);
 
-        SelectedAccountCapeOption = SelectedAccountCapeOptions.FirstOrDefault(cape => cape.IsActive)
-            ?? SelectedAccountCapeOptions.FirstOrDefault();
+        Cape.SelectedOption = Cape.Options.FirstOrDefault(cape => cape.IsActive)
+            ?? Cape.Options.FirstOrDefault();
+        Cape.NotifyCollectionChanged();
         NotifySelectedAccountCapePropertiesChanged();
     }
 
     private void PopulateSelectedAccountSkins(LauncherAccount account, string? preferredSkinId)
     {
-        SelectedAccountSkins.Clear();
+        SkinLibrary.Skins.Clear();
         foreach (var skin in DistinctSkins(skinLibraryService.GetAvailableSkins(account)))
-            SelectedAccountSkins.Add(skin);
+            SkinLibrary.Skins.Add(skin);
 
-        SelectedAccountSkin = SelectedAccountSkins.FirstOrDefault(skin =>
+        SkinLibrary.SelectedSkin = SkinLibrary.Skins.FirstOrDefault(skin =>
                 string.Equals(skin.Id, preferredSkinId, StringComparison.Ordinal))
-            ?? SelectedAccountSkins.FirstOrDefault(skin =>
+            ?? SkinLibrary.Skins.FirstOrDefault(skin =>
                 string.Equals(skin.Id, account.ActiveSkinId, StringComparison.Ordinal))
-            ?? SelectedAccountSkins.FirstOrDefault();
+            ?? SkinLibrary.Skins.FirstOrDefault();
+        SkinLibrary.NotifyCollectionChanged();
         OnPropertyChanged(nameof(HasSelectedAccountSkins));
         OnPropertyChanged(nameof(ActiveSkinId));
         NotifySelectedAccountSkinPropertiesChanged();
@@ -773,8 +756,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanSelectPreviousAccountSkin))]
     public void SelectPreviousAccountSkin()
     {
-        if (PreviousAccountSkin is not null)
-            SelectedAccountSkin = PreviousAccountSkin;
+        SkinLibrary.SelectPrevious();
     }
 
     public bool CanSelectPreviousAccountSkin()
@@ -785,8 +767,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanSelectNextAccountSkin))]
     public void SelectNextAccountSkin()
     {
-        if (NextAccountSkin is not null)
-            SelectedAccountSkin = NextAccountSkin;
+        SkinLibrary.SelectNext();
     }
 
     public bool CanSelectNextAccountSkin()
@@ -796,7 +777,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
     private void MarkSelectedCapeActive(AccountCapeOption activeCape)
     {
-        var updatedCapes = SelectedAccountCapeOptions
+        var updatedCapes = Cape.Options
             .Select(cape => new AccountCapeOption
             {
                 Id = cape.Id,
@@ -819,47 +800,14 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
 
         accountList.ReplaceSelectedAccount(
             account,
-            AccountMapper.WithCapeCache(account, SelectedAccountCapeOptions.ToList()));
+            AccountMapper.WithCapeCache(account, Cape.Options.ToList()));
         await accountList.PersistAccountOrderAsync();
-    }
-
-    private LauncherSkinRecord? GetAdjacentSkin(int offset)
-    {
-        if (SelectedAccountSkins.Count < 2 || SelectedAccountSkin is null)
-            return null;
-
-        var index = SelectedAccountSkins.IndexOf(SelectedAccountSkin);
-        if (index < 0)
-            return null;
-
-        var adjacentIndex = index + offset;
-        if (adjacentIndex < 0 || adjacentIndex >= SelectedAccountSkins.Count)
-            return null;
-
-        return SelectedAccountSkins[adjacentIndex];
-    }
-
-    private AccountCapeOption? GetAdjacentCape(int offset)
-    {
-        if (SelectedAccountCapeOptions.Count < 2 || SelectedAccountCapeOption is null)
-            return null;
-
-        var index = SelectedAccountCapeOptions.IndexOf(SelectedAccountCapeOption);
-        if (index < 0)
-            return null;
-
-        var adjacentIndex = index + offset;
-        if (adjacentIndex < 0 || adjacentIndex >= SelectedAccountCapeOptions.Count)
-            return null;
-
-        return SelectedAccountCapeOptions[adjacentIndex];
     }
 
     [RelayCommand(CanExecute = nameof(CanSelectPreviousAccountCape))]
     public void SelectPreviousAccountCape()
     {
-        if (PreviousAccountCape is not null)
-            SelectedAccountCapeOption = PreviousAccountCape;
+        Cape.SelectPrevious();
     }
 
     public bool CanSelectPreviousAccountCape()
@@ -870,8 +818,7 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanSelectNextAccountCape))]
     public void SelectNextAccountCape()
     {
-        if (NextAccountCape is not null)
-            SelectedAccountCapeOption = NextAccountCape;
+        Cape.SelectNext();
     }
 
     public bool CanSelectNextAccountCape()
@@ -956,21 +903,21 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         accountList.ReplaceSelectedAccount(account, updatedAccount);
         PopulateSelectedAccountSkins(updatedAccount, updatedSkin.Id);
         await accountList.PersistAccountOrderAsync();
-        AccountProfileMessage = Strings.Status_SkinModelChanged;
+        Profile.Message = Strings.Status_SkinModelChanged;
     }
 
     private string? GetPreferredSkinIdAfterDelete(LauncherSkinRecord deletedSkin)
     {
-        var index = SelectedAccountSkins.ToList().FindIndex(skin =>
+        var index = SkinLibrary.Skins.ToList().FindIndex(skin =>
             string.Equals(skin.Id, deletedSkin.Id, StringComparison.Ordinal));
         if (index < 0)
             return null;
 
-        if (index + 1 < SelectedAccountSkins.Count)
-            return SelectedAccountSkins[index + 1].Id;
+        if (index + 1 < SkinLibrary.Skins.Count)
+            return SkinLibrary.Skins[index + 1].Id;
 
         return index - 1 >= 0
-            ? SelectedAccountSkins[index - 1].Id
+            ? SkinLibrary.Skins[index - 1].Id
             : null;
     }
 
@@ -1053,6 +1000,26 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         }
 
         return string.Equals(left.Source, right.Source, StringComparison.Ordinal);
+    }
+
+    private void Profile_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AccountProfileViewModel.IsBusy))
+            NotifySelectedAccountProfileActionPropertiesChanged();
+        if (e.PropertyName == nameof(AccountProfileViewModel.ErrorCodeMessage))
+            OnPropertyChanged(nameof(HasAccountProfileErrorCode));
+    }
+
+    private void SkinLibrary_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AccountSkinLibraryViewModel.SelectedSkin))
+            NotifySelectedAccountSkinPropertiesChanged();
+    }
+
+    private void Cape_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AccountCapeViewModel.SelectedOption))
+            NotifySelectedAccountCapePropertiesChanged();
     }
 
     private void AccountList_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1140,4 +1107,3 @@ public sealed partial class AccountAppearanceViewModel : ObservableObject
         }
     }
 }
-

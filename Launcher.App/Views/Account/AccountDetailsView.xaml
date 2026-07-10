@@ -212,7 +212,7 @@
                                                                    Height="206"
                                                                    HorizontalAlignment="Center"
                                                                    PreviousSkin="{Binding Appearance.PreviousAccountSkin}"
-                                                                   SelectedSkin="{Binding Appearance.SelectedAccountSkin}"
+                                                                   SelectedSkin="{Binding Appearance.SkinLibrary.SelectedSkin}"
                                                                    NextSkin="{Binding Appearance.NextAccountSkin}"
                                                                    PreviousCommand="{Binding Appearance.SelectPreviousAccountSkinCommand}"
                                                                    NextCommand="{Binding Appearance.SelectNextAccountSkinCommand}"
@@ -277,7 +277,7 @@
                                                                    Height="192"
                                                                    HorizontalAlignment="Center"
                                                                    PreviousCape="{Binding Appearance.PreviousAccountCape}"
-                                                                   SelectedCape="{Binding Appearance.SelectedAccountCapeOption}"
+                                                                   SelectedCape="{Binding Appearance.Cape.SelectedOption}"
                                                                    NextCape="{Binding Appearance.NextAccountCape}"
                                                                    PreviousCommand="{Binding Appearance.SelectPreviousAccountCapeCommand}"
                                                                    NextCommand="{Binding Appearance.SelectNextAccountCapeCommand}"
@@ -295,13 +295,13 @@
                         </Grid>
                         <StackPanel HorizontalAlignment="Center"
                                     Visibility="{Binding Appearance.HasSelectedAccountCapePreview, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
-                            <TextBlock Text="{Binding Appearance.SelectedAccountCapeOption, Converter={StaticResource CapeDisplayNameConverter}}"
+                            <TextBlock Text="{Binding Appearance.Cape.SelectedOption, Converter={StaticResource CapeDisplayNameConverter}}"
                                        Foreground="{DynamicResource Brush.F4F4F4}"
                                        FontSize="13"
                                        FontWeight="SemiBold"
                                        TextAlignment="Center" />
                             <TextBlock Margin="0,4,0,0"
-                                       Text="{Binding Appearance.SelectedAccountCapeOption, Converter={StaticResource CapeStateTextConverter}}"
+                                       Text="{Binding Appearance.Cape.SelectedOption, Converter={StaticResource CapeStateTextConverter}}"
                                        Foreground="{DynamicResource Brush.8FFFFFFF}"
                                        FontSize="12"
                                        TextAlignment="Center" />

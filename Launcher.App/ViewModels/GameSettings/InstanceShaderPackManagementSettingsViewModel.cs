@@ -22,6 +22,7 @@ using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.ViewModels.Shared;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -35,6 +36,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
     private readonly IFilePickerService filePickerService;
+    private readonly IInstanceContentImportPathValidator importPathValidator;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<InstanceShaderPackManagementSettingsViewModel> logger;
     private readonly LocalContentSelectionState<ShaderPackManagementItemViewModel> selectionState;
@@ -81,6 +83,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         IStatusService statusService,
         IInstanceFolderService instanceFolderService,
         IFilePickerService filePickerService,
+        IInstanceContentImportPathValidator importPathValidator,
         IUiDispatcher? uiDispatcher = null,
         ILogger<InstanceShaderPackManagementSettingsViewModel>? logger = null)
         : base(parent)
@@ -89,6 +92,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
         this.filePickerService = filePickerService;
+        this.importPathValidator = importPathValidator;
         this.uiDispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         this.logger = logger ?? NullLogger<InstanceShaderPackManagementSettingsViewModel>.Instance;
         selectionState = new LocalContentSelectionState<ShaderPackManagementItemViewModel>(
@@ -843,29 +847,11 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         string invalidTypeMessage,
         out string failureMessage)
     {
-        failureMessage = string.Empty;
-        if (paths.Count == 0)
-        {
-            failureMessage = invalidTypeMessage;
-            return false;
-        }
-
-        foreach (var path in paths)
-        {
-            if (Directory.Exists(path))
-            {
-                failureMessage = Strings.GameSettings_DropFoldersUnsupportedMessage;
-                return false;
-            }
-
-            if (!File.Exists(path) || !path.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-            {
-                failureMessage = invalidTypeMessage;
-                return false;
-            }
-        }
-
-        return true;
+        var validation = importPathValidator.Validate(paths, InstanceContentImportKind.ShaderPack);
+        failureMessage = validation.Failure is InstanceContentImportPathFailure.DirectoryNotSupported
+            ? Strings.GameSettings_DropFoldersUnsupportedMessage
+            : validation.IsValid ? string.Empty : invalidTypeMessage;
+        return validation.IsValid;
     }
 }
 

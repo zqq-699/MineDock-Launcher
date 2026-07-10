@@ -120,8 +120,8 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
             "Apache-2.0 License")
     ]);
 
-    public InfoSettingsViewModel(
-        SettingsPageViewModel parent,
+    internal InfoSettingsViewModel(
+        SettingsPersistenceCoordinator persistence,
         IStatusService statusService,
         IFloatingMessageService floatingMessageService,
         IExternalLinkService externalLinkService,
@@ -129,7 +129,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
         ILauncherSelfUpdateService launcherSelfUpdateService,
         IApplicationExitService applicationExitService,
         ILogger<InfoSettingsViewModel>? logger = null)
-        : base(parent)
+        : base(persistence)
     {
         this.statusService = statusService;
         this.floatingMessageService = floatingMessageService;
@@ -139,11 +139,22 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
         this.applicationExitService = applicationExitService;
         this.logger = logger ?? NullLogger<InfoSettingsViewModel>.Instance;
         LauncherVersionText = ResolveLauncherVersion();
+        UpdateChannelOptions =
+        [
+            new(LauncherUpdateChannel.Release, Strings.Settings_UpdateChannelReleaseTitle),
+            new(LauncherUpdateChannel.Beta, Strings.Settings_UpdateChannelBetaTitle)
+        ];
+        selectedUpdateChannelOption = UpdateChannelOptions[0];
     }
 
     public string LauncherVersionText { get; }
 
     public IReadOnlyList<InfoReferenceProjectItem> ReferenceProjects => RuntimeReferenceProjects;
+
+    public ObservableCollection<SettingsUpdateChannelOption> UpdateChannelOptions { get; }
+
+    [ObservableProperty]
+    private SettingsUpdateChannelOption? selectedUpdateChannelOption;
 
     [ObservableProperty]
     private bool isUpdateAvailableDialogOpen;
@@ -159,6 +170,12 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
 
     [ObservableProperty]
     private bool isStartingUpdate;
+
+    public void Load(LauncherSettings settings)
+    {
+        LoadState(() => SelectedUpdateChannelOption = UpdateChannelOptions.FirstOrDefault(option =>
+            option.Channel == settings.UpdateChannel) ?? UpdateChannelOptions[0]);
+    }
 
     public string CheckUpdatesButtonText => IsCheckingUpdates
         ? Strings.Status_CheckingUpdates
@@ -288,12 +305,17 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
         ConfirmUpdateCommand.NotifyCanExecuteChanged();
     }
 
+    partial void OnSelectedUpdateChannelOptionChanged(SettingsUpdateChannelOption? value)
+    {
+        Persist(settings => settings.UpdateChannel = value?.Channel ?? LauncherDefaults.DefaultUpdateChannel);
+    }
+
     private async Task CheckUpdatesCoreAsync(UpdateCheckPresentation presentation)
     {
         if (isUpdateCheckRunning)
             return;
 
-        var channel = Parent.SelectedUpdateChannelOption?.Channel ?? LauncherDefaults.DefaultUpdateChannel;
+        var channel = SelectedUpdateChannelOption?.Channel ?? LauncherDefaults.DefaultUpdateChannel;
         isUpdateCheckRunning = true;
         CheckUpdatesCommand.NotifyCanExecuteChanged();
         if (presentation is UpdateCheckPresentation.Manual)

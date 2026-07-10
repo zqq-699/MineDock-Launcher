@@ -31,6 +31,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IGameInstallCoordinator, GameInstallCoordinator>();
         services.AddSingleton<IGameInstanceService, GameInstanceService>();
         services.AddSingleton<ILocalModpackImportService, LocalModpackImportService>();
+        services.AddSingleton<IResourceDependencyPlanningService, ResourceDependencyPlanningService>();
         return services;
     }
 }

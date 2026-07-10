@@ -30,7 +30,7 @@
         <controls:SecondaryMenuFrame Title="{x:Static res:Strings.Download_VersionListTitle}"
                                      controls:SecondaryMenuOptionButton.RefreshRequested="SecondaryMenuOptionButton_OnRefreshRequested">
             <controls:SecondaryMenuFrame.MenuContent>
-                <ItemsControl ItemsSource="{Binding VersionCategories}">
+                <ItemsControl ItemsSource="{Binding VersionList.VersionCategories}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <controls:SecondaryMenuOptionButton Text="{Binding Title}"
@@ -39,7 +39,7 @@
                                                                 Glyph="{Binding Icon}"
                                                                 IsEnabled="{Binding IsEnabled}"
                                                                 IsSelected="{Binding IsSelected}"
-                                                                Command="{Binding DataContext.SelectVersionCategoryCommand, RelativeSource={RelativeSource AncestorType={x:Type views:DownloadPageView}}}"
+                                                                Command="{Binding DataContext.VersionList.SelectVersionCategoryCommand, RelativeSource={RelativeSource AncestorType={x:Type views:DownloadPageView}}}"
                                                                 CommandParameter="{Binding}" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -53,7 +53,7 @@
                                 TitleIconSource="{Binding PageTitleIconSource}"
                                 IsHeaderBackButtonVisible="{Binding IsInstanceOptionsStep}"
                                 HeaderBackCommand="{Binding BackToVersionListCommand}"
-                                SearchText="{Binding VersionSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                SearchText="{Binding VersionList.VersionSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 IsSearchVisible="{Binding IsVersionListStep}"
                                 IsListVisible="{Binding IsDownloadContentVisible}"
                                 IsProgressiveBlurEnabled="{DynamicResource Is.ProgressiveBlur.Enabled}"
@@ -76,7 +76,7 @@
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource DownloadOverlayEmptyStateTextStyle}">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsLoadingVersions}" Value="True">
+                                    <DataTrigger Binding="{Binding VersionList.IsLoadingVersions}" Value="True">
                                         <Setter Property="Visibility" Value="Visible" />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -85,11 +85,11 @@
                     </TextBlock>
 
                     <TextBlock Margin="0,122,0,0"
-                               Text="{Binding VersionLoadError}">
+                               Text="{Binding VersionList.VersionLoadError}">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource DownloadOverlayErrorTextStyle}">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasVersionLoadError}" Value="True">
+                                    <DataTrigger Binding="{Binding VersionList.HasVersionLoadError}" Value="True">
                                         <Setter Property="Visibility" Value="Visible" />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -98,11 +98,11 @@
                     </TextBlock>
 
                     <TextBlock Margin="0,122,0,0"
-                               Text="{Binding VersionEmptyMessage}">
+                               Text="{Binding VersionList.VersionEmptyMessage}">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource DownloadOverlayEmptyStateTextStyle}">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasVersionEmptyMessage}" Value="True">
+                                    <DataTrigger Binding="{Binding VersionList.HasVersionEmptyMessage}" Value="True">
                                         <Setter Property="Visibility" Value="Visible" />
                                     </DataTrigger>
                                 </Style.Triggers>

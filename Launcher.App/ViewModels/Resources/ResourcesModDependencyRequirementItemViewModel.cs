@@ -18,6 +18,7 @@
  */
 
 using Launcher.App.Resources;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.Resources;
@@ -28,7 +29,7 @@ public sealed class ResourcesModDependencyRequirementItemViewModel
         ResourceProjectDependency dependency,
         ResourceProjectVersion? minimumVersion,
         ResourceProjectVersion? installVersion,
-        RequiredDependencyRequirementState state,
+        ResourceDependencyRequirementState state,
         string fallbackIconKey = "instance_setting_page/mod")
     {
         Dependency = dependency;
@@ -52,9 +53,9 @@ public sealed class ResourcesModDependencyRequirementItemViewModel
 
     public ResourceProjectVersion? InstallVersion { get; }
 
-    public RequiredDependencyRequirementState State { get; }
+    public ResourceDependencyRequirementState State { get; }
 
-    public bool IsInstalled => State is RequiredDependencyRequirementState.Installed;
+    public bool IsInstalled => State is ResourceDependencyRequirementState.Installed;
 
     public string? IconSource { get; }
 
@@ -76,8 +77,8 @@ public sealed class ResourcesModDependencyRequirementItemViewModel
 
     public string StateText => State switch
     {
-        RequiredDependencyRequirementState.Installed => Strings.Resources_ModRequiredDependencyInstalled,
-        RequiredDependencyRequirementState.UpdateRequired => Strings.Resources_ModRequiredDependencyUpdateRequired,
+        ResourceDependencyRequirementState.Installed => Strings.Resources_ModRequiredDependencyInstalled,
+        ResourceDependencyRequirementState.UpdateRequired => Strings.Resources_ModRequiredDependencyUpdateRequired,
         _ => Strings.Resources_ModRequiredDependencyMissing
     };
 
@@ -103,11 +104,4 @@ public sealed class ResourcesModDependencyRequirementItemViewModel
             ? Strings.Resources_ModRequiredDependencyVersionUnresolved
             : version.VersionId;
     }
-}
-
-public enum RequiredDependencyRequirementState
-{
-    Installed,
-    UpdateRequired,
-    Missing
 }

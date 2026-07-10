@@ -26,5 +26,6 @@ public interface IUiDispatcher
     void Post(Action action);
 
     void Invoke(Action action);
-}
 
+    Task InvokeAsync(Func<Task> action);
+}

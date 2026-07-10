@@ -27,45 +27,39 @@ namespace Launcher.App.ViewModels.Settings;
 
 public sealed partial class LanguageSettingsViewModel : SettingsSectionViewModelBase
 {
-    public LanguageSettingsViewModel(SettingsPageViewModel parent)
-        : base(parent)
+    internal LanguageSettingsViewModel(SettingsPersistenceCoordinator persistence)
+        : base(persistence)
     {
-        LanguageOptions.Add(new SettingsLanguageOption(
-            LauncherLanguages.SimplifiedChinese,
-            Strings.Settings_LanguageSimplifiedChinese));
-        LanguageOptions.Add(new SettingsLanguageOption(
-            LauncherLanguages.TraditionalChinese,
-            Strings.Settings_LanguageTraditionalChinese));
-        LanguageOptions.Add(new SettingsLanguageOption(
-            LauncherLanguages.Japanese,
-            Strings.Settings_LanguageJapanese));
-        LanguageOptions.Add(new SettingsLanguageOption(
-            LauncherLanguages.English,
-            Strings.Settings_LanguageEnglish));
-        SelectedLanguageOption = LanguageOptions[0];
+        LanguageOptions =
+        [
+            new(LauncherLanguages.SimplifiedChinese, Strings.Settings_LanguageSimplifiedChinese),
+            new(LauncherLanguages.TraditionalChinese, Strings.Settings_LanguageTraditionalChinese),
+            new(LauncherLanguages.Japanese, Strings.Settings_LanguageJapanese),
+            new(LauncherLanguages.English, Strings.Settings_LanguageEnglish)
+        ];
+        selectedLanguageOption = LanguageOptions[0];
     }
 
-    public ObservableCollection<SettingsLanguageOption> LanguageOptions { get; } = [];
-
-    [ObservableProperty]
-    private SettingsLanguageOption? selectedLanguageOption;
-
-    [ObservableProperty]
-    private bool autoSetGameLanguageToLauncherLanguage;
+    public ObservableCollection<SettingsLanguageOption> LanguageOptions { get; }
+    [ObservableProperty] private SettingsLanguageOption? selectedLanguageOption;
+    [ObservableProperty] private bool autoSetGameLanguageToLauncherLanguage;
 
     public string SelectedLanguageId => LauncherLanguages.Normalize(SelectedLanguageOption?.Id);
-
     public bool IsLanguageRestartNoticeVisible =>
         !string.Equals(SelectedLanguageId, CurrentLanguageId, StringComparison.OrdinalIgnoreCase);
-
     public string LanguageRestartNoticeText => IsLanguageRestartNoticeVisible
         ? BuildLanguageRestartNoticeText(CurrentLanguageId, SelectedLanguageId)
         : string.Empty;
 
-    public void LoadSelection(string? language, bool autoSetGameLanguageToLauncherLanguage)
+    public void Load(LauncherSettings settings)
     {
-        SelectedLanguageOption = ResolveLanguageOption(language);
-        AutoSetGameLanguageToLauncherLanguage = autoSetGameLanguageToLauncherLanguage;
+        LoadState(() =>
+        {
+            var normalized = LauncherLanguages.Normalize(settings.LauncherLanguage);
+            SelectedLanguageOption = LanguageOptions.FirstOrDefault(option =>
+                string.Equals(option.Id, normalized, StringComparison.OrdinalIgnoreCase)) ?? LanguageOptions[0];
+            AutoSetGameLanguageToLauncherLanguage = settings.AutoSetGameLanguageToLauncherLanguage;
+        });
     }
 
     partial void OnSelectedLanguageOptionChanged(SettingsLanguageOption? value)
@@ -73,20 +67,18 @@ public sealed partial class LanguageSettingsViewModel : SettingsSectionViewModel
         OnPropertyChanged(nameof(SelectedLanguageId));
         OnPropertyChanged(nameof(IsLanguageRestartNoticeVisible));
         OnPropertyChanged(nameof(LanguageRestartNoticeText));
-        Parent.NotifyLanguagePreferenceChanged();
+        PersistLanguage();
     }
 
-    partial void OnAutoSetGameLanguageToLauncherLanguageChanged(bool value)
-    {
-        Parent.NotifyLanguagePreferenceChanged();
-    }
+    partial void OnAutoSetGameLanguageToLauncherLanguageChanged(bool value) => PersistLanguage();
 
-    private SettingsLanguageOption ResolveLanguageOption(string? language)
+    private void PersistLanguage()
     {
-        var normalizedLanguage = LauncherLanguages.Normalize(language);
-        return LanguageOptions.FirstOrDefault(option =>
-                   string.Equals(option.Id, normalizedLanguage, StringComparison.OrdinalIgnoreCase))
-               ?? LanguageOptions[0];
+        Persist(settings =>
+        {
+            settings.LauncherLanguage = SelectedLanguageId;
+            settings.AutoSetGameLanguageToLauncherLanguage = AutoSetGameLanguageToLauncherLanguage;
+        });
     }
 
     private static string CurrentLanguageId => LauncherLanguages.Normalize(CultureInfo.CurrentUICulture.Name);

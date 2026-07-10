@@ -1,4 +1,4 @@
-﻿/*
+/*
  * BlockHelm Launcher
  * Copyright (C) 2026 Quan Zhou
  *
@@ -31,14 +31,16 @@ public sealed partial class AccountListViewModel : ObservableObject
     private string? selectedAccountId;
 
     [ObservableProperty]
-    private LauncherAccount? selectedAccount;
+    private AccountItemViewModel? selectedItem;
 
     public AccountListViewModel(IAccountStore accountStore)
     {
         this.accountStore = accountStore;
     }
 
-    public ObservableCollection<LauncherAccount> Accounts { get; } = [];
+    public ObservableCollection<AccountItemViewModel> Accounts { get; } = [];
+
+    public LauncherAccount? SelectedAccount => SelectedItem?.Account;
 
     public async Task InitializeAsync(LauncherSettings launcherSettings)
     {
@@ -51,15 +53,16 @@ public sealed partial class AccountListViewModel : ObservableObject
     {
         if (launcherSettings.Accounts.Count == 0 && string.IsNullOrWhiteSpace(launcherSettings.SelectedAccountId))
             return;
-
         selectedAccountId = launcherSettings.SelectedAccountId;
-        var cachedAccounts = launcherSettings.Accounts
-            .Select(AccountMapper.FromRecord)
-            .ToList();
-        ApplyAccounts(cachedAccounts);
+        ApplyAccounts(launcherSettings.Accounts.Select(AccountMapper.FromRecord));
     }
 
     [RelayCommand]
+    public void SelectAccount(AccountItemViewModel item)
+    {
+        SelectItem(item, persistSelection: true);
+    }
+
     public void SelectAccount(LauncherAccount account)
     {
         SelectAccount(account, persistSelection: true);
@@ -67,27 +70,35 @@ public sealed partial class AccountListViewModel : ObservableObject
 
     public void SelectAccount(LauncherAccount account, bool persistSelection)
     {
-        SelectedAccount = account;
-        UpdateSelectionFlags();
+        var item = Accounts.FirstOrDefault(candidate => string.Equals(candidate.Id, account.Id, StringComparison.Ordinal));
+        if (item is not null)
+            SelectItem(item, persistSelection);
+    }
 
-        selectedAccountId = account.Id;
+    public void SelectItem(AccountItemViewModel item, bool persistSelection)
+    {
+        SelectedItem = item;
+        selectedAccountId = item.Id;
         if (persistSelection)
             _ = PersistAccountOrderAsync();
     }
 
     public async Task AddAndSelectAsync(LauncherAccount account)
     {
-        Accounts.Add(account);
-        SelectAccount(account, persistSelection: false);
+        var item = new AccountItemViewModel(account);
+        Accounts.Add(item);
+        SelectItem(item, persistSelection: false);
         await PersistAccountOrderAsync();
     }
 
     public async Task RemoveAsync(LauncherAccount account)
     {
-        if (ReferenceEquals(SelectedAccount, account))
+        var item = Accounts.FirstOrDefault(candidate => string.Equals(candidate.Id, account.Id, StringComparison.Ordinal));
+        if (item is null)
+            return;
+        if (ReferenceEquals(SelectedItem, item))
             ClearSelectedAccount();
-
-        Accounts.Remove(account);
+        Accounts.Remove(item);
         await PersistAccountOrderAsync();
     }
 
@@ -95,10 +106,9 @@ public sealed partial class AccountListViewModel : ObservableObject
     {
         if (TryReplaceAccount(oldAccount.Id, newAccount))
             return;
-
-        SelectedAccount = newAccount;
-        selectedAccountId = newAccount.Id;
-        UpdateSelectionFlags();
+        var item = new AccountItemViewModel(newAccount);
+        Accounts.Add(item);
+        SelectItem(item, persistSelection: false);
     }
 
     public async Task ReplaceSelectedAccountAndPersistAsync(LauncherAccount oldAccount, LauncherAccount newAccount)
@@ -118,60 +128,59 @@ public sealed partial class AccountListViewModel : ObservableObject
                 break;
             }
         }
-
         if (index < 0)
             return false;
 
-        var isSelectedAccount = SelectedAccount is not null
-            && string.Equals(SelectedAccount.Id, accountId, StringComparison.Ordinal);
-        Accounts[index] = newAccount;
-        if (isSelectedAccount)
+        var wasSelected = ReferenceEquals(SelectedItem, Accounts[index]);
+        var replacement = new AccountItemViewModel(newAccount);
+        Accounts[index] = replacement;
+        if (wasSelected)
         {
-            SelectedAccount = newAccount;
+            SelectedItem = replacement;
             selectedAccountId = newAccount.Id;
         }
-
         UpdateSelectionFlags();
         return true;
     }
 
     public LauncherAccount? FindAccount(string accountId)
     {
-        return Accounts.FirstOrDefault(account =>
-            string.Equals(account.Id, accountId, StringComparison.Ordinal));
+        return Accounts.FirstOrDefault(item => string.Equals(item.Id, accountId, StringComparison.Ordinal))?.Account;
     }
 
     public void ClearSelectedAccount()
     {
-        SelectedAccount = null;
+        SelectedItem = null;
         selectedAccountId = null;
-        UpdateSelectionFlags();
     }
 
     public Task PersistAccountOrderAsync()
     {
-        selectedAccountId = SelectedAccount?.Id;
-        return accountStore.SaveOrderAsync(selectedAccountId, Accounts);
+        selectedAccountId = SelectedItem?.Id;
+        return accountStore.SaveOrderAsync(selectedAccountId, Accounts.Select(item => item.Account).ToArray());
+    }
+
+    partial void OnSelectedItemChanged(AccountItemViewModel? value)
+    {
+        UpdateSelectionFlags();
+        OnPropertyChanged(nameof(SelectedAccount));
     }
 
     private void UpdateSelectionFlags()
     {
         foreach (var item in Accounts)
-            item.IsSelected = ReferenceEquals(item, SelectedAccount);
+            item.IsSelected = ReferenceEquals(item, SelectedItem);
     }
 
     private void ApplyAccounts(IEnumerable<LauncherAccount> accounts)
     {
         Accounts.Clear();
         foreach (var account in accounts)
-            Accounts.Add(account);
-
-        var rememberedAccount = Accounts.FirstOrDefault(account =>
-            string.Equals(account.Id, selectedAccountId, StringComparison.Ordinal));
-        if (rememberedAccount is not null)
-            SelectAccount(rememberedAccount, persistSelection: false);
+            Accounts.Add(new AccountItemViewModel(account));
+        var remembered = Accounts.FirstOrDefault(item => string.Equals(item.Id, selectedAccountId, StringComparison.Ordinal));
+        if (remembered is not null)
+            SelectItem(remembered, persistSelection: false);
         else
             ClearSelectedAccount();
     }
 }
-

@@ -38,7 +38,9 @@ public sealed class ResourcesResourcePacksPageViewModel : ResourcesModPageViewMo
         IStatusService? statusService = null,
         IFilePickerService? filePickerService = null,
         IFloatingMessageService? floatingMessageService = null,
-        DownloadTasksPageViewModel? downloadTasksPage = null)
+        DownloadTasksPageViewModel? downloadTasksPage = null,
+        IResourceProjectInstallationService? resourceProjectInstallationService = null,
+        IResourceDependencyPlanningService? resourceDependencyPlanningService = null)
         : base(
             parent,
             CreateResourcePackOptions(),
@@ -50,7 +52,9 @@ public sealed class ResourcesResourcePacksPageViewModel : ResourcesModPageViewMo
             statusService,
             filePickerService,
             floatingMessageService,
-            downloadTasksPage)
+            downloadTasksPage,
+            resourceProjectInstallationService: resourceProjectInstallationService,
+            resourceDependencyPlanningService: resourceDependencyPlanningService)
     {
     }
 

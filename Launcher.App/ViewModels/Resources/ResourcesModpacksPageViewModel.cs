@@ -39,7 +39,8 @@ public sealed class ResourcesModpacksPageViewModel : ResourcesModPageViewModel
         IFilePickerService? filePickerService = null,
         IFloatingMessageService? floatingMessageService = null,
         DownloadTasksPageViewModel? downloadTasksPage = null,
-        ILocalModpackImportService? localModpackImportService = null)
+        IResourceProjectInstallationService? resourceProjectInstallationService = null,
+        IResourceDependencyPlanningService? resourceDependencyPlanningService = null)
         : base(
             parent,
             CreateModpackOptions(),
@@ -52,7 +53,8 @@ public sealed class ResourcesModpacksPageViewModel : ResourcesModPageViewModel
             filePickerService,
             floatingMessageService,
             downloadTasksPage,
-            localModpackImportService)
+            resourceProjectInstallationService: resourceProjectInstallationService,
+            resourceDependencyPlanningService: resourceDependencyPlanningService)
     {
     }
 

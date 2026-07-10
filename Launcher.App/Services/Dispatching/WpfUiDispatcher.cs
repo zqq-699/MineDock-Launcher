@@ -48,4 +48,13 @@ public sealed class WpfUiDispatcher : IUiDispatcher
 
         dispatcher.Invoke(action);
     }
+
+    public Task InvokeAsync(Func<Task> action)
+    {
+        var dispatcher = global::System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+            return action();
+
+        return dispatcher.InvokeAsync(action, DispatcherPriority.Background).Task.Unwrap();
+    }
 }

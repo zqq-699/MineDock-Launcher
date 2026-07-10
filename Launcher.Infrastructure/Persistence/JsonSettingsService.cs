@@ -43,6 +43,35 @@ public sealed class JsonSettingsService : ISettingsService
         this.logger = logger ?? NullLogger<JsonSettingsService>.Instance;
     }
 
+    public string LoadLauncherLanguageForBootstrap()
+    {
+        if (!File.Exists(settingsPath))
+            return LauncherDefaults.DefaultLauncherLanguage;
+
+        try
+        {
+            using var stream = File.OpenRead(settingsPath);
+            using var document = JsonDocument.Parse(stream);
+            return document.RootElement.TryGetProperty(
+                       nameof(LauncherSettings.LauncherLanguage),
+                       out var languageProperty)
+                   && languageProperty.ValueKind is JsonValueKind.String
+                ? NormalizeLauncherLanguage(languageProperty.GetString())
+                : LauncherDefaults.DefaultLauncherLanguage;
+        }
+        catch (Exception exception) when (
+            exception is JsonException
+            or IOException
+            or UnauthorizedAccessException)
+        {
+            logger.LogWarning(
+                exception,
+                "Failed to read launcher language during WPF resource bootstrap. SettingsPath={SettingsPath}",
+                settingsPath);
+            return LauncherDefaults.DefaultLauncherLanguage;
+        }
+    }
+
     public async Task<LauncherSettings> LoadAsync(CancellationToken cancellationToken = default)
     {
         await ioLock.WaitAsync(cancellationToken);
@@ -88,9 +117,8 @@ public sealed class JsonSettingsService : ISettingsService
 
     private async Task SaveCoreAsync(LauncherSettings settings, CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
-        await using var stream = File.Create(settingsPath);
-        await JsonSerializer.SerializeAsync(stream, settings, JsonOptions, cancellationToken);
+        await AtomicJsonFileWriter.WriteAsync(settingsPath, settings, JsonOptions, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private LauncherSettings Normalize(LauncherSettings settings)

@@ -117,7 +117,9 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         LocalShaderPacksViewModel localShaderPacksViewModel,
         IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
         IFilePickerService filePickerService,
+        IInstanceContentImportPathValidator importPathValidator,
         IFloatingMessageService floatingMessageService,
+        IUiDispatcher uiDispatcher,
         ILogger<GameSettingsPageViewModel>? logger = null,
         IModpackExportService? modpackExportService = null)
     {
@@ -142,7 +144,10 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             localShaderPacksViewModel,
             javaRuntimeDiscoveryService,
             filePickerService,
+            importPathValidator,
             floatingMessageService,
+            uiDispatcher,
+            this.logger,
             modpackExportService);
         EditDialog.InstanceUpdated += EditDialog_InstanceUpdated;
         EditDialog.InstanceRenameStarting += EditDialog_InstanceRenameStarting;

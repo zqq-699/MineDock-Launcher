@@ -37,15 +37,13 @@ public sealed partial class MainViewModel : ObservableObject
 {
     private static readonly TimeSpan FloatingMessageDuration = TimeSpan.FromSeconds(2.2);
 
-    private readonly IDownloadSpeedLimitState downloadSpeedLimitState;
     private readonly ISettingsService settingsService;
+    private readonly LauncherSessionCoordinator sessionCoordinator;
     private readonly IWindowService windowService;
-    private readonly IStatusService statusService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<MainViewModel> logger;
     private bool hasPrimedSettings;
     private bool hasInitialized;
-    private bool isSyncingCurrentState;
     private bool isCloseConfirmed;
     private CancellationTokenSource? floatingMessageHideCancellation;
     private GameInstance? pendingJavaRequirementInstance;
@@ -87,8 +85,8 @@ public sealed partial class MainViewModel : ObservableObject
     private bool isDownloadCloseConfirmationDialogOpen;
 
     public MainViewModel(
-        IDownloadSpeedLimitState downloadSpeedLimitState,
         ISettingsService settingsService,
+        LauncherSessionCoordinator sessionCoordinator,
         AccountPageViewModel accountPage,
         DownloadPageViewModel downloadPage,
         DownloadTasksPageViewModel downloadTasksPage,
@@ -104,10 +102,9 @@ public sealed partial class MainViewModel : ObservableObject
         LaunchStatusDialogViewModel launchStatusDialog,
         ILogger<MainViewModel>? logger = null)
     {
-        this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.settingsService = settingsService;
+        this.sessionCoordinator = sessionCoordinator;
         this.windowService = windowService;
-        this.statusService = statusService;
         this.uiDispatcher = uiDispatcher;
         this.logger = logger ?? NullLogger<MainViewModel>.Instance;
         AccountPage = accountPage;
@@ -121,26 +118,18 @@ public sealed partial class MainViewModel : ObservableObject
         HomePage = homePageFactory.Create(
             AccountPage,
             percent => ProgressPercent = percent,
-            instance => GameManagement.SelectLaunchInstanceAsync(instance),
-            SetHomeLaunchMenuPinnedAsync,
+            sessionCoordinator.SelectLaunchInstanceAsync,
+            sessionCoordinator.SetHomeLaunchMenuPinnedAsync,
             OpenGameSettingsForInstanceAsync);
+        sessionCoordinator.Attach(HomePage);
+        sessionCoordinator.NavigationRequested += SessionCoordinator_NavigationRequested;
+        sessionCoordinator.ProgressChanged += progress => ProgressPercent = progress;
         HomePage.JavaRequirementNotMet += HomePage_JavaRequirementNotMet;
         HomePage.LaunchFailureReported += HomePage_LaunchFailureReported;
 
         statusService.MessageReported += message => StatusMessage = message;
         floatingMessageService.MessageRequested += ShowFloatingMessage;
-        DownloadPage.InstanceInstalled += DownloadPage_InstanceInstalled;
-        ResourcesPage.ModpackImported += DownloadPage_InstanceInstalled;
-        ResourcesPage.ModpackManualDownloadsRequested += ResourcesPage_ModpackManualDownloadsRequested;
         AccountPage.PropertyChanged += AccountPage_PropertyChanged;
-        GameManagement.PropertyChanged += GameManagement_PropertyChanged;
-        GameSettingsPage.LaunchInstanceRequested += GameSettingsPage_LaunchInstanceRequested;
-        GameSettingsPage.OnlineModInstallRequested += GameSettingsPage_OnlineModInstallRequested;
-        GameSettingsPage.InstancesChanged += GameSettingsPage_InstancesChanged;
-        SettingsPage.LaunchDefaultsChanged += SettingsPage_LaunchDefaultsChanged;
-        SettingsPage.DownloadSourceChanged += SettingsPage_DownloadSourceChanged;
-        SettingsPage.DownloadSpeedLimitChanged += SettingsPage_DownloadSpeedLimitChanged;
-        SettingsPage.MinecraftDirectoryChanged += SettingsPage_MinecraftDirectoryChanged;
 
         UpdateNavigationSelection();
     }
@@ -169,22 +158,15 @@ public sealed partial class MainViewModel : ObservableObject
 
     public ObservableCollection<NavigationItem> SecondaryItems { get; } = [];
 
-    public async Task PrimeAsync()
+    public async Task PrimeAsync(LauncherSettings? initialSettings = null)
     {
         if (hasPrimedSettings)
             return;
 
-        Settings = await settingsService.LoadAsync();
-        downloadSpeedLimitState.SetDownloadSpeedLimitMbPerSecond(Settings.DownloadSpeedLimitMbPerSecond);
+        Settings = initialSettings ?? await settingsService.LoadAsync();
         IsMenuExpanded = Settings.IsMenuExpanded;
         AccountPage.PrimeFromSettings(Settings);
-        HomePage.SetSettings(Settings);
-        await GameManagement.PrimeInstancesAsync(Settings);
-        HomePage.SetLaunchInstances(GameManagement.Instances);
-        HomePage.Initialize(Settings, GameManagement.SelectedInstance);
-        DownloadPage.PrimeFromSettings(Settings);
-        GameSettingsPage.PrimeFromSettings(Settings);
-        SettingsPage.PrimeFromSettings(Settings);
+        await sessionCoordinator.PrimeAsync(Settings);
         UpdateNavigationSelection();
         UpdateAccountNavigationAvatar();
         hasPrimedSettings = true;
@@ -195,14 +177,10 @@ public sealed partial class MainViewModel : ObservableObject
     {
         await PrimeAsync();
         await AccountPage.InitializeAsync(Settings);
-        HomePage.SetSettings(Settings);
-        await GameManagement.InitializeAsync(Settings);
-        await HomePage.EnsureVersionTypesLoadedAsync();
+        await sessionCoordinator.InitializeAsync();
         UpdateSecondaryItems();
         UpdateNavigationSelection();
         UpdateAccountNavigationAvatar();
-        HomePage.SetLaunchInstances(GameManagement.Instances);
-        HomePage.Initialize(Settings, GameManagement.SelectedInstance);
         hasInitialized = true;
     }
 
@@ -236,10 +214,12 @@ public sealed partial class MainViewModel : ObservableObject
         UpdateNavigationSelection();
 
         if (isRepeatingGameSettingsClick && hasInitialized)
-            _ = GameSettingsPage.RefreshInstancesSilentlyAsync();
+            ObserveShellTask(GameSettingsPage.RefreshInstancesSilentlyAsync(), "refresh game settings instances");
 
         if (isRepeatingHomeClick && hasInitialized)
-            _ = RefreshHomeInstancesAsync();
+            ObserveShellTask(
+                sessionCoordinator.SyncCurrentStateAsync(NavigationCatalog.HomePage),
+                "refresh home instances");
     }
 
     [RelayCommand]
@@ -343,120 +323,20 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnCurrentPageChanged(string value)
     {
         UpdateNavigationSelection();
-        _ = SyncCurrentStateAsync();
+        ObserveShellTask(SyncCurrentStateAsync(), "synchronize current page state");
     }
 
-    public async Task SyncCurrentStateAsync()
+    public Task SyncCurrentStateAsync()
     {
-        if (!hasInitialized || isSyncingCurrentState)
-            return;
-
-        isSyncingCurrentState = true;
-        try
-        {
-            if (NavigationCatalog.IsPage(CurrentPage, NavigationCatalog.HomePage))
-            {
-                await RefreshHomeInstancesAsync();
-            }
-            else
-            {
-                await GameManagement.EnsureInstancesLoadedAsync();
-                await HomePage.EnsureVersionTypesLoadedAsync();
-                SyncHomeLaunchInstances();
-            }
-
-            if (NavigationCatalog.IsPage(CurrentPage, NavigationCatalog.DownloadPage))
-                await DownloadPage.EnsureVersionsLoadedAsync();
-
-            if (NavigationCatalog.IsPage(CurrentPage, NavigationCatalog.GameSettingsPage))
-                await GameSettingsPage.RefreshInstancesForPageActivationAsync();
-        }
-        finally
-        {
-            isSyncingCurrentState = false;
-        }
-    }
-
-    private async Task RefreshHomeInstancesAsync()
-    {
-        await GameManagement.RefreshInstancesAsync();
-        await HomePage.EnsureVersionTypesLoadedAsync();
-        SyncHomeLaunchInstances();
-    }
-
-    private async Task<bool> SetHomeLaunchMenuPinnedAsync(bool isPinned)
-    {
-        var previousValue = Settings.IsHomeLaunchMenuPinned;
-        if (previousValue == isPinned)
-            return true;
-
-        Settings.IsHomeLaunchMenuPinned = isPinned;
-        try
-        {
-            await settingsService.SaveAsync(Settings);
-            logger.LogInformation(
-                "Home launch menu pin preference saved. IsPinned={IsPinned}",
-                isPinned);
-            return true;
-        }
-        catch (Exception exception)
-        {
-            Settings.IsHomeLaunchMenuPinned = previousValue;
-            logger.LogWarning(
-                exception,
-                "Failed to save home launch menu pin preference. IsPinned={IsPinned}",
-                isPinned);
-            return false;
-        }
-    }
-
-    private void SyncHomeLaunchInstances()
-    {
-        HomePage.SetLaunchInstances(GameManagement.Instances);
-        HomePage.SetSelectedInstance(GameManagement.SelectedInstance);
+        return hasInitialized
+            ? sessionCoordinator.SyncCurrentStateAsync(CurrentPage)
+            : Task.CompletedTask;
     }
 
     private void AccountPage_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(AccountPageViewModel.SelectedAccount))
             UpdateAccountNavigationAvatar();
-    }
-
-    private void GameManagement_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(GameManagementViewModel.SelectedInstance))
-            HomePage.SetSelectedInstance(GameManagement.SelectedInstance);
-
-        if (e.PropertyName == nameof(GameManagementViewModel.ProgressPercent))
-            ProgressPercent = GameManagement.ProgressPercent;
-    }
-
-    private async void DownloadPage_InstanceInstalled(object? sender, GameInstance instance)
-    {
-        if (GameManagement.Instances.All(existing => existing.Id != instance.Id))
-            GameManagement.Instances.Add(instance);
-
-        try
-        {
-            var saved = await GameManagement.SelectLaunchInstanceAsync(instance);
-            if (!saved)
-                GameManagement.SelectedInstance = instance;
-        }
-        catch (Exception)
-        {
-            GameManagement.SelectedInstance = instance;
-        }
-
-        GameSettingsPage.AddOrUpdateInstance(instance);
-        HomePage.SetLaunchInstances(GameManagement.Instances);
-        HomePage.SetSelectedInstance(instance);
-    }
-
-    private void ResourcesPage_ModpackManualDownloadsRequested(
-        object? sender,
-        ResourcesModpackManualDownloadsRequestedEventArgs args)
-    {
-        DownloadPage.ModpackManualDownloadsDialog.Show(args.Instance, args.ManualDownloads);
     }
 
     private void UpdateSecondaryItems()
@@ -476,54 +356,11 @@ public sealed partial class MainViewModel : ObservableObject
             CurrentPage);
     }
 
-    private void GameSettingsPage_LaunchInstanceRequested(GameInstance instance)
+    private void SessionCoordinator_NavigationRequested(string page)
     {
-        _ = HandleGameSettingsLaunchRequestAsync(instance);
-    }
-
-    private void GameSettingsPage_OnlineModInstallRequested(GameInstance instance)
-    {
-        _ = OpenResourcesModsForInstanceAsync(instance);
-    }
-
-    private void GameSettingsPage_InstancesChanged(GameSettingsInstancesChangedEventArgs args)
-    {
-        if (args.Kind is GameSettingsInstancesChangedKind.Updated && args.UpdatedInstance is not null)
-        {
-            ApplyUpdatedInstanceFromGameSettings(args.UpdatedInstance);
-            return;
-        }
-
-        _ = SyncInstancesFromGameSettingsAsync();
-    }
-
-    private void SettingsPage_LaunchDefaultsChanged(object? sender, EventArgs e)
-    {
-        HomePage.SetSettings(Settings);
-        GameSettingsPage.PrimeFromSettings(Settings);
-    }
-
-    private void SettingsPage_DownloadSourceChanged(object? sender, SettingsDownloadSourceChangedEventArgs e)
-    {
-        Settings.DownloadSourcePreference = e.Preference;
-        DownloadPage.ApplyDownloadSourcePreference(e.Preference);
-        GameManagement.ApplyDownloadSourcePreference(e.Preference);
-    }
-
-    private void SettingsPage_DownloadSpeedLimitChanged(object? sender, SettingsDownloadSpeedLimitChangedEventArgs e)
-    {
-        Settings.DownloadSpeedLimitMbPerSecond = e.DownloadSpeedLimitMbPerSecond;
-        downloadSpeedLimitState.SetDownloadSpeedLimitMbPerSecond(e.DownloadSpeedLimitMbPerSecond);
-        DownloadPage.ApplyDownloadSpeedLimit(e.DownloadSpeedLimitMbPerSecond);
-        GameManagement.ApplyDownloadSpeedLimit(e.DownloadSpeedLimitMbPerSecond);
-    }
-
-    private void SettingsPage_MinecraftDirectoryChanged(object? sender, SettingsMinecraftDirectoryChangedEventArgs e)
-    {
-        Settings.MinecraftDirectory = e.MinecraftDirectory;
-        HomePage.SetSettings(Settings);
-        GameSettingsPage.PrimeFromSettings(Settings);
-        _ = RefreshMinecraftDirectoryInstancesAsync();
+        CurrentPage = page;
+        UpdateSecondaryItems();
+        UpdateNavigationSelection();
     }
 
     private void HomePage_JavaRequirementNotMet(object? sender, JavaRequirementNotMetEventArgs e)
@@ -570,66 +407,6 @@ public sealed partial class MainViewModel : ObservableObject
         LaunchStatusDialog.Show(report);
     }
 
-    private async Task HandleGameSettingsLaunchRequestAsync(GameInstance instance)
-    {
-        try
-        {
-            var saved = await GameManagement.SelectLaunchInstanceAsync(instance);
-            if (!saved)
-            {
-                statusService.Report(Strings.Status_LaunchInstanceSelectionFailed);
-                return;
-            }
-
-            HomePage.SetLaunchInstances(GameManagement.Instances);
-            HomePage.SetSelectedInstance(GameManagement.SelectedInstance);
-            CurrentPage = NavigationCatalog.HomePage;
-            UpdateSecondaryItems();
-            UpdateNavigationSelection();
-            statusService.Report(string.Format(Strings.Status_LaunchInstanceSelectedFormat, instance.Name));
-        }
-        catch (Exception)
-        {
-            statusService.Report(Strings.Status_LaunchInstanceSelectionFailed);
-        }
-    }
-
-    private async Task SyncInstancesFromGameSettingsAsync()
-    {
-        try
-        {
-            await GameManagement.RefreshInstancesAsync();
-            HomePage.SetLaunchInstances(GameManagement.Instances);
-            HomePage.SetSelectedInstance(GameManagement.SelectedInstance);
-        }
-        catch (Exception)
-        {
-            statusService.Report(Strings.Status_LoadInstancesFailed);
-        }
-    }
-
-    private void ApplyUpdatedInstanceFromGameSettings(GameInstance instance)
-    {
-        GameManagement.ApplyUpdatedInstance(instance);
-        HomePage.SetLaunchInstances(GameManagement.Instances);
-        HomePage.SetSelectedInstance(GameManagement.SelectedInstance);
-    }
-
-    private async Task RefreshMinecraftDirectoryInstancesAsync()
-    {
-        try
-        {
-            await GameManagement.RefreshInstancesAsync();
-            await HomePage.EnsureVersionTypesLoadedAsync();
-            SyncHomeLaunchInstances();
-            await GameSettingsPage.RefreshInstancesSilentlyAsync();
-        }
-        catch (Exception)
-        {
-            statusService.Report(Strings.Status_LoadInstancesFailed);
-        }
-    }
-
     private void UpdateAccountNavigationAvatar()
     {
         var accountItem = NavigationItems.FirstOrDefault(item => item.Page == NavigationCatalog.AccountPage);
@@ -644,14 +421,6 @@ public sealed partial class MainViewModel : ObservableObject
         UpdateSecondaryItems();
         UpdateNavigationSelection();
         return Task.CompletedTask;
-    }
-
-    private async Task OpenResourcesModsForInstanceAsync(GameInstance instance)
-    {
-        CurrentPage = NavigationCatalog.ResourcesPage;
-        UpdateSecondaryItems();
-        UpdateNavigationSelection();
-        await ResourcesPage.OpenModsForInstanceAsync(instance);
     }
 
     private void ShowFloatingMessage(string message)
@@ -677,7 +446,9 @@ public sealed partial class MainViewModel : ObservableObject
 
         FloatingMessage = message;
         IsFloatingMessageOpen = true;
-        _ = HideFloatingMessageAfterDelayAsync(floatingMessageHideCancellation.Token);
+        ObserveShellTask(
+            HideFloatingMessageAfterDelayAsync(floatingMessageHideCancellation.Token),
+            "hide the floating message");
     }
 
     private async Task HideFloatingMessageAfterDelayAsync(CancellationToken cancellationToken)
@@ -698,5 +469,22 @@ public sealed partial class MainViewModel : ObservableObject
 
             IsFloatingMessageOpen = false;
         });
+    }
+
+    private void ObserveShellTask(Task task, string operation)
+    {
+        _ = ObserveShellTaskAsync(task, operation);
+    }
+
+    private async Task ObserveShellTaskAsync(Task task, string operation)
+    {
+        try
+        {
+            await task;
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Failed to {Operation}.", operation);
+        }
     }
 }
