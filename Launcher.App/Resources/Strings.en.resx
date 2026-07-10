@@ -678,11 +678,23 @@
   <data name="Settings_SectionTheme" xml:space="preserve">
     <value>Appearance</value>
   </data>
+  <data name="Settings_SectionListPreview" xml:space="preserve">
+    <value>List</value>
+  </data>
   <data name="Settings_SectionInfo" xml:space="preserve">
     <value>Info</value>
   </data>
   <data name="Settings_SectionControlList" xml:space="preserve">
     <value>Controls</value>
+  </data>
+  <data name="Settings_ListPreviewItemTitleFormat" xml:space="preserve">
+    <value>Sample list item {0:D2}</value>
+  </data>
+  <data name="Settings_ListPreviewItemSubtitle" xml:space="preserve">
+    <value>Scroll down to inspect the progressive blur effect</value>
+  </data>
+  <data name="Settings_ListPreviewItemTrailingFormat" xml:space="preserve">
+    <value>Item {0:D2}</value>
   </data>
   <data name="Settings_InfoContent" xml:space="preserve">
     <value>Info</value>

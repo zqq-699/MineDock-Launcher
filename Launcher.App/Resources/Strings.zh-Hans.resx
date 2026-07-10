@@ -234,8 +234,12 @@
   <data name="Settings_SectionLaunchMemory" xml:space="preserve"><value>启动与内存</value></data>
   <data name="Settings_SectionJava" xml:space="preserve"><value>Java</value></data>
   <data name="Settings_SectionTheme" xml:space="preserve"><value>主题</value></data>
+  <data name="Settings_SectionListPreview" xml:space="preserve"><value>列表</value></data>
   <data name="Settings_SectionInfo" xml:space="preserve"><value>信息</value></data>
   <data name="Settings_SectionControlList" xml:space="preserve"><value>控件列表</value></data>
+  <data name="Settings_ListPreviewItemTitleFormat" xml:space="preserve"><value>示例列表项 {0:D2}</value></data>
+  <data name="Settings_ListPreviewItemSubtitle" xml:space="preserve"><value>向下滚动以观察渐进模糊效果</value></data>
+  <data name="Settings_ListPreviewItemTrailingFormat" xml:space="preserve"><value>第 {0:D2} 项</value></data>
   <data name="Settings_InfoContent" xml:space="preserve"><value>信息</value></data>
   <data name="Settings_LauncherVersionSection" xml:space="preserve"><value>启动器版本</value></data>
   <data name="Settings_LauncherVersionUnknown" xml:space="preserve"><value>未知版本</value></data>

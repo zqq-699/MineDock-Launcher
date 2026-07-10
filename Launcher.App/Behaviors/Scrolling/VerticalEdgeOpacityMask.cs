@@ -54,6 +54,13 @@ public static class VerticalEdgeOpacityMask
             typeof(VerticalEdgeOpacityMask),
             new PropertyMetadata(0d, OnFadePropertyChanged));
 
+    public static readonly DependencyProperty TopMinimumOpacityProperty =
+        DependencyProperty.RegisterAttached(
+            "TopMinimumOpacity",
+            typeof(double),
+            typeof(VerticalEdgeOpacityMask),
+            new PropertyMetadata(double.NaN, OnFadePropertyChanged));
+
     public static bool GetIsEnabled(DependencyObject element) => (bool)element.GetValue(IsEnabledProperty);
 
     public static void SetIsEnabled(DependencyObject element, bool value) => element.SetValue(IsEnabledProperty, value);
@@ -81,6 +88,10 @@ public static class VerticalEdgeOpacityMask
     public static double GetMinimumOpacity(DependencyObject element) => (double)element.GetValue(MinimumOpacityProperty);
 
     public static void SetMinimumOpacity(DependencyObject element, double value) => element.SetValue(MinimumOpacityProperty, value);
+
+    public static double GetTopMinimumOpacity(DependencyObject element) => (double)element.GetValue(TopMinimumOpacityProperty);
+
+    public static void SetTopMinimumOpacity(DependencyObject element, double value) => element.SetValue(TopMinimumOpacityProperty, value);
 
     private static void OnIsEnabledChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
     {
@@ -141,12 +152,17 @@ public static class VerticalEdgeOpacityMask
         }
 
         var minimumOpacity = Math.Clamp(GetMinimumOpacity(element), 0d, 1d);
-        var topIntermediateOpacity = Math.Clamp(GetTopIntermediateOpacity(element), minimumOpacity, 1d);
+        var configuredTopMinimumOpacity = GetTopMinimumOpacity(element);
+        var topMinimumOpacity = double.IsFinite(configuredTopMinimumOpacity)
+            ? Math.Clamp(configuredTopMinimumOpacity, 0d, 1d)
+            : minimumOpacity;
+        var topIntermediateOpacity = Math.Clamp(GetTopIntermediateOpacity(element), topMinimumOpacity, 1d);
         var topIntermediateOffset = topIntermediateLength / height;
         var topPlateauOffset = topPlateauLength / height;
         var topOffset = topLength / height;
         var bottomOffset = 1d - bottomLength / height;
-        var edgeColor = Color.FromArgb(ToByte(minimumOpacity), 0, 0, 0);
+        var topEdgeColor = Color.FromArgb(ToByte(topMinimumOpacity), 0, 0, 0);
+        var bottomEdgeColor = Color.FromArgb(ToByte(minimumOpacity), 0, 0, 0);
         var intermediateColor = Color.FromArgb(ToByte(topIntermediateOpacity), 0, 0, 0);
         var solidColor = Color.FromArgb(byte.MaxValue, 0, 0, 0);
 
@@ -158,18 +174,18 @@ public static class VerticalEdgeOpacityMask
 
         var stops = new List<GradientStop>
         {
-            new(topLength > 0 ? edgeColor : solidColor, 0)
+            new(topLength > 0 ? topEdgeColor : solidColor, 0)
         };
 
         if (topPlateauLength > 0)
-            stops.Add(new GradientStop(edgeColor, topPlateauOffset));
+            stops.Add(new GradientStop(topEdgeColor, topPlateauOffset));
 
         if (topIntermediateLength > 0 && topIntermediateLength < topLength)
             stops.Add(new GradientStop(intermediateColor, topIntermediateOffset));
 
         stops.Add(new GradientStop(solidColor, topOffset));
         stops.Add(new GradientStop(solidColor, bottomOffset));
-        stops.Add(new GradientStop(bottomLength > 0 ? edgeColor : solidColor, 1));
+        stops.Add(new GradientStop(bottomLength > 0 ? bottomEdgeColor : solidColor, 1));
 
         foreach (var stop in stops.OrderBy(stop => stop.Offset))
             brush.GradientStops.Add(stop);

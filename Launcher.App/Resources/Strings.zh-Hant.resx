@@ -678,11 +678,23 @@
   <data name="Settings_SectionTheme" xml:space="preserve">
     <value>主題</value>
   </data>
+  <data name="Settings_SectionListPreview" xml:space="preserve">
+    <value>清單</value>
+  </data>
   <data name="Settings_SectionInfo" xml:space="preserve">
     <value>資訊</value>
   </data>
   <data name="Settings_SectionControlList" xml:space="preserve">
     <value>控制項清單</value>
+  </data>
+  <data name="Settings_ListPreviewItemTitleFormat" xml:space="preserve">
+    <value>範例清單項目 {0:D2}</value>
+  </data>
+  <data name="Settings_ListPreviewItemSubtitle" xml:space="preserve">
+    <value>向下捲動以觀察漸進模糊效果</value>
+  </data>
+  <data name="Settings_ListPreviewItemTrailingFormat" xml:space="preserve">
+    <value>第 {0:D2} 項</value>
   </data>
   <data name="Settings_InfoContent" xml:space="preserve">
     <value>資訊</value>

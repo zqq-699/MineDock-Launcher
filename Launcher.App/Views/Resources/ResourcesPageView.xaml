@@ -88,6 +88,7 @@
                                 SearchFilterContentTemplate="{StaticResource ResourcesModFilterTemplate}"
                                 IsSearchFilterVisible="{Binding IsModSearchVisible}"
                                 IsListVisible="True"
+                                IsProgressiveBlurEnabled="{DynamicResource Is.ProgressiveBlur.Enabled}"
                                 UseFrameScrollViewer="False">
             <controls:ListPageFrame.ListContent>
                 <Grid Tag="ResourcesSectionHost"

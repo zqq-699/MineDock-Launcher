@@ -9,6 +9,7 @@
   <ItemGroup>
     <Resource Include="Assets\Icons\**\*.svg" />
     <Resource Include="Assets\Icons\**\*.png" />
+    <Resource Include="Effects\Shaders\ProgressiveGaussianBlur.ps" />
   </ItemGroup>
 
   <ItemGroup>

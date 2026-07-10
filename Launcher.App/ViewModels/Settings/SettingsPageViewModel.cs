@@ -11,6 +11,7 @@ using Launcher.App.Utilities;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.Settings;
 
@@ -23,6 +24,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     private readonly IFilePickerService filePickerService;
     private readonly IInstanceFolderService instanceFolderService;
     private readonly IThemeService themeService;
+    private readonly ILogger<SettingsPageViewModel> logger;
     private readonly SemaphoreSlim saveLock = new(1, 1);
     private LauncherSettings settings = new();
     private CancellationTokenSource? autoSaveCancellationTokenSource;
@@ -159,7 +161,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         ILauncherUpdateService? launcherUpdateService = null,
         ILauncherSelfUpdateService? launcherSelfUpdateService = null,
         IApplicationExitService? applicationExitService = null,
-        ILogger<InfoSettingsViewModel>? infoSettingsLogger = null)
+        ILogger<InfoSettingsViewModel>? infoSettingsLogger = null,
+        ILogger<SettingsPageViewModel>? logger = null)
     {
         this.settingsService = settingsService;
         this.statusService = statusService;
@@ -167,6 +170,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         this.filePickerService = filePickerService;
         this.instanceFolderService = instanceFolderService;
         this.themeService = themeService;
+        this.logger = logger ?? NullLogger<SettingsPageViewModel>.Instance;
         JavaSettings = new JavaSettingsEditorViewModel(
             javaRuntimeDiscoveryService,
             statusService,
@@ -196,6 +200,10 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             SettingsPageSection.Theme,
             Strings.Settings_SectionTheme,
             "setting_page/theme"));
+        Sections.Add(new SettingsSectionItem(
+            SettingsPageSection.ListPreview,
+            Strings.Settings_SectionListPreview,
+            "instance_setting_page/list_view"));
         Sections.Add(new SettingsSectionItem(
             SettingsPageSection.Info,
             Strings.Settings_SectionInfo,
@@ -272,6 +280,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         LaunchMemory = new LaunchMemorySettingsViewModel(this);
         Java = new JavaSettingsViewModel(this);
         Theme = new ThemeSettingsViewModel(this);
+        ListPreview = new ListPreviewSettingsViewModel(this);
         Info = new InfoSettingsViewModel(
             this,
             statusService,
@@ -310,6 +319,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public JavaSettingsViewModel Java { get; }
 
     public ThemeSettingsViewModel Theme { get; }
+
+    public ListPreviewSettingsViewModel ListPreview { get; }
 
     public InfoSettingsViewModel Info { get; }
 
@@ -358,6 +369,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject
     public bool IsJavaSection => SelectedSection?.Section is SettingsPageSection.Java;
 
     public bool IsThemeSection => SelectedSection?.Section is SettingsPageSection.Theme;
+
+    public bool IsListPreviewSection => SelectedSection?.Section is SettingsPageSection.ListPreview;
 
     public bool IsInfoSection => SelectedSection?.Section is SettingsPageSection.Info;
 
@@ -551,6 +564,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(IsLaunchMemorySection));
         OnPropertyChanged(nameof(IsJavaSection));
         OnPropertyChanged(nameof(IsThemeSection));
+        OnPropertyChanged(nameof(IsListPreviewSection));
         OnPropertyChanged(nameof(IsInfoSection));
         OnPropertyChanged(nameof(IsControlListSection));
         CurrentSectionViewModel = value?.Section switch
@@ -560,10 +574,18 @@ public sealed partial class SettingsPageViewModel : ObservableObject
             SettingsPageSection.LaunchMemory => LaunchMemory,
             SettingsPageSection.Java => Java,
             SettingsPageSection.Theme => Theme,
+            SettingsPageSection.ListPreview => ListPreview,
             SettingsPageSection.Info => Info,
             SettingsPageSection.ControlList => ControlList,
             _ => General
         };
+
+        if (value?.Section is SettingsPageSection.ListPreview)
+        {
+            logger.LogInformation(
+                "Settings progressive blur list preview opened. ItemCount={ItemCount}",
+                ListPreview.Items.Count);
+        }
     }
 
     partial void OnSelectedDownloadSourceOptionChanged(SettingsDownloadSourceOption? value)

@@ -20,6 +20,7 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<ThemeService> logger;
+    private readonly IProgressiveBlurSupport progressiveBlurSupport;
     private string preferredTheme = LauncherDefaults.DefaultTheme;
     private string preferredAccentColor = LauncherDefaults.DefaultAccentColor;
     private bool followSystem = true;
@@ -27,12 +28,24 @@ public sealed class ThemeService : IThemeService, IDisposable
     private bool disableBackgroundBlur;
     private bool hasAppliedTheme;
     private bool isDisposed;
+    private ProgressiveBlurCapabilitySnapshot? lastLoggedProgressiveBlurCapability;
+    private (bool Disabled, bool Active)? lastLoggedProgressiveBlurState;
 
     public ThemeService(IUiDispatcher uiDispatcher, ILogger<ThemeService>? logger = null)
+        : this(uiDispatcher, logger, new WpfProgressiveBlurSupport())
+    {
+    }
+
+    internal ThemeService(
+        IUiDispatcher uiDispatcher,
+        ILogger<ThemeService>? logger,
+        IProgressiveBlurSupport progressiveBlurSupport)
     {
         this.uiDispatcher = uiDispatcher;
         this.logger = logger ?? NullLogger<ThemeService>.Instance;
+        this.progressiveBlurSupport = progressiveBlurSupport;
         SystemEvents.UserPreferenceChanged += SystemEvents_UserPreferenceChanged;
+        this.progressiveBlurSupport.AvailabilityChanged += ProgressiveBlurSupport_AvailabilityChanged;
     }
 
     public EffectiveTheme EffectiveTheme { get; private set; } = EffectiveTheme.Dark;
@@ -117,6 +130,8 @@ public sealed class ThemeService : IThemeService, IDisposable
             return;
 
         SystemEvents.UserPreferenceChanged -= SystemEvents_UserPreferenceChanged;
+        progressiveBlurSupport.AvailabilityChanged -= ProgressiveBlurSupport_AvailabilityChanged;
+        progressiveBlurSupport.Dispose();
         isDisposed = true;
     }
 
@@ -202,9 +217,66 @@ public sealed class ThemeService : IThemeService, IDisposable
         application.Resources["Opacity.Page.Background"] = NormalizeBackgroundOpacity(opacityPercent) / 100d;
     }
 
-    private static void ApplyBackgroundBlurDisabledCore(bool disabled)
+    private void ApplyBackgroundBlurDisabledCore(bool disabled)
     {
-        _ = disabled;
+        var application = global::System.Windows.Application.Current;
+        if (application is null)
+            return;
+
+        var capability = progressiveBlurSupport.Current;
+        var progressiveBlurActive = !disabled && capability.IsAvailable;
+        application.Resources[ProgressiveBlurResourceKeys.IsEnabled] = progressiveBlurActive;
+
+        LogProgressiveBlurCapability(capability);
+        var nextState = (Disabled: disabled, Active: progressiveBlurActive);
+        if (lastLoggedProgressiveBlurState != nextState)
+        {
+            logger.LogInformation(
+                "Background blur preference applied. Disabled={Disabled} ProgressiveBlurActive={ProgressiveBlurActive}",
+                disabled,
+                progressiveBlurActive);
+            lastLoggedProgressiveBlurState = nextState;
+        }
+    }
+
+    private void LogProgressiveBlurCapability(ProgressiveBlurCapabilitySnapshot capability)
+    {
+        if (lastLoggedProgressiveBlurCapability == capability)
+            return;
+
+        if (capability.UnavailableReason is ProgressiveBlurUnavailableReason.ShaderLoadFailed
+            && capability.InitializationException is not null)
+        {
+            logger.LogWarning(
+                capability.InitializationException,
+                "Progressive blur shader initialization failed; opacity fade fallback will be used. RenderTier={RenderTier} ShaderModel=3.0 HardwareOnly=True",
+                capability.RenderingTier);
+        }
+        else if (capability.UnavailableReason is ProgressiveBlurUnavailableReason.ShaderRejected)
+        {
+            logger.LogWarning(
+                "Progressive blur shader was rejected by WPF; opacity fade fallback will be used. RenderTier={RenderTier} ShaderModel=3.0 HardwareOnly=True",
+                capability.RenderingTier);
+        }
+        else
+        {
+            logger.LogInformation(
+                "Progressive blur capability evaluated. Supported={Supported} RenderTier={RenderTier} PixelShader30Supported={PixelShader30Supported} ShaderModel=3.0 Reason={Reason} HardwareOnly=True",
+                capability.IsAvailable,
+                capability.RenderingTier,
+                capability.IsPixelShader30Supported,
+                capability.UnavailableReason);
+        }
+
+        lastLoggedProgressiveBlurCapability = capability;
+    }
+
+    private void ProgressiveBlurSupport_AvailabilityChanged(object? sender, EventArgs e)
+    {
+        if (isDisposed)
+            return;
+
+        uiDispatcher.Invoke(() => ApplyBackgroundBlurDisabledCore(disableBackgroundBlur));
     }
 
     private void ApplyAccentCore(string accentColor)

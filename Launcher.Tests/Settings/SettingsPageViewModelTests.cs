@@ -160,6 +160,7 @@ public sealed class SettingsPageViewModelTests
                 SettingsPageSection.LaunchMemory,
                 SettingsPageSection.Java,
                 SettingsPageSection.Theme,
+                SettingsPageSection.ListPreview,
                 SettingsPageSection.Info
             ],
             viewModel.Sections.Select(section => section.Section));
@@ -177,6 +178,21 @@ public sealed class SettingsPageViewModelTests
         Assert.True(viewModel.IsLanguageSection);
         Assert.Equal(Strings.Settings_SectionLanguage, viewModel.SectionTitle);
         Assert.IsType<LanguageSettingsViewModel>(viewModel.CurrentSectionViewModel);
+    }
+
+    [Fact]
+    public void SelectingListPreviewSectionShowsVirtualizedBlurDemoList()
+    {
+        var viewModel = CreateViewModel(out _, out _);
+
+        viewModel.SelectSectionCommand.Execute(viewModel.Sections.Single(section =>
+            section.Section is SettingsPageSection.ListPreview));
+
+        Assert.True(viewModel.IsListPreviewSection);
+        Assert.Equal(Strings.Settings_SectionListPreview, viewModel.SectionTitle);
+        var listPreview = Assert.IsType<ListPreviewSettingsViewModel>(viewModel.CurrentSectionViewModel);
+        Assert.Equal(48, listPreview.Items.Count);
+        Assert.Equal(string.Format(Strings.Settings_ListPreviewItemTitleFormat, 1), listPreview.Items[0].Title);
     }
 
     [Fact]

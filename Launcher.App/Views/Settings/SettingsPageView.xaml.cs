@@ -17,6 +17,7 @@ public partial class SettingsPageView : UserControl
         nameof(SettingsPageSection.LaunchMemory),
         nameof(SettingsPageSection.Java),
         nameof(SettingsPageSection.Theme),
+        nameof(SettingsPageSection.ListPreview),
         nameof(SettingsPageSection.Info)
     ];
 

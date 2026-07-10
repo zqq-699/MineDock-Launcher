@@ -37,6 +37,10 @@
             <views:ThemeSettingsView />
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type settings:ListPreviewSettingsViewModel}">
+            <views:ListPreviewSettingsView />
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type settings:InfoSettingsViewModel}">
             <views:InfoSettingsView />
         </DataTemplate>
@@ -58,17 +62,30 @@
                                 Margin="284,36,24,8"
                                 Title="{Binding SectionTitle}"
                                 IsSearchVisible="False"
-                                IsListVisible="True"
-                                UseFrameScrollViewer="True">
+                                IsListVisible="True">
+            <controls:ListPageFrame.Style>
+                <Style TargetType="{x:Type controls:ListPageFrame}">
+                    <Setter Property="UseFrameScrollViewer" Value="True" />
+                    <Setter Property="IsProgressiveBlurEnabled" Value="False" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsListPreviewSection}" Value="True">
+                            <Setter Property="UseFrameScrollViewer" Value="False" />
+                            <Setter Property="IsProgressiveBlurEnabled" Value="{DynamicResource Is.ProgressiveBlur.Enabled}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </controls:ListPageFrame.Style>
             <controls:ListPageFrame.ListContent>
-                <StackPanel Loaded="SectionContentRoot_OnLoaded"
-                            Unloaded="SectionContentRoot_OnUnloaded">
-                    <StackPanel.RenderTransform>
+                <Grid Loaded="SectionContentRoot_OnLoaded"
+                      Unloaded="SectionContentRoot_OnUnloaded">
+                    <Grid.RenderTransform>
                         <TranslateTransform />
-                    </StackPanel.RenderTransform>
+                    </Grid.RenderTransform>
 
-                    <ContentControl Content="{Binding CurrentSectionViewModel}" />
-                </StackPanel>
+                    <ContentControl HorizontalContentAlignment="Stretch"
+                                    VerticalContentAlignment="Stretch"
+                                    Content="{Binding CurrentSectionViewModel}" />
+                </Grid>
             </controls:ListPageFrame.ListContent>
         </controls:ListPageFrame>
     </Grid>
