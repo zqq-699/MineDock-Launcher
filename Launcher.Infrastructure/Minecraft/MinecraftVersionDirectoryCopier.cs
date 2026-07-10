@@ -27,8 +27,10 @@ internal static class MinecraftVersionDirectoryCopier
         string sourceGameDirectory,
         string destinationGameDirectory,
         string versionName,
-        bool allowExistingDestination = false)
+        bool allowExistingDestination = false,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var sourceDirectory = Path.Combine(sourceGameDirectory, "versions", versionName);
         var destinationDirectory = Path.Combine(destinationGameDirectory, "versions", versionName);
         if (!Directory.Exists(sourceDirectory))
@@ -44,6 +46,7 @@ internal static class MinecraftVersionDirectoryCopier
         {
             foreach (var filePath in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var relativePath = Path.GetRelativePath(sourceDirectory, filePath);
                 var destinationPath = Path.Combine(destinationDirectory, relativePath);
                 Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);

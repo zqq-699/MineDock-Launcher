@@ -201,6 +201,24 @@ public sealed class LayerDependencyContractTests
         Assert.Contains("AccountCapeViewModel Cape", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void GameSettingsPageDoesNotReabsorbInstanceListOrDialogState()
+    {
+        var root = FindRepositoryRoot();
+        var source = File.ReadAllText(Path.Combine(
+            root.FullName,
+            "Launcher.App",
+            "ViewModels",
+            "GameSettings",
+            "GameSettingsPageViewModel.cs"));
+
+        Assert.DoesNotContain("IGameInstanceService", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ObservableCollection<GameSettingsInstanceItem>", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("IsDeleteInstanceDialogOpen", source, StringComparison.Ordinal);
+        Assert.Contains("GameSettingsInstanceListViewModel InstanceList", source, StringComparison.Ordinal);
+        Assert.Contains("GameSettingsDialogsViewModel Dialogs", source, StringComparison.Ordinal);
+    }
+
     private static void AssertProjectReferences(DirectoryInfo root, string project, params string[] expectedReferences)
     {
         var projectPath = Path.Combine(root.FullName, project, $"{project}.csproj");

@@ -25,11 +25,11 @@ namespace Launcher.Application.Services;
 
 public sealed class LocalModpackImportService : ILocalModpackImportService
 {
-    private readonly IGameInstanceService instanceService;
     private readonly IModpackPackageService modpackPackageService;
     private readonly IModpackGameInstaller modpackGameInstaller;
     private readonly IModpackInstanceStagingService stagingService;
     private readonly IGameInstallCoordinator installCoordinator;
+    private readonly ModpackImportCleanupCoordinator cleanupCoordinator;
     private readonly ILogger<LocalModpackImportService> logger;
 
     public LocalModpackImportService(
@@ -40,12 +40,16 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         IGameInstallCoordinator? installCoordinator = null,
         ILogger<LocalModpackImportService>? logger = null)
     {
-        this.instanceService = instanceService;
         this.modpackPackageService = modpackPackageService;
         this.modpackGameInstaller = modpackGameInstaller;
         this.stagingService = stagingService;
         this.installCoordinator = installCoordinator ?? new GameInstallCoordinator();
         this.logger = logger ?? NullLogger<LocalModpackImportService>.Instance;
+        cleanupCoordinator = new ModpackImportCleanupCoordinator(
+            instanceService,
+            modpackPackageService,
+            stagingService,
+            this.logger);
     }
 
     public async Task<ModpackRecognitionResult> RecognizeArchiveAsync(
@@ -81,123 +85,23 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
         int downloadSpeedLimitMbPerSecond = 0)
     {
-        PreparedModpack? preparedModpack = null;
-        StagedModpackInstance? stagedInstance = null;
-        GameInstance? importedInstance = null;
-        string? finalVersionName = null;
         var importProgress = progress is null ? null : new OverallModpackImportProgress(progress);
+        var session = new ModpackImportSession(importProgress);
 
         try
         {
-            importProgress?.Report(new LauncherProgress(ImportProgressStages.PreparingArchive, string.Empty));
-            importProgress?.Report(new LauncherProgress(ImportProgressStages.ParsingManifest, string.Empty));
-            preparedModpack = await modpackPackageService
-                .PrepareAsync(archivePath, cancellationToken, importProgress)
-                .ConfigureAwait(false);
-            var preferredInstanceName = NormalizePreferredInstanceName(preparedModpack.PackageName);
-
-            logger.LogInformation(
-                "Importing modpack. ArchivePath={ArchivePath} ModpackName={ModpackName} MinecraftVersion={MinecraftVersion} Loader={Loader} LoaderVersion={LoaderVersion} PreferredInstanceName={PreferredInstanceName}",
-                archivePath,
-                preparedModpack.PackageName,
-                preparedModpack.MinecraftVersion,
-                preparedModpack.Loader,
-                preparedModpack.LoaderVersion,
-                preferredInstanceName);
-
-            importProgress?.Report(new LauncherProgress(ImportProgressStages.CreatingInstance, string.Empty));
-            stagedInstance = await stagingService
-                .StageAsync(preparedModpack, preferredInstanceName, cancellationToken)
-                .ConfigureAwait(false);
-            logger.LogInformation(
-                "Modpack instance staged. ArchivePath={ArchivePath} PreferredInstanceName={PreferredInstanceName} ResolvedInstanceName={ResolvedInstanceName} InstanceDirectory={InstanceDirectory}",
-                archivePath,
-                preferredInstanceName,
-                stagedInstance.ResolvedInstanceName,
-                stagedInstance.InstanceDirectory);
-            importProgress?.Report(new LauncherProgress(ImportProgressStages.CreatingInstance, string.Empty, 100));
-
-            using var importCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            var importCancellationToken = importCancellation.Token;
-
-            var downloadModsTask = CompleteWithProgressAsync(
-                modpackPackageService.DownloadFilesAsync(
-                    preparedModpack,
-                    stagedInstance.Instance,
-                    importProgress,
-                    importCancellationToken,
+            await PrepareAndStageAsync(session, archivePath, cancellationToken).ConfigureAwait(false);
+            var manualDownloads = await InstallGameAndContentAsync(
+                    session,
                     downloadSourcePreference,
-                    downloadSpeedLimitMbPerSecond),
-                importProgress,
-                new LauncherProgress(ImportProgressStages.DownloadingPackFiles, string.Empty, 100));
-            _ = CancelImportOnBranchFailureAsync(downloadModsTask, importCancellation);
-
-            var installLeaseTask = installCoordinator
-                .AcquireInstallAsync(
-                    stagedInstance.MinecraftDirectory,
-                    stagedInstance.ResolvedInstanceName,
-                    importProgress,
-                    importCancellationToken)
-                .AsTask();
-
-            await ThrowContentFailureBeforeInstallLeaseAsync(
-                downloadModsTask,
-                installLeaseTask,
-                importCancellation).ConfigureAwait(false);
-
-            await using var installLease = await installLeaseTask.ConfigureAwait(false);
-            var minecraftBaseTask = modpackGameInstaller.InstallMinecraftBaseAsync(
-                preparedModpack.MinecraftVersion,
-                stagedInstance.MinecraftDirectory,
-                CreateInstallStageProgress(importProgress, ImportProgressStages.InstallingMinecraftBase),
-                importCancellationToken,
-                downloadSourcePreference,
-                downloadSpeedLimitMbPerSecond);
-            var loaderInstallTask = InstallLoaderAfterBaseAsync(
-                preparedModpack,
-                stagedInstance,
-                minecraftBaseTask,
-                importProgress,
-                importCancellationToken,
-                downloadSourcePreference,
-                downloadSpeedLimitMbPerSecond);
-            _ = CancelImportOnBranchFailureAsync(loaderInstallTask, importCancellation);
-
-            await AwaitImportBranchesAsync(
-                importCancellation,
-                loaderInstallTask,
-                downloadModsTask).ConfigureAwait(false);
-
-            finalVersionName = await loaderInstallTask.ConfigureAwait(false);
-            var manualDownloads = await downloadModsTask.ConfigureAwait(false);
-            await CompleteWithProgressAsync(
-                modpackPackageService.CopyOverridesAsync(
-                    preparedModpack,
-                    stagedInstance.Instance,
-                    importProgress,
-                    importCancellationToken),
-                importProgress,
-                new LauncherProgress(ImportProgressStages.CopyingOverrides, string.Empty, 100)).ConfigureAwait(false);
-            importedInstance = await stagingService
-                .FinalizeAsync(stagedInstance, finalVersionName, importCancellationToken)
+                    downloadSpeedLimitMbPerSecond,
+                    cancellationToken)
                 .ConfigureAwait(false);
+            await FinalizeImportAsync(session, manualDownloads, cancellationToken).ConfigureAwait(false);
 
-            preparedModpack.ManualDownloads = manualDownloads;
-            preparedModpack.ManualDownloadsFilePath = await modpackPackageService
-                .WriteManualDownloadsFileAsync(preparedModpack, importedInstance, manualDownloads, importCancellationToken)
-                .ConfigureAwait(false);
-
-            try
-            {
-                await modpackPackageService.CleanupAsync(preparedModpack, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception exception)
-            {
-                logger.LogWarning(
-                    exception,
-                    "Failed to clean up modpack workspace after a successful import. WorkingDirectory={WorkingDirectory}",
-                    preparedModpack.WorkingDirectory);
-            }
+            var preparedModpack = session.PreparedModpack!;
+            var importedInstance = session.ImportedInstance!;
+            await cleanupCoordinator.CleanupSuccessfulImportAsync(preparedModpack).ConfigureAwait(false);
 
             logger.LogInformation(
                 "Modpack import completed. ArchivePath={ArchivePath} InstanceId={InstanceId} InstanceName={InstanceName} ManualDownloadCount={ManualDownloadCount}",
@@ -216,12 +120,12 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 "Modpack import failed with a known reason. ArchivePath={ArchivePath} FailureReason={FailureReason}",
                 archivePath,
                 exception.FailureReason);
-            await CleanupFailedImportAsync(preparedModpack, stagedInstance, importedInstance, finalVersionName, importProgress).ConfigureAwait(false);
+            await cleanupCoordinator.CleanupFailedImportAsync(session).ConfigureAwait(false);
             return ModpackImportResult.Failure(exception.FailureReason);
         }
         catch (OperationCanceledException)
         {
-            await CleanupFailedImportAsync(preparedModpack, stagedInstance, importedInstance, finalVersionName, importProgress).ConfigureAwait(false);
+            await cleanupCoordinator.CleanupFailedImportAsync(session).ConfigureAwait(false);
             throw;
         }
         catch (Exception exception)
@@ -230,65 +134,130 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 exception,
                 "Unexpected modpack import failure. ArchivePath={ArchivePath}",
                 archivePath);
-            await CleanupFailedImportAsync(preparedModpack, stagedInstance, importedInstance, finalVersionName, importProgress).ConfigureAwait(false);
+            await cleanupCoordinator.CleanupFailedImportAsync(session).ConfigureAwait(false);
             return ModpackImportResult.Failure(ModpackImportFailureReason.UnexpectedError);
         }
     }
 
-    private async Task CleanupFailedImportAsync(
-        PreparedModpack? preparedModpack,
-        StagedModpackInstance? stagedInstance,
-        GameInstance? importedInstance,
-        string? finalVersionName,
-        IProgress<LauncherProgress>? progress)
+    private async Task PrepareAndStageAsync(
+        ModpackImportSession session,
+        string archivePath,
+        CancellationToken cancellationToken)
     {
-        if (stagedInstance is not null || importedInstance is not null || preparedModpack is not null)
-            progress?.Report(new LauncherProgress(ImportProgressStages.CleaningUp, string.Empty));
+        session.Progress?.Report(new LauncherProgress(ImportProgressStages.PreparingArchive, string.Empty));
+        session.Progress?.Report(new LauncherProgress(ImportProgressStages.ParsingManifest, string.Empty));
+        session.PreparedModpack = await modpackPackageService
+            .PrepareAsync(archivePath, cancellationToken, session.Progress)
+            .ConfigureAwait(false);
+        var preferredInstanceName = NormalizePreferredInstanceName(session.PreparedModpack.PackageName);
 
-        if (importedInstance is not null)
-        {
-            try
-            {
-                await instanceService.DeleteInstanceAsync(importedInstance.Id, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception exception)
-            {
-                logger.LogWarning(
-                    exception,
-                    "Failed to delete partially imported instance. InstanceId={InstanceId}",
-                    importedInstance.Id);
-            }
-        }
+        logger.LogInformation(
+            "Importing modpack. ArchivePath={ArchivePath} ModpackName={ModpackName} MinecraftVersion={MinecraftVersion} Loader={Loader} LoaderVersion={LoaderVersion} PreferredInstanceName={PreferredInstanceName}",
+            archivePath,
+            session.PreparedModpack.PackageName,
+            session.PreparedModpack.MinecraftVersion,
+            session.PreparedModpack.Loader,
+            session.PreparedModpack.LoaderVersion,
+            preferredInstanceName);
 
-        if (stagedInstance is not null)
-        {
-            try
-            {
-                await stagingService.CleanupFailedImportAsync(stagedInstance, finalVersionName, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception exception)
-            {
-                logger.LogWarning(
-                    exception,
-                    "Failed to clean up staged modpack instance. InstanceName={InstanceName}",
-                    stagedInstance.ResolvedInstanceName);
-            }
-        }
+        session.Progress?.Report(new LauncherProgress(ImportProgressStages.CreatingInstance, string.Empty));
+        session.StagedInstance = await stagingService
+            .StageAsync(session.PreparedModpack, preferredInstanceName, cancellationToken)
+            .ConfigureAwait(false);
+        logger.LogInformation(
+            "Modpack instance staged. ArchivePath={ArchivePath} PreferredInstanceName={PreferredInstanceName} ResolvedInstanceName={ResolvedInstanceName} InstanceDirectory={InstanceDirectory}",
+            archivePath,
+            preferredInstanceName,
+            session.StagedInstance.ResolvedInstanceName,
+            session.StagedInstance.InstanceDirectory);
+        session.Progress?.Report(new LauncherProgress(ImportProgressStages.CreatingInstance, string.Empty, 100));
+    }
 
-        if (preparedModpack is null)
-            return;
+    private async Task<IReadOnlyList<ManualModpackDownload>> InstallGameAndContentAsync(
+        ModpackImportSession session,
+        DownloadSourcePreference downloadSourcePreference,
+        int downloadSpeedLimitMbPerSecond,
+        CancellationToken cancellationToken)
+    {
+        var preparedModpack = session.PreparedModpack!;
+        var stagedInstance = session.StagedInstance!;
+        using var importCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var importCancellationToken = importCancellation.Token;
 
-        try
-        {
-            await modpackPackageService.CleanupAsync(preparedModpack, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            logger.LogWarning(
-                exception,
-                "Failed to clean up prepared modpack workspace. WorkingDirectory={WorkingDirectory}",
-                preparedModpack.WorkingDirectory);
-        }
+        var downloadModsTask = CompleteWithProgressAsync(
+            modpackPackageService.DownloadFilesAsync(
+                preparedModpack,
+                stagedInstance.Instance,
+                session.Progress,
+                importCancellationToken,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond),
+            session.Progress,
+            new LauncherProgress(ImportProgressStages.DownloadingPackFiles, string.Empty, 100));
+        _ = CancelImportOnBranchFailureAsync(downloadModsTask, importCancellation);
+
+        var installLeaseTask = installCoordinator
+            .AcquireInstallAsync(
+                stagedInstance.MinecraftDirectory,
+                stagedInstance.ResolvedInstanceName,
+                session.Progress,
+                importCancellationToken)
+            .AsTask();
+        await ThrowContentFailureBeforeInstallLeaseAsync(downloadModsTask, installLeaseTask, importCancellation)
+            .ConfigureAwait(false);
+
+        await using var installLease = await installLeaseTask.ConfigureAwait(false);
+        var minecraftBaseTask = modpackGameInstaller.InstallMinecraftBaseAsync(
+            preparedModpack.MinecraftVersion,
+            stagedInstance.MinecraftDirectory,
+            CreateInstallStageProgress(session.Progress, ImportProgressStages.InstallingMinecraftBase),
+            importCancellationToken,
+            downloadSourcePreference,
+            downloadSpeedLimitMbPerSecond);
+        var loaderInstallTask = InstallLoaderAfterBaseAsync(
+            preparedModpack,
+            stagedInstance,
+            minecraftBaseTask,
+            session.Progress,
+            importCancellationToken,
+            downloadSourcePreference,
+            downloadSpeedLimitMbPerSecond);
+        _ = CancelImportOnBranchFailureAsync(loaderInstallTask, importCancellation);
+
+        await AwaitImportBranchesAsync(importCancellation, loaderInstallTask, downloadModsTask)
+            .ConfigureAwait(false);
+        session.FinalVersionName = await loaderInstallTask.ConfigureAwait(false);
+        return await downloadModsTask.ConfigureAwait(false);
+    }
+
+    private async Task FinalizeImportAsync(
+        ModpackImportSession session,
+        IReadOnlyList<ManualModpackDownload> manualDownloads,
+        CancellationToken cancellationToken)
+    {
+        var preparedModpack = session.PreparedModpack!;
+        var stagedInstance = session.StagedInstance!;
+        await CompleteWithProgressAsync(
+                modpackPackageService.CopyOverridesAsync(
+                    preparedModpack,
+                    stagedInstance.Instance,
+                    session.Progress,
+                    cancellationToken),
+                session.Progress,
+                new LauncherProgress(ImportProgressStages.CopyingOverrides, string.Empty, 100))
+            .ConfigureAwait(false);
+        session.ImportedInstance = await stagingService
+            .FinalizeAsync(stagedInstance, session.FinalVersionName!, cancellationToken)
+            .ConfigureAwait(false);
+
+        preparedModpack.ManualDownloads = manualDownloads;
+        preparedModpack.ManualDownloadsFilePath = await modpackPackageService
+            .WriteManualDownloadsFileAsync(
+                preparedModpack,
+                session.ImportedInstance,
+                manualDownloads,
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task<string> InstallLoaderAfterBaseAsync(
@@ -428,119 +397,4 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         }
     }
 
-    private sealed class OverallModpackImportProgress(IProgress<LauncherProgress> innerProgress) : IProgress<LauncherProgress>
-    {
-        private const double ArchiveWeight = 2;
-        private const double ManifestWeight = 3;
-        private const double InstanceWeight = 5;
-        private const double ResolveWeight = 15;
-        private const double InstallWeight = 44;
-        private const double DownloadWeight = 26;
-        private const double OverridesWeight = 4;
-        private double lastPercent;
-        private double archiveProgress;
-        private double manifestProgress;
-        private double instanceProgress;
-        private double resolveProgress;
-        private double installProgress;
-        private double downloadProgress;
-        private double overridesProgress;
-
-        public void Report(LauncherProgress value)
-        {
-            var mappedProgress = MapProgress(value);
-            innerProgress.Report(mappedProgress);
-        }
-
-        private LauncherProgress MapProgress(LauncherProgress value)
-        {
-            if (!TryUpdateBuckets(value, out var mappedPercent))
-                return value;
-
-            var clampedPercent = Math.Clamp(mappedPercent, lastPercent, 99);
-            lastPercent = clampedPercent;
-            return value with { Percent = clampedPercent };
-        }
-
-        private bool TryUpdateBuckets(LauncherProgress value, out double mappedPercent)
-        {
-            var normalizedPercent = NormalizePercent(value.Percent, treatMissingAsComplete: IsMilestoneStage(value.Stage));
-            switch (value.Stage)
-            {
-                case ImportProgressStages.PreparingArchive:
-                    archiveProgress = Math.Max(archiveProgress, normalizedPercent);
-                    break;
-                case ImportProgressStages.ParsingManifest:
-                    archiveProgress = Math.Max(archiveProgress, 1);
-                    manifestProgress = Math.Max(manifestProgress, normalizedPercent);
-                    break;
-                case ImportProgressStages.CreatingInstance:
-                    archiveProgress = Math.Max(archiveProgress, 1);
-                    manifestProgress = Math.Max(manifestProgress, 1);
-                    instanceProgress = Math.Max(instanceProgress, normalizedPercent);
-                    break;
-                case ImportProgressStages.InstallingMinecraftBase:
-                case ImportProgressStages.InstallingLoader:
-                    installProgress = Math.Max(installProgress, normalizedPercent);
-                    break;
-                case ImportProgressStages.ResolvingPackFiles:
-                    resolveProgress = Math.Max(resolveProgress, normalizedPercent);
-                    break;
-                case ImportProgressStages.DownloadingPackFiles:
-                    downloadProgress = Math.Max(downloadProgress, normalizedPercent);
-                    break;
-                case ImportProgressStages.CopyingOverrides:
-                    overridesProgress = Math.Max(overridesProgress, normalizedPercent);
-                    break;
-                case ImportProgressStages.CleaningUp:
-                    mappedPercent = 99;
-                    return true;
-                case InstallProgressStages.Queue:
-                case InstallProgressStages.Preparing:
-                case InstallProgressStages.DownloadingLoaderInstaller:
-                case InstallProgressStages.RunningLoaderInstaller:
-                case InstallProgressStages.FinalizingVersion:
-                case InstallProgressStages.CompletingFiles:
-                case LaunchProgressStages.CheckingFiles:
-                case LaunchProgressStages.DownloadingFiles:
-                    installProgress = Math.Max(installProgress, normalizedPercent);
-                    break;
-                default:
-                    if (value.Percent is null)
-                    {
-                        mappedPercent = 0;
-                        return false;
-                    }
-
-                    mappedPercent = value.Percent.Value;
-                    return true;
-            }
-
-            mappedPercent =
-                (archiveProgress * ArchiveWeight) +
-                (manifestProgress * ManifestWeight) +
-                (instanceProgress * InstanceWeight) +
-                (resolveProgress * ResolveWeight) +
-                (installProgress * InstallWeight) +
-                (downloadProgress * DownloadWeight) +
-                (overridesProgress * OverridesWeight);
-            return true;
-        }
-
-        private static bool IsMilestoneStage(string stage)
-        {
-            return stage is ImportProgressStages.PreparingArchive
-                or ImportProgressStages.ParsingManifest
-                or ImportProgressStages.CreatingInstance
-                or ImportProgressStages.CopyingOverrides;
-        }
-
-        private static double NormalizePercent(double? percent, bool treatMissingAsComplete)
-        {
-            if (percent is null)
-                return treatMissingAsComplete ? 1 : 0;
-
-            return Math.Clamp(percent.Value, 0, 100) / 100d;
-        }
-    }
 }

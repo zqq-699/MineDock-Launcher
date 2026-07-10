@@ -746,22 +746,21 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
             source,
             archivePaths.Count);
 
-        var successCount = 0;
-        foreach (var archivePath in archivePaths)
-        {
-            logger.LogInformation(
-                "Importing local save archive. InstanceId={InstanceId} ArchivePath={ArchivePath}",
-                selectedInstance.Id,
-                archivePath);
-
-            var result = await localSavesViewModel.ImportSaveFromArchiveAsync(archivePath, reportStatus: false);
-            if (result.IsSuccess)
+        var batch = await LocalContentImportBatchCoordinator.ExecuteAsync(
+            archivePaths,
+            async archivePath =>
             {
-                successCount++;
-                continue;
-            }
+                logger.LogInformation(
+                    "Importing local save archive. InstanceId={InstanceId} ArchivePath={ArchivePath}",
+                    selectedInstance.Id,
+                    archivePath);
+                return await localSavesViewModel.ImportSaveFromArchiveAsync(archivePath, reportStatus: false);
+            },
+            result => result.IsSuccess);
 
-            switch (result.FailureReason)
+        if (batch.Failure is not null)
+        {
+            switch (batch.Failure.FailureReason)
             {
                 case LocalSaveImportFailureReason.InvalidMinecraftSaveArchive:
                     SaveImportFailedRequested?.Invoke(new SaveImportFailureRequest(Strings.Dialog_InvalidSaveArchiveMessage));
@@ -776,19 +775,18 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
                     logger.LogWarning(
                         "Local save import failed unexpectedly after service call. InstanceId={InstanceId} ArchivePath={ArchivePath}",
                         selectedInstance.Id,
-                        archivePath);
+                        batch.FailedPath);
                     statusService.Report(Strings.Status_LocalSaveImportFailed);
                     break;
             }
-
             return;
         }
 
-        if (successCount > 0)
+        if (batch.SuccessCount > 0)
         {
-            statusService.Report(successCount == 1
+            statusService.Report(batch.SuccessCount == 1
                 ? Strings.Status_LocalSaveImported
-                : string.Format(Strings.Status_LocalSavesImportedFormat, successCount));
+                : string.Format(Strings.Status_LocalSavesImportedFormat, batch.SuccessCount));
         }
     }
 

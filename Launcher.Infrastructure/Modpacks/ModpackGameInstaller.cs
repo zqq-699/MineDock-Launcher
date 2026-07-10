@@ -337,7 +337,8 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 sandboxMinecraftDirectory,
                 targetMinecraftDirectory,
                 finalVersionName,
-                allowExistingDestination: true);
+                allowExistingDestination: true,
+                cancellationToken: cancellationToken);
             var appliedRuntimeCopy = MinecraftSharedContentCopier.CopySharedRuntimeContent(
                 sandboxMinecraftDirectory,
                 targetMinecraftDirectory,

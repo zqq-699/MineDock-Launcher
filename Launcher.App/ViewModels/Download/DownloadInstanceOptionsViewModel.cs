@@ -24,6 +24,8 @@ using Launcher.App.Resources;
 using Launcher.App.Utilities;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.Download;
 
@@ -33,6 +35,7 @@ public sealed partial class DownloadInstanceOptionsViewModel : ObservableObject,
     private readonly IReadOnlyDictionary<LoaderKind, ILoaderProvider> loaderProviders;
     private readonly IModrinthService? modrinthService;
     private readonly DownloadInstanceNameTracker instanceNameTracker;
+    private readonly ILogger logger;
     private CancellationTokenSource? loaderRequestCancellation;
     private CancellationTokenSource? addonRequestCancellation;
     private DownloadMinecraftVersionItem? selectedMinecraftVersion;
@@ -73,12 +76,14 @@ public sealed partial class DownloadInstanceOptionsViewModel : ObservableObject,
         IGameInstanceService instanceService,
         IEnumerable<ILoaderProvider> loaderProviders,
         DownloadInstanceNameTracker instanceNameTracker,
-        IModrinthService? modrinthService = null)
+        IModrinthService? modrinthService = null,
+        ILogger? logger = null)
     {
         this.instanceService = instanceService;
         this.loaderProviders = loaderProviders.ToDictionary(provider => provider.Kind);
         this.instanceNameTracker = instanceNameTracker;
         this.modrinthService = modrinthService;
+        this.logger = logger ?? NullLogger.Instance;
         LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Vanilla, Strings.Download_VanillaLoaderTitle, Strings.Download_VanillaLoaderSubtitle, string.Empty, "/Assets/Icons/block/grass_block.png"));
         LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Fabric, Strings.Download_FabricLoaderTitle, Strings.Download_FabricLoaderSubtitle, "\uE8B7", MinecraftVersionIconResolver.DefaultFabricIconSource));
         LoaderOptions.Add(new DownloadLoaderOption(LoaderKind.Forge, Strings.Download_ForgeLoaderTitle, Strings.Download_ForgeLoaderSubtitle, "\uE8B7", MinecraftVersionIconResolver.DefaultForgeIconSource));
@@ -360,8 +365,13 @@ public sealed partial class DownloadInstanceOptionsViewModel : ObservableObject,
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            logger.LogWarning(
+                exception,
+                "Failed to load loader versions. MinecraftVersion={MinecraftVersion} Loader={Loader}",
+                requestedVersion,
+                loaderOption.Kind);
             if (IsLoaderRequestCurrent(cancellation, loaderOption, requestedVersion))
                 LoaderVersionLoadError = string.Format(Strings.Status_LoaderVersionsLoadFailedFormat, loaderOption.Title);
         }
@@ -415,8 +425,13 @@ public sealed partial class DownloadInstanceOptionsViewModel : ObservableObject,
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            logger.LogWarning(
+                exception,
+                "Failed to load optional loader library versions. MinecraftVersion={MinecraftVersion} Loader={Loader}",
+                requestedVersion,
+                loaderOption!.Kind);
             if (IsAddonRequestCurrent(cancellation, loaderOption!, requestedVersion))
             {
                 ClearAddonLibraryVersionOptions();

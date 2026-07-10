@@ -25,12 +25,15 @@ using Launcher.App.Models;
 using Launcher.App.Services;
 using Launcher.App.Utilities;
 using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.GameSettings;
 
 public sealed partial class GameManagementViewModel : ObservableObject
 {
     private readonly IStatusService statusService;
+    private readonly ILogger<GameManagementViewModel> logger;
     private bool suppressSelectedInstanceModRefresh;
 
     [ObservableProperty]
@@ -41,13 +44,15 @@ public sealed partial class GameManagementViewModel : ObservableObject
         LoaderSelectionViewModel loaderSelection,
         LocalModsViewModel localMods,
         ModrinthSearchViewModel modrinthSearch,
-        IStatusService statusService)
+        IStatusService statusService,
+        ILogger<GameManagementViewModel>? logger = null)
     {
         InstancesViewModel = instances;
         LoaderSelection = loaderSelection;
         LocalMods = localMods;
         ModrinthSearch = modrinthSearch;
         this.statusService = statusService;
+        this.logger = logger ?? NullLogger<GameManagementViewModel>.Instance;
 
         InstancesViewModel.PropertyChanged += InstancesViewModel_PropertyChanged;
         LoaderSelection.PropertyChanged += ForwardChildPropertyChanged;
@@ -270,7 +275,25 @@ public sealed partial class GameManagementViewModel : ObservableObject
         if (e.PropertyName == nameof(InstanceManagementViewModel.SelectedInstance)
             && !suppressSelectedInstanceModRefresh)
         {
-            _ = LocalMods.SetSelectedInstanceAsync(SelectedInstance);
+            _ = ObserveSelectedInstanceModRefreshAsync(SelectedInstance);
+        }
+    }
+
+    private async Task ObserveSelectedInstanceModRefreshAsync(GameInstance? instance)
+    {
+        try
+        {
+            await LocalMods.SetSelectedInstanceAsync(instance);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Failed to refresh local mods after selecting an instance. InstanceId={InstanceId}",
+                instance?.Id);
         }
     }
 

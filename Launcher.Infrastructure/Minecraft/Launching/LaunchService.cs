@@ -39,9 +39,8 @@ public sealed class LaunchService : ILaunchService
     private readonly ILaunchCommandRunner commandRunner;
     private readonly IJavaRuntimeSelectionService? javaRuntimeSelectionService;
     private readonly IJavaRuntimeProvisioningService? javaRuntimeProvisioningService;
-    private readonly ISystemMemoryService? systemMemoryService;
-    private readonly IModService? modService;
     private readonly IGameLanguageService? gameLanguageService;
+    private readonly LaunchSettingsResolver launchSettingsResolver;
     private readonly ILogger<LaunchService> logger;
 
     public LaunchService(
@@ -88,10 +87,9 @@ public sealed class LaunchService : ILaunchService
         this.commandRunner = commandRunner ?? new LaunchCommandRunner();
         this.javaRuntimeSelectionService = javaRuntimeSelectionService;
         this.javaRuntimeProvisioningService = javaRuntimeProvisioningService;
-        this.systemMemoryService = systemMemoryService;
-        this.modService = modService;
         this.gameLanguageService = gameLanguageService;
         this.logger = logger ?? NullLogger<LaunchService>.Instance;
+        launchSettingsResolver = new LaunchSettingsResolver(systemMemoryService, modService, this.logger);
     }
 
     public async Task<GameLaunchSession> LaunchAsync(
@@ -102,32 +100,11 @@ public sealed class LaunchService : ILaunchService
         LaunchRequestOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        var versionName = string.IsNullOrWhiteSpace(instance.VersionName) ? instance.MinecraftVersion : instance.VersionName;
-        var shouldCheckFilesBeforeLaunch = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
-            ? settings.DefaultCheckFilesBeforeLaunch
-            : instance.CheckFilesBeforeLaunch;
-        var shouldAutoRepairMissingFiles = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
-            ? settings.DefaultAutoRepairMissingFiles
-            : instance.AutoRepairMissingFiles;
-        var shouldLaunchFullScreen = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
-            ? settings.DefaultLaunchFullScreen
-            : instance.LaunchFullScreen;
-        var preLaunchCommand = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
-            ? settings.DefaultPreLaunchCommand
-            : instance.PreLaunchCommand;
-        var shouldWaitForPreLaunchCommand = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
-            ? settings.DefaultWaitForPreLaunchCommand
-            : instance.WaitForPreLaunchCommand;
-        var postExitCommand = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
-            ? settings.DefaultPostExitCommand
-            : instance.PostExitCommand;
-        var jvmArguments = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
-            ? settings.DefaultJvmArguments
-            : instance.JvmArguments;
-        var gameArguments = instance.LaunchSettingsMode is LaunchSettingsMode.UseGlobal
-            ? settings.DefaultGameArguments
-            : instance.GameArguments;
-        var memoryMb = await ResolveMemoryMbAsync(instance, settings, cancellationToken);
+        var resolvedSettings = await launchSettingsResolver
+            .ResolveAsync(instance, settings, cancellationToken)
+            .ConfigureAwait(false);
+        var versionName = resolvedSettings.VersionName;
+        var memoryMb = resolvedSettings.MemoryMb;
         System.Diagnostics.Process? process = null;
         JavaRuntimeInfo? selectedJavaRuntime = null;
         LaunchDiagnosticContext diagnosticContext = CreateDiagnosticContext(
@@ -147,118 +124,37 @@ public sealed class LaunchService : ILaunchService
         logger.LogInformation(
             "Launch settings resolved. InstanceId={InstanceId} PreLaunchCommand={PreLaunchCommand} WaitForPreLaunchCommand={WaitForPreLaunchCommand} PostExitCommand={PostExitCommand} ExtraJvmArguments={ExtraJvmArguments} ExtraGameArguments={ExtraGameArguments}",
             instance.Id,
-            RedactLaunchSettingText(preLaunchCommand),
-            shouldWaitForPreLaunchCommand,
-            RedactLaunchSettingText(postExitCommand),
-            RedactLaunchSettingText(jvmArguments),
-            RedactLaunchSettingText(gameArguments));
+            RedactLaunchSettingText(resolvedSettings.PreLaunchCommand),
+            resolvedSettings.WaitForPreLaunchCommand,
+            RedactLaunchSettingText(resolvedSettings.PostExitCommand),
+            RedactLaunchSettingText(resolvedSettings.JvmArguments),
+            RedactLaunchSettingText(resolvedSettings.GameArguments));
 
         try
         {
-            if (!string.IsNullOrWhiteSpace(preLaunchCommand))
-            {
-                logger.LogInformation(
-                    "Running pre-launch command. InstanceId={InstanceId} WaitForExit={WaitForExit}",
-                    instance.Id,
-                    shouldWaitForPreLaunchCommand);
-                progress?.Report(new LauncherProgress(
-                    LaunchProgressStages.RunningPreLaunchCommand,
-                    "Running pre-launch command",
-                    4));
-                await commandRunner.RunAsync(
-                    preLaunchCommand,
-                    instance.InstanceDirectory,
-                    shouldWaitForPreLaunchCommand,
-                    cancellationToken);
-            }
-
-            if (shouldCheckFilesBeforeLaunch)
-            {
-                logger.LogInformation(
-                    "Checking game files before launch. VersionName={VersionName} AutoRepair={AutoRepair}",
-                    versionName,
-                    shouldAutoRepairMissingFiles);
-                await versionRepairService.RepairAsync(
-                    settings.MinecraftDirectory,
-                    versionName,
-                    instance.InstanceDirectory,
+            var preparedRuntime = await PrepareRuntimeAsync(
+                    instance,
+                    account,
+                    settings,
+                    resolvedSettings,
+                    options,
                     progress,
-                    shouldAutoRepairMissingFiles,
-                    cancellationToken,
-                    downloadSourcePreference: settings.DownloadSourcePreference,
-                    downloadSpeedLimitMbPerSecond: settings.DownloadSpeedLimitMbPerSecond);
-            }
+                    cancellationToken)
+                .ConfigureAwait(false);
+            selectedJavaRuntime = preparedRuntime.JavaRuntime;
+            diagnosticContext = preparedRuntime.DiagnosticContext;
 
-            var accountSession = await accountSessionService.CreateSessionAsync(account, cancellationToken);
-            await ApplyGameLanguageAsync(instance, settings, cancellationToken);
-            selectedJavaRuntime = await ResolveJavaRuntimeForLaunchAsync(
-                instance,
-                settings,
-                options,
-                progress,
-                cancellationToken);
-            diagnosticContext = CreateDiagnosticContext(
-                instance,
-                settings,
-                versionName,
-                selectedJavaRuntime,
-                memoryMb,
-                [accountSession.AccessToken]);
-            logger.LogInformation(
-                "Launch account session and Java runtime prepared. InstanceId={InstanceId} JavaSelected={JavaSelected} JavaPath={JavaPath} JavaVersion={JavaVersion} JavaSource={JavaSource}",
-                instance.Id,
-                selectedJavaRuntime is not null,
-                selectedJavaRuntime?.ExecutablePath,
-                selectedJavaRuntime?.Version,
-                selectedJavaRuntime?.Source);
-            progress?.Report(new LauncherProgress(
-                LaunchProgressStages.PreparingProcess,
-                "Preparing launch process",
-                94));
+            var startedProcess = await BuildAndStartProcessAsync(
+                    instance,
+                    settings,
+                    resolvedSettings,
+                    preparedRuntime,
+                    progress,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            process = startedProcess.Process;
 
-            var launcher = launcherFactory.Create(
-                settings.MinecraftDirectory,
-                progress,
-                settings.DownloadSpeedLimitMbPerSecond);
-            var isolatedPath = CreateIsolatedLaunchPath(settings.MinecraftDirectory, versionName);
-            var launchOption = new MLaunchOption
-            {
-                Path = isolatedPath,
-                Session = new MSession(
-                    accountSession.Username,
-                    accountSession.AccessToken,
-                    accountSession.Uuid),
-                MaximumRamMb = memoryMb,
-                ScreenWidth = instance.WindowWidth,
-                ScreenHeight = instance.WindowHeight,
-                FullScreen = shouldLaunchFullScreen,
-                GameLauncherName = "Launcher",
-                GameLauncherVersion = "0.1",
-                JavaPath = ResolveWindowlessJavaPath(selectedJavaRuntime?.ExecutablePath)
-            };
-
-            if (!string.IsNullOrWhiteSpace(jvmArguments))
-                launchOption.ExtraJvmArguments = [MArgument.FromCommandLine(jvmArguments)];
-
-            if (!string.IsNullOrWhiteSpace(gameArguments))
-                launchOption.ExtraGameArguments = [MArgument.FromCommandLine(gameArguments)];
-
-            process = await launcher.BuildProcessAsync(versionName, launchOption, cancellationToken);
-            var crashMonitorSession = crashMonitor.CreateSession(
-                settings.MinecraftDirectory,
-                instance.InstanceDirectory,
-                versionName);
-            crashMonitorSession.Configure(process);
-            ConfigurePostExitCommand(process, postExitCommand, instance.InstanceDirectory);
-            progress?.Report(new LauncherProgress(
-                LaunchProgressStages.StartingProcess,
-                "Starting game process",
-                100));
-            if (!process.Start())
-                throw new InvalidOperationException("Minecraft process did not start.");
-            logger.LogInformation("Minecraft process started. VersionName={VersionName} ProcessId={ProcessId}", versionName, process.Id);
-
-            var quickExitResult = await crashMonitorSession.WaitForQuickExitAsync(
+            var quickExitResult = await startedProcess.CrashMonitorSession.WaitForQuickExitAsync(
                 process,
                 diagnosticContext,
                 cancellationToken);
@@ -271,7 +167,7 @@ public sealed class LaunchService : ILaunchService
                     diagnosticContext);
                 throw new LaunchProcessExitedException(quickExitResult.Report);
             }
-            var session = crashMonitorSession.CreateGameLaunchSession(process, diagnosticContext);
+            var session = startedProcess.CrashMonitorSession.CreateGameLaunchSession(process, diagnosticContext);
             return new GameLaunchSession(
                 session.InstanceId,
                 session.InstanceName,
@@ -337,6 +233,136 @@ public sealed class LaunchService : ILaunchService
                 cancellationToken);
             throw new LaunchFailedException(report, exception);
         }
+    }
+
+    private async Task<PreparedLaunchRuntime> PrepareRuntimeAsync(
+        GameInstance instance,
+        LauncherAccount account,
+        LauncherSettings settings,
+        ResolvedLaunchSettings resolvedSettings,
+        LaunchRequestOptions? options,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(resolvedSettings.PreLaunchCommand))
+        {
+            logger.LogInformation(
+                "Running pre-launch command. InstanceId={InstanceId} WaitForExit={WaitForExit}",
+                instance.Id,
+                resolvedSettings.WaitForPreLaunchCommand);
+            progress?.Report(new LauncherProgress(
+                LaunchProgressStages.RunningPreLaunchCommand,
+                "Running pre-launch command",
+                4));
+            await commandRunner.RunAsync(
+                    resolvedSettings.PreLaunchCommand,
+                    instance.InstanceDirectory,
+                    resolvedSettings.WaitForPreLaunchCommand,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (resolvedSettings.CheckFilesBeforeLaunch)
+        {
+            logger.LogInformation(
+                "Checking game files before launch. VersionName={VersionName} AutoRepair={AutoRepair}",
+                resolvedSettings.VersionName,
+                resolvedSettings.AutoRepairMissingFiles);
+            await versionRepairService.RepairAsync(
+                    settings.MinecraftDirectory,
+                    resolvedSettings.VersionName,
+                    instance.InstanceDirectory,
+                    progress,
+                    resolvedSettings.AutoRepairMissingFiles,
+                    cancellationToken,
+                    downloadSourcePreference: settings.DownloadSourcePreference,
+                    downloadSpeedLimitMbPerSecond: settings.DownloadSpeedLimitMbPerSecond)
+                .ConfigureAwait(false);
+        }
+
+        var accountSession = await accountSessionService.CreateSessionAsync(account, cancellationToken)
+            .ConfigureAwait(false);
+        await ApplyGameLanguageAsync(instance, settings, cancellationToken).ConfigureAwait(false);
+        var javaRuntime = await ResolveJavaRuntimeForLaunchAsync(
+                instance,
+                settings,
+                options,
+                progress,
+                cancellationToken)
+            .ConfigureAwait(false);
+        var diagnosticContext = CreateDiagnosticContext(
+            instance,
+            settings,
+            resolvedSettings.VersionName,
+            javaRuntime,
+            resolvedSettings.MemoryMb,
+            [accountSession.AccessToken]);
+        logger.LogInformation(
+            "Launch account session and Java runtime prepared. InstanceId={InstanceId} JavaSelected={JavaSelected} JavaPath={JavaPath} JavaVersion={JavaVersion} JavaSource={JavaSource}",
+            instance.Id,
+            javaRuntime is not null,
+            javaRuntime?.ExecutablePath,
+            javaRuntime?.Version,
+            javaRuntime?.Source);
+        progress?.Report(new LauncherProgress(
+            LaunchProgressStages.PreparingProcess,
+            "Preparing launch process",
+            94));
+        return new PreparedLaunchRuntime(accountSession, javaRuntime, diagnosticContext);
+    }
+
+    private async Task<StartedLaunchProcess> BuildAndStartProcessAsync(
+        GameInstance instance,
+        LauncherSettings settings,
+        ResolvedLaunchSettings resolvedSettings,
+        PreparedLaunchRuntime preparedRuntime,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var launcher = launcherFactory.Create(
+            settings.MinecraftDirectory,
+            progress,
+            settings.DownloadSpeedLimitMbPerSecond);
+        var launchOption = new MLaunchOption
+        {
+            Path = CreateIsolatedLaunchPath(settings.MinecraftDirectory, resolvedSettings.VersionName),
+            Session = new MSession(
+                preparedRuntime.AccountSession.Username,
+                preparedRuntime.AccountSession.AccessToken,
+                preparedRuntime.AccountSession.Uuid),
+            MaximumRamMb = resolvedSettings.MemoryMb,
+            ScreenWidth = instance.WindowWidth,
+            ScreenHeight = instance.WindowHeight,
+            FullScreen = resolvedSettings.LaunchFullScreen,
+            GameLauncherName = "Launcher",
+            GameLauncherVersion = "0.1",
+            JavaPath = ResolveWindowlessJavaPath(preparedRuntime.JavaRuntime?.ExecutablePath)
+        };
+        if (!string.IsNullOrWhiteSpace(resolvedSettings.JvmArguments))
+            launchOption.ExtraJvmArguments = [MArgument.FromCommandLine(resolvedSettings.JvmArguments)];
+        if (!string.IsNullOrWhiteSpace(resolvedSettings.GameArguments))
+            launchOption.ExtraGameArguments = [MArgument.FromCommandLine(resolvedSettings.GameArguments)];
+
+        var process = await launcher.BuildProcessAsync(
+                resolvedSettings.VersionName,
+                launchOption,
+                cancellationToken)
+            .ConfigureAwait(false);
+        var crashMonitorSession = crashMonitor.CreateSession(
+            settings.MinecraftDirectory,
+            instance.InstanceDirectory,
+            resolvedSettings.VersionName);
+        crashMonitorSession.Configure(process);
+        ConfigurePostExitCommand(process, resolvedSettings.PostExitCommand, instance.InstanceDirectory);
+        progress?.Report(new LauncherProgress(LaunchProgressStages.StartingProcess, "Starting game process", 100));
+        if (!process.Start())
+            throw new InvalidOperationException("Minecraft process did not start.");
+
+        logger.LogInformation(
+            "Minecraft process started. VersionName={VersionName} ProcessId={ProcessId}",
+            resolvedSettings.VersionName,
+            process.Id);
+        return new StartedLaunchProcess(process, crashMonitorSession);
     }
 
     private async Task ApplyGameLanguageAsync(
@@ -466,84 +492,6 @@ public sealed class LaunchService : ILaunchService
             exception,
             failureKind);
         return report;
-    }
-
-    private async Task<int> ResolveMemoryMbAsync(
-        GameInstance instance,
-        LauncherSettings settings,
-        CancellationToken cancellationToken)
-    {
-        if (instance.LaunchSettingsMode is LaunchSettingsMode.PerInstance && instance.MemoryMb > 0)
-        {
-            if (instance.MemorySettingsMode is MemorySettingsMode.Manual)
-                return instance.MemoryMb;
-
-            try
-            {
-                return await ResolveAutomaticMemoryMbAsync(instance, cancellationToken);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                logger.LogWarning(exception, "Failed to calculate automatic instance launch memory. Falling back to configured instance memory.");
-                return NormalizeConfiguredMemoryMb(instance.MemoryMb);
-            }
-        }
-
-        if (settings.DefaultMemorySettingsMode is MemorySettingsMode.Manual)
-            return NormalizeConfiguredMemoryMb(settings.DefaultMemoryMb);
-
-        if (systemMemoryService is null)
-            return NormalizeConfiguredMemoryMb(settings.DefaultMemoryMb);
-
-        try
-        {
-            return await ResolveAutomaticMemoryMbAsync(instance, cancellationToken);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogWarning(exception, "Failed to calculate automatic launch memory. Falling back to configured memory.");
-            return NormalizeConfiguredMemoryMb(settings.DefaultMemoryMb);
-        }
-    }
-
-    private async Task<int> ResolveAutomaticMemoryMbAsync(GameInstance instance, CancellationToken cancellationToken)
-    {
-        if (systemMemoryService is null)
-            return NormalizeConfiguredMemoryMb(instance.MemoryMb);
-
-        var enabledModCount = await CountEnabledModsAsync(instance, cancellationToken);
-        return MemoryAllocationCalculator.CalculateAutomaticMemoryMb(
-            systemMemoryService.GetSnapshot(),
-            instance.Loader,
-            enabledModCount);
-    }
-
-    private async Task<int> CountEnabledModsAsync(GameInstance instance, CancellationToken cancellationToken)
-    {
-        if (modService is null || instance.Loader is LoaderKind.Vanilla)
-            return 0;
-
-        try
-        {
-            var mods = await modService.GetModsAsync(instance, cancellationToken);
-            return mods.Count(mod => mod.IsEnabled);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            logger.LogWarning(
-                exception,
-                "Failed to count enabled mods for automatic memory allocation. InstanceId={InstanceId}",
-                instance.Id);
-            return 0;
-        }
-    }
-
-    private static int NormalizeConfiguredMemoryMb(int memoryMb)
-    {
-        return Math.Clamp(
-            memoryMb,
-            MemoryAllocationCalculator.MinimumMemoryMb,
-            MemoryAllocationCalculator.FallbackMaximumMemoryMb);
     }
 
     private async Task<LaunchExitResult> LogGameExitAsync(
@@ -775,4 +723,13 @@ public sealed class LaunchService : ILaunchService
             logger.LogWarning(exception, "Post-exit command failed. WorkingDirectory={WorkingDirectory}", workingDirectory);
         }
     }
+
+    private sealed record PreparedLaunchRuntime(
+        LaunchAccountSession AccountSession,
+        JavaRuntimeInfo? JavaRuntime,
+        LaunchDiagnosticContext DiagnosticContext);
+
+    private sealed record StartedLaunchProcess(
+        System.Diagnostics.Process Process,
+        ILaunchCrashMonitorSession CrashMonitorSession);
 }

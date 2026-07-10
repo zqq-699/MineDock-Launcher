@@ -228,7 +228,11 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
 
-            LoaderVersionDirectoryTransaction.CopyFinalVersionDirectory(installerMinecraftDirectory, gameDirectory, finalVersionName);
+            LoaderVersionDirectoryTransaction.CopyFinalVersionDirectory(
+                installerMinecraftDirectory,
+                gameDirectory,
+                finalVersionName,
+                cancellationToken);
             MinecraftSharedContentCopier.CopySharedRuntimeContent(installerMinecraftDirectory, gameDirectory, logger);
 
             LoaderVersionDirectoryTransaction.CleanupCreatedVersionDirectories(gameDirectory, existingVersionNames, finalVersionName);

@@ -747,22 +747,21 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
             source,
             archivePaths.Count);
 
-        var successCount = 0;
-        foreach (var archivePath in archivePaths)
-        {
-            logger.LogInformation(
-                "Importing local resource pack archive. InstanceId={InstanceId} ArchivePath={ArchivePath}",
-                selectedInstance.Id,
-                archivePath);
-
-            var result = await localResourcePacksViewModel.ImportResourcePackAsync(archivePath, reportStatus: false);
-            if (result.IsSuccess)
+        var batch = await LocalContentImportBatchCoordinator.ExecuteAsync(
+            archivePaths,
+            async archivePath =>
             {
-                successCount++;
-                continue;
-            }
+                logger.LogInformation(
+                    "Importing local resource pack archive. InstanceId={InstanceId} ArchivePath={ArchivePath}",
+                    selectedInstance.Id,
+                    archivePath);
+                return await localResourcePacksViewModel.ImportResourcePackAsync(archivePath, reportStatus: false);
+            },
+            result => result.IsSuccess);
 
-            switch (result.FailureReason)
+        if (batch.Failure is not null)
+        {
+            switch (batch.Failure.FailureReason)
             {
                 case LocalResourcePackImportFailureReason.UnsupportedArchive:
                     ResourcePackImportFailedRequested?.Invoke(
@@ -775,19 +774,18 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
                     logger.LogWarning(
                         "Local resource pack import failed unexpectedly after service call. InstanceId={InstanceId} ArchivePath={ArchivePath}",
                         selectedInstance.Id,
-                        archivePath);
+                        batch.FailedPath);
                     statusService.Report(Strings.Status_LocalResourcePackImportFailed);
                     break;
             }
-
             return;
         }
 
-        if (successCount > 0)
+        if (batch.SuccessCount > 0)
         {
-            statusService.Report(successCount == 1
+            statusService.Report(batch.SuccessCount == 1
                 ? Strings.Status_LocalResourcePackImported
-                : string.Format(Strings.Status_LocalResourcePacksImportedFormat, successCount));
+                : string.Format(Strings.Status_LocalResourcePacksImportedFormat, batch.SuccessCount));
         }
     }
 

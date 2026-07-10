@@ -293,7 +293,11 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
 
-            LoaderVersionDirectoryTransaction.CopyFinalVersionDirectory(installerMinecraftDirectory, gameDirectory, finalVersionName);
+            LoaderVersionDirectoryTransaction.CopyFinalVersionDirectory(
+                installerMinecraftDirectory,
+                gameDirectory,
+                finalVersionName,
+                cancellationToken);
             MinecraftSharedContentCopier.CopySharedRuntimeContent(installerMinecraftDirectory, gameDirectory, logger);
 
             LoaderVersionDirectoryTransaction.CleanupCreatedVersionDirectories(gameDirectory, existingVersionNames, finalVersionName);

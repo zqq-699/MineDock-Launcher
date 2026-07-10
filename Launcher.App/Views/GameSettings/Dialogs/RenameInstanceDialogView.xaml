@@ -60,29 +60,29 @@
         </Grid.RowDefinitions>
 
         <StackPanel>
-            <TextBlock Text="{Binding EditDialog.EditInstanceDialogTitle}"
+            <TextBlock Text="{Binding EditInstanceDialogTitle}"
                        Style="{StaticResource DialogTitleTextStyle}" />
-            <TextBlock Text="{Binding EditDialog.EditInstanceDialogSubtitle}"
+            <TextBlock Text="{Binding EditInstanceDialogSubtitle}"
                        Style="{StaticResource DialogSubtitleTextStyle}" />
         </StackPanel>
 
         <StackPanel Grid.Row="1"
                     Style="{StaticResource DialogFormPanelStyle}"
-                    Visibility="{Binding EditDialog.IsEditInstanceInputStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                    Visibility="{Binding IsEditInstanceInputStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
             <TextBlock Text="{x:Static res:Strings.GameSettings_InstanceNameLabel}"
                        Style="{StaticResource DialogFieldLabelTextStyle}" />
             <TextBox Style="{StaticResource LauncherDialogTextBoxStyle}"
-                     Text="{Binding EditDialog.InstanceName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                     Text="{Binding InstanceName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
             <TextBlock Text="{x:Static res:Strings.GameSettings_InstanceNameValidation}"
                        Style="{StaticResource DialogValidationTextStyle}"
-                       Visibility="{Binding EditDialog.IsInstanceNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                       Visibility="{Binding IsInstanceNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
             <TextBlock Margin="0,20,0,8"
                        Text="{x:Static res:Strings.GameSettings_InstanceIconLabel}"
                        Style="{StaticResource DialogFieldLabelTextStyle}" />
 
-            <controls:AnimatedComboBox ItemsSource="{Binding EditDialog.IconOptions}"
-                                       SelectedItem="{Binding EditDialog.SelectedIconOption, Mode=TwoWay}"
+            <controls:AnimatedComboBox ItemsSource="{Binding IconOptions}"
+                                       SelectedItem="{Binding SelectedIconOption, Mode=TwoWay}"
                                        SelectionItemTemplate="{StaticResource IconOptionTemplate}"
                                        ItemTemplate="{StaticResource IconOptionTemplate}"
                                        Style="{StaticResource LauncherComboBoxStyle}" />
@@ -90,13 +90,13 @@
 
         <StackPanel Grid.Row="1"
                     Style="{StaticResource DialogFormPanelStyle}"
-                    Visibility="{Binding EditDialog.IsEditInstanceMessageStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                    Visibility="{Binding IsEditInstanceMessageStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
             <Grid Width="34"
                   Height="34"
                   HorizontalAlignment="Center">
                 <controls:SvgIcon Width="30"
                                   Height="30"
-                                  IconKey="{Binding EditDialog.EditInstanceGlyphIconKey}"
+                                  IconKey="{Binding EditInstanceGlyphIconKey}"
                                   HorizontalAlignment="Center"
                                   VerticalAlignment="Center">
                     <controls:SvgIcon.Style>
@@ -104,19 +104,19 @@
                             <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
                             <Setter Property="Visibility" Value="Visible" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding EditDialog.EditInstanceGlyphIconKey}" Value="{x:Null}">
+                                <DataTrigger Binding="{Binding EditInstanceGlyphIconKey}" Value="{x:Null}">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding EditDialog.IsEditInstanceSuccessful}" Value="True">
+                                <DataTrigger Binding="{Binding IsEditInstanceSuccessful}" Value="True">
                                     <Setter Property="Foreground" Value="{DynamicResource Brush.7DFFB2}" />
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding EditDialog.IsEditInstanceResultStep}" Value="True">
+                                <DataTrigger Binding="{Binding IsEditInstanceResultStep}" Value="True">
                                     <Setter Property="Foreground" Value="{DynamicResource Brush.FF8A8A}" />
                                 </DataTrigger>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding EditDialog.IsEditInstanceResultStep}" Value="True" />
-                                        <Condition Binding="{Binding EditDialog.IsEditInstanceSuccessful}" Value="True" />
+                                        <Condition Binding="{Binding IsEditInstanceResultStep}" Value="True" />
+                                        <Condition Binding="{Binding IsEditInstanceSuccessful}" Value="True" />
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Foreground" Value="{DynamicResource Brush.7DFFB2}" />
                                 </MultiDataTrigger>
@@ -125,7 +125,7 @@
                     </controls:SvgIcon.Style>
                 </controls:SvgIcon>
 
-                <TextBlock Text="{Binding EditDialog.EditInstanceGlyph}"
+                <TextBlock Text="{Binding EditInstanceGlyph}"
                            FontFamily="{DynamicResource LauncherIconFontFamily}"
                            FontSize="30"
                            HorizontalAlignment="Center"
@@ -136,7 +136,7 @@
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding EditDialog.EditInstanceGlyphIconKey}" Value="{x:Null}">
+                                <DataTrigger Binding="{Binding EditInstanceGlyphIconKey}" Value="{x:Null}">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
                             </Style.Triggers>
@@ -146,7 +146,7 @@
             </Grid>
 
             <TextBlock Margin="0,16,0,0"
-                       Text="{Binding EditDialog.EditInstanceMessage}"
+                       Text="{Binding EditInstanceMessage}"
                        Style="{StaticResource DialogBodyTextStyle}"
                        TextAlignment="Center" />
         </StackPanel>
@@ -155,13 +155,13 @@
                     Style="{StaticResource DialogFooterStyle}">
             <Button Style="{StaticResource LauncherDialogButtonStyle}"
                     Content="{x:Static res:Strings.Cancel_Button}"
-                    Command="{Binding CancelEditInstanceDialogCommand}"
-                    Visibility="{Binding EditDialog.CanShowEditInstanceCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+                    Command="{Binding CancelCommand}"
+                    Visibility="{Binding CanShowEditInstanceCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
             <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                     Margin="{StaticResource DialogTrailingButtonMargin}"
                     Content="{x:Static res:Strings.Confirm_Button}"
-                    IsEnabled="{Binding EditDialog.CanConfirmEditInstanceDialog}"
-                    Command="{Binding ConfirmEditInstanceDialogCommand}" />
+                    IsEnabled="{Binding CanConfirmEditInstanceDialog}"
+                    Command="{Binding ConfirmCommand}" />
         </StackPanel>
     </Grid>
 </UserControl>

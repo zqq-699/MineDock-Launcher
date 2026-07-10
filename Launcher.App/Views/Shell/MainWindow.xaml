@@ -194,8 +194,8 @@
                                  Grid.RowSpan="2"
                                  DialogWidth="420"
                                  UseIntegratedOverlay="True"
-                                 IsOpen="{Binding EditDialog.IsEditInstanceDialogOpen}"
-                                 DataContext="{Binding GameSettingsPage}">
+                                 IsOpen="{Binding IsEditInstanceDialogOpen}"
+                                 DataContext="{Binding GameSettingsPage.EditDialog}">
                 <gameSettingsDialogViews:RenameInstanceDialogView />
             </controls:DialogHost>
 
@@ -476,7 +476,7 @@
                                  DialogWidth="380"
                                  UseIntegratedOverlay="True"
                                  IsOpen="{Binding IsDeleteInstanceDialogOpen}"
-                                 DataContext="{Binding GameSettingsPage}">
+                                 DataContext="{Binding GameSettingsPage.Dialogs}">
                 <Grid Style="{StaticResource DialogContentGridStyle}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -707,8 +707,8 @@
                                  Grid.RowSpan="2"
                                  DialogWidth="380"
                                  UseIntegratedOverlay="True"
-                                 IsOpen="{Binding IsDeleteModsDialogOpen}"
-                                 DataContext="{Binding GameSettingsPage}">
+                                 IsOpen="{Binding IsDeleteContentDialogOpen}"
+                                 DataContext="{Binding GameSettingsPage.Dialogs}">
                 <Grid Style="{StaticResource DialogContentGridStyle}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -716,23 +716,23 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Text="{Binding DeleteModsDialogTitle}"
+                    <TextBlock Text="{Binding DeleteContentDialogTitle}"
                                Style="{StaticResource DialogTitleTextStyle}" />
 
                     <TextBlock Grid.Row="1"
                                Margin="0,16,0,24"
-                               Text="{Binding DeleteModsDialogMessage}"
+                               Text="{Binding DeleteContentDialogMessage}"
                                Style="{StaticResource DialogBodyTextStyle}" />
 
                     <StackPanel Grid.Row="2"
                                 Style="{StaticResource DialogFooterStyle}">
                         <Button Style="{StaticResource LauncherDialogButtonStyle}"
                                 Content="{x:Static res:Strings.Cancel_Button}"
-                                Command="{Binding CancelDeleteModsDialogCommand}" />
+                                Command="{Binding CancelDeleteContentDialogCommand}" />
                         <Button Style="{StaticResource LauncherDangerDialogButtonStyle}"
                                 Margin="{StaticResource DialogTrailingButtonMargin}"
                                 Content="{x:Static res:Strings.Delete_Button}"
-                                Command="{Binding ConfirmDeleteModsDialogCommand}" />
+                                Command="{Binding ConfirmDeleteContentDialogCommand}" />
                     </StackPanel>
                 </Grid>
             </controls:DialogHost>
@@ -743,7 +743,7 @@
                                  DialogWidth="380"
                                  UseIntegratedOverlay="True"
                                  IsOpen="{Binding IsReplaceModImportDialogOpen}"
-                                 DataContext="{Binding GameSettingsPage}">
+                                 DataContext="{Binding GameSettingsPage.Dialogs}">
                 <Grid Style="{StaticResource DialogContentGridStyle}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -777,8 +777,8 @@
                                  Grid.RowSpan="2"
                                  DialogWidth="380"
                                  UseIntegratedOverlay="True"
-                                 IsOpen="{Binding IsInvalidSaveImportDialogOpen}"
-                                 DataContext="{Binding GameSettingsPage}">
+                                 IsOpen="{Binding IsInvalidImportDialogOpen}"
+                                 DataContext="{Binding GameSettingsPage.Dialogs}">
                 <Grid Style="{StaticResource DialogContentGridStyle}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -786,19 +786,19 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Text="{Binding InvalidSaveImportDialogTitle}"
+                    <TextBlock Text="{Binding InvalidImportDialogTitle}"
                                Style="{StaticResource DialogTitleTextStyle}" />
 
                     <TextBlock Grid.Row="1"
                                Margin="0,16,0,24"
-                               Text="{Binding InvalidSaveImportDialogMessage}"
+                               Text="{Binding InvalidImportDialogMessage}"
                                Style="{StaticResource DialogBodyTextStyle}" />
 
                     <StackPanel Grid.Row="2"
                                 Style="{StaticResource DialogFooterStyle}">
                         <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                                 Content="{x:Static res:Strings.Confirm_Button}"
-                                Command="{Binding CloseInvalidSaveImportDialogCommand}" />
+                                Command="{Binding CloseInvalidImportDialogCommand}" />
                     </StackPanel>
                 </Grid>
             </controls:DialogHost>

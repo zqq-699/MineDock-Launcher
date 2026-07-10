@@ -99,6 +99,10 @@ public partial class App : System.Windows.Application
             services.AddSingleton<DownloadTasksPageViewModel>();
             services.AddSingleton<DownloadLocalImportDialogViewModel>();
             services.AddSingleton<DownloadPageViewModel>();
+            services.AddSingleton<GameSettingsEditDialogViewModel>();
+            services.AddSingleton<GameSettingsDetailsViewModel>();
+            services.AddSingleton<GameSettingsInstanceListViewModel>();
+            services.AddSingleton<GameSettingsDialogsViewModel>();
             services.AddSingleton<GameSettingsPageViewModel>();
             services.AddSingleton<ResourcesPageViewModel>();
             services.AddSingleton<SettingsPageViewModel>();

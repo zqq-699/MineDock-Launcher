@@ -23,7 +23,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
-using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -32,137 +31,55 @@ namespace Launcher.App.ViewModels.GameSettings;
 
 public sealed partial class GameSettingsPageViewModel : ObservableObject
 {
-    private readonly IGameInstanceService instanceService;
-    private readonly IGameVersionService gameVersionService;
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
     private readonly IFloatingMessageService floatingMessageService;
     private readonly ILogger<GameSettingsPageViewModel> logger;
-    private IReadOnlyDictionary<string, string> versionTypesByName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-    private bool hasLoadedInstances;
-    private string lastImportDropHintMessage = string.Empty;
     private INotifyPropertyChanged? selectedInstanceNotifier;
-
-    [ObservableProperty]
-    private GameSettingsInstanceCategory? selectedInstanceCategory;
-
-    [ObservableProperty]
-    private GameSettingsInstanceItem? selectedInstance;
+    private string lastImportDropHintMessage = string.Empty;
 
     [ObservableProperty]
     private GameSettingsPageStep currentStep = GameSettingsPageStep.List;
 
-    [ObservableProperty]
-    private bool isLoadingInstances;
-
-    [ObservableProperty]
-    private string instanceLoadError = string.Empty;
-
-    [ObservableProperty]
-    private string instanceEmptyMessage = string.Empty;
-
-    [ObservableProperty]
-    private string instanceSearchQuery = string.Empty;
-
-    [ObservableProperty]
-    private int listEntranceAnimationToken;
-
-    [ObservableProperty]
-    private bool isDeleteInstanceDialogOpen;
-
-    [ObservableProperty]
-    private GameSettingsInstanceItem? instancePendingDelete;
-
-    [ObservableProperty]
-    private bool isDeleteModsDialogOpen;
-
-    [ObservableProperty]
-    private ModDeleteRequest? pendingDeleteMods;
-
-    [ObservableProperty]
-    private SaveDeleteRequest? pendingDeleteSaves;
-
-    [ObservableProperty]
-    private ResourcePackDeleteRequest? pendingDeleteResourcePacks;
-
-    [ObservableProperty]
-    private ShaderPackDeleteRequest? pendingDeleteShaderPacks;
-
-    [ObservableProperty]
-    private bool isReplaceModImportDialogOpen;
-
-    [ObservableProperty]
-    private ModImportConflictRequest? pendingModImportConflict;
-
-    [ObservableProperty]
-    private bool isInvalidSaveImportDialogOpen;
-
-    [ObservableProperty]
-    private string invalidSaveImportDialogMessage = string.Empty;
-
-    [ObservableProperty]
-    private string invalidSaveImportDialogTitle = Strings.Dialog_InvalidSaveImportTitle;
-
     public GameSettingsPageViewModel(
-        IGameInstanceService instanceService,
-        IGameVersionService gameVersionService,
+        GameSettingsInstanceListViewModel instanceList,
+        GameSettingsDetailsViewModel details,
+        GameSettingsEditDialogViewModel editDialog,
+        GameSettingsDialogsViewModel dialogs,
         IStatusService statusService,
         IInstanceFolderService instanceFolderService,
-        ISystemMemoryService systemMemoryService,
-        IModService modService,
-        IInstanceBackupService backupService,
-        LocalModsViewModel localModsViewModel,
-        LocalSavesViewModel localSavesViewModel,
-        LocalResourcePacksViewModel localResourcePacksViewModel,
-        LocalShaderPacksViewModel localShaderPacksViewModel,
-        IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService,
-        IFilePickerService filePickerService,
-        IInstanceContentImportPathValidator importPathValidator,
         IFloatingMessageService floatingMessageService,
-        IUiDispatcher uiDispatcher,
-        ILogger<GameSettingsPageViewModel>? logger = null,
-        IModpackExportService? modpackExportService = null)
+        ILogger<GameSettingsPageViewModel>? logger = null)
     {
-        this.instanceService = instanceService;
-        this.gameVersionService = gameVersionService;
+        InstanceList = instanceList;
+        Details = details;
+        EditDialog = editDialog;
+        Dialogs = dialogs;
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
         this.floatingMessageService = floatingMessageService;
         this.logger = logger ?? NullLogger<GameSettingsPageViewModel>.Instance;
-        EditDialog = new GameSettingsEditDialogViewModel(instanceService, statusService);
-        Details = new GameSettingsDetailsViewModel(
-            EditDialog,
-            instanceService,
-            statusService,
-            instanceFolderService,
-            systemMemoryService,
-            modService,
-            backupService,
-            localModsViewModel,
-            localSavesViewModel,
-            localResourcePacksViewModel,
-            localShaderPacksViewModel,
-            javaRuntimeDiscoveryService,
-            filePickerService,
-            importPathValidator,
-            floatingMessageService,
-            uiDispatcher,
-            this.logger,
-            modpackExportService);
+
+        foreach (var section in GameSettingsDetailSectionFactory.Create())
+            DetailSections.Add(section);
+        SelectDetailsSectionCore(DetailSections.FirstOrDefault());
+
+        InstanceList.PropertyChanged += InstanceList_PropertyChanged;
         EditDialog.InstanceUpdated += EditDialog_InstanceUpdated;
         EditDialog.InstanceRenameStarting += EditDialog_InstanceRenameStarting;
         EditDialog.InstanceRenameFinished += EditDialog_InstanceRenameFinished;
+        Dialogs.InstanceDeleted += Dialogs_InstanceDeleted;
         Details.InstanceSettingsSaved += Details_InstanceSettingsSaved;
-        Details.DeleteInstanceRequested += Details_DeleteInstanceRequested;
-        Details.DeleteModsRequested += Details_DeleteModsRequested;
-        Details.DeleteSavesRequested += Details_DeleteSavesRequested;
-        Details.DeleteResourcePacksRequested += Details_DeleteResourcePacksRequested;
-        Details.DeleteShaderPacksRequested += Details_DeleteShaderPacksRequested;
-        Details.ImportModConflictRequested += Details_ImportModConflictRequested;
+        Details.DeleteInstanceRequested += Dialogs.OpenDeleteInstance;
+        Details.DeleteModsRequested += Dialogs.OpenDeleteMods;
+        Details.DeleteSavesRequested += Dialogs.OpenDeleteSaves;
+        Details.DeleteResourcePacksRequested += Dialogs.OpenDeleteResourcePacks;
+        Details.DeleteShaderPacksRequested += Dialogs.OpenDeleteShaderPacks;
+        Details.ImportModConflictRequested += Dialogs.OpenModImportConflict;
+        Details.SaveImportFailedRequested += Dialogs.OpenSaveImportFailure;
+        Details.ResourcePackImportFailedRequested += Dialogs.OpenResourcePackImportFailure;
+        Details.ShaderPackImportFailedRequested += Dialogs.OpenShaderPackImportFailure;
         Details.OnlineModInstallRequested += Details_OnlineModInstallRequested;
-        Details.SaveImportFailedRequested += Details_SaveImportFailedRequested;
-        Details.ResourcePackImportFailedRequested += Details_ResourcePackImportFailedRequested;
-        Details.ShaderPackImportFailedRequested += Details_ShaderPackImportFailedRequested;
         Details.PropertyChanged += Details_PropertyChanged;
         Details.ModManagement.PropertyChanged += ModManagement_PropertyChanged;
         Details.SaveManagement.PropertyChanged += SaveManagement_PropertyChanged;
@@ -170,17 +87,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         Details.ShaderPackManagement.PropertyChanged += ShaderPackManagement_PropertyChanged;
         Details.Backup.PropertyChanged += Backup_PropertyChanged;
 
-        InstanceCategories.Add(new GameSettingsInstanceCategory("all", Strings.GameSettings_AllCategory, string.Empty, "general/general_all_application"));
-        InstanceCategories.Add(new GameSettingsInstanceCategory("mod_loader", Strings.GameSettings_ModLoaderCategory, string.Empty, "general/general_extention"));
-        InstanceCategories.Add(new GameSettingsInstanceCategory("release", Strings.Download_ReleaseCategory, string.Empty, "instance_download_page/release"));
-        InstanceCategories.Add(new GameSettingsInstanceCategory("snapshot", Strings.Download_SnapshotCategory, string.Empty, "instance_download_page/snapshot"));
-        InstanceCategories.Add(new GameSettingsInstanceCategory("old_beta", Strings.Download_BetaCategory, "\u03b2"));
-        InstanceCategories.Add(new GameSettingsInstanceCategory("old_alpha", Strings.Download_AlphaCategory, "\u03b1"));
-        foreach (var section in GameSettingsDetailSectionFactory.Create())
-            DetailSections.Add(section);
-
-        SelectInstanceCategoryCore(InstanceCategories.First());
-        SelectDetailsSectionCore(DetailSections.FirstOrDefault());
+        HandleSelectedInstanceChanged();
     }
 
     public event Action<GameInstance>? LaunchInstanceRequested;
@@ -189,57 +96,43 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     public event Action<GameInstance>? OnlineModInstallRequested;
 
-    public ObservableCollection<GameSettingsInstanceCategory> InstanceCategories { get; } = [];
-
-    public ObservableCollection<GameSettingsDetailSectionItem> DetailSections { get; } = [];
+    public GameSettingsInstanceListViewModel InstanceList { get; }
 
     public GameSettingsDetailsViewModel Details { get; }
 
     public GameSettingsEditDialogViewModel EditDialog { get; }
 
-    public List<GameSettingsInstanceItem> AllInstances { get; } = [];
+    public GameSettingsDialogsViewModel Dialogs { get; }
 
-    public ObservableCollection<GameSettingsInstanceItem> VisibleInstances { get; } = [];
+    public ObservableCollection<GameSettingsDetailSectionItem> DetailSections { get; } = [];
 
     public bool IsListStep => CurrentStep is GameSettingsPageStep.List;
 
     public bool IsDetailsStep => CurrentStep is GameSettingsPageStep.Details;
 
-    public bool HasVisibleInstances => VisibleInstances.Count > 0;
-
-    public bool HasInstanceLoadError => !string.IsNullOrWhiteSpace(InstanceLoadError);
-
-    public bool HasInstanceEmptyMessage => !string.IsNullOrWhiteSpace(InstanceEmptyMessage);
-
     public System.Collections.IEnumerable CurrentSecondaryMenuItems => IsDetailsStep
-        ? (System.Collections.IEnumerable)DetailSections
-        : InstanceCategories;
+        ? DetailSections
+        : InstanceList.Categories;
 
-    public string PageTitle => IsDetailsStep && SelectedInstance is not null
-        ? SelectedInstance.Name
-        : SelectedInstanceCategory?.Title ?? Strings.GameSettings_AllCategory;
+    public string PageTitle => IsDetailsStep && InstanceList.SelectedInstance is not null
+        ? InstanceList.SelectedInstance.Name
+        : InstanceList.SelectedCategory?.Title ?? Strings.GameSettings_AllCategory;
 
-    public string? PageTitleIconSource => IsDetailsStep && SelectedInstance is not null
-        ? SelectedInstance.IconSource
+    public string? PageTitleIconSource => IsDetailsStep
+        ? InstanceList.SelectedInstance?.IconSource
         : null;
 
-    public bool IsModManagementDetailsStep => IsDetailsStep
-        && string.Equals(Details.SelectedSection?.Id, "mod_management", StringComparison.OrdinalIgnoreCase);
+    public bool IsModManagementDetailsStep => IsDetailsSection("mod_management");
 
-    public bool IsSaveManagementDetailsStep => IsDetailsStep
-        && string.Equals(Details.SelectedSection?.Id, "saves", StringComparison.OrdinalIgnoreCase);
+    public bool IsSaveManagementDetailsStep => IsDetailsSection("saves");
 
-    public bool IsResourcePackManagementDetailsStep => IsDetailsStep
-        && string.Equals(Details.SelectedSection?.Id, "resource_packs", StringComparison.OrdinalIgnoreCase);
+    public bool IsResourcePackManagementDetailsStep => IsDetailsSection("resource_packs");
 
-    public bool IsShaderPackManagementDetailsStep => IsDetailsStep
-        && string.Equals(Details.SelectedSection?.Id, "shaders", StringComparison.OrdinalIgnoreCase);
+    public bool IsShaderPackManagementDetailsStep => IsDetailsSection("shaders");
 
-    public bool IsBackupManagementDetailsStep => IsDetailsStep
-        && string.Equals(Details.SelectedSection?.Id, "backup", StringComparison.OrdinalIgnoreCase);
+    public bool IsBackupManagementDetailsStep => IsDetailsSection("backup");
 
-    public bool IsExportDetailsStep => IsDetailsStep
-        && string.Equals(Details.SelectedSection?.Id, "export", StringComparison.OrdinalIgnoreCase);
+    public bool IsExportDetailsStep => IsDetailsSection("export");
 
     public bool IsTopResourceManagementDetailsStep => IsModManagementDetailsStep
         || IsSaveManagementDetailsStep
@@ -263,103 +156,25 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
                 return Details.ShaderPackManagement.ShaderPackSearchQuery;
             if (IsBackupManagementDetailsStep)
                 return Details.Backup.BackupSearchQuery;
-
-            return InstanceSearchQuery;
+            return InstanceList.SearchQuery;
         }
         set
         {
             if (IsModManagementDetailsStep)
-            {
                 Details.ModManagement.ModSearchQuery = value;
-                OnPropertyChanged();
-                return;
-            }
-
-            if (IsSaveManagementDetailsStep)
-            {
+            else if (IsSaveManagementDetailsStep)
                 Details.SaveManagement.SaveSearchQuery = value;
-                OnPropertyChanged();
-                return;
-            }
-
-            if (IsResourcePackManagementDetailsStep)
-            {
+            else if (IsResourcePackManagementDetailsStep)
                 Details.ResourcePackManagement.ResourcePackSearchQuery = value;
-                OnPropertyChanged();
-                return;
-            }
-
-            if (IsShaderPackManagementDetailsStep)
-            {
+            else if (IsShaderPackManagementDetailsStep)
                 Details.ShaderPackManagement.ShaderPackSearchQuery = value;
-                OnPropertyChanged();
-                return;
-            }
-
-            if (IsBackupManagementDetailsStep)
-            {
+            else if (IsBackupManagementDetailsStep)
                 Details.Backup.BackupSearchQuery = value;
-                OnPropertyChanged();
-                return;
-            }
-
-            if (IsListStep)
-            {
-                InstanceSearchQuery = value;
-                OnPropertyChanged();
-            }
+            else if (IsListStep)
+                InstanceList.SearchQuery = value;
+            OnPropertyChanged();
         }
     }
-
-    public string DeleteInstanceDialogMessage => InstancePendingDelete is null
-        ? string.Empty
-        : string.Format(Strings.Dialog_DeleteInstanceMessageFormat, InstancePendingDelete.Name);
-
-    public string DeleteModsDialogMessage
-    {
-        get
-        {
-            if (PendingDeleteSaves is not null)
-            {
-                return PendingDeleteSaves.Titles.Count == 1
-                    ? string.Format(Strings.Dialog_DeleteSingleSaveMessageFormat, PendingDeleteSaves.Titles[0])
-                    : string.Format(Strings.Dialog_DeleteMultipleSavesMessageFormat, PendingDeleteSaves.Titles.Count);
-            }
-
-            if (PendingDeleteResourcePacks is not null)
-            {
-                return PendingDeleteResourcePacks.Titles.Count == 1
-                    ? string.Format(Strings.Dialog_DeleteSingleResourcePackMessageFormat, PendingDeleteResourcePacks.Titles[0])
-                    : string.Format(Strings.Dialog_DeleteMultipleResourcePacksMessageFormat, PendingDeleteResourcePacks.Titles.Count);
-            }
-
-            if (PendingDeleteShaderPacks is not null)
-            {
-                return PendingDeleteShaderPacks.Titles.Count == 1
-                    ? string.Format(Strings.Dialog_DeleteSingleShaderPackMessageFormat, PendingDeleteShaderPacks.Titles[0])
-                    : string.Format(Strings.Dialog_DeleteMultipleShaderPacksMessageFormat, PendingDeleteShaderPacks.Titles.Count);
-            }
-
-            if (PendingDeleteMods is null)
-                return string.Empty;
-
-            return PendingDeleteMods.Titles.Count == 1
-                ? string.Format(Strings.Dialog_DeleteSingleModMessageFormat, PendingDeleteMods.Titles[0])
-                : string.Format(Strings.Dialog_DeleteMultipleModsMessageFormat, PendingDeleteMods.Titles.Count);
-        }
-    }
-
-    public string DeleteModsDialogTitle => PendingDeleteSaves is not null
-        ? Strings.Dialog_DeleteSavesTitle
-        : PendingDeleteResourcePacks is not null
-            ? Strings.Dialog_DeleteResourcePacksTitle
-            : PendingDeleteShaderPacks is not null
-                ? Strings.Dialog_DeleteShaderPacksTitle
-            : Strings.Dialog_DeleteModsTitle;
-
-    public string ReplaceModImportDialogMessage => PendingModImportConflict is null
-        ? string.Empty
-        : string.Format(Strings.Dialog_ReplaceModImportMessageFormat, PendingModImportConflict.FileName);
 
     public bool UpdateImportDropState(IReadOnlyList<string> paths)
     {
@@ -383,7 +198,6 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             ClearImportDropState();
             return;
         }
-
         ClearImportDropState();
         if (!evaluation.CanAccept)
             return;
@@ -393,7 +207,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
                 "Handling game settings import drop. Section={SectionId} FileCount={FileCount} InstanceId={InstanceId}",
                 Details.SelectedSection?.Id ?? "<none>",
                 paths.Count,
-                SelectedInstance?.Instance.Id ?? "<none>");
+                InstanceList.SelectedInstance?.Instance.Id ?? "<none>");
             await Details.HandleImportDropAsync(paths);
         }
         finally
@@ -402,53 +216,29 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         }
     }
 
-    public void PrimeFromSettings(LauncherSettings launcherSettings)
-    {
-        Details.PrimeFromSettings(launcherSettings);
-    }
+    public void PrimeFromSettings(LauncherSettings settings) => Details.PrimeFromSettings(settings);
 
-    public async Task EnsureInstancesLoadedAsync(CancellationToken cancellationToken = default)
-    {
-        if (hasLoadedInstances || IsLoadingInstances)
-            return;
-
-        await RefreshInstancesCoreAsync(playEntranceAnimation: true, clearVisibleInstancesBeforeRefresh: true, logRefreshResult: true, cancellationToken: cancellationToken);
-    }
+    public Task EnsureInstancesLoadedAsync(CancellationToken cancellationToken = default) =>
+        InstanceList.EnsureLoadedAsync(cancellationToken);
 
     [RelayCommand]
-    public async Task RefreshInstancesAsync(CancellationToken cancellationToken = default)
-    {
-        await RefreshInstancesCoreAsync(playEntranceAnimation: true, clearVisibleInstancesBeforeRefresh: true, logRefreshResult: true, cancellationToken: cancellationToken);
-    }
+    public Task RefreshInstancesAsync(CancellationToken cancellationToken = default) =>
+        InstanceList.RefreshAsync(cancellationToken);
 
-    public async Task RefreshInstancesForPageActivationAsync(CancellationToken cancellationToken = default)
-    {
-        await RefreshInstancesCoreAsync(
-            playEntranceAnimation: !hasLoadedInstances,
-            clearVisibleInstancesBeforeRefresh: !hasLoadedInstances,
-            logRefreshResult: true,
-            cancellationToken);
-    }
+    public Task RefreshInstancesForPageActivationAsync(CancellationToken cancellationToken = default) =>
+        InstanceList.RefreshForActivationAsync(cancellationToken);
 
-    public async Task RefreshInstancesSilentlyAsync(CancellationToken cancellationToken = default)
-    {
-        await RefreshInstancesCoreAsync(playEntranceAnimation: false, clearVisibleInstancesBeforeRefresh: false, logRefreshResult: false, cancellationToken: cancellationToken);
-    }
+    public Task RefreshInstancesSilentlyAsync(CancellationToken cancellationToken = default) =>
+        InstanceList.RefreshSilentlyAsync(cancellationToken);
 
     public async Task OpenInstanceDetailsAsync(GameInstance? instance, CancellationToken cancellationToken = default)
     {
-        await OpenInstanceDetailsAsync(instance, sectionId: null, cancellationToken);
+        await OpenInstanceDetailsAsync(instance, null, cancellationToken);
     }
 
-    private async Task OpenInstanceDetailsAsync(GameInstance? instance, string? sectionId, CancellationToken cancellationToken = default)
+    public async Task OpenInstanceJavaSettingsAsync(GameInstance instance, CancellationToken cancellationToken = default)
     {
-        await RefreshInstancesCoreAsync(
-            playEntranceAnimation: !hasLoadedInstances,
-            clearVisibleInstancesBeforeRefresh: !hasLoadedInstances,
-            logRefreshResult: true,
-            cancellationToken);
-
-        ShowInstanceDetails(instance, sectionId);
+        await OpenInstanceDetailsAsync(instance, "java", cancellationToken);
     }
 
     public void ShowInstanceDetails(GameInstance? instance, string? sectionId = null)
@@ -458,109 +248,30 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             CurrentStep = GameSettingsPageStep.List;
             return;
         }
-
-        var targetItem = FindInstanceItem(instance.Id);
-        if (targetItem is null)
-        {
-            targetItem = CreateInstanceItem(instance);
-            AllInstances.Add(targetItem);
-            RefreshVisibleInstances();
-        }
-
-        SelectInstanceCore(targetItem);
+        var item = InstanceList.GetOrAdd(instance);
+        InstanceList.SelectInstance(item);
         SelectDetailsSectionCore(ResolveDetailSection(sectionId));
         CurrentStep = GameSettingsPageStep.Details;
     }
 
-    public async Task OpenInstanceJavaSettingsAsync(GameInstance instance, CancellationToken cancellationToken = default)
-    {
-        await OpenInstanceDetailsAsync(instance, "java", cancellationToken);
-    }
-
-    private async Task RefreshInstancesCoreAsync(
-        bool playEntranceAnimation,
-        bool clearVisibleInstancesBeforeRefresh,
-        bool logRefreshResult,
-        CancellationToken cancellationToken = default)
-    {
-        if (IsLoadingInstances)
-            return;
-
-        IsLoadingInstances = true;
-        InstanceLoadError = string.Empty;
-        InstanceEmptyMessage = string.Empty;
-        if (clearVisibleInstancesBeforeRefresh)
-            ClearVisibleInstances();
-        var selectedInstanceId = SelectedInstance?.Instance.Id;
-
-        try
-        {
-            var instances = await instanceService.GetInstancesAsync(cancellationToken);
-            var versionTypes = await LoadVersionTypesAsync(cancellationToken);
-            versionTypesByName = versionTypes;
-
-            ReconcileAllInstances(instances);
-            RestoreSelectedInstance(selectedInstanceId);
-            hasLoadedInstances = true;
-        }
-        catch (Exception)
-        {
-            InstanceLoadError = Strings.Status_LoadInstancesFailed;
-            hasLoadedInstances = false;
-        }
-        finally
-        {
-            IsLoadingInstances = false;
-
-            if (hasLoadedInstances && playEntranceAnimation)
-                ListEntranceAnimationToken++;
-
-            RefreshVisibleInstances();
-            if (hasLoadedInstances && logRefreshResult)
-            {
-                logger.LogInformation(
-                    "Game settings instances refreshed. Count={InstanceCount} VisibleCount={VisibleCount} SelectedInstanceId={SelectedInstanceId}",
-                    AllInstances.Count,
-                    VisibleInstances.Count,
-                    SelectedInstance?.Instance.Id);
-            }
-        }
-    }
-
-    [RelayCommand]
-    private Task SelectInstanceCategoryAsync(GameSettingsInstanceCategory category)
-    {
-        var isCategorySwitch = !ReferenceEquals(SelectedInstanceCategory, category)
-            && !string.Equals(SelectedInstanceCategory?.Id, category.Id, StringComparison.OrdinalIgnoreCase);
-
-        SelectInstanceCategoryCore(category);
-        if (hasLoadedInstances && isCategorySwitch)
-            ListEntranceAnimationToken++;
-
-        return Task.CompletedTask;
-    }
+    public void AddOrUpdateInstance(GameInstance instance) => InstanceList.AddOrUpdate(instance);
 
     [RelayCommand]
     private void SelectInstance(GameSettingsInstanceItem instance)
     {
-        SelectInstanceCore(instance);
+        InstanceList.SelectInstance(instance);
         SelectDetailsSectionCore(DetailSections.FirstOrDefault());
         CurrentStep = GameSettingsPageStep.Details;
     }
 
     [RelayCommand]
-    private void SelectDetailsSection(GameSettingsDetailSectionItem section)
-    {
-        SelectDetailsSectionCore(section);
-    }
-
-    [RelayCommand]
-    private async Task SelectSecondaryMenuItemAsync(object? item)
+    private void SelectSecondaryMenuItem(object? item)
     {
         switch (item)
         {
             case GameSettingsInstanceCategory category:
-                await SelectInstanceCategoryAsync(category);
+                CurrentStep = GameSettingsPageStep.List;
+                InstanceList.SelectCategory(category);
                 break;
             case GameSettingsDetailSectionItem section:
                 SelectDetailsSectionCore(section);
@@ -572,209 +283,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     private void BackToInstanceList()
     {
         CurrentStep = GameSettingsPageStep.List;
-        RefreshVisibleInstances();
-    }
-
-    [RelayCommand]
-    private void CancelEditInstanceDialog()
-    {
-        EditDialog.Cancel();
-    }
-
-    [RelayCommand]
-    private Task ConfirmEditInstanceDialogAsync()
-    {
-        return EditDialog.ConfirmAsync();
-    }
-
-    [RelayCommand]
-    private void OpenDeleteInstanceDialog(GameSettingsInstanceItem instance)
-    {
-        InstancePendingDelete = instance;
-        IsDeleteInstanceDialogOpen = true;
-    }
-
-    private void Details_DeleteInstanceRequested(GameSettingsInstanceItem instance)
-    {
-        OpenDeleteInstanceDialog(instance);
-    }
-
-    private void Details_DeleteModsRequested(ModDeleteRequest request)
-    {
-        PendingDeleteSaves = null;
-        PendingDeleteResourcePacks = null;
-        PendingDeleteShaderPacks = null;
-        PendingDeleteMods = request;
-        IsDeleteModsDialogOpen = true;
-    }
-
-    private void Details_OnlineModInstallRequested(GameInstance instance)
-    {
-        OnlineModInstallRequested?.Invoke(instance);
-    }
-
-    private void Details_DeleteSavesRequested(SaveDeleteRequest request)
-    {
-        PendingDeleteMods = null;
-        PendingDeleteResourcePacks = null;
-        PendingDeleteShaderPacks = null;
-        PendingDeleteSaves = request;
-        IsDeleteModsDialogOpen = true;
-    }
-
-    private void Details_DeleteResourcePacksRequested(ResourcePackDeleteRequest request)
-    {
-        PendingDeleteMods = null;
-        PendingDeleteSaves = null;
-        PendingDeleteShaderPacks = null;
-        PendingDeleteResourcePacks = request;
-        IsDeleteModsDialogOpen = true;
-    }
-
-    private void Details_DeleteShaderPacksRequested(ShaderPackDeleteRequest request)
-    {
-        PendingDeleteMods = null;
-        PendingDeleteSaves = null;
-        PendingDeleteResourcePacks = null;
-        PendingDeleteShaderPacks = request;
-        IsDeleteModsDialogOpen = true;
-    }
-
-    private void Details_ImportModConflictRequested(ModImportConflictRequest request)
-    {
-        PendingModImportConflict = request;
-        IsReplaceModImportDialogOpen = true;
-    }
-
-    private void Details_SaveImportFailedRequested(SaveImportFailureRequest request)
-    {
-        InvalidSaveImportDialogTitle = Strings.Dialog_InvalidSaveImportTitle;
-        InvalidSaveImportDialogMessage = request.Message;
-        IsInvalidSaveImportDialogOpen = true;
-    }
-
-    private void Details_ResourcePackImportFailedRequested(ResourcePackImportFailureRequest request)
-    {
-        InvalidSaveImportDialogTitle = Strings.Dialog_InvalidResourcePackImportTitle;
-        InvalidSaveImportDialogMessage = request.Message;
-        IsInvalidSaveImportDialogOpen = true;
-    }
-
-    private void Details_ShaderPackImportFailedRequested(ShaderPackImportFailureRequest request)
-    {
-        InvalidSaveImportDialogTitle = Strings.Dialog_InvalidShaderPackImportTitle;
-        InvalidSaveImportDialogMessage = request.Message;
-        IsInvalidSaveImportDialogOpen = true;
-    }
-
-    [RelayCommand]
-    private void CancelDeleteInstanceDialog()
-    {
-        IsDeleteInstanceDialogOpen = false;
-        InstancePendingDelete = null;
-    }
-
-    [RelayCommand]
-    private async Task ConfirmDeleteInstanceDialogAsync()
-    {
-        if (InstancePendingDelete is null)
-            return;
-
-        var pendingDelete = InstancePendingDelete;
-        var deletedName = pendingDelete.Name;
-
-        IsDeleteInstanceDialogOpen = false;
-        InstancePendingDelete = null;
-
-        try
-        {
-            var deleted = await instanceService.DeleteInstanceAsync(pendingDelete.Instance.Id);
-            if (!deleted)
-            {
-                statusService.Report(Strings.Status_DeleteInstanceFailed);
-                return;
-            }
-
-            statusService.Report(string.Format(Strings.Status_InstanceDeletedFormat, deletedName));
-            RemoveInstanceLocally(pendingDelete.Instance.Id);
-            InstancesChanged?.Invoke(GameSettingsInstancesChangedEventArgs.Deleted(pendingDelete.Instance.Id));
-        }
-        catch (Exception)
-        {
-            statusService.Report(Strings.Status_DeleteInstanceFailed);
-        }
-    }
-
-    [RelayCommand]
-    private void CancelDeleteModsDialog()
-    {
-        IsDeleteModsDialogOpen = false;
-        PendingDeleteMods = null;
-        PendingDeleteSaves = null;
-        PendingDeleteResourcePacks = null;
-        PendingDeleteShaderPacks = null;
-    }
-
-    [RelayCommand]
-    private async Task ConfirmDeleteModsDialogAsync()
-    {
-        if (PendingDeleteMods is null && PendingDeleteSaves is null && PendingDeleteResourcePacks is null && PendingDeleteShaderPacks is null)
-            return;
-
-        var modRequest = PendingDeleteMods;
-        var saveRequest = PendingDeleteSaves;
-        var resourcePackRequest = PendingDeleteResourcePacks;
-        var shaderPackRequest = PendingDeleteShaderPacks;
-        IsDeleteModsDialogOpen = false;
-        PendingDeleteMods = null;
-        PendingDeleteSaves = null;
-        PendingDeleteResourcePacks = null;
-        PendingDeleteShaderPacks = null;
-
-        if (modRequest is not null)
-        {
-            await Details.DeleteModsAsync(modRequest.FullPaths);
-        }
-        else if (saveRequest is not null)
-        {
-            await Details.DeleteSavesAsync(saveRequest.FullPaths);
-        }
-        else if (resourcePackRequest is not null)
-        {
-            await Details.DeleteResourcePacksAsync(resourcePackRequest.FullPaths);
-        }
-        else if (shaderPackRequest is not null)
-        {
-            await Details.DeleteShaderPacksAsync(shaderPackRequest.FullPaths);
-        }
-    }
-
-    [RelayCommand]
-    private void CancelReplaceModImportDialog()
-    {
-        IsReplaceModImportDialogOpen = false;
-        PendingModImportConflict = null;
-        Details.ResolvePendingModImportConflict(false);
-    }
-
-    [RelayCommand]
-    private Task ConfirmReplaceModImportDialogAsync()
-    {
-        if (PendingModImportConflict is null)
-            return Task.CompletedTask;
-
-        IsReplaceModImportDialogOpen = false;
-        PendingModImportConflict = null;
-        Details.ResolvePendingModImportConflict(true);
-        return Task.CompletedTask;
-    }
-
-    [RelayCommand]
-    private void CloseInvalidSaveImportDialog()
-    {
-        IsInvalidSaveImportDialogOpen = false;
-        InvalidSaveImportDialogMessage = string.Empty;
-        InvalidSaveImportDialogTitle = Strings.Dialog_InvalidSaveImportTitle;
+        InstanceList.SetPreserveFilteredSelection(false);
     }
 
     [RelayCommand]
@@ -786,204 +295,58 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             statusService.Report(Strings.Status_InstanceFolderNotFound);
             return;
         }
-
         if (!instanceFolderService.TryOpen(folderPath))
             statusService.Report(Strings.Status_OpenInstanceFolderFailed);
     }
 
     [RelayCommand]
-    private void SelectInstanceAndGoHome(GameSettingsInstanceItem instance)
-    {
+    private void SelectInstanceAndGoHome(GameSettingsInstanceItem instance) =>
         LaunchInstanceRequested?.Invoke(instance.Instance);
-    }
 
-    public void AddOrUpdateInstance(GameInstance instance)
+    partial void OnCurrentStepChanged(GameSettingsPageStep value)
     {
-        if (!hasLoadedInstances)
-            return;
-
-        var existingIndex = AllInstances.FindIndex(item => string.Equals(item.Instance.Id, instance.Id, StringComparison.OrdinalIgnoreCase));
-
-        if (existingIndex >= 0)
-        {
-            var item = AllInstances[existingIndex];
-            var wasSelected = ReferenceEquals(SelectedInstance, item)
-                || string.Equals(SelectedInstance?.Instance.Id, instance.Id, StringComparison.OrdinalIgnoreCase);
-            item.Update(instance, ResolveVersionType(instance));
-            if (wasSelected)
-                SelectInstanceCore(item, forceRefreshDetails: true);
-        }
-        else
-        {
-            var item = CreateInstanceItem(instance);
-            AllInstances.Add(item);
-        }
-
-        RefreshVisibleInstances();
+        InstanceList.SetPreserveFilteredSelection(value is GameSettingsPageStep.Details);
+        OnPropertyChanged(nameof(IsListStep));
+        OnPropertyChanged(nameof(IsDetailsStep));
+        OnPropertyChanged(nameof(CurrentSecondaryMenuItems));
+        OnPropertyChanged(nameof(PageTitle));
+        OnPropertyChanged(nameof(PageTitleIconSource));
+        RaiseTopSearchPropertyChanges();
     }
 
-    private void SelectInstanceCategoryCore(GameSettingsInstanceCategory category, bool refreshVisibleInstances = true)
+    private async Task OpenInstanceDetailsAsync(
+        GameInstance? instance,
+        string? sectionId,
+        CancellationToken cancellationToken)
     {
-        CurrentStep = GameSettingsPageStep.List;
-        SelectedInstanceCategory = category;
-        foreach (var item in InstanceCategories)
-            item.IsSelected = ReferenceEquals(item, category);
-
-        if (refreshVisibleInstances)
-            RefreshVisibleInstances();
+        await InstanceList.RefreshForActivationAsync(cancellationToken);
+        ShowInstanceDetails(instance, sectionId);
     }
+
+    private bool IsDetailsSection(string sectionId) => IsDetailsStep
+        && string.Equals(Details.SelectedSection?.Id, sectionId, StringComparison.OrdinalIgnoreCase);
 
     private void SelectDetailsSectionCore(GameSettingsDetailSectionItem? section)
     {
         foreach (var item in DetailSections)
             item.IsSelected = ReferenceEquals(item, section);
-
         Details.SetSelectedSection(section);
     }
 
-    private void EditDialog_InstanceRenameStarting()
+    private GameSettingsDetailSectionItem? ResolveDetailSection(string? sectionId)
     {
-        Details.SuspendLocalWatchersForInstanceRename();
+        if (!string.IsNullOrWhiteSpace(sectionId))
+        {
+            var match = DetailSections.FirstOrDefault(item =>
+                string.Equals(item.Id, sectionId, StringComparison.OrdinalIgnoreCase));
+            if (match is not null)
+                return match;
+        }
+        return DetailSections.FirstOrDefault();
     }
 
-    private void EditDialog_InstanceRenameFinished()
-    {
-        Details.ResumeLocalWatchersAfterInstanceRename();
-    }
-
-    partial void OnSelectedInstanceCategoryChanged(GameSettingsInstanceCategory? value)
-    {
-        OnPropertyChanged(nameof(PageTitle));
-    }
-
-    partial void OnCurrentStepChanged(GameSettingsPageStep value)
-    {
-        OnPropertyChanged(nameof(IsListStep));
-        OnPropertyChanged(nameof(IsDetailsStep));
-        RaiseTopSearchPropertyChanges();
-        OnPropertyChanged(nameof(CurrentSecondaryMenuItems));
-        OnPropertyChanged(nameof(PageTitle));
-        OnPropertyChanged(nameof(PageTitleIconSource));
-    }
-
-    partial void OnSelectedInstanceChanged(GameSettingsInstanceItem? value)
-    {
-        if (selectedInstanceNotifier is not null)
-            selectedInstanceNotifier.PropertyChanged -= SelectedInstance_PropertyChanged;
-
-        selectedInstanceNotifier = value;
-        if (selectedInstanceNotifier is not null)
-            selectedInstanceNotifier.PropertyChanged += SelectedInstance_PropertyChanged;
-
-        Details.SetSelectedInstance(value);
-        OnPropertyChanged(nameof(PageTitle));
-        OnPropertyChanged(nameof(PageTitleIconSource));
-
-        if (value is null && IsDetailsStep)
-            CurrentStep = GameSettingsPageStep.List;
-    }
-
-    partial void OnInstancePendingDeleteChanged(GameSettingsInstanceItem? value)
-    {
-        OnPropertyChanged(nameof(DeleteInstanceDialogMessage));
-    }
-
-    partial void OnPendingDeleteModsChanged(ModDeleteRequest? value)
-    {
-        OnPropertyChanged(nameof(DeleteModsDialogTitle));
-        OnPropertyChanged(nameof(DeleteModsDialogMessage));
-    }
-
-    partial void OnPendingDeleteSavesChanged(SaveDeleteRequest? value)
-    {
-        OnPropertyChanged(nameof(DeleteModsDialogTitle));
-        OnPropertyChanged(nameof(DeleteModsDialogMessage));
-    }
-
-    partial void OnPendingDeleteResourcePacksChanged(ResourcePackDeleteRequest? value)
-    {
-        OnPropertyChanged(nameof(DeleteModsDialogTitle));
-        OnPropertyChanged(nameof(DeleteModsDialogMessage));
-    }
-
-    partial void OnPendingDeleteShaderPacksChanged(ShaderPackDeleteRequest? value)
-    {
-        OnPropertyChanged(nameof(DeleteModsDialogTitle));
-        OnPropertyChanged(nameof(DeleteModsDialogMessage));
-    }
-
-    partial void OnPendingModImportConflictChanged(ModImportConflictRequest? value)
-    {
-        OnPropertyChanged(nameof(ReplaceModImportDialogMessage));
-    }
-
-    partial void OnInstanceSearchQueryChanged(string value)
-    {
-        RefreshVisibleInstances();
-        OnPropertyChanged(nameof(TopSearchQuery));
-    }
-
-    partial void OnInstanceLoadErrorChanged(string value)
-    {
-        OnPropertyChanged(nameof(HasInstanceLoadError));
-    }
-
-    partial void OnInstanceEmptyMessageChanged(string value)
-    {
-        OnPropertyChanged(nameof(HasInstanceEmptyMessage));
-    }
-
-    private void RefreshVisibleInstances()
-    {
-        var result = GameSettingsInstanceFilter.Apply(
-            AllInstances,
-            SelectedInstanceCategory,
-            InstanceSearchQuery,
-            SelectedInstance,
-            hasLoadedInstances,
-            IsLoadingInstances,
-            HasInstanceLoadError);
-
-        InstanceEmptyMessage = result.EmptyMessage;
-        if (ShouldClearSelectedInstanceForCurrentStep(result.ShouldClearSelectedInstance))
-            ClearSelectedInstance();
-
-        ApplyVisibleInstances(result.Instances);
-    }
-
-    private bool ShouldClearSelectedInstanceForCurrentStep(bool shouldClearSelectedInstance)
-    {
-        if (!shouldClearSelectedInstance)
-            return false;
-
-        if (!IsDetailsStep)
-            return true;
-
-        return SelectedInstance is not null && !IsSelectedInstanceInAllInstances();
-    }
-
-    private bool IsSelectedInstanceInAllInstances()
-    {
-        if (SelectedInstance is null)
-            return false;
-
-        return AllInstances.Any(item => ReferenceEquals(item, SelectedInstance)
-            || (!string.IsNullOrWhiteSpace(item.Instance.Id)
-                && string.Equals(item.Instance.Id, SelectedInstance.Instance.Id, StringComparison.OrdinalIgnoreCase)));
-    }
-
-    private void ClearSelectedInstance()
-    {
-        SelectInstanceCore(null);
-    }
-
-    private GameSettingsFileDropEvaluation EvaluateImportDrop(IReadOnlyList<string> paths)
-    {
-        if (!IsDetailsStep)
-            return GameSettingsFileDropEvaluation.Hidden;
-
-        return Details.EvaluateImportDrop(paths);
-    }
+    private GameSettingsFileDropEvaluation EvaluateImportDrop(IReadOnlyList<string> paths) =>
+        IsDetailsStep ? Details.EvaluateImportDrop(paths) : GameSettingsFileDropEvaluation.Hidden;
 
     private void ApplyImportDropHint(GameSettingsFileDropEvaluation evaluation)
     {
@@ -992,203 +355,40 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
                 ? Strings.GameSettings_DropReleaseToImportMessage
                 : Strings.GameSettings_DropUnsupportedFileMessage
             : string.Empty;
-
         if (string.Equals(lastImportDropHintMessage, message, StringComparison.Ordinal))
             return;
-
         lastImportDropHintMessage = message;
         floatingMessageService.Show(message);
     }
 
-    private void RemoveInstanceLocally(string instanceId)
+    private void HandleSelectedInstanceChanged()
     {
-        var removedCount = AllInstances.RemoveAll(item =>
-            string.Equals(item.Instance.Id, instanceId, StringComparison.OrdinalIgnoreCase));
-
-        if (removedCount == 0)
-            return;
-
-        if (string.Equals(SelectedInstance?.Instance.Id, instanceId, StringComparison.OrdinalIgnoreCase))
-            ClearSelectedInstance();
-
-        RefreshVisibleInstances();
-    }
-
-    private void ReconcileAllInstances(IReadOnlyList<GameInstance> instances)
-    {
-        var existingById = AllInstances
-            .Where(item => !string.IsNullOrWhiteSpace(item.Instance.Id))
-            .GroupBy(item => item.Instance.Id, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
-        var nextItems = new List<GameSettingsInstanceItem>(instances.Count);
-
-        foreach (var instance in instances)
-        {
-            if (!string.IsNullOrWhiteSpace(instance.Id)
-                && existingById.TryGetValue(instance.Id, out var existingItem))
-            {
-                existingItem.Update(instance, ResolveVersionType(instance));
-                nextItems.Add(existingItem);
-            }
-            else
-            {
-                nextItems.Add(CreateInstanceItem(instance));
-            }
-        }
-
-        AllInstances.Clear();
-        AllInstances.AddRange(nextItems);
-    }
-
-    private void ClearVisibleInstances()
-    {
-        if (VisibleInstances.Count == 0)
-            return;
-
-        VisibleInstances.Clear();
-        NotifyVisibleInstancesChanged();
-    }
-
-    private void ApplyVisibleInstances(IReadOnlyList<GameSettingsInstanceItem> instances)
-    {
-        var changed = false;
-
-        for (var index = VisibleInstances.Count - 1; index >= 0; index--)
-        {
-            if (ContainsReference(instances, VisibleInstances[index]))
-                continue;
-
-            VisibleInstances.RemoveAt(index);
-            changed = true;
-        }
-
-        for (var index = 0; index < instances.Count; index++)
-        {
-            var instance = instances[index];
-            if (index < VisibleInstances.Count && ReferenceEquals(VisibleInstances[index], instance))
-                continue;
-
-            var existingIndex = IndexOfVisibleInstance(instance, index + 1);
-            if (existingIndex >= 0)
-                VisibleInstances.Move(existingIndex, index);
-            else
-                VisibleInstances.Insert(index, instance);
-
-            changed = true;
-        }
-
-        if (changed)
-            NotifyVisibleInstancesChanged();
-    }
-
-    private GameSettingsInstanceItem CreateInstanceItem(GameInstance instance)
-    {
-        return new GameSettingsInstanceItem(instance, ResolveVersionType(instance));
-    }
-
-    private GameSettingsInstanceItem? FindInstanceItem(string? instanceId)
-    {
-        if (string.IsNullOrWhiteSpace(instanceId))
-            return null;
-
-        return AllInstances.FirstOrDefault(item =>
-            string.Equals(item.Instance.Id, instanceId, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private GameSettingsDetailSectionItem? ResolveDetailSection(string? sectionId)
-    {
-        if (!string.IsNullOrWhiteSpace(sectionId))
-        {
-            var section = DetailSections.FirstOrDefault(item =>
-                string.Equals(item.Id, sectionId, StringComparison.OrdinalIgnoreCase));
-            if (section is not null)
-                return section;
-        }
-
-        return DetailSections.FirstOrDefault();
-    }
-
-    private string ResolveVersionType(GameInstance instance)
-    {
-        if (!string.IsNullOrWhiteSpace(instance.VersionType))
-            return instance.VersionType;
-
-        var versionName = string.IsNullOrWhiteSpace(instance.MinecraftVersion)
-            ? instance.VersionName
-            : instance.MinecraftVersion;
-        return !string.IsNullOrWhiteSpace(versionName) && versionTypesByName.TryGetValue(versionName, out var type)
-            ? type
-            : string.Empty;
-    }
-
-    private void RestoreSelectedInstance(string? selectedInstanceId)
-    {
-        if (string.IsNullOrWhiteSpace(selectedInstanceId))
-        {
-            ClearSelectedInstance();
-            return;
-        }
-
-        SelectInstanceCore(FindInstanceItem(selectedInstanceId), forceRefreshDetails: true);
-    }
-
-    private void SelectInstanceCore(GameSettingsInstanceItem? instance, bool forceRefreshDetails = false)
-    {
-        var previousInstance = SelectedInstance;
-        SelectedInstance = instance;
-        if (forceRefreshDetails && ReferenceEquals(previousInstance, instance))
-            RefreshSelectedInstanceDetails();
-
-        foreach (var item in AllInstances)
-            item.IsSelected = ReferenceEquals(item, instance);
-    }
-
-    private void RefreshSelectedInstanceDetails()
-    {
-        Details.SetSelectedInstance(SelectedInstance);
+        if (selectedInstanceNotifier is not null)
+            selectedInstanceNotifier.PropertyChanged -= SelectedInstance_PropertyChanged;
+        selectedInstanceNotifier = InstanceList.SelectedInstance;
+        if (selectedInstanceNotifier is not null)
+            selectedInstanceNotifier.PropertyChanged += SelectedInstance_PropertyChanged;
+        Details.SetSelectedInstance(InstanceList.SelectedInstance);
         OnPropertyChanged(nameof(PageTitle));
         OnPropertyChanged(nameof(PageTitleIconSource));
+        if (InstanceList.SelectedInstance is null && IsDetailsStep)
+            CurrentStep = GameSettingsPageStep.List;
     }
 
-    private async Task<IReadOnlyDictionary<string, string>> LoadVersionTypesAsync(CancellationToken cancellationToken)
+    private void InstanceList_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        try
+        switch (e.PropertyName)
         {
-            var versions = await gameVersionService.GetVersionsAsync(cancellationToken: cancellationToken);
-            return versions
-                .GroupBy(version => version.Name, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(
-                    group => group.Key,
-                    group => GameSettingsInstanceItem.NormalizeVersionType(group.First().Type),
-                    StringComparer.OrdinalIgnoreCase);
+            case nameof(GameSettingsInstanceListViewModel.SelectedInstance):
+                HandleSelectedInstanceChanged();
+                break;
+            case nameof(GameSettingsInstanceListViewModel.SelectedCategory):
+                OnPropertyChanged(nameof(PageTitle));
+                break;
+            case nameof(GameSettingsInstanceListViewModel.SearchQuery):
+                OnPropertyChanged(nameof(TopSearchQuery));
+                break;
         }
-        catch (Exception)
-        {
-            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        }
-    }
-
-    private int IndexOfVisibleInstance(GameSettingsInstanceItem instance, int startIndex)
-    {
-        for (var index = startIndex; index < VisibleInstances.Count; index++)
-        {
-            if (ReferenceEquals(VisibleInstances[index], instance))
-                return index;
-        }
-
-        return -1;
-    }
-
-    private static bool ContainsReference(IEnumerable<GameSettingsInstanceItem> instances, GameSettingsInstanceItem candidate)
-    {
-        return instances.Any(instance => ReferenceEquals(instance, candidate));
-    }
-
-    private void NotifyVisibleInstancesChanged()
-    {
-        OnPropertyChanged(nameof(VisibleInstances));
-        OnPropertyChanged(nameof(HasVisibleInstances));
-        OnPropertyChanged(nameof(HasInstanceEmptyMessage));
     }
 
     private void SelectedInstance_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1196,6 +396,36 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(PageTitle));
         OnPropertyChanged(nameof(PageTitleIconSource));
     }
+
+    private void EditDialog_InstanceRenameStarting() => Details.SuspendLocalWatchersForInstanceRename();
+
+    private void EditDialog_InstanceRenameFinished() => Details.ResumeLocalWatchersAfterInstanceRename();
+
+    private void EditDialog_InstanceUpdated(GameInstance instance)
+    {
+        InstanceList.AddOrUpdate(instance);
+        var item = InstanceList.Find(instance.Id);
+        if (item is not null)
+        {
+            InstanceList.SelectInstance(item);
+            CurrentStep = GameSettingsPageStep.Details;
+        }
+        InstancesChanged?.Invoke(GameSettingsInstancesChangedEventArgs.Updated(instance));
+    }
+
+    private void Dialogs_InstanceDeleted(GameSettingsInstanceItem item)
+    {
+        InstanceList.Remove(item.Instance.Id);
+        InstancesChanged?.Invoke(GameSettingsInstancesChangedEventArgs.Deleted(item.Instance.Id));
+    }
+
+    private void Details_InstanceSettingsSaved(GameInstance instance)
+    {
+        InstanceList.AddOrUpdate(instance);
+        InstancesChanged?.Invoke(GameSettingsInstancesChangedEventArgs.Updated(instance));
+    }
+
+    private void Details_OnlineModInstallRequested(GameInstance instance) => OnlineModInstallRequested?.Invoke(instance);
 
     private void Details_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -1247,26 +477,5 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(IsTopResourceManagementDetailsStep));
         OnPropertyChanged(nameof(IsTopSearchVisible));
         OnPropertyChanged(nameof(TopSearchQuery));
-    }
-
-    private void EditDialog_InstanceUpdated(GameInstance updatedInstance)
-    {
-        AddOrUpdateInstance(updatedInstance);
-
-        var updatedItem = AllInstances.FirstOrDefault(item =>
-            string.Equals(item.Instance.Id, updatedInstance.Id, StringComparison.OrdinalIgnoreCase));
-        if (updatedItem is not null)
-        {
-            SelectInstanceCore(updatedItem);
-            CurrentStep = GameSettingsPageStep.Details;
-        }
-
-        InstancesChanged?.Invoke(GameSettingsInstancesChangedEventArgs.Updated(updatedInstance));
-    }
-
-    private void Details_InstanceSettingsSaved(GameInstance instance)
-    {
-        AddOrUpdateInstance(instance);
-        InstancesChanged?.Invoke(GameSettingsInstancesChangedEventArgs.Updated(instance));
     }
 }

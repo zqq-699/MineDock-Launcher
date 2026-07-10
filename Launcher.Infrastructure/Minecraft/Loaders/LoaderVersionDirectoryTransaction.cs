@@ -83,13 +83,15 @@ internal static class LoaderVersionDirectoryTransaction
     public static void CopyFinalVersionDirectory(
         string sourceGameDirectory,
         string destinationGameDirectory,
-        string versionName)
+        string versionName,
+        CancellationToken cancellationToken = default)
     {
         MinecraftVersionDirectoryCopier.CopyVersionDirectory(
             sourceGameDirectory,
             destinationGameDirectory,
             versionName,
-            allowExistingDestination: true);
+            allowExistingDestination: true,
+            cancellationToken: cancellationToken);
     }
 
     public static void CleanupCreatedVersionDirectories(

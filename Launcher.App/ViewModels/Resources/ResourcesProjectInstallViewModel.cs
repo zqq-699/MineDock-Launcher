@@ -117,129 +117,19 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
             return;
 
         IsInstalling = true;
-        DownloadTaskItem? downloadTask = null;
+        var context = new InstallOperationContext(item, target, selectedProject);
         try
         {
             if (target.IsLocalDownload)
-            {
-                var targetDirectory = filePickerService?.PickFolder(options.DownloadDirectoryPickerTitle);
-                if (string.IsNullOrWhiteSpace(targetDirectory))
-                    return;
-                var request = new ResourceProjectInstallationRequest(
-                    item.Version,
-                    ResourceProjectInstallationTargetKind.LocalDirectory,
-                    TargetDirectory: targetDirectory);
-                if ((await installationService.PrepareAsync(request).ConfigureAwait(false)).TargetExists)
-                {
-                    ShowFileExists(item);
-                    return;
-                }
-
-                downloadTask = BeginDownloadTask(item, targetDirectory);
-                BeginUserFeedback(item);
-                await installationService.ExecuteAsync(
-                    request,
-                    cancellationToken: downloadTask?.CancellationToken ?? CancellationToken.None).ConfigureAwait(false);
-                if (CompleteCanceledTask(downloadTask))
-                    return;
-                var message = string.Format(options.DownloadedFormat, ResolveFileName(item));
-                CompleteTask(downloadTask, message);
-                reportStatus(message);
-                return;
-            }
-
-            if (target.IsNewInstanceInstall)
-            {
-                downloadTask = BeginDownloadTask(item, target.Title);
-                BeginUserFeedback(item);
-                var result = (await installationService.ExecuteAsync(
-                    new ResourceProjectInstallationRequest(
-                        item.Version,
-                        ResourceProjectInstallationTargetKind.NewModpackInstance),
-                    CreateImportProgress(downloadTask),
-                    downloadTask?.CancellationToken ?? CancellationToken.None).ConfigureAwait(false)).ModpackImportResult
-                    ?? ModpackImportResult.Failure(ModpackImportFailureReason.UnexpectedError);
-                if (CompleteCanceledTask(downloadTask))
-                    return;
-                if (result.IsSuccess && result.ImportedInstance is not null)
-                {
-                    CompleteModpackImport(item, downloadTask, result, selectedProject);
-                    return;
-                }
-
-                var failureMessage = MapModpackImportFailureMessage(result.FailureReason);
-                floatingMessageService?.Show(failureMessage);
-                reportStatus(failureMessage);
-                FailTask(downloadTask, failureMessage);
-                return;
-            }
-
-            var instance = target.Instance;
-            if (instance is null)
-                return;
-            var instanceRequest = new ResourceProjectInstallationRequest(
-                item.Version,
-                ResourceProjectInstallationTargetKind.ExistingInstance,
-                Instance: instance);
-            if ((await installationService.PrepareAsync(instanceRequest).ConfigureAwait(false)).TargetExists)
-            {
-                ShowFileExists(item);
-                return;
-            }
-
-            var dependencyPlan = await dependencyPlanner.ResolveInstallPlanAsync(
-                item,
-                instance,
-                selectedProject?.Project.ProjectId,
-                RequestDependenciesDialogAsync,
-                CancellationToken.None).ConfigureAwait(false);
-            if (dependencyPlan.Choice is RequiredDependenciesDialogChoice.Cancel)
-                return;
-
-            downloadTask = BeginDownloadTask(item, target.Title);
-            floatingMessageService?.Show(options.DownloadingText);
-            if (dependencyPlan.Choice is RequiredDependenciesDialogChoice.AutoInstallDependencies)
-            {
-                try
-                {
-                    await dependencyPlanner.InstallRequiredDependenciesAsync(
-                        dependencyPlan.MissingDependencies,
-                        instance,
-                        selectedProject?.Project.ProjectId,
-                        progress => ReportTask(downloadTask, progress),
-                        downloadTask?.CancellationToken ?? CancellationToken.None).ConfigureAwait(false);
-                }
-                catch (ResourceDependencyInstallException exception)
-                {
-                    var failureMessage = string.Format(
-                        Strings.Status_ModRequiredDependenciesAutoInstallFailedFormat,
-                        exception.DependencyTitle);
-                    floatingMessageService?.Show(failureMessage);
-                    reportStatus(failureMessage);
-                    FailTask(downloadTask, failureMessage);
-                    logger?.LogWarning(
-                        exception,
-                        "Failed to auto-install required resource dependency. ProjectId={ProjectId} DependencyProjectId={DependencyProjectId} InstanceId={InstanceId}",
-                        selectedProject?.Project.ProjectId,
-                        exception.DependencyProjectId,
-                        instance.Id);
-                    return;
-                }
-            }
-
-            BeginUserFeedback(item);
-            await installationService.ExecuteAsync(
-                instanceRequest,
-                cancellationToken: downloadTask?.CancellationToken ?? CancellationToken.None).ConfigureAwait(false);
-            if (CompleteCanceledTask(downloadTask))
-                return;
-            var installedMessage = string.Format(options.InstalledFormat, selectedProject?.Title ?? item.Title);
-            CompleteTask(downloadTask, installedMessage);
-            reportStatus(installedMessage);
+                await DownloadToDirectoryAsync(context).ConfigureAwait(false);
+            else if (target.IsNewInstanceInstall)
+                await InstallModpackAsNewInstanceAsync(context).ConfigureAwait(false);
+            else
+                await InstallIntoExistingInstanceAsync(context).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (downloadTask?.IsCancellationRequested == true)
+        catch (OperationCanceledException) when (context.Session?.IsCancellationRequested == true)
         {
-            CompleteCanceledTask(downloadTask);
+            context.Session.CompleteCancellation();
             logger?.LogInformation(
                 "Resource project installation canceled. ProjectId={ProjectId} VersionId={VersionId}",
                 selectedProject?.Project.ProjectId,
@@ -248,9 +138,7 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
         catch (Exception exception)
         {
             var message = target.IsLocalDownload ? options.DownloadFailedText : options.InstallFailedText;
-            reportStatus(message);
-            floatingMessageService?.Show(message);
-            FailTask(downloadTask, message);
+            PresentFailure(context, message);
             logger?.LogError(
                 exception,
                 "Resource project installation failed. Kind={Kind} ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId}",
@@ -262,6 +150,124 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
         finally
         {
             IsInstalling = false;
+        }
+    }
+
+    private async Task DownloadToDirectoryAsync(InstallOperationContext context)
+    {
+        var targetDirectory = filePickerService?.PickFolder(options.DownloadDirectoryPickerTitle);
+        if (string.IsNullOrWhiteSpace(targetDirectory))
+            return;
+        var request = new ResourceProjectInstallationRequest(
+            context.Item.Version,
+            ResourceProjectInstallationTargetKind.LocalDirectory,
+            TargetDirectory: targetDirectory);
+        if ((await installationService!.PrepareAsync(request).ConfigureAwait(false)).TargetExists)
+        {
+            ShowFileExists(context.Item);
+            return;
+        }
+        BeginSession(context, targetDirectory);
+        BeginUserFeedback(context.Item);
+        await installationService.ExecuteAsync(request, cancellationToken: context.Session!.CancellationToken)
+            .ConfigureAwait(false);
+        if (context.Session.CompleteCancellation())
+            return;
+        var message = string.Format(options.DownloadedFormat, ResolveFileName(context.Item));
+        context.Session.Complete(message);
+        reportStatus(message);
+    }
+
+    private async Task InstallModpackAsNewInstanceAsync(InstallOperationContext context)
+    {
+        BeginSession(context, context.Target.Title);
+        BeginUserFeedback(context.Item);
+        var result = (await installationService!.ExecuteAsync(
+            new ResourceProjectInstallationRequest(
+                context.Item.Version,
+                ResourceProjectInstallationTargetKind.NewModpackInstance),
+            context.Session!.Progress,
+            context.Session.CancellationToken).ConfigureAwait(false)).ModpackImportResult
+            ?? ModpackImportResult.Failure(ModpackImportFailureReason.UnexpectedError);
+        if (context.Session.CompleteCancellation())
+            return;
+        if (result.IsSuccess && result.ImportedInstance is not null)
+        {
+            CompleteModpackImport(context, result);
+            return;
+        }
+        PresentFailure(context, MapModpackImportFailureMessage(result.FailureReason));
+    }
+
+    private async Task InstallIntoExistingInstanceAsync(InstallOperationContext context)
+    {
+        var instance = context.Target.Instance;
+        if (instance is null)
+            return;
+        var request = new ResourceProjectInstallationRequest(
+            context.Item.Version,
+            ResourceProjectInstallationTargetKind.ExistingInstance,
+            Instance: instance);
+        if ((await installationService!.PrepareAsync(request).ConfigureAwait(false)).TargetExists)
+        {
+            ShowFileExists(context.Item);
+            return;
+        }
+        var dependencyPlan = await dependencyPlanner.ResolveInstallPlanAsync(
+            context.Item,
+            instance,
+            context.Project?.Project.ProjectId,
+            RequestDependenciesDialogAsync,
+            CancellationToken.None).ConfigureAwait(false);
+        if (dependencyPlan.Choice is RequiredDependenciesDialogChoice.Cancel)
+            return;
+
+        BeginSession(context, context.Target.Title);
+        floatingMessageService?.Show(options.DownloadingText);
+        if (dependencyPlan.Choice is RequiredDependenciesDialogChoice.AutoInstallDependencies
+            && !await InstallDependenciesAsync(context, dependencyPlan, instance).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        BeginUserFeedback(context.Item);
+        await installationService.ExecuteAsync(request, cancellationToken: context.Session!.CancellationToken)
+            .ConfigureAwait(false);
+        if (context.Session.CompleteCancellation())
+            return;
+        var message = string.Format(options.InstalledFormat, context.Project?.Title ?? context.Item.Title);
+        context.Session.Complete(message);
+        reportStatus(message);
+    }
+
+    private async Task<bool> InstallDependenciesAsync(
+        InstallOperationContext context,
+        RequiredDependencyInstallPlan dependencyPlan,
+        GameInstance instance)
+    {
+        try
+        {
+            await dependencyPlanner.InstallRequiredDependenciesAsync(
+                dependencyPlan.MissingDependencies,
+                instance,
+                context.Project?.Project.ProjectId,
+                progress => context.Session!.Report(progress),
+                context.Session!.CancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (ResourceDependencyInstallException exception)
+        {
+            var message = string.Format(
+                Strings.Status_ModRequiredDependenciesAutoInstallFailedFormat,
+                exception.DependencyTitle);
+            PresentFailure(context, message);
+            logger?.LogWarning(
+                exception,
+                "Failed to auto-install required resource dependency. ProjectId={ProjectId} DependencyProjectId={DependencyProjectId} InstanceId={InstanceId}",
+                context.Project?.Project.ProjectId,
+                exception.DependencyProjectId,
+                instance.Id);
+            return false;
         }
     }
 
@@ -299,17 +305,13 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
         pendingDependenciesChoice = null;
     }
 
-    private void CompleteModpackImport(
-        ResourcesModVersionItemViewModel item,
-        DownloadTaskItem? downloadTask,
-        ModpackImportResult result,
-        ResourcesModProjectItemViewModel? selectedProject)
+    private void CompleteModpackImport(InstallOperationContext context, ModpackImportResult result)
     {
         var instance = result.ImportedInstance!;
         var message = result.HasManualDownloads
             ? string.Format(Strings.Status_ModpackImportedWithManualDownloadsFormat, instance.Name)
             : string.Format(options.InstalledFormat, instance.Name);
-        CompleteTask(downloadTask, message);
+        context.Session?.Complete(message);
         reportStatus(message);
         uiDispatcher.Invoke(() =>
         {
@@ -323,8 +325,8 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
         });
         logger?.LogInformation(
             "Resource modpack imported as new instance. ProjectId={ProjectId} VersionId={VersionId} InstanceId={InstanceId} HasManualDownloads={HasManualDownloads}",
-            selectedProject?.Project.ProjectId,
-            item.Version.VersionId,
+            context.Project?.Project.ProjectId,
+            context.Item.Version.VersionId,
             instance.Id,
             result.HasManualDownloads);
     }
@@ -336,36 +338,20 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
         reportStatus(message);
     }
 
-    private DownloadTaskItem? BeginDownloadTask(ResourcesModVersionItemViewModel item, string subtitle)
+    private void BeginSession(InstallOperationContext context, string subtitle)
     {
-        var task = downloadTasksPage?.BeginTask(item.Title, subtitle);
-        ReportTask(task, new LauncherProgress(ModProgressStages.DownloadingFile, options.DownloadingText));
-        return task;
+        context.Session = ResourceInstallTaskSession.Begin(
+            downloadTasksPage,
+            context.Item.Title,
+            subtitle,
+            options.DownloadingText);
     }
 
-    private static void ReportTask(DownloadTaskItem? task, LauncherProgress progress)
+    private void PresentFailure(InstallOperationContext context, string message)
     {
-        task?.Report(progress with { Message = LauncherProgressTextFormatter.Format(progress) });
-    }
-
-    private static void CompleteTask(DownloadTaskItem? task, string message) => task?.Complete(message);
-
-    private static void FailTask(DownloadTaskItem? task, string message) => task?.Fail(message);
-
-    private bool CompleteCanceledTask(DownloadTaskItem? task)
-    {
-        return task?.IsCancellationRequested == true && CompleteCanceledTaskCore(task);
-    }
-
-    private bool CompleteCanceledTaskCore(DownloadTaskItem task)
-    {
-        downloadTasksPage?.CancelTask(task);
-        return true;
-    }
-
-    private static IProgress<LauncherProgress>? CreateImportProgress(DownloadTaskItem? task)
-    {
-        return task is null ? null : new Progress<LauncherProgress>(progress => ReportTask(task, progress));
+        floatingMessageService?.Show(message);
+        reportStatus(message);
+        context.Session?.Fail(message);
     }
 
     private string MapModpackImportFailureMessage(ModpackImportFailureReason failureReason)
@@ -385,5 +371,16 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
     private static string ResolveFileName(ResourcesModVersionItemViewModel item)
     {
         return string.IsNullOrWhiteSpace(item.Version.FileName) ? item.Title : item.Version.FileName;
+    }
+
+    private sealed class InstallOperationContext(
+        ResourcesModVersionItemViewModel item,
+        ResourcesModInstallTargetItemViewModel target,
+        ResourcesModProjectItemViewModel? project)
+    {
+        public ResourcesModVersionItemViewModel Item { get; } = item;
+        public ResourcesModInstallTargetItemViewModel Target { get; } = target;
+        public ResourcesModProjectItemViewModel? Project { get; } = project;
+        public ResourceInstallTaskSession? Session { get; set; }
     }
 }

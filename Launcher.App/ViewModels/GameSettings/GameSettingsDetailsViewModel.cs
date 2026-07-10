@@ -23,12 +23,14 @@ using Launcher.App.Services;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.GameSettings;
 
 public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDisposable
 {
     private readonly InstanceSettingsPersistenceCoordinator persistence;
+    private readonly ILogger logger;
 
     [ObservableProperty]
     private GameSettingsInstanceItem? selectedInstance;
@@ -56,14 +58,17 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
         IInstanceContentImportPathValidator importPathValidator,
         IFloatingMessageService floatingMessageService,
         IUiDispatcher uiDispatcher,
-        ILogger logger,
+        ILogger<GameSettingsDetailsViewModel>? logger = null,
+        ILoggerFactory? loggerFactory = null,
         IModpackExportService? modpackExportService = null)
     {
+        var resolvedLogger = logger ?? NullLogger<GameSettingsDetailsViewModel>.Instance;
+        this.logger = resolvedLogger;
         persistence = new InstanceSettingsPersistenceCoordinator(
             instanceService,
             statusService,
             uiDispatcher,
-            logger);
+            resolvedLogger);
         persistence.InstanceSaved += Persistence_InstanceSaved;
 
         General = new InstanceGeneralSettingsViewModel(
@@ -85,7 +90,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
             statusService,
             instanceFolderService,
             filePickerService,
-            importPathValidator);
+            importPathValidator,
+            logger: loggerFactory?.CreateLogger<InstanceModManagementSettingsViewModel>());
         ModManagement.DeleteModsRequested += ModManagement_DeleteModsRequested;
         ModManagement.ImportModConflictRequested += ModManagement_ImportModConflictRequested;
         ModManagement.OnlineModInstallRequested += ModManagement_OnlineModInstallRequested;
@@ -95,7 +101,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
             statusService,
             instanceFolderService,
             filePickerService,
-            importPathValidator);
+            importPathValidator,
+            logger: loggerFactory?.CreateLogger<InstanceSaveManagementSettingsViewModel>());
         SaveManagement.DeleteSavesRequested += SaveManagement_DeleteSavesRequested;
         SaveManagement.SaveImportFailedRequested += SaveManagement_SaveImportFailedRequested;
         ResourcePackManagement = new InstanceResourcePackManagementSettingsViewModel(
@@ -104,7 +111,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
             statusService,
             instanceFolderService,
             filePickerService,
-            importPathValidator);
+            importPathValidator,
+            logger: loggerFactory?.CreateLogger<InstanceResourcePackManagementSettingsViewModel>());
         ResourcePackManagement.DeleteResourcePacksRequested += ResourcePackManagement_DeleteResourcePacksRequested;
         ResourcePackManagement.ResourcePackImportFailedRequested += ResourcePackManagement_ResourcePackImportFailedRequested;
         ShaderPackManagement = new InstanceShaderPackManagementSettingsViewModel(
@@ -113,7 +121,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
             statusService,
             instanceFolderService,
             filePickerService,
-            importPathValidator);
+            importPathValidator,
+            logger: loggerFactory?.CreateLogger<InstanceShaderPackManagementSettingsViewModel>());
         ShaderPackManagement.DeleteShaderPacksRequested += ShaderPackManagement_DeleteShaderPacksRequested;
         ShaderPackManagement.ShaderPackImportFailedRequested += ShaderPackManagement_ShaderPackImportFailedRequested;
         Backup = new InstanceBackupSettingsViewModel(
@@ -123,7 +132,8 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
             statusService,
             instanceFolderService,
             filePickerService,
-            floatingMessageService);
+            floatingMessageService,
+            logger: loggerFactory?.CreateLogger<InstanceBackupSettingsViewModel>());
         Export = new InstanceExportSettingsViewModel(
             this,
             filePickerService,
@@ -316,8 +326,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
             "export" => Export,
             _ => Placeholder
         };
-        if (CurrentSectionViewModel is not null)
-            _ = CurrentSectionViewModel.OnSectionActivatedAsync();
+        ActivateCurrentSection();
     }
 
     partial void OnCurrentSectionViewModelChanged(GameSettingsDetailsSectionViewModelBase? value)
@@ -341,8 +350,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
         Export.OnSelectedInstanceChanged(instance);
         OnPropertyChanged(nameof(HasSelectedInstance));
 
-        if (CurrentSectionViewModel is not null)
-            _ = CurrentSectionViewModel.OnSectionActivatedAsync();
+        ActivateCurrentSection();
     }
 
     private void RefreshSelectedInstanceReference(GameSettingsInstanceItem? value)
@@ -360,8 +368,33 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
         Backup.OnSelectedInstanceChanged(instance);
         Export.OnSelectedInstanceChanged(instance);
 
-        if (shouldReactivateCurrentSection && CurrentSectionViewModel is not null)
-            _ = CurrentSectionViewModel.OnSectionActivatedAsync();
+        if (shouldReactivateCurrentSection)
+            ActivateCurrentSection();
+    }
+
+    private void ActivateCurrentSection()
+    {
+        if (CurrentSectionViewModel is { } section)
+            _ = ObserveSectionActivationAsync(section);
+    }
+
+    private async Task ObserveSectionActivationAsync(GameSettingsDetailsSectionViewModelBase section)
+    {
+        try
+        {
+            await section.OnSectionActivatedAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Failed to activate game settings section. SectionType={SectionType} InstanceId={InstanceId}",
+                section.GetType().Name,
+                SelectedInstance?.Instance.Id);
+        }
     }
 
     private void Persistence_InstanceSaved(GameInstance instance)

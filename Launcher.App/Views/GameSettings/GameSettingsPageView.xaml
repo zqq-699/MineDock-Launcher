@@ -67,7 +67,7 @@
                     </Grid.Resources>
 
                     <ItemsControl Tag="InstanceCategoryMenuLayer"
-                                  ItemsSource="{Binding InstanceCategories}">
+                                  ItemsSource="{Binding InstanceList.Categories}">
                         <ItemsControl.RenderTransform>
                             <TranslateTransform />
                         </ItemsControl.RenderTransform>
@@ -376,13 +376,13 @@
                     </Grid.Style>
 
                     <TextBlock Margin="0,122,0,0"
-                               Text="{Binding InstanceLoadError}">
+                               Text="{Binding InstanceList.LoadError}">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource PageEmptyStateTextStyle}">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Setter Property="Foreground" Value="{DynamicResource LauncherDangerBrush}" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasInstanceLoadError}" Value="True">
+                                    <DataTrigger Binding="{Binding InstanceList.HasLoadError}" Value="True">
                                         <Setter Property="Visibility" Value="Visible" />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -391,12 +391,12 @@
                     </TextBlock>
 
                     <TextBlock Margin="0,122,0,0"
-                               Text="{Binding InstanceEmptyMessage}">
+                               Text="{Binding InstanceList.EmptyMessage}">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock" BasedOn="{StaticResource PageEmptyStateTextStyle}">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasInstanceEmptyMessage}" Value="True">
+                                    <DataTrigger Binding="{Binding InstanceList.HasEmptyMessage}" Value="True">
                                         <Setter Property="Visibility" Value="Visible" />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -414,12 +414,12 @@
                             <TranslateTransform />
                         </Grid.RenderTransform>
 
-                        <ListBox ItemsSource="{Binding VisibleInstances}"
-                                 SelectedItem="{Binding SelectedInstance, Mode=OneWay}"
+                        <ListBox ItemsSource="{Binding InstanceList.VisibleInstances}"
+                                 SelectedItem="{Binding InstanceList.SelectedInstance, Mode=OneWay}"
                                  ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
                                  Style="{StaticResource ListPageVirtualizedListBoxStyle}"
                                  behaviors:VirtualizedListItemStateBehavior.IsEnabled="True"
-                                 behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding ListEntranceAnimationToken}"
+                                 behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding InstanceList.EntranceAnimationToken}"
                                  behaviors:VirtualizedListItemStateBehavior.ContentTopOffset="132"
                                  VirtualizingPanel.IsVirtualizing="True"
                                  VirtualizingPanel.VirtualizationMode="Recycling"
@@ -474,7 +474,7 @@
                                                 <Button Margin="4,0,0,0"
                                                         Style="{StaticResource SecondaryMenuDeleteButtonStyle}"
                                                         ToolTip="{x:Static res:Strings.GameSettings_DeleteInstanceTooltip}"
-                                                        Command="{Binding DataContext.OpenDeleteInstanceDialogCommand, RelativeSource={RelativeSource AncestorType={x:Type views:GameSettingsPageView}}}"
+                                                        Command="{Binding DataContext.Dialogs.OpenDeleteInstanceCommand, RelativeSource={RelativeSource AncestorType={x:Type views:GameSettingsPageView}}}"
                                                         CommandParameter="{Binding}">
                                                     <controls:SvgIcon Width="16"
                                                                       Height="16"

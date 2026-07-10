@@ -747,22 +747,21 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
             source,
             archivePaths.Count);
 
-        var successCount = 0;
-        foreach (var archivePath in archivePaths)
-        {
-            logger.LogInformation(
-                "Importing local shader pack archive. InstanceId={InstanceId} ArchivePath={ArchivePath}",
-                selectedInstance.Id,
-                archivePath);
-
-            var result = await localShaderPacksViewModel.ImportShaderPackAsync(archivePath, reportStatus: false);
-            if (result.IsSuccess)
+        var batch = await LocalContentImportBatchCoordinator.ExecuteAsync(
+            archivePaths,
+            async archivePath =>
             {
-                successCount++;
-                continue;
-            }
+                logger.LogInformation(
+                    "Importing local shader pack archive. InstanceId={InstanceId} ArchivePath={ArchivePath}",
+                    selectedInstance.Id,
+                    archivePath);
+                return await localShaderPacksViewModel.ImportShaderPackAsync(archivePath, reportStatus: false);
+            },
+            result => result.IsSuccess);
 
-            switch (result.FailureReason)
+        if (batch.Failure is not null)
+        {
+            switch (batch.Failure.FailureReason)
             {
                 case LocalShaderPackImportFailureReason.UnsupportedArchive:
                     ShaderPackImportFailedRequested?.Invoke(
@@ -775,19 +774,18 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
                     logger.LogWarning(
                         "Local shader pack import failed unexpectedly after service call. InstanceId={InstanceId} ArchivePath={ArchivePath}",
                         selectedInstance.Id,
-                        archivePath);
+                        batch.FailedPath);
                     statusService.Report(Strings.Status_LocalShaderPackImportFailed);
                     break;
             }
-
             return;
         }
 
-        if (successCount > 0)
+        if (batch.SuccessCount > 0)
         {
-            statusService.Report(successCount == 1
+            statusService.Report(batch.SuccessCount == 1
                 ? Strings.Status_LocalShaderPackImported
-                : string.Format(Strings.Status_LocalShaderPacksImportedFormat, successCount));
+                : string.Format(Strings.Status_LocalShaderPacksImportedFormat, batch.SuccessCount));
         }
     }
 

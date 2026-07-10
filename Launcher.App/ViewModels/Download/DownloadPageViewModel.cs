@@ -106,7 +106,8 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
             instanceService,
             loaderProviders,
             instanceNameTracker,
-            modrinthService);
+            modrinthService,
+            this.logger);
         InstallState = new DownloadInstallViewModel(
             instanceService,
             downloadTasksPage,

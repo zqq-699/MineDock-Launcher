@@ -19,6 +19,7 @@
 
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application.Services;
@@ -132,6 +133,7 @@ public sealed partial class GameSettingsEditDialogViewModel : ObservableObject
         IsEditInstanceDialogOpen = true;
     }
 
+    [RelayCommand]
     public void Cancel()
     {
         if (IsEditInstanceDialogBusy)
@@ -140,6 +142,7 @@ public sealed partial class GameSettingsEditDialogViewModel : ObservableObject
         IsEditInstanceDialogOpen = false;
     }
 
+    [RelayCommand]
     public async Task ConfirmAsync()
     {
         if (IsEditInstanceDialogBusy)
