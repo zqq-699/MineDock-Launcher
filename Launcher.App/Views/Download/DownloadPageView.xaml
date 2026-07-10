@@ -37,6 +37,7 @@
                                 SearchText="{Binding VersionSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 IsSearchVisible="{Binding IsVersionListStep}"
                                 IsListVisible="{Binding IsDownloadContentVisible}"
+                                IsProgressiveBlurEnabled="{DynamicResource Is.ProgressiveBlur.Enabled}"
                                 UseFrameScrollViewer="False">
             <controls:ListPageFrame.OverlayContent>
                 <Grid>

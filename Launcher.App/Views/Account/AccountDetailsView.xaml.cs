@@ -1,8 +1,10 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Launcher.App.Controls;
 using Launcher.App.Services;
 using Launcher.App.ViewModels.Account;
 
@@ -10,7 +12,15 @@ namespace Launcher.App.Views.Account;
 
 public partial class AccountDetailsView : UserControl
 {
+    public static readonly DependencyProperty IsProgressiveBlurEnabledProperty =
+        DependencyProperty.Register(
+            nameof(IsProgressiveBlurEnabled),
+            typeof(bool),
+            typeof(AccountDetailsView),
+            new PropertyMetadata(false, OnProgressiveBlurEnabledChanged));
+
     private readonly PageTransitionService accountTransitionService;
+    private readonly ProgressiveBlurBandController? progressiveBlurController;
     private INotifyPropertyChanged? currentViewModelNotifier;
     private string? currentAccountToken;
 
@@ -18,14 +28,56 @@ public partial class AccountDetailsView : UserControl
     {
         InitializeComponent();
 
+        progressiveBlurController = new ProgressiveBlurBandController(
+            new ProgressiveBlurVisualParts(
+                this,
+                PART_ProgressiveBlurLayer,
+                PART_ProgressiveBlurVisualSource,
+                PART_ProgressiveBlurDirectHost,
+                PART_ProgressiveBlurViewport,
+                PART_ProgressiveBlurUpscaleHost,
+                PART_ProgressiveBlurUpscaleTransform,
+                PART_ProgressiveBlurHorizontalHost,
+                PART_ProgressiveBlurVerticalHost,
+                PART_ProgressiveBlurBrush),
+            () => IsVisible && IsProgressiveBlurEnabled);
+
         accountTransitionService = new PageTransitionService(
             Dispatcher,
             _ => DetailsContentRoot,
             GetCurrentAccountToken());
 
         Loaded += AccountDetailsView_Loaded;
+        Unloaded += AccountDetailsView_Unloaded;
         DataContextChanged += AccountDetailsView_DataContextChanged;
+        PART_ProgressiveBlurLayer.MouseWheel += ProgressiveBlurLayer_MouseWheel;
     }
+
+    public bool IsProgressiveBlurEnabled
+    {
+        get => (bool)GetValue(IsProgressiveBlurEnabledProperty);
+        set => SetValue(IsProgressiveBlurEnabledProperty, value);
+    }
+
+    internal FrameworkElement ProgressiveBlurLayerElement => PART_ProgressiveBlurLayer;
+
+    internal FrameworkElement ProgressiveBlurVisualSourceElement => PART_ProgressiveBlurVisualSource;
+
+    internal FrameworkElement ProgressiveBlurDirectHostElement => PART_ProgressiveBlurDirectHost;
+
+    internal FrameworkElement ProgressiveBlurViewportElement => PART_ProgressiveBlurViewport;
+
+    internal FrameworkElement ProgressiveBlurUpscaleHostElement => PART_ProgressiveBlurUpscaleHost;
+
+    internal ScaleTransform ProgressiveBlurUpscaleTransform => PART_ProgressiveBlurUpscaleTransform;
+
+    internal FrameworkElement ProgressiveBlurHorizontalHostElement => PART_ProgressiveBlurHorizontalHost;
+
+    internal FrameworkElement ProgressiveBlurVerticalHostElement => PART_ProgressiveBlurVerticalHost;
+
+    internal VisualBrush ProgressiveBlurBrush => PART_ProgressiveBlurBrush;
+
+    internal ScrollViewer DetailsScrollViewerElement => AccountDetailsScrollViewer;
 
     public void ScrollToTop()
     {
@@ -34,9 +86,44 @@ public partial class AccountDetailsView : UserControl
 
     private void AccountDetailsView_Loaded(object sender, RoutedEventArgs e)
     {
+        progressiveBlurController?.OnLoaded();
         currentAccountToken = GetCurrentAccountToken();
         accountTransitionService.SyncTo(currentAccountToken);
         ResetContentPresentation();
+    }
+
+    private void AccountDetailsView_Unloaded(object sender, RoutedEventArgs e)
+    {
+        progressiveBlurController?.OnUnloaded();
+    }
+
+    private static void OnProgressiveBlurEnabledChanged(
+        DependencyObject dependencyObject,
+        DependencyPropertyChangedEventArgs e)
+    {
+        if (dependencyObject is not AccountDetailsView view)
+            return;
+
+        var becameEnabled = !(bool)e.OldValue && (bool)e.NewValue;
+        view.progressiveBlurController?.OnEnabledChanged(becameEnabled);
+    }
+
+    private void ProgressiveBlurLayer_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Handled
+            || !IsProgressiveBlurEnabled
+            || !ReferenceEquals(e.OriginalSource, PART_ProgressiveBlurLayer))
+        {
+            return;
+        }
+
+        var forwardedEvent = new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+        {
+            RoutedEvent = MouseWheelEvent,
+            Source = AccountDetailsScrollViewer
+        };
+        AccountDetailsScrollViewer.RaiseEvent(forwardedEvent);
+        e.Handled = forwardedEvent.Handled;
     }
 
     private void AccountDetailsView_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

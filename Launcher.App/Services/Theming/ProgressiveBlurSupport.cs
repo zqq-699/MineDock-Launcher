@@ -156,19 +156,22 @@ internal sealed class WpfProgressiveBlurSupport : IProgressiveBlurSupport
 
     private void Refresh()
     {
+        lock (syncRoot)
+        {
+            if (isDisposed)
+                return;
+        }
+
         var next = EvaluateCurrent();
-        var changed = false;
         lock (syncRoot)
         {
             if (isDisposed || current == next)
                 return;
 
             current = next;
-            changed = true;
         }
 
-        if (changed)
-            AvailabilityChanged?.Invoke(this, EventArgs.Empty);
+        AvailabilityChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void RenderCapability_TierChanged(object? sender, EventArgs e)
@@ -188,9 +191,4 @@ internal sealed class WpfProgressiveBlurSupport : IProgressiveBlurSupport
 
         Refresh();
     }
-}
-
-internal static class ProgressiveBlurResourceKeys
-{
-    internal const string IsEnabled = "Is.ProgressiveBlur.Enabled";
 }

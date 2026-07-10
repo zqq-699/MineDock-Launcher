@@ -1,4 +1,5 @@
 using System.Windows;
+using Launcher.App.Effects;
 using Launcher.App.Services;
 using Launcher.Tests.Helpers;
 using Microsoft.Extensions.Logging;

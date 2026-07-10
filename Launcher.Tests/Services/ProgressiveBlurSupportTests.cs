@@ -110,21 +110,52 @@ public sealed class ProgressiveBlurSupportTests
     }
 
     [Fact]
-    public void OnlyResourcesAndSettingsPreviewOptIntoProgressiveBlur()
+    public void AllScrollableRightContentFramesOptIntoProgressiveBlur()
     {
-        var viewsDirectory = Path.Combine(FindSolutionDirectory().FullName, "Launcher.App", "Views");
-        var optInViews = Directory
+        var solutionDirectory = FindSolutionDirectory().FullName;
+        var viewsDirectory = Path.Combine(solutionDirectory, "Launcher.App", "Views");
+        var listPageFrameViews = Directory
             .EnumerateFiles(viewsDirectory, "*.xaml", SearchOption.AllDirectories)
-            .Where(path => File.ReadAllText(path).Contains("IsProgressiveBlurEnabled", StringComparison.Ordinal))
+            .Where(path => File.ReadAllText(path).Contains("<controls:ListPageFrame", StringComparison.Ordinal))
             .ToArray();
 
-        Assert.Equal(2, optInViews.Length);
-        Assert.Contains(optInViews, path => path.EndsWith(
+        Assert.Equal(5, listPageFrameViews.Length);
+        Assert.All(listPageFrameViews, path => Assert.Contains(
+            "IsProgressiveBlurEnabled=\"{DynamicResource Is.ProgressiveBlur.Enabled}\"",
+            File.ReadAllText(path),
+            StringComparison.Ordinal));
+
+        var expectedListPageFrameViews = new[]
+        {
+            Path.Combine("Views", "Download", "DownloadPageView.xaml"),
+            Path.Combine("Views", "GameSettings", "GameSettingsPageView.xaml"),
+            Path.Combine("Views", "Install", "InstallPageView.xaml"),
             Path.Combine("Views", "Resources", "ResourcesPageView.xaml"),
-            StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(optInViews, path => path.EndsWith(
-            Path.Combine("Views", "Settings", "SettingsPageView.xaml"),
-            StringComparison.OrdinalIgnoreCase));
+            Path.Combine("Views", "Settings", "SettingsPageView.xaml")
+        };
+        foreach (var expectedPath in expectedListPageFrameViews)
+        {
+            Assert.Contains(listPageFrameViews, path => path.EndsWith(
+                expectedPath,
+                StringComparison.OrdinalIgnoreCase));
+        }
+
+        var accountPageXaml = File.ReadAllText(Path.Combine(
+            viewsDirectory,
+            "Account",
+            "AccountPageView.xaml"));
+        Assert.Contains(
+            "IsProgressiveBlurEnabled=\"{DynamicResource Is.ProgressiveBlur.Enabled}\"",
+            accountPageXaml,
+            StringComparison.Ordinal);
+
+        var secondaryMenuFrameXaml = File.ReadAllText(Path.Combine(
+            solutionDirectory,
+            "Launcher.App",
+            "Controls",
+            "Navigation",
+            "SecondaryMenuFrame.xaml"));
+        Assert.DoesNotContain("IsProgressiveBlurEnabled", secondaryMenuFrameXaml, StringComparison.Ordinal);
     }
 
     [Fact]

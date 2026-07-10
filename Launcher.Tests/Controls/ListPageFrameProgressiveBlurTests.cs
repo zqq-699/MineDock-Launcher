@@ -1,10 +1,14 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using Launcher.App.Behaviors;
 using Launcher.App.Controls;
+using Launcher.App.Converters;
 using Launcher.App.Effects;
+using Launcher.App.Views.Account;
 using Launcher.Tests.Helpers;
 using WpfApplication = System.Windows.Application;
 
@@ -123,6 +127,112 @@ public sealed class ListPageFrameProgressiveBlurTests
     }
 
     [Fact]
+    public void AccountDetailsUsesTheSameProgressiveBlurBandForItsScrollableContent()
+    {
+        StaTest.Run(() =>
+        {
+            var application = WpfApplicationTestHelper.GetOrCreateApplication();
+            AddLauncherResources(application);
+            AddAccountDetailsResources(application);
+            var view = new AccountDetailsView
+            {
+                IsProgressiveBlurEnabled = true
+            };
+            var window = CreateTestWindow(view);
+
+            try
+            {
+                window.Show();
+                PumpLayout(view);
+
+                const double blurLength = 70d;
+                var visibleBandHeight = Math.Min(
+                    view.ProgressiveBlurLayerElement.ActualHeight,
+                    blurLength + ProgressiveBlurDefaults.SamplingGuardLength);
+                var expectedLayout = ProgressiveBlurLayoutCalculator.Calculate(
+                    view.ProgressiveBlurLayerElement.ActualWidth,
+                    view.ProgressiveBlurLayerElement.ActualHeight,
+                    blurLength,
+                    visibleBandHeight,
+                    ProgressiveBlurDefaults.MaximumRadius,
+                    ProgressiveBlurDefaults.RenderScale,
+                    VisualTreeHelper.GetDpi(view.ProgressiveBlurLayerElement));
+                var horizontalEffect = Assert.IsType<ProgressiveGaussianBlurEffect>(
+                    view.ProgressiveBlurHorizontalHostElement.Effect);
+                var verticalEffect = Assert.IsType<ProgressiveGaussianBlurEffect>(
+                    view.ProgressiveBlurVerticalHostElement.Effect);
+
+                Assert.Null(view.ProgressiveBlurLayerElement.Effect);
+                Assert.Null(view.ProgressiveBlurVisualSourceElement.Effect);
+                Assert.Equal((1d, 0d), (horizontalEffect.DirectionX, horizontalEffect.DirectionY));
+                Assert.Equal((0d, 1d), (verticalEffect.DirectionX, verticalEffect.DirectionY));
+                Assert.Same(view.ProgressiveBlurVisualSourceElement, view.ProgressiveBlurBrush.Visual);
+                Assert.Equal(Visibility.Visible, view.ProgressiveBlurViewportElement.Visibility);
+                Assert.Equal(expectedLayout.PresentationHeight, view.ProgressiveBlurViewportElement.Height, 10);
+                Assert.Equal(expectedLayout.LowResolutionWidth, view.ProgressiveBlurUpscaleHostElement.Width, 10);
+                Assert.Equal(expectedLayout.LowResolutionHeight, view.ProgressiveBlurUpscaleHostElement.Height, 10);
+                Assert.Equal(expectedLayout.UpscaleX, view.ProgressiveBlurUpscaleTransform.ScaleX, 10);
+                Assert.Equal(expectedLayout.UpscaleY, view.ProgressiveBlurUpscaleTransform.ScaleY, 10);
+                Assert.Equal(
+                    new Rect(
+                        0d,
+                        0d,
+                        view.ProgressiveBlurLayerElement.ActualWidth,
+                        expectedLayout.TextureHeight),
+                    view.ProgressiveBlurBrush.Viewbox);
+                var directListClip = Assert.IsType<RectangleGeometry>(
+                    view.ProgressiveBlurDirectHostElement.Clip);
+                Assert.Equal(expectedLayout.DirectListStart, directListClip.Rect.Y, 10);
+                AssertEffectParameters(
+                    horizontalEffect,
+                    expectedLayout,
+                    expectedLayout.HorizontalMaximumRadius);
+                AssertEffectParameters(
+                    verticalEffect,
+                    expectedLayout,
+                    expectedLayout.VerticalMaximumRadius);
+                Assert.Equal(70d, VerticalEdgeOpacityMask.GetTopFadeLength(view.ProgressiveBlurLayerElement));
+                Assert.Equal(72d, VerticalEdgeOpacityMask.GetBottomFadeLength(view.ProgressiveBlurLayerElement));
+                Assert.Equal(0d, VerticalEdgeOpacityMask.GetTopMinimumOpacity(view.ProgressiveBlurLayerElement));
+
+                var brush = view.ProgressiveBlurBrush;
+                view.DetailsScrollViewerElement.ScrollToVerticalOffset(200d);
+                PumpLayout(view);
+                Assert.True(view.DetailsScrollViewerElement.VerticalOffset > 0d);
+                Assert.Same(brush, view.ProgressiveBlurBrush);
+                Assert.Same(horizontalEffect, view.ProgressiveBlurHorizontalHostElement.Effect);
+                Assert.Same(verticalEffect, view.ProgressiveBlurVerticalHostElement.Effect);
+
+                var offsetBeforeForwardedWheel = view.DetailsScrollViewerElement.VerticalOffset;
+                var wheelEvent = new MouseWheelEventArgs(Mouse.PrimaryDevice, Environment.TickCount, 120)
+                {
+                    RoutedEvent = UIElement.MouseWheelEvent
+                };
+                view.ProgressiveBlurLayerElement.RaiseEvent(wheelEvent);
+                PumpLayout(view);
+                Assert.True(wheelEvent.Handled);
+                Assert.True(view.DetailsScrollViewerElement.VerticalOffset < offsetBeforeForwardedWheel);
+
+                view.IsProgressiveBlurEnabled = false;
+                PumpLayout(view);
+                Assert.Null(view.ProgressiveBlurHorizontalHostElement.Effect);
+                Assert.Null(view.ProgressiveBlurVerticalHostElement.Effect);
+                Assert.Equal(Visibility.Collapsed, view.ProgressiveBlurViewportElement.Visibility);
+                Assert.Null(view.ProgressiveBlurDirectHostElement.Clip);
+                Assert.True(double.IsNaN(
+                    VerticalEdgeOpacityMask.GetTopMinimumOpacity(view.ProgressiveBlurLayerElement)));
+                Assert.Equal(1d,
+                    VerticalEdgeOpacityMask.GetTopIntermediateOpacity(view.ProgressiveBlurLayerElement));
+            }
+            finally
+            {
+                window.Close();
+                WpfApplicationTestHelper.ShutdownAndResetCurrentApplication();
+            }
+        });
+    }
+
+    [Fact]
     public void ProgressiveBlurLengthTracksAllHeaderStates()
     {
         StaTest.Run(() =>
@@ -231,6 +341,230 @@ public sealed class ListPageFrameProgressiveBlurTests
         });
     }
 
+    [Fact]
+    public void ProgressiveBlurReusesEffectsAcrossVisibilityDisableAndReload()
+    {
+        StaTest.Run(() =>
+        {
+            var application = WpfApplicationTestHelper.GetOrCreateApplication();
+            AddLauncherResources(application);
+            var frame = new ListPageFrame
+            {
+                IsProgressiveBlurEnabled = true,
+                IsListVisible = true,
+                ListContent = new Border { Height = 200d }
+            };
+            var window = CreateTestWindow(frame);
+
+            try
+            {
+                window.Show();
+                PumpLayout(frame);
+
+                var horizontalEffect = Assert.IsType<ProgressiveGaussianBlurEffect>(
+                    frame.BlurBandHorizontalHostElement.Effect);
+                var verticalEffect = Assert.IsType<ProgressiveGaussianBlurEffect>(
+                    frame.BlurBandVerticalHostElement.Effect);
+                var blurBandBrush = frame.BlurBandBrush;
+                var upscaleTransform = frame.BlurBandUpscaleTransform;
+
+                frame.IsListVisible = false;
+                PumpLayout(frame);
+                Assert.Null(frame.BlurBandHorizontalHostElement.Effect);
+                Assert.Null(frame.BlurBandVerticalHostElement.Effect);
+
+                frame.IsListVisible = true;
+                PumpLayout(frame);
+                Assert.Same(horizontalEffect, frame.BlurBandHorizontalHostElement.Effect);
+                Assert.Same(verticalEffect, frame.BlurBandVerticalHostElement.Effect);
+
+                frame.IsProgressiveBlurEnabled = false;
+                PumpLayout(frame);
+                Assert.Null(frame.BlurBandHorizontalHostElement.Effect);
+                Assert.Null(frame.BlurBandVerticalHostElement.Effect);
+
+                frame.IsProgressiveBlurEnabled = true;
+                PumpLayout(frame);
+                Assert.Same(horizontalEffect, frame.BlurBandHorizontalHostElement.Effect);
+                Assert.Same(verticalEffect, frame.BlurBandVerticalHostElement.Effect);
+
+                window.Content = null;
+                PumpLayout(frame);
+                Assert.False(frame.IsLoaded);
+                Assert.Null(frame.BlurBandHorizontalHostElement.Effect);
+                Assert.Null(frame.BlurBandVerticalHostElement.Effect);
+
+                window.Content = frame;
+                PumpLayout(frame);
+                Assert.True(frame.IsLoaded);
+                Assert.Same(horizontalEffect, frame.BlurBandHorizontalHostElement.Effect);
+                Assert.Same(verticalEffect, frame.BlurBandVerticalHostElement.Effect);
+                Assert.Same(blurBandBrush, frame.BlurBandBrush);
+                Assert.Same(upscaleTransform, frame.BlurBandUpscaleTransform);
+            }
+            finally
+            {
+                window.Close();
+                WpfApplicationTestHelper.ShutdownAndResetCurrentApplication();
+            }
+        });
+    }
+
+    [Fact]
+    public void ProgressiveBlurDeactivationPreservesEffectsItDoesNotOwn()
+    {
+        StaTest.Run(() =>
+        {
+            var application = WpfApplicationTestHelper.GetOrCreateApplication();
+            AddLauncherResources(application);
+            var frame = new ListPageFrame
+            {
+                IsProgressiveBlurEnabled = true,
+                IsListVisible = true,
+                ListContent = new Border { Height = 200d }
+            };
+            var window = CreateTestWindow(frame);
+
+            try
+            {
+                window.Show();
+                PumpLayout(frame);
+
+                var listLayerEffect = new BlurEffect { Radius = 0d };
+                var listVisualSourceEffect = new BlurEffect { Radius = 0d };
+                frame.ListLayerElement.Effect = listLayerEffect;
+                frame.ListVisualSourceElement.Effect = listVisualSourceEffect;
+
+                frame.IsProgressiveBlurEnabled = false;
+                PumpLayout(frame);
+
+                Assert.Same(listLayerEffect, frame.ListLayerElement.Effect);
+                Assert.Same(listVisualSourceEffect, frame.ListVisualSourceElement.Effect);
+                Assert.Null(frame.BlurBandHorizontalHostElement.Effect);
+                Assert.Null(frame.BlurBandVerticalHostElement.Effect);
+            }
+            finally
+            {
+                window.Close();
+                WpfApplicationTestHelper.ShutdownAndResetCurrentApplication();
+            }
+        });
+    }
+
+    [Fact]
+    public void ProgressiveBlurCreationFailureRetriesOnlyAfterExplicitReenable()
+    {
+        StaTest.Run(() =>
+        {
+            var application = WpfApplicationTestHelper.GetOrCreateApplication();
+            AddLauncherResources(application);
+            var creationAttempts = 0;
+            ProgressiveBlurEffectFactory effectFactory = () =>
+            {
+                creationAttempts++;
+                return ProgressiveBlurEffectCreationResult.Failed(
+                    new InvalidOperationException("Expected test activation failure."));
+            };
+            var frame = new ListPageFrame(effectFactory, null)
+            {
+                IsProgressiveBlurEnabled = true,
+                IsListVisible = true,
+                ListContent = new Border { Height = 200d }
+            };
+            var window = CreateTestWindow(frame);
+
+            try
+            {
+                window.Show();
+                PumpLayout(frame);
+
+                Assert.Equal(1, creationAttempts);
+                Assert.Null(frame.BlurBandHorizontalHostElement.Effect);
+                Assert.Null(frame.BlurBandVerticalHostElement.Effect);
+                Assert.Equal(Visibility.Collapsed, frame.BlurBandViewportElement.Visibility);
+                Assert.Null(frame.DirectListHostElement.Clip);
+                Assert.True(double.IsNaN(VerticalEdgeOpacityMask.GetTopMinimumOpacity(frame.ListLayerElement)));
+                Assert.Equal(0.1d, VerticalEdgeOpacityMask.GetTopIntermediateOpacity(frame.ListLayerElement));
+
+                window.Width += 120d;
+                PumpLayout(frame);
+                frame.IsListVisible = false;
+                frame.IsListVisible = true;
+                PumpLayout(frame);
+                Assert.Equal(1, creationAttempts);
+
+                frame.IsProgressiveBlurEnabled = false;
+                frame.IsProgressiveBlurEnabled = true;
+                PumpLayout(frame);
+                Assert.Equal(2, creationAttempts);
+                Assert.Null(frame.BlurBandHorizontalHostElement.Effect);
+                Assert.Null(frame.BlurBandVerticalHostElement.Effect);
+            }
+            finally
+            {
+                window.Close();
+                WpfApplicationTestHelper.ShutdownAndResetCurrentApplication();
+            }
+        });
+    }
+
+    [Fact]
+    public void ProgressiveBlurAttachmentFailureClearsBothEffectsAtomically()
+    {
+        StaTest.Run(() =>
+        {
+            var application = WpfApplicationTestHelper.GetOrCreateApplication();
+            AddLauncherResources(application);
+            ListPageFrame? frame = null;
+            var attachmentAttempts = 0;
+            ProgressiveBlurEffectAttacher effectAttacher = (horizontalEffect, _) =>
+            {
+                attachmentAttempts++;
+                frame!.BlurBandHorizontalHostElement.Effect = horizontalEffect;
+                throw new InvalidOperationException("Expected test attachment failure.");
+            };
+            frame = new ListPageFrame(null, effectAttacher)
+            {
+                IsProgressiveBlurEnabled = true,
+                IsListVisible = true,
+                ListContent = new Border { Height = 200d }
+            };
+            var window = CreateTestWindow(frame);
+
+            try
+            {
+                window.Show();
+                PumpLayout(frame);
+
+                Assert.Equal(1, attachmentAttempts);
+                Assert.Null(frame.BlurBandHorizontalHostElement.Effect);
+                Assert.Null(frame.BlurBandVerticalHostElement.Effect);
+                Assert.Equal(Visibility.Collapsed, frame.BlurBandViewportElement.Visibility);
+                Assert.Null(frame.DirectListHostElement.Clip);
+
+                window.Width += 120d;
+                PumpLayout(frame);
+                Assert.Equal(1, attachmentAttempts);
+            }
+            finally
+            {
+                window.Close();
+                WpfApplicationTestHelper.ShutdownAndResetCurrentApplication();
+            }
+        });
+    }
+
+    [Fact]
+    public void ProgressiveBlurDefaultsPreserveEstablishedVisualParameters()
+    {
+        Assert.Equal(24d, ProgressiveBlurDefaults.MaximumRadius);
+        Assert.Equal(0.4d, ProgressiveBlurDefaults.RenderScale);
+        Assert.Equal(0d, ProgressiveBlurDefaults.ActiveMinimumOpacity);
+        Assert.Equal(0.4d, ProgressiveBlurDefaults.ActiveIntermediateOpacity);
+        Assert.Equal(24d, ProgressiveBlurDefaults.SamplingGuardLength);
+        Assert.Equal(4d, ProgressiveBlurDefaults.TextureOverscanLength);
+    }
+
     [Theory]
     [InlineData(70d, 94d, 98d, 39d)]
     [InlineData(140d, 164d, 168d, 67d)]
@@ -242,13 +576,13 @@ public sealed class ListPageFrameProgressiveBlurTests
         double expectedTextureHeight,
         double expectedLowResolutionHeight)
     {
-        var layout = ListPageFrame.CalculateProgressiveBlurRenderLayout(
+        var layout = ProgressiveBlurLayoutCalculator.Calculate(
             width: 800d,
             height: 600d,
             blurLength,
             blurBandHeight,
-            maximumRadius: 24d,
-            renderScale: 0.4d,
+            maximumRadius: ProgressiveBlurDefaults.MaximumRadius,
+            renderScale: ProgressiveBlurDefaults.RenderScale,
             new DpiScale(1d, 1d));
 
         Assert.Equal(320d, layout.LowResolutionWidth);
@@ -262,8 +596,14 @@ public sealed class ListPageFrameProgressiveBlurTests
             blurLength * layout.LowResolutionHeight / expectedTextureHeight,
             layout.ScaledBlurLength,
             10);
-        Assert.Equal(24d * layout.LowResolutionWidth / 800d, layout.HorizontalMaximumRadius, 10);
-        Assert.Equal(24d * layout.LowResolutionHeight / expectedTextureHeight, layout.VerticalMaximumRadius, 10);
+        Assert.Equal(
+            ProgressiveBlurDefaults.MaximumRadius * layout.LowResolutionWidth / 800d,
+            layout.HorizontalMaximumRadius,
+            10);
+        Assert.Equal(
+            ProgressiveBlurDefaults.MaximumRadius * layout.LowResolutionHeight / expectedTextureHeight,
+            layout.VerticalMaximumRadius,
+            10);
 
         var surfaceAreaRatio =
             (layout.LowResolutionWidth * layout.LowResolutionHeight) / (800d * expectedTextureHeight);
@@ -280,20 +620,24 @@ public sealed class ListPageFrameProgressiveBlurTests
     {
         const double width = 803d;
         const double blurBandHeight = 94d;
-        var layout = ListPageFrame.CalculateProgressiveBlurRenderLayout(
+        var layout = ProgressiveBlurLayoutCalculator.Calculate(
             width,
             height: 600d,
             blurLength: 70d,
             blurBandHeight,
-            maximumRadius: 24d,
-            renderScale: 0.4d,
+            maximumRadius: ProgressiveBlurDefaults.MaximumRadius,
+            renderScale: ProgressiveBlurDefaults.RenderScale,
             new DpiScale(dpiScale, dpiScale));
 
-        var expectedWidthPixels = Math.Round(width * dpiScale * 0.4d, MidpointRounding.AwayFromZero);
+        var expectedWidthPixels = Math.Round(
+            width * dpiScale * ProgressiveBlurDefaults.RenderScale,
+            MidpointRounding.AwayFromZero);
         var expectedSeamPixels = Math.Round(blurBandHeight * dpiScale, MidpointRounding.AwayFromZero);
         var expectedSeam = expectedSeamPixels / dpiScale;
-        var textureHeight = expectedSeam + 4d;
-        var expectedHeightPixels = Math.Round(textureHeight * dpiScale * 0.4d, MidpointRounding.AwayFromZero);
+        var textureHeight = expectedSeam + ProgressiveBlurDefaults.TextureOverscanLength;
+        var expectedHeightPixels = Math.Round(
+            textureHeight * dpiScale * ProgressiveBlurDefaults.RenderScale,
+            MidpointRounding.AwayFromZero);
 
         Assert.Equal(expectedWidthPixels, layout.LowResolutionWidth * dpiScale, 10);
         Assert.Equal(expectedHeightPixels, layout.LowResolutionHeight * dpiScale, 10);
@@ -306,13 +650,13 @@ public sealed class ListPageFrameProgressiveBlurTests
     [Fact]
     public void ProgressiveBlurTextureOverscanClampsToAvailableListHeight()
     {
-        var layout = ListPageFrame.CalculateProgressiveBlurRenderLayout(
+        var layout = ProgressiveBlurLayoutCalculator.Calculate(
             width: 800d,
             height: 165d,
             blurLength: 140d,
             visibleBlurBandHeight: 164d,
-            maximumRadius: 24d,
-            renderScale: 0.4d,
+            maximumRadius: ProgressiveBlurDefaults.MaximumRadius,
+            renderScale: ProgressiveBlurDefaults.RenderScale,
             new DpiScale(1d, 1d));
 
         Assert.Equal(164d, layout.PresentationHeight);
@@ -322,7 +666,7 @@ public sealed class ListPageFrameProgressiveBlurTests
         Assert.Equal(165d, layout.LowResolutionHeight * layout.UpscaleY, 10);
     }
 
-    private static Window CreateTestWindow(ListPageFrame frame)
+    private static Window CreateTestWindow(FrameworkElement content)
     {
         return new Window
         {
@@ -332,7 +676,7 @@ public sealed class ListPageFrameProgressiveBlurTests
             Top = -10000,
             ShowActivated = false,
             ShowInTaskbar = false,
-            Content = frame
+            Content = content
         };
     }
 
@@ -352,6 +696,15 @@ public sealed class ListPageFrameProgressiveBlurTests
         });
     }
 
+    private static void AddAccountDetailsResources(WpfApplication application)
+    {
+        application.Resources["AccountKindTextConverter"] = new AccountKindTextConverter();
+        application.Resources["BooleanToMenuTextVisibilityConverter"] =
+            new BooleanToMenuTextVisibilityConverter();
+        application.Resources["CapeDisplayNameConverter"] = new CapeDisplayNameConverter();
+        application.Resources["CapeStateTextConverter"] = new CapeStateTextConverter();
+    }
+
     private static void PumpLayout(FrameworkElement element)
     {
         element.UpdateLayout();
@@ -361,7 +714,9 @@ public sealed class ListPageFrameProgressiveBlurTests
 
     private static void AssertBlurLength(ListPageFrame frame, double expected)
     {
-        var expectedBlurBandHeight = Math.Min(frame.ListLayerElement.ActualHeight, expected + 24d);
+        var expectedBlurBandHeight = Math.Min(
+            frame.ListLayerElement.ActualHeight,
+            expected + ProgressiveBlurDefaults.SamplingGuardLength);
         var expectedLayout = CalculateExpectedLayout(frame, expected, expectedBlurBandHeight);
         var horizontalEffect = Assert.IsType<ProgressiveGaussianBlurEffect>(frame.BlurBandHorizontalHostElement.Effect);
         var verticalEffect = Assert.IsType<ProgressiveGaussianBlurEffect>(frame.BlurBandVerticalHostElement.Effect);
@@ -382,24 +737,24 @@ public sealed class ListPageFrameProgressiveBlurTests
         Assert.Equal(expected, VerticalEdgeOpacityMask.GetTopFadeLength(frame.ListLayerElement));
     }
 
-    private static ListPageFrame.ProgressiveBlurRenderLayout CalculateExpectedLayout(
+    private static ProgressiveBlurRenderLayout CalculateExpectedLayout(
         ListPageFrame frame,
         double blurLength,
         double blurBandHeight)
     {
-        return ListPageFrame.CalculateProgressiveBlurRenderLayout(
+        return ProgressiveBlurLayoutCalculator.Calculate(
             frame.ListLayerElement.ActualWidth,
             frame.ListLayerElement.ActualHeight,
             blurLength,
             blurBandHeight,
-            maximumRadius: 24d,
-            renderScale: 0.4d,
+            maximumRadius: ProgressiveBlurDefaults.MaximumRadius,
+            renderScale: ProgressiveBlurDefaults.RenderScale,
             VisualTreeHelper.GetDpi(frame.ListLayerElement));
     }
 
     private static void AssertEffectParameters(
         ProgressiveGaussianBlurEffect effect,
-        ListPageFrame.ProgressiveBlurRenderLayout expectedLayout,
+        ProgressiveBlurRenderLayout expectedLayout,
         double expectedRadius)
     {
         Assert.Equal(expectedLayout.LowResolutionWidth, effect.InputWidth, 10);

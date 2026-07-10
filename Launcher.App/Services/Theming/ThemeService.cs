@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using Launcher.App.Effects;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

@@ -62,15 +62,14 @@
                                 Margin="284,36,24,8"
                                 Title="{Binding SectionTitle}"
                                 IsSearchVisible="False"
-                                IsListVisible="True">
+                                IsListVisible="True"
+                                IsProgressiveBlurEnabled="{DynamicResource Is.ProgressiveBlur.Enabled}">
             <controls:ListPageFrame.Style>
                 <Style TargetType="{x:Type controls:ListPageFrame}">
                     <Setter Property="UseFrameScrollViewer" Value="True" />
-                    <Setter Property="IsProgressiveBlurEnabled" Value="False" />
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding IsListPreviewSection}" Value="True">
                             <Setter Property="UseFrameScrollViewer" Value="False" />
-                            <Setter Property="IsProgressiveBlurEnabled" Value="{DynamicResource Is.ProgressiveBlur.Enabled}" />
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>

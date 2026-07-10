@@ -23,6 +23,7 @@
 
             <views:AccountDetailsView x:Name="AccountDetailsView"
                                       DataContext="{Binding Details}"
+                                      IsProgressiveBlurEnabled="{DynamicResource Is.ProgressiveBlur.Enabled}"
                                       Opacity="0"
                                       Visibility="Collapsed">
                 <views:AccountDetailsView.RenderTransform>

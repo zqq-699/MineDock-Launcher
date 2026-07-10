@@ -82,6 +82,7 @@
                                 IsSearchVisible="{Binding IsTopSearchVisible}"
                                 IsSearchToolbarVisible="{Binding IsTopResourceManagementDetailsStep}"
                                 IsListVisible="True"
+                                IsProgressiveBlurEnabled="{DynamicResource Is.ProgressiveBlur.Enabled}"
                                 UseFrameScrollViewer="False">
             <controls:ListPageFrame.SearchToolbarContentTemplate>
                 <DataTemplate>

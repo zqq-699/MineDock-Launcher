@@ -9,7 +9,8 @@
         <controls:ListPageFrame Margin="28,36,24,8"
                                 Title="{x:Static res:Strings.Page_Install}"
                                 IsSearchVisible="False"
-                                IsListVisible="{Binding HasTasks}">
+                                IsListVisible="{Binding HasTasks}"
+                                IsProgressiveBlurEnabled="{DynamicResource Is.ProgressiveBlur.Enabled}">
             <controls:ListPageFrame.OverlayContent>
                 <TextBlock Margin="0,42,0,0"
                            Text="{x:Static res:Strings.Install_Empty}">

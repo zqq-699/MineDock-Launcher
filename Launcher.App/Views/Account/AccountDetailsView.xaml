@@ -8,12 +8,18 @@
              xmlns:accountControls="clr-namespace:Launcher.App.Controls.Account"
              xmlns:res="clr-namespace:Launcher.App.Resources"
              Focusable="False">
-    <ScrollViewer x:Name="AccountDetailsScrollViewer"
-                  Style="{StaticResource ListPageScrollViewerStyle}"
-                  behaviors:VerticalEdgeOpacityMask.IsEnabled="True"
-                  behaviors:VerticalEdgeOpacityMask.TopFadeLength="132"
-                  behaviors:VerticalEdgeOpacityMask.BottomFadeLength="72"
-                  behaviors:VerticalEdgeOpacityMask.MinimumOpacity="0">
+    <Grid x:Name="PART_ProgressiveBlurLayer"
+          Background="Transparent"
+          behaviors:VerticalEdgeOpacityMask.IsEnabled="True"
+          behaviors:VerticalEdgeOpacityMask.TopFadeLength="70"
+          behaviors:VerticalEdgeOpacityMask.BottomFadeLength="72"
+          behaviors:VerticalEdgeOpacityMask.MinimumOpacity="0">
+        <Grid x:Name="PART_ProgressiveBlurDirectHost"
+              SnapsToDevicePixels="True">
+            <Grid x:Name="PART_ProgressiveBlurVisualSource"
+                  Background="Transparent">
+                <ScrollViewer x:Name="AccountDetailsScrollViewer"
+                              Style="{StaticResource ListPageScrollViewerStyle}">
         <StackPanel x:Name="DetailsContentRoot"
                     Margin="0,132,12,72"
                     MaxWidth="{StaticResource DetailPageContentMaxWidth}"
@@ -279,7 +285,47 @@
                 </GroupBox>
             </StackPanel>
         </StackPanel>
-    </ScrollViewer>
+                </ScrollViewer>
+            </Grid>
+        </Grid>
+
+        <Grid x:Name="PART_ProgressiveBlurViewport"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Top"
+              ClipToBounds="True"
+              IsHitTestVisible="False"
+              SnapsToDevicePixels="True"
+              Visibility="Collapsed">
+            <Grid x:Name="PART_ProgressiveBlurUpscaleHost"
+                  HorizontalAlignment="Left"
+                  VerticalAlignment="Top"
+                  RenderOptions.BitmapScalingMode="Linear">
+                <Grid.RenderTransform>
+                    <ScaleTransform x:Name="PART_ProgressiveBlurUpscaleTransform"
+                                    ScaleX="1"
+                                    ScaleY="1" />
+                </Grid.RenderTransform>
+
+                <Grid x:Name="PART_ProgressiveBlurVerticalHost"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Top">
+                    <Border x:Name="PART_ProgressiveBlurHorizontalHost"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Top">
+                        <Border.Background>
+                            <VisualBrush x:Name="PART_ProgressiveBlurBrush"
+                                         Viewbox="0,0,1,1"
+                                         ViewboxUnits="Absolute"
+                                         Viewport="0,0,1,1"
+                                         ViewportUnits="RelativeToBoundingBox"
+                                         Stretch="Fill"
+                                         TileMode="None" />
+                        </Border.Background>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
 </UserControl>
 
 
