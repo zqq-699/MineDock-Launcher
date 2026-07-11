@@ -176,8 +176,9 @@ public sealed partial class AccountCapeViewModel : ObservableObject
 
     private void Populate(IEnumerable<AccountCapeOption> capes)
     {
+        var normalizedCapes = Normalize(capes).ToList();
         Options.Clear();
-        foreach (var cape in Normalize(capes))
+        foreach (var cape in normalizedCapes)
             Options.Add(cape);
         SelectedOption = Options.FirstOrDefault(cape => cape.IsActive) ?? Options.FirstOrDefault();
         NotifyState();
