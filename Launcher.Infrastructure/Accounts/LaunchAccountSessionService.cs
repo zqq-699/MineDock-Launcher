@@ -97,6 +97,13 @@ internal sealed class LaunchAccountSessionService : ILaunchAccountSessionService
         {
             throw;
         }
+        catch (MicrosoftAccountAuthenticationException ex)
+        {
+            throw new LaunchAccountSessionException(
+                ex.Reason,
+                "Microsoft account session is unavailable.",
+                ex);
+        }
         catch (Exception ex)
         {
             throw new LaunchAccountSessionException("Microsoft account token is unavailable.", ex);

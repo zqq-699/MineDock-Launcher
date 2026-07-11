@@ -7,6 +7,7 @@
 using System.IO;
 using System.Text.Json;
 using Launcher.Application.Accounts;
+using Launcher.Infrastructure.Accounts.Credentials;
 
 namespace Launcher.Infrastructure.Accounts.ThirdParty;
 

@@ -69,6 +69,7 @@ internal sealed class ThirdPartyAccountService : IThirdPartyAccountService
         {
             var (apiRoot, metadataDocument) = await ResolveApiRootAsync(initialUri, cancellationToken).ConfigureAwait(false);
             using var metadata = metadataDocument;
+            var platformName = GetPlatformName(metadata);
             if (!SupportsUsernameLogin(metadata))
             {
                 throw new ThirdPartyAccountLoginException(
@@ -144,6 +145,7 @@ internal sealed class ThirdPartyAccountService : IThirdPartyAccountService
                 Kind = LauncherAccountKind.ThirdParty,
                 Uuid = result.ProfileId,
                 AuthenticationServerUrl = normalizedApiRoot,
+                ThirdPartyPlatformName = platformName,
                 ThirdPartyLoginUsername = username.Trim()
             };
             return AccountMapper.WithThirdPartyProfile(
@@ -203,7 +205,8 @@ internal sealed class ThirdPartyAccountService : IThirdPartyAccountService
         try
         {
             var (apiRoot, metadataDocument) = await ResolveApiRootAsync(initialUri, cancellationToken).ConfigureAwait(false);
-            metadataDocument.Dispose();
+            using var metadata = metadataDocument;
+            var platformName = GetPlatformName(metadata);
             var authentication = await AuthenticateEmailAsync(apiRoot, email, password, cancellationToken).ConfigureAwait(false);
             if (authentication.Profiles.Count == 0)
                 throw new ThirdPartyAccountLoginException(ThirdPartyAccountLoginFailureReason.ProfileMissing, "The account has no profiles.");
@@ -255,6 +258,7 @@ internal sealed class ThirdPartyAccountService : IThirdPartyAccountService
                 attemptId,
                 apiRoot,
                 normalizedApiRoot,
+                platformName,
                 email.Trim(),
                 authentication,
                 options,
@@ -342,6 +346,7 @@ internal sealed class ThirdPartyAccountService : IThirdPartyAccountService
                 Kind = LauncherAccountKind.ThirdParty,
                 Uuid = profile.Uuid,
                 AuthenticationServerUrl = pending.NormalizedApiRoot,
+                ThirdPartyPlatformName = pending.PlatformName,
                 ThirdPartyLoginUsername = pending.Email
             };
             return snapshot is { IsAvailable: true }
@@ -449,7 +454,8 @@ internal sealed class ThirdPartyAccountService : IThirdPartyAccountService
             authenticated.DisplayName,
             authenticated.AvatarSource,
             activeSkin,
-            activeCape);
+            activeCape,
+            authenticated.ThirdPartyPlatformName);
     }
 
     public async Task<LauncherAccount> RefreshAccountProfileAsync(
@@ -465,8 +471,11 @@ internal sealed class ThirdPartyAccountService : IThirdPartyAccountService
             return account;
         }
 
+        var (resolvedApiRoot, metadataDocument) = await ResolveApiRootAsync(apiRoot, cancellationToken).ConfigureAwait(false);
+        using var metadata = metadataDocument;
+        var platformName = GetPlatformName(metadata);
         var profile = await appearanceService.GetProfileAsync(
-            apiRoot,
+            resolvedApiRoot,
             account.Uuid,
             account.Id,
             cancellationToken).ConfigureAwait(false);
@@ -481,7 +490,8 @@ internal sealed class ThirdPartyAccountService : IThirdPartyAccountService
             profile.ProfileName!,
             profile.AvatarSource,
             profile.Skin,
-            profile.Cape);
+            profile.Cape,
+            platformName);
         logger.LogInformation(
             "Third-party account profile refreshed. AccountId={AccountId} HasSkin={HasSkin} HasCape={HasCape}",
             account.Id,
@@ -667,6 +677,20 @@ internal sealed class ThirdPartyAccountService : IThirdPartyAccountService
             && feature.ValueKind is JsonValueKind.True;
     }
 
+    private static string? GetPlatformName(JsonDocument metadata)
+    {
+        if (!metadata.RootElement.TryGetProperty("meta", out var meta)
+            || meta.ValueKind != JsonValueKind.Object
+            || !meta.TryGetProperty("serverName", out var serverName)
+            || serverName.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var value = serverName.GetString()?.Trim();
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
     private static AuthenticationResult ParseAuthenticationResult(JsonDocument payload, string username)
     {
         var root = payload.RootElement;
@@ -760,6 +784,7 @@ internal sealed class ThirdPartyAccountService : IThirdPartyAccountService
         string attemptId,
         Uri apiRoot,
         string normalizedApiRoot,
+        string? platformName,
         string email,
         EmailAuthenticationResult initialAuthentication,
         IReadOnlyList<ThirdPartyProfileOption> profiles,
@@ -769,6 +794,7 @@ internal sealed class ThirdPartyAccountService : IThirdPartyAccountService
         public string AttemptId { get; } = attemptId;
         public Uri ApiRoot { get; } = apiRoot;
         public string NormalizedApiRoot { get; } = normalizedApiRoot;
+        public string? PlatformName { get; } = platformName;
         public string Email { get; } = email;
         public EmailAuthenticationResult InitialAuthentication { get; } = initialAuthentication;
         public IReadOnlyList<ThirdPartyProfileOption> Profiles { get; } = profiles;

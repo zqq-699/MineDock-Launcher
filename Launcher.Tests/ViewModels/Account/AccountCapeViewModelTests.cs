@@ -170,6 +170,10 @@ public sealed class AccountCapeViewModelTests
         public Task<LauncherAccount> LoginInteractivelyAsync(CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<LauncherAccount> ReauthenticateInteractivelyAsync(
+            LauncherAccount account,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task DeleteAccountAsync(LauncherAccount account, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 

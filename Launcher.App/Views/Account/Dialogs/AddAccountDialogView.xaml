@@ -179,6 +179,9 @@
                                 <DataTrigger Binding="{Binding Dialog.IsMicrosoftLoginResultStep}" Value="True">
                                     <Setter Property="Foreground" Value="{DynamicResource Brush.FF8A8A}" />
                                 </DataTrigger>
+                                <DataTrigger Binding="{Binding Dialog.IsMicrosoftReauthenticationResultStep}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource Brush.FF8A8A}" />
+                                </DataTrigger>
                                 <DataTrigger Binding="{Binding Dialog.IsMicrosoftLoginSuccessful}" Value="True">
                                     <Setter Property="Foreground" Value="{DynamicResource Brush.7DFFB2}" />
                                 </DataTrigger>
@@ -277,7 +280,7 @@
                         Visibility="{Binding Dialog.CanShowAddAccountCancelButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                 <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                         Margin="{StaticResource DialogTrailingButtonMargin}"
-                        Content="{x:Static res:Strings.Confirm_Button}"
+                        Content="{Binding Dialog.AddAccountConfirmButtonText}"
                         IsEnabled="{Binding Dialog.CanConfirmAddAccountDialog}"
                         Command="{Binding RequestConfirmAddAccountDialogCommand}" />
             </StackPanel>

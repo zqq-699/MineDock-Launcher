@@ -73,6 +73,7 @@
                         Margin="10,0,0,0"
                         Style="{StaticResource InlineIconButtonStyle}"
                         IsEnabled="{Binding CanRenameSelectedAccount}"
+                        Visibility="{Binding CanRenameSelectedAccount, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}"
                         Command="{Binding RequestRenameAccountCommand}">
                     <controls:SvgIcon Width="16"
                                       Height="16"
@@ -81,7 +82,7 @@
                 </Button>
             </Grid>
             <TextBlock Margin="0,8,0,0"
-                       Text="{Binding AccountList.SelectedAccount.Kind, Converter={StaticResource AccountKindTextConverter}}"
+                       Text="{Binding AccountList.SelectedAccount, Converter={StaticResource AccountKindTextConverter}}"
                        Foreground="{DynamicResource Brush.AFFFFFFF}"
                        FontSize="13" />
 

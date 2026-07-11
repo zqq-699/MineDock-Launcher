@@ -267,6 +267,45 @@ public sealed class AccountViewModelTests
     }
 
     [Fact]
+    public async Task MicrosoftReauthenticationReplacesSelectedAccountAndClosesDialog()
+    {
+        var existing = new LauncherAccount
+        {
+            Id = "microsoft-uuid",
+            DisplayName = "OldName",
+            Kind = LauncherAccountKind.Microsoft,
+            Uuid = "uuid"
+        };
+        var refreshed = new LauncherAccount
+        {
+            Id = existing.Id,
+            DisplayName = "NewName",
+            Kind = LauncherAccountKind.Microsoft,
+            Uuid = existing.Uuid
+        };
+        var store = new RecordingAccountStore(new AccountStoreSnapshot([existing], existing.Id));
+        var list = new AccountListViewModel(store);
+        await list.InitializeAsync(new LauncherSettings());
+        var viewModel = new AccountDialogViewModel(
+            list,
+            new ReauthenticatingMicrosoftAccountService(refreshed),
+            new UnusedThirdPartyAccountService(),
+            new FakeOfflineAccountUuidService(),
+            new NullStatusService());
+
+        viewModel.OpenMicrosoftReauthenticationDialog(existing);
+
+        Assert.True(viewModel.IsMicrosoftReauthenticationStep);
+        Assert.True(viewModel.IsAddAccountDialogBusy);
+
+        Assert.True(await viewModel.CompleteMicrosoftAccountReauthenticationAsync());
+
+        Assert.False(viewModel.IsAddAccountDialogOpen);
+        Assert.Equal("NewName", list.SelectedAccount?.DisplayName);
+        Assert.Equal(existing.Id, store.SelectedAccountId);
+    }
+
+    [Fact]
     public async Task EmailProfilesSupportMultipleSelectionAndImportSelectedInServerOrder()
     {
         var service = new EmailThirdPartyAccountService();
@@ -397,6 +436,10 @@ public sealed class AccountViewModelTests
         public Task<LauncherAccount> LoginInteractivelyAsync(CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<LauncherAccount> ReauthenticateInteractivelyAsync(
+            LauncherAccount account,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task DeleteAccountAsync(LauncherAccount account, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
@@ -433,6 +476,24 @@ public sealed class AccountViewModelTests
             LauncherAccount account,
             string newName,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class ReauthenticatingMicrosoftAccountService(LauncherAccount refreshed) : IMicrosoftAccountService
+    {
+        public Task<LauncherAccount> ReauthenticateInteractivelyAsync(
+            LauncherAccount account,
+            CancellationToken cancellationToken = default) => Task.FromResult(refreshed);
+
+        public Task<IReadOnlyList<LauncherAccount>> GetSavedAccountsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<LauncherAccount>>([]);
+
+        public Task<LauncherAccount> LoginInteractivelyAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task DeleteAccountAsync(LauncherAccount account, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<AccountCapeOption>> GetCapesAsync(LauncherAccount account, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<LauncherAccount> RefreshAccountProfileAsync(LauncherAccount account, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<LauncherAccount> UploadSkinAsync(LauncherAccount account, string skinFilePath, MinecraftSkinModel skinModel, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task SetActiveCapeAsync(LauncherAccount account, string? capeId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<LauncherAccount> ChangeNameAsync(LauncherAccount account, string newName, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class UnusedThirdPartyAccountService : IThirdPartyAccountService

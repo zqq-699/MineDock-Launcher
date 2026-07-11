@@ -7,7 +7,7 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 
-namespace Launcher.Infrastructure.Accounts.ThirdParty;
+namespace Launcher.Infrastructure.Accounts.Credentials;
 
 internal static class WindowsDpapiProtector
 {
@@ -21,7 +21,7 @@ internal static class WindowsDpapiProtector
     {
         ArgumentNullException.ThrowIfNull(data);
         if (!OperatingSystem.IsWindows())
-            throw new PlatformNotSupportedException("Windows DPAPI is required for third-party account credentials.");
+            throw new PlatformNotSupportedException("Windows DPAPI is required for account credentials.");
 
         var input = new DataBlob();
         var output = new DataBlob();

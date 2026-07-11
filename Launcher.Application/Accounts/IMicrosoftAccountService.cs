@@ -27,6 +27,10 @@ public interface IMicrosoftAccountService
 
     Task<LauncherAccount> LoginInteractivelyAsync(CancellationToken cancellationToken = default);
 
+    Task<LauncherAccount> ReauthenticateInteractivelyAsync(
+        LauncherAccount account,
+        CancellationToken cancellationToken = default);
+
     Task DeleteAccountAsync(LauncherAccount account, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<AccountCapeOption>> GetCapesAsync(LauncherAccount account, CancellationToken cancellationToken = default);

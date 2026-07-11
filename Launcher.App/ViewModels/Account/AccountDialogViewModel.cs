@@ -84,6 +84,9 @@ public sealed partial class AccountDialogViewModel : ObservableObject
     private bool isMicrosoftAccountAlreadyAdded;
 
     [ObservableProperty]
+    private LauncherAccount? accountPendingMicrosoftReauthentication;
+
+    [ObservableProperty]
     private LauncherAccount? accountPendingThirdPartyReauthentication;
 
     [ObservableProperty] private string thirdPartyImportCurrentProfileName = string.Empty;
@@ -170,13 +173,19 @@ public sealed partial class AccountDialogViewModel : ObservableObject
     public bool IsThirdPartyImportResultStep => AddAccountDialogStep == AccountDialogSteps.AddAccountThirdPartyImportResult;
     public bool IsMicrosoftLoginStep => AddAccountDialogStep == AccountDialogSteps.AddAccountMicrosoftLogin;
     public bool IsMicrosoftLoginResultStep => AddAccountDialogStep == AccountDialogSteps.AddAccountMicrosoftResult;
-    public bool IsMicrosoftStatusStep => IsMicrosoftLoginStep || IsMicrosoftLoginResultStep;
+    public bool IsMicrosoftReauthenticationStep => AddAccountDialogStep == AccountDialogSteps.AddAccountMicrosoftReauthentication;
+    public bool IsMicrosoftReauthenticationResultStep => AddAccountDialogStep == AccountDialogSteps.AddAccountMicrosoftReauthenticationResult;
+    public bool IsMicrosoftReauthenticationMode => AccountPendingMicrosoftReauthentication is not null;
+    public bool IsMicrosoftStatusStep => IsMicrosoftLoginStep || IsMicrosoftLoginResultStep
+        || IsMicrosoftReauthenticationStep || IsMicrosoftReauthenticationResultStep;
     public bool CanShowAddAccountBackButton => !IsAddAccountDialogBusy
         && (IsOfflineNameStep || IsThirdPartyCredentialsStep || IsMicrosoftLoginStep);
-    public bool CanShowAddAccountCancelButton => !IsAddAccountDialogBusy && !IsMicrosoftLoginResultStep;
+    public bool CanShowAddAccountCancelButton => !IsAddAccountDialogBusy
+        && (!IsMicrosoftLoginResultStep || IsMicrosoftReauthenticationMode);
     public bool IsAddAccountFooterEnabled => !IsAddAccountDialogBusy;
     public bool CanConfirmAddAccountDialog => !IsAddAccountDialogBusy
         && (IsMicrosoftLoginResultStep
+            || IsMicrosoftReauthenticationResultStep
             || IsOfflineNameStep
             || (IsThirdPartyFormStep && ThirdParty.CanConfirm)
             || (IsThirdPartyProfileSelectionStep && ThirdParty.HasSelectedProfiles)
@@ -194,9 +203,9 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         && (IsRenameAccountResultStep || (IsRenameAccountInputStep && !string.IsNullOrWhiteSpace(RenameAccountName)));
     public bool HasRenameAccountErrorCode => !string.IsNullOrWhiteSpace(RenameAccountErrorCodeMessage);
 
-    public string? MicrosoftLoginIconKey => IsMicrosoftLoginStep
+    public string? MicrosoftLoginIconKey => IsMicrosoftLoginStep || IsMicrosoftReauthenticationStep
         ? "general/general_external-web"
-        : IsMicrosoftLoginResultStep
+        : IsMicrosoftLoginResultStep || IsMicrosoftReauthenticationResultStep
             ? IsMicrosoftLoginSuccessful ? "general/general_passed" : "general/general_attention"
             : null;
 
@@ -212,6 +221,8 @@ public sealed partial class AccountDialogViewModel : ObservableObject
 
     public string AddAccountDialogTitle => AddAccountDialogStep switch
     {
+        AccountDialogSteps.AddAccountMicrosoftReauthentication => Strings.Dialog_ReauthenticateMicrosoftAccountTitle,
+        AccountDialogSteps.AddAccountMicrosoftReauthenticationResult => Strings.Dialog_ReauthenticateMicrosoftAccountTitle,
         AccountDialogSteps.AddAccountThirdPartyReauthentication => Strings.Dialog_ReauthenticateThirdPartyAccountTitle,
         AccountDialogSteps.AddAccountThirdPartyProfileSelection => Strings.Dialog_ThirdPartyProfileSelectionTitle,
         AccountDialogSteps.AddAccountThirdPartyImportProgress => Strings.Dialog_ThirdPartyImportProgressTitle,
@@ -224,6 +235,8 @@ public sealed partial class AccountDialogViewModel : ObservableObject
 
     public string AddAccountDialogSubtitle => AddAccountDialogStep switch
     {
+        AccountDialogSteps.AddAccountMicrosoftReauthentication => Strings.Dialog_ReauthenticateMicrosoftAccountSubtitle,
+        AccountDialogSteps.AddAccountMicrosoftReauthenticationResult => Strings.Dialog_ReauthenticateMicrosoftAccountSubtitle,
         AccountDialogSteps.AddAccountThirdPartyReauthentication => Strings.Dialog_ReauthenticateThirdPartyAccountSubtitle,
         AccountDialogSteps.AddAccountThirdPartyProfileSelection => Strings.Dialog_ThirdPartyProfileSelectionSubtitle,
         AccountDialogSteps.AddAccountThirdPartyImportProgress => Strings.Dialog_ThirdPartyImportProgressSubtitle,
@@ -234,6 +247,9 @@ public sealed partial class AccountDialogViewModel : ObservableObject
     public bool IsThirdPartyIdentityReadOnly => IsThirdPartyReauthenticationStep;
     public bool CanSelectAllThirdPartyProfiles => IsThirdPartyProfileSelectionStep && ThirdParty.CanSelectAllProfiles;
     public bool CanShowStandardAddAccountFooter => !IsThirdPartyImportProgressStep && !IsThirdPartyImportResultStep;
+    public string AddAccountConfirmButtonText => IsMicrosoftReauthenticationResultStep
+        ? Strings.Retry_Button
+        : Strings.Confirm_Button;
     public string ThirdPartyImportProgressText => string.Format(
         Strings.Dialog_ThirdPartyImportProgressFormat,
         ThirdPartyImportCompletedCount,
@@ -255,6 +271,17 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         AddAccountDialogStep = AccountDialogSteps.AddAccountThirdPartyReauthentication;
         ThirdParty.PrepareReauthentication(account);
         IsAddAccountDialogOpen = true;
+    }
+
+    public void OpenMicrosoftReauthenticationDialog(LauncherAccount account)
+    {
+        ResetAddAccountDialogState(clearOfflineName: true);
+        AccountPendingMicrosoftReauthentication = account;
+        AddAccountDialogStep = AccountDialogSteps.AddAccountMicrosoftReauthentication;
+        IsAddAccountDialogBusy = true;
+        ResetMicrosoftLoginResultState(MicrosoftLoginActiveMessage);
+        IsAddAccountDialogOpen = true;
+        ReportStatus(Strings.Status_OpeningMicrosoftLogin);
     }
 
     public void CancelAddAccountDialog()
@@ -647,6 +674,12 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         OnPropertyChanged(nameof(AddAccountDialogTitle));
     }
 
+    partial void OnAccountPendingMicrosoftReauthenticationChanged(LauncherAccount? value)
+    {
+        OnPropertyChanged(nameof(IsMicrosoftReauthenticationMode));
+        NotifyAddAccountDialogActionPropertiesChanged();
+    }
+
     partial void OnSelectedAccountTypeOptionChanged(AccountTypeOption? value)
     {
         OnPropertyChanged(nameof(IsMicrosoftAccountTypeSelected));
@@ -762,6 +795,54 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         }
     }
 
+    public async Task<bool> CompleteMicrosoftAccountReauthenticationAsync()
+    {
+        var account = AccountPendingMicrosoftReauthentication;
+        if (account is null)
+            return false;
+
+        AddAccountDialogStep = AccountDialogSteps.AddAccountMicrosoftReauthentication;
+        IsAddAccountDialogBusy = true;
+        ResetMicrosoftLoginResultState(MicrosoftLoginActiveMessage);
+        try
+        {
+            var refreshed = await microsoftAccountService.ReauthenticateInteractivelyAsync(account);
+            await accountList.ReplaceSelectedAccountAndPersistAsync(account, refreshed);
+            AccountPendingMicrosoftReauthentication = refreshed;
+            ReportStatus(Strings.Status_MicrosoftReauthenticationSuccessful);
+            IsAddAccountDialogOpen = false;
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogInformation("Microsoft account reauthentication canceled. AccountId={AccountId}", account.Id);
+            ShowMicrosoftReauthenticationFailure(Strings.Status_LoginCanceled);
+            return false;
+        }
+        catch (MicrosoftAccountReauthenticationException exception)
+        {
+            logger.LogWarning(exception, "Microsoft account reauthentication failed. AccountId={AccountId} Reason={Reason}", account.Id, exception.Reason);
+            var message = exception.Reason switch
+            {
+                MicrosoftAccountReauthenticationFailureReason.AccountMismatch => Strings.Status_MicrosoftReauthenticationAccountMismatch,
+                MicrosoftAccountReauthenticationFailureReason.CredentialStorageFailed => Strings.Status_MicrosoftCredentialStorageFailed,
+                _ => Strings.Status_LoginFailed
+            };
+            ShowMicrosoftReauthenticationFailure(message);
+            return false;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Microsoft account reauthentication failed. AccountId={AccountId}", account.Id);
+            ShowMicrosoftReauthenticationFailure(Strings.Status_LoginFailed);
+            return false;
+        }
+        finally
+        {
+            IsAddAccountDialogBusy = false;
+        }
+    }
+
     private async Task SelectFirstSuccessfulThirdPartyAccountAsync()
     {
         if (thirdPartySuccessfulAccounts.Count == 0)
@@ -788,8 +869,11 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         OnPropertyChanged(nameof(IsThirdPartyIdentityReadOnly));
         OnPropertyChanged(nameof(IsMicrosoftLoginStep));
         OnPropertyChanged(nameof(IsMicrosoftLoginResultStep));
+        OnPropertyChanged(nameof(IsMicrosoftReauthenticationStep));
+        OnPropertyChanged(nameof(IsMicrosoftReauthenticationResultStep));
         OnPropertyChanged(nameof(IsMicrosoftStatusStep));
         OnPropertyChanged(nameof(MicrosoftLoginIconKey));
+        OnPropertyChanged(nameof(AddAccountConfirmButtonText));
         NotifyAddAccountDialogActionPropertiesChanged();
         OnPropertyChanged(nameof(IsMicrosoftAccountTypeSelected));
         OnPropertyChanged(nameof(AddAccountDialogTitle));
@@ -833,6 +917,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         ThirdPartyImportTotalCount = 0;
         ThirdPartyImportFailedCount = 0;
         AccountPendingThirdPartyReauthentication = null;
+        AccountPendingMicrosoftReauthentication = null;
         AddAccountDialogStep = AccountDialogSteps.AddAccountType;
         if (clearOfflineName)
         {
@@ -873,6 +958,16 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         MicrosoftLoginIcon = isSuccess ? DialogSuccessIcon : DialogFailureIcon;
         MicrosoftLoginMessage = message;
         AddAccountDialogStep = AccountDialogSteps.AddAccountMicrosoftResult;
+    }
+
+    private void ShowMicrosoftReauthenticationFailure(string message)
+    {
+        IsMicrosoftLoginSuccessful = false;
+        IsMicrosoftAccountAlreadyAdded = false;
+        MicrosoftLoginIcon = DialogFailureIcon;
+        MicrosoftLoginMessage = message;
+        AddAccountDialogStep = AccountDialogSteps.AddAccountMicrosoftReauthenticationResult;
+        ReportStatus(message);
     }
 
     private void ShowRenameAccountResult(bool isSuccess, string message, string errorCodeMessage = "")

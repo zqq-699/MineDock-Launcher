@@ -149,7 +149,7 @@ public sealed partial class HomePageViewModel : ObservableObject
             if (!string.IsNullOrWhiteSpace(account.AvatarSource))
                 return account.AvatarSource;
 
-            if (account.IsOffline || string.IsNullOrWhiteSpace(account.Uuid))
+            if (!account.IsMicrosoft || string.IsNullOrWhiteSpace(account.Uuid))
                 return "https://minotar.net/avatar/Steve/576.png";
 
             return $"https://crafatar.com/avatars/{account.Uuid}?size=576&overlay";
@@ -249,12 +249,15 @@ public sealed partial class HomePageViewModel : ObservableObject
             }
             catch (LaunchAccountSessionException exception) when (
                 exception.Reason == LaunchAccountSessionFailureReason.ReauthenticationRequired
-                && account.IsThirdParty
+                && (account.IsThirdParty || account.IsMicrosoft)
                 && accountDialogService is not null)
             {
-                statusService.Report(Strings.Status_ThirdPartyReauthenticationRequired);
-                var reauthenticated = await accountDialogService
-                    .ShowThirdPartyReauthenticationDialogAsync(account);
+                statusService.Report(account.IsThirdParty
+                    ? Strings.Status_ThirdPartyReauthenticationRequired
+                    : Strings.Status_MicrosoftReauthenticationRequired);
+                var reauthenticated = account.IsThirdParty
+                    ? await accountDialogService.ShowThirdPartyReauthenticationDialogAsync(account)
+                    : await accountDialogService.ShowMicrosoftReauthenticationDialogAsync(account);
                 if (!reauthenticated)
                 {
                     statusService.Report(Strings.Status_LaunchCanceled);

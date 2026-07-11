@@ -19,6 +19,7 @@
 
 using System.Globalization;
 using System.Windows.Data;
+using Launcher.Application.Accounts;
 using Launcher.App.Resources;
 using Launcher.Domain.Models;
 
@@ -28,7 +29,18 @@ public sealed class AccountKindTextConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        return value is LauncherAccountKind kind
+        var account = value as LauncherAccount;
+        var kind = account?.Kind ?? (value is LauncherAccountKind accountKind ? accountKind : (LauncherAccountKind?)null);
+        if (account?.IsThirdParty == true && !string.IsNullOrWhiteSpace(account.ThirdPartyPlatformName))
+        {
+            return string.Format(
+                culture,
+                Strings.Account_ThirdPartyPlatformFormat,
+                Strings.Account_TypeThirdPartyTitle,
+                account.ThirdPartyPlatformName.Trim());
+        }
+
+        return kind is not null
             ? kind switch
             {
                 LauncherAccountKind.Offline => Strings.Account_TypeOfflineTitle,

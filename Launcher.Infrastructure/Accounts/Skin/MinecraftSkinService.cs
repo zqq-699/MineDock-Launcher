@@ -74,6 +74,7 @@ internal sealed class MinecraftSkinService
             SkinModel = skinModel,
             Kind = updatedAccount.Kind,
             AuthenticationServerUrl = updatedAccount.AuthenticationServerUrl,
+            ThirdPartyPlatformName = updatedAccount.ThirdPartyPlatformName,
             ThirdPartyLoginUsername = updatedAccount.ThirdPartyLoginUsername,
             HasFreshProfile = updatedAccount.HasFreshProfile,
             CachedCapeOptions = updatedAccount.CachedCapeOptions

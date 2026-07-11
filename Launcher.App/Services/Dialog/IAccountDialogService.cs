@@ -40,6 +40,8 @@ public interface IAccountDialogService
 
     Task<bool> ShowThirdPartyReauthenticationDialogAsync(LauncherAccount account);
 
+    Task<bool> ShowMicrosoftReauthenticationDialogAsync(LauncherAccount account);
+
     void ShowDeleteAccountDialog(LauncherAccount account);
 
     void ShowRenameAccountDialog();

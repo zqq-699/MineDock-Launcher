@@ -3215,6 +3215,13 @@
   <data name="Dialog_ReauthenticateThirdPartyAccountTitle" xml:space="preserve"><value>サードパーティアカウントに再ログイン</value></data>
   <data name="Dialog_ReauthenticateThirdPartyAccountSubtitle" xml:space="preserve"><value>ログインの有効期限が切れました。パスワードを再入力して起動を続行してください。</value></data>
   <data name="Status_ThirdPartyReauthenticationRequired" xml:space="preserve"><value>サードパーティアカウントのログイン期限が切れました。再ログインしてください。</value></data>
+  <data name="Account_ThirdPartyPlatformFormat" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="Dialog_ReauthenticateMicrosoftAccountTitle" xml:space="preserve"><value>Microsoft アカウントに再ログイン</value></data>
+  <data name="Dialog_ReauthenticateMicrosoftAccountSubtitle" xml:space="preserve"><value>ログインの有効期限が切れました。ブラウザーで Microsoft の認証をもう一度完了してください。</value></data>
+  <data name="Status_MicrosoftReauthenticationRequired" xml:space="preserve"><value>Microsoft アカウントのログイン期限が切れました。再ログインしてください。</value></data>
+  <data name="Status_MicrosoftReauthenticationSuccessful" xml:space="preserve"><value>Microsoft アカウントへの再ログインが完了しました。起動を続行します。</value></data>
+  <data name="Status_MicrosoftReauthenticationAccountMismatch" xml:space="preserve"><value>ログインした Microsoft アカウントが現在のアカウントと一致しません。</value></data>
+  <data name="Status_MicrosoftCredentialStorageFailed" xml:space="preserve"><value>Microsoft アカウントのログイン情報を安全に保存できませんでした。</value></data>
   <data name="SelectAll_Button" xml:space="preserve"><value>すべて選択</value></data><data name="Retry_Button" xml:space="preserve"><value>再試行</value></data>
   <data name="Dialog_ThirdPartyProfileSelectionTitle" xml:space="preserve"><value>プロフィールを選択</value></data><data name="Dialog_ThirdPartyProfileSelectionSubtitle" xml:space="preserve"><value>インポートするプロフィールを1つ以上選択してください。</value></data>
   <data name="Dialog_ThirdPartyImportProgressTitle" xml:space="preserve"><value>プロフィールをインポート中</value></data><data name="Dialog_ThirdPartyImportProgressSubtitle" xml:space="preserve"><value>プロフィールとログイン情報を保存しています。</value></data>

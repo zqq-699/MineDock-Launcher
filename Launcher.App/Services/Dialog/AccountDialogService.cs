@@ -35,6 +35,7 @@ public sealed class AccountDialogService : IAccountDialogService
     private DialogHost? skinModelDialogHost;
     private DialogHost? skinManagerDialogHost;
     private TaskCompletionSource<bool>? thirdPartyReauthenticationCompletion;
+    private TaskCompletionSource<bool>? microsoftReauthenticationCompletion;
 
     public void Attach(
         AccountPageViewModel accountPage,
@@ -75,6 +76,20 @@ public sealed class AccountDialogService : IAccountDialogService
         accountPage.Dialog.OpenThirdPartyReauthenticationDialog(account);
         addAccountHost.Show();
         return thirdPartyReauthenticationCompletion.Task;
+    }
+
+    public Task<bool> ShowMicrosoftReauthenticationDialogAsync(LauncherAccount account)
+    {
+        if (accountPage is null || addAccountHost is null || !account.IsMicrosoft)
+            return Task.FromResult(false);
+
+        microsoftReauthenticationCompletion?.TrySetResult(false);
+        microsoftReauthenticationCompletion = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        accountPage.Dialog.OpenMicrosoftReauthenticationDialog(account);
+        addAccountHost.Show();
+        _ = CompleteMicrosoftReauthenticationAsync();
+        return microsoftReauthenticationCompletion.Task;
     }
 
     public void ShowDeleteAccountDialog(LauncherAccount account)
@@ -139,6 +154,7 @@ public sealed class AccountDialogService : IAccountDialogService
             return;
 
         var wasReauthentication = accountPage.Dialog.IsThirdPartyReauthenticationStep;
+        var wasMicrosoftReauthentication = accountPage.Dialog.IsMicrosoftReauthenticationMode;
         accountPage.Dialog.CancelAddAccountDialog();
         if (!accountPage.Dialog.IsAddAccountDialogOpen)
         {
@@ -148,6 +164,11 @@ public sealed class AccountDialogService : IAccountDialogService
             {
                 thirdPartyReauthenticationCompletion?.TrySetResult(false);
                 thirdPartyReauthenticationCompletion = null;
+            }
+            if (wasMicrosoftReauthentication)
+            {
+                microsoftReauthenticationCompletion?.TrySetResult(false);
+                microsoftReauthenticationCompletion = null;
             }
         }
     }
@@ -169,6 +190,12 @@ public sealed class AccountDialogService : IAccountDialogService
             return;
 
         var previousHeight = addAccountHost.SurfaceBorder.ActualHeight;
+
+        if (accountPage.Dialog.IsMicrosoftReauthenticationResultStep)
+        {
+            await CompleteMicrosoftReauthenticationAsync();
+            return;
+        }
 
         if (accountPage.Dialog.IsAccountTypeStep
             && accountPage.Dialog.SelectedAccountTypeOption?.Kind is AccountTypeKinds.Microsoft)
@@ -199,6 +226,25 @@ public sealed class AccountDialogService : IAccountDialogService
                 thirdPartyReauthenticationCompletion?.TrySetResult(true);
                 thirdPartyReauthenticationCompletion = null;
             }
+        }
+    }
+
+    private async Task CompleteMicrosoftReauthenticationAsync()
+    {
+        if (accountPage is null || addAccountHost is null)
+            return;
+
+        var previousHeight = addAccountHost.SurfaceBorder.ActualHeight;
+        var succeeded = await accountPage.Dialog.CompleteMicrosoftAccountReauthenticationAsync();
+        if (succeeded)
+        {
+            addAccountHost.Hide(accountPage.Dialog.ResetAddAccountDialog);
+            microsoftReauthenticationCompletion?.TrySetResult(true);
+            microsoftReauthenticationCompletion = null;
+        }
+        else if (accountPage.Dialog.IsAddAccountDialogOpen)
+        {
+            addAccountHost.AnimateSizeChange(previousHeight);
         }
     }
 

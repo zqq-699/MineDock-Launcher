@@ -75,6 +75,7 @@ public sealed class AccountStoreTests
                 IsOffline = false,
                 Uuid = "00112233-4455-6677-8899-aabbccddeeff",
                 AuthenticationServerUrl = "https://example.test/api/yggdrasil/",
+                ThirdPartyPlatformName = "Example Auth",
                 ThirdPartyLoginUsername = "player"
             }]
         });
@@ -84,7 +85,36 @@ public sealed class AccountStoreTests
 
         Assert.True(account.IsThirdParty);
         Assert.Equal("https://example.test/api/yggdrasil/", account.AuthenticationServerUrl);
+        Assert.Equal("Example Auth", account.ThirdPartyPlatformName);
         Assert.Equal("player", account.ThirdPartyLoginUsername);
+        Assert.Equal(0, state.SaveCount);
+    }
+
+    [Fact]
+    public async Task LoadKeepsMicrosoftMetadataWhenEncryptedCredentialsAreMissing()
+    {
+        var state = new FakeStateService(new LauncherAccountState
+        {
+            MicrosoftAccountsImported = true,
+            Accounts = [new LauncherAccountRecord
+            {
+                Id = "microsoft-uuid",
+                DisplayName = "Stored Microsoft",
+                Kind = LauncherAccountKind.Microsoft,
+                IsOffline = false,
+                Uuid = "uuid"
+            }]
+        });
+        var store = new AccountStore(
+            state,
+            new FakeMicrosoftService(),
+            new FakeOfflineAccountUuidService());
+
+        var account = Assert.Single((await store.LoadAsync()).Accounts);
+
+        Assert.True(account.IsMicrosoft);
+        Assert.Equal("Stored Microsoft", account.DisplayName);
+        Assert.Equal("uuid", account.Uuid);
         Assert.Equal(0, state.SaveCount);
     }
 
@@ -115,6 +145,7 @@ public sealed class AccountStoreTests
         public Task<IReadOnlyList<LauncherAccount>> GetSavedAccountsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<LauncherAccount>>(accounts);
         public Task<LauncherAccount> LoginInteractivelyAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<LauncherAccount> ReauthenticateInteractivelyAsync(LauncherAccount account, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task DeleteAccountAsync(LauncherAccount account, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<AccountCapeOption>> GetCapesAsync(LauncherAccount account, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<LauncherAccount> RefreshAccountProfileAsync(LauncherAccount account, CancellationToken cancellationToken = default) => throw new NotSupportedException();

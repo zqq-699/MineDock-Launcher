@@ -650,6 +650,8 @@ public static class Strings
     public static string Dialog_AddMicrosoftAccountTitle => Get(nameof(Dialog_AddMicrosoftAccountTitle));
     public static string Dialog_AddThirdPartyAccountTitle => Get(nameof(Dialog_AddThirdPartyAccountTitle));
     public static string Dialog_ReauthenticateThirdPartyAccountTitle => Get(nameof(Dialog_ReauthenticateThirdPartyAccountTitle));
+    public static string Dialog_ReauthenticateMicrosoftAccountTitle => Get(nameof(Dialog_ReauthenticateMicrosoftAccountTitle));
+    public static string Dialog_ReauthenticateMicrosoftAccountSubtitle => Get(nameof(Dialog_ReauthenticateMicrosoftAccountSubtitle));
     public static string Dialog_AddAccountAlreadyExistsTitle => Get(nameof(Dialog_AddAccountAlreadyExistsTitle));
     public static string Dialog_LoginSuccessTitle => Get(nameof(Dialog_LoginSuccessTitle));
     public static string Dialog_LoginIncompleteTitle => Get(nameof(Dialog_LoginIncompleteTitle));
@@ -807,6 +809,11 @@ public static class Strings
     public static string Status_LaunchCanceled => Get(nameof(Status_LaunchCanceled));
     public static string Status_LaunchAccountUnavailable => Get(nameof(Status_LaunchAccountUnavailable));
     public static string Status_ThirdPartyReauthenticationRequired => Get(nameof(Status_ThirdPartyReauthenticationRequired));
+    public static string Account_ThirdPartyPlatformFormat => Get(nameof(Account_ThirdPartyPlatformFormat));
+    public static string Status_MicrosoftReauthenticationRequired => Get(nameof(Status_MicrosoftReauthenticationRequired));
+    public static string Status_MicrosoftReauthenticationSuccessful => Get(nameof(Status_MicrosoftReauthenticationSuccessful));
+    public static string Status_MicrosoftReauthenticationAccountMismatch => Get(nameof(Status_MicrosoftReauthenticationAccountMismatch));
+    public static string Status_MicrosoftCredentialStorageFailed => Get(nameof(Status_MicrosoftCredentialStorageFailed));
     public static string SelectAll_Button => Get(nameof(SelectAll_Button));
     public static string Retry_Button => Get(nameof(Retry_Button));
     public static string Dialog_ThirdPartyProfileSelectionTitle => Get(nameof(Dialog_ThirdPartyProfileSelectionTitle));

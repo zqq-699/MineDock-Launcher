@@ -19,6 +19,7 @@
 
 using Launcher.Application.Accounts;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Accounts.Credentials;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Net.Http;
@@ -44,10 +45,17 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
     private readonly ILogger<MicrosoftAccountService> logger;
 
     public MicrosoftAccountService(ILogger<MicrosoftAccountService>? logger = null)
+        : this(new MicrosoftAuthProvider(new LauncherPathProvider()), new LauncherPathProvider(), logger)
+    {
+    }
+
+    internal MicrosoftAccountService(
+        MicrosoftAuthProvider authProvider,
+        LauncherPathProvider pathProvider,
+        ILogger<MicrosoftAccountService>? logger = null)
     {
         this.logger = logger ?? NullLogger<MicrosoftAccountService>.Instance;
-        var pathProvider = new LauncherPathProvider();
-        authProvider = new MicrosoftAuthProvider(pathProvider);
+        this.authProvider = authProvider;
         avatarService = new AccountAvatarService(HttpClient, pathProvider);
         skinCacheService = new AccountSkinCacheService(HttpClient, pathProvider);
         capeCacheService = new AccountCapeCacheService(HttpClient, pathProvider);
@@ -61,7 +69,18 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
     {
         // 缓存枚举逐账户刷新，单个失效账户不会阻止其余可用账户进入列表。
         var accounts = new List<LauncherAccount>();
-        foreach (var savedAccount in authProvider.GetSavedAccounts())
+        IReadOnlyList<CmlLib.Core.Auth.Microsoft.Sessions.JEGameAccount> savedAccounts;
+        try
+        {
+            savedAccounts = authProvider.GetSavedAccounts().ToArray();
+        }
+        catch (MicrosoftCredentialStorageException exception)
+        {
+            logger.LogError(exception, "Encrypted Microsoft account credentials could not be loaded.");
+            return accounts;
+        }
+
+        foreach (var savedAccount in savedAccounts)
         {
             var profile = savedAccount.Profile;
             if (profile is null
@@ -131,6 +150,86 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
         {
             logger.LogError(exception, "Interactive Microsoft account login failed.");
             throw;
+        }
+    }
+
+    public async Task<LauncherAccount> ReauthenticateInteractivelyAsync(
+        LauncherAccount account,
+        CancellationToken cancellationToken = default)
+    {
+        if (!account.IsMicrosoft || string.IsNullOrWhiteSpace(account.Uuid))
+        {
+            throw new MicrosoftAccountReauthenticationException(
+                MicrosoftAccountReauthenticationFailureReason.Unknown,
+                "Only an existing Microsoft account can be reauthenticated.");
+        }
+
+        try
+        {
+            logger.LogInformation("Interactive Microsoft account reauthentication started. AccountId={AccountId}", account.Id);
+            var login = await authProvider.ReauthenticateInteractivelyAsync(account, cancellationToken);
+            var currentProfile = await TryGetCurrentProfileAsync(login, cancellationToken);
+            LauncherAccount refreshed;
+            if (currentProfile is not null)
+            {
+                refreshed = await accountFactory.CreateAccountFromProfileAsync(
+                    currentProfile,
+                    forceRefreshAvatar: true,
+                    cancellationToken,
+                    account.SkinLibrary);
+            }
+            else if (login.Profile is not null
+                && !string.IsNullOrWhiteSpace(login.Profile.Username)
+                && !string.IsNullOrWhiteSpace(login.Profile.UUID))
+            {
+                refreshed = await accountFactory.CreateAccountFromProfileAsync(
+                    login.Profile,
+                    forceRefreshAvatar: true,
+                    cancellationToken,
+                    account.SkinLibrary);
+            }
+            else
+            {
+                throw new MicrosoftAccountReauthenticationException(
+                    MicrosoftAccountReauthenticationFailureReason.Unknown,
+                    "Microsoft reauthentication did not return a Minecraft profile.");
+            }
+
+            if (!string.Equals(refreshed.Uuid, account.Uuid, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new MicrosoftAccountReauthenticationException(
+                    MicrosoftAccountReauthenticationFailureReason.AccountMismatch,
+                    "The signed-in Microsoft account does not match the selected launcher account.");
+            }
+
+            authProvider.UpdateSavedProfile(
+                refreshed,
+                refreshed.DisplayName,
+                refreshed.Uuid ?? string.Empty);
+            logger.LogInformation("Interactive Microsoft account reauthentication completed. AccountId={AccountId}", account.Id);
+            return refreshed;
+        }
+        catch (MicrosoftAccountAuthenticationException exception)
+        {
+            var reason = exception.Reason == LaunchAccountSessionFailureReason.CredentialStorageFailed
+                ? MicrosoftAccountReauthenticationFailureReason.CredentialStorageFailed
+                : exception.Reason == LaunchAccountSessionFailureReason.ReauthenticationRequired
+                    ? MicrosoftAccountReauthenticationFailureReason.AccountMismatch
+                    : MicrosoftAccountReauthenticationFailureReason.Unknown;
+            logger.LogWarning(exception, "Interactive Microsoft account reauthentication failed. AccountId={AccountId} Reason={Reason}", account.Id, reason);
+            throw new MicrosoftAccountReauthenticationException(reason, "Microsoft account reauthentication failed.", exception);
+        }
+        catch (MicrosoftAccountReauthenticationException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogError(exception, "Interactive Microsoft account reauthentication failed. AccountId={AccountId}", account.Id);
+            throw new MicrosoftAccountReauthenticationException(
+                MicrosoftAccountReauthenticationFailureReason.Unknown,
+                "Microsoft account reauthentication failed.",
+                exception);
         }
     }
 

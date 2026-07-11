@@ -30,6 +30,8 @@ internal static class AccountDialogSteps
     public const string AddAccountThirdPartyImportResult = "ThirdPartyImportResult";
     public const string AddAccountMicrosoftLogin = "MicrosoftLogin";
     public const string AddAccountMicrosoftResult = "MicrosoftResult";
+    public const string AddAccountMicrosoftReauthentication = "MicrosoftReauthentication";
+    public const string AddAccountMicrosoftReauthenticationResult = "MicrosoftReauthenticationResult";
     public const string RenameInput = "Input";
     public const string RenameStatus = "Status";
     public const string RenameResult = "Result";

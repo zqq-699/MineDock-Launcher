@@ -37,6 +37,7 @@ public static class AccountMapper
             Kind = ResolveKind(record),
             Uuid = record.Uuid,
             AuthenticationServerUrl = record.AuthenticationServerUrl,
+            ThirdPartyPlatformName = record.ThirdPartyPlatformName,
             ThirdPartyLoginUsername = record.ThirdPartyLoginUsername,
             OfflineUuidGenerationMode = record.OfflineUuidGenerationMode,
             AvatarSource = record.AvatarSource,
@@ -124,7 +125,8 @@ public static class AccountMapper
         string displayName,
         string? avatarSource,
         LauncherSkinRecord? activeSkin,
-        AccountCapeOption? activeCape)
+        AccountCapeOption? activeCape,
+        string? platformName = null)
     {
         var mergedSkins = MergeSkinLibrary(
             activeSkin is null ? [] : [activeSkin],
@@ -143,6 +145,7 @@ public static class AccountMapper
             Kind = account.Kind,
             Uuid = account.Uuid,
             AuthenticationServerUrl = account.AuthenticationServerUrl,
+            ThirdPartyPlatformName = platformName ?? account.ThirdPartyPlatformName,
             ThirdPartyLoginUsername = account.ThirdPartyLoginUsername,
             OfflineUuidGenerationMode = account.OfflineUuidGenerationMode,
             AvatarSource = avatarSource,
@@ -207,6 +210,7 @@ public static class AccountMapper
             Kind = account.Kind,
             Uuid = account.Uuid,
             AuthenticationServerUrl = account.AuthenticationServerUrl,
+            ThirdPartyPlatformName = account.ThirdPartyPlatformName,
             ThirdPartyLoginUsername = account.ThirdPartyLoginUsername,
             OfflineUuidGenerationMode = account.OfflineUuidGenerationMode,
             AvatarSource = account.AvatarSource,
@@ -225,6 +229,7 @@ public static class AccountMapper
         string? displayName = null,
         LauncherAccountKind? kind = null,
         string? uuid = null,
+        string? thirdPartyPlatformName = null,
         OfflineUuidGenerationMode? offlineUuidGenerationMode = null,
         string? avatarSource = null,
         string? skinSource = null,
@@ -241,6 +246,7 @@ public static class AccountMapper
             Kind = kind ?? account.Kind,
             Uuid = uuid ?? account.Uuid,
             AuthenticationServerUrl = account.AuthenticationServerUrl,
+            ThirdPartyPlatformName = thirdPartyPlatformName ?? account.ThirdPartyPlatformName,
             ThirdPartyLoginUsername = account.ThirdPartyLoginUsername,
             OfflineUuidGenerationMode = offlineUuidGenerationMode ?? account.OfflineUuidGenerationMode,
             AvatarSource = avatarSource ?? account.AvatarSource,

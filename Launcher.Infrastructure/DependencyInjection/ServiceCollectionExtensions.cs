@@ -82,7 +82,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IInstanceDirectoryMonitor, InstanceDirectoryMonitor>();
         services.AddSingleton<IInstanceContentImportPathValidator, InstanceContentImportPathValidator>();
         services.AddSingleton<IExistingFilePathValidator, ExistingFilePathValidator>();
-        services.AddSingleton<IMicrosoftAccountService, MicrosoftAccountService>();
+        services.AddSingleton<IMicrosoftAccountService>(serviceProvider => new MicrosoftAccountService(
+            serviceProvider.GetRequiredService<MicrosoftAuthProvider>(),
+            serviceProvider.GetRequiredService<LauncherPathProvider>(),
+            serviceProvider.GetService<Microsoft.Extensions.Logging.ILogger<MicrosoftAccountService>>()));
         services.AddSingleton<IThirdPartyAccountTokenStore, DpapiThirdPartyAccountTokenStore>();
         services.AddSingleton<IThirdPartyAccountService, ThirdPartyAccountService>();
         services.AddSingleton<IThirdPartyLaunchSessionService, ThirdPartyLaunchSessionService>();

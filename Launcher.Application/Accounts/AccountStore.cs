@@ -84,7 +84,9 @@ public sealed class AccountStore : IAccountStore
             }
             else
             {
-                shouldPersistOrder = true;
+                // Account metadata is independent from the encrypted Microsoft credential store.
+                // Missing credentials must keep the account visible so launch can request reauthentication.
+                accounts.Add(AccountMapper.FromRecord(account));
             }
         }
 

@@ -41,7 +41,7 @@ public sealed class ThirdPartyAccountServiceTests
         var handler = new StubHttpMessageHandler(async request =>
         {
             if (request.Method == HttpMethod.Get)
-                return Json(HttpStatusCode.OK, "{}");
+                return Json(HttpStatusCode.OK, "{\"meta\":{\"serverName\":\"Example Auth\"}}");
             if (request.RequestUri!.AbsolutePath.EndsWith("/authenticate", StringComparison.Ordinal))
             {
                 authenticateCount++;
@@ -70,6 +70,8 @@ public sealed class ThirdPartyAccountServiceTests
 
         Assert.Equal("user@example.test", first.ThirdPartyLoginUsername);
         Assert.Equal("user@example.test", second.ThirdPartyLoginUsername);
+        Assert.Equal("Example Auth", first.ThirdPartyPlatformName);
+        Assert.Equal("Example Auth", second.ThirdPartyPlatformName);
         Assert.Equal(2, authenticateCount);
         Assert.Equal(2, refreshBodies.Count);
         Assert.Equal(2, store.SavedEntries.Count);
@@ -90,7 +92,7 @@ public sealed class ThirdPartyAccountServiceTests
                 return response;
             }
             if (request.Method == HttpMethod.Get)
-                return Json(HttpStatusCode.OK, "{\"meta\":{\"feature.non_email_login\":true}}");
+                return Json(HttpStatusCode.OK, "{\"meta\":{\"serverName\":\"LittleSkin\",\"feature.non_email_login\":true}}");
             return Json(HttpStatusCode.OK, """
                 {"accessToken":"access-secret","clientToken":"client-secret","selectedProfile":{"id":"00112233445566778899aabbccddeeff","name":"Player"}}
                 """);
@@ -121,6 +123,7 @@ public sealed class ThirdPartyAccountServiceTests
         Assert.Equal("00112233-4455-6677-8899-aabbccddeeff", account.Uuid);
         Assert.Equal("https://auth.example.test/api/yggdrasil/", account.AuthenticationServerUrl);
         Assert.Equal("player", account.ThirdPartyLoginUsername);
+        Assert.Equal("LittleSkin", account.ThirdPartyPlatformName);
         Assert.Equal("file:///avatar.png", account.AvatarSource);
         Assert.Equal("file:///skin.png", account.SkinSource);
         Assert.Equal(MinecraftSkinModel.Slim, account.SkinModel);
@@ -250,7 +253,9 @@ public sealed class ThirdPartyAccountServiceTests
                     IsActive = true
                 }));
         var service = new ThirdPartyAccountService(
-            new HttpClient(new StubHttpMessageHandler(_ => throw new InvalidOperationException())),
+            new HttpClient(new StubHttpMessageHandler(_ => Task.FromResult(Json(
+                HttpStatusCode.OK,
+                "{\"meta\":{\"serverName\":\"LittleSkin\"}}")))),
             new RecordingTokenStore(),
             appearanceService);
         var account = new LauncherAccount
@@ -278,6 +283,7 @@ public sealed class ThirdPartyAccountServiceTests
         Assert.Equal(account.Uuid, refreshed.Uuid);
         Assert.Equal(account.AuthenticationServerUrl, refreshed.AuthenticationServerUrl);
         Assert.Equal("Player", refreshed.ThirdPartyLoginUsername);
+        Assert.Equal("LittleSkin", refreshed.ThirdPartyPlatformName);
         Assert.Equal("file:///new-avatar.png", refreshed.AvatarSource);
         Assert.Equal("file:///new-skin.png", refreshed.SkinSource);
         Assert.Equal(MinecraftSkinModel.Slim, refreshed.SkinModel);
@@ -291,7 +297,7 @@ public sealed class ThirdPartyAccountServiceTests
     {
         var appearanceService = new RecordingAppearanceService(ThirdPartyAccountProfileSnapshot.Unavailable);
         var service = new ThirdPartyAccountService(
-            new HttpClient(new StubHttpMessageHandler(_ => throw new InvalidOperationException())),
+            new HttpClient(new StubHttpMessageHandler(_ => Task.FromResult(Json(HttpStatusCode.OK, "{\"meta\":{}}")))),
             new RecordingTokenStore(),
             appearanceService);
         var account = new LauncherAccount
@@ -334,7 +340,7 @@ public sealed class ThirdPartyAccountServiceTests
             SkinModel = MinecraftSkinModel.Classic
         };
         var service = new ThirdPartyAccountService(
-            new HttpClient(new StubHttpMessageHandler(_ => throw new InvalidOperationException())),
+            new HttpClient(new StubHttpMessageHandler(_ => Task.FromResult(Json(HttpStatusCode.OK, "{\"meta\":{}}")))),
             new RecordingTokenStore(),
             new RecordingAppearanceService(new ThirdPartyAccountProfileSnapshot(
                 true,

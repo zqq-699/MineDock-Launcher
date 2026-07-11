@@ -1093,6 +1093,13 @@
   <data name="Dialog_ReauthenticateThirdPartyAccountTitle" xml:space="preserve"><value>重新登录第三方账户</value></data>
   <data name="Dialog_ReauthenticateThirdPartyAccountSubtitle" xml:space="preserve"><value>登录已过期，请重新输入密码后继续启动。</value></data>
   <data name="Status_ThirdPartyReauthenticationRequired" xml:space="preserve"><value>第三方账户登录已过期，请重新登录。</value></data>
+  <data name="Account_ThirdPartyPlatformFormat" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="Dialog_ReauthenticateMicrosoftAccountTitle" xml:space="preserve"><value>重新登录正版账户</value></data>
+  <data name="Dialog_ReauthenticateMicrosoftAccountSubtitle" xml:space="preserve"><value>登录已过期，请在浏览器中重新完成 Microsoft 授权。</value></data>
+  <data name="Status_MicrosoftReauthenticationRequired" xml:space="preserve"><value>正版账户登录已过期，请重新登录。</value></data>
+  <data name="Status_MicrosoftReauthenticationSuccessful" xml:space="preserve"><value>正版账户重新登录成功，正在继续启动。</value></data>
+  <data name="Status_MicrosoftReauthenticationAccountMismatch" xml:space="preserve"><value>登录的 Microsoft 账户与当前账户不一致。</value></data>
+  <data name="Status_MicrosoftCredentialStorageFailed" xml:space="preserve"><value>无法安全保存正版账户登录信息。</value></data>
   <data name="SelectAll_Button" xml:space="preserve"><value>全选</value></data><data name="Retry_Button" xml:space="preserve"><value>重试</value></data>
   <data name="Dialog_ThirdPartyProfileSelectionTitle" xml:space="preserve"><value>选择角色</value></data><data name="Dialog_ThirdPartyProfileSelectionSubtitle" xml:space="preserve"><value>选择要导入的一个或多个角色。</value></data>
   <data name="Dialog_ThirdPartyImportProgressTitle" xml:space="preserve"><value>正在导入角色</value></data><data name="Dialog_ThirdPartyImportProgressSubtitle" xml:space="preserve"><value>正在保存角色资料和登录信息。</value></data>

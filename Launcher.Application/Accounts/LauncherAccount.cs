@@ -30,6 +30,7 @@ public sealed class LauncherAccount
     public LauncherAccountKind Kind { get; init; } = LauncherAccountKind.Offline;
     public string? Uuid { get; init; }
     public string? AuthenticationServerUrl { get; init; }
+    public string? ThirdPartyPlatformName { get; init; }
     public string? ThirdPartyLoginUsername { get; init; }
     public OfflineUuidGenerationMode OfflineUuidGenerationMode { get; init; } = OfflineUuidGenerationMode.Standard;
     public string? AvatarSource { get; init; }
