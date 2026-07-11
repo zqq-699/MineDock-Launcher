@@ -85,20 +85,26 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
 
     public bool IsOffline => accountList.SelectedAccount?.IsOffline == true;
 
+    public bool IsThirdParty => accountList.SelectedAccount?.IsThirdParty == true;
+
+    public bool CanShowStandardActions => !IsThirdParty;
+
+    public bool CanShowThirdPartyRefresh => IsThirdParty;
+
     public bool HasPreview => !IsOffline && SelectedSkin is not null;
 
     public bool CanShowPreviewEmptyState => accountList.SelectedAccount is not null && !IsOffline && !HasPreview;
 
-    public bool CanChangeSkin => accountList.SelectedAccount is { IsOffline: false };
+    public bool CanChangeSkin => accountList.SelectedAccount is { IsMicrosoft: true };
 
-    public bool CanManageSkins => accountList.SelectedAccount is { IsOffline: false };
+    public bool CanManageSkins => accountList.SelectedAccount is { IsMicrosoft: true };
 
-    public bool CanApplySkin => accountList.SelectedAccount is { IsOffline: false } account
+    public bool CanApplySkin => accountList.SelectedAccount is { IsMicrosoft: true } account
         && !profile.IsBusy
         && SelectedSkin is { } skin
         && !IsAlreadyApplied(account, skin);
 
-    public bool CanEditSelectedSkin => accountList.SelectedAccount is { IsOffline: false }
+    public bool CanEditSelectedSkin => accountList.SelectedAccount is { IsMicrosoft: true }
         && !profile.IsBusy
         && SelectedSkin is not null;
 
@@ -240,7 +246,7 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
     }
 
     public bool CanChangeSkinModel(LauncherSkinRecord? skin) =>
-        accountList.SelectedAccount is { IsOffline: false } && !profile.IsBusy && skin is not null;
+        accountList.SelectedAccount is { IsMicrosoft: true } && !profile.IsBusy && skin is not null;
 
     [RelayCommand(CanExecute = nameof(CanDeleteSelectedSkin))]
     public async Task DeleteSelectedSkinAsync()
@@ -289,7 +295,7 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
     }
 
     public bool CanDeleteSkin(LauncherSkinRecord? skin) =>
-        accountList.SelectedAccount is { IsOffline: false } account
+        accountList.SelectedAccount is { IsMicrosoft: true } account
         && !profile.IsBusy && skin is not null
         && !string.Equals(account.ActiveSkinId, skin.Id, StringComparison.Ordinal);
 
@@ -327,7 +333,7 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
         var account = accountList.SelectedAccount;
         if (account is null)
             return;
-        if (account.IsOffline)
+        if (!account.IsMicrosoft)
         {
             profile.SetMessage(Strings.Status_SkinOfflineUnsupported);
             return;
@@ -382,6 +388,19 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
     {
         // 去重后一次性重建，确保同一内容不会因本地缓存和账户资料两个来源显示两次。
         Skins.Clear();
+        if (account.IsThirdParty)
+        {
+            var activeSkin = account.SkinLibrary.FirstOrDefault(skin =>
+                    string.Equals(skin.Id, account.ActiveSkinId, StringComparison.Ordinal))
+                ?? account.SkinLibrary.FirstOrDefault(skin =>
+                    string.Equals(skin.Source, account.SkinSource, StringComparison.Ordinal));
+            if (activeSkin is not null)
+                Skins.Add(activeSkin);
+            SelectedSkin = activeSkin;
+            NotifyState();
+            return;
+        }
+
         foreach (var skin in DistinctSkins(skinLibraryService.GetAvailableSkins(account)))
             Skins.Add(skin);
         SelectedSkin = Skins.FirstOrDefault(skin => string.Equals(skin.Id, preferredId, StringComparison.Ordinal))
@@ -395,7 +414,7 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
     private LauncherSkinRecord? GetAdjacent(int offset)
     {
         // 轮播在边界不循环；返回 null 会同时隐藏对应槽位并禁用命令。
-        if (SelectedSkin is null || Skins.Count < 2)
+        if (IsThirdParty || SelectedSkin is null || Skins.Count < 2)
             return null;
         var index = Skins.IndexOf(SelectedSkin) + offset;
         return index >= 0 && index < Skins.Count ? Skins[index] : null;
@@ -408,6 +427,9 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
         OnPropertyChanged(nameof(NextSkin));
         OnPropertyChanged(nameof(HasSkins));
         OnPropertyChanged(nameof(IsOffline));
+        OnPropertyChanged(nameof(IsThirdParty));
+        OnPropertyChanged(nameof(CanShowStandardActions));
+        OnPropertyChanged(nameof(CanShowThirdPartyRefresh));
         OnPropertyChanged(nameof(HasPreview));
         OnPropertyChanged(nameof(CanShowPreviewEmptyState));
         OnPropertyChanged(nameof(CanChangeSkin));

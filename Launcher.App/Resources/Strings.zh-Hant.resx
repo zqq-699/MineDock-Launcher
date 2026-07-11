@@ -1121,7 +1121,7 @@
     <value>暫無皮膚預覽，重新整理資料或上傳皮膚後顯示。</value>
   </data>
   <data name="Account_AppearanceOfflineUnsupported" xml:space="preserve">
-    <value>離線帳號不支援皮膚/披風管理</value>
+    <value>此帳戶目前不支援皮膚/披風管理</value>
   </data>
   <data name="Account_SkinModelClassicTitle" xml:space="preserve">
     <value>預設</value>
@@ -1186,8 +1186,38 @@
   <data name="Account_TypeMicrosoftDescription" xml:space="preserve">
     <value>通過 Microsoft 帳戶登入並取得皮膚頭像。</value>
   </data>
+  <data name="Account_TypeThirdPartyTitle" xml:space="preserve">
+    <value>第三方帳戶</value>
+  </data>
+  <data name="Account_TypeThirdPartyDescription" xml:space="preserve">
+    <value>使用外部驗證伺服器登入。</value>
+  </data>
+  <data name="Account_AuthenticationServerLabel" xml:space="preserve">
+    <value>驗證伺服器位址</value>
+  </data>
+  <data name="Account_AuthenticationServerPlaceholder" xml:space="preserve">
+    <value>例如 https://littleskin.cn/api/yggdrasil</value>
+  </data>
+  <data name="Account_UsernameOrEmailLabel" xml:space="preserve">
+    <value>使用者名稱或電子郵件</value>
+  </data>
+  <data name="Account_PasswordLabel" xml:space="preserve">
+    <value>密碼</value>
+  </data>
+  <data name="Account_ThirdPartyServerRequired" xml:space="preserve"><value>請輸入驗證伺服器位址</value></data>
+  <data name="Account_ThirdPartyUsernameRequired" xml:space="preserve"><value>請輸入使用者名稱或電子郵件</value></data>
+  <data name="Account_ThirdPartyPasswordRequired" xml:space="preserve"><value>請輸入密碼</value></data>
+  <data name="Account_ThirdPartyServerInvalid" xml:space="preserve"><value>驗證伺服器位址無效</value></data>
+  <data name="Account_ThirdPartyServerHttpsRequired" xml:space="preserve"><value>驗證伺服器必須使用 HTTPS</value></data>
+  <data name="Account_ThirdPartyServerUnavailable" xml:space="preserve"><value>無法連線驗證伺服器</value></data>
+  <data name="Account_ThirdPartyServerInvalidResponse" xml:space="preserve"><value>驗證伺服器傳回了無效回應</value></data>
+  <data name="Account_ThirdPartyUsernameUnsupported" xml:space="preserve"><value>此驗證伺服器不支援使用者名稱登入</value></data>
+  <data name="Account_ThirdPartyProfileMissing" xml:space="preserve"><value>驗證伺服器未傳回對應角色</value></data>
+  <data name="Account_ThirdPartyInvalidCredentials" xml:space="preserve"><value>使用者名稱或密碼錯誤</value></data>
+  <data name="Account_ThirdPartyCredentialStorageFailed" xml:space="preserve"><value>無法儲存登入資訊</value></data>
+  <data name="Account_ThirdPartyLoginFailed" xml:space="preserve"><value>第三方帳戶登入失敗</value></data>
   <data name="Account_ProfileOfflineUnsupported" xml:space="preserve">
-    <value>離線帳戶不支援皮膚和披風管理</value>
+    <value>此帳戶目前不支援資料、皮膚和披風管理</value>
   </data>
   <data name="Account_ProfileNoCapes" xml:space="preserve">
     <value>這個帳戶沒有可用披風</value>
@@ -1222,6 +1252,9 @@
   <data name="Dialog_AddMicrosoftAccountTitle" xml:space="preserve">
     <value>正版登入</value>
   </data>
+  <data name="Dialog_AddThirdPartyAccountTitle" xml:space="preserve">
+    <value>第三方帳戶</value>
+  </data>
   <data name="Dialog_AddAccountAlreadyExistsTitle" xml:space="preserve">
     <value>帳號已存在</value>
   </data>
@@ -1239,6 +1272,9 @@
   </data>
   <data name="Dialog_AddMicrosoftAccountSubtitle" xml:space="preserve">
     <value>請在彈出的 Microsoft 官方頁面完成登入。</value>
+  </data>
+  <data name="Dialog_AddThirdPartyAccountSubtitle" xml:space="preserve">
+    <value>填寫外部驗證伺服器和帳戶資訊。</value>
   </data>
   <data name="Dialog_AddAccountResultSubtitle" xml:space="preserve">
     <value>點擊確定返回帳戶清單。</value>
@@ -3176,4 +3212,12 @@
   <data name="Status_LauncherUpdateRestarting" xml:space="preserve">
     <value>正在安裝更新，啟動器將自動重新啟動。</value>
   </data>
+  <data name="Dialog_ReauthenticateThirdPartyAccountTitle" xml:space="preserve"><value>重新登入第三方帳戶</value></data>
+  <data name="Dialog_ReauthenticateThirdPartyAccountSubtitle" xml:space="preserve"><value>登入已過期，請重新輸入密碼後繼續啟動。</value></data>
+  <data name="Status_ThirdPartyReauthenticationRequired" xml:space="preserve"><value>第三方帳戶登入已過期，請重新登入。</value></data>
+  <data name="SelectAll_Button" xml:space="preserve"><value>全選</value></data><data name="Retry_Button" xml:space="preserve"><value>重試</value></data>
+  <data name="Dialog_ThirdPartyProfileSelectionTitle" xml:space="preserve"><value>選擇角色</value></data><data name="Dialog_ThirdPartyProfileSelectionSubtitle" xml:space="preserve"><value>選擇要匯入的一個或多個角色。</value></data>
+  <data name="Dialog_ThirdPartyImportProgressTitle" xml:space="preserve"><value>正在匯入角色</value></data><data name="Dialog_ThirdPartyImportProgressSubtitle" xml:space="preserve"><value>正在儲存角色資料和登入資訊。</value></data>
+  <data name="Dialog_ThirdPartyImportResultTitle" xml:space="preserve"><value>部分角色匯入失敗</value></data><data name="Dialog_ThirdPartyImportResultSubtitle" xml:space="preserve"><value>可以重試失敗的角色，已成功匯入的角色不會重複處理。</value></data>
+  <data name="Dialog_ThirdPartyImportProgressFormat" xml:space="preserve"><value>已完成 {0}/{1}</value></data><data name="Dialog_ThirdPartyImportFailureFormat" xml:space="preserve"><value>{0} 個角色匯入失敗</value></data>
 </root>

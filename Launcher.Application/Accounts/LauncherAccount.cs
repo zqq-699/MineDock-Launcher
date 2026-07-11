@@ -27,14 +27,19 @@ public sealed class LauncherAccount
 
     public required string Id { get; init; }
     public required string DisplayName { get; init; }
+    public LauncherAccountKind Kind { get; init; } = LauncherAccountKind.Offline;
     public string? Uuid { get; init; }
+    public string? AuthenticationServerUrl { get; init; }
+    public string? ThirdPartyLoginUsername { get; init; }
     public OfflineUuidGenerationMode OfflineUuidGenerationMode { get; init; } = OfflineUuidGenerationMode.Standard;
     public string? AvatarSource { get; init; }
     public string? SkinSource { get; init; }
     public MinecraftSkinModel? SkinModel { get; init; }
     public IReadOnlyList<LauncherSkinRecord> SkinLibrary { get; init; } = [];
     public string? ActiveSkinId { get; init; }
-    public bool IsOffline { get; init; }
+    public bool IsOffline => Kind == LauncherAccountKind.Offline;
+    public bool IsMicrosoft => Kind == LauncherAccountKind.Microsoft;
+    public bool IsThirdParty => Kind == LauncherAccountKind.ThirdParty;
     public bool HasFreshProfile { get; init; }
     public IReadOnlyList<AccountCapeOption> CachedCapeOptions { get; init; } = [];
 
@@ -45,7 +50,7 @@ public sealed class LauncherAccount
             if (!string.IsNullOrWhiteSpace(AvatarSource))
                 return AvatarSource;
 
-            if (IsOffline || string.IsNullOrWhiteSpace(Uuid))
+            if (!IsMicrosoft || string.IsNullOrWhiteSpace(Uuid))
                 return DefaultSteveAvatarUrl;
 
             return $"https://crafatar.com/avatars/{Uuid}?size=32&overlay";

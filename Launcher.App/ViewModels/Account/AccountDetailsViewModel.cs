@@ -44,6 +44,7 @@ public sealed class AccountDetailsViewModel : ObservableObject
     public AccountOfflineUuidViewModel OfflineUuid => parent.OfflineUuid;
 
     public LauncherAccount? SelectedAccount => parent.SelectedAccount;
+    public bool CanRenameSelectedAccount => SelectedAccount is { IsThirdParty: false };
 
     public ICommand RequestRenameAccountCommand => parent.RequestRenameAccountCommand;
 
@@ -58,7 +59,10 @@ public sealed class AccountDetailsViewModel : ObservableObject
         {
             OnPropertyChanged(nameof(AccountList));
             if (e.PropertyName == nameof(AccountListViewModel.SelectedAccount))
+            {
                 OnPropertyChanged(nameof(SelectedAccount));
+                OnPropertyChanged(nameof(CanRenameSelectedAccount));
+            }
         }
         else if (sender == parent.Appearance)
         {

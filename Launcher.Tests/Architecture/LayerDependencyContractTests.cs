@@ -202,6 +202,20 @@ public sealed class LayerDependencyContractTests
     }
 
     [Fact]
+    public void AccountProfileRefreshKeepsUiContinuationContext()
+    {
+        var root = FindRepositoryRoot();
+        var source = File.ReadAllText(Path.Combine(
+            root.FullName,
+            "Launcher.App",
+            "ViewModels",
+            "Account",
+            "AccountProfileViewModel.cs"));
+
+        Assert.DoesNotContain("ConfigureAwait(false)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GameSettingsPageDoesNotReabsorbInstanceListOrDialogState()
     {
         var root = FindRepositoryRoot();

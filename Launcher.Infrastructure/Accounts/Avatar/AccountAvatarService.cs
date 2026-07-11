@@ -62,7 +62,8 @@ internal sealed class AccountAvatarService
         string uuid,
         string? skinUrl,
         bool forceRefresh,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool useRemoteFallback = true)
     {
         // cacheBust 用于明确要求刷新远端皮肤；正常加载优先复用最近缓存降低登录页网络开销。
         if (string.IsNullOrWhiteSpace(uuid))
@@ -73,10 +74,10 @@ internal sealed class AccountAvatarService
             return new Uri(cachedAvatarPath).AbsoluteUri;
 
         if (!forceRefresh)
-            return GetFallbackAvatarSource(uuid, cacheBust: false);
+            return useRemoteFallback ? GetFallbackAvatarSource(uuid, cacheBust: false) : null;
 
         if (string.IsNullOrWhiteSpace(skinUrl))
-            return GetFallbackAvatarSource(uuid, forceRefresh);
+            return useRemoteFallback ? GetFallbackAvatarSource(uuid, forceRefresh) : null;
 
         try
         {
@@ -90,11 +91,10 @@ internal sealed class AccountAvatarService
         }
         catch
         {
-            return forceRefresh && cachedAvatarPath is null
-                ? GetFallbackAvatarSource(uuid, forceRefresh)
-                : cachedAvatarPath is not null && !forceRefresh
-                    ? new Uri(cachedAvatarPath).AbsoluteUri
-                    : GetFallbackAvatarSource(uuid, forceRefresh);
+            if (cachedAvatarPath is not null)
+                return new Uri(cachedAvatarPath).AbsoluteUri;
+
+            return useRemoteFallback ? GetFallbackAvatarSource(uuid, forceRefresh) : null;
         }
     }
 

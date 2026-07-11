@@ -144,6 +144,7 @@ internal static class MinecraftSkinPreviewModelBuilder
         var model = new Model3DGroup();
         var height = Math.Max(skin.PixelHeight, 32);
         var armWidth = MinecraftSkinPreviewGeometry.GetArmWidth(skinModel);
+        var hasHeadOverlay = MinecraftSkinPreviewGeometry.CanUseHeadOverlay(skin.PixelWidth, height);
         var hasSecondLayer = MinecraftSkinPreviewGeometry.CanUseSecondLayer(height);
         var transform = new Transform3DGroup();
         transform.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0, 0), 2)));
@@ -156,9 +157,11 @@ internal static class MinecraftSkinPreviewModelBuilder
         AddCuboid(model, skin, new Rect3D(-4 - armWidth, 0, -2, armWidth, 12, 4), height, SkinPart.RightArm, armWidth, brightness);
         AddCuboid(model, skin, new Rect3D(4, 0, -2, armWidth, 12, 4), height, hasSecondLayer ? SkinPart.LeftArm : SkinPart.RightArm, armWidth, brightness);
 
+        if (hasHeadOverlay)
+            AddCuboid(model, skin, new Rect3D(-4.35, 11.65, -4.35, 8.7, 8.7, 8.7), height, SkinPart.HeadOverlay, brightness: brightness);
+
         if (hasSecondLayer)
         {
-            AddCuboid(model, skin, new Rect3D(-4.35, 11.65, -4.35, 8.7, 8.7, 8.7), height, SkinPart.HeadOverlay, brightness: brightness);
             AddCuboid(model, skin, new Rect3D(-4.25, -0.25, -2.25, 8.5, 12.5, 4.5), height, SkinPart.BodyOverlay, brightness: brightness);
             AddCuboid(model, skin, new Rect3D(-4.25, -12.25, -2.25, 4.5, 12.5, 4.5), height, SkinPart.RightLegOverlay, brightness: brightness);
             AddCuboid(model, skin, new Rect3D(-0.25, -12.25, -2.25, 4.5, 12.5, 4.5), height, SkinPart.LeftLegOverlay, brightness: brightness);
@@ -379,6 +382,12 @@ public static class MinecraftSkinPreviewGeometry
     {
         // 64x32 旧格式缺少身体第二层，只对现代 64x64 图集读取覆盖区域。
         return skinPixelHeight >= 64;
+    }
+
+    public static bool CanUseHeadOverlay(int skinPixelWidth, int skinPixelHeight)
+    {
+        // 64x32 旧格式已经包含头部帽子层；只有身体、手臂和腿部覆盖层需要 64x64。
+        return skinPixelWidth >= 64 && skinPixelHeight >= 32;
     }
 
     public static SkinPartFaces GetFaces(SkinPart part, int armWidth = 4)

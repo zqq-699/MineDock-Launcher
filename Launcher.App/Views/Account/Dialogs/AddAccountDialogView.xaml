@@ -22,12 +22,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:res="clr-namespace:Launcher.App.Resources"
              xmlns:controls="clr-namespace:Launcher.App.Controls"
+             xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
              xmlns:models="clr-namespace:Launcher.App.Models"
              Focusable="False">
     <Grid Style="{StaticResource DialogContentGridStyle}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
@@ -119,6 +120,43 @@
                        Visibility="{Binding Dialog.IsNewOfflineAccountNameInvalid, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
         </StackPanel>
 
+        <StackPanel x:Name="ThirdPartyCredentialsPanel"
+                    Grid.Row="1"
+                    Style="{StaticResource DialogFormPanelStyle}"
+                    IsEnabled="{Binding Dialog.IsAddAccountFooterEnabled}"
+                    Visibility="{Binding Dialog.IsThirdPartyFormStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}"
+                    IsVisibleChanged="ThirdPartyCredentialsPanel_OnIsVisibleChanged">
+            <TextBlock Text="{x:Static res:Strings.Account_AuthenticationServerLabel}"
+                       Style="{StaticResource DialogFieldLabelTextStyle}" />
+            <TextBox Style="{StaticResource LauncherDialogTextBoxStyle}"
+                     IsReadOnly="{Binding Dialog.IsThirdPartyIdentityReadOnly}"
+                     Text="{Binding Dialog.ThirdParty.AuthenticationServer, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     behaviors:TextBoxPlaceholder.Text="{x:Static res:Strings.Account_AuthenticationServerPlaceholder}" />
+            <TextBlock Text="{Binding Dialog.ThirdParty.AuthenticationServerError}"
+                       Style="{StaticResource DialogValidationTextStyle}"
+                       Visibility="{Binding Dialog.ThirdParty.HasAuthenticationServerError, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+
+            <TextBlock Text="{x:Static res:Strings.Account_UsernameOrEmailLabel}"
+                       Margin="0,12,0,8"
+                       Style="{StaticResource DialogFieldLabelTextStyle}" />
+            <TextBox Style="{StaticResource LauncherDialogTextBoxStyle}"
+                     IsReadOnly="{Binding Dialog.IsThirdPartyIdentityReadOnly}"
+                     Text="{Binding Dialog.ThirdParty.UsernameOrEmail, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+            <TextBlock Text="{Binding Dialog.ThirdParty.UsernameError}"
+                       Style="{StaticResource DialogValidationTextStyle}"
+                       Visibility="{Binding Dialog.ThirdParty.HasUsernameError, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+
+            <TextBlock Text="{x:Static res:Strings.Account_PasswordLabel}"
+                       Margin="0,12,0,8"
+                       Style="{StaticResource DialogFieldLabelTextStyle}" />
+            <PasswordBox x:Name="ThirdPartyPasswordBox"
+                         Style="{StaticResource LauncherDialogPasswordBoxStyle}"
+                         PasswordChanged="ThirdPartyPasswordBox_OnPasswordChanged" />
+            <TextBlock Text="{Binding Dialog.ThirdParty.PasswordError}"
+                       Style="{StaticResource DialogValidationTextStyle}"
+                       Visibility="{Binding Dialog.ThirdParty.HasPasswordError, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+        </StackPanel>
+
         <StackPanel Grid.Row="1"
                     Style="{StaticResource DialogFormPanelStyle}"
                     Visibility="{Binding Dialog.IsMicrosoftStatusStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
@@ -174,6 +212,48 @@
                        TextAlignment="Center" />
         </StackPanel>
 
+        <ListBox Grid.Row="1"
+                 ItemsSource="{Binding Dialog.ThirdParty.Profiles}"
+                 SelectionMode="Multiple"
+                 VirtualizingPanel.IsVirtualizing="True"
+                 VirtualizingPanel.VirtualizationMode="Recycling"
+                 Style="{StaticResource DialogChoiceListStyle}"
+                 Visibility="{Binding Dialog.IsThirdPartyProfileSelectionStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem" BasedOn="{StaticResource DialogChoiceItemStyle}">
+                    <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="40" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Image Width="32" Height="32" Source="{Binding AvatarSource}" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                        <TextBlock Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
+                                   Text="{Binding Name}" Foreground="{DynamicResource Brush.F4F4F4}"
+                                   FontSize="15" FontWeight="SemiBold" />
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <StackPanel Grid.Row="1" Style="{StaticResource DialogFormPanelStyle}"
+                    Visibility="{Binding Dialog.IsThirdPartyImportProgressStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+            <TextBlock Text="{Binding Dialog.ThirdPartyImportCurrentProfileName}"
+                       Style="{StaticResource DialogBodyTextStyle}" TextAlignment="Center" />
+            <TextBlock Margin="0,12,0,0" Text="{Binding Dialog.ThirdPartyImportProgressText}"
+                       Style="{StaticResource DialogBodyTextStyle}" TextAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Style="{StaticResource DialogFormPanelStyle}"
+                    Visibility="{Binding Dialog.IsThirdPartyImportResultStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+            <TextBlock Text="{Binding Dialog.ThirdPartyImportFailureText}"
+                       Style="{StaticResource DialogBodyTextStyle}" TextAlignment="Center" />
+        </StackPanel>
+
         <Grid Grid.Row="2">
             <Button Style="{StaticResource LauncherDialogButtonStyle}"
                     HorizontalAlignment="Left"
@@ -181,8 +261,16 @@
                     Command="{Binding RequestBackAddAccountDialogCommand}"
                     Visibility="{Binding Dialog.CanShowAddAccountBackButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
+            <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                    HorizontalAlignment="Left"
+                    Content="{x:Static res:Strings.SelectAll_Button}"
+                    IsEnabled="{Binding Dialog.CanSelectAllThirdPartyProfiles}"
+                    Command="{Binding RequestSelectAllThirdPartyProfilesCommand}"
+                    Visibility="{Binding Dialog.IsThirdPartyProfileSelectionStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
+
             <StackPanel Style="{StaticResource DialogFooterStyle}"
-                        IsEnabled="{Binding Dialog.IsAddAccountFooterEnabled}">
+                        IsEnabled="{Binding Dialog.IsAddAccountFooterEnabled}"
+                        Visibility="{Binding Dialog.CanShowStandardAddAccountFooter, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
                 <Button Style="{StaticResource LauncherDialogButtonStyle}"
                         Content="{x:Static res:Strings.Cancel_Button}"
                         Command="{Binding RequestCancelAddAccountDialogCommand}"
@@ -192,6 +280,24 @@
                         Content="{x:Static res:Strings.Confirm_Button}"
                         IsEnabled="{Binding Dialog.CanConfirmAddAccountDialog}"
                         Command="{Binding RequestConfirmAddAccountDialogCommand}" />
+            </StackPanel>
+
+            <StackPanel Style="{StaticResource DialogFooterStyle}"
+                        Visibility="{Binding Dialog.IsThirdPartyImportProgressStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                        Content="{x:Static res:Strings.Cancel_Button}"
+                        Command="{Binding RequestCancelAddAccountDialogCommand}" />
+            </StackPanel>
+
+            <StackPanel Style="{StaticResource DialogFooterStyle}"
+                        Visibility="{Binding Dialog.IsThirdPartyImportResultStep, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                        Content="{x:Static res:Strings.Confirm_Button}"
+                        Command="{Binding RequestConfirmAddAccountDialogCommand}" />
+                <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                        Margin="{StaticResource DialogTrailingButtonMargin}"
+                        Content="{x:Static res:Strings.Retry_Button}"
+                        Command="{Binding RequestRetryThirdPartyProfileImportCommand}" />
             </StackPanel>
         </Grid>
     </Grid>

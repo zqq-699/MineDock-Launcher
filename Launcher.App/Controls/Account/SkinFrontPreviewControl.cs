@@ -95,6 +95,7 @@ public static class MinecraftSkinFrontPreviewRenderer
         var armWidth = MinecraftSkinPreviewGeometry.GetArmWidth(skinModel);
         var width = armWidth * 2 + 8;
         var output = new byte[width * PreviewHeight * 4];
+        var hasHeadOverlay = MinecraftSkinPreviewGeometry.CanUseHeadOverlay(source.PixelWidth, source.PixelHeight);
         var hasSecondLayer = MinecraftSkinPreviewGeometry.CanUseSecondLayer(source.PixelHeight);
         var leftArmPart = hasSecondLayer ? SkinPart.LeftArm : SkinPart.RightArm;
         var leftLegPart = hasSecondLayer ? SkinPart.LeftLeg : SkinPart.RightLeg;
@@ -106,12 +107,14 @@ public static class MinecraftSkinFrontPreviewRenderer
         DrawPart(source, output, width, SkinPart.RightLeg, armWidth, 20, armWidth);
         DrawPart(source, output, width, leftLegPart, armWidth + 4, 20, armWidth);
 
+        if (hasHeadOverlay)
+            DrawPart(source, output, width, SkinPart.HeadOverlay, armWidth, 0, armWidth);
+
         if (hasSecondLayer)
         {
             DrawPart(source, output, width, SkinPart.RightArmOverlay, 0, 8, armWidth);
             DrawPart(source, output, width, SkinPart.BodyOverlay, armWidth, 8, armWidth);
             DrawPart(source, output, width, SkinPart.LeftArmOverlay, armWidth + 8, 8, armWidth);
-            DrawPart(source, output, width, SkinPart.HeadOverlay, armWidth, 0, armWidth);
             DrawPart(source, output, width, SkinPart.RightLegOverlay, armWidth, 20, armWidth);
             DrawPart(source, output, width, SkinPart.LeftLegOverlay, armWidth + 4, 20, armWidth);
         }

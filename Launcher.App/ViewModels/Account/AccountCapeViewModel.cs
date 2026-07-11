@@ -60,11 +60,15 @@ public sealed partial class AccountCapeViewModel : ObservableObject
 
     public bool IsOffline => accountList.SelectedAccount?.IsOffline == true;
 
+    public bool IsThirdParty => accountList.SelectedAccount?.IsThirdParty == true;
+
+    public bool CanShowApplyButton => !IsThirdParty;
+
     public bool HasPreview => !IsOffline && SelectedOption is not null;
 
     public bool CanShowPreviewEmptyState => accountList.SelectedAccount is not null && !IsOffline && !HasPreview;
 
-    public bool CanApply => accountList.SelectedAccount is { IsOffline: false }
+    public bool CanApply => accountList.SelectedAccount is { IsMicrosoft: true }
         && !profile.IsBusy
         && SelectedOption is { IsActive: false };
 
@@ -76,6 +80,10 @@ public sealed partial class AccountCapeViewModel : ObservableObject
         {
             Options.Clear();
             SelectedOption = null;
+        }
+        else if (account.IsThirdParty)
+        {
+            PopulateThirdParty(account.CachedCapeOptions);
         }
         else
         {
@@ -93,6 +101,11 @@ public sealed partial class AccountCapeViewModel : ObservableObject
         if (account.IsOffline)
         {
             profile.SetMessage(Strings.Account_ProfileOfflineUnsupported);
+            return;
+        }
+        if (account.IsThirdParty)
+        {
+            await profile.RefreshInfoAsync();
             return;
         }
         var operation = profile.BeginOperation(account, Strings.Status_LoadingAccountProfile);
@@ -184,6 +197,17 @@ public sealed partial class AccountCapeViewModel : ObservableObject
         NotifyState();
     }
 
+    private void PopulateThirdParty(IEnumerable<AccountCapeOption> capes)
+    {
+        var current = capes.FirstOrDefault(cape => !cape.IsNone && cape.IsActive)
+            ?? capes.FirstOrDefault(cape => !cape.IsNone)
+            ?? new AccountCapeOption { DisplayName = string.Empty, IsActive = true, IsNone = true };
+        Options.Clear();
+        Options.Add(current);
+        SelectedOption = current;
+        NotifyState();
+    }
+
     private void MarkActive(AccountCapeOption active)
     {
         Populate(Options.Select(cape => new AccountCapeOption
@@ -219,6 +243,8 @@ public sealed partial class AccountCapeViewModel : ObservableObject
         OnPropertyChanged(nameof(NextOption));
         OnPropertyChanged(nameof(HasOptions));
         OnPropertyChanged(nameof(IsOffline));
+        OnPropertyChanged(nameof(IsThirdParty));
+        OnPropertyChanged(nameof(CanShowApplyButton));
         OnPropertyChanged(nameof(HasPreview));
         OnPropertyChanged(nameof(CanShowPreviewEmptyState));
         OnPropertyChanged(nameof(CanApply));

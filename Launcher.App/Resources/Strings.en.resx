@@ -1121,7 +1121,7 @@ Longer content wraps automatically.</value>
     <value>No skin preview yet. Refresh the profile or upload a skin to show it.</value>
   </data>
   <data name="Account_AppearanceOfflineUnsupported" xml:space="preserve">
-    <value>Offline accounts do not support skin/cape management</value>
+    <value>This account does not currently support skin/cape management</value>
   </data>
   <data name="Account_SkinModelClassicTitle" xml:space="preserve">
     <value>Default</value>
@@ -1186,8 +1186,38 @@ Longer content wraps automatically.</value>
   <data name="Account_TypeMicrosoftDescription" xml:space="preserve">
     <value>Sign in with a Microsoft account to use skins and avatars.</value>
   </data>
+  <data name="Account_TypeThirdPartyTitle" xml:space="preserve">
+    <value>Third-party Account</value>
+  </data>
+  <data name="Account_TypeThirdPartyDescription" xml:space="preserve">
+    <value>Sign in with an external authentication server.</value>
+  </data>
+  <data name="Account_AuthenticationServerLabel" xml:space="preserve">
+    <value>Authentication Server Address</value>
+  </data>
+  <data name="Account_AuthenticationServerPlaceholder" xml:space="preserve">
+    <value>e.g. https://littleskin.cn/api/yggdrasil</value>
+  </data>
+  <data name="Account_UsernameOrEmailLabel" xml:space="preserve">
+    <value>Username or Email</value>
+  </data>
+  <data name="Account_PasswordLabel" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="Account_ThirdPartyServerRequired" xml:space="preserve"><value>Enter an authentication server address</value></data>
+  <data name="Account_ThirdPartyUsernameRequired" xml:space="preserve"><value>Enter a username or email</value></data>
+  <data name="Account_ThirdPartyPasswordRequired" xml:space="preserve"><value>Enter a password</value></data>
+  <data name="Account_ThirdPartyServerInvalid" xml:space="preserve"><value>The authentication server address is invalid</value></data>
+  <data name="Account_ThirdPartyServerHttpsRequired" xml:space="preserve"><value>The authentication server must use HTTPS</value></data>
+  <data name="Account_ThirdPartyServerUnavailable" xml:space="preserve"><value>Could not connect to the authentication server</value></data>
+  <data name="Account_ThirdPartyServerInvalidResponse" xml:space="preserve"><value>The authentication server returned an invalid response</value></data>
+  <data name="Account_ThirdPartyUsernameUnsupported" xml:space="preserve"><value>This authentication server does not support username login</value></data>
+  <data name="Account_ThirdPartyProfileMissing" xml:space="preserve"><value>The authentication server did not return the matching profile</value></data>
+  <data name="Account_ThirdPartyInvalidCredentials" xml:space="preserve"><value>Incorrect username or password</value></data>
+  <data name="Account_ThirdPartyCredentialStorageFailed" xml:space="preserve"><value>Could not save sign-in information</value></data>
+  <data name="Account_ThirdPartyLoginFailed" xml:space="preserve"><value>Third-party account sign-in failed</value></data>
   <data name="Account_ProfileOfflineUnsupported" xml:space="preserve">
-    <value>Offline accounts do not support skin and cape management</value>
+    <value>This account does not currently support profile, skin, or cape management</value>
   </data>
   <data name="Account_ProfileNoCapes" xml:space="preserve">
     <value>This account has no available capes</value>
@@ -1222,6 +1252,9 @@ Longer content wraps automatically.</value>
   <data name="Dialog_AddMicrosoftAccountTitle" xml:space="preserve">
     <value>Microsoft Sign-in</value>
   </data>
+  <data name="Dialog_AddThirdPartyAccountTitle" xml:space="preserve">
+    <value>Third-party Account</value>
+  </data>
   <data name="Dialog_AddAccountAlreadyExistsTitle" xml:space="preserve">
     <value>Account Already Exists</value>
   </data>
@@ -1239,6 +1272,9 @@ Longer content wraps automatically.</value>
   </data>
   <data name="Dialog_AddMicrosoftAccountSubtitle" xml:space="preserve">
     <value>Complete sign-in on the Microsoft page that opens.</value>
+  </data>
+  <data name="Dialog_AddThirdPartyAccountSubtitle" xml:space="preserve">
+    <value>Enter the external authentication server and account details.</value>
   </data>
   <data name="Dialog_AddAccountResultSubtitle" xml:space="preserve">
     <value>Click OK to return to the account list.</value>
@@ -3176,4 +3212,12 @@ The current game folder will be backed up first.</value>
   <data name="Status_LauncherUpdateRestarting" xml:space="preserve">
     <value>Installing the update. The launcher will restart automatically.</value>
   </data>
+  <data name="Dialog_ReauthenticateThirdPartyAccountTitle" xml:space="preserve"><value>Sign in to third-party account again</value></data>
+  <data name="Dialog_ReauthenticateThirdPartyAccountSubtitle" xml:space="preserve"><value>Your sign-in has expired. Enter your password again to continue launching.</value></data>
+  <data name="Status_ThirdPartyReauthenticationRequired" xml:space="preserve"><value>Your third-party account sign-in has expired. Sign in again.</value></data>
+  <data name="SelectAll_Button" xml:space="preserve"><value>Select all</value></data><data name="Retry_Button" xml:space="preserve"><value>Retry</value></data>
+  <data name="Dialog_ThirdPartyProfileSelectionTitle" xml:space="preserve"><value>Select profiles</value></data><data name="Dialog_ThirdPartyProfileSelectionSubtitle" xml:space="preserve"><value>Select one or more profiles to import.</value></data>
+  <data name="Dialog_ThirdPartyImportProgressTitle" xml:space="preserve"><value>Importing profiles</value></data><data name="Dialog_ThirdPartyImportProgressSubtitle" xml:space="preserve"><value>Saving profile data and sign-in information.</value></data>
+  <data name="Dialog_ThirdPartyImportResultTitle" xml:space="preserve"><value>Some profiles failed to import</value></data><data name="Dialog_ThirdPartyImportResultSubtitle" xml:space="preserve"><value>You can retry failed profiles. Successful profiles will not be processed again.</value></data>
+  <data name="Dialog_ThirdPartyImportProgressFormat" xml:space="preserve"><value>Completed {0}/{1}</value></data><data name="Dialog_ThirdPartyImportFailureFormat" xml:space="preserve"><value>{0} profiles failed to import</value></data>
 </root>

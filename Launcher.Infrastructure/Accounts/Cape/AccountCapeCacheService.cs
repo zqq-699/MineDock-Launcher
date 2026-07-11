@@ -49,7 +49,8 @@ internal sealed class AccountCapeCacheService
         string? capeId,
         string? capeUrl,
         bool forceRefresh,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool useRemoteFallback = true)
     {
         if (string.IsNullOrWhiteSpace(accountId) || string.IsNullOrWhiteSpace(capeUrl))
             return null;
@@ -74,7 +75,10 @@ internal sealed class AccountCapeCacheService
         }
         catch
         {
-            return cachedCapePath is null ? capeUrl : new Uri(cachedCapePath).AbsoluteUri;
+            if (cachedCapePath is not null)
+                return new Uri(cachedCapePath).AbsoluteUri;
+
+            return useRemoteFallback ? capeUrl : null;
         }
     }
 

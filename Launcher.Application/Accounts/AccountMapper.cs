@@ -34,14 +34,16 @@ public static class AccountMapper
         {
             Id = record.Id,
             DisplayName = record.DisplayName,
+            Kind = ResolveKind(record),
             Uuid = record.Uuid,
+            AuthenticationServerUrl = record.AuthenticationServerUrl,
+            ThirdPartyLoginUsername = record.ThirdPartyLoginUsername,
             OfflineUuidGenerationMode = record.OfflineUuidGenerationMode,
             AvatarSource = record.AvatarSource,
             SkinSource = record.SkinSource,
             SkinModel = record.SkinModel,
             SkinLibrary = CopySkinRecords(record.Skins),
             ActiveSkinId = record.ActiveSkinId,
-            IsOffline = record.IsOffline,
             CachedCapeOptions = ToCapeOptions(record.Capes)
         };
     }
@@ -99,6 +101,60 @@ public static class AccountMapper
             activeSkinId: string.IsNullOrWhiteSpace(account.ActiveSkinId) ? fallback.ActiveSkinId : account.ActiveSkinId);
     }
 
+    public static LauncherAccount WithRefreshedAppearance(
+        LauncherAccount account,
+        string? avatarSource,
+        string? skinSource,
+        MinecraftSkinModel? skinModel,
+        IReadOnlyList<LauncherSkinRecord> refreshedSkins,
+        string? activeSkinId)
+    {
+        var mergedSkins = MergeSkinLibrary(refreshedSkins, account.SkinLibrary);
+        return CreateCopy(
+            account,
+            avatarSource: string.IsNullOrWhiteSpace(avatarSource) ? account.AvatarSource : avatarSource,
+            skinSource: string.IsNullOrWhiteSpace(skinSource) ? account.SkinSource : skinSource,
+            skinModel: skinModel ?? account.SkinModel,
+            skinLibrary: mergedSkins,
+            activeSkinId: string.IsNullOrWhiteSpace(activeSkinId) ? account.ActiveSkinId : activeSkinId);
+    }
+
+    public static LauncherAccount WithThirdPartyProfile(
+        LauncherAccount account,
+        string displayName,
+        string? avatarSource,
+        LauncherSkinRecord? activeSkin,
+        AccountCapeOption? activeCape)
+    {
+        var mergedSkins = MergeSkinLibrary(
+            activeSkin is null ? [] : [activeSkin],
+            account.SkinLibrary);
+        var capes = activeCape is null
+            ? new List<AccountCapeOption>
+            {
+                new() { DisplayName = string.Empty, IsActive = true, IsNone = true }
+            }
+            : new List<AccountCapeOption> { activeCape };
+
+        return new LauncherAccount
+        {
+            Id = account.Id,
+            DisplayName = displayName,
+            Kind = account.Kind,
+            Uuid = account.Uuid,
+            AuthenticationServerUrl = account.AuthenticationServerUrl,
+            ThirdPartyLoginUsername = account.ThirdPartyLoginUsername,
+            OfflineUuidGenerationMode = account.OfflineUuidGenerationMode,
+            AvatarSource = avatarSource,
+            SkinSource = activeSkin?.Source,
+            SkinModel = activeSkin?.SkinModel,
+            SkinLibrary = mergedSkins,
+            ActiveSkinId = activeSkin?.Id,
+            HasFreshProfile = true,
+            CachedCapeOptions = capes
+        };
+    }
+
     public static LauncherAccount WithSkinLibrary(
         LauncherAccount account,
         IReadOnlyList<LauncherSkinRecord> skinLibrary,
@@ -148,7 +204,10 @@ public static class AccountMapper
         {
             Id = account.Id,
             DisplayName = account.DisplayName,
+            Kind = account.Kind,
             Uuid = account.Uuid,
+            AuthenticationServerUrl = account.AuthenticationServerUrl,
+            ThirdPartyLoginUsername = account.ThirdPartyLoginUsername,
             OfflineUuidGenerationMode = account.OfflineUuidGenerationMode,
             AvatarSource = account.AvatarSource,
             SkinSource = account.SkinSource,
@@ -164,6 +223,7 @@ public static class AccountMapper
         LauncherAccount account,
         string? id = null,
         string? displayName = null,
+        LauncherAccountKind? kind = null,
         string? uuid = null,
         OfflineUuidGenerationMode? offlineUuidGenerationMode = null,
         string? avatarSource = null,
@@ -171,7 +231,6 @@ public static class AccountMapper
         MinecraftSkinModel? skinModel = null,
         IReadOnlyList<LauncherSkinRecord>? skinLibrary = null,
         string? activeSkinId = null,
-        bool? isOffline = null,
         bool? hasFreshProfile = null,
         IReadOnlyList<AccountCapeOption>? cachedCapeOptions = null)
     {
@@ -179,17 +238,26 @@ public static class AccountMapper
         {
             Id = id ?? account.Id,
             DisplayName = displayName ?? account.DisplayName,
+            Kind = kind ?? account.Kind,
             Uuid = uuid ?? account.Uuid,
+            AuthenticationServerUrl = account.AuthenticationServerUrl,
+            ThirdPartyLoginUsername = account.ThirdPartyLoginUsername,
             OfflineUuidGenerationMode = offlineUuidGenerationMode ?? account.OfflineUuidGenerationMode,
             AvatarSource = avatarSource ?? account.AvatarSource,
             SkinSource = skinSource ?? account.SkinSource,
             SkinModel = skinModel ?? account.SkinModel,
             SkinLibrary = CopySkinRecords(skinLibrary ?? account.SkinLibrary),
             ActiveSkinId = activeSkinId ?? account.ActiveSkinId,
-            IsOffline = isOffline ?? account.IsOffline,
             HasFreshProfile = hasFreshProfile ?? account.HasFreshProfile,
             CachedCapeOptions = cachedCapeOptions ?? account.CachedCapeOptions
         };
+    }
+
+    private static LauncherAccountKind ResolveKind(LauncherAccountRecord record)
+    {
+        return record.Kind ?? (record.IsOffline
+            ? LauncherAccountKind.Offline
+            : LauncherAccountKind.Microsoft);
     }
 
     private static List<LauncherSkinRecord> MergeSkinLibrary(

@@ -46,6 +46,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
     // AccountListViewModel 是当前账户集合和持久化顺序的唯一 UI 所有者，本类只编排对话框流程。
     private readonly AccountListViewModel accountList;
     private readonly IMicrosoftAccountService microsoftAccountService;
+    private readonly IThirdPartyAccountService thirdPartyAccountService;
     private readonly IOfflineAccountUuidService offlineUuidService;
     private readonly IStatusService statusService;
     private readonly ILogger<AccountDialogViewModel> logger;
@@ -81,6 +82,17 @@ public sealed partial class AccountDialogViewModel : ObservableObject
 
     [ObservableProperty]
     private bool isMicrosoftAccountAlreadyAdded;
+
+    [ObservableProperty]
+    private LauncherAccount? accountPendingThirdPartyReauthentication;
+
+    [ObservableProperty] private string thirdPartyImportCurrentProfileName = string.Empty;
+    [ObservableProperty] private int thirdPartyImportCompletedCount;
+    [ObservableProperty] private int thirdPartyImportTotalCount;
+    [ObservableProperty] private int thirdPartyImportFailedCount;
+    private readonly List<ThirdPartyProfileOptionViewModel> thirdPartyFailedProfiles = [];
+    private readonly List<LauncherAccount> thirdPartySuccessfulAccounts = [];
+    private CancellationTokenSource? thirdPartyImportCancellationTokenSource;
 
     // 删除对话框只保留待删除对象；确认后会立即清空引用，避免重复确认触发两次删除。
     [ObservableProperty]
@@ -123,36 +135,60 @@ public sealed partial class AccountDialogViewModel : ObservableObject
     public AccountDialogViewModel(
         AccountListViewModel accountList,
         IMicrosoftAccountService microsoftAccountService,
+        IThirdPartyAccountService thirdPartyAccountService,
         IOfflineAccountUuidService offlineUuidService,
         IStatusService statusService,
         ILogger<AccountDialogViewModel>? logger = null)
     {
         this.accountList = accountList;
         this.microsoftAccountService = microsoftAccountService;
+        this.thirdPartyAccountService = thirdPartyAccountService;
         this.offlineUuidService = offlineUuidService;
         this.statusService = statusService;
         this.logger = logger ?? NullLogger<AccountDialogViewModel>.Instance;
+        ThirdParty = new ThirdPartyAccountDialogViewModel(accountList, thirdPartyAccountService, this.logger);
+        ThirdParty.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(ThirdPartyAccountDialogViewModel.CanConfirm)
+                or nameof(ThirdPartyAccountDialogViewModel.HasSelectedProfiles))
+                OnPropertyChanged(nameof(CanConfirmAddAccountDialog));
+            if (e.PropertyName == nameof(ThirdPartyAccountDialogViewModel.CanSelectAllProfiles))
+                OnPropertyChanged(nameof(CanSelectAllThirdPartyProfiles));
+        };
     }
 
     public ObservableCollection<AccountTypeOption> AccountTypeOptions { get; } = new(AccountTypeOptionFactory.Create());
+    public ThirdPartyAccountDialogViewModel ThirdParty { get; }
 
     public bool IsAccountTypeStep => AddAccountDialogStep == AccountDialogSteps.AddAccountType;
     public bool IsOfflineNameStep => AddAccountDialogStep == AccountDialogSteps.AddAccountOfflineName;
+    public bool IsThirdPartyCredentialsStep => AddAccountDialogStep == AccountDialogSteps.AddAccountThirdPartyCredentials;
+    public bool IsThirdPartyReauthenticationStep => AddAccountDialogStep == AccountDialogSteps.AddAccountThirdPartyReauthentication;
+    public bool IsThirdPartyFormStep => IsThirdPartyCredentialsStep || IsThirdPartyReauthenticationStep;
+    public bool IsThirdPartyProfileSelectionStep => AddAccountDialogStep == AccountDialogSteps.AddAccountThirdPartyProfileSelection;
+    public bool IsThirdPartyImportProgressStep => AddAccountDialogStep == AccountDialogSteps.AddAccountThirdPartyImportProgress;
+    public bool IsThirdPartyImportResultStep => AddAccountDialogStep == AccountDialogSteps.AddAccountThirdPartyImportResult;
     public bool IsMicrosoftLoginStep => AddAccountDialogStep == AccountDialogSteps.AddAccountMicrosoftLogin;
     public bool IsMicrosoftLoginResultStep => AddAccountDialogStep == AccountDialogSteps.AddAccountMicrosoftResult;
     public bool IsMicrosoftStatusStep => IsMicrosoftLoginStep || IsMicrosoftLoginResultStep;
-    public bool CanShowAddAccountBackButton => !IsAddAccountDialogBusy && (IsOfflineNameStep || IsMicrosoftLoginStep);
+    public bool CanShowAddAccountBackButton => !IsAddAccountDialogBusy
+        && (IsOfflineNameStep || IsThirdPartyCredentialsStep || IsMicrosoftLoginStep);
     public bool CanShowAddAccountCancelButton => !IsAddAccountDialogBusy && !IsMicrosoftLoginResultStep;
     public bool IsAddAccountFooterEnabled => !IsAddAccountDialogBusy;
     public bool CanConfirmAddAccountDialog => !IsAddAccountDialogBusy
-        && (IsMicrosoftLoginResultStep || IsOfflineNameStep || (IsAccountTypeStep && SelectedAccountTypeOption is not null));
+        && (IsMicrosoftLoginResultStep
+            || IsOfflineNameStep
+            || (IsThirdPartyFormStep && ThirdParty.CanConfirm)
+            || (IsThirdPartyProfileSelectionStep && ThirdParty.HasSelectedProfiles)
+            || IsThirdPartyImportResultStep
+            || (IsAccountTypeStep && SelectedAccountTypeOption is not null));
     public bool IsMicrosoftAccountTypeSelected => IsAccountTypeStep && SelectedAccountTypeOption?.Kind is AccountTypeKinds.Microsoft;
 
     public bool IsRenameAccountInputStep => RenameAccountDialogStep == AccountDialogSteps.RenameInput;
     public bool IsRenameAccountStatusStep => RenameAccountDialogStep == AccountDialogSteps.RenameStatus;
     public bool IsRenameAccountResultStep => RenameAccountDialogStep == AccountDialogSteps.RenameResult;
     public bool IsRenameAccountMessageStep => IsRenameAccountStatusStep || IsRenameAccountResultStep;
-    public bool IsRenameMicrosoftAccount => AccountPendingRename is not null && !AccountPendingRename.IsOffline;
+    public bool IsRenameMicrosoftAccount => AccountPendingRename?.IsMicrosoft == true;
     public bool CanShowRenameAccountCancelButton => !IsRenameAccountDialogBusy && IsRenameAccountInputStep;
     public bool CanConfirmRenameAccountDialog => !IsRenameAccountDialogBusy
         && (IsRenameAccountResultStep || (IsRenameAccountInputStep && !string.IsNullOrWhiteSpace(RenameAccountName)));
@@ -174,12 +210,37 @@ public sealed partial class AccountDialogViewModel : ObservableObject
     public string RenameAccountDialogSubtitle =>
         AccountDialogText.GetRenameSubtitle(RenameAccountDialogStep, IsRenameMicrosoftAccount);
 
-    public string AddAccountDialogTitle => AccountDialogText.GetAddTitle(
-        AddAccountDialogStep,
-        IsMicrosoftAccountAlreadyAdded,
-        IsMicrosoftLoginSuccessful);
+    public string AddAccountDialogTitle => AddAccountDialogStep switch
+    {
+        AccountDialogSteps.AddAccountThirdPartyReauthentication => Strings.Dialog_ReauthenticateThirdPartyAccountTitle,
+        AccountDialogSteps.AddAccountThirdPartyProfileSelection => Strings.Dialog_ThirdPartyProfileSelectionTitle,
+        AccountDialogSteps.AddAccountThirdPartyImportProgress => Strings.Dialog_ThirdPartyImportProgressTitle,
+        AccountDialogSteps.AddAccountThirdPartyImportResult => Strings.Dialog_ThirdPartyImportResultTitle,
+        _ => AccountDialogText.GetAddTitle(
+            AddAccountDialogStep,
+            IsMicrosoftAccountAlreadyAdded,
+            IsMicrosoftLoginSuccessful)
+    };
 
-    public string AddAccountDialogSubtitle => AccountDialogText.GetAddSubtitle(AddAccountDialogStep);
+    public string AddAccountDialogSubtitle => AddAccountDialogStep switch
+    {
+        AccountDialogSteps.AddAccountThirdPartyReauthentication => Strings.Dialog_ReauthenticateThirdPartyAccountSubtitle,
+        AccountDialogSteps.AddAccountThirdPartyProfileSelection => Strings.Dialog_ThirdPartyProfileSelectionSubtitle,
+        AccountDialogSteps.AddAccountThirdPartyImportProgress => Strings.Dialog_ThirdPartyImportProgressSubtitle,
+        AccountDialogSteps.AddAccountThirdPartyImportResult => Strings.Dialog_ThirdPartyImportResultSubtitle,
+        _ => AccountDialogText.GetAddSubtitle(AddAccountDialogStep)
+    };
+
+    public bool IsThirdPartyIdentityReadOnly => IsThirdPartyReauthenticationStep;
+    public bool CanSelectAllThirdPartyProfiles => IsThirdPartyProfileSelectionStep && ThirdParty.CanSelectAllProfiles;
+    public bool CanShowStandardAddAccountFooter => !IsThirdPartyImportProgressStep && !IsThirdPartyImportResultStep;
+    public string ThirdPartyImportProgressText => string.Format(
+        Strings.Dialog_ThirdPartyImportProgressFormat,
+        ThirdPartyImportCompletedCount,
+        ThirdPartyImportTotalCount);
+    public string ThirdPartyImportFailureText => string.Format(
+        Strings.Dialog_ThirdPartyImportFailureFormat,
+        ThirdPartyImportFailedCount);
 
     public void OpenAddAccountDialog()
     {
@@ -187,12 +248,27 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         IsAddAccountDialogOpen = true;
     }
 
+    public void OpenThirdPartyReauthenticationDialog(LauncherAccount account)
+    {
+        ResetAddAccountDialogState(clearOfflineName: true);
+        AccountPendingThirdPartyReauthentication = account;
+        AddAccountDialogStep = AccountDialogSteps.AddAccountThirdPartyReauthentication;
+        ThirdParty.PrepareReauthentication(account);
+        IsAddAccountDialogOpen = true;
+    }
+
     public void CancelAddAccountDialog()
     {
+        if (IsThirdPartyImportProgressStep)
+        {
+            thirdPartyImportCancellationTokenSource?.Cancel();
+            return;
+        }
         if (IsAddAccountDialogBusy)
             return;
 
         IsAddAccountDialogOpen = false;
+        _ = ThirdParty.CancelEmailLoginAsync();
     }
 
     public void ResetAddAccountDialog()
@@ -233,7 +309,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
 
             // Microsoft UUID 才是稳定身份。重复登录时选中已有账户并刷新顺序，不能创建名称相同的副本。
             var existing = accountList.Accounts.FirstOrDefault(item =>
-                !item.IsOffline && string.Equals(item.Uuid, account.Uuid, StringComparison.OrdinalIgnoreCase));
+                item.Account.IsMicrosoft && string.Equals(item.Uuid, account.Uuid, StringComparison.OrdinalIgnoreCase));
 
             if (existing is not null)
             {
@@ -279,7 +355,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         IsAddAccountDialogOpen = false;
     }
 
-    public async Task ConfirmAddAccountDialogAsync()
+    public async Task ConfirmAddAccountDialogAsync(string? thirdPartyPassword = null)
     {
         if (IsAddAccountDialogBusy)
             return;
@@ -287,6 +363,42 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         if (IsMicrosoftLoginResultStep)
         {
             CloseAddAccountDialogAfterMicrosoftResult();
+            return;
+        }
+
+        if (IsThirdPartyImportResultStep)
+        {
+            IsAddAccountDialogOpen = false;
+            await ThirdParty.CancelEmailLoginAsync();
+            return;
+        }
+
+        if (IsThirdPartyProfileSelectionStep)
+        {
+            await ImportThirdPartyProfilesAsync(
+                ThirdParty.Profiles.Where(profile => profile.IsSelected).ToArray(),
+                thirdPartyPassword ?? string.Empty);
+            return;
+        }
+
+        if (IsThirdPartyReauthenticationStep && AccountPendingThirdPartyReauthentication is { } pendingAccount)
+        {
+            IsAddAccountDialogBusy = true;
+            try
+            {
+                var authenticated = await ThirdParty.ReauthenticateAsync(
+                    pendingAccount,
+                    thirdPartyPassword ?? string.Empty);
+                if (authenticated is not null)
+                {
+                    await accountList.ReplaceSelectedAccountAndPersistAsync(pendingAccount, authenticated);
+                    IsAddAccountDialogOpen = false;
+                }
+            }
+            finally
+            {
+                IsAddAccountDialogBusy = false;
+            }
             return;
         }
 
@@ -302,6 +414,34 @@ public sealed partial class AccountDialogViewModel : ObservableObject
                 return;
             }
 
+            if (SelectedAccountTypeOption.Kind is AccountTypeKinds.ThirdParty)
+            {
+                AddAccountDialogStep = AccountDialogSteps.AddAccountThirdPartyCredentials;
+                return;
+            }
+
+            return;
+        }
+
+        if (IsThirdPartyCredentialsStep)
+        {
+            IsAddAccountDialogBusy = true;
+            try
+            {
+                if (ThirdParty.IsEmailIdentifier)
+                {
+                    if (await ThirdParty.BeginEmailLoginAsync(thirdPartyPassword ?? string.Empty))
+                        AddAccountDialogStep = AccountDialogSteps.AddAccountThirdPartyProfileSelection;
+                }
+                else if (await ThirdParty.LoginAsync(thirdPartyPassword ?? string.Empty))
+                {
+                    IsAddAccountDialogOpen = false;
+                }
+            }
+            finally
+            {
+                IsAddAccountDialogBusy = false;
+            }
             return;
         }
 
@@ -320,7 +460,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
             DisplayName = accountName,
             Uuid = offlineUuidService.CreateUuid(accountName, OfflineUuidGenerationMode.Standard),
             OfflineUuidGenerationMode = OfflineUuidGenerationMode.Standard,
-            IsOffline = true
+            Kind = LauncherAccountKind.Offline
         };
 
         await accountList.AddAndSelectAsync(account);
@@ -357,8 +497,10 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         try
         {
             await removeTask;
-            if (!account.IsOffline)
+            if (account.IsMicrosoft)
                 await microsoftAccountService.DeleteAccountAsync(account);
+            else if (account.IsThirdParty)
+                await thirdPartyAccountService.DeleteCredentialsAsync(account.Id);
         }
         catch (Exception exception)
         {
@@ -369,7 +511,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
 
     public void OpenRenameAccountDialog()
     {
-        if (accountList.SelectedAccount is null)
+        if (accountList.SelectedAccount is null || accountList.SelectedAccount.IsThirdParty)
             return;
 
         AccountPendingRename = accountList.SelectedAccount;
@@ -405,6 +547,11 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         var account = AccountPendingRename;
         if (account is null)
             return;
+        if (account.IsThirdParty)
+        {
+            IsRenameAccountDialogOpen = false;
+            return;
+        }
 
         var newName = RenameAccountName.Trim();
         if (!AccountNameValidator.IsValid(newName))
@@ -544,10 +691,101 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         IsNewOfflineAccountNameInvalid = false;
     }
 
+    partial void OnThirdPartyImportCompletedCountChanged(int value) =>
+        OnPropertyChanged(nameof(ThirdPartyImportProgressText));
+
+    partial void OnThirdPartyImportTotalCountChanged(int value) =>
+        OnPropertyChanged(nameof(ThirdPartyImportProgressText));
+
+    partial void OnThirdPartyImportFailedCountChanged(int value) =>
+        OnPropertyChanged(nameof(ThirdPartyImportFailureText));
+
+    public void SelectAllThirdPartyProfiles() => ThirdParty.SelectAllProfiles();
+
+    public Task RetryThirdPartyProfileImportAsync(string password) =>
+        ImportThirdPartyProfilesAsync(thirdPartyFailedProfiles.ToArray(), password);
+
+    private async Task ImportThirdPartyProfilesAsync(
+        IReadOnlyList<ThirdPartyProfileOptionViewModel> profiles,
+        string password)
+    {
+        if (profiles.Count == 0)
+            return;
+        thirdPartyFailedProfiles.Clear();
+        ThirdPartyImportFailedCount = 0;
+        ThirdPartyImportCompletedCount = 0;
+        ThirdPartyImportTotalCount = profiles.Count;
+        AddAccountDialogStep = AccountDialogSteps.AddAccountThirdPartyImportProgress;
+        IsAddAccountDialogBusy = true;
+        using var cancellation = new CancellationTokenSource();
+        thirdPartyImportCancellationTokenSource = cancellation;
+        try
+        {
+            foreach (var profile in profiles)
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
+                ThirdPartyImportCurrentProfileName = profile.Name;
+                var imported = await ThirdParty.ImportEmailProfileAsync(profile, password, cancellation.Token);
+                if (imported is null)
+                {
+                    thirdPartyFailedProfiles.Add(profile);
+                }
+                else if (thirdPartySuccessfulAccounts.All(account => !string.Equals(account.Id, imported.Id, StringComparison.Ordinal)))
+                {
+                    thirdPartySuccessfulAccounts.Add(imported);
+                }
+                ThirdPartyImportCompletedCount++;
+            }
+
+            await SelectFirstSuccessfulThirdPartyAccountAsync();
+            ThirdPartyImportFailedCount = thirdPartyFailedProfiles.Count;
+            if (thirdPartyFailedProfiles.Count == 0)
+            {
+                IsAddAccountDialogOpen = false;
+                await ThirdParty.CancelEmailLoginAsync();
+            }
+            else
+            {
+                AddAccountDialogStep = AccountDialogSteps.AddAccountThirdPartyImportResult;
+            }
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            await SelectFirstSuccessfulThirdPartyAccountAsync();
+            IsAddAccountDialogOpen = false;
+            await ThirdParty.CancelEmailLoginAsync();
+        }
+        finally
+        {
+            thirdPartyImportCancellationTokenSource = null;
+            IsAddAccountDialogBusy = false;
+        }
+    }
+
+    private async Task SelectFirstSuccessfulThirdPartyAccountAsync()
+    {
+        if (thirdPartySuccessfulAccounts.Count == 0)
+            return;
+        var first = accountList.FindAccount(thirdPartySuccessfulAccounts[0].Id);
+        if (first is null)
+            return;
+        accountList.SelectAccount(first, persistSelection: false);
+        await accountList.PersistAccountOrderAsync();
+    }
+
     private void NotifyAddAccountDialogStepPropertiesChanged()
     {
         OnPropertyChanged(nameof(IsAccountTypeStep));
         OnPropertyChanged(nameof(IsOfflineNameStep));
+        OnPropertyChanged(nameof(IsThirdPartyCredentialsStep));
+        OnPropertyChanged(nameof(IsThirdPartyReauthenticationStep));
+        OnPropertyChanged(nameof(IsThirdPartyFormStep));
+        OnPropertyChanged(nameof(IsThirdPartyProfileSelectionStep));
+        OnPropertyChanged(nameof(IsThirdPartyImportProgressStep));
+        OnPropertyChanged(nameof(IsThirdPartyImportResultStep));
+        OnPropertyChanged(nameof(CanSelectAllThirdPartyProfiles));
+        OnPropertyChanged(nameof(CanShowStandardAddAccountFooter));
+        OnPropertyChanged(nameof(IsThirdPartyIdentityReadOnly));
         OnPropertyChanged(nameof(IsMicrosoftLoginStep));
         OnPropertyChanged(nameof(IsMicrosoftLoginResultStep));
         OnPropertyChanged(nameof(IsMicrosoftStatusStep));
@@ -586,9 +824,21 @@ public sealed partial class AccountDialogViewModel : ObservableObject
 
     private void ResetAddAccountDialogState(bool clearOfflineName)
     {
+        thirdPartyImportCancellationTokenSource?.Cancel();
+        thirdPartyImportCancellationTokenSource = null;
+        thirdPartyFailedProfiles.Clear();
+        thirdPartySuccessfulAccounts.Clear();
+        ThirdPartyImportCurrentProfileName = string.Empty;
+        ThirdPartyImportCompletedCount = 0;
+        ThirdPartyImportTotalCount = 0;
+        ThirdPartyImportFailedCount = 0;
+        AccountPendingThirdPartyReauthentication = null;
         AddAccountDialogStep = AccountDialogSteps.AddAccountType;
         if (clearOfflineName)
+        {
             NewOfflineAccountName = string.Empty;
+            ThirdParty.Reset();
+        }
 
         IsNewOfflineAccountNameInvalid = false;
         IsAddAccountDialogBusy = false;
@@ -651,5 +901,6 @@ public sealed partial class AccountDialogViewModel : ObservableObject
     {
         statusService.Report(message);
     }
+
 }
 

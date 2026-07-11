@@ -23,7 +23,10 @@ public sealed class LauncherAccountRecord
 {
     public string Id { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
+    public LauncherAccountKind? Kind { get; set; }
     public string? Uuid { get; set; }
+    public string? AuthenticationServerUrl { get; set; }
+    public string? ThirdPartyLoginUsername { get; set; }
     public OfflineUuidGenerationMode OfflineUuidGenerationMode { get; set; } = OfflineUuidGenerationMode.Standard;
     public string? AvatarSource { get; set; }
     public string? SkinSource { get; set; }

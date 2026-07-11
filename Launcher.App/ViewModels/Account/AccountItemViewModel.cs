@@ -39,6 +39,7 @@ public sealed partial class AccountItemViewModel : ObservableObject
     public string? Uuid => Account.Uuid;
 
     public bool IsOffline => Account.IsOffline;
+    public LauncherAccountKind Kind => Account.Kind;
 
     public string AvatarUrl => Account.AvatarUrl;
 

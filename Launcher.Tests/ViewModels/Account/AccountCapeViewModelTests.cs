@@ -27,6 +27,59 @@ namespace Launcher.Tests.ViewModels.Account;
 public sealed class AccountCapeViewModelTests
 {
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ThirdPartyAccountShowsOnlyCurrentCapeOrNone(bool hasCape)
+    {
+        var capes = hasCape
+            ? new List<AccountCapeOption>
+            {
+                new() { DisplayName = string.Empty, IsNone = true },
+                new()
+                {
+                    Id = "current-cape",
+                    DisplayName = string.Empty,
+                    ImageUrl = "file:///cape.png",
+                    IsActive = true
+                }
+            }
+            : [];
+        var account = new LauncherAccount
+        {
+            Id = "third-party",
+            DisplayName = "Player",
+            Kind = LauncherAccountKind.ThirdParty,
+            CachedCapeOptions = capes
+        };
+        var store = new RecordingAccountStore(new AccountStoreSnapshot([account], account.Id));
+        var accountList = new AccountListViewModel(store);
+        await accountList.InitializeAsync(new LauncherSettings());
+        var microsoftService = new RecordingMicrosoftAccountService();
+        using var operations = new AccountAppearanceOperationCoordinator();
+        var profile = new AccountProfileViewModel(
+            accountList,
+            microsoftService,
+            new UnusedThirdPartyAccountService(),
+            operations,
+            null,
+            NullLogger.Instance);
+        profile.SetAccount(accountList.SelectedAccount);
+        var viewModel = new AccountCapeViewModel(accountList, microsoftService, profile, NullLogger.Instance);
+
+        viewModel.SetAccount(accountList.SelectedAccount);
+
+        var selected = Assert.Single(viewModel.Options);
+        Assert.Equal(!hasCape, selected.IsNone);
+        Assert.True(selected.IsActive);
+        Assert.Null(viewModel.PreviousOption);
+        Assert.Null(viewModel.NextOption);
+        Assert.True(viewModel.HasPreview);
+        Assert.True(viewModel.CanRefresh);
+        Assert.False(viewModel.CanApply);
+        Assert.False(viewModel.CanShowApplyButton);
+    }
+
+    [Theory]
     [InlineData("cape-two")]
     [InlineData(null)]
     public async Task ApplyPreservesOptionsAndPersistsActiveCape(string? capeId)
@@ -35,7 +88,7 @@ public sealed class AccountCapeViewModelTests
         {
             Id = "account",
             DisplayName = "Player",
-            IsOffline = false,
+            Kind = LauncherAccountKind.Microsoft,
             CachedCapeOptions =
             [
                 new AccountCapeOption { DisplayName = string.Empty, IsNone = true },
@@ -48,7 +101,13 @@ public sealed class AccountCapeViewModelTests
         await accountList.InitializeAsync(new LauncherSettings());
         var service = new RecordingMicrosoftAccountService();
         using var operations = new AccountAppearanceOperationCoordinator();
-        var profile = new AccountProfileViewModel(accountList, service, operations, null, NullLogger.Instance);
+        var profile = new AccountProfileViewModel(
+            accountList,
+            service,
+            new UnusedThirdPartyAccountService(),
+            operations,
+            null,
+            NullLogger.Instance);
         profile.SetAccount(accountList.SelectedAccount);
         var viewModel = new AccountCapeViewModel(accountList, service, profile, NullLogger.Instance);
         viewModel.SetAccount(accountList.SelectedAccount);
@@ -145,6 +204,30 @@ public sealed class AccountCapeViewModelTests
             LauncherAccount account,
             string newName,
             CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class UnusedThirdPartyAccountService : IThirdPartyAccountService
+    {
+        public Task<ThirdPartyEmailLoginSession> BeginEmailLoginAsync(string authenticationServer, string email, string password, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<LauncherAccount> ImportEmailProfileAsync(string attemptId, string profileUuid, string password, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task CancelEmailLoginAsync(string attemptId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<LauncherAccount> LoginWithUsernameAsync(
+            string authenticationServer,
+            string username,
+            string password,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<LauncherAccount> RefreshAccountProfileAsync(
+            LauncherAccount account,
+            CancellationToken cancellationToken = default) => Task.FromResult(account);
+
+        public Task<LauncherAccount> ReauthenticateAsync(
+            LauncherAccount account,
+            string password,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task DeleteCredentialsAsync(string accountId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }
 }

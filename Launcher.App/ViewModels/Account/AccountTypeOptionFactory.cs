@@ -43,6 +43,14 @@ internal static class AccountTypeOptionFactory
                 Description = Strings.Account_TypeMicrosoftDescription,
                 Icon = "\uE72E",
                 IconKey = "account_page/account_page_add_account_dialog_online_user"
+            },
+            new AccountTypeOption
+            {
+                Kind = AccountTypeKinds.ThirdParty,
+                Title = Strings.Account_TypeThirdPartyTitle,
+                Description = Strings.Account_TypeThirdPartyDescription,
+                Icon = "\uE71D",
+                IconKey = "account_page/third_party_login"
             }
         ];
     }

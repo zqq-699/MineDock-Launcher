@@ -20,6 +20,7 @@
 using System.Globalization;
 using System.Windows.Data;
 using Launcher.App.Resources;
+using Launcher.Domain.Models;
 
 namespace Launcher.App.Converters;
 
@@ -27,8 +28,14 @@ public sealed class AccountKindTextConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        return value is bool isOffline
-            ? isOffline ? Strings.Account_TypeOfflineTitle : Strings.Account_TypeMicrosoftTitle
+        return value is LauncherAccountKind kind
+            ? kind switch
+            {
+                LauncherAccountKind.Offline => Strings.Account_TypeOfflineTitle,
+                LauncherAccountKind.Microsoft => Strings.Account_TypeMicrosoftTitle,
+                LauncherAccountKind.ThirdParty => Strings.Account_TypeThirdPartyTitle,
+                _ => string.Empty
+            }
             : string.Empty;
     }
 

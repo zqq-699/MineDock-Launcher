@@ -23,6 +23,10 @@
                     xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
                     xmlns:converters="clr-namespace:Launcher.App.Converters"
                     xmlns:res="clr-namespace:Launcher.App.Resources">
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/BlockHelm_Launcher_x64;component/Styles/ControlStyles.Scroll.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
     <Style x:Key="DialogOverlayStyle" TargetType="Grid">
         <Setter Property="Grid.ColumnSpan" Value="2" />
         <Setter Property="Grid.RowSpan" Value="2" />
@@ -180,6 +184,9 @@
         <Setter Property="behaviors:SmoothScrollBehavior.ScrollAmount" Value="92" />
         <Setter Property="behaviors:SmoothScrollBehavior.WheelAnimationDurationMilliseconds" Value="130" />
         <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Style.Resources>
+            <Style TargetType="ScrollBar" BasedOn="{StaticResource MainContentScrollBarStyle}" />
+        </Style.Resources>
     </Style>
 
     <Style x:Key="DialogFormPanelStyle" TargetType="StackPanel">

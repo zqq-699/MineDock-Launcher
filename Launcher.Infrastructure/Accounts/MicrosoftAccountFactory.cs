@@ -69,7 +69,7 @@ internal sealed class MicrosoftAccountFactory
             SkinModel = skin?.SkinModel,
             SkinLibrary = skins,
             ActiveSkinId = skin?.Id,
-            IsOffline = false
+            Kind = LauncherAccountKind.Microsoft
         };
     }
 
@@ -107,7 +107,7 @@ internal sealed class MicrosoftAccountFactory
             SkinModel = skin?.SkinModel,
             SkinLibrary = skins,
             ActiveSkinId = skin?.Id,
-            IsOffline = false,
+            Kind = LauncherAccountKind.Microsoft,
             HasFreshProfile = true
         };
     }

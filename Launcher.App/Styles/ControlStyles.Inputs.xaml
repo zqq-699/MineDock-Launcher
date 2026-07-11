@@ -50,6 +50,60 @@
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="8">
+                        <Grid>
+                            <TextBlock x:Name="PlaceholderText"
+                                       Margin="9,0,0,0"
+                                       Text="{Binding Path=(behaviors:TextBoxPlaceholder.Text), RelativeSource={RelativeSource TemplatedParent}}"
+                                       Foreground="{DynamicResource Brush.Text.Disabled}"
+                                       FontSize="{TemplateBinding FontSize}"
+                                       VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                       IsHitTestVisible="False">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}" Value="">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="{TemplateBinding Padding}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{DynamicResource Brush.Input.TextBox.BorderFocused}" />
+                            <Setter TargetName="Root" Property="Background" Value="{DynamicResource Brush.Input.TextBox.BackgroundFocused}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DialogPasswordBoxStyle" TargetType="PasswordBox">
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{DynamicResource Brush.F4F4F4}" />
+        <Setter Property="Background" Value="{DynamicResource Brush.Input.TextBox.Background}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Brush.Input.TextBox.Border}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CaretBrush" Value="{DynamicResource Brush.F4F4F4}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="PasswordBox">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="8">
                         <Grid Margin="{TemplateBinding Padding}">
                             <ScrollViewer x:Name="PART_ContentHost"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
@@ -828,6 +882,9 @@
     <Style x:Key="LauncherPrimaryDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryDialogButtonStyle}" />
     <Style x:Key="LauncherDangerDialogButtonStyle" TargetType="Button" BasedOn="{StaticResource DangerDialogButtonStyle}" />
     <Style x:Key="LauncherDialogTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource DialogTextBoxStyle}">
+        <Setter Property="Padding" Value="3,0" />
+    </Style>
+    <Style x:Key="LauncherDialogPasswordBoxStyle" TargetType="PasswordBox" BasedOn="{StaticResource DialogPasswordBoxStyle}">
         <Setter Property="Padding" Value="3,0" />
     </Style>
     <Style x:Key="LauncherDialogWrappingTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource DialogWrappingTextBoxStyle}" />

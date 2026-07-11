@@ -21,17 +21,29 @@ namespace Launcher.Application.Accounts;
 
 public sealed class LaunchAccountSessionException : Exception
 {
+    public LaunchAccountSessionFailureReason Reason { get; }
+
     public LaunchAccountSessionException()
+        : this(LaunchAccountSessionFailureReason.Unknown, "The launch account session is unavailable.")
     {
     }
 
     public LaunchAccountSessionException(string message)
-        : base(message)
+        : this(LaunchAccountSessionFailureReason.Unknown, message)
     {
     }
 
     public LaunchAccountSessionException(string message, Exception innerException)
+        : this(LaunchAccountSessionFailureReason.Unknown, message, innerException)
+    {
+    }
+
+    public LaunchAccountSessionException(
+        LaunchAccountSessionFailureReason reason,
+        string message,
+        Exception? innerException = null)
         : base(message, innerException)
     {
+        Reason = reason;
     }
 }

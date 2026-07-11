@@ -17,10 +17,14 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using Launcher.Domain.Models;
+
 namespace Launcher.Application.Accounts;
 
 public sealed record LaunchAccountSession(
     string Username,
     string AccessToken,
     string Uuid,
-    bool IsOffline);
+    bool IsOffline,
+    LauncherAccountKind Kind = LauncherAccountKind.Microsoft,
+    ThirdPartyLaunchContext? ThirdParty = null);

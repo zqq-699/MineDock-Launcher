@@ -382,7 +382,7 @@
   <data name="Account_ChangeSkinModelButton" xml:space="preserve"><value>更改模型</value></data>
   <data name="Account_SkinActiveState" xml:space="preserve"><value>当前应用</value></data>
   <data name="Account_SkinPreviewEmpty" xml:space="preserve"><value>暂无皮肤预览，刷新资料或上传皮肤后显示。</value></data>
-  <data name="Account_AppearanceOfflineUnsupported" xml:space="preserve"><value>离线账号不支持皮肤/披风管理</value></data>
+  <data name="Account_AppearanceOfflineUnsupported" xml:space="preserve"><value>此账户暂不支持皮肤/披风管理</value></data>
   <data name="Account_SkinModelClassicTitle" xml:space="preserve"><value>默认</value></data>
   <data name="Account_SkinModelClassicDescription" xml:space="preserve"><value>Steve 模型，手臂宽度为 4 像素。</value></data>
   <data name="Account_SkinModelSlimTitle" xml:space="preserve"><value>瘦</value></data>
@@ -404,7 +404,25 @@
   <data name="Account_TypeOfflineDescription" xml:space="preserve"><value>使用本地用户名进入游戏。</value></data>
   <data name="Account_TypeMicrosoftTitle" xml:space="preserve"><value>正版账户</value></data>
   <data name="Account_TypeMicrosoftDescription" xml:space="preserve"><value>通过 Microsoft 账户登录并获取皮肤头像。</value></data>
-  <data name="Account_ProfileOfflineUnsupported" xml:space="preserve"><value>离线账户不支持皮肤和披风管理</value></data>
+  <data name="Account_TypeThirdPartyTitle" xml:space="preserve"><value>第三方账户</value></data>
+  <data name="Account_TypeThirdPartyDescription" xml:space="preserve"><value>使用外置认证服务器登录。</value></data>
+  <data name="Account_AuthenticationServerLabel" xml:space="preserve"><value>认证服务器地址</value></data>
+  <data name="Account_AuthenticationServerPlaceholder" xml:space="preserve"><value>如 https://littleskin.cn/api/yggdrasil</value></data>
+  <data name="Account_UsernameOrEmailLabel" xml:space="preserve"><value>用户名或邮箱</value></data>
+  <data name="Account_PasswordLabel" xml:space="preserve"><value>密码</value></data>
+  <data name="Account_ThirdPartyServerRequired" xml:space="preserve"><value>请输入认证服务器地址</value></data>
+  <data name="Account_ThirdPartyUsernameRequired" xml:space="preserve"><value>请输入用户名或邮箱</value></data>
+  <data name="Account_ThirdPartyPasswordRequired" xml:space="preserve"><value>请输入密码</value></data>
+  <data name="Account_ThirdPartyServerInvalid" xml:space="preserve"><value>认证服务器地址无效</value></data>
+  <data name="Account_ThirdPartyServerHttpsRequired" xml:space="preserve"><value>认证服务器必须使用 HTTPS</value></data>
+  <data name="Account_ThirdPartyServerUnavailable" xml:space="preserve"><value>无法连接认证服务器</value></data>
+  <data name="Account_ThirdPartyServerInvalidResponse" xml:space="preserve"><value>认证服务器返回了无效响应</value></data>
+  <data name="Account_ThirdPartyUsernameUnsupported" xml:space="preserve"><value>该认证服务器不支持用户名登录</value></data>
+  <data name="Account_ThirdPartyProfileMissing" xml:space="preserve"><value>认证服务器未返回该用户名对应的角色</value></data>
+  <data name="Account_ThirdPartyInvalidCredentials" xml:space="preserve"><value>用户名或密码错误</value></data>
+  <data name="Account_ThirdPartyCredentialStorageFailed" xml:space="preserve"><value>无法保存登录信息</value></data>
+  <data name="Account_ThirdPartyLoginFailed" xml:space="preserve"><value>第三方账户登录失败</value></data>
+  <data name="Account_ProfileOfflineUnsupported" xml:space="preserve"><value>此账户暂不支持资料、皮肤和披风管理</value></data>
   <data name="Account_ProfileNoCapes" xml:space="preserve"><value>这个账户没有可用披风</value></data>
   <data name="Account_ProfileLoaded" xml:space="preserve"><value>正版账户资料已加载</value></data>
   <data name="Account_ProfileCacheLoaded" xml:space="preserve"><value>已加载本地披风缓存，点击刷新可获取最新状态</value></data>
@@ -416,12 +434,14 @@
   <data name="Dialog_AddAccountTitle" xml:space="preserve"><value>添加账户</value></data>
   <data name="Dialog_AddOfflineAccountTitle" xml:space="preserve"><value>离线账户</value></data>
   <data name="Dialog_AddMicrosoftAccountTitle" xml:space="preserve"><value>正版登录</value></data>
+  <data name="Dialog_AddThirdPartyAccountTitle" xml:space="preserve"><value>第三方账户</value></data>
   <data name="Dialog_AddAccountAlreadyExistsTitle" xml:space="preserve"><value>账号已存在</value></data>
   <data name="Dialog_LoginSuccessTitle" xml:space="preserve"><value>登录成功</value></data>
   <data name="Dialog_LoginIncompleteTitle" xml:space="preserve"><value>登录未完成</value></data>
   <data name="Dialog_AddAccountSubtitle" xml:space="preserve"><value>选择要添加的账户类型。</value></data>
   <data name="Dialog_AddOfflineAccountSubtitle" xml:space="preserve"><value>输入要添加的离线账户名。</value></data>
   <data name="Dialog_AddMicrosoftAccountSubtitle" xml:space="preserve"><value>请在弹出的 Microsoft 官方页面完成登录。</value></data>
+  <data name="Dialog_AddThirdPartyAccountSubtitle" xml:space="preserve"><value>填写外置认证服务器和账户信息。</value></data>
   <data name="Dialog_AddAccountResultSubtitle" xml:space="preserve"><value>点击确定返回账户列表。</value></data>
   <data name="Dialog_DeleteAccountTitle" xml:space="preserve"><value>删除账户</value></data>
   <data name="Dialog_DeleteAccountMessage" xml:space="preserve"><value>是否确定删除该账户？</value></data>
@@ -1070,4 +1090,12 @@
   <data name="Status_UpdateAutoInstallPackageNotFound" xml:space="preserve"><value>&#x672A;&#x627E;&#x5230;&#x53EF;&#x81EA;&#x52A8;&#x5B89;&#x88C5;&#x7684;&#x66F4;&#x65B0;&#x5305;</value></data>
   <data name="Status_LauncherUpdateStartFailed" xml:space="preserve"><value>&#x542F;&#x52A8;&#x66F4;&#x65B0;&#x5931;&#x8D25;&#xFF0C;&#x8BF7;&#x624B;&#x52A8;&#x4E0B;&#x8F7D;&#x65B0;&#x7248;&#x672C;&#x3002;</value></data>
   <data name="Status_LauncherUpdateRestarting" xml:space="preserve"><value>&#x6B63;&#x5728;&#x5B89;&#x88C5;&#x66F4;&#x65B0;&#xFF0C;&#x542F;&#x52A8;&#x5668;&#x5C06;&#x81EA;&#x52A8;&#x91CD;&#x542F;&#x3002;</value></data>
+  <data name="Dialog_ReauthenticateThirdPartyAccountTitle" xml:space="preserve"><value>重新登录第三方账户</value></data>
+  <data name="Dialog_ReauthenticateThirdPartyAccountSubtitle" xml:space="preserve"><value>登录已过期，请重新输入密码后继续启动。</value></data>
+  <data name="Status_ThirdPartyReauthenticationRequired" xml:space="preserve"><value>第三方账户登录已过期，请重新登录。</value></data>
+  <data name="SelectAll_Button" xml:space="preserve"><value>全选</value></data><data name="Retry_Button" xml:space="preserve"><value>重试</value></data>
+  <data name="Dialog_ThirdPartyProfileSelectionTitle" xml:space="preserve"><value>选择角色</value></data><data name="Dialog_ThirdPartyProfileSelectionSubtitle" xml:space="preserve"><value>选择要导入的一个或多个角色。</value></data>
+  <data name="Dialog_ThirdPartyImportProgressTitle" xml:space="preserve"><value>正在导入角色</value></data><data name="Dialog_ThirdPartyImportProgressSubtitle" xml:space="preserve"><value>正在保存角色资料和登录信息。</value></data>
+  <data name="Dialog_ThirdPartyImportResultTitle" xml:space="preserve"><value>部分角色导入失败</value></data><data name="Dialog_ThirdPartyImportResultSubtitle" xml:space="preserve"><value>可以重试失败的角色，已成功导入的角色不会重复处理。</value></data>
+  <data name="Dialog_ThirdPartyImportProgressFormat" xml:space="preserve"><value>已完成 {0}/{1}</value></data><data name="Dialog_ThirdPartyImportFailureFormat" xml:space="preserve"><value>{0} 个角色导入失败</value></data>
 </root>

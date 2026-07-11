@@ -85,10 +85,23 @@ public sealed partial class AccountListViewModel : ObservableObject
 
     public async Task AddAndSelectAsync(LauncherAccount account)
     {
+        var previousSelection = SelectedItem;
         var item = new AccountItemViewModel(account);
         Accounts.Add(item);
         SelectItem(item, persistSelection: false);
-        await PersistAccountOrderAsync();
+        try
+        {
+            await PersistAccountOrderAsync();
+        }
+        catch
+        {
+            Accounts.Remove(item);
+            if (previousSelection is not null && Accounts.Contains(previousSelection))
+                SelectItem(previousSelection, persistSelection: false);
+            else
+                ClearSelectedAccount();
+            throw;
+        }
     }
 
     public async Task RemoveAsync(LauncherAccount account)
@@ -114,7 +127,15 @@ public sealed partial class AccountListViewModel : ObservableObject
     public async Task ReplaceSelectedAccountAndPersistAsync(LauncherAccount oldAccount, LauncherAccount newAccount)
     {
         ReplaceSelectedAccount(oldAccount, newAccount);
-        await PersistAccountOrderAsync();
+        try
+        {
+            await PersistAccountOrderAsync();
+        }
+        catch
+        {
+            TryReplaceAccount(newAccount.Id, oldAccount);
+            throw;
+        }
     }
 
     public bool TryReplaceAccount(string accountId, LauncherAccount newAccount)

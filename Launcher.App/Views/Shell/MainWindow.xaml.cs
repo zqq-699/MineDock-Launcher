@@ -26,6 +26,7 @@ using System.Windows.Threading;
 using Launcher.App.Controls;
 using Launcher.App.Models;
 using Launcher.App.Services;
+using Launcher.App.Views.Account.Dialogs;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -72,9 +73,12 @@ public partial class MainWindow : Window
 
         DataContext = viewModel;
         windowService.Attach(this);
+        var addAccountDialogView = AddAccountDialogHost.DialogContent as AddAccountDialogView
+            ?? throw new InvalidOperationException("The add-account dialog content is not initialized.");
         accountDialogService.Attach(
             viewModel.AccountPage,
             AddAccountDialogHost,
+            addAccountDialogView,
             DeleteAccountDialogHost,
             RenameAccountDialogHost,
             SkinModelDialogHost,

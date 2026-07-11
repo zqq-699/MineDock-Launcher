@@ -78,7 +78,7 @@ internal sealed class MicrosoftAuthProvider
 
     public async Task<string> GetAccessTokenAsync(LauncherAccount account, CancellationToken cancellationToken)
     {
-        if (account.IsOffline || string.IsNullOrWhiteSpace(account.Uuid))
+        if (!account.IsMicrosoft || string.IsNullOrWhiteSpace(account.Uuid))
             throw new InvalidOperationException("\u53ea\u6709\u6b63\u7248\u8d26\u6237\u652f\u6301\u6b64\u64cd\u4f5c");
 
         var savedAccount = FindSavedAccount(account)

@@ -25,13 +25,16 @@ internal sealed class LaunchAccountSessionService : ILaunchAccountSessionService
 {
     private readonly MicrosoftAuthProvider authProvider;
     private readonly IOfflineAccountUuidService offlineUuidService;
+    private readonly IThirdPartyLaunchSessionService thirdPartyLaunchSessionService;
 
     public LaunchAccountSessionService(
         MicrosoftAuthProvider authProvider,
-        IOfflineAccountUuidService offlineUuidService)
+        IOfflineAccountUuidService offlineUuidService,
+        IThirdPartyLaunchSessionService thirdPartyLaunchSessionService)
     {
         this.authProvider = authProvider;
         this.offlineUuidService = offlineUuidService;
+        this.thirdPartyLaunchSessionService = thirdPartyLaunchSessionService;
     }
 
     public async Task<LaunchAccountSession> CreateSessionAsync(
@@ -41,9 +44,13 @@ internal sealed class LaunchAccountSessionService : ILaunchAccountSessionService
         if (string.IsNullOrWhiteSpace(account.DisplayName))
             throw new LaunchAccountSessionException("Launch account username is missing.");
 
-        return account.IsOffline
-            ? CreateOfflineSession(account)
-            : await CreateMicrosoftSessionAsync(account, cancellationToken);
+        return account.Kind switch
+        {
+            Launcher.Domain.Models.LauncherAccountKind.Offline => CreateOfflineSession(account),
+            Launcher.Domain.Models.LauncherAccountKind.Microsoft => await CreateMicrosoftSessionAsync(account, cancellationToken),
+            Launcher.Domain.Models.LauncherAccountKind.ThirdParty => await CreateThirdPartySessionAsync(account, cancellationToken),
+            _ => throw new LaunchAccountSessionException("Launch account type is unsupported.")
+        };
     }
 
     private LaunchAccountSession CreateOfflineSession(LauncherAccount account)
@@ -62,7 +69,8 @@ internal sealed class LaunchAccountSessionService : ILaunchAccountSessionService
             account.DisplayName,
             compactUuid,
             compactUuid,
-            IsOffline: true);
+            IsOffline: true,
+            Kind: Launcher.Domain.Models.LauncherAccountKind.Offline);
     }
 
     private async Task<LaunchAccountSession> CreateMicrosoftSessionAsync(
@@ -82,7 +90,8 @@ internal sealed class LaunchAccountSessionService : ILaunchAccountSessionService
                 account.DisplayName,
                 accessToken,
                 ToSessionUuid(normalizedUuid),
-                IsOffline: false);
+                IsOffline: false,
+                Kind: Launcher.Domain.Models.LauncherAccountKind.Microsoft);
         }
         catch (OperationCanceledException)
         {
@@ -92,6 +101,22 @@ internal sealed class LaunchAccountSessionService : ILaunchAccountSessionService
         {
             throw new LaunchAccountSessionException("Microsoft account token is unavailable.", ex);
         }
+    }
+
+    private async Task<LaunchAccountSession> CreateThirdPartySessionAsync(
+        LauncherAccount account,
+        CancellationToken cancellationToken)
+    {
+        var session = await thirdPartyLaunchSessionService.CreateAsync(account, cancellationToken).ConfigureAwait(false);
+        return new LaunchAccountSession(
+            session.Username,
+            session.AccessToken,
+            session.Uuid,
+            IsOffline: false,
+            Kind: Launcher.Domain.Models.LauncherAccountKind.ThirdParty,
+            ThirdParty: new ThirdPartyLaunchContext(
+                session.AuthenticationServerUrl,
+                session.PrefetchedMetadata));
     }
 
     private static string ToSessionUuid(string uuid)

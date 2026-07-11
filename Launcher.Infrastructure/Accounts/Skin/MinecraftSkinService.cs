@@ -72,7 +72,9 @@ internal sealed class MinecraftSkinService
             AvatarSource = updatedAccount.AvatarSource,
             SkinSource = skinSource ?? updatedAccount.SkinSource,
             SkinModel = skinModel,
-            IsOffline = updatedAccount.IsOffline,
+            Kind = updatedAccount.Kind,
+            AuthenticationServerUrl = updatedAccount.AuthenticationServerUrl,
+            ThirdPartyLoginUsername = updatedAccount.ThirdPartyLoginUsername,
             HasFreshProfile = updatedAccount.HasFreshProfile,
             CachedCapeOptions = updatedAccount.CachedCapeOptions
         };

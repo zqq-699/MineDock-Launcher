@@ -1121,7 +1121,7 @@
     <value>スキンプレビューはまだありません。プロフィールを更新するかスキンをアップロードすると表示されます。</value>
   </data>
   <data name="Account_AppearanceOfflineUnsupported" xml:space="preserve">
-    <value>オフラインアカウントはスキン/マント管理に対応していません</value>
+    <value>このアカウントは現在スキン/マント管理に対応していません</value>
   </data>
   <data name="Account_SkinModelClassicTitle" xml:space="preserve">
     <value>デフォルト</value>
@@ -1186,8 +1186,38 @@
   <data name="Account_TypeMicrosoftDescription" xml:space="preserve">
     <value>Microsoft アカウントでログインし、スキンアバターを取得します。</value>
   </data>
+  <data name="Account_TypeThirdPartyTitle" xml:space="preserve">
+    <value>サードパーティアカウント</value>
+  </data>
+  <data name="Account_TypeThirdPartyDescription" xml:space="preserve">
+    <value>外部認証サーバーを使用してログインします。</value>
+  </data>
+  <data name="Account_AuthenticationServerLabel" xml:space="preserve">
+    <value>認証サーバーアドレス</value>
+  </data>
+  <data name="Account_AuthenticationServerPlaceholder" xml:space="preserve">
+    <value>例: https://littleskin.cn/api/yggdrasil</value>
+  </data>
+  <data name="Account_UsernameOrEmailLabel" xml:space="preserve">
+    <value>ユーザー名またはメールアドレス</value>
+  </data>
+  <data name="Account_PasswordLabel" xml:space="preserve">
+    <value>パスワード</value>
+  </data>
+  <data name="Account_ThirdPartyServerRequired" xml:space="preserve"><value>認証サーバーアドレスを入力してください</value></data>
+  <data name="Account_ThirdPartyUsernameRequired" xml:space="preserve"><value>ユーザー名またはメールアドレスを入力してください</value></data>
+  <data name="Account_ThirdPartyPasswordRequired" xml:space="preserve"><value>パスワードを入力してください</value></data>
+  <data name="Account_ThirdPartyServerInvalid" xml:space="preserve"><value>認証サーバーアドレスが無効です</value></data>
+  <data name="Account_ThirdPartyServerHttpsRequired" xml:space="preserve"><value>認証サーバーは HTTPS を使用する必要があります</value></data>
+  <data name="Account_ThirdPartyServerUnavailable" xml:space="preserve"><value>認証サーバーに接続できません</value></data>
+  <data name="Account_ThirdPartyServerInvalidResponse" xml:space="preserve"><value>認証サーバーから無効な応答が返されました</value></data>
+  <data name="Account_ThirdPartyUsernameUnsupported" xml:space="preserve"><value>この認証サーバーはユーザー名ログインをサポートしていません</value></data>
+  <data name="Account_ThirdPartyProfileMissing" xml:space="preserve"><value>対応するプロフィールが返されませんでした</value></data>
+  <data name="Account_ThirdPartyInvalidCredentials" xml:space="preserve"><value>ユーザー名またはパスワードが正しくありません</value></data>
+  <data name="Account_ThirdPartyCredentialStorageFailed" xml:space="preserve"><value>ログイン情報を保存できません</value></data>
+  <data name="Account_ThirdPartyLoginFailed" xml:space="preserve"><value>サードパーティアカウントのログインに失敗しました</value></data>
   <data name="Account_ProfileOfflineUnsupported" xml:space="preserve">
-    <value>オフラインアカウントはスキンとマントの管理に対応していません</value>
+    <value>このアカウントは現在プロフィール、スキン、マント管理に対応していません</value>
   </data>
   <data name="Account_ProfileNoCapes" xml:space="preserve">
     <value>このアカウントには利用可能なマントがありません</value>
@@ -1222,6 +1252,9 @@
   <data name="Dialog_AddMicrosoftAccountTitle" xml:space="preserve">
     <value>Microsoft ログイン</value>
   </data>
+  <data name="Dialog_AddThirdPartyAccountTitle" xml:space="preserve">
+    <value>サードパーティアカウント</value>
+  </data>
   <data name="Dialog_AddAccountAlreadyExistsTitle" xml:space="preserve">
     <value>アカウントは既に存在します</value>
   </data>
@@ -1239,6 +1272,9 @@
   </data>
   <data name="Dialog_AddMicrosoftAccountSubtitle" xml:space="preserve">
     <value>表示された Microsoft 公式ページでログインを完了してください。</value>
+  </data>
+  <data name="Dialog_AddThirdPartyAccountSubtitle" xml:space="preserve">
+    <value>外部認証サーバーとアカウント情報を入力してください。</value>
   </data>
   <data name="Dialog_AddAccountResultSubtitle" xml:space="preserve">
     <value>OK をクリックしてアカウント一覧に戻ります。</value>
@@ -3176,4 +3212,12 @@
   <data name="Status_LauncherUpdateRestarting" xml:space="preserve">
     <value>更新をインストール中です。ランチャーは自動的に再起動します。</value>
   </data>
+  <data name="Dialog_ReauthenticateThirdPartyAccountTitle" xml:space="preserve"><value>サードパーティアカウントに再ログイン</value></data>
+  <data name="Dialog_ReauthenticateThirdPartyAccountSubtitle" xml:space="preserve"><value>ログインの有効期限が切れました。パスワードを再入力して起動を続行してください。</value></data>
+  <data name="Status_ThirdPartyReauthenticationRequired" xml:space="preserve"><value>サードパーティアカウントのログイン期限が切れました。再ログインしてください。</value></data>
+  <data name="SelectAll_Button" xml:space="preserve"><value>すべて選択</value></data><data name="Retry_Button" xml:space="preserve"><value>再試行</value></data>
+  <data name="Dialog_ThirdPartyProfileSelectionTitle" xml:space="preserve"><value>プロフィールを選択</value></data><data name="Dialog_ThirdPartyProfileSelectionSubtitle" xml:space="preserve"><value>インポートするプロフィールを1つ以上選択してください。</value></data>
+  <data name="Dialog_ThirdPartyImportProgressTitle" xml:space="preserve"><value>プロフィールをインポート中</value></data><data name="Dialog_ThirdPartyImportProgressSubtitle" xml:space="preserve"><value>プロフィールとログイン情報を保存しています。</value></data>
+  <data name="Dialog_ThirdPartyImportResultTitle" xml:space="preserve"><value>一部のプロフィールをインポートできませんでした</value></data><data name="Dialog_ThirdPartyImportResultSubtitle" xml:space="preserve"><value>失敗したプロフィールを再試行できます。成功済みのプロフィールは再処理されません。</value></data>
+  <data name="Dialog_ThirdPartyImportProgressFormat" xml:space="preserve"><value>完了 {0}/{1}</value></data><data name="Dialog_ThirdPartyImportFailureFormat" xml:space="preserve"><value>{0}件のプロフィールをインポートできませんでした</value></data>
 </root>

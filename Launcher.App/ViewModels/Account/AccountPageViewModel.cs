@@ -75,7 +75,7 @@ public sealed partial class AccountPageViewModel : ObservableObject
     public async Task InitializeAsync(LauncherSettings launcherSettings)
     {
         await AccountList.InitializeAsync(launcherSettings);
-        _ = Appearance.RefreshMicrosoftAccountsSilentlyAsync();
+        _ = Appearance.RefreshAccountsSilentlyAsync();
     }
 
     public void PrimeFromSettings(LauncherSettings launcherSettings)
@@ -123,6 +123,12 @@ public sealed partial class AccountPageViewModel : ObservableObject
     {
         return dialogService.ConfirmAddAccountDialogAsync();
     }
+
+    [RelayCommand]
+    private void RequestSelectAllThirdPartyProfiles() => dialogService.SelectAllThirdPartyProfiles();
+
+    [RelayCommand]
+    private Task RequestRetryThirdPartyProfileImportAsync() => dialogService.RetryThirdPartyProfileImportAsync();
 
     [RelayCommand]
     private void RequestCancelDeleteAccountDialog()

@@ -21,6 +21,7 @@ using System.Windows;
 using Launcher.App.Controls;
 using Launcher.Application.Accounts;
 using Launcher.Domain.Models;
+using Launcher.App.Views.Account.Dialogs;
 
 namespace Launcher.App.Services;
 
@@ -29,12 +30,15 @@ public interface IAccountDialogService
     void Attach(
         AccountPageViewModel accountPage,
         DialogHost addAccountHost,
+        AddAccountDialogView addAccountView,
         DialogHost deleteAccountHost,
         DialogHost renameAccountHost,
         DialogHost skinModelDialogHost,
         DialogHost skinManagerDialogHost);
 
     void ShowAddAccountDialog();
+
+    Task<bool> ShowThirdPartyReauthenticationDialogAsync(LauncherAccount account);
 
     void ShowDeleteAccountDialog(LauncherAccount account);
 
@@ -53,6 +57,10 @@ public interface IAccountDialogService
     void BackAddAccountDialog();
 
     Task ConfirmAddAccountDialogAsync();
+
+    void SelectAllThirdPartyProfiles();
+
+    Task RetryThirdPartyProfileImportAsync();
 
     void CancelDeleteAccountDialog();
 

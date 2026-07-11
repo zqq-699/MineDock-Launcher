@@ -25,9 +25,13 @@
     <Grid x:Name="RootOverlay"
           Style="{StaticResource DialogOverlayStyle}">
         <Border Width="{Binding DialogWidth, ElementName=Host}"
+                MaxHeight="{Binding ActualHeight, ElementName=Host}"
+                Margin="0,24"
                 Style="{StaticResource DialogShadowStyle}" />
         <Border x:Name="Surface"
                 Width="{Binding DialogWidth, ElementName=Host}"
+                MaxHeight="{Binding ActualHeight, ElementName=Host}"
+                Margin="0,24"
                 Style="{StaticResource DialogSurfaceStyle}">
             <ContentPresenter Content="{Binding DialogContent, ElementName=Host}" />
         </Border>

@@ -50,6 +50,7 @@ internal static class AccountDialogText
         return step switch
         {
             AccountDialogSteps.AddAccountOfflineName => Strings.Dialog_AddOfflineAccountTitle,
+            AccountDialogSteps.AddAccountThirdPartyCredentials => Strings.Dialog_AddThirdPartyAccountTitle,
             AccountDialogSteps.AddAccountMicrosoftLogin => Strings.Dialog_AddMicrosoftAccountTitle,
             AccountDialogSteps.AddAccountMicrosoftResult => isMicrosoftAccountAlreadyAdded
                 ? Strings.Dialog_AddAccountAlreadyExistsTitle
@@ -63,6 +64,7 @@ internal static class AccountDialogText
         return step switch
         {
             AccountDialogSteps.AddAccountOfflineName => Strings.Dialog_AddOfflineAccountSubtitle,
+            AccountDialogSteps.AddAccountThirdPartyCredentials => Strings.Dialog_AddThirdPartyAccountSubtitle,
             AccountDialogSteps.AddAccountMicrosoftLogin => Strings.Dialog_AddMicrosoftAccountSubtitle,
             AccountDialogSteps.AddAccountMicrosoftResult => Strings.Dialog_AddAccountResultSubtitle,
             _ => Strings.Dialog_AddAccountSubtitle

@@ -44,6 +44,7 @@ public sealed partial class HomePageViewModel : ObservableObject
     private readonly IFloatingMessageService floatingMessageService;
     private readonly IWindowService windowService;
     private readonly IUiDispatcher uiDispatcher;
+    private readonly IAccountDialogService? accountDialogService;
     private readonly Action<double> reportProgressPercent;
     private readonly Func<GameInstance?, Task> openGameSettingsForInstance;
     private readonly ILogger<HomePageViewModel> logger;
@@ -75,7 +76,8 @@ public sealed partial class HomePageViewModel : ObservableObject
         Func<GameInstance, Task<bool>> selectLaunchInstance,
         Func<bool, Task<bool>> setLaunchMenuPinned,
         Func<GameInstance?, Task> openGameSettingsForInstance,
-        ILogger<HomePageViewModel>? logger = null)
+        ILogger<HomePageViewModel>? logger = null,
+        IAccountDialogService? accountDialogService = null)
     {
         this.launchService = launchService;
         this.accountPage = accountPage;
@@ -83,6 +85,7 @@ public sealed partial class HomePageViewModel : ObservableObject
         this.floatingMessageService = floatingMessageService;
         this.windowService = windowService;
         this.uiDispatcher = uiDispatcher;
+        this.accountDialogService = accountDialogService;
         this.reportProgressPercent = reportProgressPercent;
         this.openGameSettingsForInstance = openGameSettingsForInstance;
         this.logger = logger ?? NullLogger<HomePageViewModel>.Instance;
@@ -233,13 +236,50 @@ public sealed partial class HomePageViewModel : ObservableObject
         {
             // BeginLaunchProgress 在调用服务前建立取消与进度状态，确保准备阶段也能响应取消。
             var cancellationTokenSource = BeginLaunchProgress();
-            var session = await launchService.LaunchAsync(
-                launchInstance,
-                account,
-                settings,
-                CreateProgress(),
-                options,
-                cancellationTokenSource.Token);
+            GameLaunchSession session;
+            try
+            {
+                session = await launchService.LaunchAsync(
+                    launchInstance,
+                    account,
+                    settings,
+                    CreateProgress(),
+                    options,
+                    cancellationTokenSource.Token);
+            }
+            catch (LaunchAccountSessionException exception) when (
+                exception.Reason == LaunchAccountSessionFailureReason.ReauthenticationRequired
+                && account.IsThirdParty
+                && accountDialogService is not null)
+            {
+                statusService.Report(Strings.Status_ThirdPartyReauthenticationRequired);
+                var reauthenticated = await accountDialogService
+                    .ShowThirdPartyReauthenticationDialogAsync(account);
+                if (!reauthenticated)
+                {
+                    statusService.Report(Strings.Status_LaunchCanceled);
+                    floatingMessageService.Show(Strings.Status_LaunchCanceled);
+                    return;
+                }
+
+                var refreshedAccount = accountPage.SelectedAccount;
+                if (refreshedAccount is null
+                    || !string.Equals(refreshedAccount.Id, account.Id, StringComparison.Ordinal))
+                {
+                    throw new LaunchAccountSessionException(
+                        LaunchAccountSessionFailureReason.ReauthenticationRequired,
+                        "The reauthenticated account is no longer selected.");
+                }
+
+                // 最多重试一次；第二次仍要求认证时由外层错误处理结束启动，避免循环弹窗。
+                session = await launchService.LaunchAsync(
+                    launchInstance,
+                    refreshedAccount,
+                    settings,
+                    CreateProgress(),
+                    options,
+                    cancellationTokenSource.Token);
+            }
             // LaunchAsync 只保证进程已成功创建；运行期异常退出由独立观察任务继续报告。
             ObserveGameExit(session);
 

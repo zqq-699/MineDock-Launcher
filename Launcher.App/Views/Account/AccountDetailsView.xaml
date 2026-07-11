@@ -72,6 +72,7 @@
                 <Button Grid.Column="1"
                         Margin="10,0,0,0"
                         Style="{StaticResource InlineIconButtonStyle}"
+                        IsEnabled="{Binding CanRenameSelectedAccount}"
                         Command="{Binding RequestRenameAccountCommand}">
                     <controls:SvgIcon Width="16"
                                       Height="16"
@@ -80,7 +81,7 @@
                 </Button>
             </Grid>
             <TextBlock Margin="0,8,0,0"
-                       Text="{Binding AccountList.SelectedAccount.IsOffline, Converter={StaticResource AccountKindTextConverter}}"
+                       Text="{Binding AccountList.SelectedAccount.Kind, Converter={StaticResource AccountKindTextConverter}}"
                        Foreground="{DynamicResource Brush.AFFFFFFF}"
                        FontSize="13" />
 
@@ -188,20 +189,28 @@
                                         Orientation="Horizontal"
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal"
+                                            Visibility="{Binding Appearance.SkinLibrary.CanShowStandardActions, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}">
+                                    <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                            Content="{x:Static res:Strings.Account_AddSkinButton}"
+                                            IsEnabled="{Binding Appearance.SkinLibrary.CanChangeSkin}"
+                                            Command="{Binding Appearance.SkinLibrary.PickAndChangeSkinCommand}" />
+                                    <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                            Margin="10,0,0,0"
+                                            Content="{x:Static res:Strings.Account_ManageSkinButton}"
+                                            IsEnabled="{Binding Appearance.SkinLibrary.CanManageSkins}"
+                                            Command="{Binding Appearance.SkinLibrary.RequestOpenManagerDialogCommand}" />
+                                    <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                            Margin="10,0,0,0"
+                                            Content="{x:Static res:Strings.Apply_Button}"
+                                            IsEnabled="{Binding Appearance.SkinLibrary.CanApplySkin}"
+                                            Command="{Binding Appearance.SkinLibrary.ApplySkinCommand}" />
+                                </StackPanel>
                                 <Button Style="{StaticResource LauncherDialogButtonStyle}"
-                                        Content="{x:Static res:Strings.Account_AddSkinButton}"
-                                        IsEnabled="{Binding Appearance.SkinLibrary.CanChangeSkin}"
-                                        Command="{Binding Appearance.SkinLibrary.PickAndChangeSkinCommand}" />
-                                <Button Style="{StaticResource LauncherDialogButtonStyle}"
-                                        Margin="10,0,0,0"
-                                        Content="{x:Static res:Strings.Account_ManageSkinButton}"
-                                        IsEnabled="{Binding Appearance.SkinLibrary.CanManageSkins}"
-                                        Command="{Binding Appearance.SkinLibrary.RequestOpenManagerDialogCommand}" />
-                                <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
-                                        Margin="10,0,0,0"
-                                        Content="{x:Static res:Strings.Apply_Button}"
-                                        IsEnabled="{Binding Appearance.SkinLibrary.CanApplySkin}"
-                                        Command="{Binding Appearance.SkinLibrary.ApplySkinCommand}" />
+                                        Content="{x:Static res:Strings.Refresh_Button}"
+                                        IsEnabled="{Binding Appearance.Profile.CanRefresh}"
+                                        Command="{Binding Appearance.Profile.RefreshInfoCommand}"
+                                        Visibility="{Binding Appearance.SkinLibrary.CanShowThirdPartyRefresh, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                             </StackPanel>
                         </Grid>
                     </GroupBox.Header>
@@ -267,7 +276,8 @@
                                         Margin="10,0,0,0"
                                         Content="{x:Static res:Strings.Apply_Button}"
                                         IsEnabled="{Binding Appearance.Cape.CanApply}"
-                                        Command="{Binding Appearance.Cape.ApplyCommand}" />
+                                        Command="{Binding Appearance.Cape.ApplyCommand}"
+                                        Visibility="{Binding Appearance.Cape.CanShowApplyButton, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
                             </StackPanel>
                         </Grid>
                     </GroupBox.Header>

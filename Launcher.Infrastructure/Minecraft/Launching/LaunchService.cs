@@ -43,6 +43,7 @@ public sealed class LaunchService : ILaunchService
     private readonly IJavaRuntimeSelectionService? javaRuntimeSelectionService;
     private readonly IJavaRuntimeProvisioningService? javaRuntimeProvisioningService;
     private readonly IGameLanguageService? gameLanguageService;
+    private readonly IAuthlibInjectorProvisioningService? authlibInjectorProvisioningService;
     private readonly LaunchSettingsResolver launchSettingsResolver;
     private readonly ILogger<LaunchService> logger;
 
@@ -54,7 +55,8 @@ public sealed class LaunchService : ILaunchService
         ISystemMemoryService? systemMemoryService = null,
         IModService? modService = null,
         IGameLanguageService? gameLanguageService = null,
-        ILogger<LaunchService>? logger = null)
+        ILogger<LaunchService>? logger = null,
+        IAuthlibInjectorProvisioningService? authlibInjectorProvisioningService = null)
         : this(
             accountSessionService,
             new ManagedVersionRepairService(downloadSpeedLimitState: downloadSpeedLimitState),
@@ -66,7 +68,8 @@ public sealed class LaunchService : ILaunchService
             systemMemoryService,
             modService,
             gameLanguageService,
-            logger)
+            logger,
+            authlibInjectorProvisioningService)
     {
     }
 
@@ -81,7 +84,8 @@ public sealed class LaunchService : ILaunchService
         ISystemMemoryService? systemMemoryService = null,
         IModService? modService = null,
         IGameLanguageService? gameLanguageService = null,
-        ILogger<LaunchService>? logger = null)
+        ILogger<LaunchService>? logger = null,
+        IAuthlibInjectorProvisioningService? authlibInjectorProvisioningService = null)
     {
         this.accountSessionService = accountSessionService;
         this.versionRepairService = versionRepairService;
@@ -91,6 +95,7 @@ public sealed class LaunchService : ILaunchService
         this.javaRuntimeSelectionService = javaRuntimeSelectionService;
         this.javaRuntimeProvisioningService = javaRuntimeProvisioningService;
         this.gameLanguageService = gameLanguageService;
+        this.authlibInjectorProvisioningService = authlibInjectorProvisioningService;
         this.logger = logger ?? NullLogger<LaunchService>.Instance;
         launchSettingsResolver = new LaunchSettingsResolver(systemMemoryService, modService, this.logger);
     }
@@ -198,6 +203,9 @@ public sealed class LaunchService : ILaunchService
         }
         catch (LaunchAccountSessionException exception)
         {
+            if (exception.Reason == LaunchAccountSessionFailureReason.ReauthenticationRequired)
+                throw;
+
             var report = await WriteFailureDiagnosticAsync(
                 diagnosticContext,
                 "account_session_failed",
@@ -293,6 +301,15 @@ public sealed class LaunchService : ILaunchService
 
         var accountSession = await accountSessionService.CreateSessionAsync(account, cancellationToken)
             .ConfigureAwait(false);
+        AuthlibInjectorArtifact? authlibInjector = null;
+        if (accountSession.ThirdParty is not null)
+        {
+            if (authlibInjectorProvisioningService is null)
+                throw new InvalidOperationException("The authlib-injector provisioning service is unavailable.");
+            authlibInjector = await authlibInjectorProvisioningService
+                .EnsureAvailableAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
         await ApplyGameLanguageAsync(instance, settings, cancellationToken).ConfigureAwait(false);
         var javaRuntime = await ResolveJavaRuntimeForLaunchAsync(
                 instance,
@@ -320,7 +337,7 @@ public sealed class LaunchService : ILaunchService
             LaunchProgressStages.PreparingProcess,
             "Preparing launch process",
             94));
-        return new PreparedLaunchRuntime(accountSession, javaRuntime, diagnosticContext);
+        return new PreparedLaunchRuntime(accountSession, authlibInjector, javaRuntime, diagnosticContext);
     }
 
     /// <summary>
@@ -353,8 +370,24 @@ public sealed class LaunchService : ILaunchService
             GameLauncherVersion = "0.1",
             JavaPath = ResolveWindowlessJavaPath(preparedRuntime.JavaRuntime?.ExecutablePath)
         };
+        var extraJvmArguments = new List<MArgument>();
+        if (preparedRuntime.AccountSession.ThirdParty is { } thirdParty
+            && preparedRuntime.AuthlibInjector is { } injector)
+        {
+            extraJvmArguments.Add(new MArgument(
+                $"-javaagent:{injector.FilePath}={thirdParty.AuthenticationServerUrl}"));
+            extraJvmArguments.Add(new MArgument(
+                $"-Dauthlibinjector.yggdrasil.prefetched={thirdParty.PrefetchedMetadata}"));
+            launchOption.UserProperties = "{}";
+            launchOption.ArgumentDictionary = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["user_type"] = "mojang"
+            };
+        }
         if (!string.IsNullOrWhiteSpace(resolvedSettings.JvmArguments))
-            launchOption.ExtraJvmArguments = [MArgument.FromCommandLine(resolvedSettings.JvmArguments)];
+            extraJvmArguments.Add(MArgument.FromCommandLine(resolvedSettings.JvmArguments));
+        if (extraJvmArguments.Count > 0)
+            launchOption.ExtraJvmArguments = extraJvmArguments;
         if (!string.IsNullOrWhiteSpace(resolvedSettings.GameArguments))
             launchOption.ExtraGameArguments = [MArgument.FromCommandLine(resolvedSettings.GameArguments)];
 
@@ -756,6 +789,7 @@ public sealed class LaunchService : ILaunchService
 
     private sealed record PreparedLaunchRuntime(
         LaunchAccountSession AccountSession,
+        AuthlibInjectorArtifact? AuthlibInjector,
         JavaRuntimeInfo? JavaRuntime,
         LaunchDiagnosticContext DiagnosticContext);
 

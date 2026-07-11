@@ -123,15 +123,59 @@ public sealed class LaunchServiceTests : TestTempDirectory
         Assert.Contains("instance_repair_failed", await File.ReadAllTextAsync(exception.Report.DiagnosticPath!));
     }
 
+    [Fact]
+    public async Task ThirdPartyLaunchPrependsInjectorArgumentsAndUsesMojangIdentity()
+    {
+        var injectorPath = Path.Combine(TempRoot, "path with spaces", "authlib-injector.jar");
+        var accountSession = new FakeAccountSession(new LaunchAccountSession(
+            "ThirdPartyPlayer",
+            "third-party-secret-token",
+            "00112233445566778899aabbccddeeff",
+            IsOffline: false,
+            Kind: LauncherAccountKind.ThirdParty,
+            ThirdParty: new ThirdPartyLaunchContext(
+                "https://example.test/api/yggdrasil/",
+                "eyJtZXRhIjp7fX0=")));
+        var launcher = new FakeLauncherFactory();
+        var service = CreateService(
+            launcher: launcher,
+            accountSession: accountSession,
+            authlibInjector: new FakeAuthlibInjector(injectorPath));
+        var settings = CreateSettings();
+        settings.DefaultJvmArguments = "-Duser.option=true";
+        var account = new LauncherAccount
+        {
+            Id = "third-party",
+            DisplayName = "ThirdPartyPlayer",
+            Kind = LauncherAccountKind.ThirdParty,
+            Uuid = "00112233-4455-6677-8899-aabbccddeeff"
+        };
+
+        await service.LaunchAsync(CreateInstance(settings.MinecraftDirectory, "Third Party Pack"), account, settings, null);
+
+        var option = Assert.IsType<MLaunchOption>(launcher.Launcher.LastOption);
+        var arguments = option.ExtraJvmArguments.SelectMany(argument => argument.Values).ToArray();
+        Assert.Equal($"-javaagent:{injectorPath}=https://example.test/api/yggdrasil/", arguments[0]);
+        Assert.Equal("-Dauthlibinjector.yggdrasil.prefetched=eyJtZXRhIjp7fX0=", arguments[1]);
+        Assert.Equal("-Duser.option=true", arguments[2]);
+        Assert.Equal("mojang", option.ArgumentDictionary["user_type"]);
+        Assert.Equal("{}", option.UserProperties);
+        Assert.Equal("ThirdPartyPlayer", option.Session?.Username);
+        Assert.Equal("00112233445566778899aabbccddeeff", option.Session?.UUID);
+    }
+
     private static LaunchService CreateService(
         FakeRepairService? repair = null,
         FakeLauncherFactory? launcher = null,
         ILaunchCrashMonitor? crashMonitor = null,
         IJavaRuntimeSelectionService? javaSelection = null,
-        IJavaRuntimeProvisioningService? javaProvisioning = null) =>
-        new(new FakeAccountSession(), repair ?? new FakeRepairService(), launcher ?? new FakeLauncherFactory(),
+        IJavaRuntimeProvisioningService? javaProvisioning = null,
+        ILaunchAccountSessionService? accountSession = null,
+        IAuthlibInjectorProvisioningService? authlibInjector = null) =>
+        new(accountSession ?? new FakeAccountSession(), repair ?? new FakeRepairService(), launcher ?? new FakeLauncherFactory(),
             crashMonitor ?? new NoOpCrashMonitor(), javaRuntimeSelectionService: javaSelection,
-            javaRuntimeProvisioningService: javaProvisioning);
+            javaRuntimeProvisioningService: javaProvisioning,
+            authlibInjectorProvisioningService: authlibInjector);
 
     private LauncherSettings CreateSettings() => new()
     {
@@ -154,7 +198,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
         Id = "offline",
         DisplayName = "Player",
         Uuid = "00000000-0000-0000-0000-000000000001",
-        IsOffline = true
+        Kind = LauncherAccountKind.Offline
     };
 
     private static Process CreateCommandProcess(string arguments) => new()
@@ -168,10 +212,20 @@ public sealed class LaunchServiceTests : TestTempDirectory
         }
     };
 
-    private sealed class FakeAccountSession : ILaunchAccountSessionService
+    private sealed class FakeAccountSession(LaunchAccountSession? session = null) : ILaunchAccountSessionService
     {
         public Task<LaunchAccountSession> CreateSessionAsync(LauncherAccount account, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new LaunchAccountSession(account.DisplayName, "super-secret-access-token", account.Uuid!, account.IsOffline));
+            Task.FromResult(session ?? new LaunchAccountSession(
+                account.DisplayName,
+                "super-secret-access-token",
+                account.Uuid!,
+                account.IsOffline));
+    }
+
+    private sealed class FakeAuthlibInjector(string filePath) : IAuthlibInjectorProvisioningService
+    {
+        public Task<AuthlibInjectorArtifact> EnsureAvailableAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new AuthlibInjectorArtifact(filePath, "1.2.7", 55));
     }
 
     private sealed class FakeRepairService : IManagedVersionRepairService

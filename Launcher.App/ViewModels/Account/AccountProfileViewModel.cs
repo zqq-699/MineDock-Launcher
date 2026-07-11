@@ -30,6 +30,7 @@ public sealed partial class AccountProfileViewModel : ObservableObject
 {
     private readonly AccountListViewModel accountList;
     private readonly IMicrosoftAccountService microsoftAccountService;
+    private readonly IThirdPartyAccountService thirdPartyAccountService;
     private readonly AccountAppearanceOperationCoordinator operations;
     private readonly IFloatingMessageService? floatingMessageService;
     private readonly ILogger logger;
@@ -37,12 +38,14 @@ public sealed partial class AccountProfileViewModel : ObservableObject
     internal AccountProfileViewModel(
         AccountListViewModel accountList,
         IMicrosoftAccountService microsoftAccountService,
+        IThirdPartyAccountService thirdPartyAccountService,
         AccountAppearanceOperationCoordinator operations,
         IFloatingMessageService? floatingMessageService,
         ILogger logger)
     {
         this.accountList = accountList;
         this.microsoftAccountService = microsoftAccountService;
+        this.thirdPartyAccountService = thirdPartyAccountService;
         this.operations = operations;
         this.floatingMessageService = floatingMessageService;
         this.logger = logger;
@@ -95,12 +98,16 @@ public sealed partial class AccountProfileViewModel : ObservableObject
         SetMessage(Strings.Status_RefreshingAccountProfile);
         try
         {
-            var refreshed = await microsoftAccountService.RefreshAccountProfileAsync(account, operation.Token).ConfigureAwait(false);
+            var refreshed = account.IsMicrosoft
+                ? await microsoftAccountService.RefreshAccountProfileAsync(account, operation.Token)
+                : await thirdPartyAccountService.RefreshAccountProfileAsync(account, operation.Token);
             if (!operations.IsCurrent(account, operation))
                 return;
-            var updated = AccountMapper.WithCapeCache(refreshed, account.CachedCapeOptions);
+            var updated = account.IsMicrosoft
+                ? AccountMapper.WithCapeCache(refreshed, account.CachedCapeOptions)
+                : refreshed;
             accountList.ReplaceSelectedAccount(account, updated);
-            await accountList.PersistAccountOrderAsync().ConfigureAwait(false);
+            await accountList.PersistAccountOrderAsync();
             SetMessage(Strings.Status_AccountProfileRefreshed);
         }
         catch (OperationCanceledException) when (!operations.IsCurrent(account, operation))
@@ -108,7 +115,11 @@ public sealed partial class AccountProfileViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Microsoft account profile refresh failed. AccountId={AccountId}", account.Id);
+            logger.LogWarning(
+                exception,
+                "Account profile refresh failed. AccountId={AccountId} AccountKind={AccountKind}",
+                account.Id,
+                account.Kind);
             SetError(exception, GetRefreshFailureMessage(exception, Strings.Status_AccountProfileRefreshFailed), showFloating: true);
         }
         finally
@@ -120,14 +131,19 @@ public sealed partial class AccountProfileViewModel : ObservableObject
 
     public async Task RefreshAccountsSilentlyAsync()
     {
-        var accounts = accountList.Accounts.Where(item => !item.IsOffline).Select(item => item.Account).ToList();
+        var accounts = accountList.Accounts
+            .Where(item => item.Account.IsMicrosoft || item.Account.IsThirdParty)
+            .Select(item => item.Account)
+            .ToList();
         var changed = false;
         foreach (var account in accounts)
         {
             LauncherAccount refreshed;
             try
             {
-                refreshed = await microsoftAccountService.RefreshAccountProfileAsync(account).ConfigureAwait(false);
+                refreshed = account.IsMicrosoft
+                    ? await microsoftAccountService.RefreshAccountProfileAsync(account)
+                    : await thirdPartyAccountService.RefreshAccountProfileAsync(account);
             }
             catch (OperationCanceledException)
             {
@@ -135,25 +151,32 @@ public sealed partial class AccountProfileViewModel : ObservableObject
             }
             catch (Exception exception)
             {
-                logger.LogDebug(exception, "Silent Microsoft account refresh failed. AccountId={AccountId}", account.Id);
+                logger.LogDebug(
+                    exception,
+                    "Silent account refresh failed. AccountId={AccountId} AccountKind={AccountKind}",
+                    account.Id,
+                    account.Kind);
                 continue;
             }
 
             var current = accountList.FindAccount(account.Id);
             if (current is null || IsBusy && string.Equals(current.Id, accountList.SelectedAccount?.Id, StringComparison.Ordinal))
                 continue;
-            changed |= accountList.TryReplaceAccount(current.Id, AccountMapper.WithCapeCache(refreshed, current.CachedCapeOptions));
+            var updated = account.IsMicrosoft
+                ? AccountMapper.WithCapeCache(refreshed, current.CachedCapeOptions)
+                : refreshed;
+            changed |= accountList.TryReplaceAccount(current.Id, updated);
         }
 
         if (!changed)
             return;
         try
         {
-            await accountList.PersistAccountOrderAsync().ConfigureAwait(false);
+            await accountList.PersistAccountOrderAsync();
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Persisting silently refreshed Microsoft accounts failed.");
+            logger.LogWarning(exception, "Persisting silently refreshed accounts failed.");
         }
     }
 

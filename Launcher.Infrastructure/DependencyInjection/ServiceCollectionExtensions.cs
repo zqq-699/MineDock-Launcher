@@ -22,6 +22,7 @@ using Launcher.Application.Repositories;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Accounts;
+using Launcher.Infrastructure.Accounts.ThirdParty;
 using Launcher.Infrastructure.CurseForge;
 using Launcher.Infrastructure.FileSystem;
 using Launcher.Infrastructure.Minecraft;
@@ -82,6 +83,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IInstanceContentImportPathValidator, InstanceContentImportPathValidator>();
         services.AddSingleton<IExistingFilePathValidator, ExistingFilePathValidator>();
         services.AddSingleton<IMicrosoftAccountService, MicrosoftAccountService>();
+        services.AddSingleton<IThirdPartyAccountTokenStore, DpapiThirdPartyAccountTokenStore>();
+        services.AddSingleton<IThirdPartyAccountService, ThirdPartyAccountService>();
+        services.AddSingleton<IThirdPartyLaunchSessionService, ThirdPartyLaunchSessionService>();
+        services.AddSingleton<IAuthlibInjectorProvisioningService, AuthlibInjectorProvisioningService>();
         services.AddSingleton<IAccountSkinLibraryService, AccountSkinLibraryService>();
         services.AddSingleton<IMinecraftSkinFileValidator, MinecraftSkinFileValidator>();
         services.AddSingleton<IOfflineAccountUuidService, OfflineAccountUuidService>();

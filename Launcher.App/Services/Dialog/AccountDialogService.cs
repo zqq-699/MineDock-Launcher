@@ -21,6 +21,7 @@ using System.Windows;
 using Launcher.App.Controls;
 using Launcher.Application.Accounts;
 using Launcher.Domain.Models;
+using Launcher.App.Views.Account.Dialogs;
 
 namespace Launcher.App.Services;
 
@@ -28,14 +29,17 @@ public sealed class AccountDialogService : IAccountDialogService
 {
     private AccountPageViewModel? accountPage;
     private DialogHost? addAccountHost;
+    private AddAccountDialogView? addAccountView;
     private DialogHost? deleteAccountHost;
     private DialogHost? renameAccountHost;
     private DialogHost? skinModelDialogHost;
     private DialogHost? skinManagerDialogHost;
+    private TaskCompletionSource<bool>? thirdPartyReauthenticationCompletion;
 
     public void Attach(
         AccountPageViewModel accountPage,
         DialogHost addAccountHost,
+        AddAccountDialogView addAccountView,
         DialogHost deleteAccountHost,
         DialogHost renameAccountHost,
         DialogHost skinModelDialogHost,
@@ -43,6 +47,7 @@ public sealed class AccountDialogService : IAccountDialogService
     {
         this.accountPage = accountPage;
         this.addAccountHost = addAccountHost;
+        this.addAccountView = addAccountView;
         this.deleteAccountHost = deleteAccountHost;
         this.renameAccountHost = renameAccountHost;
         this.skinModelDialogHost = skinModelDialogHost;
@@ -56,6 +61,20 @@ public sealed class AccountDialogService : IAccountDialogService
 
         accountPage.Dialog.OpenAddAccountDialog();
         addAccountHost.Show();
+    }
+
+    public Task<bool> ShowThirdPartyReauthenticationDialogAsync(LauncherAccount account)
+    {
+        if (accountPage is null || addAccountHost is null || addAccountView is null || !account.IsThirdParty)
+            return Task.FromResult(false);
+
+        thirdPartyReauthenticationCompletion?.TrySetResult(false);
+        thirdPartyReauthenticationCompletion = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        addAccountView.ClearThirdPartyPassword();
+        accountPage.Dialog.OpenThirdPartyReauthenticationDialog(account);
+        addAccountHost.Show();
+        return thirdPartyReauthenticationCompletion.Task;
     }
 
     public void ShowDeleteAccountDialog(LauncherAccount account)
@@ -119,9 +138,18 @@ public sealed class AccountDialogService : IAccountDialogService
         if (accountPage is null || addAccountHost is null)
             return;
 
+        var wasReauthentication = accountPage.Dialog.IsThirdPartyReauthenticationStep;
         accountPage.Dialog.CancelAddAccountDialog();
         if (!accountPage.Dialog.IsAddAccountDialogOpen)
+        {
+            addAccountView?.ClearThirdPartyPassword();
             addAccountHost.Hide(accountPage.Dialog.ResetAddAccountDialog);
+            if (wasReauthentication)
+            {
+                thirdPartyReauthenticationCompletion?.TrySetResult(false);
+                thirdPartyReauthenticationCompletion = null;
+            }
+        }
     }
 
     public void BackAddAccountDialog()
@@ -130,6 +158,7 @@ public sealed class AccountDialogService : IAccountDialogService
             return;
 
         var previousHeight = addAccountHost.SurfaceBorder.ActualHeight;
+
         accountPage.Dialog.BackToAddAccountTypeStep();
         addAccountHost.AnimateSizeChange(previousHeight);
     }
@@ -153,11 +182,46 @@ public sealed class AccountDialogService : IAccountDialogService
             return;
         }
 
-        await accountPage.Dialog.ConfirmAddAccountDialogAsync();
+        var wasReauthentication = accountPage.Dialog.IsThirdPartyReauthenticationStep;
+        var wasProfileSelection = accountPage.Dialog.IsThirdPartyProfileSelectionStep;
+        var confirmTask = accountPage.Dialog.ConfirmAddAccountDialogAsync(addAccountView?.ThirdPartyPassword);
+        if (wasProfileSelection)
+            addAccountHost.AnimateSizeChange(previousHeight);
+        await confirmTask;
         if (accountPage.Dialog.IsAddAccountDialogOpen)
             addAccountHost.AnimateSizeChange(previousHeight);
         else
+        {
+            addAccountView?.ClearThirdPartyPassword();
             addAccountHost.Hide(accountPage.Dialog.ResetAddAccountDialog);
+            if (wasReauthentication)
+            {
+                thirdPartyReauthenticationCompletion?.TrySetResult(true);
+                thirdPartyReauthenticationCompletion = null;
+            }
+        }
+    }
+
+    public void SelectAllThirdPartyProfiles()
+    {
+        accountPage?.Dialog.SelectAllThirdPartyProfiles();
+    }
+
+    public async Task RetryThirdPartyProfileImportAsync()
+    {
+        if (accountPage is null || addAccountHost is null)
+            return;
+        var previousHeight = addAccountHost.SurfaceBorder.ActualHeight;
+        var retryTask = accountPage.Dialog.RetryThirdPartyProfileImportAsync(addAccountView?.ThirdPartyPassword ?? string.Empty);
+        addAccountHost.AnimateSizeChange(previousHeight);
+        await retryTask;
+        if (accountPage.Dialog.IsAddAccountDialogOpen)
+            addAccountHost.AnimateSizeChange(previousHeight);
+        else
+        {
+            addAccountView?.ClearThirdPartyPassword();
+            addAccountHost.Hide(accountPage.Dialog.ResetAddAccountDialog);
+        }
     }
 
     public void CancelDeleteAccountDialog()

@@ -33,6 +33,7 @@ public sealed class HomePageViewModelFactory : IHomePageViewModelFactory
     private readonly IFloatingMessageService floatingMessageService;
     private readonly IWindowService windowService;
     private readonly IUiDispatcher uiDispatcher;
+    private readonly IAccountDialogService accountDialogService;
     private readonly ILogger<HomePageViewModel> logger;
 
     public HomePageViewModelFactory(
@@ -42,6 +43,7 @@ public sealed class HomePageViewModelFactory : IHomePageViewModelFactory
         IFloatingMessageService floatingMessageService,
         IWindowService windowService,
         IUiDispatcher uiDispatcher,
+        IAccountDialogService accountDialogService,
         ILogger<HomePageViewModel>? logger = null)
     {
         this.launchService = launchService;
@@ -50,6 +52,7 @@ public sealed class HomePageViewModelFactory : IHomePageViewModelFactory
         this.floatingMessageService = floatingMessageService;
         this.windowService = windowService;
         this.uiDispatcher = uiDispatcher;
+        this.accountDialogService = accountDialogService;
         this.logger = logger ?? NullLogger<HomePageViewModel>.Instance;
     }
 
@@ -72,6 +75,7 @@ public sealed class HomePageViewModelFactory : IHomePageViewModelFactory
             selectLaunchInstance,
             setLaunchMenuPinned,
             openGameSettingsForInstance,
-            logger);
+            logger,
+            accountDialogService);
     }
 }

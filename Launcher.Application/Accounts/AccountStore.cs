@@ -60,10 +60,19 @@ public sealed class AccountStore : IAccountStore
 
         foreach (var account in state.Accounts)
         {
-            if (account.IsOffline)
+            var kind = account.Kind ?? (account.IsOffline
+                ? LauncherAccountKind.Offline
+                : LauncherAccountKind.Microsoft);
+            if (kind == LauncherAccountKind.Offline)
             {
                 shouldPersistOrder |= EnsureOfflineUuid(account);
                 accounts.Add(AccountMapper.FromOfflineRecord(account));
+                continue;
+            }
+
+            if (kind == LauncherAccountKind.ThirdParty)
+            {
+                accounts.Add(AccountMapper.FromRecord(account));
                 continue;
             }
 
@@ -101,7 +110,7 @@ public sealed class AccountStore : IAccountStore
         logger.LogInformation(
             "Accounts loaded. AccountCount={AccountCount} MicrosoftAccountCount={MicrosoftAccountCount}",
             accounts.Count,
-            accounts.Count(account => !account.IsOffline));
+            accounts.Count(account => account.IsMicrosoft));
         return new AccountStoreSnapshot(accounts, state.SelectedAccountId);
     }
 

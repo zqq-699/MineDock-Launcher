@@ -122,7 +122,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
                 Id = $"microsoft-{uuid}",
                 DisplayName = login.Username ?? string.Empty,
                 Uuid = uuid,
-                IsOffline = false
+                Kind = LauncherAccountKind.Microsoft
             };
             logger.LogInformation("Interactive Microsoft account login completed with fallback profile. AccountId={AccountId}", fallbackAccount.Id);
             return fallbackAccount;

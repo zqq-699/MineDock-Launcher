@@ -34,6 +34,7 @@ public sealed class AccountAppearanceViewModel : ObservableObject, IDisposable
     public AccountAppearanceViewModel(
         AccountListViewModel accountList,
         IMicrosoftAccountService microsoftAccountService,
+        IThirdPartyAccountService thirdPartyAccountService,
         IAccountSkinLibraryService skinLibraryService,
         AccountSkinModelDialogViewModel skinModelDialog,
         IAccountDialogService dialogService,
@@ -48,6 +49,7 @@ public sealed class AccountAppearanceViewModel : ObservableObject, IDisposable
         Profile = new AccountProfileViewModel(
             accountList,
             microsoftAccountService,
+            thirdPartyAccountService,
             operations,
             floatingMessageService,
             resolvedLogger);
@@ -76,7 +78,7 @@ public sealed class AccountAppearanceViewModel : ObservableObject, IDisposable
 
     public AccountCapeViewModel Cape { get; }
 
-    public Task RefreshMicrosoftAccountsSilentlyAsync() => Profile.RefreshAccountsSilentlyAsync();
+    public Task RefreshAccountsSilentlyAsync() => Profile.RefreshAccountsSilentlyAsync();
 
     public Task RefreshCurrentSecondaryContentAsync()
     {

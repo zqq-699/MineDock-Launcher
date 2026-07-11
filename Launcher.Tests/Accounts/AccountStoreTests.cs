@@ -23,8 +23,8 @@ public sealed class AccountStoreTests
             ]
         });
         var store = new AccountStore(state, new FakeMicrosoftService(
-            new LauncherAccount { Id = "ms-1", DisplayName = "Live", Uuid = "new", HasFreshProfile = true },
-            new LauncherAccount { Id = "ms-2", DisplayName = "Imported", Uuid = "uuid" }),
+            new LauncherAccount { Id = "ms-1", DisplayName = "Live", Uuid = "new", Kind = LauncherAccountKind.Microsoft, HasFreshProfile = true },
+            new LauncherAccount { Id = "ms-2", DisplayName = "Imported", Uuid = "uuid", Kind = LauncherAccountKind.Microsoft }),
             new FakeOfflineAccountUuidService());
 
         var accounts = (await store.LoadAsync()).Accounts;
@@ -51,7 +51,7 @@ public sealed class AccountStoreTests
             }]
         });
         var store = new AccountStore(state,
-            new FakeMicrosoftService(new LauncherAccount { Id = "ms-1", DisplayName = "Cached", Uuid = "uuid" }),
+            new FakeMicrosoftService(new LauncherAccount { Id = "ms-1", DisplayName = "Cached", Uuid = "uuid", Kind = LauncherAccountKind.Microsoft }),
             new FakeOfflineAccountUuidService());
 
         var account = Assert.Single((await store.LoadAsync()).Accounts);
@@ -59,6 +59,46 @@ public sealed class AccountStoreTests
         Assert.Equal("Stored", account.DisplayName);
         Assert.Equal("stored.png", account.SkinSource);
         Assert.Equal(MinecraftSkinModel.Classic, account.SkinModel);
+    }
+
+    [Fact]
+    public async Task LoadPreservesThirdPartyRecordsWithoutMicrosoftReconciliation()
+    {
+        var state = new FakeStateService(new LauncherAccountState
+        {
+            MicrosoftAccountsImported = true,
+            Accounts = [new LauncherAccountRecord
+            {
+                Id = "third-party-id",
+                DisplayName = "Player",
+                Kind = LauncherAccountKind.ThirdParty,
+                IsOffline = false,
+                Uuid = "00112233-4455-6677-8899-aabbccddeeff",
+                AuthenticationServerUrl = "https://example.test/api/yggdrasil/",
+                ThirdPartyLoginUsername = "player"
+            }]
+        });
+        var store = new AccountStore(state, new FakeMicrosoftService(), new FakeOfflineAccountUuidService());
+
+        var account = Assert.Single((await store.LoadAsync()).Accounts);
+
+        Assert.True(account.IsThirdParty);
+        Assert.Equal("https://example.test/api/yggdrasil/", account.AuthenticationServerUrl);
+        Assert.Equal("player", account.ThirdPartyLoginUsername);
+        Assert.Equal(0, state.SaveCount);
+    }
+
+    [Fact]
+    public void MapperMigratesLegacyNonOfflineRecordToMicrosoft()
+    {
+        var account = AccountMapper.FromRecord(new LauncherAccountRecord
+        {
+            Id = "legacy",
+            DisplayName = "Legacy",
+            IsOffline = false
+        });
+
+        Assert.True(account.IsMicrosoft);
     }
 
     private sealed class FakeStateService(LauncherAccountState state) : IAccountStateService

@@ -100,6 +100,10 @@ public sealed class JsonAccountStateService : IAccountStateService
             || string.IsNullOrWhiteSpace(account.DisplayName));
         foreach (var account in state.Accounts)
         {
+            account.Kind ??= account.IsOffline
+                ? LauncherAccountKind.Offline
+                : LauncherAccountKind.Microsoft;
+            account.IsOffline = account.Kind == LauncherAccountKind.Offline;
             account.Capes ??= [];
             account.Capes.RemoveAll(cape => !cape.IsNone && string.IsNullOrWhiteSpace(cape.DisplayName));
             account.Skins ??= [];
