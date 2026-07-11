@@ -27,8 +27,12 @@ using Microsoft.Win32;
 
 namespace Launcher.App.Services;
 
+/// <summary>
+/// 在 UI 线程上原子替换主题与强调色资源字典，并跟踪系统主题和渐进模糊能力。
+/// </summary>
 public sealed class ThemeService : IThemeService, IDisposable
 {
+    // ResourceDictionary 顺序决定覆盖优先级；主题和 Accent 必须分别替换而不能全量清空应用资源。
     private const string DarkThemeSource =
         "pack://application:,,,/BlockHelm_Launcher_x64;component/Resources/Themes/Dark.xaml";
 
@@ -82,6 +86,7 @@ public sealed class ThemeService : IThemeService, IDisposable
         int backgroundOpacityPercent,
         bool disableBackgroundBlur)
     {
+        // 保存用户偏好与计算后的有效主题分开，跟随系统时系统事件只需重新计算有效值。
         var backgroundBlurDisabledChanged = this.disableBackgroundBlur != disableBackgroundBlur;
         preferredTheme = NormalizeTheme(theme);
         this.followSystem = followSystem;
@@ -95,6 +100,7 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     public void ApplyAccent(string? accentColor)
     {
+        // Accent 名称先规范化到已知资源文件，未知值回退默认色避免资源查找失败。
         var normalizedAccentColor = LauncherAccentColors.Normalize(accentColor);
         if (!string.IsNullOrWhiteSpace(accentColor)
             && !string.Equals(accentColor, normalizedAccentColor, StringComparison.OrdinalIgnoreCase))
@@ -157,6 +163,7 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     private void ApplyEffectiveTheme(EffectiveTheme nextTheme)
     {
+        // 在 UI 线程一次替换目标字典，DynamicResource 会随后统一刷新，避免短暂缺少颜色资源。
         var application = global::System.Windows.Application.Current;
         if (application is null)
             return;
@@ -200,6 +207,7 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     private static EffectiveTheme ResolveSystemTheme()
     {
+        // 系统主题读取失败时采用稳定默认值，注册表故障不能阻止应用启动。
         try
         {
             var value = Registry.GetValue(
@@ -230,6 +238,7 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     private static void ApplyBackgroundOpacityCore(int opacityPercent)
     {
+        // 透明度通过共享动态资源传播，页面和控件不各自计算 Brush alpha。
         var application = global::System.Windows.Application.Current;
         if (application is null)
             return;
@@ -239,6 +248,7 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     private void ApplyBackgroundBlurDisabledCore(bool disabled)
     {
+        // 用户开关与运行时 Shader 能力共同决定实际状态，能力恢复时可自动重新启用。
         var application = global::System.Windows.Application.Current;
         if (application is null)
             return;
@@ -261,6 +271,7 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     private void LogProgressiveBlurCapability(ProgressiveBlurCapabilitySnapshot capability)
     {
+        // 只在有效状态变化时记录，避免每次资源刷新重复输出相同能力日志。
         if (lastLoggedProgressiveBlurCapability == capability)
             return;
 
@@ -301,6 +312,7 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     private void ApplyAccentCore(string accentColor)
     {
+        // 只移除现有 Accent 字典，保留主题、共享样式和第三方资源顺序。
         var application = global::System.Windows.Application.Current;
         if (application is null)
             return;
@@ -345,6 +357,7 @@ public sealed class ThemeService : IThemeService, IDisposable
 
     private void SystemEvents_UserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
+        // 仅在“跟随系统”模式响应颜色偏好变化，显式主题不应被系统事件覆盖。
         if (!followSystem)
             return;
 

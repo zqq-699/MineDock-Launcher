@@ -32,6 +32,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Minecraft;
 
+/// <summary>
+/// 在隔离沙箱中安装 NeoForge，并通过元数据匹配、版本扁平化和修复生成可独立启动的版本。
+/// </summary>
 public sealed class NeoForgeLoaderProvider : ILoaderProvider
 {
     private const string MetadataUrl = "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml";
@@ -81,6 +84,9 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
 
     public bool IsImplemented => true;
 
+    /// <summary>
+    /// 查询与 Minecraft 版本前缀匹配的 NeoForge 构件，并按语义化数字部分排序。
+    /// </summary>
     public async Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
         string minecraftVersion,
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
@@ -146,6 +152,9 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
         return resolvedVersions;
     }
 
+    /// <summary>
+    /// 在临时 .minecraft 中安装 NeoForge，修复最终版本后只提交必要文件。
+    /// </summary>
     public async Task<string> InstallAsync(
         string minecraftVersion,
         string gameDirectory,
@@ -178,6 +187,7 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
             selectedLoaderVersion,
             isolatedVersionName);
 
+        // 记录目标目录原有版本，清理阶段只移除本次安装引入的中间目录。
         var existingVersionNames = LoaderVersionDirectoryTransaction.CaptureExistingVersions(gameDirectory);
         var installerSessionDirectory = Path.Combine(tempRootDirectory, "launcher-neoforge", Guid.NewGuid().ToString("N"));
         var installerJarPath = Path.Combine(installerSessionDirectory, $"neoforge-{selectedLoaderVersion}-installer.jar");
@@ -335,6 +345,9 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
         return new NeoForgeVersionKey(values);
     }
 
+    /// <summary>
+    /// 通过精确库坐标、预期版本身份和受控文本特征识别安装器输出版本。
+    /// </summary>
     private static string FindInstalledSourceVersionName(
         string gameDirectory,
         string loaderVersion,
@@ -350,6 +363,7 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
             .OrderByDescending(directory => directory.LastWriteTimeUtc)
             .ToList();
 
+        // 安装器输出名称会随版本变化，先限定新目录，再按库坐标和版本身份验证候选。
         var sourceVersion = candidates
             .Where(directory => !existingVersionNames.Contains(directory.Name))
             .Select(directory => TryCreateSourceMatch(directory.FullName, directory.Name, expectedVersionId, loaderVersion))
@@ -385,6 +399,9 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
         return new NeoForgeSourceMatch(versionName, metadata);
     }
 
+    /// <summary>
+    /// 将 NeoForge 输出转换为指定名称的自包含隔离版本，并写入 Launcher 元数据。
+    /// </summary>
     private static async Task<string> CreateFinalVersionAsync(
         string gameDirectory,
         string sourceVersionName,
@@ -401,6 +418,7 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
         {
             try
             {
+                // 派生版本优先与父版本合并为自包含 JSON，父文件缺失时才使用源目录隔离兜底。
                 finalVersionName = await VanillaVersionIsolator.CreateFlattenedDerivedVersionAsync(
                     metadata.InheritsFrom,
                     sourceVersionName,

@@ -23,6 +23,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.Application.Services;
 
+/// <summary>
+/// 解析 Mod 的递归必需依赖，结合本地已启用版本生成安装计划并按依赖顺序执行。
+/// </summary>
 public sealed class ResourceDependencyPlanningService : IResourceDependencyPlanningService
 {
     private const int DependencyVersionPageSize = 10000;
@@ -43,6 +46,9 @@ public sealed class ResourceDependencyPlanningService : IResourceDependencyPlann
         this.logger = logger;
     }
 
+    /// <summary>
+    /// 解析直接必需依赖并结合本地版本标记为已安装、需更新或缺失。
+    /// </summary>
     public async Task<ResourceDependencyInstallPlan> CreatePlanAsync(
         ResourceProjectVersion version,
         GameInstance instance,
@@ -69,6 +75,9 @@ public sealed class ResourceDependencyPlanningService : IResourceDependencyPlann
             requirements.Where(candidate => candidate.State is not ResourceDependencyRequirementState.Installed).ToArray());
     }
 
+    /// <summary>
+    /// 以深度优先顺序安装依赖图，自动去重并截断循环依赖。
+    /// </summary>
     public async Task InstallRequiredDependenciesAsync(
         IReadOnlyList<ResourceDependencyInstallCandidate> dependencies,
         GameInstance instance,
@@ -77,6 +86,7 @@ public sealed class ResourceDependencyPlanningService : IResourceDependencyPlann
     {
         var installedDependencies = await LoadEnabledLocalModIdentifiersAsync(instance, cancellationToken)
             .ConfigureAwait(false);
+        // visiting 用于截断依赖环，visited 用于避免多个父依赖重复安装同一项目。
         var visiting = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var dependency in dependencies)
@@ -92,6 +102,9 @@ public sealed class ResourceDependencyPlanningService : IResourceDependencyPlann
         }
     }
 
+    /// <summary>
+    /// 根据项目标识符和最低版本判断本地依赖是否满足要求。
+    /// </summary>
     internal static ResourceDependencyRequirementState ResolveRequirementState(
         ResourceDependencyInstallCandidate candidate,
         InstalledDependencyCatalog installedDependencies)
@@ -123,6 +136,9 @@ public sealed class ResourceDependencyPlanningService : IResourceDependencyPlann
             ?? versions.FirstOrDefault();
     }
 
+    /// <summary>
+    /// 递归安装一个依赖及其子依赖，并同步更新本次计划的内存安装目录。
+    /// </summary>
     private async Task InstallDependencyAsync(
         ResourceDependencyInstallCandidate candidate,
         GameInstance instance,
@@ -169,6 +185,7 @@ public sealed class ResourceDependencyPlanningService : IResourceDependencyPlann
                     ResourceProjectInstallationTargetKind.ExistingInstance,
                     Instance: instance),
                 cancellationToken: cancellationToken).ConfigureAwait(false);
+            // 立即更新内存目录，使同一计划中的后续分支能看到刚安装的依赖而无需重新扫描磁盘。
             AddIdentifiers(installedDependencies, candidate.Dependency, version);
             logger.LogInformation(
                 "Installed required resource dependency. DependencyProjectId={DependencyProjectId} VersionId={VersionId} InstanceId={InstanceId}",
@@ -202,6 +219,9 @@ public sealed class ResourceDependencyPlanningService : IResourceDependencyPlann
         }
     }
 
+    /// <summary>
+    /// 查询与实例 Minecraft/Loader 兼容的依赖版本，并选择最低要求和实际安装版本。
+    /// </summary>
     private async Task<ResourceDependencyInstallCandidate> ResolveCandidateAsync(
         ResourceProjectDependency dependency,
         GameInstance instance,
@@ -243,6 +263,9 @@ public sealed class ResourceDependencyPlanningService : IResourceDependencyPlann
             ResourceDependencyRequirementState.Missing);
     }
 
+    /// <summary>
+    /// 扫描已启用 Mod，构建忽略大小写的 ModId 到版本列表索引。
+    /// </summary>
     private async Task<InstalledDependencyCatalog> LoadEnabledLocalModIdentifiersAsync(
         GameInstance instance,
         CancellationToken cancellationToken)
@@ -314,6 +337,7 @@ public sealed class ResourceDependencyPlanningService : IResourceDependencyPlann
 
         private static bool TryParse(string value, out ParsedVersion version)
         {
+            // Mod 版本经常混入 Minecraft/Loader 上下文；比较时提取最后一个版本样数字段并保留预发布权重。
             version = default;
             if (string.IsNullOrWhiteSpace(value))
                 return false;

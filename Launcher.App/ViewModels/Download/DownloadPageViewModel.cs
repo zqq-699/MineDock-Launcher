@@ -30,8 +30,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.Download;
 
+/// <summary>
+/// 协调版本列表、实例安装选项、安装状态和本地整合包导入四个下载页子流程。
+/// </summary>
 public sealed partial class DownloadPageViewModel : ObservableObject, IDisposable
 {
+    // 子 ViewModel 各自拥有业务状态，本类只维护页面步骤与跨子流程事件转发。
     private readonly IFloatingMessageService floatingMessageService;
     private readonly ILogger<DownloadPageViewModel> logger;
     private CancellationTokenSource? optionsNavigationCancellation;
@@ -170,6 +174,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
 
     public void PrimeFromSettings(LauncherSettings settings)
     {
+        // 下载源和限速同时影响在线安装与本地整合包依赖下载，必须传播给两个入口。
         ApplyDownloadSourcePreference(settings.DownloadSourcePreference);
         ApplyDownloadSpeedLimit(settings.DownloadSpeedLimitMbPerSecond);
     }
@@ -198,6 +203,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
 
     public bool UpdateLocalImportDropState(IReadOnlyList<string> paths)
     {
+        // DragOver 只做轻量格式判断和提示，不在高频事件中打开压缩包或执行识别。
         var canAccept = CanHandleLocalImportDropCore(paths);
         ApplyLocalImportDropHint(canAccept
             ? Strings.GameSettings_DropReleaseToImportMessage
@@ -212,6 +218,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
 
     public async Task<bool> HandleLocalImportDropAsync(IReadOnlyList<string> paths)
     {
+        // Drop 后才进入实际识别；返回值表示是否接管文件，便于外层清除拖放视觉状态。
         if (!CanHandleLocalImportDropCore(paths))
             return false;
         try
@@ -253,6 +260,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
     [RelayCommand(CanExecute = nameof(CanInstallSelectedVersion), AllowConcurrentExecutions = true)]
     private async Task InstallAsync()
     {
+        // 安装按钮委托给 InstallState，本页只负责防重复提交和步骤切换。
         var request = InstanceOptions.CreateInstallRequest();
         if (request is null)
             return;
@@ -280,6 +288,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
 
     private async Task OpenInstanceOptionsAsync(DownloadMinecraftVersionItem version)
     {
+        // 版本切换会触发 Loader 查询，先取消上一次导航，防止旧结果晚到覆盖当前页。
         CancelOptionsNavigation();
         var cancellation = new CancellationTokenSource();
         optionsNavigationCancellation = cancellation;
@@ -327,6 +336,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
 
     private void VersionList_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // 页面公开属性是子列表状态投影，需要显式转发通知保持 Binding 更新。
         switch (e.PropertyName)
         {
             case nameof(DownloadVersionListViewModel.SelectedVersionCategory):
@@ -385,12 +395,14 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
 
     private void CancelOptionsNavigation()
     {
+        // CTS 只归本页面步骤所有；子 ViewModel 仍负责其内部网络请求生命周期。
         var cancellation = Interlocked.Exchange(ref optionsNavigationCancellation, null);
         cancellation?.Cancel();
     }
 
     private void ShowVersionList()
     {
+        // 返回列表时清除安装选项瞬态状态，但保留版本缓存和滚动位置。
         CancelOptionsNavigation();
         CurrentStep = DownloadPageStep.VersionList;
         InstanceOptions.Deactivate();

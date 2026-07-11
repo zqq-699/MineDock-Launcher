@@ -31,8 +31,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.Views.Shell;
 
+/// <summary>
+/// 承载主窗口级拖放、关闭握手、标题栏交互和无法用 Binding 表达的视觉树协调。
+/// </summary>
 public partial class MainWindow : Window
 {
+    // code-behind 只处理窗口/视觉树生命周期，业务决策始终委托给 MainViewModel 和页面 ViewModel。
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(5);
 
     public static readonly DependencyProperty IsMenuExpandedProperty =
@@ -171,6 +175,7 @@ public partial class MainWindow : Window
 
     private async void MainWindow_Loaded(object? sender, RoutedEventArgs e)
     {
+        // 先显示已 Prime 的界面，再等待完整初始化，避免启动期间窗口长时间空白。
         try
         {
             await viewModel.InitializeCommand.ExecuteAsync(null);
@@ -187,6 +192,7 @@ public partial class MainWindow : Window
 
     private async void Window_OnClosing(object? sender, CancelEventArgs e)
     {
+        // 第一次 Closing 只发起异步关闭握手；确认下载处理完成后再允许真正关闭。
         if (isShutdownComplete)
             return;
 
@@ -244,6 +250,7 @@ public partial class MainWindow : Window
 
     private void Window_OnPreviewDragOver(object sender, DragEventArgs e)
     {
+        // Preview 路由在页面控件前统一判断当前导航目标，保证全窗口拖放提示一致。
         if (HandleDownloadLocalImportPreview(e))
             return;
 
@@ -274,6 +281,7 @@ public partial class MainWindow : Window
 
     private async void Window_OnPreviewDrop(object sender, DragEventArgs e)
     {
+        // Drop 后才执行压缩包识别或文件导入，高频 DragOver 阶段只做轻量预览。
         try
         {
             if (HandleDownloadLocalImportDrop(e))
@@ -386,6 +394,7 @@ public partial class MainWindow : Window
 
     private static string[]? TryGetDroppedPaths(DragEventArgs e)
     {
+        // 只接受系统 FileDrop 格式，并复制为字符串快照，避免异步处理继续持有 DragEventArgs。
         if (!e.Data.GetDataPresent(DataFormats.FileDrop))
             return null;
 

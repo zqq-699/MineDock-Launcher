@@ -22,8 +22,12 @@ using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.Resources;
 
+/// <summary>
+/// 把资源版本按兼容性、Loader 和搜索条件投影为带分组标题的可增量 UI 列表。
+/// </summary>
 internal sealed class ResourcesAvailableVersionListBuilder
 {
+    // Builder 不持有页面状态，只封装多个资源页面必须一致使用的筛选、分组和插入规则。
     private readonly ResourcesOnlineProjectPageOptions options;
 
     public ResourcesAvailableVersionListBuilder(ResourcesOnlineProjectPageOptions options)
@@ -46,6 +50,7 @@ internal sealed class ResourcesAvailableVersionListBuilder
 
     public IReadOnlyList<ResourcesFilterOptionItem> CreateVersionFilterOptions(IReadOnlyList<ResourceProjectVersion> versions)
     {
+        // 只展示数据中实际存在的兼容版本，并使用 Minecraft 版本语义而非普通字符串排序。
         return versions
             .SelectMany(version => NormalizeGameVersionCompatibilityValues(version.GameVersions))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -55,6 +60,7 @@ internal sealed class ResourcesAvailableVersionListBuilder
 
     public IReadOnlyList<ResourcesFilterOptionItem> CreateLoaderFilterOptions(IReadOnlyList<ResourceProjectVersion> versions)
     {
+        // Loader 可能来自结构化字段或旧数据的版本名推断，统一规范化后再去重。
         var loaderOptions = CreateDefaultLoaderFilterOptions();
         if (!options.ShowsLoaderFilters)
             return loaderOptions;
@@ -123,6 +129,7 @@ internal sealed class ResourcesAvailableVersionListBuilder
         string? selectedLoaderId,
         string searchQuery)
     {
+        // UI 集合同时包含标题和版本项；先完成筛选，再生成不会出现空组的扁平投影。
         var items = new List<object>();
         var filteredVersions = versions
             .Where(version => MatchesFilters(version, selectedVersionId, selectedLoaderId, searchQuery))
@@ -149,6 +156,7 @@ internal sealed class ResourcesAvailableVersionListBuilder
         string searchQuery,
         int currentVisibleCount)
     {
+        // 追加分页保留已有对象，避免虚拟化容器和当前滚动位置因全量重建而失效。
         RemoveEmptyPlaceholderHeader(items, title, currentVisibleCount);
 
         var appendedCount = 0;
@@ -183,6 +191,7 @@ internal sealed class ResourcesAvailableVersionListBuilder
         string? selectedLoaderId,
         string searchQuery)
     {
+        // 搜索、Minecraft 版本与 Loader 是交集关系；“全部”值由各自匹配函数解释。
         return MatchesSearch(version, searchQuery)
             && MatchesVersionFilter(version, selectedVersionId)
             && MatchesLoaderFilter(version, selectedLoaderId);
@@ -197,6 +206,7 @@ internal sealed class ResourcesAvailableVersionListBuilder
         string? selectedVersionId,
         string? selectedLoaderId)
     {
+        // 标题只在至少存在一个可见子项时加入，避免留下无法解释的空分组。
         var groups = new List<AvailableVersionCompatibilityGroup>();
         var groupsByTitle = new Dictionary<string, AvailableVersionCompatibilityGroup>(StringComparer.OrdinalIgnoreCase);
 
@@ -331,6 +341,7 @@ internal sealed class ResourcesAvailableVersionListBuilder
 
     private static int FindGroupInsertIndex(IList<object> items, string title)
     {
+        // 新页结果插入已有同名标题末尾，而不是简单追加到列表尾部破坏分组连续性。
         for (var index = 0; index < items.Count; index++)
         {
             if (items[index] is not ResourcesModVersionListHeaderItem header
@@ -367,6 +378,7 @@ internal sealed class ResourcesAvailableVersionListBuilder
 
     internal static IReadOnlyList<string> ResolveCompatibilityLoaders(ResourceProjectVersion version)
     {
+        // 优先信任 API 的结构化 Loader；字段缺失时才从版本名称进行保守推断。
         var loaders = NormalizeLoaderCompatibilityValues(version.Loaders);
         if (loaders.Count > 0)
             return loaders;
@@ -390,6 +402,7 @@ internal sealed class ResourcesAvailableVersionListBuilder
 
     private static IReadOnlyList<string> InferLoadersFromVersionText(ResourceProjectVersion version)
     {
+        // 文本推断只识别带边界的已知 token，避免把普通单词片段误判为 Loader。
         var text = string.Join(
             ' ',
             version.FileName,
@@ -458,6 +471,7 @@ internal sealed class ResourcesAvailableVersionListBuilder
 
     internal static bool IsUnknownInstanceVersionTarget(ResourcesModInstallTargetItemViewModel? target)
     {
+        // 未知目标不能做严格兼容过滤，否则无法解析的旧实例会被错误显示为没有可用版本。
         return target?.IsLocalDownload is false
             && !target.IsNewInstanceInstall
             && string.IsNullOrWhiteSpace(target.Instance?.MinecraftVersion);

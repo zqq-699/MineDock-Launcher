@@ -31,8 +31,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.FileSystem;
 
+/// <summary>
+/// 管理实例 mods 目录中的枚举、导入、启停和元数据识别，并兼容多种 Loader 描述格式。
+/// </summary>
 public sealed class ModService : IModService
 {
+    // 元数据优先使用各 Loader 的结构化声明，正则只解析 TOML 中少量稳定字段。
     private const string EnabledModExtension = ".jar";
     private const string DisabledModExtension = ".jar.disabled";
     private static readonly Regex TomlDisplayNameRegex = new(
@@ -59,6 +63,7 @@ public sealed class ModService : IModService
 
     public Task<IReadOnlyList<LocalMod>> GetModsAsync(GameInstance instance, CancellationToken cancellationToken = default)
     {
+        // 文件系统枚举在线程池执行，避免大型 mods 目录阻塞 UI；取消在逐文件边界检查。
         return Task.Run<IReadOnlyList<LocalMod>>(
             () =>
             {
@@ -99,6 +104,7 @@ public sealed class ModService : IModService
         bool overwriteExisting = false,
         CancellationToken cancellationToken = default)
     {
+        // 导入完成前不修改集合；复制失败或取消时由本方法清理未完成目标。
         if (!File.Exists(sourceJarPath))
             throw new ModFileImportNotFoundException(sourceJarPath);
 
@@ -130,6 +136,7 @@ public sealed class ModService : IModService
 
     public Task SetEnabledAsync(LocalMod mod, bool enabled, CancellationToken cancellationToken = default)
     {
+        // 启停通过 .disabled 后缀表达，文件内容和原始 Mod 名称均保持不变。
         if (mod.IsEnabled == enabled)
             return Task.CompletedTask;
 
@@ -160,6 +167,7 @@ public sealed class ModService : IModService
 
     private LocalMod ToLocalMod(string path)
     {
+        // 展示对象同时携带规范路径和启用状态，后续命令不再重复猜测扩展名语义。
         var info = new FileInfo(path);
         var metadata = TryResolveMetadata(info);
         var enabled = IsEnabledModPath(path);
@@ -182,6 +190,7 @@ public sealed class ModService : IModService
 
     private ResolvedModMetadata TryResolveMetadata(FileInfo jarFile)
     {
+        // JAR 可能包含多个声明文件，按 Loader 专用格式到旧 mcmod.info 的顺序回退。
         try
         {
             using var archive = ZipFile.OpenRead(jarFile.FullName);
@@ -288,6 +297,7 @@ public sealed class ModService : IModService
         string entryName,
         string loader)
     {
+        // TOML 可能包含多个 [[mods]] 块，这里只提取展示所需的首个有效声明。
         var entry = archive.GetEntry(entryName);
         if (entry is null)
             return null;
@@ -345,6 +355,7 @@ public sealed class ModService : IModService
         string propertyName,
         Func<string?, string?> normalize)
     {
+        // 兼容数组、对象和不同历史字段名，返回首个非空标量作为展示元数据。
         switch (node)
         {
             case JsonObject objectNode:
@@ -384,6 +395,7 @@ public sealed class ModService : IModService
 
     private void CleanupLegacyIconCacheDirectory()
     {
+        // 旧缓存已由新的图标服务接管；清理失败不影响 Mod 枚举和启停核心功能。
         if (Interlocked.Exchange(ref legacyIconCacheCleanupStarted, 1) != 0)
             return;
 
@@ -416,6 +428,7 @@ public sealed class ModService : IModService
 
     private static string GetDisabledModPath(string path)
     {
+        // 重复禁用保持幂等，避免生成 .disabled.disabled 使后续启用无法还原。
         if (path.EndsWith(DisabledModExtension, StringComparison.OrdinalIgnoreCase))
             return path;
 

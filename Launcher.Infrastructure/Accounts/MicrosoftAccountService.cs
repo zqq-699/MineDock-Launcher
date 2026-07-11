@@ -25,8 +25,12 @@ using System.Net.Http;
 
 namespace Launcher.Infrastructure.Accounts;
 
+/// <summary>
+/// 封装 Microsoft 登录缓存与 Minecraft Profile API，并在边界处映射为启动器账户模型。
+/// </summary>
 public sealed class MicrosoftAccountService : IMicrosoftAccountService
 {
+    // 认证 token 只交给底层客户端和缓存，不写入普通日志或暴露给 ViewModel。
     private static readonly HttpClient HttpClient = new();
 
     private readonly MicrosoftAuthProvider authProvider;
@@ -55,6 +59,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
 
     public async Task<IReadOnlyList<LauncherAccount>> GetSavedAccountsAsync(CancellationToken cancellationToken = default)
     {
+        // 缓存枚举逐账户刷新，单个失效账户不会阻止其余可用账户进入列表。
         var accounts = new List<LauncherAccount>();
         foreach (var savedAccount in authProvider.GetSavedAccounts())
         {
@@ -79,6 +84,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
 
     public async Task<LauncherAccount> LoginInteractivelyAsync(CancellationToken cancellationToken = default)
     {
+        // 浏览器登录成功后仍需获取 Minecraft Profile；没有游戏资料的身份不能作为可启动账户。
         try
         {
             logger.LogInformation("Interactive Microsoft account login started.");
@@ -130,6 +136,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
 
     public async Task DeleteAccountAsync(LauncherAccount account, CancellationToken cancellationToken = default)
     {
+        // 删除只清理对应认证缓存和外观缓存，不影响同 Microsoft 身份之外的离线账户。
         var deleted = await authProvider.DeleteAccountAsync(account, cancellationToken);
         if (deleted && !string.IsNullOrWhiteSpace(account.Uuid))
             avatarService.DeleteAvatar(account.Uuid);
@@ -157,6 +164,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
         LauncherAccount account,
         CancellationToken cancellationToken = default)
     {
+        // 远端刷新与本地皮肤/披风缓存合并，服务端缺失字段不应抹掉仍可用的本地外观。
         try
         {
             var refreshed = await RefreshSavedAccountAsync(account, cancellationToken);
@@ -176,6 +184,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
         MinecraftSkinModel skinModel,
         CancellationToken cancellationToken = default)
     {
+        // 上传成功后以服务端资料为准，再把实际内容写入本地缓存供离线展示。
         try
         {
             var updated = await skinService.UploadSkinAsync(account, skinFilePath, skinModel, cancellationToken);
@@ -212,6 +221,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService
         string newName,
         CancellationToken cancellationToken = default)
     {
+        // Profile API 错误映射为稳定业务原因，UI 不直接依赖第三方异常文本。
         try
         {
             var accessToken = await authProvider.GetAccessTokenAsync(account, cancellationToken);

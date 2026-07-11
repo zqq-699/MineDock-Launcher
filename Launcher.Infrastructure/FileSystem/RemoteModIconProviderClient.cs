@@ -27,8 +27,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.FileSystem;
 
+/// <summary>
+/// 通过本地 Mod 哈希/指纹批量匹配 Modrinth 与 CurseForge 项目图标。
+/// </summary>
 internal sealed class RemoteModIconProviderClient
 {
+    // 请求按提供商批量化，返回值以本地完整路径索引，调用方无需再次进行哈希关联。
     private const string ModrinthBaseUrl = "https://api.modrinth.com/v2";
     private const string CurseForgeBaseUrl = "https://api.curseforge.com/v1";
     private const int MinecraftGameId = 432;
@@ -51,6 +55,7 @@ internal sealed class RemoteModIconProviderClient
         IReadOnlyList<ModIconLookupCandidate> candidates,
         CancellationToken cancellationToken)
     {
+        // SHA-1 一次提交查询版本文件，再批量获取去重后的项目资料，避免逐 Mod 网络请求。
         try
         {
             var hashes = candidates.Select(candidate => candidate.Sha1).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -126,6 +131,7 @@ internal sealed class RemoteModIconProviderClient
         IReadOnlyList<ModIconLookupCandidate> candidates,
         CancellationToken cancellationToken)
     {
+        // CurseForge Murmur2 指纹可能发生无匹配，只有精确返回的项目关系才进入结果。
         var apiKey = await curseForgeApiKeyResolver.TryResolveAsync(cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(apiKey))
         {
@@ -217,6 +223,7 @@ internal sealed class RemoteModIconProviderClient
         Stream stream,
         CancellationToken cancellationToken)
     {
+        // API 历史字段形状不同，解析器兼容数字和字符串，但拒绝缺失 fingerprint/file Id 的条目。
         var result = new Dictionary<long, long>();
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken)
             .ConfigureAwait(false);

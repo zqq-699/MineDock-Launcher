@@ -28,6 +28,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.App.ViewModels.Resources;
 
+/// <summary>
+/// 管理在线资源项目搜索、筛选、分页和分批呈现，并保证只有最新查询可以更新页面。
+/// </summary>
 public sealed partial class ResourcesProjectListViewModel : ObservableObject, IDisposable
 {
     private const int SearchDebounceMilliseconds = 350;
@@ -40,7 +43,9 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
     private readonly IGameVersionService? gameVersionService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger? logger;
+    // 版本筛选和项目排序共享同一份正式版本清单任务，锁只保护任务创建而不包围网络等待。
     private readonly object releaseVersionGate = new();
+    // 根查询、筛选防抖和分页都绑定到同一请求世代；新根查询会取消旧世代的全部后续工作。
     private CancellationTokenSource? requestCancellation;
     private Task<ReleaseVersionData>? releaseVersionDataTask;
     private bool hasRequestedInitialLoad;
@@ -316,10 +321,14 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
         Observe(ScheduleRefreshAsync(token), "refresh resource projects after filter change");
     }
 
+    /// <summary>
+    /// 对搜索和筛选变化进行防抖，延迟结束后从第一页重新查询。
+    /// </summary>
     private async Task ScheduleRefreshAsync(CancellationToken cancellationToken)
     {
         try
         {
+            // 快速连续输入只保留最后一次，减少远端请求和列表反复清空造成的闪烁。
             await Task.Delay(SearchDebounceMilliseconds, cancellationToken).ConfigureAwait(false);
             await LoadAsync(CreateSearchRequest(0), append: false, cancellationToken).ConfigureAwait(false);
         }
@@ -328,14 +337,19 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
         }
     }
 
+    /// <summary>
+    /// 开启新的根查询，取消旧查询并同步重置分页与加载状态。
+    /// </summary>
     private CancellationToken BeginRequest()
     {
+        // 新筛选条件拥有页面状态；取消旧请求并立即重置分页，避免不同查询的结果混入同一列表。
         hasRequestedInitialLoad = true;
         var replacement = new CancellationTokenSource();
         var previous = Interlocked.Exchange(ref requestCancellation, replacement);
         previous?.Cancel();
         previous?.Dispose();
 
+        // 根查询开始时分页立即失效，用户不能在旧查询仍显示时继续加载下一页。
         IsLoading = true;
         IsLoadingMore = false;
         HasMore = false;
@@ -348,10 +362,14 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
         return replacement.Token;
     }
 
+    /// <summary>
+    /// 并行取得项目结果与版本排序信息，再将组合后的列表发布到 UI 线程。
+    /// </summary>
     private async Task LoadAsync(ResourceCatalogSearchRequest request, bool append, CancellationToken cancellationToken)
     {
         try
         {
+            // 排序信息与项目搜索互不依赖，并行等待可缩短首屏时间。
             var releaseOrderTask = GetReleaseVersionOrderAsync(cancellationToken);
             var result = await resourceCatalogService!.SearchProjectsAsync(request, cancellationToken).ConfigureAwait(false);
             var releaseOrder = await releaseOrderTask.ConfigureAwait(false);
@@ -359,6 +377,7 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
                 .Select(project => new ResourcesModProjectItemViewModel(project, releaseOrder, options.FallbackIconKey))
                 .ToList();
 
+            // 进入 UI 线程前最后检查一次，避免排队发布已经被新筛选条件替代的结果。
             cancellationToken.ThrowIfCancellationRequested();
             uiDispatcher.Invoke(() => ApplyResult(result, items, request.Offset, append, cancellationToken));
         }
@@ -374,6 +393,9 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
         }
     }
 
+    /// <summary>
+    /// 应用首页或追加页结果，并把大结果集拆成多个 UI 批次。
+    /// </summary>
     private void ApplyResult(
         ResourceCatalogSearchResult result,
         IReadOnlyList<ResourcesModProjectItemViewModel> items,
@@ -386,17 +408,21 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
 
         if (!append)
         {
+            // 新查询替换整个投影并启动入场动画；分页追加必须保留已有对象和滚动位置。
             VisibleProjects.Clear();
             ListItems.Clear();
             ListEntranceAnimationToken++;
         }
 
+        // 游标按服务页大小推进，而不是按过滤后的数量推进，避免重复请求同一远端页。
         NextPageOffset = offset + CatalogPageSize;
         HasMore = result.HasMore && items.Count > 0;
         LoadMoreMessage = HasMore || items.Count == 0 ? string.Empty : options.ProjectsNoMoreText;
+        // 某个来源不可用仍可展示其他来源结果，因此使用非阻断警告而不是整体错误页。
         PartialWarningMessage = result.IsCurseForgeApiKeyMissing ? options.CurseForgeMissingApiKeyText : string.Empty;
 
         var batchSize = append ? AppendProjectBatchSize : InitialProjectBatchSize;
+        // 首批立即呈现，其余项分帧追加，避免一次性创建大量 WPF 项导致界面卡顿。
         AddBatch(items, 0, batchSize);
         if (items.Count > batchSize)
             Observe(AppendRemainingBatchesAsync(items, batchSize, cancellationToken), "append resource project batches");
@@ -411,6 +437,9 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
             items.Count);
     }
 
+    /// <summary>
+    /// 在后续调度周期分批追加剩余项目，避免长时间占用 UI 线程。
+    /// </summary>
     private async Task AppendRemainingBatchesAsync(
         IReadOnlyList<ResourcesModProjectItemViewModel> items,
         int startIndex,
@@ -418,6 +447,7 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
     {
         for (var index = startIndex; index < items.Count; index += AppendProjectBatchSize)
         {
+            // 主动让出调度权，使滚动、输入和动画能穿插在批量集合更新之间。
             await Task.Yield();
             cancellationToken.ThrowIfCancellationRequested();
             var batchStart = index;
@@ -448,11 +478,13 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
 
         if (append)
         {
+            // 加载更多失败保留已有内容，只把页脚变为错误提示，用户可以继续查看当前结果。
             IsLoadingMore = false;
             LoadMoreMessage = options.ProjectsLoadMoreErrorText;
         }
         else
         {
+            // 根查询失败更新主错误状态，但不伪造一个成功的空结果。
             IsLoading = false;
             LoadErrorMessage = options.ProjectsLoadErrorText;
         }
@@ -464,6 +496,7 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
 
     private ResourceCatalogSearchRequest CreateSearchRequest(int offset)
     {
+        // “全部小版本”筛选通过 MinecraftVersions 传递；单版本同时填充旧字段保持提供方兼容。
         var versions = ResolveMinecraftVersions(SelectedVersionOption);
         return new ResourceCatalogSearchRequest
         {
@@ -509,6 +542,9 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
             uiDispatcher.Invoke(() => ApplyVersionOptions(data.VersionOptions));
     }
 
+    /// <summary>
+    /// 共享并缓存 Minecraft 正式版本清单；每个调用方可独立取消等待。
+    /// </summary>
     private async Task<ReleaseVersionData> GetReleaseVersionDataAsync(CancellationToken cancellationToken)
     {
         if (gameVersionService is null)
@@ -517,6 +553,7 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
         Task<ReleaseVersionData> task;
         lock (releaseVersionGate)
         {
+            // 排序和筛选共享同一次版本清单请求；调用方取消等待不应取消这份可复用缓存。
             releaseVersionDataTask ??= LoadReleaseVersionDataAsync();
             task = releaseVersionDataTask;
         }
@@ -528,6 +565,7 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
     {
         try
         {
+            // 缓存任务自身不接收页面取消令牌；某个页面离开不会浪费已经开始的共享请求。
             var versions = await gameVersionService!.GetVersionsAsync().ConfigureAwait(false);
             var order = versions
                 .Where(version => string.Equals(version.Type, "release", StringComparison.OrdinalIgnoreCase))
@@ -558,6 +596,7 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
 
         try
         {
+            // 重建选项会触发 SelectedVersionOption 回调，标志用于阻止无意义的项目刷新。
             isApplyingVersionOptions = true;
             SelectedVersionOption = VersionOptions.FirstOrDefault(option =>
                 string.Equals(option.Id, selectedId, StringComparison.OrdinalIgnoreCase)) ?? VersionOptions[0];

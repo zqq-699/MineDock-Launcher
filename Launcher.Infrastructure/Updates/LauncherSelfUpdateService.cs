@@ -27,8 +27,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Updates;
 
+/// <summary>
+/// 下载、校验并启动独立更新程序，负责当前进程退出前的自更新交接。
+/// </summary>
 public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
 {
+    // 下载文件先进入专用临时目录，校验通过前绝不覆盖当前正在运行的可执行文件。
     private static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromMinutes(5);
     private const string UpdatesDirectoryName = "updates";
     private const string CacheDirectoryName = "cache";
@@ -79,6 +83,7 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
         LauncherUpdateInfo update,
         CancellationToken cancellationToken = default)
     {
+        // 对候选 URL 依次尝试；只有完整下载且 SHA-256 匹配的文件才能进入启动阶段。
         if (!update.CanAutoInstall)
         {
             logger?.LogWarning(
@@ -152,6 +157,7 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
         IReadOnlyList<LauncherUpdateDownloadUrl> downloadUrls,
         CancellationToken cancellationToken)
     {
+        // 镜像失败保留最后异常用于诊断，同时清理每次尝试生成的临时文件。
         Exception? lastException = null;
         foreach (var downloadUrl in downloadUrls.OrderBy(url => url.Priority))
         {
@@ -203,6 +209,7 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
         string sourceName,
         CancellationToken cancellationToken)
     {
+        // 流式写入限制内存占用，并使用 Content-Length/实际字节数检查截断响应。
         var updateDirectory = Path.Combine(
             baseDirectory,
             LauncherApplicationIdentity.StorageDirectoryName,
@@ -253,6 +260,7 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
         string expectedSha256,
         CancellationToken cancellationToken)
     {
+        // 哈希比较使用规范十六进制且不区分大小写，失败文件不能继续执行。
         await using var stream = File.OpenRead(path);
         var hash = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
         var actualSha256 = Convert.ToHexString(hash);
@@ -272,6 +280,7 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
         out Uri downloadUri,
         out string fileName)
     {
+        // 只允许 HTTPS，阻止清单把自更新重定向到本地路径或不安全协议。
         downloadUri = default!;
         fileName = string.Empty;
         if (!Uri.TryCreate(downloadUrl, UriKind.Absolute, out var parsedUri)
@@ -305,6 +314,7 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
 
     private static bool StartProcess(ProcessStartInfo startInfo)
     {
+        // 成功标准是更新器进程已创建；随后由 Application 层决定何时退出当前进程。
         using var process = Process.Start(startInfo);
         return process is not null;
     }

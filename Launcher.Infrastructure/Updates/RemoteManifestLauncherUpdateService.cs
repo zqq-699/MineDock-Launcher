@@ -28,8 +28,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Updates;
 
+/// <summary>
+/// 下载并校验远端更新清单，按渠道和平台选择可用资产与镜像地址。
+/// </summary>
 public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
 {
+    // 清单是安全边界：版本、渠道、哈希和 URL 均需验证后才能交给自更新服务。
     private static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromSeconds(15);
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -68,6 +72,7 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
         LauncherUpdateChannel channel,
         CancellationToken cancellationToken = default)
     {
+        // 每个清单源按配置顺序回退，单个镜像失败不应阻止检查其他官方候选。
         if (!TryCalculateVersionCode(currentVersion, out var currentVersionCode))
         {
             logger?.LogWarning("Unable to parse current launcher version for update check: {CurrentVersion}", currentVersion);
@@ -133,6 +138,7 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
         string manifestUrl,
         CancellationToken cancellationToken)
     {
+        // 独立超时与调用方取消链接，既限制挂起请求又保留用户取消语义。
         using var response = await httpClient.GetAsync(manifestUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
             .ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
@@ -149,6 +155,7 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
         int currentVersionCode,
         RemoteUpdateManifestDto manifest)
     {
+        // 只有远端 versionCode 严格更大才是更新，同版本不同构建不会触发降级或重复更新。
         if (manifest.VersionCode <= currentVersionCode)
             return LauncherUpdateCheckResult.Latest(currentVersion);
 
@@ -182,6 +189,7 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
 
     private static RemoteUpdateAssetDto? SelectWindowsX64ExecutableAsset(IReadOnlyList<RemoteUpdateAssetDto>? assets)
     {
+        // 自更新当前只支持 Windows x64 单文件资产，不能误选压缩包或其他平台二进制。
         return assets?
             .FirstOrDefault(asset =>
                 string.Equals(asset.Platform?.Trim(), "windows", StringComparison.OrdinalIgnoreCase)
@@ -207,6 +215,7 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
 
     private static void ValidateManifest(RemoteUpdateManifestDto manifest, string expectedChannel)
     {
+        // 渠道不匹配视为无效清单，防止 stable 客户端意外接收 preview 资产。
         if (manifest.SchemaVersion != 1)
             throw new InvalidOperationException("Unsupported update manifest schema version.");
 
@@ -239,6 +248,7 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
 
     public static bool TryCalculateVersionCode(string? value, out int versionCode)
     {
+        // 兼容 v 前缀和预发布后缀，但只用数值段生成可稳定比较的版本码。
         versionCode = 0;
         if (string.IsNullOrWhiteSpace(value))
             return false;

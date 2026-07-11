@@ -28,8 +28,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.App.ViewModels.Resources;
 
+/// <summary>
+/// 连接资源项目列表、项目版本详情和安装流程，并维护二级页面导航状态。
+/// </summary>
 public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase, IDisposable
 {
+    // 列表、版本和安装分别拥有请求生命周期，本类只保存当前页面步骤和所选项目。
     private readonly ResourcesOnlineProjectPageOptions options;
     private readonly ILogger? logger;
 
@@ -173,6 +177,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase, 
     [RelayCommand]
     public void BackToProjectList()
     {
+        // 返回时取消详情分页并保留项目列表缓存，让用户回到原搜索上下文。
         if (CurrentStep is ResourcesModPageStep.ProjectVersions)
         {
             CurrentStep = ResourcesModPageStep.ProjectDetails;
@@ -187,6 +192,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase, 
 
     public void ResetToProjectList()
     {
+        // 顶层分区重置需要彻底清空详情选择，但不必重新创建子 ViewModel。
         Details.Reset();
         Versions.Reset();
         CurrentStep = ResourcesModPageStep.ProjectList;
@@ -213,6 +219,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase, 
 
     private void OpenProjectDetails(ResourcesModProjectItemViewModel project)
     {
+        // 先冻结项目身份再触发版本加载，快速选择不同项目时由 Versions 的请求代次丢弃旧结果。
         CurrentStep = ResourcesModPageStep.ProjectDetails;
         Versions.SetProject(project);
         RaisePageTitleChanged();
@@ -230,6 +237,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase, 
 
     private async Task ObserveInstallAsync(ResourcesModVersionItemViewModel item)
     {
+        // 安装异常由安装 ViewModel 映射为用户反馈，此处只保证异步命令被观察。
         try
         {
             await Install.InstallAsync(item, Versions.SelectedTarget, Details.CurrentProject).ConfigureAwait(false);

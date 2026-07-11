@@ -29,8 +29,12 @@ using Launcher.App.ViewModels.Home;
 
 namespace Launcher.App.Views.Home;
 
+/// <summary>
+/// 根据固定状态、指针位置和实例数量协调首页启动菜单的折叠测量与过渡动画。
+/// </summary>
 public partial class HomeLaunchGameListView : UserControl
 {
+    // 这是纯 UI 协调器；实例选择和固定偏好仍由绑定的 ViewModel 管理。
     public static readonly DependencyProperty SuppressSelectedItemBackgroundProperty =
         DependencyProperty.Register(
             nameof(SuppressSelectedItemBackground),
@@ -101,6 +105,7 @@ public partial class HomeLaunchGameListView : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        // 进入视觉树后容器和资源尺寸才可用，此时附加集合监听并同步无动画初始状态。
         AttachViewModel(DataContext as HomeLaunchGameListViewModel);
         HomeLaunchMenuPanelShadow.Width = GetResourceDouble("HomeLaunchMenuPanelWidth", FallbackPanelWidth);
         HomeLaunchMenuPanelShadow.Height = GetCollapsedHeight();
@@ -122,6 +127,7 @@ public partial class HomeLaunchGameListView : UserControl
 
     private void AttachViewModel(HomeLaunchGameListViewModel? viewModel)
     {
+        // DataContext 可在窗口复用时变化，属性与集合事件必须一起成对订阅。
         if (viewModel is null || ReferenceEquals(attachedViewModel, viewModel))
             return;
 
@@ -170,6 +176,7 @@ public partial class HomeLaunchGameListView : UserControl
 
     private void QueueApplyMenuState(bool animate, DispatcherPriority priority = DispatcherPriority.Background)
     {
+        // 多个属性和集合事件常在同一轮触发，合并成一次布局读取，避免重复 Measure。
         pendingAnimate |= animate;
         if (isApplyQueued || !Dispatcher.CheckAccess())
         {
@@ -195,6 +202,7 @@ public partial class HomeLaunchGameListView : UserControl
 
     private void ApplyMenuState(bool animate)
     {
+        // 先计算目标高度和列表偏移，再同时启动动画，确保选中项在折叠态仍保持可见。
         var expandedHeight = GetExpandedHeight();
         HomeLaunchMenuViewport.Height = expandedHeight;
 
@@ -247,6 +255,7 @@ public partial class HomeLaunchGameListView : UserControl
 
     private bool PrepareSelectedItemForMeasurement()
     {
+        // 虚拟化容器可能尚未生成，通过 UpdateLayout 请求当前选中项容器后再读取位置。
         var selectedItem = attachedViewModel?.SelectedLaunchInstanceItem;
         if (selectedItem is null)
             return false;
@@ -319,6 +328,7 @@ public partial class HomeLaunchGameListView : UserControl
         bool animate,
         int generation)
     {
+        // 开始新动画前以当前呈现值为起点，快速进出菜单时不会跳回上次目标值。
         if (target is not IAnimatable animatable)
         {
             target.SetValue(property, to);

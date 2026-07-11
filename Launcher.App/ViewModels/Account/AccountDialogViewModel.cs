@@ -29,8 +29,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.Account;
 
+/// <summary>
+/// 协调账户新增、删除和重命名对话框的多步骤 UI 状态，并把实际账户操作委托给账户服务与列表模型。
+/// </summary>
 public sealed partial class AccountDialogViewModel : ObservableObject
 {
+    // 图标与步骤字符串共同构成对话框状态机；集中定义可避免各分支用不同值表达同一状态。
     private const string DialogBusyIcon = "\uE895";
     private const string DialogSuccessIcon = "\uE73E";
     private const string DialogFailureIcon = "\uE783";
@@ -39,12 +43,15 @@ public sealed partial class AccountDialogViewModel : ObservableObject
     private static string MicrosoftLoginInitialMessage => Strings.Status_OpeningMicrosoftLogin;
     private static string MicrosoftLoginActiveMessage => Strings.Status_LoginMicrosoftActive;
 
+    // AccountListViewModel 是当前账户集合和持久化顺序的唯一 UI 所有者，本类只编排对话框流程。
     private readonly AccountListViewModel accountList;
     private readonly IMicrosoftAccountService microsoftAccountService;
     private readonly IOfflineAccountUuidService offlineUuidService;
     private readonly IStatusService statusService;
     private readonly ILogger<AccountDialogViewModel> logger;
 
+    // 新增账户流程：类型选择 -> 离线名称或 Microsoft 登录 -> 结果。Busy 时禁止关闭和回退，
+    // 防止交互登录尚未返回时 UI 被重置，随后又把过期结果写回新一轮对话框。
     [ObservableProperty]
     private bool isAddAccountDialogOpen;
 
@@ -75,12 +82,14 @@ public sealed partial class AccountDialogViewModel : ObservableObject
     [ObservableProperty]
     private bool isMicrosoftAccountAlreadyAdded;
 
+    // 删除对话框只保留待删除对象；确认后会立即清空引用，避免重复确认触发两次删除。
     [ObservableProperty]
     private bool isDeleteAccountDialogOpen;
 
     [ObservableProperty]
     private LauncherAccount? accountPendingDelete;
 
+    // 重命名流程同时服务离线与 Microsoft 账户。两者共享校验和结果页，但底层身份更新规则不同。
     [ObservableProperty]
     private bool isRenameAccountDialogOpen;
 
@@ -201,6 +210,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
 
     public void BeginMicrosoftAccountLogin()
     {
+        // 先进入 Busy 状态再启动外部浏览器登录，保证按钮状态和状态文案在异步边界前完成切换。
         AddAccountDialogStep = AccountDialogSteps.AddAccountMicrosoftLogin;
         IsAddAccountDialogBusy = true;
         ResetMicrosoftLoginResultState(MicrosoftLoginActiveMessage);
@@ -211,6 +221,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
     {
         try
         {
+            // 服务返回的资料仍需在 UI 边界校验；缺少名称或 UUID 的响应不能进入账户集合。
             var account = await microsoftAccountService.LoginInteractivelyAsync();
             if (string.IsNullOrWhiteSpace(account.DisplayName) || string.IsNullOrWhiteSpace(account.Uuid))
             {
@@ -220,6 +231,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
                 return;
             }
 
+            // Microsoft UUID 才是稳定身份。重复登录时选中已有账户并刷新顺序，不能创建名称相同的副本。
             var existing = accountList.Accounts.FirstOrDefault(item =>
                 !item.IsOffline && string.Equals(item.Uuid, account.Uuid, StringComparison.OrdinalIgnoreCase));
 
@@ -254,6 +266,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         }
         finally
         {
+            // 所有成功、取消和异常路径都必须解除 Busy，否则对话框会永久失去关闭能力。
             IsAddAccountDialogBusy = false;
         }
     }
@@ -280,6 +293,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         if (SelectedAccountTypeOption is null)
             return;
 
+        // “确认”按钮在不同步骤含义不同：第一页只负责推进状态，真正新增发生在名称页。
         if (IsAccountTypeStep)
         {
             if (SelectedAccountTypeOption.Kind is AccountTypeKinds.Offline)
@@ -299,6 +313,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
             return;
         }
 
+        // 离线账户没有服务端身份，使用随机内部 Id 区分同名历史记录，游戏 UUID 则按标准算法生成。
         var account = new LauncherAccount
         {
             Id = $"offline-{Guid.NewGuid():N}",
@@ -333,6 +348,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
         var account = AccountPendingDelete;
         var deletedName = account.DisplayName;
 
+        // 先从可见列表移除并关闭对话框，再清理 Microsoft 缓存；缓存清理失败不应把已删除账户重新插回。
         var removeTask = accountList.RemoveAsync(account);
         IsDeleteAccountDialogOpen = false;
         AccountPendingDelete = null;
@@ -406,6 +422,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
 
         try
         {
+            // 状态页在远端操作期间替代输入页，既阻止重复提交，也向用户说明可能较慢的网络步骤。
             IsRenameAccountDialogBusy = true;
             RenameAccountDialogStep = AccountDialogSteps.RenameStatus;
             RenameAccountIcon = DialogBusyIcon;
@@ -416,6 +433,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
             LauncherAccount updatedAccount;
             if (account.IsOffline)
             {
+                // 离线名称参与 UUID 生成；保留原生成模式，才能兼容不同历史版本创建的账户。
                 var uuid = offlineUuidService.CreateUuid(
                     newName,
                     account.OfflineUuidGenerationMode,
@@ -428,6 +446,7 @@ public sealed partial class AccountDialogViewModel : ObservableObject
             }
             else
             {
+                // Microsoft 重命名由远端服务执行，不能只修改本地显示名，否则下次刷新会被服务端覆盖。
                 var renamedAccount = await microsoftAccountService.ChangeNameAsync(account, newName);
                 updatedAccount = AccountMapper.WithCapeCache(
                     AccountMapper.WithAppearanceFallback(renamedAccount, account),

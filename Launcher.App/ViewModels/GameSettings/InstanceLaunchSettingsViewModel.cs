@@ -27,15 +27,21 @@ using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.GameSettings;
 
+/// <summary>
+/// 编辑实例级启动覆盖项，并在“使用全局设置”和“实例独立设置”之间维持一致的展示与持久化语义。
+/// </summary>
 public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetailsSectionViewModelBase, IDisposable
 {
+    // 连续拖动内存滑块或快速切换选项时合并保存，避免每个 PropertyChanged 都写一次实例文件。
     private static readonly TimeSpan SaveMergeDelay = TimeSpan.FromMilliseconds(100);
     private readonly ISystemMemoryService systemMemoryService;
     private readonly IModService modService;
     private readonly InstanceSettingsPersistenceCoordinator persistence;
+    // Mod 数量参与自动内存估算；切换实例时必须取消旧统计，防止旧实例结果覆盖当前实例。
     private CancellationTokenSource? modCountRefreshCancellation;
     private LauncherSettings globalSettings = new();
     private GameInstance? selectedInstance;
+    // 从模型回填编辑器也会触发生成的属性回调。抑制标记用于区分“加载值”和“用户修改”。
     private bool suppressAutoSave;
     private int enabledModCount;
 
@@ -137,6 +143,7 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
 
     public void PrimeFromSettings(LauncherSettings launcherSettings)
     {
+        // 保存同一个设置对象引用，使设置页修改全局默认值后本页无需重新反序列化。
         globalSettings = launcherSettings;
         RefreshSystemMemorySnapshot();
         if (SelectedLaunchSettingsModeOption?.Mode is LaunchSettingsMode.UseGlobal)
@@ -145,6 +152,7 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
 
     public void SetSelectedInstance(GameInstance? instance)
     {
+        // 先废弃与旧实例关联的异步工作，再整体回填编辑器，保持 UI 不出现新旧实例混合值。
         selectedInstance = instance;
         CancelModCountRefresh();
         enabledModCount = 0;
@@ -168,6 +176,7 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
     {
         try
         {
+            // 自动内存同时考虑物理内存、Loader 和启用 Mod 数量；滑块上限只由本机资源决定。
             var snapshot = systemMemoryService.GetSnapshot();
             var totalMemoryMb = MemoryAllocationCalculator.BytesToMegabytes(snapshot.TotalMemoryBytes);
             var availableMemoryMb = MemoryAllocationCalculator.BytesToMegabytes(snapshot.AvailableMemoryBytes);
@@ -181,6 +190,7 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
         }
         catch (Exception)
         {
+            // 系统指标不可用不应阻断设置页，退回可持久化的保守范围并明确显示“不可用”。
             MemorySliderMaximumMb = MemoryAllocationCalculator.FallbackMaximumMemoryMb;
             AutomaticMemoryMb = NormalizeMemoryValue(MemoryMb);
             SystemTotalMemoryText = Strings.Settings_MemoryUnavailable;
@@ -196,6 +206,7 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
         if (suppressAutoSave)
             return;
 
+        // 切回全局模式时立即镜像全局值，避免禁用的控件仍展示过期实例覆盖值。
         if (value?.Mode is LaunchSettingsMode.UseGlobal)
             ApplyGlobalLaunchSettingsToEditor();
         ScheduleSave();
@@ -235,6 +246,7 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
 
     partial void OnMemoryMbChanged(double value)
     {
+        // 程序回填和用户输入都可能越界；先钳制并通过属性自身再次通知，最终只保存规范值。
         var clamped = Math.Clamp(value, MemorySliderMinimumMb, MemorySliderMaximumMb);
         if (Math.Abs(clamped - value) > double.Epsilon)
         {
@@ -270,6 +282,7 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
         if (instance is null)
             return;
 
+        // 在调度前捕获完整快照，延迟执行时不读取可能已经切换到另一实例的 UI 属性。
         var mode = SelectedLaunchSettingsModeOption?.Mode ?? LaunchSettingsMode.UseGlobal;
         var checkFilesBeforeLaunch = LaunchCheckFilesBeforeLaunchEnabled;
         var autoRepairMissingFiles = LaunchAutoRepairMissingFilesEnabled;
@@ -287,6 +300,7 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
             ? NormalizeMemoryValue(globalSettings.DefaultMemoryMb)
             : NormalizeMemoryValue(MemoryMb);
 
+        // PersistenceCoordinator 按实例和区域合并写入，并在保存失败时调用回填动作恢复 UI。
         persistence.Schedule(
             "launch",
             instance,
@@ -323,6 +337,7 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
         MemorySettingsMode memorySettingsMode,
         int memoryMb)
     {
+        // 先比较规范化快照，未发生语义变化时不制造磁盘写入；发生变化则返回完整回滚闭包。
         var original = InstanceLaunchSettingsSnapshot.Capture(instance);
         if (original.Matches(
                 mode,
@@ -358,6 +373,7 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
 
     private void LoadEditorFromInstance()
     {
+        // 回填必须包在抑制区间内，否则设置实例会立即把相同值再保存一次。
         suppressAutoSave = true;
         try
         {
@@ -420,6 +436,7 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
         if (LaunchAutoRepairMissingFilesEnabled == checkFilesBeforeLaunch)
             return;
 
+        // 自动修复依赖启动前检查。关闭检查时同步关闭修复，重新开启时恢复成可用的默认组合。
         suppressAutoSave = true;
         try
         {
@@ -445,6 +462,7 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
         try
         {
             var mods = await modService.GetModsAsync(instance, cancellation.Token);
+            // CancellationToken 之外再校验请求身份，覆盖底层服务忽略取消或恰好已完成的竞态。
             if (!ReferenceEquals(modCountRefreshCancellation, cancellation)
                 || !string.Equals(selectedInstance?.Id, instance.Id, StringComparison.Ordinal))
             {
@@ -459,6 +477,7 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
         }
         catch (Exception)
         {
+            // Mod 统计只是估算增强项；失败时按 0 计算，不让非关键读取破坏整个启动设置页。
             if (string.Equals(selectedInstance?.Id, instance.Id, StringComparison.Ordinal))
             {
                 enabledModCount = 0;
@@ -501,6 +520,7 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
         return value?.Trim() ?? string.Empty;
     }
 
+    // 快照同时承担无变化检测和失败回滚，字段必须覆盖 ApplyMutation 修改的全部实例属性。
     private sealed record InstanceLaunchSettingsSnapshot(
         LaunchSettingsMode Mode,
         bool CheckFilesBeforeLaunch,

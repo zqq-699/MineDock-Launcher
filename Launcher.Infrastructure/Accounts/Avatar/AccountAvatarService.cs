@@ -26,8 +26,12 @@ using System.Windows.Media.Imaging;
 
 namespace Launcher.Infrastructure.Accounts;
 
+/// <summary>
+/// 从 Minecraft 皮肤生成带第二层覆盖的头像，并按账户和内容版本维护本地缓存。
+/// </summary>
 internal sealed class AccountAvatarService
 {
+    // 输出尺寸高于皮肤面部原始像素，仍使用最近邻采样保持 Minecraft 像素风格。
     private const int AvatarSize = 576;
     private const int SkinHeadSize = 8;
     private const int AvatarFaceSize = AvatarSize * 8 / 9;
@@ -60,6 +64,7 @@ internal sealed class AccountAvatarService
         bool forceRefresh,
         CancellationToken cancellationToken)
     {
+        // cacheBust 用于明确要求刷新远端皮肤；正常加载优先复用最近缓存降低登录页网络开销。
         if (string.IsNullOrWhiteSpace(uuid))
             return null;
 
@@ -116,6 +121,7 @@ internal sealed class AccountAvatarService
 
     private static BitmapSource CreateAvatarBitmap(BitmapSource skin)
     {
+        // 先绘制基础脸部，再叠加帽子层和阴影；透明帽子像素不能覆盖基础皮肤。
         var source = EnsureBgra32(skin);
         var face = ReadPixels(source, 8, 8, SkinHeadSize, SkinHeadSize);
         var overlay = source.PixelWidth >= 48 && source.PixelHeight >= 16
@@ -150,6 +156,7 @@ internal sealed class AccountAvatarService
 
     private static void DrawOverlayShadow(byte[] target, byte[] overlay)
     {
+        // 阴影由覆盖层 alpha 蒙版模糊得到，只增强层次，不改变皮肤自身颜色数据。
         var mask = new int[AvatarSize * AvatarSize];
         for (var y = 0; y < AvatarSize - AvatarOverlayShadowOffset; y++)
         {
@@ -181,6 +188,7 @@ internal sealed class AccountAvatarService
 
     private static int[] BlurMask(int[] mask, int radius)
     {
+        // 使用可分离的水平/垂直盒式模糊，固定小图上比逐像素二维卷积更简单稳定。
         var horizontal = new int[mask.Length];
         var blurred = new int[mask.Length];
         var diameter = radius * 2 + 1;
@@ -230,6 +238,7 @@ internal sealed class AccountAvatarService
         int outputSize,
         bool blend)
     {
+        // 源皮肤可能是旧 64x32 格式，所有坐标读取前都经过尺寸边界保护。
         for (var y = 0; y < outputSize; y++)
         {
             var sourceY = y * SkinHeadSize / outputSize;
@@ -290,6 +299,7 @@ internal sealed class AccountAvatarService
 
     private static void BlendPixel(byte[] target, int targetIndex, byte[] overlay, int overlayIndex)
     {
+        // 使用标准 alpha 合成而非直接替换，保留半透明第二层皮肤的视觉效果。
         var overlayAlpha = overlay[overlayIndex + 3];
         BlendPixel(
             target,
@@ -379,6 +389,7 @@ internal sealed class AccountAvatarService
 
     private void DeleteStaleAvatars(string uuid, string currentAvatarPath)
     {
+        // 同账户只保留当前内容版本，清理范围由文件名前缀约束，避免删除其他账户缓存。
         foreach (var avatarPath in EnumerateAvatarFiles(uuid))
         {
             if (string.Equals(avatarPath, currentAvatarPath, StringComparison.OrdinalIgnoreCase))

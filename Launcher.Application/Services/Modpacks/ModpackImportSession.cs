@@ -21,6 +21,9 @@ using Launcher.Domain.Models;
 
 namespace Launcher.Application.Services;
 
+/// <summary>
+/// 保存整合包导入各阶段已取得资源的所有权，以便失败清理只处理真正创建成功的内容。
+/// </summary>
 internal sealed class ModpackImportSession
 {
     public ModpackImportSession(IProgress<LauncherProgress>? progress)

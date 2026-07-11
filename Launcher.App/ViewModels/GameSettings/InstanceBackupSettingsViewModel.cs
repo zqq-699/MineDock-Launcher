@@ -28,8 +28,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.GameSettings;
 
+/// <summary>
+/// 管理实例备份的创建、筛选、多选删除、目录切换和带回滚的恢复确认流程。
+/// </summary>
 public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetailsSectionViewModelBase
 {
+    // 服务负责持久化和文件操作；本类只编排对话框、命令可用性和列表投影。
     private readonly IGameInstanceService instanceService;
     private readonly IInstanceBackupService backupService;
     private readonly IStatusService statusService;
@@ -37,13 +41,16 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
     private readonly IFilePickerService filePickerService;
     private readonly IFloatingMessageService floatingMessageService;
     private readonly ILogger<InstanceBackupSettingsViewModel> logger;
+    // 使用路径保存多选身份，刷新后可将选择重新映射到新建的备份项 ViewModel。
     private readonly HashSet<string> selectedBackupPaths = new(StringComparer.OrdinalIgnoreCase);
     private GameInstance? selectedInstance;
     private IReadOnlyList<InstanceBackupItemViewModel> pendingDeleteBackups = Array.Empty<InstanceBackupItemViewModel>();
     private InstanceBackupItemViewModel? pendingRestoreBackup;
     private IReadOnlyList<InstanceBackupItemViewModel> allBackups = Array.Empty<InstanceBackupItemViewModel>();
+    // 每次目录或实例变化都会推进 token，阻止较慢的旧目录读取覆盖当前列表。
     private int refreshToken;
 
+    // 下面的属性共同描述页面状态机：加载、创建、恢复和三个互斥确认对话框。
     [ObservableProperty]
     private int backupCount;
 
@@ -175,6 +182,9 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
         ? string.Empty
         : string.Format(Strings.Dialog_RestoreBackupMessageFormat, pendingRestoreBackup.Title);
 
+    /// <summary>
+    /// 切换备份所属实例并清除所有对话框、选择和旧实例加载状态。
+    /// </summary>
     public override void OnSelectedInstanceChanged(GameInstance? instance)
     {
         selectedInstance = instance;
@@ -291,12 +301,16 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
             selectedInstance?.Id ?? "<none>");
     }
 
+    /// <summary>
+    /// 创建备份并在成功后刷新清单；失败时保留友好错误和诊断摘要。
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanConfirmCreateBackupDialog))]
     private async Task ConfirmCreateBackupDialogAsync()
     {
         if (selectedInstance is null || string.IsNullOrWhiteSpace(BackupDirectory) || string.IsNullOrWhiteSpace(NewBackupName))
             return;
 
+        // 先关闭命名对话框并锁定创建命令，防止用户重复提交同一备份。
         var backupName = NewBackupName.Trim();
         IsCreateBackupDialogOpen = false;
         IsCreatingBackup = true;
@@ -304,12 +318,14 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
 
         try
         {
+            // 只有归档和清单都提交成功后才刷新页面；服务内部会清理临时文件。
             await backupService.CreateBackupAsync(selectedInstance, BackupDirectory, backupName);
             await RefreshBackupsAsync();
             floatingMessageService.Show(Strings.Status_BackupCreated);
         }
         catch (Exception exception)
         {
+            // 用户看到本地化原因和简短诊断，完整异常仍保留在日志中。
             logger.LogError(
                 exception,
                 "Failed to create instance backup from backup settings page. InstanceId={InstanceId}",
@@ -424,12 +440,16 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
         OnPropertyChanged(nameof(RestoreBackupDialogMessage));
     }
 
+    /// <summary>
+    /// 恢复已确认的备份，并在操作期间锁定其他会改变备份或实例内容的命令。
+    /// </summary>
     [RelayCommand]
     private async Task ConfirmRestoreBackupAsync()
     {
         if (selectedInstance is null || pendingRestoreBackup is null || string.IsNullOrWhiteSpace(BackupDirectory))
             return;
 
+        // 快照待恢复项并立即清空对话框状态，后续异步流程不再依赖可变字段。
         var backup = pendingRestoreBackup;
         pendingRestoreBackup = null;
         IsRestoreBackupDialogOpen = false;
@@ -439,6 +459,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
 
         try
         {
+            // 恢复前强制创建保护备份，即使目标备份损坏也能保留用户当前实例。
             var protectionBackupName = string.Format(
                 Strings.GameSettings_BackupPreRestoreNameFormat,
                 DateTimeOffset.Now.ToString("yyyy-MM-dd HH-mm"));
@@ -470,12 +491,16 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
         OnPropertyChanged(nameof(DeleteBackupDialogMessage));
     }
 
+    /// <summary>
+    /// 删除单个或多选备份，允许部分失败并在结束后重建可见选择状态。
+    /// </summary>
     [RelayCommand]
     private async Task ConfirmDeleteBackupAsync()
     {
         if (pendingDeleteBackups.Count == 0 || string.IsNullOrWhiteSpace(BackupDirectory))
             return;
 
+        // 冻结本次删除集合；关闭对话框后新的选择不会混入正在执行的批次。
         var backups = pendingDeleteBackups;
         pendingDeleteBackups = Array.Empty<InstanceBackupItemViewModel>();
         IsDeleteBackupDialogOpen = false;
@@ -483,6 +508,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
 
         try
         {
+            // 清单与文件由服务逐项保持一致；全部完成后再重读目录作为最终事实来源。
             foreach (var backup in backups)
                 await backupService.DeleteBackupAsync(BackupDirectory, backup.FullPath);
 
@@ -511,12 +537,14 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
         if (selectedInstance is null)
             return;
 
+        // 文件选择器只负责取得候选路径，规范化和设置持久化在确认后完成。
         var selectedDirectory = filePickerService.PickFolder(
             Strings.FilePicker_BackupDirectoryTitle,
             string.IsNullOrWhiteSpace(BackupDirectory) ? null : BackupDirectory);
         if (string.IsNullOrWhiteSpace(selectedDirectory))
             return;
 
+        // GetFullPath 提前拒绝无效输入，避免保存一个后续每次访问都会失败的路径。
         string normalizedDirectory;
         try
         {
@@ -538,6 +566,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
         var originalDirectory = selectedInstance.BackupDirectory;
         try
         {
+            // 先持久化实例设置，再切换页面目录；保存失败时继续显示原目录。
             selectedInstance.BackupDirectory = normalizedDirectory;
             await instanceService.SaveInstanceAsync(selectedInstance);
             BackupDirectory = normalizedDirectory;
@@ -559,12 +588,17 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
         await RefreshBackupsAsync();
     }
 
+    /// <summary>
+    /// 从当前备份目录重新读取有效记录，并忽略已切换实例产生的陈旧结果。
+    /// </summary>
     private async Task RefreshBackupsAsync()
     {
+        // token 与目录字符串双重校验：即使多个目录恰好使用同一 token 流程，也不能跨目录发布。
         var token = ++refreshToken;
         var directory = BackupDirectory;
         if (string.IsNullOrWhiteSpace(directory))
         {
+            // 空目录是合法的“尚未配置”状态，清空投影但标记加载完成，避免无限 Loading。
             allBackups = Array.Empty<InstanceBackupItemViewModel>();
             VisibleBackups = Array.Empty<InstanceBackupItemViewModel>();
             selectedBackupPaths.Clear();
@@ -581,6 +615,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
         try
         {
             var backups = await backupService.GetBackupsAsync(directory);
+            // 等待 I/O 期间用户可能更换目录或实例，过期结果必须静默丢弃。
             if (token != refreshToken || !string.Equals(directory, BackupDirectory, StringComparison.OrdinalIgnoreCase))
                 return;
 
@@ -591,6 +626,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
         }
         catch (Exception exception)
         {
+            // 只有当前请求可以展示错误；过期请求失败不应污染新目录页面。
             if (token != refreshToken)
                 return;
 
@@ -618,6 +654,9 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
         }
     }
 
+    /// <summary>
+    /// 应用搜索过滤并复用备份项状态，同时维护信息面板和列表分区项。
+    /// </summary>
     private void RefreshVisibleBackupItems()
     {
         if (selectedInstance is null)
@@ -630,6 +669,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
             return;
         }
 
+        // 搜索只作用于内存快照，不重新读取清单，因此输入响应保持即时。
         var query = BackupSearchQuery.Trim();
         VisibleBackups = string.IsNullOrWhiteSpace(query)
             ? allBackups
@@ -638,12 +678,14 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
                 .ToArray();
 
         if (IsMultiSelectMode)
+            // 不可见项从选择集合移除，确保“删除所选”与当前屏幕一致。
             selectedBackupPaths.IntersectWith(VisibleBackups.Select(backup => backup.FullPath));
 
         foreach (var backup in allBackups)
             backup.IsSelected = IsMultiSelectMode && selectedBackupPaths.Contains(backup.FullPath);
 
         UpdateSelectedBackupState();
+        // 列表以信息面板、可选分区标题、数据项的固定结构提供给单一 ItemsControl。
         var hasListSection = VisibleBackups.Count > 0;
         var listItems = new object[VisibleBackups.Count + (hasListSection ? 2 : 1)];
         listItems[0] = BackupManagementInfoPanelItem.Instance;

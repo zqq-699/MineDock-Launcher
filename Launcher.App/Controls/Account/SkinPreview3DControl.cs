@@ -26,8 +26,12 @@ using Launcher.Domain.Models;
 
 namespace Launcher.App.Controls.Account;
 
+/// <summary>
+/// 根据皮肤来源和手臂模型重建静态 3D 玩家预览。
+/// </summary>
 public sealed class SkinPreview3DControl : Viewport3D
 {
+    // 控件只在输入变化时重建模型，不维护动画计时器或可变纹理状态。
     public static readonly DependencyProperty SkinSourceProperty =
         DependencyProperty.Register(
             nameof(SkinSource),
@@ -71,6 +75,7 @@ public sealed class SkinPreview3DControl : Viewport3D
 
     private void RebuildPreview()
     {
+        // 每次替换完整场景，保证旧纹理和模型不会继续留在 Viewport3D 中。
         Children.Clear();
 
         if (string.IsNullOrWhiteSpace(SkinSource))
@@ -79,6 +84,7 @@ public sealed class SkinPreview3DControl : Viewport3D
         BitmapImage skin;
         try
         {
+            // 无效或正在写入的图片只显示空预览，不能让异常冒泡到 WPF 渲染线程。
             skin = MinecraftSkinPreviewModelBuilder.LoadSkinBitmap(SkinSource);
         }
         catch
@@ -101,6 +107,9 @@ public sealed class SkinPreview3DControl : Viewport3D
     }
 }
 
+/// <summary>
+/// 把 Minecraft 皮肤图集切分为身体各面的像素纹理，并组装为可复用 3D 模型。
+/// </summary>
 internal static class MinecraftSkinPreviewModelBuilder
 {
     public static AmbientLight CreateAmbientLight()
@@ -115,6 +124,7 @@ internal static class MinecraftSkinPreviewModelBuilder
 
     public static BitmapImage LoadSkinBitmap(string source)
     {
+        // OnLoad 立即读完并释放文件句柄，皮肤缓存随后可以被替换或删除。
         var bitmap = new BitmapImage();
         bitmap.BeginInit();
         bitmap.CacheOption = BitmapCacheOption.OnLoad;
@@ -130,6 +140,7 @@ internal static class MinecraftSkinPreviewModelBuilder
         MinecraftSkinModel? skinModel,
         double brightness = 1)
     {
+        // 旧 64x32 皮肤没有身体第二层，按图像尺寸决定是否生成覆盖几何。
         var model = new Model3DGroup();
         var height = Math.Max(skin.PixelHeight, 32);
         var armWidth = MinecraftSkinPreviewGeometry.GetArmWidth(skinModel);
@@ -167,6 +178,7 @@ internal static class MinecraftSkinPreviewModelBuilder
         int armWidth = 4,
         double brightness = 1)
     {
+        // 六个面从图集中独立裁剪，保持像素采样并允许亮度模拟简单光照。
         var faces = MinecraftSkinPreviewGeometry.GetFaces(part, armWidth);
         AddFace(group, skin, skinHeight, bounds, CubeFace.Front, faces.Front, brightness);
         AddFace(group, skin, skinHeight, bounds, CubeFace.Back, faces.Back, brightness);
@@ -279,6 +291,7 @@ internal static class MinecraftSkinPreviewModelBuilder
         Int32Rect textureRect,
         double brightness)
     {
+        // 先裁剪原始像素再放大，避免 WPF 插值造成边缘模糊或颜色串行。
         const int scale = 16;
         brightness = Math.Clamp(brightness, 0, 1);
         var source = EnsureBgra32((BitmapSource)skin);
@@ -351,15 +364,20 @@ internal static class MinecraftSkinPreviewModelBuilder
     }
 }
 
+/// <summary>
+/// 提供 Steve/Alex 模型对应的皮肤图集坐标和几何尺寸规则。
+/// </summary>
 public static class MinecraftSkinPreviewGeometry
 {
     public static int GetArmWidth(MinecraftSkinModel? skinModel)
     {
+        // Alex 使用 3 像素手臂，未知模型按经典 Steve 的 4 像素兼容处理。
         return skinModel is MinecraftSkinModel.Slim ? 3 : 4;
     }
 
     public static bool CanUseSecondLayer(int skinPixelHeight)
     {
+        // 64x32 旧格式缺少身体第二层，只对现代 64x64 图集读取覆盖区域。
         return skinPixelHeight >= 64;
     }
 

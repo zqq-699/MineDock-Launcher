@@ -25,6 +25,9 @@ using Launcher.Domain.Models;
 
 namespace Launcher.Infrastructure.Resources;
 
+/// <summary>
+/// 访问 Modrinth 搜索、版本和依赖接口，并映射到启动器统一资源模型。
+/// </summary>
 internal sealed class ModrinthResourceClient(HttpClient httpClient) : IResourceProviderClient
 {
     private const string BaseUrl = "https://api.modrinth.com/v2";
@@ -41,6 +44,7 @@ internal sealed class ModrinthResourceClient(HttpClient httpClient) : IResourceP
         ResourceCatalogSearchRequest request,
         CancellationToken cancellationToken)
     {
+        // facets 只包含资源类型支持的筛选项，World 等不支持类型在入口直接拒绝。
         if (!Supports(request.Kind))
             return new ResourceProviderSearchResult([], false);
 
@@ -88,6 +92,7 @@ internal sealed class ModrinthResourceClient(HttpClient httpClient) : IResourceP
         ResourceProjectVersionsRequest request,
         CancellationToken cancellationToken)
     {
+        // 项目版本按服务端顺序保留，并排除当前已展示 Id 支持稳定分页合并。
         var projectId = string.IsNullOrWhiteSpace(request.ProjectId) ? request.Slug : request.ProjectId;
         if (string.IsNullOrWhiteSpace(projectId)
             || !request.IncludeAllVersions && string.IsNullOrWhiteSpace(request.MinecraftVersion))
@@ -128,6 +133,7 @@ internal sealed class ModrinthResourceClient(HttpClient httpClient) : IResourceP
         ResourceProjectDependenciesRequest request,
         CancellationToken cancellationToken)
     {
+        // Required 依赖先收集项目 Id，再批量获取项目元数据以避免 N+1 请求。
         var projectId = string.IsNullOrWhiteSpace(request.ProjectId) ? request.Slug : request.ProjectId;
         if (string.IsNullOrWhiteSpace(projectId) || request.Kind is not ResourceProjectKind.Mod)
             return new ResourceProjectDependenciesResult();
@@ -170,6 +176,7 @@ internal sealed class ModrinthResourceClient(HttpClient httpClient) : IResourceP
         IReadOnlyDictionary<string, ResourceProject> projects,
         ISet<string> excludedIds)
     {
+        // primary 文件优先；缺失时选择首个文件，所有下载候选和哈希一并保留给安装层校验。
         var file = version.Files.FirstOrDefault(candidate => candidate.IsPrimary) ?? version.Files[0];
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var dependencies = version.Dependencies

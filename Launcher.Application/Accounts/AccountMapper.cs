@@ -21,10 +21,15 @@ using Launcher.Domain.Models;
 
 namespace Launcher.Application.Accounts;
 
+/// <summary>
+/// 在持久化账户记录与领域账户之间复制和合并数据，集中维护外观缓存兼容规则。
+/// </summary>
 public static class AccountMapper
 {
+    // With 方法都创建新对象，调用方可在成功后原子替换账户而不污染失败前状态。
     public static LauncherAccount FromRecord(LauncherAccountRecord record)
     {
+        // 旧记录缺失的集合和外观字段在映射边界补为安全默认值。
         return new LauncherAccount
         {
             Id = record.Id,
@@ -48,6 +53,7 @@ public static class AccountMapper
 
     public static LauncherAccount MergeStoredRecord(LauncherAccount account, LauncherAccountRecord record)
     {
+        // 在线资料优先，存储记录只补充本地皮肤库、头像和披风缓存。
         var storedCapeOptions = ToCapeOptions(record.Capes);
         var mergedSkinLibrary = MergeSkinLibrary(account.SkinLibrary, record.Skins);
         var activeSkinId = ResolveActiveSkinId(account, record, mergedSkinLibrary);
@@ -83,6 +89,7 @@ public static class AccountMapper
 
     public static LauncherAccount WithAppearanceFallback(LauncherAccount account, LauncherAccount fallback)
     {
+        // 远端刷新缺少外观时保留旧缓存，避免短暂 API 缺失让头像消失。
         return CreateCopy(
             account,
             avatarSource: string.IsNullOrWhiteSpace(account.AvatarSource) ? fallback.AvatarSource : account.AvatarSource,
@@ -99,6 +106,7 @@ public static class AccountMapper
         string? skinSource,
         MinecraftSkinModel? skinModel)
     {
+        // 更新皮肤库时同时校正 ActiveSkinId，删除当前皮肤后不能留下悬空引用。
         return CreateCopy(
             account,
             skinSource: skinSource,
@@ -135,6 +143,7 @@ public static class AccountMapper
 
     public static LauncherAccountRecord ToRecord(LauncherAccount account)
     {
+        // 写入前深拷贝可变集合，防止保存过程与 UI 后续修改共享引用。
         return new LauncherAccountRecord
         {
             Id = account.Id,
@@ -187,6 +196,7 @@ public static class AccountMapper
         IReadOnlyList<LauncherSkinRecord>? refreshedSkins,
         IReadOnlyList<LauncherSkinRecord>? storedSkins)
     {
+        // 以稳定 Id 优先、内容身份兜底去重，兼容早期没有皮肤 Id 的记录。
         var skins = CopySkinRecords(storedSkins);
         foreach (var skin in refreshedSkins ?? [])
         {
@@ -209,6 +219,7 @@ public static class AccountMapper
         LauncherAccountRecord storedRecord,
         IReadOnlyList<LauncherSkinRecord> mergedSkinLibrary)
     {
+        // 活动 Id 必须存在于合并后的库，否则回退当前皮肤或首项。
         if (!string.IsNullOrWhiteSpace(refreshedAccount.ActiveSkinId))
         {
             var refreshedSkin = refreshedAccount.SkinLibrary.FirstOrDefault(skin =>

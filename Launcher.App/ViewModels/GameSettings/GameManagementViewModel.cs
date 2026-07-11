@@ -30,8 +30,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.GameSettings;
 
+/// <summary>
+/// 为 Shell 聚合实例、创建、Mod 和设置子 ViewModel，并转发常用命令与进度状态。
+/// </summary>
 public sealed partial class GameManagementViewModel : ObservableObject
 {
+    // 该类型是兼容现有 Shell Binding 的门面，具体文件、安装和 Mod 流程均由子 ViewModel 承担。
     private readonly IStatusService statusService;
     private readonly ILogger<GameManagementViewModel> logger;
     private bool suppressSelectedInstanceModRefresh;
@@ -118,6 +122,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
 
     public async Task InitializeAsync(LauncherSettings launcherSettings)
     {
+        // 先 Prime 设置与磁盘快照，再执行需要等待的版本目录和当前实例 Mod 同步。
         LoaderSelection.PrimeFromSettings(launcherSettings);
         await RunInstanceRefreshWithModSyncAsync(() => InstancesViewModel.InitializeAsync(launcherSettings));
     }
@@ -157,6 +162,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
 
     public void ApplyUpdatedInstance(GameInstance instance)
     {
+        // 保存产生的新实例对象按 Id 增量合并，避免全量刷新打断当前页面选择。
         InstancesViewModel.ApplyUpdatedInstance(instance);
     }
 
@@ -221,6 +227,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
     [RelayCommand]
     private async Task InstallSelectedModAsync()
     {
+        // 在线安装完成后刷新当前实例 Mod 投影，下载服务不直接修改 UI 集合。
         var installed = await ModrinthSearch.InstallSelectedModAsync(SelectedInstance, CreateProgress());
         if (installed)
             await LocalMods.RefreshModsAsync();
@@ -246,6 +253,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
 
     private async Task RunInstanceRefreshWithModSyncAsync(Func<Task> refresh)
     {
+        // 实例集合刷新可能替换选择对象，完成后按新选择再次刷新 Mod 子页面。
         suppressSelectedInstanceModRefresh = true;
         try
         {
@@ -281,6 +289,7 @@ public sealed partial class GameManagementViewModel : ObservableObject
 
     private async Task ObserveSelectedInstanceModRefreshAsync(GameInstance? instance)
     {
+        // 属性事件无法等待异步刷新；子 ViewModel 自己处理取消，本层只观察失败。
         try
         {
             await LocalMods.SetSelectedInstanceAsync(instance);

@@ -30,8 +30,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.App.ViewModels.Resources;
 
+/// <summary>
+/// 组合各资源类型页面，维护顶层分区选择并转发标题、返回与整合包结果事件。
+/// </summary>
 public sealed partial class ResourcesPageViewModel : ObservableObject
 {
+    // 各在线页面保持长期实例以复用搜索缓存；顶层只切换当前分区而不重建子页面。
     private readonly ILogger<ResourcesPageViewModel>? logger;
 
     public ResourcesPageViewModel(
@@ -211,11 +215,13 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
 
     public void BeginEnsureCurrentSectionLoaded()
     {
+        // 页面激活事件不能等待网络请求，子页面自行观察并管理加载状态。
         CurrentOnlineProjectPage?.BeginEnsureProjectsLoaded();
     }
 
     public async Task OpenModsForInstanceAsync(GameInstance instance)
     {
+        // 从实例设置跳转时先选 Mod 分区，再应用实例版本与 Loader 筛选，避免短暂展示不兼容结果。
         var modsSection = Sections.FirstOrDefault(section => section.Id == "mods") ?? Sections[0];
         SelectSection(modsSection, logSelection: false);
         logger?.LogInformation(
@@ -234,6 +240,7 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
 
     private void SelectSection(ResourcesSectionItem? section, bool logSelection)
     {
+        // 同一分区重复选择只确保加载，不重置子页面搜索、详情或滚动状态。
         if (section is null || ReferenceEquals(SelectedSection, section))
             return;
 
@@ -300,6 +307,7 @@ public sealed partial class ResourcesPageViewModel : ObservableObject
 
     private void OnlineProjectChild_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // 页面标题和返回能力来自当前子页面，需要转发到顶层 Shell Binding。
         var currentPage = CurrentOnlineProjectPage;
         if (currentPage is null
             || !ReferenceEquals(sender, currentPage.ProjectList) && !ReferenceEquals(sender, currentPage.Versions))

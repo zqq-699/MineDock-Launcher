@@ -26,6 +26,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Persistence;
 
+/// <summary>
+/// 将版本目录、同名 JSON/JAR 及 JSON 内部身份作为一个可回滚的重命名事务处理。
+/// </summary>
 internal sealed class VersionRenameTransaction
 {
     private const int MaxMoveAttempts = 5;
@@ -45,6 +48,9 @@ internal sealed class VersionRenameTransaction
         this.moveDirectoryAsync = moveDirectoryAsync ?? MoveDirectoryAsync;
     }
 
+    /// <summary>
+    /// 验证目标后依次移动目录、重命名 JSON/JAR、重写身份，并在任一步失败时回滚。
+    /// </summary>
     public async Task ExecuteAsync(
         string minecraftDirectory,
         string oldVersionName,
@@ -80,6 +86,7 @@ internal sealed class VersionRenameTransaction
         var rewrittenJson = versionJson.ToJsonString(JsonOptions);
         var oldJarExists = File.Exists(Path.Combine(sourceDirectory, $"{oldVersionName}.jar"));
         var stopwatch = Stopwatch.StartNew();
+        // 每个标记代表一个已经提交的步骤，失败时按相反顺序精确回滚。
         var directoryMoved = false;
         var jsonMoved = false;
         var jarMoved = false;
@@ -99,6 +106,7 @@ internal sealed class VersionRenameTransaction
                 jarMoved = true;
             }
             cancellationToken.ThrowIfCancellationRequested();
+            // 新 JSON 先写临时文件，再用 File.Replace 原子替换并保留备份，避免中途留下截断文件。
             await File.WriteAllTextAsync(temporaryJsonPath, rewrittenJson, cancellationToken).ConfigureAwait(false);
             File.Replace(temporaryJsonPath, destinationJsonPath, backupJsonPath, ignoreMetadataErrors: true);
             jsonReplaced = true;
@@ -121,6 +129,9 @@ internal sealed class VersionRenameTransaction
         }
     }
 
+    /// <summary>
+    /// 对可能由杀毒软件或短暂文件占用造成的目录移动失败进行有限重试。
+    /// </summary>
     private async Task MoveWithRetryAsync(string source, string destination, CancellationToken cancellationToken)
     {
         for (var attempt = 1; ; attempt++)
@@ -163,6 +174,9 @@ internal sealed class VersionRenameTransaction
         }
     }
 
+    /// <summary>
+    /// 根据已完成步骤恢复 JSON 内容、文件名和原目录；回滚本身失败时返回 false。
+    /// </summary>
     private static bool TryRollback(
         string sourceDirectory, string destinationDirectory,
         string movedJsonPath, string destinationJsonPath,
@@ -170,6 +184,7 @@ internal sealed class VersionRenameTransaction
         string temporaryJsonPath, string backupJsonPath,
         bool directoryMoved, bool jsonMoved, bool jarMoved, bool jsonReplaced)
     {
+        // 回滚顺序必须与正向步骤相反：恢复 JSON 内容，再恢复文件名，最后移回目录。
         try
         {
             TryDelete(temporaryJsonPath);

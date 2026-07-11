@@ -27,8 +27,12 @@ using Launcher.Domain.Models;
 
 namespace Launcher.Infrastructure.Accounts;
 
+/// <summary>
+/// 以内容哈希持久化账户皮肤，兼容历史缓存路径，并维护账户皮肤记录与实际文件的一致性。
+/// </summary>
 internal sealed class AccountSkinCacheService
 {
+    // 以 UUID 分目录隔离账户，以内容哈希命名避免相同皮肤重复写入并支持可靠去重。
     private const string SkinCacheVersion = "v1";
 
     private readonly HttpClient httpClient;
@@ -54,6 +58,7 @@ internal sealed class AccountSkinCacheService
         bool forceRefresh,
         CancellationToken cancellationToken)
     {
+        // 优先复用账户记录指向的可用文件；只有缺失时才下载当前服务端皮肤。
         if (string.IsNullOrWhiteSpace(uuid))
             return null;
 
@@ -85,6 +90,7 @@ internal sealed class AccountSkinCacheService
         MinecraftSkinModel skinModel,
         CancellationToken cancellationToken)
     {
+        // 上传响应字节是最终内容真相，先验证可解码再按哈希原子落盘。
         if (string.IsNullOrWhiteSpace(uuid) || string.IsNullOrWhiteSpace(skinFilePath) || !File.Exists(skinFilePath))
             return GetLatestCachedSkinPath(uuid) is { } cachedSkinPath
                 ? new Uri(cachedSkinPath).AbsoluteUri
@@ -106,6 +112,7 @@ internal sealed class AccountSkinCacheService
         bool forceRefresh,
         CancellationToken cancellationToken)
     {
+        // URL 可能变化但内容相同，使用像素内容哈希匹配已有记录而不是只比较地址。
         if (string.IsNullOrWhiteSpace(uuid) || string.IsNullOrWhiteSpace(skinUrl))
             return null;
 
@@ -134,6 +141,7 @@ internal sealed class AccountSkinCacheService
         MinecraftSkinModel skinModel,
         CancellationToken cancellationToken)
     {
+        // 导入先完整读取和解码，再写账户目录，源文件始终由用户保留。
         var uuid = account.Uuid ?? account.Id;
         var skinBytes = await File.ReadAllBytesAsync(skinFilePath, cancellationToken);
         var hash = ComputeSkinContentHash(skinBytes);
@@ -152,6 +160,7 @@ internal sealed class AccountSkinCacheService
         LauncherSkinRecord skin,
         CancellationToken cancellationToken)
     {
+        // 仅删除确认位于账户缓存目录内的文件，外部来源路径绝不能随记录删除。
         var uuid = account.Uuid ?? account.Id;
         if (string.IsNullOrWhiteSpace(uuid))
             return Task.CompletedTask;
@@ -201,6 +210,7 @@ internal sealed class AccountSkinCacheService
 
     public IReadOnlyList<LauncherSkinRecord> GetAvailableSkins(LauncherAccount account)
     {
+        // 合并账户元数据与磁盘遗留文件，让升级前缓存仍可见，同时按内容去重。
         var uuid = account.Uuid ?? account.Id;
         if (string.IsNullOrWhiteSpace(uuid))
             return [];
@@ -222,6 +232,7 @@ internal sealed class AccountSkinCacheService
 
     private void TryCopyExistingSkinIntoAccountDirectory(string uuid, LauncherSkinRecord skin)
     {
+        // 历史版本可能把皮肤放在共享目录；复制到新目录而非移动，以保证迁移失败可回退。
         var sourcePath = ResolveSkinSourcePath(skin.Source);
         if (sourcePath is null || !File.Exists(sourcePath))
             return;
@@ -379,6 +390,7 @@ internal sealed class AccountSkinCacheService
 
     private static bool SourceContentMatchesHash(string source, string contentHash)
     {
+        // 哈希匹配需要读取实际文件，路径或 URL 字符串本身不能代表皮肤内容身份。
         var sourcePath = ResolveSkinSourcePath(source);
         if (sourcePath is null || !File.Exists(sourcePath))
             return false;
@@ -398,6 +410,7 @@ internal sealed class AccountSkinCacheService
 
     private static MinecraftSkinModel? TryParseSkinModel(string skinPath)
     {
+        // 文件名模型后缀只作为历史兼容提示，无法识别时交由调用方使用默认模型。
         var name = Path.GetFileNameWithoutExtension(skinPath);
         if (name.EndsWith("-slim", StringComparison.OrdinalIgnoreCase))
             return MinecraftSkinModel.Slim;

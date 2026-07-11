@@ -29,8 +29,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Modrinth;
 
+/// <summary>
+/// 提供 Modrinth Mod 搜索与兼容版本安装，并封装 Fabric API/Quilt 标准库快捷流程。
+/// </summary>
 public sealed class ModrinthService : IModrinthService
 {
+    // 兼容性始终同时约束 Minecraft 版本和 Loader，不能只按项目最新版本安装。
     private const string BaseUrl = "https://api.modrinth.com/v2";
     private const string FabricApiProjectSlug = "fabric-api";
     private const string FabricApiProjectId = "P7dR8mSH";
@@ -51,6 +55,7 @@ public sealed class ModrinthService : IModrinthService
 
     public async Task<IReadOnlyList<ModrinthProject>> SearchModsAsync(string query, string minecraftVersion, LoaderKind loader, CancellationToken cancellationToken = default)
     {
+        // 搜索 facets 在服务边界构造，UI 无需了解 Modrinth 查询语法。
         var facets = new List<List<string>>
         {
             new() { "project_type:mod" }
@@ -128,6 +133,7 @@ public sealed class ModrinthService : IModrinthService
 
     public async Task<string> InstallLatestCompatibleAsync(ModrinthProject project, GameInstance instance, IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default)
     {
+        // “最新”只在实例兼容版本集合内选择，没有匹配时明确失败而不安装错误 Loader 文件。
         var loader = instance.Loader is LoaderKind.Vanilla ? "fabric" : instance.Loader.ToString().ToLowerInvariant();
         logger.LogInformation(
             "Installing compatible Modrinth project. ProjectId={ProjectId} MinecraftVersion={MinecraftVersion} Loader={Loader}",
@@ -162,6 +168,7 @@ public sealed class ModrinthService : IModrinthService
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default)
     {
+        // 用户指定版本仍需验证属于当前实例兼容集合，防止跨 Minecraft 版本安装。
         if (string.IsNullOrWhiteSpace(versionId))
             throw new InvalidOperationException("Fabric API version id is required.");
 
@@ -266,6 +273,7 @@ public sealed class ModrinthService : IModrinthService
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken)
     {
+        // 优先 primary 文件并使用唯一目标路径；下载完成后才返回本地文件名供列表刷新。
         if (version.Files.Count == 0)
             throw new NoCompatibleModFileException(projectId, instance.MinecraftVersion, instance.Loader);
 

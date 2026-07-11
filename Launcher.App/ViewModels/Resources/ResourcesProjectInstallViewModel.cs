@@ -30,8 +30,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.App.ViewModels.Resources;
 
+/// <summary>
+/// 编排资源版本安装的用户决策、依赖处理和结果反馈，并按资源类型选择对应安装路径。
+/// </summary>
 public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
 {
+    // 对话框用 TaskCompletionSource 把按钮事件转换为可等待决策，使主安装流程仍能顺序表达。
     private readonly ResourcesOnlineProjectPageOptions options;
     private readonly IResourceProjectInstallationService? installationService;
     private readonly ResourcesRequiredDependencyPlanner dependencyPlanner;
@@ -113,6 +117,7 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
         ResourcesModInstallTargetItemViewModel? target,
         ResourcesModProjectItemViewModel? selectedProject)
     {
+        // 每次安装冻结目标、版本和文件名，防止用户切换页面选择后影响在途操作。
         if (item is null || target is null || installationService is null || IsInstalling)
             return;
 
@@ -155,6 +160,7 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
 
     private async Task DownloadToDirectoryAsync(InstallOperationContext context)
     {
+        // 同名文件不直接覆盖，先交还给用户确认，避免普通下载造成不可逆的数据替换。
         var targetDirectory = filePickerService?.PickFolder(options.DownloadDirectoryPickerTitle);
         if (string.IsNullOrWhiteSpace(targetDirectory))
             return;
@@ -180,6 +186,7 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
 
     private async Task InstallModpackAsNewInstanceAsync(InstallOperationContext context)
     {
+        // 整合包导入拥有独立的安装、清理和手动下载结果，本层只映射页面事件与反馈。
         BeginSession(context, context.Target.Title);
         BeginUserFeedback(context.Item);
         var result = (await installationService!.ExecuteAsync(
@@ -201,6 +208,7 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
 
     private async Task InstallIntoExistingInstanceAsync(InstallOperationContext context)
     {
+        // 在主文件写入前规划 Required 依赖，用户取消时不会留下主资源已安装但依赖缺失的状态。
         var instance = context.Target.Instance;
         if (instance is null)
             return;
@@ -245,6 +253,7 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
         RequiredDependencyInstallPlan dependencyPlan,
         GameInstance instance)
     {
+        // 按规划顺序逐个安装，让失败时的已完成集合和进度顺序保持可解释。
         try
         {
             await dependencyPlanner.InstallRequiredDependenciesAsync(
@@ -284,6 +293,7 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
     private async Task<RequiredDependenciesDialogChoice> RequestDependenciesDialogAsync(
         IReadOnlyList<ResourcesModDependencyRequirementItemViewModel> items)
     {
+        // 异步 continuation 避免按钮事件完成 Task 时同步重入后续安装并阻塞 UI 调用栈。
         pendingDependenciesChoice?.TrySetResult(RequiredDependenciesDialogChoice.Cancel);
         var completion = new TaskCompletionSource<RequiredDependenciesDialogChoice>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -340,6 +350,7 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
 
     private void BeginSession(InstallOperationContext context, string subtitle)
     {
+        // 会话开始统一清空上一轮错误、进度和弹窗状态，避免迟到反馈与新安装混合。
         context.Session = ResourceInstallTaskSession.Begin(
             downloadTasksPage,
             context.Item.Title,
@@ -349,6 +360,7 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
 
     private void PresentFailure(InstallOperationContext context, string message)
     {
+        // 页面只展示稳定、本地化的失败原因，底层异常细节由业务服务写入日志。
         floatingMessageService?.Show(message);
         reportStatus(message);
         context.Session?.Fail(message);

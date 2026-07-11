@@ -28,8 +28,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.App.ViewModels.Account;
 
+/// <summary>
+/// 管理当前账户的皮肤库、轮播选择、皮肤模型切换及本地与远端状态同步。
+/// </summary>
 public sealed partial class AccountSkinLibraryViewModel : ObservableObject
 {
+    // 账户对象是持久化真相，ObservableCollection 是对话框当前会话的可观察投影。
     private readonly AccountListViewModel accountList;
     private readonly IMicrosoftAccountService microsoftAccountService;
     private readonly IAccountSkinLibraryService skinLibraryService;
@@ -109,6 +113,7 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
 
     public void SetAccount(LauncherAccount? account)
     {
+        // 切换账户时按稳定皮肤 Id 重建集合，不能保留上一账户的 SelectedSkin 对象引用。
         skinPendingModelChange = null;
         if (account is null)
         {
@@ -144,6 +149,7 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
     [RelayCommand]
     public async Task PickAndChangeSkinAsync()
     {
+        // 文件选择与上传分开：用户取消不改变状态，选中后才进入统一新增流程。
         if (!CanChangeSkin)
             return;
         var path = filePickerService.PickMinecraftSkin();
@@ -180,6 +186,7 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanApplySkin))]
     public async Task ApplySkinAsync()
     {
+        // 先完成服务端或本地应用，再整体替换账户记录；失败时 UI 仍指向原始可用账户。
         var account = accountList.SelectedAccount;
         var skin = SelectedSkin;
         if (account is null || skin is null || !CanApplySkin)
@@ -238,6 +245,7 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanDeleteSelectedSkin))]
     public async Task DeleteSelectedSkinAsync()
     {
+        // 删除前先决定相邻选择，因为删除后集合索引和轮播邻项都会变化。
         var account = accountList.SelectedAccount;
         var skin = SelectedSkin;
         if (account is null || skin is null || !CanDeleteSelectedSkin)
@@ -315,6 +323,7 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
 
     private async Task AddSkinAsync(string path, MinecraftSkinModel model)
     {
+        // 服务返回规范化后的皮肤记录，本地路径、哈希或远端标识都以返回值为准。
         var account = accountList.SelectedAccount;
         if (account is null)
             return;
@@ -371,6 +380,7 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
 
     private void Populate(LauncherAccount account, string? preferredId)
     {
+        // 去重后一次性重建，确保同一内容不会因本地缓存和账户资料两个来源显示两次。
         Skins.Clear();
         foreach (var skin in DistinctSkins(skinLibraryService.GetAvailableSkins(account)))
             Skins.Add(skin);
@@ -384,6 +394,7 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
 
     private LauncherSkinRecord? GetAdjacent(int offset)
     {
+        // 轮播在边界不循环；返回 null 会同时隐藏对应槽位并禁用命令。
         if (SelectedSkin is null || Skins.Count < 2)
             return null;
         var index = Skins.IndexOf(SelectedSkin) + offset;
@@ -392,6 +403,7 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
 
     private void NotifyState()
     {
+        // Previous/Next 是计算属性，选择或集合变化后必须成组通知 3D 控件更新三个槽位。
         OnPropertyChanged(nameof(PreviousSkin));
         OnPropertyChanged(nameof(NextSkin));
         OnPropertyChanged(nameof(HasSkins));
@@ -477,6 +489,7 @@ public sealed partial class AccountSkinLibraryViewModel : ObservableObject
 
     private static IEnumerable<LauncherSkinRecord> DistinctSkins(IEnumerable<LauncherSkinRecord> skins)
     {
+        // 优先使用服务分配的 Id；历史记录缺少 Id 时回退到来源和模型构成的内容身份。
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var skin in skins)
         {

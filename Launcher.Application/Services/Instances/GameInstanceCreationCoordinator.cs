@@ -23,6 +23,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.Application.Services;
 
+/// <summary>
+/// 串联安装租约、游戏与 Loader 安装、可选内容安装、实例持久化和失败清理。
+/// </summary>
 internal sealed class GameInstanceCreationCoordinator
 {
     private readonly ISettingsService settingsService;
@@ -57,6 +60,9 @@ internal sealed class GameInstanceCreationCoordinator
         this.logger = logger;
     }
 
+    /// <summary>
+    /// 在独占安装租约中完成版本安装、可选内容安装、实例持久化和默认实例初始化。
+    /// </summary>
     public async Task<GameInstance> CreateAsync(
         string minecraftVersion,
         LoaderKind loader,
@@ -82,12 +88,14 @@ internal sealed class GameInstanceCreationCoordinator
 
         var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var versionIdentity = ResolveVersionIdentity(minecraftVersion, loader, loaderVersion, name);
+        // 租约同时用于串行化同名安装，并让实例发现流程识别尚未完成的版本目录。
         await using var installLease = await installCoordinator
             .AcquireInstallAsync(settings.MinecraftDirectory, versionIdentity, progress, cancellationToken)
             .ConfigureAwait(false);
         if (progress is not null)
             logger.LogDebug("Game instance install acquired coordinator lease. VersionIdentity={VersionIdentity}", versionIdentity);
 
+        // 安装前记录目录是否已存在，失败时只能删除本次新建的目录，绝不能损坏用户已有版本。
         var cleanupCandidates = CreateCleanupCandidates(
             settings.MinecraftDirectory,
             minecraftVersion,
@@ -179,6 +187,9 @@ internal sealed class GameInstanceCreationCoordinator
         };
     }
 
+    /// <summary>
+    /// 根据 Loader 选择安装 Fabric API 或 Quilt 标准库；未选择时保持纯 Loader 实例。
+    /// </summary>
     private async Task InstallOptionalContentAsync(
         GameInstance instance,
         bool installFabricApi,
@@ -247,6 +258,9 @@ internal sealed class GameInstanceCreationCoordinator
         };
     }
 
+    /// <summary>
+    /// 在安装前记录可能被创建的版本目录及其原始存在状态，供失败补偿使用。
+    /// </summary>
     private IReadOnlyList<VersionCleanupCandidate> CreateCleanupCandidates(
         string minecraftDirectory,
         string minecraftVersion,
@@ -264,10 +278,14 @@ internal sealed class GameInstanceCreationCoordinator
             .ToArray();
     }
 
+    /// <summary>
+    /// 尽力删除本次安装新建的目录，同时绝不删除安装前已有目录。
+    /// </summary>
     private void TryCleanupCreatedVersionDirectories(
         string minecraftDirectory,
         IReadOnlyList<VersionCleanupCandidate> cleanupCandidates)
     {
+        // 清理是原始失败后的尽力补偿；清理异常不得掩盖真正的安装异常。
         foreach (var candidate in cleanupCandidates.Where(candidate => !candidate.ExistedBeforeInstall))
         {
             try

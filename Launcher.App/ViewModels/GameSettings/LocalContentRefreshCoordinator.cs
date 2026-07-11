@@ -24,6 +24,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.App.ViewModels.GameSettings;
 
+/// <summary>
+/// 为存档、资源包和光影包页面统一处理“最后一次刷新生效”、目录监听和 UI 线程发布。
+/// </summary>
 internal sealed class LocalContentRefreshCoordinator<TContent> : IDisposable
 {
     private readonly Func<GameInstance, CancellationToken, Task<IReadOnlyList<TContent>>> loadAsync;
@@ -66,8 +69,12 @@ internal sealed class LocalContentRefreshCoordinator<TContent> : IDisposable
 
     public IReadOnlyList<TContent> CurrentItems { get; private set; } = [];
 
+    /// <summary>
+    /// 切换内容所属实例，并使旧实例所有在途刷新立即失效。
+    /// </summary>
     public void SetInstance(GameInstance? instance)
     {
+        // 先使在途结果失效，再切换监听和清空界面，保证旧实例的数据不会回写到新实例。
         SelectedInstance = instance;
         Interlocked.Increment(ref refreshGeneration);
         CancelRefresh();
@@ -86,8 +93,12 @@ internal sealed class LocalContentRefreshCoordinator<TContent> : IDisposable
 
     public void ResumeAfterRename() => watcher.Resume();
 
+    /// <summary>
+    /// 加载当前实例内容，并且仅在实例和刷新代次仍匹配时发布结果。
+    /// </summary>
     public async Task RefreshAsync()
     {
+        // generation 与 CTS 同时使用：CTS 尽快停止旧工作，generation 则在依赖不响应取消时阻止陈旧结果发布。
         var generation = Interlocked.Increment(ref refreshGeneration);
         var replacement = new CancellationTokenSource();
         var previous = Interlocked.Exchange(ref refreshCancellation, replacement);
@@ -115,6 +126,7 @@ internal sealed class LocalContentRefreshCoordinator<TContent> : IDisposable
 
             uiDispatcher.Invoke(() =>
             {
+                // 调度到 UI 线程期间可能又发起刷新，因此发布前需要再次验证代次。
                 if (generation != refreshGeneration || replacement.IsCancellationRequested)
                     return;
                 CurrentItems = items;
@@ -150,6 +162,7 @@ internal sealed class LocalContentRefreshCoordinator<TContent> : IDisposable
 
     private void Release(CancellationTokenSource cancellation)
     {
+        // 旧请求结束时不能清空新请求刚写入的 CTS。
         if (ReferenceEquals(Interlocked.CompareExchange(ref refreshCancellation, null, cancellation), cancellation))
             cancellation.Dispose();
     }

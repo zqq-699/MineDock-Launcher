@@ -27,16 +27,21 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.App.ViewModels.Resources;
 
+/// <summary>
+/// 为选定在线项目管理安装目标、兼容版本分页、筛选投影和安装命令状态。
+/// </summary>
 public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject, IDisposable
 {
     private const int PageSize = 10000;
 
+    // 分页来源可能返回重叠结果，稳定 ID 集合确保同一版本只进入页面一次。
     private readonly HashSet<string> loadedVersionIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly ResourcesOnlineProjectPageOptions options;
     private readonly IResourceCatalogService? resourceCatalogService;
     private readonly IGameInstanceService? gameInstanceService;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger? logger;
+    // 目标列表与版本列表具有独立生命周期，切换目标时只需使版本请求失效。
     private CancellationTokenSource? targetsCancellation;
     private CancellationTokenSource? versionsCancellation;
     private bool isApplyingFilters;
@@ -281,8 +286,13 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
         OnPropertyChanged(nameof(EmptyMessage));
     }
 
+    /// <summary>
+    /// 按当前安装模式加载可选实例，并加入新实例或本地下载等虚拟目标。
+    /// </summary>
     private async Task LoadTargetsAsync()
     {
+        // 新加载先取消旧目标请求，随后立即清空列表，避免用户点击已不属于当前项目的目标。
+        // 项目或安装模式变化后，只有最新一次目标加载可以更新选择列表。
         var replacement = new CancellationTokenSource();
         var previous = Interlocked.Exchange(ref targetsCancellation, replacement);
         previous?.Cancel();
@@ -299,6 +309,7 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
 
         try
         {
+            // 新实例安装模式不需要读取本地实例，减少一次仓库和磁盘发现操作。
             IReadOnlyList<GameInstance> instances = [];
             if (gameInstanceService is not null
                 && options.InstallTargetMode is ResourcesOnlineProjectInstallTargetMode.ExistingInstance)
@@ -321,11 +332,15 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 过滤不兼容目标并重建带首尾位置状态的安装目标列表。
+    /// </summary>
     private void ApplyTargets(IReadOnlyList<GameInstance> instances, string error, CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
             return;
 
+        // Vanilla 实例不能直接安装 Mod 项目；本地下载目标始终可用且不受实例兼容限制。
         var targets = instances
             .Where(instance => instance.Loader is not LoaderKind.Vanilla)
             .Select(ResourcesModInstallTargetItemViewModel.FromInstance)
@@ -355,14 +370,19 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
         RaiseTargetStateChanged();
     }
 
+    /// <summary>
+    /// 为选定目标重新加载项目版本，并重置旧目标对应的分页和筛选状态。
+    /// </summary>
     private async Task LoadVersionsAsync(ResourcesModInstallTargetItemViewModel target)
     {
+        // 目标切换会改变版本兼容条件，因此重置分页、筛选和旧请求必须作为同一状态转换完成。
         var replacement = new CancellationTokenSource();
         var previous = Interlocked.Exchange(ref versionsCancellation, replacement);
         previous?.Cancel();
         previous?.Dispose();
         var cancellationToken = replacement.Token;
 
+        // 在 UI 线程原子重置标题、分页和筛选，避免模板观察到新旧状态混合。
         uiDispatcher.Invoke(() =>
         {
             ResetVersions(resetFilters: true);
@@ -373,6 +393,7 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
 
         try
         {
+            // 等待期间项目或目标可能变化，引用身份检查可拒绝旧选择发起的请求。
             var project = currentProject;
             if (resourceCatalogService is null || project is null
                 || !ReferenceEquals(target, SelectedTarget)
@@ -399,8 +420,12 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 请求下一页全部候选版本，并在进入页面状态前去除跨页重复项。
+    /// </summary>
     private async Task<AvailableVersionPage> LoadNextPageAsync(ResourceProject project, CancellationToken cancellationToken)
     {
+        // 先请求全部版本再在本地按目标筛选，用户切换筛选项无需重复访问网络。
         var request = new ResourceProjectVersionsRequest
         {
             Kind = options.Kind,
@@ -418,14 +443,19 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
         return new AvailableVersionPage(result, accepted);
     }
 
+    /// <summary>
+    /// 接收一页从未见过的版本，并无论去重结果如何都推进远端分页游标。
+    /// </summary>
     private IReadOnlyList<ResourceProjectVersion> AcceptPage(
         IReadOnlyList<ResourceProjectVersion> versions,
         int requestOffset,
         int pageSize)
     {
+        // 聚合来源可能在相邻分页返回重复版本；优先用稳定 ID，旧数据缺少 ID 时退化为复合键。
         var accepted = new List<ResourceProjectVersion>(versions.Count);
         foreach (var version in versions)
         {
+            // 旧来源缺失 VersionId 时使用文件名、版本号和发布时间组合成稳定兜底键。
             var key = string.IsNullOrWhiteSpace(version.VersionId)
                 ? $"{version.FileName}|{version.VersionNumber}|{version.PublishedAt:O}"
                 : version.VersionId;
@@ -453,11 +483,15 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
         RaiseStateChanged();
     }
 
+    /// <summary>
+    /// 合并追加页并保留现有筛选选择；追加时不重复播放整列表入场动画。
+    /// </summary>
     private void ApplyMore(AvailableVersionPage page, CancellationToken cancellationToken)
     {
         if (cancellationToken.IsCancellationRequested)
             return;
 
+        // 先扩充完整源集合，再根据所有页重算可选筛选值，保留当前仍有效的选择。
         SourceVersions = SourceVersions.Concat(page.Versions).ToList();
         UpdateFiltersPreservingSelection(SourceVersions);
         RebuildList(playEntranceAnimation: false);
@@ -552,8 +586,12 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
         values.Add(new ResourcesFilterOptionItem { Id = id, Title = titleFactory(id) });
     }
 
+    /// <summary>
+    /// 根据目标、搜索词与兼容筛选重建当前可见版本投影。
+    /// </summary>
     private void RebuildList(bool playEntranceAnimation = true)
     {
+        // Builder 集中处理 Minecraft/Loader 兼容、搜索和异构标题项，本类只发布构建结果。
         ListItems.Clear();
         var result = Builder.Build(
             SourceVersions,
@@ -566,6 +604,7 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
         foreach (var item in result.Items)
             ListItems.Add(item);
         VisibleVersionCount = result.VisibleVersionCount;
+        // 初次加载或目标切换播放动画；分页追加显式关闭以保持滚动连续性。
         if (playEntranceAnimation)
             ListEntranceAnimationToken++;
         UpdateFooter();

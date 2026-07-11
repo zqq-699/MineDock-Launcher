@@ -30,6 +30,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Minecraft;
 
+/// <summary>
+/// 编排启动设置、文件检查、账户会话、Java 选择、进程监控和脱敏失败诊断。
+/// </summary>
 public sealed class LaunchService : ILaunchService
 {
     private readonly ILaunchAccountSessionService accountSessionService;
@@ -92,6 +95,9 @@ public sealed class LaunchService : ILaunchService
         launchSettingsResolver = new LaunchSettingsResolver(systemMemoryService, modService, this.logger);
     }
 
+    /// <summary>
+    /// 执行一次完整启动并返回可观察退出结果的会话；失败统一转换为带诊断报告的异常。
+    /// </summary>
     public async Task<GameLaunchSession> LaunchAsync(
         GameInstance instance,
         LauncherAccount account,
@@ -175,6 +181,7 @@ public sealed class LaunchService : ILaunchService
         }
         catch (LaunchProcessExitedException)
         {
+            // 快速退出已经生成完整报告，保留原异常可避免再次写入重复诊断。
             throw;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -235,6 +242,9 @@ public sealed class LaunchService : ILaunchService
         }
     }
 
+    /// <summary>
+    /// 依次执行前置命令、文件检查、账户会话、语言同步和 Java 选择。
+    /// </summary>
     private async Task<PreparedLaunchRuntime> PrepareRuntimeAsync(
         GameInstance instance,
         LauncherAccount account,
@@ -244,6 +254,7 @@ public sealed class LaunchService : ILaunchService
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken)
     {
+        // 准备步骤严格早于进程构建，确保诊断上下文包含最终账户、Java 和修复结果。
         if (!string.IsNullOrWhiteSpace(resolvedSettings.PreLaunchCommand))
         {
             logger.LogInformation(
@@ -296,6 +307,7 @@ public sealed class LaunchService : ILaunchService
             resolvedSettings.VersionName,
             javaRuntime,
             resolvedSettings.MemoryMb,
+            // token 只作为诊断写入器的敏感值表传入，用于替换日志内容，不会被直接记录。
             [accountSession.AccessToken]);
         logger.LogInformation(
             "Launch account session and Java runtime prepared. InstanceId={InstanceId} JavaSelected={JavaSelected} JavaPath={JavaPath} JavaVersion={JavaVersion} JavaSource={JavaSource}",
@@ -311,6 +323,9 @@ public sealed class LaunchService : ILaunchService
         return new PreparedLaunchRuntime(accountSession, javaRuntime, diagnosticContext);
     }
 
+    /// <summary>
+    /// 构建隔离路径与 CmlLib 启动参数，挂接崩溃监控和退出命令后启动进程。
+    /// </summary>
     private async Task<StartedLaunchProcess> BuildAndStartProcessAsync(
         GameInstance instance,
         LauncherSettings settings,
@@ -390,6 +405,7 @@ public sealed class LaunchService : ILaunchService
         }
         catch (Exception exception)
         {
+            // 语言同步属于启动增强项，失败不应阻止游戏启动。
             logger.LogWarning(
                 exception,
                 "Failed to synchronize game language before launch. InstanceId={InstanceId} LauncherLanguage={LauncherLanguage}",
@@ -398,6 +414,9 @@ public sealed class LaunchService : ILaunchService
         }
     }
 
+    /// <summary>
+    /// 选择兼容 Java；仅在自动运行时缺失时安装内置运行时并重试一次。
+    /// </summary>
     private async Task<JavaRuntimeInfo?> ResolveJavaRuntimeForLaunchAsync(
         GameInstance instance,
         LauncherSettings settings,
@@ -416,6 +435,7 @@ public sealed class LaunchService : ILaunchService
         catch (JavaRuntimeSelectionException exception)
             when (javaRuntimeProvisioningService is not null && IsAutomaticJavaRuntimeDiscoveryFailure(exception.Reason))
         {
+            // 仅自动发现缺失时允许安装内置 Java 后重试；用户手动配置错误仍应直接反馈。
             logger.LogInformation(
                 exception,
                 "Automatic Java runtime selection failed. Preparing bundled Java runtime before retrying. InstanceId={InstanceId} InstanceName={InstanceName} Reason={Reason} RequiredJavaMajorVersion={RequiredJavaMajorVersion}",
@@ -444,6 +464,9 @@ public sealed class LaunchService : ILaunchService
             or JavaRuntimeSelectionFailureReason.AutomaticRuntimeNotFound;
     }
 
+    /// <summary>
+    /// 尽力写入脱敏诊断文件；诊断写入失败时仍返回可展示的最小失败报告。
+    /// </summary>
     private async Task<LaunchFailureReport> WriteFailureDiagnosticAsync(
         LaunchDiagnosticContext context,
         string failureKind,
@@ -494,6 +517,9 @@ public sealed class LaunchService : ILaunchService
         return report;
     }
 
+    /// <summary>
+    /// 等待进程退出分析结果并记录成功退出或崩溃诊断摘要。
+    /// </summary>
     private async Task<LaunchExitResult> LogGameExitAsync(
         Task<LaunchExitResult> exitTask,
         LaunchDiagnosticContext context)
@@ -615,11 +641,15 @@ public sealed class LaunchService : ILaunchService
             : runtime.Value.ToString(@"hh\:mm\:ss\.fff");
     }
 
+    /// <summary>
+    /// 脱敏自由格式启动参数中的 token、session、password 和 secret 值。
+    /// </summary>
     private static string RedactLaunchSettingText(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
             return string.Empty;
 
+        // 启动命令允许自由文本，日志前同时覆盖命令行参数和 key=value 两类常见凭据格式。
         var redacted = text.Trim();
         redacted = Regex.Replace(
             redacted,

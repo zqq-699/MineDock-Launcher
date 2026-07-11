@@ -30,6 +30,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Minecraft;
 
+/// <summary>
+/// 按下载源优先级执行请求，并统一处理并发租约、重试、源切换和“确实不存在”的查询结果。
+/// </summary>
 internal sealed class MinecraftDownloadRequestExecutor
 {
     private readonly MinecraftDownloadTransport transport;
@@ -124,6 +127,9 @@ internal sealed class MinecraftDownloadRequestExecutor
             cancellationToken);
     }
 
+    /// <summary>
+    /// 按解析后的候选源和每源重试次数执行操作，并汇总所有可恢复失败用于最终诊断。
+    /// </summary>
     private async Task<DownloadLookupResult<T>> ExecuteCoreAsync<T>(
         string originalUrl,
         DownloadSourcePreference preference,
@@ -133,6 +139,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         bool lookupMode,
         CancellationToken cancellationToken)
     {
+        // 候选顺序已经包含用户偏好和镜像回退策略；每个源内部重试耗尽后才切换下一源。
         var candidates = MinecraftDownloadSourceResolver
             .EnumerateRequests(originalUrl, preference, categoryHint)
             .ToList();
@@ -181,6 +188,7 @@ internal sealed class MinecraftDownloadRequestExecutor
                 catch (Exception exception)
                 {
                     var failure = ClassifyException(exception);
+                    // Abort 表示请求本身或本地写入不可通过换源修复；其余分类决定重试当前源还是直接换源。
                     if (failure.Disposition is DownloadFailureDisposition.Abort)
                         throw failure;
 
@@ -210,6 +218,9 @@ internal sealed class MinecraftDownloadRequestExecutor
         throw new DownloadSourceRequestException(finalResolution, finalException, failures);
     }
 
+    /// <summary>
+    /// 在并发租约内完成单次 HTTP 响应和调用方操作，并把状态码转换为统一失败类型。
+    /// </summary>
     private async Task<T> ExecuteAttemptAsync<T>(
         ResolvedDownloadRequest resolution,
         int attempt,
@@ -217,6 +228,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         Func<HttpStatusCode, bool>? noResultStatus,
         CancellationToken cancellationToken)
     {
+        // 租约覆盖响应处理，而不只是发送请求，防止大量响应体同时占用网络与磁盘。
         await using var lease = await AcquireLeaseAsync(cancellationToken).ConfigureAwait(false);
         using var response = await transport.SendAsync(resolution.ActualUrl, cancellationToken).ConfigureAwait(false);
 
@@ -291,6 +303,9 @@ internal sealed class MinecraftDownloadRequestExecutor
             statusCode: statusCode);
     }
 
+    /// <summary>
+    /// 将网络、响应体、本地文件和内容校验异常分类为终止、重试当前源或切换源。
+    /// </summary>
     private static DownloadAttemptException ClassifyException(Exception exception)
     {
         if (exception is DownloadAttemptException downloadAttemptException)

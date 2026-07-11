@@ -23,6 +23,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Application.Services;
 
+/// <summary>
+/// 以可清理的导入会话编排整合包准备、实例暂存、游戏下载、内容下载和最终提交。
+/// </summary>
 public sealed class LocalModpackImportService : ILocalModpackImportService
 {
     private readonly IModpackPackageService modpackPackageService;
@@ -78,6 +81,9 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         }
     }
 
+    /// <summary>
+    /// 执行完整整合包导入；已知失败返回业务结果，取消继续抛出，所有失败都会先清理会话资源。
+    /// </summary>
     public async Task<ModpackImportResult> ImportFromArchiveAsync(
         string archivePath,
         IProgress<LauncherProgress>? progress,
@@ -85,6 +91,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
         int downloadSpeedLimitMbPerSecond = 0)
     {
+        // 会话记录每个阶段已经取得的资源，使成功与任意失败点都能按实际进度执行对应清理。
         var importProgress = progress is null ? null : new OverallModpackImportProgress(progress);
         var session = new ModpackImportSession(importProgress);
 
@@ -139,6 +146,9 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         }
     }
 
+    /// <summary>
+    /// 解析归档并创建尚未持久化的暂存实例，为后续并行安装准备工作目录。
+    /// </summary>
     private async Task PrepareAndStageAsync(
         ModpackImportSession session,
         string archivePath,
@@ -173,6 +183,9 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         session.Progress?.Report(new LauncherProgress(ImportProgressStages.CreatingInstance, string.Empty, 100));
     }
 
+    /// <summary>
+    /// 并行安装游戏版本和下载整合包内容，任一分支失败时联动取消另一分支。
+    /// </summary>
     private async Task<IReadOnlyList<ManualModpackDownload>> InstallGameAndContentAsync(
         ModpackImportSession session,
         DownloadSourcePreference downloadSourcePreference,
@@ -181,6 +194,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
     {
         var preparedModpack = session.PreparedModpack!;
         var stagedInstance = session.StagedInstance!;
+        // 游戏安装与内容下载并行执行；任一分支失败都通过链接 CTS 尽快停止另一分支。
         using var importCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var importCancellationToken = importCancellation.Token;
 
@@ -203,6 +217,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 session.Progress,
                 importCancellationToken)
             .AsTask();
+        // 若内容下载在排队等安装租约时已经失败，不再无意义地继续占用安装队列。
         await ThrowContentFailureBeforeInstallLeaseAsync(downloadModsTask, installLeaseTask, importCancellation)
             .ConfigureAwait(false);
 
@@ -230,6 +245,9 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         return await downloadModsTask.ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 复制 overrides、写入手动下载清单并持久化最终实例，是导入的提交阶段。
+    /// </summary>
     private async Task FinalizeImportAsync(
         ModpackImportSession session,
         IReadOnlyList<ManualModpackDownload> manualDownloads,
@@ -333,6 +351,9 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         return normalizedName;
     }
 
+    /// <summary>
+    /// 内容分支在获取安装租约前失败时取消排队，并确保已取得的租约被正确释放。
+    /// </summary>
     private static async Task ThrowContentFailureBeforeInstallLeaseAsync(
         Task contentTask,
         Task<IAsyncDisposable> installLeaseTask,
@@ -354,6 +375,9 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         await contentTask.ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 等待所有并行分支；任一异常都会取消共享令牌并保留原始异常。
+    /// </summary>
     private static async Task AwaitImportBranchesAsync(
         CancellationTokenSource importCancellation,
         params Task[] tasks)
@@ -364,6 +388,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         }
         catch
         {
+            // WhenAll 不会自动取消尚未失败的分支，显式取消可缩短失败后的清理等待时间。
             SafeCancel(importCancellation);
             throw;
         }

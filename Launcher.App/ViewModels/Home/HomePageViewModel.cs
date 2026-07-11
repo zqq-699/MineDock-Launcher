@@ -32,8 +32,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.Home;
 
+/// <summary>
+/// 管理首页启动入口、启动进度和启动失败交互；实例列表与固定菜单状态委托给子 ViewModel。
+/// </summary>
 public sealed partial class HomePageViewModel : ObservableObject
 {
+    // LaunchService 负责启动业务，本类只把领域进度和异常映射为 UI 状态、弹窗与窗口行为。
     private readonly ILaunchService launchService;
     private readonly AccountPageViewModel accountPage;
     private readonly IStatusService statusService;
@@ -44,6 +48,7 @@ public sealed partial class HomePageViewModel : ObservableObject
     private readonly Func<GameInstance?, Task> openGameSettingsForInstance;
     private readonly ILogger<HomePageViewModel> logger;
     private LauncherSettings settings = new();
+    // 一个首页只允许一个活动启动会话；CTS 的存在也作为取消按钮所需的会话身份。
     private CancellationTokenSource? launchCancellationTokenSource;
 
     [ObservableProperty]
@@ -171,6 +176,7 @@ public sealed partial class HomePageViewModel : ObservableObject
 
     public void Initialize(LauncherSettings launcherSettings, GameInstance? instance)
     {
+        // 初始化顺序先设置列表策略再选实例，使子 ViewModel 能按最新固定菜单偏好构造可见项。
         settings = launcherSettings;
         LaunchGames.SetLaunchMenuPinned(launcherSettings.IsHomeLaunchMenuPinned);
         SetSelectedInstance(instance);
@@ -214,6 +220,7 @@ public sealed partial class HomePageViewModel : ObservableObject
 
     private async Task LaunchCoreAsync(LaunchRequestOptions? options, GameInstance? forcedInstance)
     {
+        // 强制启动只绕过 Java 版本要求，不绕过账户、实例或并发启动这些基本前置条件。
         var account = accountPage.SelectedAccount;
         var launchInstance = forcedInstance ?? SelectedInstance;
         if (IsLaunching || launchInstance is null || account is null)
@@ -224,6 +231,7 @@ public sealed partial class HomePageViewModel : ObservableObject
 
         try
         {
+            // BeginLaunchProgress 在调用服务前建立取消与进度状态，确保准备阶段也能响应取消。
             var cancellationTokenSource = BeginLaunchProgress();
             var session = await launchService.LaunchAsync(
                 launchInstance,
@@ -232,6 +240,7 @@ public sealed partial class HomePageViewModel : ObservableObject
                 CreateProgress(),
                 options,
                 cancellationTokenSource.Token);
+            // LaunchAsync 只保证进程已成功创建；运行期异常退出由独立观察任务继续报告。
             ObserveGameExit(session);
 
             if (ShouldMinimizeLauncherAfterLaunch(launchInstance))
@@ -253,6 +262,7 @@ public sealed partial class HomePageViewModel : ObservableObject
         }
         catch (LaunchFailedException exception)
         {
+            // Java 自动发现失败需要用户决策，其余启动失败使用统一诊断报告，避免展示底层异常文本。
             if (exception.InnerException is JavaRuntimeSelectionException javaException
                 && ShouldShowJavaRequirementDialog(javaException.Reason))
             {
@@ -292,6 +302,7 @@ public sealed partial class HomePageViewModel : ObservableObject
         }
         finally
         {
+            // 此处只结束“启动中”进度；Minecraft 进程生命周期由 GameLaunchSession 独立持有。
             ResetLaunchProgress();
         }
     }
@@ -309,6 +320,7 @@ public sealed partial class HomePageViewModel : ObservableObject
             instance?.Id,
             instance?.Name,
             instance?.VersionName);
+        // 仅发出协作式取消，清理由 LaunchService 的阶段边界和 finally 负责。
         cancellationTokenSource.Cancel();
     }
 
@@ -322,6 +334,7 @@ public sealed partial class HomePageViewModel : ObservableObject
     {
         return new Progress<LauncherProgress>(progress =>
         {
+            // Progress<T> 回到创建它的 UI 上下文；结束后的迟到进度必须丢弃，不能重新点亮进度条。
             if (!IsLaunching)
                 return;
 
@@ -361,6 +374,7 @@ public sealed partial class HomePageViewModel : ObservableObject
 
     private void LaunchGames_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // 对外属性多为子 ViewModel 投影，需要显式转发通知，否则首页 Binding 不会感知子对象变化。
         switch (e.PropertyName)
         {
             case nameof(HomeLaunchGameListViewModel.SelectedInstance):
@@ -405,6 +419,7 @@ public sealed partial class HomePageViewModel : ObservableObject
 
     private CancellationTokenSource BeginLaunchProgress()
     {
+        // 上一次会话理论上已结束，仍先释放旧 CTS，避免异常路径遗留句柄。
         launchCancellationTokenSource?.Dispose();
         launchCancellationTokenSource = new CancellationTokenSource();
         IsLaunching = true;
@@ -436,6 +451,7 @@ public sealed partial class HomePageViewModel : ObservableObject
 
     private static string FormatLaunchProgress(LauncherProgress progress)
     {
+        // 已知阶段使用本地化稳定文案；仅对扩展阶段回退到服务提供的消息。
         return progress.Stage switch
         {
             LaunchProgressStages.CheckingInstance => Strings.Status_LaunchCheckingInstance,
@@ -457,6 +473,7 @@ public sealed partial class HomePageViewModel : ObservableObject
 
     private void ObserveGameExit(GameLaunchSession session)
     {
+        // 不阻塞 UI 等待游戏退出。TryMarkExitHandled 保证启动期和运行期诊断竞态下只弹一次失败。
         _ = Task.Run(async () =>
         {
             try
@@ -483,6 +500,7 @@ public sealed partial class HomePageViewModel : ObservableObject
 
     private void ReportLaunchFailure(LaunchFailureReport report)
     {
+        // 退出观察发生在线程池，所有状态服务与事件回调都必须切回 UI 调度器。
         if (!uiDispatcher.HasAccess)
         {
             uiDispatcher.Post(() => ReportLaunchFailure(report));

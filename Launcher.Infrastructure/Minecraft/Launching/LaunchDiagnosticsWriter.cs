@@ -25,8 +25,12 @@ using Launcher.Application.Services;
 
 namespace Launcher.Infrastructure.Minecraft;
 
+/// <summary>
+/// 汇集启动异常、进程输出、日志与崩溃报告，生成经过脱敏和限长处理的诊断文件。
+/// </summary>
 internal static class LaunchDiagnosticsWriter
 {
+    // 诊断文件面向排障而非完整归档，所有外部文本进入前都必须脱敏并限制体积。
     private const int MaxDiagnosticLogFiles = 50;
     private const string DiagnosticFilePattern = "launch-diagnostics-*.log";
 
@@ -42,6 +46,7 @@ internal static class LaunchDiagnosticsWriter
         string stderr,
         CancellationToken cancellationToken)
     {
+        // 快速退出通常没有异常对象，主要依靠退出码、最新日志和崩溃文件推断原因。
         var latestLog = ReadLatestLogTail(context.MinecraftDirectory, context.InstanceDirectory, createdAt);
         var latestLogTail = latestLog.Text;
         var crashFiles = newCrashFiles
@@ -88,6 +93,7 @@ internal static class LaunchDiagnosticsWriter
         ProcessStartInfo? startInfo,
         CancellationToken cancellationToken)
     {
+        // 异常链和下载诊断是结构化证据，仍与进程日志合并到同一份用户可分享文件中。
         var createdAt = DateTimeOffset.UtcNow;
         var latestLog = ReadLatestLogTail(context.MinecraftDirectory, context.InstanceDirectory, createdAt);
         var latestLogTail = latestLog.Text;
@@ -134,6 +140,7 @@ internal static class LaunchDiagnosticsWriter
         CancellationToken cancellationToken,
         Action<StringBuilder> appendSections)
     {
+        // 写入使用单一入口以统一目录创建、命名、保留数量和失败降级行为。
         var logsDirectory = Path.Combine(context.InstanceDirectory, "logs", "launcher");
         Directory.CreateDirectory(logsDirectory);
         var diagnosticPath = Path.Combine(
@@ -166,6 +173,7 @@ internal static class LaunchDiagnosticsWriter
 
     private static void PruneOldDiagnostics(string logsDirectory)
     {
+        // 只清理启动器自己命名的诊断文件，绝不触碰 Minecraft 或 Mod 生成的其他日志。
         try
         {
             var files = Directory.GetFiles(logsDirectory, DiagnosticFilePattern, SearchOption.TopDirectoryOnly)
@@ -235,6 +243,7 @@ internal static class LaunchDiagnosticsWriter
         string instanceDirectory,
         DateTimeOffset createdAt)
     {
+        // 仅采用启动时间附近更新的 latest.log，避免把上一次游戏会话的错误误判为本次原因。
         foreach (var root in EnumerateRoots(minecraftDirectory, instanceDirectory))
         {
             var latestLogPath = Path.Combine(root, "logs", "latest.log");
@@ -262,6 +271,7 @@ internal static class LaunchDiagnosticsWriter
 
     private static IEnumerable<string> EnumerateCandidateCrashFiles(string minecraftDirectory, string instanceDirectory)
     {
+        // 隔离实例和全局目录都可能产生 crash-reports，枚举根目录时去重但保留最近文件优先级。
         foreach (var root in EnumerateRoots(minecraftDirectory, instanceDirectory))
         {
             var crashReportsDirectory = Path.Combine(root, "crash-reports");
@@ -293,6 +303,7 @@ internal static class LaunchDiagnosticsWriter
         string latestLogTail,
         IReadOnlyList<string> crashFiles)
     {
+        // 从尾部提取少量高信号错误行，完整日志路径仍写入诊断供进一步查看。
         var candidates = new List<string>();
         AddMatches(stdout);
         AddMatches(stderr);
@@ -400,6 +411,7 @@ internal static class LaunchDiagnosticsWriter
 
     private static string RedactSensitiveText(string text, IReadOnlyList<string> sensitiveValues)
     {
+        // 先替换已知 token，再处理常见命令行键值，避免访问令牌出现在可分享诊断中。
         if (string.IsNullOrWhiteSpace(text))
             return text;
 
@@ -437,6 +449,7 @@ internal static class LaunchDiagnosticsWriter
 
     private static string LimitTail(string content, int maxLines)
     {
+        // 保留尾部是因为 Java/Minecraft 通常在退出前写出最终异常和根因。
         if (string.IsNullOrWhiteSpace(content))
             return content;
 

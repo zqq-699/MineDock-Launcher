@@ -31,8 +31,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.Settings;
 
+/// <summary>
+/// 展示启动器版本与参考项目，并协调手动/启动时更新检查及自更新确认流程。
+/// </summary>
 public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
 {
+    // 检查更新与执行更新是两个独立阶段：前者可静默，后者必须经过用户确认。
     private readonly IStatusService statusService;
     private readonly IFloatingMessageService floatingMessageService;
     private readonly IExternalLinkService externalLinkService;
@@ -173,6 +177,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
 
     public void Load(LauncherSettings settings)
     {
+        // 这里只读取更新偏好和当前版本，不在设置页加载时自动发起网络请求。
         LoadState(() => SelectedUpdateChannelOption = UpdateChannelOptions.FirstOrDefault(option =>
             option.Channel == settings.UpdateChannel) ?? UpdateChannelOptions[0]);
     }
@@ -202,6 +207,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
     [RelayCommand]
     private void OpenReferenceProject(InfoReferenceProjectItem? project)
     {
+        // 外部链接统一交给服务校验和打开，ViewModel 不直接启动进程。
         if (project is null)
             return;
 
@@ -224,6 +230,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
 
     public Task CheckUpdatesOnStartupAsync()
     {
+        // 启动检查使用静默展示策略：无更新不打扰用户，有更新才打开对话框。
         return CheckUpdatesCoreAsync(UpdateCheckPresentation.StartupSilent);
     }
 
@@ -243,6 +250,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
     [RelayCommand(CanExecute = nameof(CanConfirmUpdate))]
     private async Task ConfirmUpdateAsync()
     {
+        // 自更新开始后不再允许重复确认；下载、校验、替换和退出由专用服务负责。
         if (IsStartingUpdate)
             return;
 
@@ -312,6 +320,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
 
     private async Task CheckUpdatesCoreAsync(UpdateCheckPresentation presentation)
     {
+        // 所有入口共享同一 Busy 门闩，防止手动检查与启动检查同时覆盖结果状态。
         if (isUpdateCheckRunning)
             return;
 
@@ -333,6 +342,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
 
         try
         {
+            // 远端结果必须比当前语义版本新才显示；无法解析版本时按服务提供的可用性处理。
             LauncherUpdateCheckResult result;
             try
             {
@@ -414,6 +424,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
 
     private void ShowUpdateAvailableDialog(LauncherUpdateInfo update)
     {
+        // 冻结本次更新的发布页与下载地址，弹窗打开后远端状态变化不影响用户确认目标。
         availableUpdate = update;
         UpdateDialogVersionText = update.DisplayVersion;
         UpdateDialogMessage = string.Format(Strings.Dialog_UpdateAvailableVersionFormat, update.DisplayVersion);
@@ -437,6 +448,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
 
     private bool TryOpenUpdateUrl(string? url)
     {
+        // 下载地址不可用时回退发布页，让用户仍有可操作路径而不是静默失败。
         if (string.IsNullOrWhiteSpace(url))
             return false;
 
@@ -452,6 +464,7 @@ public sealed partial class InfoSettingsViewModel : SettingsSectionViewModelBase
 
     private static string ResolveLauncherVersion()
     {
+        // 优先使用 InformationalVersion 以保留发布元数据，再回退程序集版本支持本地构建。
         var assembly = typeof(InfoSettingsViewModel).Assembly;
         var informationalVersion = assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()

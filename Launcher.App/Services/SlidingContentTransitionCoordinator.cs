@@ -23,8 +23,12 @@ using System.Windows.Media.Animation;
 
 namespace Launcher.App.Services;
 
+/// <summary>
+/// 协调双层内容页的滑动切换以及随页面显示的浮动元素淡入淡出。
+/// </summary>
 public sealed class SlidingContentTransitionCoordinator
 {
+    // token 标识当前过渡代次，旧动画结束回调不得修改新页面的可见性。
     private static readonly TimeSpan StepTransitionDuration = TimeSpan.FromMilliseconds(240);
     private static readonly TimeSpan FloatingElementFadeDuration = TimeSpan.FromMilliseconds(180);
     private const double DefaultTransitionScale = 0.985;
@@ -62,6 +66,7 @@ public sealed class SlidingContentTransitionCoordinator
 
     public void Sync(bool showSecondaryLayer)
     {
+        // Sync 用于初始状态或禁用动画场景，先停止全部动画再直接设置稳定终值。
         transitionToken++;
         isSecondaryLayerVisible = showSecondaryLayer;
 
@@ -72,6 +77,7 @@ public sealed class SlidingContentTransitionCoordinator
 
     public void AnimateTo(bool showSecondaryLayer)
     {
+        // 两层同时移动但方向相反，目标层在动画开始前可见，离开层在完成后折叠。
         if (isSecondaryLayerVisible == showSecondaryLayer)
         {
             Sync(showSecondaryLayer);
@@ -171,6 +177,7 @@ public sealed class SlidingContentTransitionCoordinator
 
     private void AnimateFloatingElements(bool showSecondaryLayer, int token)
     {
+        // 浮动元素时长独立于页面滑动，使操作按钮更快响应但仍与目标层一致。
         foreach (var element in secondaryFloatingElements)
         {
             if (showSecondaryLayer)
@@ -182,6 +189,7 @@ public sealed class SlidingContentTransitionCoordinator
 
     private void FadeFloatingElementIn(FrameworkElement element, int token)
     {
+        // 开始前清除旧 AnimationClock，并用 token 防止旧 Completed 覆盖新 Opacity。
         element.BeginAnimation(UIElement.OpacityProperty, null);
         element.Visibility = Visibility.Visible;
         element.IsHitTestVisible = true;
@@ -239,6 +247,7 @@ public sealed class SlidingContentTransitionCoordinator
 
     private LayerTransforms EnsureLayerTransforms(FrameworkElement layer)
     {
+        // 在保留模板已有 Transform 的前提下追加 Scale/Translate，并缓存本协调器创建的对象。
         if (useScaleTransition
             && Equals(layer.ReadLocalValue(UIElement.RenderTransformOriginProperty), DependencyProperty.UnsetValue))
         {

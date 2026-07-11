@@ -28,8 +28,12 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Modpacks;
 
+/// <summary>
+/// 把实例文件解析为 Modrinth mrpack 清单，并将无法映射的文件安全写入 overrides。
+/// </summary>
 internal sealed class ModrinthModpackExporter
 {
+    // 可由 Modrinth 识别的文件写入 downloads 清单，其余本地内容作为 override 保证导出完整性。
     private readonly ModpackExportCandidateCollector candidateCollector;
     private readonly ModpackExportArchiveWriter archiveWriter;
     private readonly ModrinthApiClient apiClient;
@@ -51,6 +55,7 @@ internal sealed class ModrinthModpackExporter
         ModpackExportRequest request,
         CancellationToken cancellationToken)
     {
+        // 先冻结候选与哈希，再创建目标压缩包；任何失败都清理未完成输出。
         logger.LogInformation(
             "Modrinth modpack export started. InstanceId={InstanceId} OutputArchivePath={OutputArchivePath} IncludeMods={IncludeMods} IncludeDisabledMods={IncludeDisabledMods} IncludeResourcePacks={IncludeResourcePacks} IncludeShaderPacks={IncludeShaderPacks} IncludeConfig={IncludeConfig}",
             request.Instance.Id,
@@ -63,6 +68,7 @@ internal sealed class ModrinthModpackExporter
 
         try
         {
+            // 清单和 overrides 写入同一 ZipArchive 会话，关闭归档后才报告成功。
             var candidates = await candidateCollector.CollectAsync(request, cancellationToken).ConfigureAwait(false);
             var resolvedCandidates = await CreateCandidatesAsync(candidates, cancellationToken).ConfigureAwait(false);
             var matches = await ResolveMatchesAsync(resolvedCandidates, cancellationToken).ConfigureAwait(false);
@@ -151,6 +157,7 @@ internal sealed class ModrinthModpackExporter
         IReadOnlyList<ModpackExportFileCandidate> candidates,
         CancellationToken cancellationToken)
     {
+        // 对普通文件计算双哈希，目录或不支持条目直接进入 override，不丢弃用户内容。
         var result = new List<ResolvedCandidate>(candidates.Count);
         foreach (var candidate in candidates)
         {
@@ -197,6 +204,7 @@ internal sealed class ModrinthModpackExporter
         IReadOnlyList<ResolvedCandidate> candidates,
         CancellationToken cancellationToken)
     {
+        // 哈希查询批量执行，结果以规范路径关联，防止同名不同目录文件错配。
         var hashes = candidates
             .Where(candidate => !candidate.IsOverrideOnly)
             .Select(candidate => candidate.Sha1)
@@ -246,6 +254,7 @@ internal sealed class ModrinthModpackExporter
         ModpackExportRequest request,
         IReadOnlyList<ModrinthManifestFile> files)
     {
+        // Loader 依赖与 Minecraft 版本写入 dependencies，客户端据此重建游戏基底。
         var dependencies = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["minecraft"] = request.Instance.MinecraftVersion.Trim()

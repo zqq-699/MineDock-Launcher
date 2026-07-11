@@ -24,8 +24,12 @@ using System.Windows.Media.Animation;
 
 namespace Launcher.App.Behaviors.Animation;
 
+/// <summary>
+/// 在外部目标值变化时平滑驱动 Slider，并在用户拖动期间让交互值保持绝对优先。
+/// </summary>
 public static class SliderValueAnimation
 {
+    // 附加属性保存目标、拖动和动画代次，行为状态随 Slider 一起回收。
     public static readonly DependencyProperty IsEnabledProperty =
         DependencyProperty.RegisterAttached(
             "IsEnabled",
@@ -103,6 +107,7 @@ public static class SliderValueAnimation
 
     private static void OnIsEnabledChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
     {
+        // 启用时成对注册 Loaded/Unloaded 和拖动事件，重复设置保持幂等。
         if (dependencyObject is not Slider slider)
             return;
 
@@ -144,6 +149,7 @@ public static class SliderValueAnimation
 
     private static void Slider_DragStarted(object sender, DragStartedEventArgs e)
     {
+        // 用户抓住 Thumb 时立即停止程序动画，避免两套输入同时写 Value。
         if (sender is not Slider slider)
             return;
 
@@ -154,6 +160,7 @@ public static class SliderValueAnimation
 
     private static void Slider_DragCompleted(object sender, DragCompletedEventArgs e)
     {
+        // 拖动结束以用户最终值同步 TargetValue，不能反弹到拖动前目标。
         if (sender is not Slider slider)
             return;
 
@@ -163,6 +170,7 @@ public static class SliderValueAnimation
 
     private static void Slider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
+        // 动画内部 ValueChanged 不回写目标，防止每帧产生 Binding 循环。
         if (sender is not Slider slider
             || !GetIsEnabled(slider)
             || GetIsAnimating(slider))
@@ -184,6 +192,7 @@ public static class SliderValueAnimation
 
     private static void OnTargetValueChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs e)
     {
+        // 拖动期间只记录目标但不动画，正常状态则从当前呈现值平滑接续。
         if (dependencyObject is not Slider slider || !GetIsEnabled(slider))
             return;
 
@@ -205,6 +214,7 @@ public static class SliderValueAnimation
 
     private static void AnimateToTarget(Slider slider, double targetValue)
     {
+        // 版本号使旧 Completed 回调失效，连续目标变化不会覆盖最终值。
         var currentValue = CoerceToSliderRange(slider, slider.Value);
         if (Math.Abs(currentValue - targetValue) < 0.01)
         {
@@ -261,6 +271,7 @@ public static class SliderValueAnimation
 
     private static double SnapToStep(Slider slider, double value)
     {
+        // 最终值按 TickFrequency 对齐，与 Slider 原生步进规则保持一致。
         var clamped = CoerceToSliderRange(slider, value);
         var step = slider.TickFrequency > 0
             ? slider.TickFrequency

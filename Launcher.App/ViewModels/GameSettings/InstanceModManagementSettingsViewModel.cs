@@ -30,8 +30,12 @@ using System.IO;
 
 namespace Launcher.App.ViewModels.GameSettings;
 
+/// <summary>
+/// 将本地 Mod 快照投影为可筛选、可批量选择的页面状态，并协调页面激活、文件监听和导入冲突。
+/// </summary>
 public sealed partial class InstanceModManagementSettingsViewModel : GameSettingsDetailsSectionViewModelBase
 {
+    // LocalModsViewModel 提供真实 Mod 快照和文件操作；本类负责页面筛选、选择及对话框编排。
     private readonly LocalModsViewModel localModsViewModel;
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
@@ -39,9 +43,12 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     private readonly IInstanceContentImportPathValidator importPathValidator;
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<InstanceModManagementSettingsViewModel> logger;
+    // 规范化路径索引用于跨刷新复用 Item ViewModel；多选集合也以路径而非对象引用保存身份。
     private readonly Dictionary<string, ModManagementModItemViewModel> allModsByStablePath = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> selectedModPaths = new(StringComparer.OrdinalIgnoreCase);
+    // 冲突对话框通过 TaskCompletionSource 将事件驱动 UI 转换为可顺序 await 的导入步骤。
     private TaskCompletionSource<bool>? pendingImportConflictResolutionSource;
+    // 生命周期字段用于合并重复加载、隐藏页面刷新和同一 Dispatcher 周期内的集合事件。
     private Task? loadTask;
     private GameInstance? selectedInstance;
     private string? lastSingleSelectedModPath;
@@ -50,6 +57,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     private bool isSectionActive;
     private bool suppressLocalCollectionEvents;
 
+    // 可观察属性是本地快照的 UI 投影，不直接拥有任何文件系统状态。
     [ObservableProperty]
     private int installedModCount;
 
@@ -168,8 +176,12 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         return EnsureLoadedForSelectedInstanceAsync();
     }
 
+    /// <summary>
+    /// 将页面完整切换到新实例上下文，清理旧选择、冲突请求和可见项状态。
+    /// </summary>
     public override void OnSelectedInstanceChanged(GameInstance? instance)
     {
+        // 实例引用变化意味着现有选择、冲突对话框和可见项都不再有效，必须作为一个状态边界整体重置。
         selectedInstance = instance;
         ResolvePendingImportConflict(false);
         loadTask = null;
@@ -222,6 +234,9 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         localModsViewModel.ResumeWatcherAfterInstanceRename();
     }
 
+    /// <summary>
+    /// 激活页面监听，并补做页面隐藏期间合并掉的视觉刷新。
+    /// </summary>
     public override Task OnSectionActivatedAsync()
     {
         isSectionActive = true;
@@ -347,11 +362,15 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         }
     }
 
+    /// <summary>
+    /// 校验并顺序导入一组 Mod 文件，逐项处理重名冲突并汇总部分失败结果。
+    /// </summary>
     private async Task ImportModFilesAsync(IReadOnlyList<string> paths, ImportTriggerSource source)
     {
         if (selectedInstance is null)
             return;
 
+        // 先对整个批次做类型/目录校验，避免导入一半后才发现输入中混有非法路径。
         if (!TryValidateImportPaths(paths, Strings.GameSettings_DropModsOnlyMessage, out var validationMessage))
         {
             statusService.Report(source is ImportTriggerSource.DragDrop
@@ -366,6 +385,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
             source,
             paths.Count);
 
+        // 顺序处理是有意的：每个重名文件都可能需要等待独立的用户确认。
         var successCount = 0;
         foreach (var modPath in paths)
         {
@@ -373,6 +393,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
             var overwriteExisting = false;
             if (localModsViewModel.Mods.Any(mod => string.Equals(mod.FileName, fileName, StringComparison.OrdinalIgnoreCase)))
             {
+                // 冲突判断基于当前快照；确认替换后由服务再次负责安全覆盖。
                 var replace = await RequestModImportConflictResolutionAsync(modPath, fileName);
                 if (!replace)
                 {
@@ -389,6 +410,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
             try
             {
                 var imported = await localModsViewModel.ImportModFromPathAsync(modPath, overwriteExisting, reportStatus: false);
+                // 返回 false 是可预期业务失败；停止批次以免连续产生相同失败和提示。
                 if (!imported)
                 {
                     statusService.Report(Strings.Status_LocalModImportFailed);
@@ -410,6 +432,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
             }
         }
 
+        // 单个文件状态在导入期间不重复上报，只在批次结束时给出汇总。
         if (successCount > 0)
         {
             statusService.Report(successCount == 1
@@ -643,10 +666,14 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
             item.IsSelected = false;
     }
 
+    /// <summary>
+    /// 删除路径对应的 Mod；批量操作允许部分失败，并在结束后统一刷新快照和选择状态。
+    /// </summary>
     public async Task DeleteModsAsync(IReadOnlyList<string> fullPaths)
     {
         ArgumentNullException.ThrowIfNull(fullPaths);
 
+        // 根据当前快照解析路径，自动忽略筛选/刷新后已失效的选择。
         var modsToDelete = ResolveLocalMods(fullPaths);
         if (modsToDelete.Count == 0)
         {
@@ -660,6 +687,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
             modsToDelete.Count);
         try
         {
+            // 底层逐项删除并返回失败数量，允许用户保留已成功删除的结果。
             var failedCount = await localModsViewModel.DeleteModsAsync(modsToDelete);
             ExitMultiSelectMode();
             ReportBatchOperationResult(
@@ -723,11 +751,15 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         SelectAllModsCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>
+    /// 首次加载当前实例 Mod，并把并发调用合并到同一个加载任务。
+    /// </summary>
     private async Task LoadModsAsync()
     {
         if (selectedInstance is null || !IsModManagementSupported)
             return;
 
+        // Loading 和 HasLoaded 分开表示“首次加载中”“已有结果”和“加载失败”三种状态。
         IsLoadingMods = true;
         OnPropertyChanged(nameof(InstalledSummaryText));
         RaiseAvailabilityPropertyChanges();
@@ -736,6 +768,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         {
             await localModsViewModel.RefreshModsAsync();
             HasLoadedMods = true;
+            // 隐藏页面不消费入场动画；下次激活时才触发一次完整视觉更新。
             if (isSectionActive)
                 ListEntranceAnimationToken++;
             else
@@ -781,8 +814,12 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         QueueVisibleRefresh();
     }
 
+    /// <summary>
+    /// 增量同步本地 Mod 快照到筛选列表，同时恢复单选或裁剪多选集合。
+    /// </summary>
     private void RefreshFromLocalMods()
     {
+        // 使用规范化路径复用现有 Item ViewModel，既保持选中状态，也避免刷新时重建整棵可见列表。
         var selectedStablePath = GetStableModPath(lastSingleSelectedModPath ?? SelectedMod?.FullPath);
         var filteredMods = StableFilteredItemProjection.Synchronize(
             localModsViewModel.CurrentMods,
@@ -792,9 +829,11 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
             static (item, mod) => item.SyncFrom(mod),
             MatchesSearch);
 
+        // 搜索或筛选隐藏的项目不应继续留在批量选择中。
         if (IsMultiSelectMode)
             selectedModPaths.IntersectWith(filteredMods.Select(mod => mod.FullPath));
 
+        // 同步所有缓存项的选择标志，防止离开筛选后看到过期勾选状态。
         foreach (var item in allModsByStablePath.Values)
             item.IsSelected = IsMultiSelectMode && selectedModPaths.Contains(item.FullPath);
 
@@ -815,13 +854,18 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
             return;
         }
 
+        // 单选模式按稳定路径恢复；原 Mod 消失时回退到当前第一项。
         var restoredSelection = Mods.FirstOrDefault(mod =>
             string.Equals(GetStableModPath(mod.FullPath), selectedStablePath, StringComparison.OrdinalIgnoreCase));
         SelectMod(restoredSelection ?? Mods.FirstOrDefault());
     }
 
+    /// <summary>
+    /// 将密集集合事件合并为一次 UI 调度，并按页面可见性决定立即刷新或延后。
+    /// </summary>
     private void QueueVisibleRefresh(bool playEntranceAnimation = false)
     {
+        // 合并同一 UI 循环内的多次集合事件；页面不可见时只记录一次待刷新标记。
         if (isVisibleRefreshQueued)
             return;
 
@@ -829,6 +873,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         uiDispatcher.Post(() =>
         {
             isVisibleRefreshQueued = false;
+            // 回调执行前页面可能已离开，隐藏页面只保留待刷新标志。
             if (!isSectionActive)
             {
                 hasPendingVisualRefresh = true;
@@ -971,6 +1016,9 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
                 string.Equals(GetStableModPath(mod.FullPath), stablePath, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// 执行多选批量启停并保持选择集合与重命名后的稳定路径一致。
+    /// </summary>
     private async Task SetSelectedModsEnabledAsync(bool enabled)
     {
         var selectedMods = ResolveLocalMods(selectedModPaths);
@@ -987,6 +1035,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
             enabled);
         try
         {
+            // 批量重命名会产生 watcher 事件；暂时抑制页面回调，最后主动同步一次。
             suppressLocalCollectionEvents = true;
             int failedCount;
             try
@@ -998,6 +1047,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
                 suppressLocalCollectionEvents = false;
             }
 
+            // 文件启停会改变 .disabled 后缀，因此用服务返回后的新路径重建选择集合。
             selectedModPaths.Clear();
             selectedModPaths.UnionWith(selectedMods.Select(mod => mod.FullPath));
 
@@ -1087,6 +1137,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         if (IsSameVisibleModListItems())
             return;
 
+        // ItemsControl 使用“信息面板 + 可选分区标题 + 数据项”的稳定异构结构。
         var hasListSection = localModsViewModel.CurrentMods.Count > 0;
         var items = new object[VisibleMods.Count + (hasListSection ? 2 : 1)];
         items[0] = ModManagementInfoPanelItem.Instance;
@@ -1123,8 +1174,12 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         return true;
     }
 
+    /// <summary>
+    /// 将导入重名冲突转换为可绑定对话框状态，并异步等待用户选择。
+    /// </summary>
     private async Task<bool> RequestModImportConflictResolutionAsync(string sourcePath, string fileName)
     {
+        // RunContinuationsAsynchronously 防止按钮事件处理器同步恢复导入循环并形成 UI 重入。
         pendingImportConflictResolutionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         ImportModConflictRequested?.Invoke(new ModImportConflictRequest(sourcePath, fileName));
         return await pendingImportConflictResolutionSource.Task;

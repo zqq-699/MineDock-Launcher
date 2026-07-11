@@ -27,8 +27,12 @@ using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.Download;
 
+/// <summary>
+/// 加载 Minecraft 版本目录，按类型投影可见列表，并保持分类和选中版本状态。
+/// </summary>
 public sealed partial class DownloadVersionListViewModel : ObservableObject, IDisposable
 {
+    // 全量目录只加载一次，visibleVersions 是分类过滤后的快照，ObservableCollection 保持 UI 稳定。
     public const string LocalImportCategoryId = "local_import";
     private readonly IGameVersionService gameVersionService;
     private readonly IUiDispatcher uiDispatcher;
@@ -102,6 +106,7 @@ public sealed partial class DownloadVersionListViewModel : ObservableObject, IDi
 
     public void ApplyDownloadSourcePreference(DownloadSourcePreference preference)
     {
+        // 下载源改变会使目录缓存失效，取消旧请求后按当前分类重新加载。
         if (downloadSourcePreference == preference)
             return;
 
@@ -123,6 +128,7 @@ public sealed partial class DownloadVersionListViewModel : ObservableObject, IDi
 
     public async Task EnsureVersionsLoadedAsync(CancellationToken cancellationToken = default)
     {
+        // 同时到达的确保请求共享当前加载状态，不为每次页面激活重复请求元数据。
         if (hasLoadedVersions)
             return;
 
@@ -170,6 +176,7 @@ public sealed partial class DownloadVersionListViewModel : ObservableObject, IDi
     [RelayCommand]
     private void SelectVersionCategory(DownloadVersionCategory category)
     {
+        // 分类切换只过滤本地目录；尚未加载时记录选择，加载完成后统一投影。
         if (!category.IsEnabled)
             return;
 
@@ -227,6 +234,7 @@ public sealed partial class DownloadVersionListViewModel : ObservableObject, IDi
 
     private async Task LoadVersionsAsync(CancellationTokenSource cancellation)
     {
+        // 请求 CTS 同时充当身份；即使服务忽略取消，完成后也要确认仍是当前请求。
         IsLoadingVersions = true;
         VersionLoadError = string.Empty;
         VersionEmptyMessage = string.Empty;
@@ -273,6 +281,7 @@ public sealed partial class DownloadVersionListViewModel : ObservableObject, IDi
 
     private void RequestVisibleVersionsRefresh(bool defer)
     {
+        // 搜索/分类连续变化合并到 Dispatcher 队列，避免反复 Clear/Add 阻塞 UI。
         var requestVersion = ++refreshRequestVersion;
         if (defer && uiDispatcher.HasAccess)
         {
@@ -289,6 +298,7 @@ public sealed partial class DownloadVersionListViewModel : ObservableObject, IDi
 
     private void RefreshVisibleVersions()
     {
+        // 保留仍可见的 SelectedVersion，否则显式清空，不能让安装页引用隐藏版本。
         var result = DownloadVersionFilter.Apply(
             AllVersions,
             SelectedVersionCategory,

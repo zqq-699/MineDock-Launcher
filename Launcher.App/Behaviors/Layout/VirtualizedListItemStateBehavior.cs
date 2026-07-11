@@ -29,8 +29,12 @@ using Launcher.App.Utilities;
 
 namespace Launcher.App.Behaviors;
 
+/// <summary>
+/// 为虚拟化列表的已实现容器计算相邻项状态，并在容器分批生成时协调一次性入场动画。
+/// </summary>
 public static class VirtualizedListItemStateBehavior
 {
+    // 容器可能跨多个布局周期生成，有限次数轮询兼顾首屏完整动画和计时器生命周期。
     private const int EntranceAnimationPassCount = 8;
     private static readonly TimeSpan EntranceAnimationPassInterval = TimeSpan.FromMilliseconds(45);
 
@@ -122,10 +126,12 @@ public static class VirtualizedListItemStateBehavior
 
     private sealed class ListBoxState
     {
+        // 按数据对象引用记录已播放项，因为 ListBoxItem 会被 Recycling 模式反复复用。
         private readonly HashSet<object> animatedEntranceItems = new(ReferenceEqualityComparer.Instance);
         private readonly DispatcherTimer entranceAnimationTimer;
         private ListBox? listBox;
         private ScrollViewer? scrollViewer;
+        // 刷新和动画标志把多个 WPF 事件合并为串行 Dispatcher 工作，避免重入遍历视觉树。
         private bool isStateRefreshQueued;
         private bool isEntranceAnimationPending;
         private int entranceAnimationPassesRemaining;
@@ -146,6 +152,7 @@ public static class VirtualizedListItemStateBehavior
             if (ReferenceEquals(listBox, target))
                 return;
 
+            // 先解除旧控件全部事件，即使状态对象因模板复用被错误附加也不会形成双重订阅。
             Detach();
             listBox = target;
             target.Loaded += ListBox_OnLoaded;
@@ -158,6 +165,7 @@ public static class VirtualizedListItemStateBehavior
 
         public void Detach()
         {
+            // Timer 和 ScrollViewer 不是 ListBox 自身事件，必须显式释放以免控件被引用。
             entranceAnimationTimer.Stop();
             DetachScrollViewer();
 
@@ -173,11 +181,15 @@ public static class VirtualizedListItemStateBehavior
             animatedEntranceItems.Clear();
         }
 
+        /// <summary>
+        /// 为新的动画令牌启动跨布局周期扫描，并清除上一轮已播放项集合。
+        /// </summary>
         public void QueueEntranceAnimation(int token)
         {
             if (token == observedEntranceAnimationToken)
                 return;
 
+            // 虚拟化容器会跨多个布局周期生成，因此保留多个短轮询周期来捕获首屏容器。
             observedEntranceAnimationToken = token;
             isEntranceAnimationPending = true;
             entranceAnimationPassesRemaining = EntranceAnimationPassCount;
@@ -211,6 +223,7 @@ public static class VirtualizedListItemStateBehavior
         {
             if (listBox?.ItemContainerGenerator.Status == GeneratorStatus.ContainersGenerated)
             {
+                // 新容器先进入等待状态，再在同一轮判断哪些位于可视区域并真正播放。
                 MarkEntrancePendingContainers();
                 PreparePendingEntranceAnimationStates();
             }
@@ -223,6 +236,7 @@ public static class VirtualizedListItemStateBehavior
             if (listBox is null)
                 return;
 
+            // ScrollViewer 位于控件模板内部，模板未应用前无法订阅滚动事件。
             listBox.ApplyTemplate();
             var nextScrollViewer = VisualTreeSearch.FindDescendant<ScrollViewer>(listBox, _ => true);
             if (ReferenceEquals(scrollViewer, nextScrollViewer))
@@ -248,11 +262,15 @@ public static class VirtualizedListItemStateBehavior
             QueueRenderedItemStateRefresh();
         }
 
+        /// <summary>
+        /// 合并容器生成、滚动和选择事件，在布局稳定后刷新一次已实现项状态。
+        /// </summary>
         public void QueueRenderedItemStateRefresh()
         {
             if (isStateRefreshQueued || listBox is null)
                 return;
 
+            // 滚动、选择和容器生成可能在同一帧连续触发，只需在 Loaded 优先级统一计算一次。
             isStateRefreshQueued = true;
             listBox.Dispatcher.BeginInvoke(
                 () =>
@@ -272,6 +290,7 @@ public static class VirtualizedListItemStateBehavior
                 return;
             }
 
+            // 每一轮都重新扫描，因为虚拟化面板可能刚刚补生成下一批首屏容器。
             QueueRenderedItemStateRefresh();
             entranceAnimationPassesRemaining--;
             if (entranceAnimationPassesRemaining > 0)
@@ -282,12 +301,16 @@ public static class VirtualizedListItemStateBehavior
             entranceAnimationTimer.Stop();
         }
 
+        /// <summary>
+        /// 只遍历当前已实现容器，计算首尾项、相邻高亮和动画等待状态。
+        /// </summary>
         private void RefreshRenderedItemState()
         {
             if (listBox is null)
                 return;
 
             var containers = FindRealizedContainers(listBox);
+            // 排序后的相邻关系只针对已实现容器，用于圆角/分隔线视觉而非完整数据集合。
             for (var i = 0; i < containers.Count; i++)
             {
                 var container = containers[i];
@@ -318,6 +341,9 @@ public static class VirtualizedListItemStateBehavior
             PreparePendingEntranceAnimationStates();
         }
 
+        /// <summary>
+        /// 为进入有效视口且尚未播放的数据项分配稳定的入场序号。
+        /// </summary>
         private void PreparePendingEntranceAnimationStates()
         {
             if (!isEntranceAnimationPending || listBox is null)
@@ -330,6 +356,7 @@ public static class VirtualizedListItemStateBehavior
                 if (index < 0)
                     continue;
 
+                // 按数据项身份记录播放状态，而不是按可回收容器记录，防止滚动后同一项重复入场。
                 if (container.DataContext is not { } item || animatedEntranceItems.Contains(item))
                     continue;
 
@@ -366,6 +393,7 @@ public static class VirtualizedListItemStateBehavior
             if (container.DataContext is not { } item || animatedEntranceItems.Contains(item))
                 return false;
 
+            // 未映射到数据索引的临时容器不参与动画，防止得到无效 stagger 序号。
             var index = listBox.ItemContainerGenerator.IndexFromContainer(container);
             return index >= 0 && IsContainerInUsableViewport(container);
         }
@@ -379,6 +407,9 @@ public static class VirtualizedListItemStateBehavior
                 EnsureItemState(container).IsEntranceAnimationPending = false;
         }
 
+        /// <summary>
+        /// 判断容器是否位于扣除顶部遮挡区域后的有效可视范围内。
+        /// </summary>
         private bool IsContainerInUsableViewport(ListBoxItem container)
         {
             if (scrollViewer is null || scrollViewer.ActualHeight <= 0 || listBox is null)
@@ -401,6 +432,7 @@ public static class VirtualizedListItemStateBehavior
 
         private static IReadOnlyList<ListBoxItem> FindRealizedContainers(ListBox listBox)
         {
+            // 虚拟化面板不会为未显示项创建容器，因此遍历视觉树的成本与视口大小相关。
             var containers = new List<ListBoxItem>();
             AddRealizedContainers(listBox, containers);
             containers.Sort((left, right) =>
@@ -424,6 +456,7 @@ public static class VirtualizedListItemStateBehavior
 
         private static VirtualizedListItemState EnsureItemState(ListBoxItem container)
         {
+            // 状态挂在容器 Tag 上，回收容器时会被下一次刷新完整覆盖，不依赖旧数据项。
             if (container.Tag is VirtualizedListItemState state)
                 return state;
 
@@ -434,6 +467,7 @@ public static class VirtualizedListItemStateBehavior
 
         private void HookItemButton(ListPageItemButton button)
         {
+            // 先移除再添加使重复视觉树扫描保持幂等，不会累计 MouseEnter/Leave 订阅。
             button.MouseEnter -= ItemButton_OnMouseEnter;
             button.MouseLeave -= ItemButton_OnMouseLeave;
             button.MouseEnter += ItemButton_OnMouseEnter;

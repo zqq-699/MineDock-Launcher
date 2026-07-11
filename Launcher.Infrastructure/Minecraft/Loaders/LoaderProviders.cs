@@ -29,6 +29,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Minecraft;
 
+/// <summary>
+/// 安装原版 Minecraft，并提供各 Loader 共用的 CmlLib 下载进度与启动器配置。
+/// </summary>
 public sealed class VanillaLoaderProvider : ILoaderProvider
 {
     private readonly HttpClient httpClient;
@@ -68,6 +71,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {
+        // 先生成隔离版本元数据，再交给 CmlLib 补齐文件；返回值必须是实际可启动版本名。
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
 
         var finalVersionName = await VanillaVersionComposer.CreateFinalVersionAsync(
@@ -98,6 +102,8 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         if (progress is null)
             return;
 
+        // 文件数和当前文件字节进度组合成总体百分比，并强制单调，避免 UI 进度条倒退。
+        // 高频事件可能来自多个下载线程，因此统计与节流状态统一在此锁内更新。
         var syncRoot = new object();
         var totalTasks = 0;
         var progressedTasks = 0;
@@ -204,6 +210,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         int downloadSpeedLimitMbPerSecond = 0,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null)
     {
+        // 统一注入镜像路由、限速和运行库下载器，保证 Vanilla/Fabric 使用相同下载策略。
         var parameters = MinecraftLauncherParameters.CreateDefault(path);
         var bandwidthLimiter = DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
         parameters.HttpClient = new HttpClient(new DownloadSourceRoutingHttpMessageHandler(
@@ -230,6 +237,9 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
     }
 }
 
+/// <summary>
+/// 查询并安装 Fabric Loader，并把官方元数据差异映射为稳定的可用版本语义。
+/// </summary>
 public sealed class FabricLoaderProvider : ILoaderProvider
 {
     private const string NoLoaderMessagePrefix = "Cannot find any loader for";
@@ -256,6 +266,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {
+        // 响应必须是非空数组且包含有效 loader.version，格式错误与没有结果使用不同诊断。
         var executor = new MinecraftDownloadRequestExecutor(
             httpClient,
             logger,
@@ -307,6 +318,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
     {
+        // 未指定 Loader 时选择目录首项；确定版本后再组合隔离 profile 并安装依赖。
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
         var path = new MinecraftPath(gameDirectory);
         var selectedLoaderVersion = loaderVersion;
@@ -350,6 +362,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider
 
     internal static bool IsNoAvailableVersionException(Exception exception, string minecraftVersion)
     {
+        // 兼容 CmlLib 和 HTTP 层的不同包装，遍历异常链识别明确的“不支持该版本”。
         for (Exception? current = exception; current is not null; current = current.InnerException)
         {
             if (current is HttpRequestException httpRequestException
@@ -396,6 +409,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider
 
     private static LoaderVersionInfo? ReadLoaderVersion(JsonElement item)
     {
+        // 缺少稳定版本标识的条目直接丢弃，不向 UI 暴露无法安装的空选项。
         if (!item.TryGetProperty("loader", out var loader)
             || loader.ValueKind is not JsonValueKind.Object
             || !loader.TryGetProperty("version", out var versionProperty)
@@ -416,6 +430,9 @@ public sealed class FabricLoaderProvider : ILoaderProvider
     }
 }
 
+/// <summary>
+/// 为尚未实现的 Loader 保留显式占位，使调用方得到可识别失败而不是静默回退到 Vanilla。
+/// </summary>
 public sealed class PlaceholderLoaderProvider : ILoaderProvider
 {
     public PlaceholderLoaderProvider(LoaderKind kind)

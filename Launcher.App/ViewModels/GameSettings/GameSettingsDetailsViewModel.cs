@@ -27,8 +27,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.GameSettings;
 
+/// <summary>
+/// 组合实例设置各分区，维护统一实例选择，并路由导入、删除和在线安装等跨分区事件。
+/// </summary>
 public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDisposable
 {
+    // 每个分区拥有独立状态和服务依赖；聚合层只同步实例引用与当前分区生命周期。
     private readonly InstanceSettingsPersistenceCoordinator persistence;
     private readonly ILogger logger;
 
@@ -206,6 +210,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
 
     public void SetSelectedInstance(GameSettingsInstanceItem? instance)
     {
+        // 选择变更集中应用给所有分区，避免隐藏分区仍观察上一实例目录。
         var previousInstance = SelectedInstance;
         SelectedInstance = instance;
         if (ReferenceEquals(previousInstance, instance))
@@ -224,6 +229,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
 
     public void SuspendLocalWatchersForInstanceRename()
     {
+        // 重命名会短暂移动实例目录，暂停 watcher 可避免把事务中间态解释为内容删除。
         ModManagement.SuspendLocalWatchersForInstanceRename();
         SaveManagement.SuspendLocalWatchersForInstanceRename();
         ResourcePackManagement.SuspendLocalWatchersForInstanceRename();
@@ -248,6 +254,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
 
     public GameSettingsFileDropEvaluation EvaluateImportDrop(IReadOnlyList<string> paths)
     {
+        // 由当前分区决定可接受类型，聚合层保证拖放不会路由到隐藏页面。
         if (SelectedInstance is null)
             return GameSettingsFileDropEvaluation.Hidden;
 
@@ -263,6 +270,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
 
     public Task HandleImportDropAsync(IReadOnlyList<string> paths)
     {
+        // 实际文件操作仍由对应分区服务完成，此处只选择目标流程。
         if (SelectedInstance is null)
             return Task.CompletedTask;
 
@@ -337,6 +345,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
 
     private void ApplySelectedInstanceChanged(GameSettingsInstanceItem? value)
     {
+        // 先停止旧实例观察，再切换所有子 ViewModel，最后激活当前可见分区。
         var instance = value?.Instance;
         persistence.SetInstance(instance);
         General.SetSelectedInstance(value);
@@ -355,6 +364,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
 
     private void RefreshSelectedInstanceReference(GameSettingsInstanceItem? value)
     {
+        // 保存后仓储可能返回新对象，按稳定 Id 刷新引用而不是依赖旧对象身份。
         var instance = value?.Instance;
         persistence.SetInstance(instance);
         General.SetSelectedInstance(value);
@@ -380,6 +390,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
 
     private async Task ObserveSectionActivationAsync(GameSettingsDetailsSectionViewModelBase section)
     {
+        // 激活可能异步刷新；异常只报告状态，不能让 fire-and-forget 任务失去观察。
         try
         {
             await section.OnSectionActivatedAsync();

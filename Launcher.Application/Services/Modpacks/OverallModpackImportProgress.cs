@@ -21,6 +21,9 @@ using Launcher.Domain.Models;
 
 namespace Launcher.Application.Services;
 
+/// <summary>
+/// 将多个可并行、量纲不同的导入阶段映射为单调递增的总体百分比。
+/// </summary>
 internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> innerProgress)
     : IProgress<LauncherProgress>
 {
@@ -45,18 +48,26 @@ internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> i
         innerProgress.Report(MapProgress(value));
     }
 
+    /// <summary>
+    /// 把单阶段进度映射到总体权重，并保证对外百分比单调且不提前到达 100%。
+    /// </summary>
     private LauncherProgress MapProgress(LauncherProgress value)
     {
         if (!TryUpdateBuckets(value, out var mappedPercent))
             return value;
 
+        // 99% 留给调用方在全部提交与清理完成后报告成功，阶段乱序也不能让进度倒退。
         var clampedPercent = Math.Clamp(mappedPercent, lastPercent, 99);
         lastPercent = clampedPercent;
         return value with { Percent = clampedPercent };
     }
 
+    /// <summary>
+    /// 更新进度事件对应的阶段桶；未知阶段保留调用方原始百分比。
+    /// </summary>
     private bool TryUpdateBuckets(LauncherProgress value, out double mappedPercent)
     {
+        // 每个桶只取历史最大值，允许安装和下载分支交错报告而不造成总体进度回退。
         var normalizedPercent = NormalizePercent(value.Percent, treatMissingAsComplete: IsMilestoneStage(value.Stage));
         switch (value.Stage)
         {

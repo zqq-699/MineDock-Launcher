@@ -30,8 +30,12 @@ using Launcher.App.Behaviors;
 
 namespace Launcher.App.Controls;
 
+/// <summary>
+/// 在原生 ComboBox 弹出行为之上增加方向感知动画、滚轮转发和选择展示切换。
+/// </summary>
 public class AnimatedComboBox : ComboBox
 {
+    // 打开略慢、关闭略快；动画只修改透明度和变换，避免在 Popup 独立窗口中触发布局抖动。
     private const double PopupGap = 6;
     private const double PopupShadowPadding = 14;
     private const double DefaultDropDownItemHeightEstimate = 38;
@@ -136,6 +140,7 @@ public class AnimatedComboBox : ComboBox
 
     public override void OnApplyTemplate()
     {
+        // 主题切换会重新应用模板，查找新部件前必须解除旧 Popup 和列表事件。
         DetachPopupListBox();
         DetachPopupSurface();
         DetachPopup();
@@ -163,6 +168,7 @@ public class AnimatedComboBox : ComboBox
 
     private void OnDropDownOpenChanged(object? sender, EventArgs e)
     {
+        // IsDropDownOpen 是状态源；打开和关闭分别维护自己的计时器与命中状态。
         if (IsDropDownOpen)
         {
             BeginOpenAnimation();
@@ -174,6 +180,7 @@ public class AnimatedComboBox : ComboBox
 
     private void BeginOpenAnimation()
     {
+        // 先计算 Popup 实际位于控件上方还是下方，再从相应方向进入。
         closeTimer?.Stop();
         IsDropDownClosing = false;
         EnsurePopupTransforms();
@@ -189,6 +196,7 @@ public class AnimatedComboBox : ComboBox
 
         IsPopupOpen = true;
 
+        // Popup 的视觉树要到下一次调度才具有可靠尺寸，延迟一拍后再启动动画。
         Dispatcher.BeginInvoke(() =>
         {
             if (popupSurface is null)
@@ -214,6 +222,7 @@ public class AnimatedComboBox : ComboBox
 
     private void BeginCloseAnimation()
     {
+        // 关闭期间暂时保留 Popup 表面用于播放退场，计时结束后再回到完全关闭状态。
         if (!IsPopupOpen)
             return;
 
@@ -252,6 +261,7 @@ public class AnimatedComboBox : ComboBox
 
     private void EnsurePopupTransforms()
     {
+        // 复用模板表面的 TransformGroup，不覆盖主题可能已经设置的其他变换。
         if (popupSurface is null)
             return;
 
@@ -291,6 +301,7 @@ public class AnimatedComboBox : ComboBox
 
     private void UpdatePopupPlacement()
     {
+        // WPF 会按屏幕空间自动翻转 Popup，因此根据屏幕坐标判断真实展开方向。
         if (popup is null)
             return;
 
@@ -313,6 +324,7 @@ public class AnimatedComboBox : ComboBox
 
     private double GetPopupHeightEstimate()
     {
+        // 首次展开前 ActualHeight 为零，使用条目高度和 MaxDropDownHeight 给动画原点一个稳定估值。
         var maxHeight = double.IsNaN(MaxDropDownHeight) || MaxDropDownHeight <= 0 ? 260 : MaxDropDownHeight;
         if (Items.Count <= 0)
             return maxHeight;
@@ -338,6 +350,7 @@ public class AnimatedComboBox : ComboBox
 
     private void AttachPopupListBox()
     {
+        // Popup 内容可能延迟生成，附加方法保持幂等，允许在模板应用和 Opened 时重复调用。
         if (popupListBox is null)
             return;
 
@@ -408,6 +421,7 @@ public class AnimatedComboBox : ComboBox
 
     private void PopupListBox_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        // 在预览阶段开始关闭，避免默认选择行为先销毁 Popup 导致退场动画丢失。
         if (!IsDropDownOpen || sender is not ListBox listBox || e.OriginalSource is not DependencyObject source)
             return;
 
@@ -429,6 +443,7 @@ public class AnimatedComboBox : ComboBox
 
     private void PopupDropDown_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
+        // Popup 是独立窗口，滚轮事件不会自然路由到宿主控件，需要显式交给内部列表滚动。
         if (!IsPopupOpen || popupListBox is null)
             return;
 
@@ -437,6 +452,7 @@ public class AnimatedComboBox : ComboBox
 
     private void Owner_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
+        // 光标位于 Popup 时阻止背景页面随滚轮移动，保持下拉列表是唯一滚动目标。
         if (!IsPopupOpen)
             return;
 
@@ -493,6 +509,7 @@ public class AnimatedComboBox : ComboBox
 
     private void UpdateSelectionPresenterMode()
     {
+        // 打开列表时隐藏模板中的重复选择展示，关闭后再恢复紧凑的单项展示。
         if (selectionTextBlock is null || selectionContentPresenter is null)
             return;
 
@@ -503,6 +520,7 @@ public class AnimatedComboBox : ComboBox
 
     private void StopPopupScrollAnimation()
     {
+        // Popup 关闭或模板替换时停止旧 ScrollViewer 动画，避免动画时钟继续持有视觉对象。
         if (popupListBox is null)
             return;
 

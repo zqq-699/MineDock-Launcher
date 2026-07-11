@@ -29,8 +29,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.FileSystem;
 
+/// <summary>
+/// 管理实例 resourcepacks 目录的枚举、导入、删除和 pack.png 图标缓存。
+/// </summary>
 public sealed class LocalResourcePackService : ILocalResourcePackService
 {
+    // 资源包可以是 zip 或目录；删除和导入必须按实际类型选择文件系统操作。
     private const string SupportedArchiveExtension = ".zip";
     private readonly LauncherPathProvider pathProvider;
     private readonly ILogger<LocalResourcePackService> logger;
@@ -49,6 +53,7 @@ public sealed class LocalResourcePackService : ILocalResourcePackService
         GameInstance instance,
         CancellationToken cancellationToken = default)
     {
+        // 目录扫描在线程池执行，单个损坏包的图标读取失败不影响其余列表。
         ArgumentNullException.ThrowIfNull(instance);
 
         return Task.Run<IReadOnlyList<LocalResourcePack>>(
@@ -141,6 +146,7 @@ public sealed class LocalResourcePackService : ILocalResourcePackService
         string archivePath,
         CancellationToken cancellationToken)
     {
+        // 同名目标使用唯一名称而非覆盖，避免导入操作破坏用户已有资源包。
         cancellationToken.ThrowIfCancellationRequested();
 
         var normalizedArchivePath = Path.GetFullPath(archivePath);
@@ -231,6 +237,7 @@ public sealed class LocalResourcePackService : ILocalResourcePackService
 
     private string? TryGetCachedIconSource(FileInfo archiveFile)
     {
+        // 缓存键包含归档修改信息和图标条目，包更新后自然生成新缓存而不会复用旧图。
         try
         {
             using var archive = ZipFile.OpenRead(archiveFile.FullName);
@@ -280,6 +287,7 @@ public sealed class LocalResourcePackService : ILocalResourcePackService
 
     private static BitmapSource LoadBitmap(Stream source)
     {
+        // OnLoad 将像素完全读入内存，关闭 zip 后 UI 仍可安全使用缓存图像。
         using var buffer = new MemoryStream();
         source.CopyTo(buffer);
         buffer.Position = 0;

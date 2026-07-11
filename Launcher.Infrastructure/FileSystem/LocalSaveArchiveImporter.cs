@@ -27,6 +27,9 @@ using SharpCompress.Common;
 
 namespace Launcher.Infrastructure.FileSystem;
 
+/// <summary>
+/// 验证并导入多种压缩格式的 Minecraft 存档，同时限制解压路径和清理失败的半成品目录。
+/// </summary>
 internal sealed class LocalSaveArchiveImporter
 {
     private const string DefaultImportedSaveDirectoryName = "Imported Save";
@@ -51,6 +54,9 @@ internal sealed class LocalSaveArchiveImporter
         this.logger = logger;
     }
 
+    /// <summary>
+    /// 校验归档路径和格式，将可预期失败转换为用户可处理的导入失败原因。
+    /// </summary>
     public LocalSaveImportResult Import(
         string instanceId,
         string savesDirectory,
@@ -128,6 +134,9 @@ internal sealed class LocalSaveArchiveImporter
         }
     }
 
+    /// <summary>
+    /// 识别存档根目录、创建唯一目标目录并执行失败后可清理的解压。
+    /// </summary>
     private LocalSaveImportResult ImportValidatedArchive(
         string instanceId,
         string savesDirectory,
@@ -145,6 +154,7 @@ internal sealed class LocalSaveArchiveImporter
             return LocalSaveImportResult.Failure(LocalSaveImportFailureReason.InvalidMinecraftSaveArchive);
         }
 
+        // 仅接受 level.dat 位于根目录或唯一顶层目录的结构，避免把任意压缩包误当作存档。
         var archiveRoot = ResolveSaveArchiveRoot(entries);
         if (archiveRoot is null)
         {
@@ -174,6 +184,7 @@ internal sealed class LocalSaveArchiveImporter
         }
         catch
         {
+            // 取消和解压异常都不能留下一个看似有效但内容不完整的存档目录。
             SafeDeleteDirectory(targetSaveDirectory);
             throw;
         }
@@ -306,6 +317,9 @@ internal sealed class LocalSaveArchiveImporter
             || archivePath.EndsWith(".tgz", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 接受根目录 level.dat 或唯一顶层目录下的 level.dat，并返回需要剥离的归档根。
+    /// </summary>
     private static string? ResolveSaveArchiveRoot(IReadOnlyList<ArchiveEntryDescriptor> entries)
     {
         if (entries.Any(entry => string.Equals(entry.NormalizedPath, "level.dat", StringComparison.OrdinalIgnoreCase)))
@@ -338,6 +352,9 @@ internal sealed class LocalSaveArchiveImporter
             : string.Empty;
     }
 
+    /// <summary>
+    /// 将单个归档条目复制到已验证目标路径，并在循环中响应取消。
+    /// </summary>
     private static void ExtractEntry(
         Stream sourceStream,
         string targetDirectory,
@@ -363,8 +380,12 @@ internal sealed class LocalSaveArchiveImporter
         }
     }
 
+    /// <summary>
+    /// 规范化归档相对路径，并拒绝任何逃逸出目标根目录的结果。
+    /// </summary>
     private static string GetValidatedTargetPath(string targetDirectory, string relativePath)
     {
+        // Path.GetFullPath 会解析 .. 与绝对路径；最终结果必须仍位于目标根目录内以阻止 Zip Slip。
         var normalizedRoot = Path.GetFullPath(targetDirectory);
         var fullPath = Path.GetFullPath(Path.Combine(normalizedRoot, relativePath));
         var comparisonRoot = normalizedRoot.EndsWith(Path.DirectorySeparatorChar)

@@ -22,8 +22,12 @@ using System.Text.Json.Nodes;
 
 namespace Launcher.Infrastructure.Minecraft;
 
+/// <summary>
+/// 按 Minecraft 版本继承语义合并父子 JSON，并规范化新旧两代启动参数格式。
+/// </summary>
 internal static class VersionJsonMergeHelper
 {
+    // 这些命令行选项只能保留一个最终值，规范化时采用最后出现的声明。
     private static readonly HashSet<string> SingleValueMinecraftArgumentOptions = new(StringComparer.OrdinalIgnoreCase)
     {
         "--username",
@@ -46,6 +50,7 @@ internal static class VersionJsonMergeHelper
         string versionName,
         string? minecraftVersion = null)
     {
+        // 从父版本深拷贝开始，普通属性由派生版本覆盖，集合按各自协议规则处理。
         var mergedVersion = (JsonObject)baseVersion.DeepClone();
 
         foreach (var property in derivedVersion)
@@ -86,6 +91,7 @@ internal static class VersionJsonMergeHelper
 
     public static JsonArray MergeLibraries(JsonArray? baseLibraries, JsonArray? derivedLibraries)
     {
+        // 以 Maven name 作为身份并保留首次声明，避免继承链重复下载同一坐标。
         var mergedLibraries = new JsonArray();
         var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -120,6 +126,7 @@ internal static class VersionJsonMergeHelper
 
     public static JsonObject MergeArguments(JsonObject? baseArguments, JsonObject? derivedArguments)
     {
+        // game/jvm 数组按父后子拼接，带 rules 的对象保持原结构而不是转成字符串。
         var mergedArguments = baseArguments is null
             ? new JsonObject()
             : (JsonObject)baseArguments.DeepClone();
@@ -156,6 +163,7 @@ internal static class VersionJsonMergeHelper
 
     public static string MergeMinecraftArguments(string? baseArguments, string? derivedArguments)
     {
+        // 旧格式先拼接父子命令行，再由 Normalize 移除被派生值覆盖的单值选项。
         if (string.IsNullOrWhiteSpace(baseArguments))
             return NormalizeMinecraftArguments(derivedArguments);
 
@@ -167,6 +175,7 @@ internal static class VersionJsonMergeHelper
 
     public static string NormalizeMinecraftArguments(string? arguments)
     {
+        // 先做保引号切词，再从右向左意义上保留单值选项最后一次出现的位置。
         if (string.IsNullOrWhiteSpace(arguments))
             return string.Empty;
 
@@ -264,6 +273,7 @@ internal static class VersionJsonMergeHelper
 
     private static IReadOnlyList<string> SplitCommandLine(string commandLine)
     {
+        // 只实现版本元数据所需的引号和转义子集，避免含空格参数被粗暴拆散。
         var tokens = new List<string>();
         var current = new StringBuilder();
         var inQuotes = false;

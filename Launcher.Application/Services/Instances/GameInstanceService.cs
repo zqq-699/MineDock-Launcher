@@ -26,6 +26,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Application.Services;
 
+/// <summary>
+/// 以磁盘中实际安装的版本为准同步实例清单，并协调实例元数据、默认实例与版本目录操作。
+/// </summary>
 public sealed class GameInstanceService : IGameInstanceService
 {
     private readonly ISettingsService settingsService;
@@ -84,11 +87,15 @@ public sealed class GameInstanceService : IGameInstanceService
         return instances;
     }
 
+    /// <summary>
+    /// 合并持久化实例与磁盘版本发现结果，并在必要时修正实例清单和默认实例。
+    /// </summary>
     private async Task<IReadOnlyList<GameInstance>> GetInstancesCoreAsync(
         LauncherSettings settings,
         CancellationToken cancellationToken)
     {
         var storedInstances = (await repository.GetAllAsync(cancellationToken).ConfigureAwait(false)).ToList();
+        // 安装中的目录可能只包含半成品元数据，完成前不能被发现流程持久化为正式实例。
         var installedVersions = (await repository
             .DiscoverInstalledVersionsAsync(settings.MinecraftDirectory, cancellationToken)
             .ConfigureAwait(false))
@@ -178,6 +185,9 @@ public sealed class GameInstanceService : IGameInstanceService
         logger.LogInformation("Game instance saved. InstanceId={InstanceId} VersionName={VersionName}", instance.Id, instance.VersionName);
     }
 
+    /// <summary>
+    /// 校验实例新名称，事务性重命名版本目录，再提交实例元数据和图标变化。
+    /// </summary>
     public async Task<GameInstance> RenameInstanceAsync(
         string instanceId,
         string? newName,
@@ -213,6 +223,7 @@ public sealed class GameInstanceService : IGameInstanceService
 
         if (!string.Equals(currentVersionName, sanitizedName, StringComparison.OrdinalIgnoreCase))
         {
+            // 先完成目录及版本 JSON 的事务性重命名，再更新内存模型，失败时不会保存失配路径。
             var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
             await repository.RenameVersionAsync(
                 settings.MinecraftDirectory,
@@ -264,6 +275,9 @@ public sealed class GameInstanceService : IGameInstanceService
         return true;
     }
 
+    /// <summary>
+    /// 删除实例目录和持久化记录；若删除默认实例，同时选择新的默认项。
+    /// </summary>
     public async Task<bool> DeleteInstanceAsync(string instanceId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(instanceId))
@@ -303,12 +317,16 @@ public sealed class GameInstanceService : IGameInstanceService
             || string.Equals(instance.VersionName, versionName, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// 保留仍存在或正在安装的已存实例，补充新发现版本，并移除失效或重复记录。
+    /// </summary>
     private List<GameInstance> SynchronizeInstalledInstances(
         List<GameInstance> instances,
         IReadOnlyList<InstalledGameVersion> installedVersions,
         LauncherSettings settings,
         out bool changed)
     {
+        // 已存实例保留用户配置，但必须能匹配实际版本目录；未登记目录则生成稳定 ID 的发现实例。
         changed = false;
         var syncedInstances = new List<GameInstance>();
         var seenVersions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -323,6 +341,7 @@ public sealed class GameInstanceService : IGameInstanceService
             if (!string.IsNullOrWhiteSpace(versionName)
                 && IsInstallingVersion(settings.MinecraftDirectory, versionName))
             {
+                // 安装租约存在时保留原记录，即使磁盘元数据暂时不可读，也不能把实例当作已删除。
                 if (seenVersions.Add(versionName))
                     syncedInstances.Add(instance);
 
@@ -383,6 +402,9 @@ public sealed class GameInstanceService : IGameInstanceService
         };
     }
 
+    /// <summary>
+    /// 用磁盘发现的权威版本信息更新实例，同时保留名称、图标等用户配置。
+    /// </summary>
     private static bool ApplyInstalledVersion(GameInstance instance, InstalledGameVersion installedVersion)
     {
         var changed = false;

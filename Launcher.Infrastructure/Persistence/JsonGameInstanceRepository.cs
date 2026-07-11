@@ -33,6 +33,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Persistence;
 
+/// <summary>
+/// 持久化实例设置，并从 Minecraft 版本目录的多种历史元数据格式中发现已安装实例。
+/// </summary>
 public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 {
     private readonly ISettingsService settingsService;
@@ -62,10 +65,14 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         return await GetAllAsync(settings.MinecraftDirectory, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 在仓库 I/O 锁内读取指定 Minecraft 目录的实例设置快照。
+    /// </summary>
     public async Task<IReadOnlyList<GameInstance>> GetAllAsync(
         string minecraftDirectory,
         CancellationToken cancellationToken = default)
     {
+        // 读取与保存共享同一锁，避免保存期间读取到被替换中的实例设置文件。
         await ioLock.WaitAsync(cancellationToken);
         try
         {
@@ -83,6 +90,9 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         }
     }
 
+    /// <summary>
+    /// 串行保存实例集合，避免并发读取或写入观察到不完整状态。
+    /// </summary>
     public async Task SaveAllAsync(IReadOnlyCollection<GameInstance> instances, CancellationToken cancellationToken = default)
     {
         var settings = await settingsService.LoadAsync(cancellationToken);
@@ -164,6 +174,9 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 
 }
 
+/// <summary>
+/// 以确定性的回退顺序识别官方、旧版及第三方 Loader 生成的版本元数据。
+/// </summary>
 internal sealed class InstalledVersionMetadataReader(ILogger logger)
 {
     private const string LauncherDirectoryName = LauncherApplicationIdentity.StorageDirectoryName;
@@ -175,6 +188,9 @@ internal sealed class InstalledVersionMetadataReader(ILogger logger)
         "(?<version>(?:[1-9][0-9]w[0-9]{2}[a-z])|(?:(?:1|[2-9][0-9])\\.[0-9]+(?:\\.[0-9]+)?(?:-(?:pre|rc|snapshot-?)[0-9]+| Pre-Release [0-9]+)?)|(?:[ab][0-9]\\.[0-9]+(?:\\.[0-9]+)?))",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
+    /// <summary>
+    /// 枚举 versions 目录，容错读取每个版本并转换为统一的已安装版本模型。
+    /// </summary>
     public Task<IReadOnlyList<InstalledGameVersion>> DiscoverAsync(
         string minecraftDirectory,
         CancellationToken cancellationToken)
@@ -234,6 +250,9 @@ internal sealed class InstalledVersionMetadataReader(ILogger logger)
         }
     }
 
+    /// <summary>
+    /// 读取一个候选版本 JSON，并提取后续兼容识别所需的全部信号；损坏文件返回空。
+    /// </summary>
     private static VersionJsonMetadata? TryReadVersionMetadata(
         string versionDirectory,
         string versionName,
@@ -281,11 +300,15 @@ internal sealed class InstalledVersionMetadataReader(ILogger logger)
         }
     }
 
+    /// <summary>
+    /// 以同名文件、唯一候选、唯一 id 匹配、唯一文件名匹配的顺序选择版本 JSON。
+    /// </summary>
     private static string? TryResolveVersionJsonPath(
         string versionDirectory,
         string versionName,
         ILogger? logger)
     {
+        // 标准同名 JSON 优先；非标准目录只有在候选可唯一确定时才接受，避免误认辅助配置文件。
         var versionJsonPath = Path.Combine(versionDirectory, $"{versionName}.json");
         if (File.Exists(versionJsonPath))
             return versionJsonPath;
@@ -405,11 +428,15 @@ internal sealed class InstalledVersionMetadataReader(ILogger logger)
         }
     }
 
+    /// <summary>
+    /// 按可靠性顺序从显式元数据、继承链、库坐标、名称和 JAR 中解析 Minecraft 版本。
+    /// </summary>
     private static string ResolveMinecraftVersion(
         VersionJsonMetadata metadata,
         string minecraftDirectory,
         HashSet<string> visitedVersions)
     {
+        // 显式 Launcher 元数据最可靠，其次递归继承和协议字段，文件名/JAR 扫描仅作为兼容兜底。
         return FirstNonEmpty(
             metadata.LauncherMinecraftVersion,
             metadata.ClientMinecraftVersion,
@@ -424,6 +451,9 @@ internal sealed class InstalledVersionMetadataReader(ILogger logger)
             metadata.JarMinecraftVersion);
     }
 
+    /// <summary>
+    /// 递归解析 inheritsFrom 链，并用访问集合防止损坏元数据形成循环。
+    /// </summary>
     private static string ResolveInheritedMinecraftVersion(
         VersionJsonMetadata metadata,
         string minecraftDirectory,
@@ -495,8 +525,12 @@ internal sealed class InstalledVersionMetadataReader(ILogger logger)
             : TryReadInheritedVersionType(minecraftDirectory, metadata.InheritsFrom, visitedVersions);
     }
 
+    /// <summary>
+    /// 综合 Maven 坐标、主类、参数和版本名称识别 Loader 类型及版本。
+    /// </summary>
     private static LoaderInfo ResolveLoader(VersionJsonMetadata metadata)
     {
+        // Maven 坐标能提供最准确的 Loader 与版本；文本特征只补偿缺失或旧格式元数据。
         LoaderInfo? hintedLoader = null;
         foreach (var libraryName in metadata.LibraryNames)
         {

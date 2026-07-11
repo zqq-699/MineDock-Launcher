@@ -33,8 +33,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.Shell;
 
+/// <summary>
+/// 管理主窗口导航、全局对话框和浮动消息，并通过会话协调器连接各功能页面。
+/// </summary>
 public sealed partial class MainViewModel : ObservableObject
 {
+    // Shell 只拥有跨页面 UI 状态，实例、下载、账户和设置业务仍由各自 ViewModel/Service 负责。
     private static readonly TimeSpan FloatingMessageDuration = TimeSpan.FromSeconds(2.2);
 
     private readonly ISettingsService settingsService;
@@ -160,6 +164,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public async Task PrimeAsync(LauncherSettings? initialSettings = null)
     {
+        // Prime 使用已加载设置建立首屏，完整异步初始化随后执行，缩短窗口首次可见时间。
         if (hasPrimedSettings)
             return;
 
@@ -175,6 +180,7 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     public async Task InitializeAsync()
     {
+        // SessionCoordinator 统一初始化共享状态，Shell 不自行重复加载实例或版本目录。
         await PrimeAsync();
         await AccountPage.InitializeAsync(Settings);
         await sessionCoordinator.InitializeAsync();
@@ -192,6 +198,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void SelectNavigationItem(NavigationItem item)
     {
+        // 主、次导航项共享一个选中事实，切换后同步两组稳定对象的选中标记。
         var targetPage = item.Loader is LoaderKind
             ? NavigationCatalog.DownloadPage
             : item.Page;
@@ -245,6 +252,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool CanCloseWindow()
     {
+        // 活动下载存在时显示确认对话框并取消本次关闭，避免窗口退出中断写入。
         if (isCloseConfirmed || !DownloadTasksPage.HasRunningTasks)
             return true;
 
@@ -285,6 +293,7 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private Task OpenJavaSettingsFromRequirementDialogAsync()
     {
+        // 先关闭要求弹窗再导航，避免模态遮罩留在 Java 设置页上方。
         var targetInstance = pendingJavaRequirementInstance;
         IsJavaRequirementDialogOpen = false;
         IsJavaRequirementForceLaunchAvailable = false;
@@ -309,6 +318,7 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task ForceLaunchFromJavaRequirementDialogAsync()
     {
+        // 强制启动只绕过 Java 要求，仍由首页执行完整账户、实例和并发校验。
         var targetInstance = pendingJavaRequirementInstance;
         IsJavaRequirementDialogOpen = false;
         IsJavaRequirementForceLaunchAvailable = false;
@@ -348,6 +358,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void UpdateNavigationSelection()
     {
+        // 原地更新稳定导航对象可保留控件动画、焦点和外部引用。
         foreach (var item in NavigationItems)
             item.IsSelected = NavigationCatalog.IsPage(item.Page, CurrentPage);
 
@@ -397,6 +408,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void HomePage_LaunchFailureReported(object? sender, LaunchFailureReport report)
     {
+        // Shell 只承载诊断弹窗，错误分类和脱敏内容已由启动服务准备。
         if (!uiDispatcher.HasAccess)
         {
             uiDispatcher.Post(() => HomePage_LaunchFailureReported(sender, report));
@@ -425,6 +437,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void ShowFloatingMessage(string message)
     {
+        // 新消息取消上一轮隐藏计时器，让快速连续提示从最后一次显示重新计时。
         if (!uiDispatcher.HasAccess)
         {
             uiDispatcher.Post(() => ShowFloatingMessage(message));
@@ -473,6 +486,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void ObserveShellTask(Task task, string operation)
     {
+        // WPF 事件不能直接等待 Task，统一观察以避免导航事件产生未观察异常。
         _ = ObserveShellTaskAsync(task, operation);
     }
 

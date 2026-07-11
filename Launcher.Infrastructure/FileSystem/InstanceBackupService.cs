@@ -27,6 +27,9 @@ using System.Text.Json;
 
 namespace Launcher.Infrastructure.FileSystem;
 
+/// <summary>
+/// 通过临时归档和暂存目录创建、删除及恢复实例备份，避免失败时破坏现有实例。
+/// </summary>
 public sealed class InstanceBackupService : IInstanceBackupService
 {
     private const string ManifestFileName = "launcher-backups.json";
@@ -109,6 +112,9 @@ public sealed class InstanceBackupService : IInstanceBackupService
             cancellationToken);
     }
 
+    /// <summary>
+    /// 在备份目录生成临时 ZIP，原子提交后更新清单；失败时删除所有半成品。
+    /// </summary>
     public Task<InstanceBackupRecord> CreateBackupAsync(
         GameInstance instance,
         string backupDirectory,
@@ -156,6 +162,7 @@ public sealed class InstanceBackupService : IInstanceBackupService
                 var sanitizedBackupName = NormalizeBackupName(backupName);
                 var fileName = ResolveUniqueBackupFileName(normalizedBackupDirectory, records, sanitizedBackupName);
                 var finalPath = Path.Combine(normalizedBackupDirectory, fileName);
+                // 先生成临时归档，成功移动为最终文件后才更新清单，清单不会指向半成品。
                 var tempPath = Path.Combine(normalizedBackupDirectory, $".{fileName}.{Guid.NewGuid():N}.tmp");
 
                 try
@@ -196,6 +203,9 @@ public sealed class InstanceBackupService : IInstanceBackupService
             cancellationToken);
     }
 
+    /// <summary>
+    /// 仅允许删除备份根目录内的文件，并同步移除清单记录。
+    /// </summary>
     public Task DeleteBackupAsync(
         string backupDirectory,
         string backupFullPath,
@@ -253,6 +263,9 @@ public sealed class InstanceBackupService : IInstanceBackupService
             cancellationToken);
     }
 
+    /// <summary>
+    /// 在同级暂存目录解压并交换实例目录，交换失败时恢复原实例。
+    /// </summary>
     public Task RestoreBackupAsync(
         GameInstance instance,
         string backupDirectory,
@@ -294,6 +307,7 @@ public sealed class InstanceBackupService : IInstanceBackupService
                     ?? throw new InvalidOperationException("Instance directory must have a parent directory.");
                 Directory.CreateDirectory(instanceParentDirectory);
 
+                // 在实例同级目录完成解压和目录交换，确保移动可回滚且不跨卷复制。
                 var stagingDirectory = Path.Combine(instanceParentDirectory, $".launcher-restore-{Guid.NewGuid():N}");
                 var extractDirectory = Path.Combine(stagingDirectory, "extract");
                 var previousDirectory = Path.Combine(stagingDirectory, "previous");
@@ -338,6 +352,7 @@ public sealed class InstanceBackupService : IInstanceBackupService
                         && Directory.Exists(previousDirectory)
                         && !Directory.Exists(normalizedInstanceDirectory))
                     {
+                        // 只有新目录尚未就位时才恢复旧目录，避免覆盖已经成功替换的实例。
                         Directory.Move(previousDirectory, normalizedInstanceDirectory);
                     }
 
@@ -408,6 +423,9 @@ public sealed class InstanceBackupService : IInstanceBackupService
         await JsonSerializer.SerializeAsync(stream, records, JsonOptions, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 规范化清单路径并剔除越界、重复或实际文件已缺失的记录。
+    /// </summary>
     private static List<InstanceBackupRecord> NormalizeAndFilterRecords(
         string backupDirectory,
         IEnumerable<InstanceBackupRecord> records)
@@ -465,6 +483,9 @@ public sealed class InstanceBackupService : IInstanceBackupService
         return string.IsNullOrWhiteSpace(sanitized) ? "Backup" : sanitized;
     }
 
+    /// <summary>
+    /// 将实例目录写入带单一根目录的 ZIP，并逐文件检查取消。
+    /// </summary>
     private static void CreateInstanceZip(
         string instanceDirectory,
         string instanceName,

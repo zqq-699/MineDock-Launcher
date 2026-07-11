@@ -24,6 +24,9 @@ using System.Security.Cryptography;
 
 namespace Launcher.Infrastructure.Minecraft;
 
+/// <summary>
+/// 将响应写入同目录临时文件，验证长度与哈希后再原子替换正式下载目标。
+/// </summary>
 internal static class MinecraftDownloadFileWriter
 {
     private const int DownloadBufferSize = 81920;
@@ -35,6 +38,9 @@ internal static class MinecraftDownloadFileWriter
             ?? throw new InvalidOperationException($"Download destination has no parent directory: {destinationPath}"));
     }
 
+    /// <summary>
+    /// 流式写入响应、持续报告进度，并在完整性验证成功后提交临时文件。
+    /// </summary>
     public static async Task WriteAsync(
         HttpResponseMessage response,
         string destinationPath,
@@ -45,6 +51,7 @@ internal static class MinecraftDownloadFileWriter
         Action<int, long, long?>? reportAttemptProgress,
         CancellationToken cancellationToken)
     {
+        // 临时文件与目标位于同一目录，最终 Move 不跨卷且失败前不会破坏已有文件。
         var tempPath = Path.Combine(
             Path.GetDirectoryName(destinationPath)!,
             $".{Path.GetFileName(destinationPath)}.{Guid.NewGuid():N}.tmp");
@@ -80,6 +87,7 @@ internal static class MinecraftDownloadFileWriter
                 ArrayPool<byte>.Shared.Return(buffer);
             }
 
+            // 必须在提交前完成落盘、长度和哈希验证；任何失败都只清理临时文件。
             await FlushAndCloseAsync(destination, tempPath, cancellationToken).ConfigureAwait(false);
             ValidateLength(response, expectedSize, totalRead);
             ValidateHash(destinationPath, expectedSha1, sha1);
@@ -93,6 +101,9 @@ internal static class MinecraftDownloadFileWriter
         }
     }
 
+    /// <summary>
+    /// 读取响应体并区分用户取消与可重试的网络中断。
+    /// </summary>
     private static async Task<int> ReadNetworkAsync(
         Stream source,
         byte[] buffer,
@@ -156,6 +167,9 @@ internal static class MinecraftDownloadFileWriter
         }
     }
 
+    /// <summary>
+    /// 使用请求期望大小或 Content-Length 检测被静默截断的响应体。
+    /// </summary>
     private static void ValidateLength(
         HttpResponseMessage response,
         long? expectedSize,
@@ -171,6 +185,9 @@ internal static class MinecraftDownloadFileWriter
         }
     }
 
+    /// <summary>
+    /// 在启用 SHA-1 校验时比较流式计算结果并拒绝内容错误的文件。
+    /// </summary>
     private static void ValidateHash(
         string destinationPath,
         string? expectedSha1,
@@ -187,6 +204,9 @@ internal static class MinecraftDownloadFileWriter
         }
     }
 
+    /// <summary>
+    /// 用已验证临时文件替换最终目标，并把本地文件错误转换为不可换源修复的异常。
+    /// </summary>
     private static void Commit(string tempPath, string destinationPath)
     {
         try

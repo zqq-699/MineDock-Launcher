@@ -30,8 +30,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Modpacks;
 
+/// <summary>
+/// 解析 CurseForge 文件元数据、指纹匹配与下载地址，并构造官方 CDN 回退候选。
+/// </summary>
 public sealed class CurseForgeApiClient
 {
+    // API key 仅进入请求头，异常和返回模型都不保留凭据。
     private const string BaseUrl = "https://api.curseforge.com/v1";
     private readonly HttpClient httpClient;
     private readonly IImportConcurrencyLimiter limiter;
@@ -53,6 +57,7 @@ public sealed class CurseForgeApiClient
         string apiKey,
         CancellationToken cancellationToken)
     {
+        // 先获取文件名和哈希，再查询受权限控制的下载 URL；缺失时按官方 CDN 规则推导候选。
         var downloadUrlResult = await TryGetDownloadUrlAsync(projectId, fileId, apiKey, cancellationToken).ConfigureAwait(false);
         var file = await GetFileMetadataAsync(projectId, fileId, apiKey, cancellationToken).ConfigureAwait(false);
 
@@ -103,6 +108,7 @@ public sealed class CurseForgeApiClient
         string apiKey,
         CancellationToken cancellationToken)
     {
+        // 指纹批量提交并按输入 fingerprint 建映射，未知或模糊匹配不写入结果。
         if (fingerprints.Count == 0)
             return new Dictionary<long, CurseForgeFingerprintMatch>();
 
@@ -154,6 +160,7 @@ public sealed class CurseForgeApiClient
         string apiKey,
         CancellationToken cancellationToken)
     {
+        // 403/404 可能表示作者禁用 API 下载，不等同于元数据请求失败，调用方仍可回退 CDN。
         using var request = CreateRequest($"{BaseUrl}/mods/{projectId}/files/{fileId}/download-url", apiKey);
         await using var lease = await limiter.AcquireMetadataSlotAsync(cancellationToken).ConfigureAwait(false);
         using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
@@ -267,6 +274,7 @@ public sealed class CurseForgeApiClient
 
     private static (string? Sha1, string? Sha512) ResolveHashes(IReadOnlyList<CurseForgeFileHash>? hashes)
     {
+        // CurseForge 用数值算法标识，转换为明确字段避免调用方猜测列表顺序。
         string? sha1 = null;
         string? sha512 = null;
         if (hashes is null)
@@ -296,6 +304,7 @@ public sealed class CurseForgeApiClient
 
     private static void AddDistinctUrl(ICollection<string> urls, string? candidateUrl, string primaryUrl)
     {
+        // URL 按优先级去重，主地址不会在 fallback 列表再次尝试。
         if (string.IsNullOrWhiteSpace(candidateUrl)
             || string.Equals(candidateUrl, primaryUrl, StringComparison.OrdinalIgnoreCase)
             || urls.Contains(candidateUrl, StringComparer.OrdinalIgnoreCase))

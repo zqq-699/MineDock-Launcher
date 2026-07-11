@@ -28,8 +28,12 @@ using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.Download;
 
+/// <summary>
+/// 跟踪活动与最近完成的下载任务，集中处理取消、短暂保留和窗口关闭等待。
+/// </summary>
 public sealed partial class DownloadTasksPageViewModel : ObservableObject
 {
+    // ObservableCollection 只在 UI 线程修改；backgroundTasksLock 仅保护不可观察的 Task 集合。
     private static readonly TimeSpan DefaultCompletedTaskRetention = TimeSpan.FromSeconds(3);
     private readonly TimeSpan completedTaskRetention;
     private readonly object backgroundTasksLock = new();
@@ -80,6 +84,7 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
 
     public DownloadTaskItem BeginTask(string title, string subtitle)
     {
+        // 调用方可来自后台线程，通过 Dispatcher 建立任务后再返回稳定任务对象。
         if (uiDispatcher.HasAccess)
             return BeginTaskCore(title, subtitle);
 
@@ -118,6 +123,7 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
 
     public void TrackBackgroundTask(Task task)
     {
+        // 跟踪实际导入/安装 Task，使窗口关闭能等待清理完成，而非只看 UI 条目状态。
         ArgumentNullException.ThrowIfNull(task);
         if (task.IsCompleted)
             return;
@@ -134,6 +140,7 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
         TimeSpan timeout,
         CancellationToken cancellationToken = default)
     {
+        // 使用总超时等待当前快照；新任务不会无限延长已经开始的关闭流程。
         Task[] tasks;
         lock (backgroundTasksLock)
             tasks = backgroundTasks.ToArray();
@@ -194,6 +201,7 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
 
     private void ScheduleRemoval(DownloadTaskItem task)
     {
+        // 完成条目短暂保留供用户确认结果，重新进入活动态会取消计划删除。
         CancelScheduledRemoval(task);
         var cancellation = new CancellationTokenSource();
         removalTokens[task.Id] = cancellation;
@@ -211,6 +219,7 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
 
     private async Task RemoveCompletedTaskAfterDelayAsync(DownloadTaskItem task, CancellationToken cancellationToken)
     {
+        // 延迟完成后再次校验终态，防止复用或状态修正时误删活动任务。
         try
         {
             await Task.Delay(completedTaskRetention, cancellationToken);
@@ -253,6 +262,9 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
     }
 }
 
+/// <summary>
+/// 表示单个可取消下载任务及其线程安全进度投影。
+/// </summary>
 public sealed partial class DownloadTaskItem : ObservableObject
 {
     private readonly CancellationTokenSource cancellation = new();
@@ -302,6 +314,7 @@ public sealed partial class DownloadTaskItem : ObservableObject
 
     public void Report(LauncherProgress progress)
     {
+        // 只更新进度提供的字段，缺失百分比或速度时保留已有值，避免 UI 闪烁。
         if (State is DownloadTaskState.Completed or DownloadTaskState.Failed)
             return;
 
@@ -316,6 +329,7 @@ public sealed partial class DownloadTaskItem : ObservableObject
 
     public void Complete(string message)
     {
+        // 终态方法同时冻结取消语义并触发页面计划移除。
         State = DownloadTaskState.Completed;
         StatusMessage = message;
         DownloadSpeedText = string.Empty;

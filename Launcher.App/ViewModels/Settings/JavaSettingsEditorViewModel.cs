@@ -27,8 +27,12 @@ using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.Settings;
 
+/// <summary>
+/// 管理 Java 自动/手动选择、运行时发现和自定义 Java 导入，并向设置页报告选择变化。
+/// </summary>
 public sealed partial class JavaSettingsEditorViewModel : ObservableObject
 {
+    // 列表是发现结果的 UI 投影，保存值使用可执行文件路径作为跨刷新稳定身份。
     private const string JavaSelectionAutoId = "auto";
     private const string JavaSelectionManualId = "manual";
 
@@ -94,6 +98,7 @@ public sealed partial class JavaSettingsEditorViewModel : ObservableObject
 
     public void LoadSelection(JavaSelectionMode mode, string? selectedJavaExecutablePath)
     {
+        // 先恢复模式与保存路径，再异步发现；即使运行时列表尚未加载，用户选择也不会丢失。
         suppressSelectionChanged = true;
         try
         {
@@ -123,6 +128,7 @@ public sealed partial class JavaSettingsEditorViewModel : ObservableObject
 
     private async Task RefreshJavaRuntimesCoreAsync(bool allowWhenDisabled)
     {
+        // 手动按钮遵守 CanExecute，展示页面的后台刷新可在禁用状态下预热列表。
         if (IsJavaRuntimeScanRunning || !allowWhenDisabled && !IsEditorEnabled)
             return;
 
@@ -137,6 +143,7 @@ public sealed partial class JavaSettingsEditorViewModel : ObservableObject
 
         try
         {
+            // 发现完成后用路径协调旧选择，避免重建列表导致 ComboBox 跳到首项。
             var discoveredRuntimes = await javaRuntimeDiscoveryService.DiscoverAsync(
                 minecraftDirectoryProvider(),
                 cancellationTokenSource.Token);
@@ -174,6 +181,7 @@ public sealed partial class JavaSettingsEditorViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanImportJavaRuntime))]
     public async Task ImportJavaRuntimeAsync()
     {
+        // 用户选的是可执行文件，服务负责验证 Java 版本和架构后才加入候选列表。
         if (!IsEditorEnabled)
             return;
 
@@ -302,6 +310,7 @@ public sealed partial class JavaSettingsEditorViewModel : ObservableObject
 
     private async Task EnsureSavedSelectedJavaRuntimePresentAsync(CancellationToken cancellationToken)
     {
+        // 自动发现可能漏掉便携式 Java；对已保存路径单独探测以保持历史设置可用。
         if (!IsJavaManualSelection || string.IsNullOrWhiteSpace(savedSelectedJavaExecutablePath))
             return;
 
@@ -326,6 +335,7 @@ public sealed partial class JavaSettingsEditorViewModel : ObservableObject
 
     private void UpdateJavaRuntimeSelectionAfterListChanged()
     {
+        // 优先保存路径，其次当前对象，最后首个候选；自动模式不强制选择具体运行时。
         if (!IsJavaManualSelection)
         {
             SelectedJavaRuntime = null;

@@ -23,6 +23,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Minecraft;
 
+/// <summary>
+/// 合并全局与实例启动设置，并在自动内存计算不可用时回退到安全的已配置值。
+/// </summary>
 internal sealed class LaunchSettingsResolver
 {
     private readonly ISystemMemoryService? systemMemoryService;
@@ -39,6 +42,9 @@ internal sealed class LaunchSettingsResolver
         this.logger = logger;
     }
 
+    /// <summary>
+    /// 按实例设置模式选择全局或实例字段，并解析最终内存值和版本身份。
+    /// </summary>
     public async Task<ResolvedLaunchSettings> ResolveAsync(
         GameInstance instance,
         LauncherSettings settings,
@@ -58,11 +64,15 @@ internal sealed class LaunchSettingsResolver
             await ResolveMemoryMbAsync(instance, settings, cancellationToken).ConfigureAwait(false));
     }
 
+    /// <summary>
+    /// 按实例/全局与手动/自动优先级计算内存，并在非取消失败时安全回退。
+    /// </summary>
     private async Task<int> ResolveMemoryMbAsync(
         GameInstance instance,
         LauncherSettings settings,
         CancellationToken cancellationToken)
     {
+        // 实例级设置优先；自动计算失败只影响内存优化，不应让启动整体失败。
         if (instance.LaunchSettingsMode is LaunchSettingsMode.PerInstance && instance.MemoryMb > 0)
         {
             if (instance.MemorySettingsMode is MemorySettingsMode.Manual)
@@ -100,6 +110,9 @@ internal sealed class LaunchSettingsResolver
         }
     }
 
+    /// <summary>
+    /// 结合系统内存快照、Loader 和已启用 Mod 数量计算自动分配值。
+    /// </summary>
     private async Task<int> ResolveAutomaticMemoryMbAsync(
         GameInstance instance,
         CancellationToken cancellationToken)
@@ -121,6 +134,7 @@ internal sealed class LaunchSettingsResolver
         if (modService is null || instance.Loader is LoaderKind.Vanilla)
             return 0;
 
+        // Mod 数量仅是自动内存估算信号，扫描失败时按零处理并保留可启动性。
         try
         {
             var mods = await modService.GetModsAsync(instance, cancellationToken).ConfigureAwait(false);

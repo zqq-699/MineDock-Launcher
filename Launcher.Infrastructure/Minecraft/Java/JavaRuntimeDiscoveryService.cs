@@ -25,8 +25,12 @@ using Launcher.Domain.Models;
 
 namespace Launcher.Infrastructure.Minecraft;
 
+/// <summary>
+/// 从 PATH、常见安装目录和用户候选中发现 Java，并通过实际执行解析版本与架构。
+/// </summary>
 public sealed class JavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryService
 {
+    // 路径发现只是候选阶段；只有 java -version 在限定时间内成功返回才形成可用运行时。
     private const int VersionProbeTimeoutMilliseconds = 1500;
     private const string UnknownArchitecture = "unknown";
     private static readonly Regex VersionRegex = new("\"(?<version>[0-9]+(?:\\.[0-9]+)*(?:[_+\\-][0-9A-Za-z.\\-]+)?)\"", RegexOptions.Compiled);
@@ -35,6 +39,7 @@ public sealed class JavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryService
         string? minecraftDirectory,
         CancellationToken cancellationToken = default)
     {
+        // 候选探测并行执行，最终按规范路径和运行时身份折叠同一安装的多个入口。
         return await Task.Run(async () =>
         {
             var candidates = CollectCandidatePaths(minecraftDirectory);
@@ -82,6 +87,7 @@ public sealed class JavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryService
         Func<string>? getProgramFilesX86 = null,
         Func<string, string>? resolveIdentityPath = null)
     {
+        // 来源优先级保留明确配置，同时安全枚举常见厂商目录作为补充。
         fileExists ??= File.Exists;
         directoryExists ??= Directory.Exists;
         enumerateFiles ??= EnumerateFilesSafely;
@@ -133,6 +139,7 @@ public sealed class JavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryService
 
     internal static JavaVersionProbeResult ParseVersionOutput(string output)
     {
+        // 不同 JVM 把版本写入 stdout 或 stderr，调用方合并后宽松提取引号版本。
         var version = VersionRegex.Match(output).Groups["version"].Value;
         if (string.IsNullOrWhiteSpace(version))
             return new JavaVersionProbeResult(null, null, UnknownArchitecture);
@@ -145,6 +152,7 @@ public sealed class JavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryService
 
     internal static int? ParseMajorVersion(string? version)
     {
+        // Java 8 及以前使用 1.8 形式，Java 9+ 首段即主版本，需要兼容两套规则。
         if (string.IsNullOrWhiteSpace(version))
             return null;
 
@@ -159,6 +167,7 @@ public sealed class JavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryService
 
     internal static IReadOnlyList<JavaRuntimeInfo> CollapseDuplicateRuntimes(IReadOnlyList<JavaRuntimeInfo> runtimes)
     {
+        // 同一 java.exe 可由多个来源发现，按规范身份只保留最高优先来源。
         return runtimes
             .GroupBy(GetRuntimeIdentityKey, StringComparer.OrdinalIgnoreCase)
             .Select(group => group
@@ -276,6 +285,7 @@ public sealed class JavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryService
         string executablePath,
         CancellationToken cancellationToken)
     {
+        // 子进程设超时并异步读取双输出流，避免损坏 JVM 永久挂起发现页面。
         try
         {
             using var process = new Process
@@ -320,6 +330,7 @@ public sealed class JavaRuntimeDiscoveryService : IJavaRuntimeDiscoveryService
 
     private static void TryKill(Process process)
     {
+        // 超时清理尽力而为，进程已退出或权限不足不能覆盖原发现结果。
         try
         {
             if (!process.HasExited)

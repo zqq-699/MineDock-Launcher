@@ -27,6 +27,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Resources;
 
+/// <summary>
+/// 访问 CurseForge 资源目录，并把分页、分类、依赖和下载地址转换为统一资源模型。
+/// </summary>
 internal sealed class CurseForgeResourceClient(
     HttpClient httpClient,
     ICurseForgeApiKeyResolver apiKeyResolver,
@@ -39,6 +42,7 @@ internal sealed class CurseForgeResourceClient(
     private const int WorldsClassId = 17;
     private const int ModpacksClassId = 4471;
     private const int ShaderPacksClassId = 6552;
+    // 分类目录跨搜索复用；锁只保护缓存任务的创建，不在网络等待期间持有。
     private readonly object categoryGate = new();
     private readonly Dictionary<ResourceProjectKind, Task<IReadOnlyList<CurseForgeCategory>>> categoryTasks = [];
 
@@ -50,6 +54,7 @@ internal sealed class CurseForgeResourceClient(
         ResourceCatalogSearchRequest request,
         CancellationToken cancellationToken)
     {
+        // 多 Minecraft 版本查询需要分别请求再去重，避免 CurseForge 单请求筛选能力差异泄漏到上层。
         var apiKey = await apiKeyResolver.TryResolveAsync(cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(apiKey))
         {
@@ -83,6 +88,7 @@ internal sealed class CurseForgeResourceClient(
         ResourceProjectVersionsRequest request,
         CancellationToken cancellationToken)
     {
+        // 当前项目及已收集版本 Id 会被排除，防止分页或 API 重叠数据造成重复条目。
         if (!long.TryParse(request.ProjectId, out var projectId)
             || !request.IncludeAllVersions && string.IsNullOrWhiteSpace(request.MinecraftVersion))
         {
@@ -138,6 +144,7 @@ internal sealed class CurseForgeResourceClient(
         ResourceProjectDependenciesRequest request,
         CancellationToken cancellationToken)
     {
+        // 先提取 Required 项目 Id，再批量加载项目资料，避免为每个依赖产生一次网络往返。
         if (request.Kind is not ResourceProjectKind.Mod)
             return new ResourceProjectDependenciesResult();
         var result = await GetVersionsAsync(new ResourceProjectVersionsRequest
@@ -167,6 +174,7 @@ internal sealed class CurseForgeResourceClient(
         int? categoryId,
         CancellationToken cancellationToken)
     {
+        // 所有外部筛选值先映射到 CurseForge 协议枚举；无法映射的值不发送错误参数。
         var pageSize = Math.Clamp(request.PageSize, 1, 50);
         var offset = Math.Max(0, request.Offset);
         var query = new List<string>
@@ -242,6 +250,7 @@ internal sealed class CurseForgeResourceClient(
         string apiKey,
         CancellationToken cancellationToken)
     {
+        // 缓存 Task 而非结果，让并发首个请求共享同一次加载；失败后清空以允许后续重试。
         lock (categoryGate)
         {
             if (!categoryTasks.TryGetValue(kind, out var task) || task.IsCanceled || task.IsFaulted)
@@ -280,6 +289,7 @@ internal sealed class CurseForgeResourceClient(
         IReadOnlyDictionary<string, ResourceProject> projects,
         ISet<string> excludedIds)
     {
+        // 下载 URL 提供主地址和可推导 CDN 候选，执行器可在区域或镜像故障时按序回退。
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         return new ResourceProjectVersion
         {
@@ -392,6 +402,7 @@ internal sealed class CurseForgeResourceClient(
 
     private static IReadOnlyList<string> CreateFallbackUrls(long id, string fileName, string? primary)
     {
+        // CDN 分片路径由文件 Id 的高低位组成，两个官方域名按稳定顺序作为兼容候选。
         if (string.IsNullOrWhiteSpace(fileName))
             return [];
         return new[] { BuildCdnUrl("edge.forgecdn.net", id, fileName), BuildCdnUrl("mediafilez.forgecdn.net", id, fileName) }

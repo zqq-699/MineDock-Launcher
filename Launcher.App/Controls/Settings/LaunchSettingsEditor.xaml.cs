@@ -24,8 +24,12 @@ using System.Windows.Controls;
 
 namespace Launcher.App.Controls;
 
+/// <summary>
+/// 为启动设置编辑器提供高级参数文本框的内容高度测量，避免固定高度截断多行参数。
+/// </summary>
 public partial class LaunchSettingsEditor : UserControl
 {
+    // 这里只处理依赖模板测量的 UI 行为，设置值和保存仍由 ViewModel/Binding 管理。
     public static readonly DependencyProperty ShowModeSelectorProperty =
         DependencyProperty.Register(nameof(ShowModeSelector), typeof(bool), typeof(LaunchSettingsEditor), new PropertyMetadata(true));
 
@@ -136,6 +140,7 @@ public partial class LaunchSettingsEditor : UserControl
 
     private void QueueAdvancedLaunchTextBoxHeightUpdate(TextBox? textBox)
     {
+        // TextChanged 和 SizeChanged 会连续触发，延迟到布局队列后使用最终宽度计算一次。
         if (textBox is null)
             return;
 
@@ -144,6 +149,7 @@ public partial class LaunchSettingsEditor : UserControl
 
     private static void UpdateAdvancedLaunchTextBoxHeight(TextBox textBox)
     {
+        // 按实际换行内容测量并钳制到资源范围，既避免截断也保留页面滚动能力。
         textBox.UpdateLayout();
         var lineCount = Math.Max(1, textBox.LineCount);
         textBox.VerticalContentAlignment = lineCount > 1 ? VerticalAlignment.Top : VerticalAlignment.Center;

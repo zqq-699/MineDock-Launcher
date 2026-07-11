@@ -24,8 +24,12 @@ using Launcher.Domain.Models;
 
 namespace Launcher.Infrastructure.Minecraft;
 
+/// <summary>
+/// 根据实例/全局偏好、版本元数据和兼容级别为启动选择最合适的 Java 运行时。
+/// </summary>
 public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
 {
+    // 只返回经过发现服务验证的运行时，不把未经探测的路径直接交给启动进程。
     private readonly IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService;
 
     public JavaRuntimeSelectionService(IJavaRuntimeDiscoveryService javaRuntimeDiscoveryService)
@@ -48,6 +52,7 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
 
     internal static EffectiveJavaSelection ResolveEffectiveSelection(GameInstance instance, LauncherSettings settings)
     {
+        // 全局模式继承 LauncherSettings，否则使用实例自己的 Java 模式和路径。
         return instance.JavaSettingsMode is LaunchSettingsMode.PerInstance
             ? new EffectiveJavaSelection(instance.JavaSelectionMode, instance.SelectedJavaExecutablePath)
             : new EffectiveJavaSelection(settings.JavaSelectionMode, settings.SelectedJavaExecutablePath);
@@ -59,6 +64,7 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
         Func<string, bool>? fileExists = null,
         Func<string, string>? readAllText = null)
     {
+        // JSON 的 javaVersion.majorVersion 最权威，缺失时才按 Minecraft 版本区间推断。
         fileExists ??= File.Exists;
         readAllText ??= File.ReadAllText;
 
@@ -80,6 +86,7 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
         IReadOnlyList<JavaRuntimeInfo> runtimes,
         int? requiredMajorVersion)
     {
+        // 先按兼容层级筛选，再偏好 x64 和更接近要求的版本。
         if (runtimes.Count == 0)
             return null;
 
@@ -136,6 +143,7 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
         LaunchRequestOptions? options,
         CancellationToken cancellationToken)
     {
+        // 手动路径仍需探测；不存在、不可执行和版本过低映射为不同失败原因。
         if (string.IsNullOrWhiteSpace(executablePath))
         {
             throw new JavaRuntimeSelectionException(
@@ -191,6 +199,7 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
         LauncherSettings settings,
         CancellationToken cancellationToken)
     {
+        // 自动发现后应用统一排序，没有兼容项时保留实际版本信息用于诊断。
         var runtimes = await javaRuntimeDiscoveryService.DiscoverAsync(
             settings.MinecraftDirectory,
             cancellationToken);
@@ -231,6 +240,7 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
 
     private static IEnumerable<string> EnumerateVersionJsonPaths(GameInstance instance, LauncherSettings settings)
     {
+        // 隔离和全局 versions 都可能持有元数据，按实例优先去重兼容旧布局。
         var versionName = string.IsNullOrWhiteSpace(instance.VersionName)
             ? instance.MinecraftVersion
             : instance.VersionName;
@@ -313,6 +323,7 @@ public sealed class JavaRuntimeSelectionService : IJavaRuntimeSelectionService
         out int minor,
         out int patch)
     {
+        // 快照和预发布后缀不影响主次版本基线，解析失败时不武断限制 Java。
         major = 0;
         minor = 0;
         patch = 0;

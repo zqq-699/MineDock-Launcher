@@ -23,10 +23,16 @@ using System.Text.Json.Nodes;
 
 namespace Launcher.Infrastructure.Minecraft;
 
+/// <summary>
+/// 记录 Loader 安装前的版本目录快照，并只提交最终版本、清理本次安装产生的中间目录。
+/// </summary>
 internal static class LoaderVersionDirectoryTransaction
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
+    /// <summary>
+    /// 捕获安装前版本目录名称，作为后续清理不得越过的安全边界。
+    /// </summary>
     public static HashSet<string> CaptureExistingVersions(string gameDirectory)
     {
         var versionsDirectory = Path.Combine(gameDirectory, "versions");
@@ -58,6 +64,9 @@ internal static class LoaderVersionDirectoryTransaction
             """);
     }
 
+    /// <summary>
+    /// 在最终版本 JSON 中写入 Launcher 可稳定识别的原始 Minecraft 版本元数据。
+    /// </summary>
     public static async Task WriteLauncherMetadataAsync(
         string gameDirectory,
         string versionName,
@@ -94,6 +103,9 @@ internal static class LoaderVersionDirectoryTransaction
             cancellationToken: cancellationToken);
     }
 
+    /// <summary>
+    /// 删除快照后新出现的中间版本目录，同时保留指定最终版本。
+    /// </summary>
     public static void CleanupCreatedVersionDirectories(
         string gameDirectory,
         HashSet<string> existingVersionNames,
@@ -103,6 +115,7 @@ internal static class LoaderVersionDirectoryTransaction
         if (!Directory.Exists(versionsDirectory))
             return;
 
+        // 安装前已存在的版本以及明确保留的最终版本永远不会被清理。
         foreach (var directory in Directory.GetDirectories(versionsDirectory))
         {
             var versionName = Path.GetFileName(directory);

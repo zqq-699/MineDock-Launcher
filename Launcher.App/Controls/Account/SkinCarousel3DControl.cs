@@ -29,8 +29,12 @@ using Launcher.Domain.Models;
 
 namespace Launcher.App.Controls.Account;
 
+/// <summary>
+/// 用三个可复用 3D 槽位展示相邻皮肤，并统一管理鼠标命中、悬停提示和轮播动画。
+/// </summary>
 public sealed class SkinCarousel3DControl : Grid
 {
+    // Viewport3D 负责皮肤模型，普通 WPF 覆盖层负责文字提示；两层通过逻辑槽位保持一致。
     private const int AnimationMilliseconds = 600;
     private const double CenterBrightness = 1;
     private const double SideBrightness = 0.48;
@@ -143,6 +147,7 @@ public sealed class SkinCarousel3DControl : Grid
 
     private static void OnSkinPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
+        // 三个皮肤属性常在一次选择中连续变化，统一排队重建可避免渲染中间组合。
         ((SkinCarousel3DControl)d).QueueRebuild();
     }
 
@@ -150,6 +155,7 @@ public sealed class SkinCarousel3DControl : Grid
     {
         var control = (SkinCarousel3DControl)d;
         var newSkin = e.NewValue as LauncherSkinRecord;
+        // 用上一帧的左右项推断切换方向；命令执行后集合可能已经整体轮换，不能只比较索引。
         if (newSkin is not null)
         {
             if (SkinCarousel3DLayout.SkinsRepresentSameVisualItem(newSkin, control.nextRenderedSkin))
@@ -169,12 +175,14 @@ public sealed class SkinCarousel3DControl : Grid
             return;
         }
 
+        // Background 优先级让同一 UI 周期的 Previous/Selected/Next 更新合并成一次模型构建。
         rebuildQueued = true;
         Dispatcher.BeginInvoke(Rebuild, DispatcherPriority.Background);
     }
 
     private void Rebuild()
     {
+        // 保存旧槽位的当前动画位置，新模型可从该位置接续，避免快速切换时跳回固定起点。
         rebuildQueued = false;
         var shouldRebuildAgain = rebuildRequestedWhileQueued;
         rebuildRequestedWhileQueued = false;
@@ -192,6 +200,7 @@ public sealed class SkinCarousel3DControl : Grid
             : null;
         pendingDirection = null;
 
+        // 命中映射与模型一起清空，否则已不可见的 Model3D 仍可能映射到旧皮肤槽位。
         viewport.Children.Clear();
         currentSlotVisuals.Clear();
         hitSlots.Clear();
@@ -233,6 +242,7 @@ public sealed class SkinCarousel3DControl : Grid
         if (skin is null || string.IsNullOrWhiteSpace(skin.Source))
             return;
 
+        // 单个皮肤加载失败只跳过该槽位，不应让中间皮肤或整个控件无法显示。
         BitmapImage skinBitmap;
         try
         {
@@ -243,6 +253,7 @@ public sealed class SkinCarousel3DControl : Grid
             return;
         }
 
+        // 网格只构建一次，动画只修改 Scale/Translate，避免每帧重建 3D 几何和纹理。
         var targetPlacement = SkinCarousel3DLayout.GetPlacement(targetSlot);
         var startPlacement = ResolveStartPlacement(skin, targetSlot, oldSlotVisuals, direction);
         var scale = new ScaleTransform3D(
@@ -291,6 +302,7 @@ public sealed class SkinCarousel3DControl : Grid
 
     private void AnimateSlots()
     {
+        // 所有槽位共享缓动和时长，视觉上表现为一次整体轮播。
         var easing = new PowerEase { EasingMode = EasingMode.EaseOut, Power = 7 };
 
         foreach (var visual in currentSlotVisuals.Values)
@@ -314,6 +326,7 @@ public sealed class SkinCarousel3DControl : Grid
 
     private void OnMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
+        // 中间槽位只是当前项；只有两侧槽位承担导航语义。
         var slot = HitTestSlot(e.GetPosition(this));
         if (slot is SkinCarouselSlot.Left)
             ExecuteCommand(PreviousCommand);
@@ -333,6 +346,7 @@ public sealed class SkinCarousel3DControl : Grid
 
     private SkinCarouselSlot? HitTestSlot(Point point)
     {
+        // WPF 返回实际 GeometryModel3D，通过建模时登记的映射还原为稳定的逻辑槽位。
         SkinCarouselSlot? slot = null;
         VisualTreeHelper.HitTest(
             viewport,
@@ -453,6 +467,7 @@ public readonly record struct SkinCarouselSlotPlacement(double X, double Scale);
 
 public static class SkinCarousel3DLayout
 {
+    // 布局和过渡判断保持为无状态计算，控件重建视觉树时不依赖旧 Model3D 对象。
     private static readonly SkinCarouselSlotPlacement LeftPlacement = new(-10.0, 0.21);
     private static readonly SkinCarouselSlotPlacement CenterPlacement = new(0, 0.30);
     private static readonly SkinCarouselSlotPlacement RightPlacement = new(10.0, 0.21);

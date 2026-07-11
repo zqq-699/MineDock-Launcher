@@ -30,8 +30,12 @@ using System.IO;
 
 namespace Launcher.App.ViewModels.GameSettings;
 
+/// <summary>
+/// 管理实例存档的监听、压缩包导入、筛选、多选和批量删除页面状态。
+/// </summary>
 public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettingsDetailsSectionViewModelBase
 {
+    // 本地数据由 LocalSavesViewModel 负责；本类只维护页面投影、交互选择和 UI 服务协调。
     private readonly LocalSavesViewModel localSavesViewModel;
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
@@ -40,6 +44,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger<InstanceSaveManagementSettingsViewModel> logger;
     private readonly LocalContentSelectionState<SaveManagementSaveItemViewModel> selectionState;
+    // 这组字段描述页面生命周期。loadTask 合并激活请求，两个刷新标记合并隐藏期间的文件事件。
     private Task? loadTask;
     private GameInstance? selectedInstance;
     private bool hasPendingVisualRefresh;
@@ -47,6 +52,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     private bool isSectionActive;
     private bool suppressLocalCollectionEvents;
 
+    // 以下属性是 XAML 所需的派生页面状态，不是第二份业务数据源。
     [ObservableProperty]
     private int installedSaveCount;
 
@@ -151,8 +157,12 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         return EnsureLoadedForSelectedInstanceAsync();
     }
 
+    /// <summary>
+    /// 切换存档实例上下文，并整体重置监听、选择和延迟刷新状态。
+    /// </summary>
     public override void OnSelectedInstanceChanged(GameInstance? instance)
     {
+        // 切换监听目标时会触发集合清空事件；暂时抑制回调，最后由本方法一次性重置页面。
         selectedInstance = instance;
         loadTask = null;
         hasPendingVisualRefresh = false;
@@ -208,6 +218,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
 
     public override Task OnSectionActivatedAsync()
     {
+        // 只在页面可见时监听目录，避免后台页面持续刷新和播放动画。
         isSectionActive = true;
         localSavesViewModel.SetWatcherEnabled(selectedInstance is not null);
         if (hasPendingVisualRefresh && HasLoadedSaves)
@@ -395,10 +406,14 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         selectionState.SelectSingle(save, Saves);
     }
 
+    /// <summary>
+    /// 批量删除解析出的本地存档，汇总部分失败并统一刷新页面快照。
+    /// </summary>
     public async Task DeleteSavesAsync(IReadOnlyList<string> fullPaths)
     {
         ArgumentNullException.ThrowIfNull(fullPaths);
 
+        // 将 UI 路径重新解析为当前快照对象，自动忽略刷新后已不存在的选择。
         var savesToDelete = ResolveLocalSaves(fullPaths);
         if (savesToDelete.Count == 0)
         {
@@ -412,6 +427,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
             savesToDelete.Count);
         try
         {
+            // 底层批处理会继续处理剩余项并返回失败数，因此页面可以给出准确的部分成功提示。
             var failedCount = await localSavesViewModel.DeleteSavesAsync(savesToDelete);
             ExitMultiSelectMode();
             ReportBatchOperationResult(
@@ -459,11 +475,15 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         SelectAllSavesCommand.NotifyCanExecuteChanged();
     }
 
+    /// <summary>
+    /// 首次加载当前实例存档，并合并页面激活期间的重复加载请求。
+    /// </summary>
     private async Task LoadSavesAsync()
     {
         if (selectedInstance is null)
             return;
 
+        // 先发布 Loading 状态，让空列表能够显示骨架/加载提示而不是误报“没有存档”。
         IsLoadingSaves = true;
         OnPropertyChanged(nameof(InstalledSummaryText));
         RaiseAvailabilityPropertyChanges();
@@ -472,6 +492,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         {
             await localSavesViewModel.RefreshSavesAsync();
             HasLoadedSaves = true;
+            // 隐藏页面不播放动画，只记住下次激活需要一次完整视觉刷新。
             if (isSectionActive)
                 ListEntranceAnimationToken++;
             else
@@ -516,8 +537,12 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         QueueVisibleRefresh();
     }
 
+    /// <summary>
+    /// 将共享存档快照增量投影到可见列表，并恢复稳定路径对应的选择。
+    /// </summary>
     private void RefreshFromLocalSaves()
     {
+        // 先保存稳定路径；投影同步可能更换可见集合，但相同存档项会继续复用原 ViewModel。
         var selectedFullPath = selectionState.LastSingleSelectedPath ?? SelectedSave?.FullPath;
         var filteredSaves = StableFilteredItemProjection.Synchronize(
             localSavesViewModel.CurrentSaves,
@@ -527,6 +552,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
             static (item, save) => item.SyncFrom(save),
             MatchesSearch);
 
+        // 搜索过滤后裁剪不可见选择，避免批量命令作用于用户当前看不到的项目。
         selectionState.SyncSelectionToItems(filteredSaves, IsMultiSelectMode);
         SetVisibleSaves(filteredSaves);
 
@@ -545,6 +571,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
             return;
         }
 
+        // 单选模式优先恢复刷新前项目；项目消失时再选择新的第一项。
         var restoredSelection = Saves.FirstOrDefault(save =>
             string.Equals(save.FullPath, selectedFullPath, StringComparison.OrdinalIgnoreCase));
         SelectSave(restoredSelection ?? Saves.FirstOrDefault());
@@ -559,6 +586,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         uiDispatcher.Post(() =>
         {
             isVisibleRefreshQueued = false;
+            // 调度执行时页面可能已经离开，不能在后台重建列表或消费动画令牌。
             if (!isSectionActive)
             {
                 hasPendingVisualRefresh = true;
@@ -721,11 +749,15 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
             VisibleSaveListItems = items;
     }
 
+    /// <summary>
+    /// 顺序导入多个存档压缩包，逐项记录结果并在批次结束后只刷新一次列表。
+    /// </summary>
     private async Task ImportSaveArchivesAsync(IReadOnlyList<string> archivePaths, ImportTriggerSource source)
     {
         if (selectedInstance is null)
             return;
 
+        // 文件选择器和拖放共享校验，但错误呈现方式不同：拖放用状态栏，选择器用对话框。
         if (!TryValidateImportPaths(archivePaths, Strings.GameSettings_DropSaveArchivesOnlyMessage, out var validationMessage))
         {
             if (source is ImportTriggerSource.DragDrop)
@@ -746,6 +778,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
             source,
             archivePaths.Count);
 
+        // 协调器顺序执行并在首个业务失败时停止，防止连续弹出多个相同错误。
         var batch = await LocalContentImportBatchCoordinator.ExecuteAsync(
             archivePaths,
             async archivePath =>
@@ -760,6 +793,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
 
         if (batch.Failure is not null)
         {
+            // 保留领域失败原因，在 App 层映射为资源化且可操作的提示。
             switch (batch.Failure.FailureReason)
             {
                 case LocalSaveImportFailureReason.InvalidMinecraftSaveArchive:
@@ -782,6 +816,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
             return;
         }
 
+        // 批次内集合变化由共享 ViewModel 合并处理，这里只负责最终用户反馈。
         if (batch.SuccessCount > 0)
         {
             statusService.Report(batch.SuccessCount == 1

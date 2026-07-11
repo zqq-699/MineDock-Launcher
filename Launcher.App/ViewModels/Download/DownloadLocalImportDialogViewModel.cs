@@ -36,8 +36,12 @@ public enum DownloadLocalImportDialogState
     Unrecognized
 }
 
+/// <summary>
+/// 管理本地整合包文件选择、格式识别、未识别确认和导入进度对话框状态。
+/// </summary>
 public sealed partial class DownloadLocalImportDialogViewModel : ObservableObject
 {
+    // 文件预览只保存轻量路径状态；真正解压识别在用户确认或 Drop 完成后执行。
     private readonly IFilePickerService filePickerService;
     private readonly ILocalModpackImportService modpackImportService;
     private readonly DownloadTasksPageViewModel downloadTasksPage;
@@ -131,6 +135,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
 
     public bool PreviewDroppedFiles(IReadOnlyList<string> paths)
     {
+        // DragOver 高频调用只验证单文件和扩展名，避免反复读取大型压缩包。
         if (IsImporting || DialogState is not DownloadLocalImportDialogState.Selection)
         {
             IsDragOver = false;
@@ -144,6 +149,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
 
     public bool ApplyDroppedFiles(IReadOnlyList<string> paths)
     {
+        // Drop 时规范化一次路径并更新来源提示，后续确认始终使用同一快照。
         if (IsImporting || DialogState is not DownloadLocalImportDialogState.Selection)
         {
             IsDragOver = false;
@@ -190,6 +196,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
     [RelayCommand(CanExecute = nameof(CanConfirmImport))]
     private async Task ConfirmImportAsync()
     {
+        // 先识别格式再决定是否直接导入；未知格式需要用户显式确认，不能猜测并写入实例目录。
         if (!CanConfirmImport())
             return;
 
@@ -253,6 +260,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
         DownloadSourcePreference taskDownloadSourcePreference,
         int taskDownloadSpeedLimitMbPerSecond)
     {
+        // 后台任务项与对话框共享进度源，结束后无论成败都必须解除 Busy 状态。
         try
         {
             var result = await modpackImportService.ImportFromArchiveAsync(
@@ -336,6 +344,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
 
     private void SetSelectedFile(string path, string source)
     {
+        // 选择新文件会清除上一文件的识别结果，防止确认按钮沿用旧格式判断。
         var normalizedPath = Path.GetFullPath(path);
         SelectedFilePath = normalizedPath;
         SelectedFileName = Path.GetFileName(normalizedPath);
@@ -360,6 +369,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
 
     private void ExecuteOnUiThread(Action action)
     {
+        // 导入服务可在线程池报告进度，所有 ObservableProperty 更新统一切回 UI 线程。
         if (uiDispatcher.HasAccess)
         {
             action();
@@ -371,6 +381,7 @@ public sealed partial class DownloadLocalImportDialogViewModel : ObservableObjec
 
     private void Close(bool resetDialogState)
     {
+        // 导入进行中拒绝关闭；正常关闭可选择保留结果页或完全重置下一轮会话。
         IsOpen = false;
         SelectedFilePath = string.Empty;
         SelectedFileName = string.Empty;

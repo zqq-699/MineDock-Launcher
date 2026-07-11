@@ -31,6 +31,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.FileSystem;
 
+/// <summary>
+/// 通过本地缓存、Modrinth 和 CurseForge 逐级补全本地 Mod 图标，并维护有界的持久缓存。
+/// </summary>
 public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentService
 {
     private const long MaxIconBytes = 1024L * 1024L;
@@ -63,6 +66,9 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         cacheIndexStore = new RemoteIconCacheIndexStore(cacheDirectory, this.logger);
     }
 
+    /// <summary>
+    /// 先返回新鲜或可用的过期缓存，再远程刷新未命中项，最后执行一次缓存清理。
+    /// </summary>
     public async Task<IReadOnlyDictionary<string, string>> ResolveMissingIconSourcesAsync(
         IReadOnlyList<LocalMod> mods,
         CancellationToken cancellationToken = default,
@@ -175,6 +181,9 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         return result;
     }
 
+    /// <summary>
+    /// 仅通过文件别名读取现有新鲜缓存，适合列表首次发布前的快速同步。
+    /// </summary>
     public async Task<IReadOnlyDictionary<string, string>> ResolveCachedIconSourcesAsync(
         IReadOnlyList<LocalMod> mods,
         CancellationToken cancellationToken = default)
@@ -229,6 +238,9 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         return result;
     }
 
+    /// <summary>
+    /// 优先批量查询 Modrinth，剩余候选再查询 CurseForge，并逐项报告可用图标。
+    /// </summary>
     private async Task<IReadOnlyDictionary<string, string>> ResolveRemoteIconsAsync(
         IReadOnlyList<ModIconLookupCandidate> candidates,
         CancellationToken cancellationToken,
@@ -321,6 +333,9 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         }
     }
 
+    /// <summary>
+    /// 限制下载大小、验证并规范化图像，然后在缓存锁内提交文件和索引别名。
+    /// </summary>
     private async Task<string?> CacheRemoteIconAsync(
         ModIconLookupCandidate lookup,
         RemoteIconCandidate icon,
@@ -482,6 +497,9 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         return isStale && !allowStale ? null : new Uri(path).AbsoluteUri;
     }
 
+    /// <summary>
+    /// 每个服务生命周期只清理一次：先删除过期项，超限时再按最近最少使用淘汰到目标大小。
+    /// </summary>
     private async Task CleanupCacheOnceAsync(CancellationToken cancellationToken)
     {
         if (cleanupCompleted)
@@ -558,6 +576,9 @@ public sealed class LocalModIconEnrichmentService : ILocalModIconEnrichmentServi
         }
     }
 
+    /// <summary>
+    /// 单次流式读取 Mod 文件，同时计算 SHA-1 和 CurseForge 去空白 MurmurHash2 指纹。
+    /// </summary>
     private async Task<ModIconLookupCandidate?> CreateLookupCandidateAsync(
         LocalMod mod,
         CancellationToken cancellationToken)

@@ -32,8 +32,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.Services;
 
+/// <summary>
+/// 连接各顶层页面的会话状态，负责实例选择、设置变更和跨页面导航的同步，不承载具体业务实现。
+/// </summary>
 public sealed class LauncherSessionCoordinator : IDisposable
 {
+    // 页面 ViewModel 仍各自拥有局部状态；协调器只订阅跨页面事件并把同一个事实同步给相关页面。
     private readonly IDownloadSpeedLimitState downloadSpeedLimitState;
     private readonly ISettingsService settingsService;
     private readonly IStatusService statusService;
@@ -43,6 +47,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
     private readonly SettingsPageViewModel settingsPage;
     private readonly GameManagementViewModel gameManagement;
     private readonly ILogger<LauncherSessionCoordinator> logger;
+    // 页面激活可能由导航与窗口恢复同时触发。零等待锁会合并重叠刷新，而不是让刷新请求排队造成旧状态回写。
     private readonly SemaphoreSlim stateSynchronizationLock = new(1, 1);
     private HomePageViewModel? homePage;
     private LauncherSettings? settings;
@@ -81,6 +86,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
         if (isAttached)
             throw new InvalidOperationException("The launcher session coordinator is already attached.");
 
+        // Attach/Dispose 必须严格成对；重复订阅会让一次安装或设置变更被处理多次。
         this.homePage = homePage;
         downloadPage.InstanceInstalled += DownloadPage_InstanceInstalled;
         resourcesPage.ModpackImported += DownloadPage_InstanceInstalled;
@@ -98,6 +104,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
 
     public async Task PrimeAsync(LauncherSettings settings)
     {
+        // Prime 只注入已加载的设置和磁盘实例快照，让首屏尽早可用；网络目录等延迟工作留给 Initialize。
         this.settings = settings;
         downloadSpeedLimitState.SetDownloadSpeedLimitMbPerSecond(settings.DownloadSpeedLimitMbPerSecond);
         await gameManagement.PrimeInstancesAsync(settings);
@@ -114,6 +121,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
         if (isInitialized || settings is null)
             return;
 
+        // 初始化只执行一次。GameManagement 完成实例同步后，才能把稳定选择传给首页。
         homePage?.SetSettings(settings);
         await gameManagement.InitializeAsync(settings);
         if (homePage is not null)
@@ -133,6 +141,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
 
         try
         {
+            // 当前页面执行更完整的刷新；后台页面只同步共享实例，避免每次导航都触发全部远端请求。
             if (NavigationCatalog.IsPage(currentPage, NavigationCatalog.HomePage))
             {
                 await RefreshHomeInstancesAsync();
@@ -171,6 +180,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
         if (previousValue == isPinned)
             return true;
 
+        // 先乐观更新共享设置，保存失败再回滚，确保内存状态与磁盘状态最终一致。
         settings.IsHomeLaunchMenuPinned = isPinned;
         try
         {
@@ -194,6 +204,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
         if (!isAttached)
             return;
 
+        // 协调器通常与主窗口同寿命，但仍显式退订，防止窗口重建后旧实例继续响应页面事件。
         downloadPage.InstanceInstalled -= DownloadPage_InstanceInstalled;
         resourcesPage.ModpackImported -= DownloadPage_InstanceInstalled;
         resourcesPage.ModpackManualDownloadsRequested -= ResourcesPage_ModpackManualDownloadsRequested;
@@ -239,11 +250,13 @@ public sealed class LauncherSessionCoordinator : IDisposable
 
     private async Task HandleInstalledInstanceAsync(GameInstance instance)
     {
+        // 安装完成事件已经携带权威实例，先就地加入集合，让 UI 无需等待下一次全目录扫描。
         if (gameManagement.Instances.All(existing => existing.Id != instance.Id))
             gameManagement.Instances.Add(instance);
 
         try
         {
+            // 持久化选择失败时仍在本次会话中选中新实例；用户可以立即看到并处理安装结果。
             var saved = await gameManagement.SelectLaunchInstanceAsync(instance);
             if (!saved)
                 gameManagement.SelectedInstance = instance;
@@ -306,6 +319,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
 
     private void GameSettingsPage_InstancesChanged(GameSettingsInstancesChangedEventArgs args)
     {
+        // 单实例更新可以增量合并；新增/删除会改变排序和默认选择，必须从仓储重新同步整个集合。
         if (args.Kind is GameSettingsInstancesChangedKind.Updated && args.UpdatedInstance is not null)
         {
             gameManagement.ApplyUpdatedInstance(args.UpdatedInstance);
@@ -341,6 +355,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
 
     private void SettingsPage_DownloadSourceChanged(object? sender, SettingsDownloadSourceChangedEventArgs e)
     {
+        // 设置页已经负责落盘，这里只传播运行时状态，避免每个消费者分别读取设置文件。
         if (settings is not null)
             settings.DownloadSourcePreference = e.Preference;
         downloadPage.ApplyDownloadSourcePreference(e.Preference);
@@ -361,6 +376,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
         if (settings is null)
             return;
 
+        // 目录切换会同时使首页、下载页和游戏设置中的实例视图失效，因此从共享管理器统一重载。
         settings.MinecraftDirectory = e.MinecraftDirectory;
         homePage?.SetSettings(settings);
         gameSettingsPage.PrimeFromSettings(settings);
@@ -386,6 +402,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
 
     private void Observe(Task task, string operation)
     {
+        // 事件处理器不能返回 Task；统一观察后台任务，避免 fire-and-forget 异常成为未观察异常。
         _ = ObserveAsync(task, operation);
     }
 

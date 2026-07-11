@@ -28,8 +28,12 @@ using Launcher.App.Behaviors;
 
 namespace Launcher.App.Controls;
 
+/// <summary>
+/// 列表页通用条目容器，统一解析图标、悬停反馈、尾部内容显隐和虚拟化进场动画。
+/// </summary>
 public partial class ListPageItemButton : UserControl
 {
+    // 大量依赖属性用于让同一控件服务不同列表；行为属性与纯外观属性分开由模板消费。
     public static readonly DependencyProperty TitleProperty =
         DependencyProperty.Register(nameof(Title), typeof(string), typeof(ListPageItemButton), new PropertyMetadata(string.Empty));
 
@@ -157,6 +161,7 @@ public partial class ListPageItemButton : UserControl
     public ListPageItemButton()
     {
         InitializeComponent();
+        // Loaded 时虚拟化容器已获得本轮状态，构造阶段直接检查会误用默认值。
         Loaded += (_, _) => PlayEnterAnimationIfNeeded();
     }
 
@@ -376,6 +381,7 @@ public partial class ListPageItemButton : UserControl
 
     private void Root_MouseEnter(object sender, MouseEventArgs e)
     {
+        // 悬停与进场动画是两套生命周期；这里只切换交互装饰和可操作的尾部内容。
         IsPointerOverOption = true;
         OptionHoverBehavior.SetIsExternalActive(PART_Button, true);
 
@@ -398,6 +404,7 @@ public partial class ListPageItemButton : UserControl
 
     private void PlayEnterAnimationIfNeeded()
     {
+        // Recycling 会复用控件，是否播放由数据身份对应的 VirtualizedListItemState 决定。
         if (!ShouldPlayEnterAnimation)
         {
             if (IsEnterAnimationPending)
@@ -410,6 +417,7 @@ public partial class ListPageItemButton : UserControl
             return;
         }
 
+        // 延迟设置上限，长列表只为首批可见项形成阶梯，不让后续条目等待过久。
         var delay = TimeSpan.FromMilliseconds(Math.Min(EnterAnimationIndex, 12) * 30);
         var duration = TimeSpan.FromMilliseconds(330);
         var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
@@ -428,6 +436,7 @@ public partial class ListPageItemButton : UserControl
 
         AnimatedRoot.Opacity = 0;
 
+        // 开播前消费一次性标记；更新源时会触发依赖属性回调，抑制标记防止其立即重置视觉。
         isPreparingEnterAnimation = true;
         try
         {
@@ -453,6 +462,7 @@ public partial class ListPageItemButton : UserControl
             isPreparingEnterAnimation = false;
         }
 
+        // 让初始透明度先提交一帧，再开始动画，否则 WPF 可能直接呈现终值。
         Dispatcher.BeginInvoke(
             DispatcherPriority.Background,
             () => BeginEnterAnimation(
@@ -465,6 +475,7 @@ public partial class ListPageItemButton : UserControl
 
     private static void OnIconSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
+        // 模板只绑定 ImageSource；兼容资源对象和路径的解析集中在加载器中完成。
         if (d is ListPageItemButton button)
             button.ResolvedIconSource = IconSourceImageLoader.TryLoad(e.NewValue);
     }
@@ -492,6 +503,7 @@ public partial class ListPageItemButton : UserControl
 
     private void HoldEntrancePendingVisual()
     {
+        // 容器已经生成但尚未轮到动画时保持隐藏，避免滚动或刷新时闪现一帧。
         AnimatedRoot.BeginAnimation(OpacityProperty, null);
         AnimatedRoot.Opacity = 0;
         AnimatedRoot.RenderTransform = null;
@@ -500,6 +512,7 @@ public partial class ListPageItemButton : UserControl
 
     private void ResetVisual()
     {
+        // 容器回收后恢复无动画稳定值，不能把旧条目的 Transform 带给新数据项。
         AnimatedRoot.BeginAnimation(OpacityProperty, null);
         AnimatedRoot.Opacity = 1;
         AnimatedRoot.RenderTransform = null;
@@ -513,6 +526,7 @@ public partial class ListPageItemButton : UserControl
         TimeSpan duration,
         IEasingFunction easing)
     {
+        // 延迟期间容器可能已被回收或卸载，此时不再向离开视觉树的对象挂动画时钟。
         if (!AnimatedRoot.IsLoaded)
             return;
 
@@ -551,6 +565,7 @@ public partial class ListPageItemButton : UserControl
 
     private void AnimateTrailingVisibility(double trailingTextOpacity, double trailingContentOpacity, TimeSpan duration)
     {
+        // 文本提示与任意操作内容反向淡入淡出，布局始终保留以避免悬停时宽度跳变。
         TrailingTextBlock.BeginAnimation(
             OpacityProperty,
             new DoubleAnimation(trailingTextOpacity, duration));

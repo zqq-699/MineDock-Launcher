@@ -27,6 +27,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Modpacks;
 
+/// <summary>
+/// 在临时 Minecraft 沙箱中组合整合包所需版本，再把最终版本和共享运行时内容提交到目标目录。
+/// </summary>
 internal sealed class ModpackGameInstaller : IModpackGameInstaller
 {
     private readonly IReadOnlyDictionary<LoaderKind, ILoaderProvider> providers;
@@ -87,6 +90,9 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
             downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 根据 Loader 类型选择沙箱组合流程；Forge 系列委托其专用安装提供方。
+    /// </summary>
     public Task<string> InstallLoaderAsync(
         string minecraftVersion,
         LoaderKind loader,
@@ -139,6 +145,9 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         };
     }
 
+    /// <summary>
+    /// 调用已注册 Loader 提供方在指定目标目录安装隔离实例版本。
+    /// </summary>
     public Task<string> InstallInstanceAsync(
         string minecraftVersion,
         LoaderKind loader,
@@ -294,6 +303,9 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 cancellationToken)).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 播种沙箱、组合并补齐版本、提交最终目录与共享内容，最后无条件清理沙箱。
+    /// </summary>
     private async Task<string> InstallComposedVersionInSandboxAsync(
         string loaderName,
         string minecraftVersion,
@@ -305,6 +317,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         int downloadSpeedLimitMbPerSecond,
         Func<string, Task<string>> composeAsync)
     {
+        // Loader 安装器只能面向完整 .minecraft 工作；沙箱隔离其中间文件，避免污染真实实例。
         var sessionDirectory = Path.Combine(tempRootDirectory, "launcher-modpack-version", Guid.NewGuid().ToString("N"));
         var sandboxMinecraftDirectory = Path.Combine(sessionDirectory, ".minecraft");
         Directory.CreateDirectory(sessionDirectory);
@@ -319,6 +332,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
 
         try
         {
+            // 先播种已有共享文件减少重复下载，安装成功后再把沙箱新增内容回写目标目录。
             var seededRuntimeCopy = MinecraftSharedContentCopier.CopySharedRuntimeContent(
                 targetMinecraftDirectory,
                 sandboxMinecraftDirectory,

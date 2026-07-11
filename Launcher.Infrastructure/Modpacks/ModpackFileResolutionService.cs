@@ -27,6 +27,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Modpacks;
 
+/// <summary>
+/// 并行解析整合包文件来源，校验下载内容，并把无法自动获取的 CurseForge 文件转为手动清单。
+/// </summary>
 internal sealed class ModpackFileResolutionService
 {
     private const int MaxProcessingConcurrency = 16;
@@ -47,6 +50,9 @@ internal sealed class ModpackFileResolutionService
         this.logger = logger;
     }
 
+    /// <summary>
+    /// 限制并发地解析和下载整合包全部文件，并按原顺序返回需要手动处理的项目。
+    /// </summary>
     public async Task<IReadOnlyList<ManualModpackDownload>> DownloadFilesAsync(
         PreparedModpack preparedModpack,
         GameInstance instance,
@@ -67,6 +73,7 @@ internal sealed class ModpackFileResolutionService
             return [];
 
         context.ReportStarted();
+        // 结果按原文件索引写入预分配槽位，限制并发的同时保持手动下载清单顺序稳定。
         await Parallel.ForEachAsync(
             Enumerable.Range(0, context.TotalCount),
             new ParallelOptions
@@ -81,6 +88,9 @@ internal sealed class ModpackFileResolutionService
             .ToArray();
     }
 
+    /// <summary>
+    /// 处理清单中的单个文件槽位，并确保无论结果如何都会推进总体进度。
+    /// </summary>
     private async ValueTask ProcessPackFileAsync(
         DownloadBatchContext context,
         int fileIndex,
@@ -109,6 +119,9 @@ internal sealed class ModpackFileResolutionService
         }
     }
 
+    /// <summary>
+    /// 将清单文件转换为可下载描述；CurseForge 无法解析时生成手动下载项。
+    /// </summary>
     private async Task<PackFileResolution> ResolvePackFileAsync(
         DownloadBatchContext context,
         PreparedModpackDownload file,
@@ -160,6 +173,7 @@ internal sealed class ModpackFileResolutionService
         }
         catch (Exception exception) when (context.Package.PackageKind is ModpackPackageKind.CurseForge)
         {
+            // CurseForge 可能因授权限制不给下载地址，此类失败降级为手动下载而非终止整个导入。
             logger.LogWarning(
                 exception,
                 "Failed to resolve CurseForge modpack file and will add it to the manual download list. ProjectId={ProjectId} FileId={FileId}",
@@ -173,6 +187,9 @@ internal sealed class ModpackFileResolutionService
         }
     }
 
+    /// <summary>
+    /// 依次尝试主地址和回退地址，验证临时文件后提交，全部失败时按包类型决定降级或抛出。
+    /// </summary>
     private async Task<ManualModpackDownload?> DownloadResolvedPackFileAsync(
         DownloadBatchContext context,
         ResolvedPackDownload file,
@@ -184,6 +201,7 @@ internal sealed class ModpackFileResolutionService
         var targetDirectory = Path.GetDirectoryName(targetPath);
         if (!string.IsNullOrWhiteSpace(targetDirectory))
             Directory.CreateDirectory(targetDirectory);
+        // 每个候选 URL 都写入临时文件并完成哈希校验，成功后才覆盖实例中的目标文件。
         var tempPath = Path.Combine(
             targetDirectory ?? context.Instance.InstanceDirectory,
             $"{Path.GetFileName(targetPath)}.{Guid.NewGuid():N}.download");
@@ -239,6 +257,9 @@ internal sealed class ModpackFileResolutionService
         }
     }
 
+    /// <summary>
+    /// 下载到临时文件并优先使用 SHA-512、其次 SHA-1 验证内容完整性。
+    /// </summary>
     private async Task DownloadAndVerifyAsync(
         DownloadBatchContext context,
         ResolvedPackDownload file,

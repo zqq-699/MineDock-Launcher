@@ -29,6 +29,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Modpacks;
 
+/// <summary>
+/// 识别并准备 Modrinth/CurseForge 本地整合包，委托文件解析、覆盖复制和工作区清理。
+/// </summary>
 public sealed class LocalModpackPackageService : IModpackPackageService
 {
     private readonly ModpackFileResolutionService fileResolutionService;
@@ -58,6 +61,9 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             this.logger);
     }
 
+    /// <summary>
+    /// 只读取识别所需元数据判断归档类型和有效性，不创建长期工作目录。
+    /// </summary>
     public async Task<ModpackRecognitionResult> RecognizeAsync(
         string archivePath,
         CancellationToken cancellationToken = default)
@@ -85,6 +91,9 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         }
     }
 
+    /// <summary>
+    /// 解析受支持归档并展开到独立工作区，返回后续导入阶段所需的统一模型。
+    /// </summary>
     public async Task<PreparedModpack> PrepareAsync(
         string archivePath,
         CancellationToken cancellationToken = default,
@@ -126,6 +135,9 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             cancellationToken);
     }
 
+    /// <summary>
+    /// 将整合包 overrides 安全复制到实例目录；没有 overrides 时直接完成。
+    /// </summary>
     public Task CopyOverridesAsync(
         PreparedModpack preparedModpack,
         GameInstance instance,
@@ -158,6 +170,9 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             : null);
     }
 
+    /// <summary>
+    /// 按“下载文件、复制 overrides、写手动清单”的顺序安装整合包内容。
+    /// </summary>
     public async Task InstallContentAsync(
         PreparedModpack preparedModpack,
         GameInstance instance,
@@ -187,6 +202,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
         ArgumentNullException.ThrowIfNull(preparedModpack);
         if (string.IsNullOrWhiteSpace(preparedModpack.WorkingDirectory))
             return Task.CompletedTask;
+        // WorkingDirectory 只包含本次准备阶段展开的临时内容，不触碰已经提交的实例目录。
         return Task.Run(() => TryDeleteDirectory(preparedModpack.WorkingDirectory), cancellationToken);
     }
 
@@ -272,6 +288,9 @@ public sealed class LocalModpackPackageService : IModpackPackageService
                 && entry.Name.EndsWith(".mrpack", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
+    /// <summary>
+    /// 从 CurseForge ZIP 中提取唯一嵌入的 mrpack，并把两层包信息合并为统一准备结果。
+    /// </summary>
     private async Task<PreparedModpack> PrepareEmbeddedModrinthAsync(
         ZipArchiveEntry entry,
         string sourceArchivePath,

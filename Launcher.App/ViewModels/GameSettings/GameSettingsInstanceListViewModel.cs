@@ -27,8 +27,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.GameSettings;
 
+/// <summary>
+/// 维护实例设置页的完整实例缓存、分类投影和稳定选择，并协调激活时刷新。
+/// </summary>
 public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
 {
+    // AllInstances 是权威 UI 缓存，Instances 仅是当前分类的稳定可观察投影。
     private readonly IGameInstanceService instanceService;
     private readonly IGameVersionService gameVersionService;
     private readonly ILogger<GameSettingsInstanceListViewModel> logger;
@@ -90,6 +94,7 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
 
     public async Task EnsureLoadedAsync(CancellationToken cancellationToken = default)
     {
+        // 首次确保加载与显式刷新分开，避免每次页面激活都无条件扫描磁盘。
         if (hasLoadedInstances || IsLoading)
             return;
 
@@ -113,6 +118,7 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
 
     public void SelectCategory(GameSettingsInstanceCategory category, bool refreshVisibleInstances = true)
     {
+        // 分类对象保持稳定，切换时只重建投影，不重新发现实例。
         var changed = !ReferenceEquals(SelectedCategory, category)
             && !string.Equals(SelectedCategory?.Id, category.Id, StringComparison.OrdinalIgnoreCase);
         SelectedCategory = category;
@@ -192,6 +198,7 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
         bool logRefreshResult,
         CancellationToken cancellationToken)
     {
+        // 请求开始时捕获当前选择 Id，磁盘同步完成后按 Id 恢复而不是依赖旧对象引用。
         if (IsLoading)
             return;
         IsLoading = true;
@@ -261,6 +268,7 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
 
     private void Reconcile(IReadOnlyList<GameInstance> instances)
     {
+        // 原地更新已有条目可保留选择、动画和外部 Binding；仅新增/删除才改变集合结构。
         var existing = AllInstances
             .Where(item => !string.IsNullOrWhiteSpace(item.Instance.Id))
             .GroupBy(item => item.Instance.Id, StringComparer.OrdinalIgnoreCase)
@@ -305,6 +313,7 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
 
     private void ApplyVisibleInstances(IReadOnlyList<GameSettingsInstanceItem> instances)
     {
+        // 批量替换期间抑制中间通知，最后一次性刷新空状态和选择派生属性。
         var changed = false;
         for (var index = VisibleInstances.Count - 1; index >= 0; index--)
         {
@@ -360,6 +369,7 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
 
     private async Task<IReadOnlyDictionary<string, string>> LoadVersionTypesAsync(CancellationToken cancellationToken)
     {
+        // 版本类型是辅助展示，失败时返回空映射并让实例继续以默认类型显示。
         try
         {
             var versions = await gameVersionService.GetVersionsAsync(cancellationToken: cancellationToken);

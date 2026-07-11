@@ -25,8 +25,12 @@ using System.Windows.Media.Animation;
 
 namespace Launcher.App.Behaviors;
 
+/// <summary>
+/// 为 ScrollViewer 及其延迟生成的内部滚动宿主提供可取消、可接续的滚轮平滑动画。
+/// </summary>
 public static class SmoothScrollBehavior
 {
+    // 附加属性保存目标偏移和动画版本，使行为无需全局字典即可随控件生命周期回收。
     public static readonly DependencyProperty IsEnabledProperty =
         DependencyProperty.RegisterAttached(
             "IsEnabled",
@@ -108,6 +112,7 @@ public static class SmoothScrollBehavior
 
     public static void CancelAnimation(ScrollViewer scrollViewer)
     {
+        // 取消时将目标同步到当前实际位置，下一次滚轮从用户看到的位置继续。
         scrollViewer.BeginAnimation(AnimatedVerticalOffsetProperty, null);
         SetAnimatedVerticalOffset(scrollViewer, scrollViewer.VerticalOffset);
         SetTargetVerticalOffset(scrollViewer, scrollViewer.VerticalOffset);
@@ -145,6 +150,7 @@ public static class SmoothScrollBehavior
 
     private static void OnIsEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
+        // ItemsControl 的 ScrollViewer 可能在模板内部延迟生成，需要查找后把行为下沉到真实宿主。
         if (d is not ScrollViewer scrollViewer)
         {
             UpdateDescendantScrollHost(d, (bool)e.NewValue);
@@ -208,6 +214,7 @@ public static class SmoothScrollBehavior
 
     private static void ScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
+        // 拖动滚动条或调用 ScrollTo 属于外部滚动，会终止正在运行的插值动画。
         if (sender is not ScrollViewer scrollViewer
             || GetIsInternalScrollUpdate(scrollViewer)
             || GetIsAnimating(scrollViewer))
@@ -235,6 +242,7 @@ public static class SmoothScrollBehavior
 
     private static bool HandleMouseWheel(ScrollViewer scrollViewer, MouseWheelEventArgs e, DependencyObject optionsSource)
     {
+        // 多次滚轮在当前目标值上累加，而不是每次从实际偏移重启，快速滚动仍保持连续。
         if (scrollViewer.ScrollableHeight <= 0
             || (scrollViewer.CanContentScroll && !GetAllowContentScroll(optionsSource)))
         {
@@ -262,6 +270,7 @@ public static class SmoothScrollBehavior
         SetTargetVerticalOffset(scrollViewer, nextOffset);
         SetAnimatedVerticalOffset(scrollViewer, currentOffset);
         SetIsAnimating(scrollViewer, true);
+        // 版本号使旧动画 Completed 回调失效，避免它清理刚启动的新动画状态。
         var animationVersion = GetAnimationVersion(scrollViewer) + 1;
         SetAnimationVersion(scrollViewer, animationVersion);
 
@@ -318,6 +327,7 @@ public static class SmoothScrollBehavior
 
     private static void OnAnimatedVerticalOffsetChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
+        // 标记内部更新，ScrollChanged 才能区分动画帧和用户/代码发起的真实滚动。
         if (d is not ScrollViewer scrollViewer || GetIsInternalScrollUpdate(scrollViewer))
             return;
 

@@ -29,12 +29,17 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.GameSettings;
 
+/// <summary>
+/// 作为游戏设置页面壳层协调实例列表、详情分区、编辑对话框和跨分区文件拖放。
+/// </summary>
 public sealed partial class GameSettingsPageViewModel : ObservableObject
 {
+    // 页面壳层只依赖 UI 服务；实例业务和各详情功能分别委托给组合的子 ViewModel。
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
     private readonly IFloatingMessageService floatingMessageService;
     private readonly ILogger<GameSettingsPageViewModel> logger;
+    // 选中项对象会被列表刷新替换，单独保存订阅目标以便安全解除旧对象事件。
     private INotifyPropertyChanged? selectedInstanceNotifier;
     private string lastImportDropHintMessage = string.Empty;
 
@@ -60,10 +65,12 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         this.floatingMessageService = floatingMessageService;
         this.logger = logger ?? NullLogger<GameSettingsPageViewModel>.Instance;
 
+        // 分区对象只创建一次，切换时更新 IsSelected，保持 XAML 对象身份和动画状态稳定。
         foreach (var section in GameSettingsDetailSectionFactory.Create())
             DetailSections.Add(section);
         SelectDetailsSectionCore(DetailSections.FirstOrDefault());
 
+        // 壳层集中桥接子 ViewModel 事件，避免各子页面互相直接依赖。
         InstanceList.PropertyChanged += InstanceList_PropertyChanged;
         EditDialog.InstanceUpdated += EditDialog_InstanceUpdated;
         EditDialog.InstanceRenameStarting += EditDialog_InstanceRenameStarting;
@@ -189,8 +196,12 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         floatingMessageService.Show(string.Empty);
     }
 
+    /// <summary>
+    /// 按当前详情分区把拖入文件路由到 Mod、存档、资源包或光影包导入流程。
+    /// </summary>
     public async Task HandleImportDropAsync(IReadOnlyList<string> paths)
     {
+        // 拖放移动期间和真正释放时使用同一评估器，确保提示与最终处理规则完全一致。
         var evaluation = EvaluateImportDrop(paths);
         ApplyImportDropHint(evaluation);
         if (!evaluation.ShouldHandle)
@@ -203,6 +214,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             return;
         try
         {
+            // 具体导入类型由当前详情分区决定，壳层只负责日志和清理全局浮层提示。
             logger.LogInformation(
                 "Handling game settings import drop. Section={SectionId} FileCount={FileCount} InstanceId={InstanceId}",
                 Details.SelectedSection?.Id ?? "<none>",
@@ -241,6 +253,9 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         await OpenInstanceDetailsAsync(instance, "java", cancellationToken);
     }
 
+    /// <summary>
+    /// 切换详情上下文和目标分区，并同步所有依赖所选实例的子 ViewModel。
+    /// </summary>
     public void ShowInstanceDetails(GameInstance? instance, string? sectionId = null)
     {
         if (instance is null)
@@ -248,6 +263,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
             CurrentStep = GameSettingsPageStep.List;
             return;
         }
+        // 外部传入实例可能尚未进入当前筛选结果，先合并到列表再通过统一选择路径传播状态。
         var item = InstanceList.GetOrAdd(instance);
         InstanceList.SelectInstance(item);
         SelectDetailsSectionCore(ResolveDetailSection(sectionId));
@@ -305,6 +321,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     partial void OnCurrentStepChanged(GameSettingsPageStep value)
     {
+        // 详情页保留被筛选掉的当前实例选择，返回列表时恢复普通筛选语义。
         InstanceList.SetPreserveFilteredSelection(value is GameSettingsPageStep.Details);
         OnPropertyChanged(nameof(IsListStep));
         OnPropertyChanged(nameof(IsDetailsStep));
@@ -319,6 +336,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         string? sectionId,
         CancellationToken cancellationToken)
     {
+        // 先刷新列表以取得仓库中的最新实例引用，再进入详情避免编辑陈旧对象。
         await InstanceList.RefreshForActivationAsync(cancellationToken);
         ShowInstanceDetails(instance, sectionId);
     }
@@ -328,6 +346,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     private void SelectDetailsSectionCore(GameSettingsDetailSectionItem? section)
     {
+        // 导航项选择和详情激活在同一方法中提交，避免菜单高亮与内容分区短暂不一致。
         foreach (var item in DetailSections)
             item.IsSelected = ReferenceEquals(item, section);
         Details.SetSelectedSection(section);
@@ -355,14 +374,19 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
                 ? Strings.GameSettings_DropReleaseToImportMessage
                 : Strings.GameSettings_DropUnsupportedFileMessage
             : string.Empty;
+        // DragOver 高频触发；相同消息不重复调用浮层服务，避免动画不断重新开始。
         if (string.Equals(lastImportDropHintMessage, message, StringComparison.Ordinal))
             return;
         lastImportDropHintMessage = message;
         floatingMessageService.Show(message);
     }
 
+    /// <summary>
+    /// 将实例列表选择传播到详情、对话框和顶部搜索状态，避免子页面各自监听列表。
+    /// </summary>
     private void HandleSelectedInstanceChanged()
     {
+        // 刷新列表可能产生新的包装对象，先解除旧订阅再把选择传播给详情和标题。
         if (selectedInstanceNotifier is not null)
             selectedInstanceNotifier.PropertyChanged -= SelectedInstance_PropertyChanged;
         selectedInstanceNotifier = InstanceList.SelectedInstance;

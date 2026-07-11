@@ -118,6 +118,9 @@ internal sealed class ForgeInstallerRunner : IForgeInstallerRunner
     }
 }
 
+/// <summary>
+/// 在隔离沙箱中安装 Forge，兼容现代与旧版安装器，并只把自包含的最终版本提交到用户目录。
+/// </summary>
 public sealed class ForgeLoaderProvider : ILoaderProvider
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
@@ -171,6 +174,9 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
 
     public bool IsImplemented => true;
 
+    /// <summary>
+    /// 获取指定 Minecraft 版本的 Forge 清单，并按解析后的版本号降序返回。
+    /// </summary>
     public async Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
         string minecraftVersion,
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
@@ -189,6 +195,9 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
             .ToList();
     }
 
+    /// <summary>
+    /// 在临时 .minecraft 中运行 Forge 安装器，生成自包含隔离版本后提交到目标目录。
+    /// </summary>
     public async Task<string> InstallAsync(
         string minecraftVersion,
         string gameDirectory,
@@ -222,6 +231,7 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
         if (!catalog.TryGetValue(selectedLoaderVersion, out var catalogEntry))
             throw new InvalidOperationException($"Forge loader version {selectedLoaderVersion} is not available for {minecraftVersion}.");
 
+        // 安装器会创建名称不可完全预测的中间版本；快照用于失败和成功后的精确清理。
         var existingVersionNames = LoaderVersionDirectoryTransaction.CaptureExistingVersions(gameDirectory);
         var installerSessionDirectory = Path.Combine(tempRootDirectory, "launcher-forge", Guid.NewGuid().ToString("N"));
         var installerJarPath = Path.Combine(installerSessionDirectory, $"forge-{minecraftVersion}-{selectedLoaderVersion}-installer.jar");
@@ -247,6 +257,7 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
             }
             catch (InvalidOperationException exception) when (IsLegacyForgeInstallClientFailure(exception))
             {
+                // 很老的 Forge 安装器没有 --installClient，通过读取 install_profile.json 重建等价安装结果。
                 logger.LogInformation(
                     exception,
                     "Legacy Forge installer detected because --installClient is unsupported. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion}",
@@ -293,6 +304,7 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
 
+            // 最终版本完成扁平化、修复和文件补齐后才提交，用户目录不会看到依赖沙箱的半成品。
             LoaderVersionDirectoryTransaction.CopyFinalVersionDirectory(
                 installerMinecraftDirectory,
                 gameDirectory,
@@ -314,6 +326,9 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
         }
     }
 
+    /// <summary>
+    /// 通过下载源执行器加载并缓存 Forge 清单，同一 Minecraft 版本只解析一次。
+    /// </summary>
     private async Task<IReadOnlyDictionary<string, ForgeCatalogEntry>> GetCatalogAsync(
         string minecraftVersion,
         DownloadSourcePreference downloadSourcePreference,
@@ -454,6 +469,9 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
             cancellationToken);
     }
 
+    /// <summary>
+    /// 从安装器输出目录中选择元数据确实匹配目标 Minecraft 与 Forge 版本的源版本。
+    /// </summary>
     private static string FindInstalledSourceVersionName(
         string gameDirectory,
         string minecraftVersion,
@@ -469,6 +487,7 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
             .OrderByDescending(directory => directory.LastWriteTimeUtc)
             .ToList();
 
+        // 优先匹配本次新建目录；若安装器复用了目录，再以 Maven 坐标和版本文本进行受控兜底。
         var sourceVersion = candidates
             .Where(directory => !existingVersionNames.Contains(directory.Name))
             .Select(directory => TryCreateSourceMatch(directory.FullName, directory.Name, minecraftVersion, forgeVersion))
@@ -505,6 +524,9 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
         return new ForgeSourceMatch(versionName, metadata);
     }
 
+    /// <summary>
+    /// 优先扁平化 Forge 派生版本；无法读取父版本时退化为源版本隔离复制。
+    /// </summary>
     private static async Task<string> CreateFinalVersionAsync(
         string gameDirectory,
         string sourceVersionName,
@@ -521,6 +543,7 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
         {
             try
             {
+                // 能读取父版本时优先扁平化；父元数据缺失的旧安装结果再退化为直接复制源版本。
                 finalVersionName = await VanillaVersionIsolator.CreateFlattenedDerivedVersionAsync(
                     metadata.InheritsFrom,
                     sourceVersionName,
@@ -612,6 +635,9 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
         return false;
     }
 
+    /// <summary>
+    /// 根据旧版 install_profile.json 手工创建版本元数据和 Forge Maven 构件。
+    /// </summary>
     private async Task InstallLegacyForgeClientAsync(
         string installerJarPath,
         string gameDirectory,

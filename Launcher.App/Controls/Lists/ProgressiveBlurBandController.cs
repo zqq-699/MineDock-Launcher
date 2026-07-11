@@ -59,8 +59,12 @@ internal sealed record ProgressiveBlurVisualParts(
     FrameworkElement BlurBandVerticalHost,
     VisualBrush BlurBandBrush);
 
+/// <summary>
+/// 在长列表顶部维护渐进模糊带，并在效果不可用时安全退化为普通裁剪显示。
+/// </summary>
 internal sealed class ProgressiveBlurBandController
 {
+    // Shader 效果、视觉复制层和原列表裁剪必须作为一个整体启停，不能留下半激活状态。
     private static readonly DependencyPropertyDescriptor? TopFadeLengthDescriptor =
         DependencyPropertyDescriptor.FromProperty(
             VerticalEdgeOpacityMask.TopFadeLengthProperty,
@@ -94,12 +98,14 @@ internal sealed class ProgressiveBlurBandController
 
     internal void OnLoaded()
     {
+        // 进入视觉树后 Window、DPI 和实际尺寸才可靠，此时再订阅并首次布局。
         AttachSubscriptions();
         Update();
     }
 
     internal void OnUnloaded()
     {
+        // 解除窗口/DPI/尺寸事件，避免回收页面仍被视觉树或事件源持有。
         DetachSubscriptions();
         Deactivate();
     }
@@ -114,6 +120,7 @@ internal sealed class ProgressiveBlurBandController
 
     internal void Update()
     {
+        // Update 可由尺寸、主题资源、DPI 和启用状态触发，因此必须保持幂等。
         if (!parts.Owner.IsLoaded || !isActive())
         {
             Deactivate();
@@ -260,6 +267,7 @@ internal sealed class ProgressiveBlurBandController
 
     private bool TryEnsureEffects()
     {
+        // Shader 可能因显卡能力或远程桌面失败；当前控件锁存失败，不在每帧反复创建。
         if (activationFailureLatched)
             return false;
 
@@ -284,6 +292,7 @@ internal sealed class ProgressiveBlurBandController
 
     private static ProgressiveBlurEffectCreationResult CreateEffects()
     {
+        // 横向和纵向两个 pass 必须都成功，单 pass 会产生方向性错误视觉。
         if (!ProgressiveGaussianBlurEffect.TryCreate(
                 directionX: 1d,
                 directionY: 0d,
@@ -337,6 +346,7 @@ internal sealed class ProgressiveBlurBandController
         double height,
         ProgressiveBlurRenderLayout renderLayout)
     {
+        // 在设备像素上对齐模糊带边界，避免高 DPI 下出现一像素缝隙或重复采样。
         parts.BlurBandViewport.Height = renderLayout.PresentationHeight;
         parts.BlurBandUpscaleHost.Width = renderLayout.LowResolutionWidth;
         parts.BlurBandUpscaleHost.Height = renderLayout.LowResolutionHeight;
@@ -358,6 +368,7 @@ internal sealed class ProgressiveBlurBandController
 
     private double ResolveEffectiveTopBlurLength(double height)
     {
+        // 主题资源给出理想长度，但始终钳制在列表高度内，避免负裁剪区域。
         if (height <= 0d)
             return 0d;
 
@@ -378,6 +389,7 @@ internal sealed class ProgressiveBlurBandController
 
     private void HandleActivationFailure(Exception exception)
     {
+        // 故障只记录一次并永久退化；模糊是装饰效果，不能影响列表交互。
         Deactivate();
         horizontalEffect = null;
         verticalEffect = null;
@@ -387,6 +399,7 @@ internal sealed class ProgressiveBlurBandController
 
     private void Deactivate()
     {
+        // 退化路径恢复原列表裁剪和可见性，关闭效果后应与普通列表等价。
         parts.BlurBandVerticalHost.Effect = null;
         parts.BlurBandHorizontalHost.Effect = null;
         parts.BlurBandViewport.Visibility = Visibility.Collapsed;

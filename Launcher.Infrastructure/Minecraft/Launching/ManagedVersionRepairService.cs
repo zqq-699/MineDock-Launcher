@@ -41,6 +41,9 @@ internal interface IManagedVersionRepairService
         int downloadSpeedLimitMbPerSecond = 0);
 }
 
+/// <summary>
+/// 检查或修复版本 JSON、客户端 JAR、库、资源和日志配置，并将继承版本规范化为自包含版本。
+/// </summary>
 internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
@@ -61,6 +64,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         this.logger = logger ?? NullLogger.Instance;
     }
 
+    /// <summary>
+    /// 按元数据、JAR、库、资源和日志配置的顺序检查或修复启动所需文件。
+    /// </summary>
     public async Task RepairAsync(
         string minecraftDirectory,
         string versionName,
@@ -149,6 +155,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         ReportProgress(progress, LaunchProgressStages.CheckingJava, "Checking Java runtime", 90);
     }
 
+    /// <summary>
+    /// 验证或消除 inheritsFrom 依赖，并返回最终版本 JSON 与客户端 JAR 来源。
+    /// </summary>
     internal async Task<ResolvedVersionMetadata> EnsureVersionIsSelfContainedAsync(
         string minecraftDirectory,
         string versionName,
@@ -158,6 +167,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         bool allowRepair = true,
         int downloadSpeedLimitMbPerSecond = 0)
     {
+        // 禁止修复时只验证现状，绝不写文件或下载；继承未消除即视为不可启动。
         if (!allowRepair)
         {
             var versionJson = await ReadVersionJsonAsync(versionDirectory, versionName, cancellationToken);
@@ -189,6 +199,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         if (!string.IsNullOrWhiteSpace(GetStringProperty(result.VersionJson, "inheritsFrom")))
             throw new InstanceRepairException($"Version {versionName} still depends on another version after repair.");
 
+        // 修复结果统一改写为当前版本身份并移除 inheritsFrom，后续启动不再依赖父目录存在。
         var normalized = NormalizeVersionJson(result.VersionJson, versionName);
         if (result.WasModified || !ReferenceEquals(normalized, result.VersionJson))
         {
@@ -199,6 +210,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         return result;
     }
 
+    /// <summary>
+    /// 读取当前版本；存在父版本时递归解析并合并为可独立使用的元数据。
+    /// </summary>
     private async Task<ResolvedVersionMetadata> ResolveCurrentVersionAsync(
         string minecraftDirectory,
         string versionName,
@@ -241,6 +255,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             ClientJarSize: VanillaVersionMetadataClient.GetClientJarSize(mergedVersion) ?? parent.ClientJarSize);
     }
 
+    /// <summary>
+    /// 优先读取本地父版本，缺失时从官方元数据获取父版本定义和客户端来源。
+    /// </summary>
     private async Task<ResolvedVersionMetadata> ResolveParentVersionAsync(
         string minecraftDirectory,
         string parentVersionName,
@@ -306,6 +323,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         return normalized;
     }
 
+    /// <summary>
+    /// 确保隔离版本拥有同名客户端 JAR，优先复制本地来源并最后尝试下载。
+    /// </summary>
     private async Task EnsureVersionJarAsync(
         string versionDirectory,
         string versionName,
@@ -327,6 +347,7 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         if (!string.IsNullOrWhiteSpace(resolvedVersion.LocalJarPath)
             && File.Exists(resolvedVersion.LocalJarPath))
         {
+            // 优先复用父版本或本地已有 JAR，只有无可用本地来源时才下载。
             File.Copy(resolvedVersion.LocalJarPath, jarPath, overwrite: false);
             return;
         }
@@ -349,6 +370,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         throw new InstanceRepairException($"Version {versionName} is missing its client jar and no repair source is available.");
     }
 
+    /// <summary>
+    /// 解析受当前平台规则允许的库构件，收集所有缺失项后批量下载。
+    /// </summary>
     private async Task EnsureLibrariesAsync(
         string minecraftDirectory,
         JsonObject versionJson,
@@ -389,9 +413,13 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
             }
         }
 
+        // 先收集缺失项再交给批次统一并发、限速和汇报进度。
         await downloadBatch.DownloadAllAsync(downloads, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 确保资源索引存在，并根据索引内容补齐缺失的对象哈希文件。
+    /// </summary>
     private async Task EnsureAssetsAsync(
         string minecraftDirectory,
         JsonObject versionJson,
@@ -466,6 +494,9 @@ internal sealed class ManagedVersionRepairService : IManagedVersionRepairService
         await downloadBatch.DownloadAllAsync(downloads, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 检查版本声明的日志配置文件，并在允许修复时下载缺失配置。
+    /// </summary>
     private async Task EnsureLoggingAsync(
         string minecraftDirectory,
         JsonObject versionJson,

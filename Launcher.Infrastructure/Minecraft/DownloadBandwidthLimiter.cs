@@ -25,6 +25,9 @@ using Launcher.Application.Services;
 
 namespace Launcher.Infrastructure.Minecraft;
 
+/// <summary>
+/// 让同一设置来源或同一固定限速值的并发下载共享一个总带宽预算。
+/// </summary>
 internal sealed class DownloadBandwidthLimiter
 {
     private static readonly ConditionalWeakTable<IDownloadSpeedLimitState, SharedBudgetState> SharedStateBudgets = new();
@@ -44,6 +47,9 @@ internal sealed class DownloadBandwidthLimiter
         this.downloadSpeedLimitState = downloadSpeedLimitState;
     }
 
+    /// <summary>
+    /// 为动态设置或固定限速取得共享预算；限速为零时不创建包装器。
+    /// </summary>
     public static DownloadBandwidthLimiter? Create(
         int downloadSpeedLimitMbPerSecond,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null)
@@ -55,6 +61,7 @@ internal sealed class DownloadBandwidthLimiter
 
         if (downloadSpeedLimitState is not null)
         {
+            // 共享设置对象对应一份预算，运行时修改限速后所有关联下载会立即采用新值。
             var sharedBudgetState = SharedStateBudgets.GetValue(downloadSpeedLimitState, static _ => new SharedBudgetState());
             return new DownloadBandwidthLimiter(sharedBudgetState, downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
         }
@@ -113,10 +120,14 @@ internal sealed class DownloadBandwidthLimiter
                 Thread.Sleep(delay);
         }
 
+        /// <summary>
+        /// 在线性时间轴上预留本批字节对应的发送时段，并返回调用方需要等待的时间。
+        /// </summary>
         private TimeSpan Reserve(int bytesRead, double bytesPerSecond)
         {
             lock (syncRoot)
             {
+                // 每次读取在共享时间线上预留传输时段，并发流因此共同受总速率约束。
                 var now = DateTime.UtcNow;
                 var startAt = now > nextAvailableAtUtc ? now : nextAvailableAtUtc;
                 var delay = startAt - now;
@@ -129,6 +140,9 @@ internal sealed class DownloadBandwidthLimiter
 
 internal static class DownloadResponseThrottler
 {
+    /// <summary>
+    /// 用空闲超时和可选限速流包装响应体，并把并发租约延长到内容消费完成。
+    /// </summary>
     public static async Task ApplyAsync(
         HttpResponseMessage response,
         DownloadBandwidthLimiter? bandwidthLimiter,
