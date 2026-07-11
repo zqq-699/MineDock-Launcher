@@ -55,6 +55,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     private bool hasPendingVisualRefresh;
     private bool isVisibleRefreshQueued;
     private bool isSectionActive;
+    private bool isInitialProjectionReady;
     private bool suppressLocalCollectionEvents;
 
     // 可观察属性是本地快照的 UI 投影，不直接拥有任何文件系统状态。
@@ -129,7 +130,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
 
     public bool HasMods => Mods.Count > 0;
 
-    public bool CanShowModScrollableContent => IsModManagementSupported;
+    public bool CanShowModScrollableContent => IsModManagementSupported && isInitialProjectionReady;
 
     public bool HasInstalledMods => InstalledModCount > 0;
 
@@ -201,7 +202,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         IsLoadingMods = false;
         HasLoadedMods = false;
         allModsByStablePath.Clear();
-        ListEntranceAnimationToken = 0;
+        SetInitialProjectionReady(false);
         ResetSelectionState();
         ClearDisplayedMods();
     }
@@ -242,7 +243,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
         isSectionActive = true;
         localModsViewModel.SetWatcherEnabled(IsModManagementSupported);
         if (hasPendingVisualRefresh && HasLoadedMods)
-            QueueVisibleRefresh(playEntranceAnimation: true);
+            PublishReadyProjection();
 
         return EnsureLoadedForSelectedInstanceAsync();
     }
@@ -760,6 +761,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
             return;
 
         // Loading 和 HasLoaded 分开表示“首次加载中”“已有结果”和“加载失败”三种状态。
+        SetInitialProjectionReady(false);
         IsLoadingMods = true;
         OnPropertyChanged(nameof(InstalledSummaryText));
         RaiseAvailabilityPropertyChanges();
@@ -770,7 +772,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
             HasLoadedMods = true;
             // 隐藏页面不消费入场动画；下次激活时才触发一次完整视觉更新。
             if (isSectionActive)
-                ListEntranceAnimationToken++;
+                PublishReadyProjection();
             else
                 hasPendingVisualRefresh = true;
         }
@@ -782,6 +784,8 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
                 selectedInstance.Id);
             HasLoadedMods = false;
             ClearDisplayedMods();
+            hasPendingVisualRefresh = false;
+            SetInitialProjectionReady(true);
             statusService.Report(Strings.Status_LoadLocalModsFailed);
         }
         finally
@@ -804,6 +808,12 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     {
         if (suppressLocalCollectionEvents)
             return;
+
+        if (!HasLoadedMods)
+        {
+            hasPendingVisualRefresh = true;
+            return;
+        }
 
         if (!isSectionActive)
         {
@@ -863,7 +873,7 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
     /// <summary>
     /// 将密集集合事件合并为一次 UI 调度，并按页面可见性决定立即刷新或延后。
     /// </summary>
-    private void QueueVisibleRefresh(bool playEntranceAnimation = false)
+    private void QueueVisibleRefresh()
     {
         // 合并同一 UI 循环内的多次集合事件；页面不可见时只记录一次待刷新标记。
         if (isVisibleRefreshQueued)
@@ -882,9 +892,24 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
 
             hasPendingVisualRefresh = false;
             RefreshFromLocalMods();
-            if (playEntranceAnimation && HasMods)
-                ListEntranceAnimationToken++;
         });
+    }
+
+    private void PublishReadyProjection()
+    {
+        hasPendingVisualRefresh = false;
+        RefreshFromLocalMods();
+        SetInitialProjectionReady(true);
+        ListEntranceAnimationToken++;
+    }
+
+    private void SetInitialProjectionReady(bool value)
+    {
+        if (isInitialProjectionReady == value)
+            return;
+
+        isInitialProjectionReady = value;
+        OnPropertyChanged(nameof(CanShowModScrollableContent));
     }
 
     private bool MatchesSearch(LocalMod mod)

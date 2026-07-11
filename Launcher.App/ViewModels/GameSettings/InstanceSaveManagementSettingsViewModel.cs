@@ -50,6 +50,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     private bool hasPendingVisualRefresh;
     private bool isVisibleRefreshQueued;
     private bool isSectionActive;
+    private bool isInitialProjectionReady;
     private bool suppressLocalCollectionEvents;
 
     // 以下属性是 XAML 所需的派生页面状态，不是第二份业务数据源。
@@ -119,7 +120,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
 
     public bool HasSaves => Saves.Count > 0;
 
-    public bool CanShowSaveScrollableContent => selectedInstance is not null;
+    public bool CanShowSaveScrollableContent => selectedInstance is not null && isInitialProjectionReady;
 
     public bool HasInstalledSaves => InstalledSaveCount > 0;
 
@@ -181,7 +182,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         IsLoadingSaves = false;
         HasLoadedSaves = false;
         selectionState.ClearCache();
-        ListEntranceAnimationToken = 0;
+        SetInitialProjectionReady(false);
         ResetSelectionState();
         ClearDisplayedSaves();
         ImportLocalSaveCommand.NotifyCanExecuteChanged();
@@ -222,7 +223,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         isSectionActive = true;
         localSavesViewModel.SetWatcherEnabled(selectedInstance is not null);
         if (hasPendingVisualRefresh && HasLoadedSaves)
-            QueueVisibleRefresh(playEntranceAnimation: true);
+            PublishReadyProjection();
 
         return EnsureLoadedForSelectedInstanceAsync();
     }
@@ -484,6 +485,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
             return;
 
         // 先发布 Loading 状态，让空列表能够显示骨架/加载提示而不是误报“没有存档”。
+        SetInitialProjectionReady(false);
         IsLoadingSaves = true;
         OnPropertyChanged(nameof(InstalledSummaryText));
         RaiseAvailabilityPropertyChanges();
@@ -494,7 +496,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
             HasLoadedSaves = true;
             // 隐藏页面不播放动画，只记住下次激活需要一次完整视觉刷新。
             if (isSectionActive)
-                ListEntranceAnimationToken++;
+                PublishReadyProjection();
             else
                 hasPendingVisualRefresh = true;
         }
@@ -506,6 +508,8 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
                 selectedInstance.Id);
             HasLoadedSaves = false;
             ClearDisplayedSaves();
+            hasPendingVisualRefresh = false;
+            SetInitialProjectionReady(true);
             statusService.Report(Strings.Status_LoadLocalSavesFailed);
         }
         finally
@@ -527,6 +531,12 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
     {
         if (suppressLocalCollectionEvents)
             return;
+
+        if (!HasLoadedSaves)
+        {
+            hasPendingVisualRefresh = true;
+            return;
+        }
 
         if (!isSectionActive)
         {
@@ -577,7 +587,7 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
         SelectSave(restoredSelection ?? Saves.FirstOrDefault());
     }
 
-    private void QueueVisibleRefresh(bool playEntranceAnimation = false)
+    private void QueueVisibleRefresh()
     {
         if (isVisibleRefreshQueued)
             return;
@@ -595,9 +605,24 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
 
             hasPendingVisualRefresh = false;
             RefreshFromLocalSaves();
-            if (playEntranceAnimation && HasSaves)
-                ListEntranceAnimationToken++;
         });
+    }
+
+    private void PublishReadyProjection()
+    {
+        hasPendingVisualRefresh = false;
+        RefreshFromLocalSaves();
+        SetInitialProjectionReady(true);
+        ListEntranceAnimationToken++;
+    }
+
+    private void SetInitialProjectionReady(bool value)
+    {
+        if (isInitialProjectionReady == value)
+            return;
+
+        isInitialProjectionReady = value;
+        OnPropertyChanged(nameof(CanShowSaveScrollableContent));
     }
 
     private bool MatchesSearch(LocalSave save)

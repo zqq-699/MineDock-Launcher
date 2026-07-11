@@ -117,6 +117,8 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
 
     public bool IsDetailsStep => CurrentStep is GameSettingsPageStep.Details;
 
+    public bool IsGameSettingsContentVisible => IsDetailsStep || InstanceList.HasVisibleInstances;
+
     public System.Collections.IEnumerable CurrentSecondaryMenuItems => IsDetailsStep
         ? DetailSections
         : InstanceList.Categories;
@@ -325,6 +327,7 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         InstanceList.SetPreserveFilteredSelection(value is GameSettingsPageStep.Details);
         OnPropertyChanged(nameof(IsListStep));
         OnPropertyChanged(nameof(IsDetailsStep));
+        OnPropertyChanged(nameof(IsGameSettingsContentVisible));
         OnPropertyChanged(nameof(CurrentSecondaryMenuItems));
         OnPropertyChanged(nameof(PageTitle));
         OnPropertyChanged(nameof(PageTitleIconSource));
@@ -411,6 +414,9 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
                 break;
             case nameof(GameSettingsInstanceListViewModel.SearchQuery):
                 OnPropertyChanged(nameof(TopSearchQuery));
+                break;
+            case nameof(GameSettingsInstanceListViewModel.HasVisibleInstances):
+                OnPropertyChanged(nameof(IsGameSettingsContentVisible));
                 break;
         }
     }

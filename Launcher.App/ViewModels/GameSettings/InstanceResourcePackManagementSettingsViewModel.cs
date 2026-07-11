@@ -50,6 +50,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     private bool hasPendingVisualRefresh;
     private bool isVisibleRefreshQueued;
     private bool isSectionActive;
+    private bool isInitialProjectionReady;
     private bool suppressLocalCollectionEvents;
 
     // 可观察属性均为界面投影，任何磁盘变化都必须先进入共享本地内容 ViewModel。
@@ -119,7 +120,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
 
     public bool HasResourcePacks => ResourcePacks.Count > 0;
 
-    public bool CanShowResourcePackScrollableContent => selectedInstance is not null;
+    public bool CanShowResourcePackScrollableContent => selectedInstance is not null && isInitialProjectionReady;
 
     public bool HasInstalledResourcePacks => InstalledResourcePackCount > 0;
 
@@ -181,7 +182,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         IsLoadingResourcePacks = false;
         HasLoadedResourcePacks = false;
         selectionState.ClearCache();
-        ListEntranceAnimationToken = 0;
+        SetInitialProjectionReady(false);
         ResetSelectionState();
         ClearDisplayedResourcePacks();
         ImportLocalResourcePackCommand.NotifyCanExecuteChanged();
@@ -222,7 +223,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         isSectionActive = true;
         localResourcePacksViewModel.SetWatcherEnabled(selectedInstance is not null);
         if (hasPendingVisualRefresh && HasLoadedResourcePacks)
-            QueueVisibleRefresh(playEntranceAnimation: true);
+            PublishReadyProjection();
 
         return EnsureLoadedForSelectedInstanceAsync();
     }
@@ -484,6 +485,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
             return;
 
         // Loading 与 HasLoaded 分离，首次进入和刷新失败可以呈现不同的空状态。
+        SetInitialProjectionReady(false);
         IsLoadingResourcePacks = true;
         OnPropertyChanged(nameof(InstalledSummaryText));
         RaiseAvailabilityPropertyChanges();
@@ -494,7 +496,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
             HasLoadedResourcePacks = true;
             // 只有可见页面立即播放列表动画，隐藏页面仅设置待刷新标志。
             if (isSectionActive)
-                ListEntranceAnimationToken++;
+                PublishReadyProjection();
             else
                 hasPendingVisualRefresh = true;
         }
@@ -506,6 +508,8 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
                 selectedInstance.Id);
             HasLoadedResourcePacks = false;
             ClearDisplayedResourcePacks();
+            hasPendingVisualRefresh = false;
+            SetInitialProjectionReady(true);
             statusService.Report(Strings.Status_LoadLocalResourcePacksFailed);
         }
         finally
@@ -527,6 +531,12 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
     {
         if (suppressLocalCollectionEvents)
             return;
+
+        if (!HasLoadedResourcePacks)
+        {
+            hasPendingVisualRefresh = true;
+            return;
+        }
 
         if (!isSectionActive)
         {
@@ -577,7 +587,7 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
         SelectResourcePack(restoredSelection ?? ResourcePacks.FirstOrDefault());
     }
 
-    private void QueueVisibleRefresh(bool playEntranceAnimation = false)
+    private void QueueVisibleRefresh()
     {
         if (isVisibleRefreshQueued)
             return;
@@ -595,9 +605,24 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
 
             hasPendingVisualRefresh = false;
             RefreshFromLocalResourcePacks();
-            if (playEntranceAnimation && HasResourcePacks)
-                ListEntranceAnimationToken++;
         });
+    }
+
+    private void PublishReadyProjection()
+    {
+        hasPendingVisualRefresh = false;
+        RefreshFromLocalResourcePacks();
+        SetInitialProjectionReady(true);
+        ListEntranceAnimationToken++;
+    }
+
+    private void SetInitialProjectionReady(bool value)
+    {
+        if (isInitialProjectionReady == value)
+            return;
+
+        isInitialProjectionReady = value;
+        OnPropertyChanged(nameof(CanShowResourcePackScrollableContent));
     }
 
     private bool MatchesSearch(LocalResourcePack resourcePack)

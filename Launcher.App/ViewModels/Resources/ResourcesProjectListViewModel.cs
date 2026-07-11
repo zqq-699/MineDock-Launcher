@@ -411,7 +411,6 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
             // 新查询替换整个投影并启动入场动画；分页追加必须保留已有对象和滚动位置。
             VisibleProjects.Clear();
             ListItems.Clear();
-            ListEntranceAnimationToken++;
         }
 
         // 游标按服务页大小推进，而不是按过滤后的数量推进，避免重复请求同一远端页。
@@ -424,6 +423,8 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
         var batchSize = append ? AppendProjectBatchSize : InitialProjectBatchSize;
         // 首批立即呈现，其余项分帧追加，避免一次性创建大量 WPF 项导致界面卡顿。
         AddBatch(items, 0, batchSize);
+        if (!append)
+            ListEntranceAnimationToken++;
         if (items.Count > batchSize)
             Observe(AppendRemainingBatchesAsync(items, batchSize, cancellationToken), "append resource project batches");
 

@@ -50,6 +50,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
     private bool hasPendingVisualRefresh;
     private bool isVisibleRefreshQueued;
     private bool isSectionActive;
+    private bool isInitialProjectionReady;
     private bool suppressLocalCollectionEvents;
 
     // 可观察属性均为界面投影，任何磁盘变化都必须先进入共享本地内容 ViewModel。
@@ -119,7 +120,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
 
     public bool HasShaderPacks => ShaderPacks.Count > 0;
 
-    public bool CanShowShaderPackScrollableContent => selectedInstance is not null;
+    public bool CanShowShaderPackScrollableContent => selectedInstance is not null && isInitialProjectionReady;
 
     public bool HasInstalledShaderPacks => InstalledShaderPackCount > 0;
 
@@ -181,7 +182,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         IsLoadingShaderPacks = false;
         HasLoadedShaderPacks = false;
         selectionState.ClearCache();
-        ListEntranceAnimationToken = 0;
+        SetInitialProjectionReady(false);
         ResetSelectionState();
         ClearDisplayedShaderPacks();
         ImportLocalShaderPackCommand.NotifyCanExecuteChanged();
@@ -222,7 +223,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         isSectionActive = true;
         localShaderPacksViewModel.SetWatcherEnabled(selectedInstance is not null);
         if (hasPendingVisualRefresh && HasLoadedShaderPacks)
-            QueueVisibleRefresh(playEntranceAnimation: true);
+            PublishReadyProjection();
 
         return EnsureLoadedForSelectedInstanceAsync();
     }
@@ -484,6 +485,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
             return;
 
         // Loading 与 HasLoaded 分离，首次进入和刷新失败可以呈现不同的空状态。
+        SetInitialProjectionReady(false);
         IsLoadingShaderPacks = true;
         OnPropertyChanged(nameof(InstalledSummaryText));
         RaiseAvailabilityPropertyChanges();
@@ -494,7 +496,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
             HasLoadedShaderPacks = true;
             // 只有可见页面立即播放列表动画，隐藏页面仅设置待刷新标志。
             if (isSectionActive)
-                ListEntranceAnimationToken++;
+                PublishReadyProjection();
             else
                 hasPendingVisualRefresh = true;
         }
@@ -506,6 +508,8 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
                 selectedInstance.Id);
             HasLoadedShaderPacks = false;
             ClearDisplayedShaderPacks();
+            hasPendingVisualRefresh = false;
+            SetInitialProjectionReady(true);
             statusService.Report(Strings.Status_LoadLocalShaderPacksFailed);
         }
         finally
@@ -527,6 +531,12 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
     {
         if (suppressLocalCollectionEvents)
             return;
+
+        if (!HasLoadedShaderPacks)
+        {
+            hasPendingVisualRefresh = true;
+            return;
+        }
 
         if (!isSectionActive)
         {
@@ -577,7 +587,7 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
         SelectShaderPack(restoredSelection ?? ShaderPacks.FirstOrDefault());
     }
 
-    private void QueueVisibleRefresh(bool playEntranceAnimation = false)
+    private void QueueVisibleRefresh()
     {
         if (isVisibleRefreshQueued)
             return;
@@ -595,9 +605,24 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
 
             hasPendingVisualRefresh = false;
             RefreshFromLocalShaderPacks();
-            if (playEntranceAnimation && HasShaderPacks)
-                ListEntranceAnimationToken++;
         });
+    }
+
+    private void PublishReadyProjection()
+    {
+        hasPendingVisualRefresh = false;
+        RefreshFromLocalShaderPacks();
+        SetInitialProjectionReady(true);
+        ListEntranceAnimationToken++;
+    }
+
+    private void SetInitialProjectionReady(bool value)
+    {
+        if (isInitialProjectionReady == value)
+            return;
+
+        isInitialProjectionReady = value;
+        OnPropertyChanged(nameof(CanShowShaderPackScrollableContent));
     }
 
     private bool MatchesSearch(LocalShaderPack shaderPack)

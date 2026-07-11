@@ -228,9 +228,9 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
         finally
         {
             IsLoading = false;
+            RefreshVisibleInstances();
             if (hasLoadedInstances && playEntranceAnimation)
                 EntranceAnimationToken++;
-            RefreshVisibleInstances();
             if (hasLoadedInstances && logRefreshResult)
             {
                 logger.LogInformation(

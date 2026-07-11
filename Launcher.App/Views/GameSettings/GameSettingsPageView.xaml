@@ -100,7 +100,7 @@
                                 SearchText="{Binding TopSearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                 IsSearchVisible="{Binding IsTopSearchVisible}"
                                 IsSearchToolbarVisible="{Binding IsTopResourceManagementDetailsStep}"
-                                IsListVisible="True"
+                                IsListVisible="{Binding IsGameSettingsContentVisible}"
                                 IsProgressiveBlurEnabled="{DynamicResource Is.ProgressiveBlur.Enabled}"
                                 UseFrameScrollViewer="False">
             <controls:ListPageFrame.SearchToolbarContentTemplate>

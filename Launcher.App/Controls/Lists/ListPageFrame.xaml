@@ -21,6 +21,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:behaviors="clr-namespace:Launcher.App.Behaviors"
+             xmlns:controls="clr-namespace:Launcher.App.Controls"
              x:Name="Root"
              Focusable="False">
     <Grid>
@@ -113,24 +114,22 @@
                         </StackPanel>
                     </ScrollViewer>
 
-                    <ContentPresenter>
-                        <ContentPresenter.Style>
-                            <Style TargetType="ContentPresenter">
-                                <Setter Property="Content" Value="{x:Null}" />
-                                <Setter Property="Visibility" Value="Collapsed" />
+                    <controls:DeferredListContentHost ListContent="{Binding ListContent, ElementName=Root}">
+                        <controls:DeferredListContentHost.Style>
+                            <Style TargetType="controls:DeferredListContentHost">
+                                <Setter Property="IsListVisible" Value="False" />
                                 <Style.Triggers>
                                     <MultiDataTrigger>
                                         <MultiDataTrigger.Conditions>
                                             <Condition Binding="{Binding IsListVisible, ElementName=Root}" Value="True" />
                                             <Condition Binding="{Binding UseFrameScrollViewer, ElementName=Root}" Value="False" />
                                         </MultiDataTrigger.Conditions>
-                                        <Setter Property="Content" Value="{Binding ListContent, ElementName=Root}" />
-                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Setter Property="IsListVisible" Value="True" />
                                     </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </ContentPresenter.Style>
-                    </ContentPresenter>
+                        </controls:DeferredListContentHost.Style>
+                    </controls:DeferredListContentHost>
                 </Grid>
             </Grid>
 

@@ -147,7 +147,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
         && !IsRestoringBackup
         && !string.IsNullOrWhiteSpace(BackupDirectory);
 
-    public bool CanShowBackupScrollableContent => selectedInstance is not null;
+    public bool CanShowBackupScrollableContent => selectedInstance is not null && HasLoadedBackups;
 
     public bool HasVisibleBackups => VisibleBackups.Count > 0;
 
@@ -204,8 +204,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
         IsRestoreBackupDialogOpen = false;
         NewBackupName = string.Empty;
         IsMultiSelectMode = false;
-        ListEntranceAnimationToken = 0;
-        RefreshVisibleBackupItems();
+        RefreshVisibleBackupItems(playEntranceAnimation: false);
         OnPropertyChanged(nameof(CanShowBackupScrollableContent));
         OpenBackupFolderCommand.NotifyCanExecuteChanged();
         CreateBackupNowCommand.NotifyCanExecuteChanged();
@@ -596,6 +595,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
         // token 与目录字符串双重校验：即使多个目录恰好使用同一 token 流程，也不能跨目录发布。
         var token = ++refreshToken;
         var directory = BackupDirectory;
+        var isInitialProjection = !HasLoadedBackups;
         if (string.IsNullOrWhiteSpace(directory))
         {
             // 空目录是合法的“尚未配置”状态，清空投影但标记加载完成，避免无限 Loading。
@@ -604,9 +604,10 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
             selectedBackupPaths.Clear();
             SelectedBackupCount = 0;
             BackupCount = 0;
-            HasLoadedBackups = true;
             IsLoadingBackups = false;
-            RefreshVisibleBackupItems();
+            RefreshVisibleBackupItems(playEntranceAnimation: !isInitialProjection);
+            if (isInitialProjection)
+                PublishInitialProjectionReady();
             NotifyBackupListStateChanged();
             return;
         }
@@ -621,8 +622,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
 
             allBackups = backups.Select(backup => new InstanceBackupItemViewModel(backup)).ToArray();
             BackupCount = allBackups.Count;
-            HasLoadedBackups = true;
-            RefreshVisibleBackupItems();
+            RefreshVisibleBackupItems(playEntranceAnimation: !isInitialProjection);
         }
         catch (Exception exception)
         {
@@ -640,8 +640,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
             selectedBackupPaths.Clear();
             SelectedBackupCount = 0;
             BackupCount = 0;
-            HasLoadedBackups = true;
-            RefreshVisibleBackupItems();
+            RefreshVisibleBackupItems(playEntranceAnimation: !isInitialProjection);
             statusService.Report(Strings.Status_LoadBackupsFailed);
         }
         finally
@@ -649,6 +648,8 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
             if (token == refreshToken)
             {
                 IsLoadingBackups = false;
+                if (isInitialProjection)
+                    PublishInitialProjectionReady();
                 NotifyBackupListStateChanged();
             }
         }
@@ -657,7 +658,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
     /// <summary>
     /// 应用搜索过滤并复用备份项状态，同时维护信息面板和列表分区项。
     /// </summary>
-    private void RefreshVisibleBackupItems()
+    private void RefreshVisibleBackupItems(bool playEntranceAnimation = true)
     {
         if (selectedInstance is null)
         {
@@ -696,9 +697,16 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
             listItems[index + (hasListSection ? 2 : 1)] = VisibleBackups[index];
 
         VisibleBackupListItems = listItems;
-        if (selectedInstance is not null)
+        if (playEntranceAnimation && HasLoadedBackups && selectedInstance is not null)
             ListEntranceAnimationToken++;
         NotifyBackupListStateChanged();
+    }
+
+    private void PublishInitialProjectionReady()
+    {
+        HasLoadedBackups = true;
+        if (selectedInstance is not null)
+            ListEntranceAnimationToken++;
     }
 
     private void NotifyBackupListStateChanged()
@@ -816,6 +824,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
 
     partial void OnHasLoadedBackupsChanged(bool value)
     {
+        OnPropertyChanged(nameof(CanShowBackupScrollableContent));
         NotifyBackupListStateChanged();
     }
 

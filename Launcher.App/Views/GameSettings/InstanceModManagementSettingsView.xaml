@@ -193,35 +193,28 @@
     </UserControl.Resources>
 
     <Grid ClipToBounds="True">
-        <ListBox ItemsSource="{Binding VisibleModListItems}"
-                 SelectedItem="{Binding SelectedMod, Mode=OneWay}"
-                 ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
-                 VirtualizingPanel.IsVirtualizing="True"
-                 VirtualizingPanel.VirtualizationMode="Recycling"
-                 VirtualizingPanel.ScrollUnit="Pixel"
-                 ScrollViewer.CanContentScroll="True"
-                 behaviors:VirtualizedListItemStateBehavior.IsEnabled="True"
-                 behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding ListEntranceAnimationToken}"
-                 behaviors:VirtualizedListItemStateBehavior.ContentTopOffset="132">
-            <ListBox.Style>
-                <Style TargetType="ListBox" BasedOn="{StaticResource ListPageVirtualizedListBoxStyle}">
-                    <Setter Property="Visibility" Value="Visible" />
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding CanShowModScrollableContent}" Value="False">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </ListBox.Style>
-            <ListBox.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <VirtualizingStackPanel Margin="0,132,12,64"
-                                            VirtualizingPanel.IsVirtualizing="True"
-                                            VirtualizingPanel.VirtualizationMode="Recycling"
-                                            VirtualizingPanel.ScrollUnit="Pixel" />
-                </ItemsPanelTemplate>
-            </ListBox.ItemsPanel>
-        </ListBox>
+        <controls:DeferredListContentHost IsListVisible="{Binding CanShowModScrollableContent}">
+            <ListBox ItemsSource="{Binding VisibleModListItems}"
+                     SelectedItem="{Binding SelectedMod, Mode=OneWay}"
+                     ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
+                     Style="{StaticResource ListPageVirtualizedListBoxStyle}"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling"
+                     VirtualizingPanel.ScrollUnit="Pixel"
+                     ScrollViewer.CanContentScroll="True"
+                     behaviors:VirtualizedListItemStateBehavior.IsEnabled="True"
+                     behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding ListEntranceAnimationToken}"
+                     behaviors:VirtualizedListItemStateBehavior.ContentTopOffset="132">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel Margin="0,132,12,64"
+                                                VirtualizingPanel.IsVirtualizing="True"
+                                                VirtualizingPanel.VirtualizationMode="Recycling"
+                                                VirtualizingPanel.ScrollUnit="Pixel" />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+            </ListBox>
+        </controls:DeferredListContentHost>
 
         <TextBlock Margin="0,260,12,0"
                    Text="{x:Static res:Strings.GameSettings_ModManagementLoading}"

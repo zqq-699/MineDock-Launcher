@@ -114,6 +114,7 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
     private bool hasMore;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasVisibleVersions))]
     private int visibleVersionCount;
 
     [ObservableProperty]
@@ -138,6 +139,8 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
     public bool CanShowTargetsLoadErrorState => !IsLoadingTargets && HasTargetsLoadErrorMessage;
 
     public bool HasLoadErrorMessage => !string.IsNullOrWhiteSpace(LoadErrorMessage);
+
+    public bool HasVisibleVersions => VisibleVersionCount > 0;
 
     public bool HasFilters => !string.IsNullOrWhiteSpace(SearchQuery)
         || SelectedVersionFilter?.Id is { } versionId && !string.Equals(versionId, "all", StringComparison.OrdinalIgnoreCase)
