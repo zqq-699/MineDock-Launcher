@@ -45,13 +45,18 @@ internal static class ProgressiveBlurLayoutCalculator
         double renderScale,
         DpiScale dpiScale)
     {
-        var seamY = Math.Clamp(
+        var samplingHeight = Math.Clamp(
             AlignToDevicePixel(visibleBlurBandHeight, dpiScale.DpiScaleY),
             0d,
             height);
+        var presentationHeight = Math.Clamp(
+            AlignToDevicePixel(blurLength, dpiScale.DpiScaleY),
+            0d,
+            samplingHeight);
+        var directListStart = presentationHeight;
         var textureHeight = Math.Min(
             height,
-            seamY + ProgressiveBlurDefaults.TextureOverscanLength);
+            samplingHeight + ProgressiveBlurDefaults.TextureOverscanLength);
         var lowResolutionWidth = CalculateLowResolutionDimension(width, dpiScale.DpiScaleX, renderScale);
         var lowResolutionHeight = CalculateLowResolutionDimension(textureHeight, dpiScale.DpiScaleY, renderScale);
         var horizontalRatio = lowResolutionWidth / width;
@@ -66,8 +71,8 @@ internal static class ProgressiveBlurLayoutCalculator
             Math.Max(0d, maximumRadius * horizontalRatio),
             Math.Max(0d, maximumRadius * verticalRatio),
             textureHeight,
-            seamY,
-            seamY);
+            presentationHeight,
+            directListStart);
     }
 
     private static double AlignToDevicePixel(double value, double dpiScale)
