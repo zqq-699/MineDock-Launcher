@@ -13,6 +13,95 @@ namespace Launcher.Tests.Infrastructure.Resources;
 public sealed class ResourceCatalogServiceTests : TestTempDirectory
 {
     [Fact]
+    public async Task SearchStartsAllSelectedProvidersConcurrently()
+    {
+        var handler = new ConcurrentProviderSearchHandler();
+        var service = CreateService(handler, "key");
+
+        var searchTask = service.SearchProjectsAsync(new ResourceCatalogSearchRequest
+        {
+            Kind = ResourceProjectKind.Mod
+        });
+
+        try
+        {
+            await handler.AllProvidersStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(2, handler.StartedCount);
+        }
+        finally
+        {
+            handler.Release.TrySetResult();
+        }
+
+        var result = await searchTask;
+        Assert.Equal(2, result.Projects.Count);
+    }
+
+    [Fact]
+    public async Task CurseForgeMultiVersionSearchLimitsConcurrencyToFour()
+    {
+        var handler = new BlockingCurseForgeSearchHandler();
+        var service = CreateService(handler, "key");
+        var searchTask = service.SearchProjectsAsync(new ResourceCatalogSearchRequest
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.CurseForge,
+            MinecraftVersions = ["1.20", "1.20.1", "1.20.2", "1.20.3", "1.20.4", "1.20.5"]
+        });
+
+        try
+        {
+            await handler.FirstWaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(4, handler.MaxActiveRequests);
+        }
+        finally
+        {
+            handler.Release.TrySetResult();
+        }
+
+        var result = await searchTask;
+        Assert.Equal(6, handler.RequestCount);
+        Assert.Equal(4, handler.MaxActiveRequests);
+        Assert.Single(result.Projects);
+    }
+
+    [Fact]
+    public async Task CurseForgeMultiVersionSearchPreservesRequestedVersionOrderWhenDeduplicating()
+    {
+        var handler = new OutOfOrderCurseForgeSearchHandler();
+        var service = CreateService(handler, "key");
+
+        var result = await service.SearchProjectsAsync(new ResourceCatalogSearchRequest
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.CurseForge,
+            MinecraftVersions = ["first", "second"]
+        });
+
+        Assert.Equal("First version project", Assert.Single(result.Projects).Title);
+    }
+
+    [Fact]
+    public async Task CurseForgeMultiVersionSearchCancelsAllInFlightRequests()
+    {
+        var handler = new BlockingCurseForgeSearchHandler();
+        var service = CreateService(handler, "key");
+        using var cancellation = new CancellationTokenSource();
+        var searchTask = service.SearchProjectsAsync(new ResourceCatalogSearchRequest
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.CurseForge,
+            MinecraftVersions = ["1", "2", "3", "4", "5", "6"]
+        }, cancellation.Token);
+
+        await handler.FirstWaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => searchTask);
+        Assert.Equal(0, handler.ActiveRequests);
+    }
+
+    [Fact]
     public async Task SearchMergesBothSourcesByDownloads()
     {
         var handler = new StubHandler(request => Json(request.RequestUri!.Host == "api.modrinth.com"
@@ -110,5 +199,97 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
     private sealed class StubKeyResolver(string? key) : ICurseForgeApiKeyResolver
     {
         public Task<string?> TryResolveAsync(CancellationToken cancellationToken = default) => Task.FromResult(key);
+    }
+
+    private sealed class ConcurrentProviderSearchHandler : HttpMessageHandler
+    {
+        private int startedCount;
+
+        public TaskCompletionSource AllProvidersStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int StartedCount => Volatile.Read(ref startedCount);
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            if (Interlocked.Increment(ref startedCount) == 2)
+                AllProvidersStarted.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            return request.RequestUri!.Host == "api.modrinth.com"
+                ? Json("""{"hits":[{"project_id":"m","slug":"modrinth","title":"Modrinth","description":"","downloads":50}]}""")
+                : Json("""{"data":[{"id":9,"name":"CurseForge","slug":"curseforge","summary":"","downloadCount":120,"links":null,"logo":null}]}""");
+        }
+    }
+
+    private sealed class BlockingCurseForgeSearchHandler : HttpMessageHandler
+    {
+        private int activeRequests;
+        private int maxActiveRequests;
+        private int requestCount;
+
+        public TaskCompletionSource FirstWaveStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int ActiveRequests => Volatile.Read(ref activeRequests);
+
+        public int MaxActiveRequests => Volatile.Read(ref maxActiveRequests);
+
+        public int RequestCount => Volatile.Read(ref requestCount);
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref requestCount);
+            var active = Interlocked.Increment(ref activeRequests);
+            UpdateMaximum(ref maxActiveRequests, active);
+            if (active == 4)
+                FirstWaveStarted.TrySetResult();
+            try
+            {
+                await Release.Task.WaitAsync(cancellationToken);
+                return Json("""{"data":[{"id":9,"name":"Project","slug":"project","summary":"","downloadCount":120,"links":null,"logo":null}]}""");
+            }
+            finally
+            {
+                Interlocked.Decrement(ref activeRequests);
+            }
+        }
+
+        private static void UpdateMaximum(ref int maximum, int candidate)
+        {
+            while (true)
+            {
+                var current = Volatile.Read(ref maximum);
+                if (candidate <= current || Interlocked.CompareExchange(ref maximum, candidate, current) == current)
+                    return;
+            }
+        }
+    }
+
+    private sealed class OutOfOrderCurseForgeSearchHandler : HttpMessageHandler
+    {
+        private readonly TaskCompletionSource secondCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            if (request.RequestUri!.Query.Contains("gameVersion=first", StringComparison.Ordinal))
+            {
+                await secondCompleted.Task.WaitAsync(cancellationToken);
+                return Project("First version project");
+            }
+
+            secondCompleted.TrySetResult();
+            return Project("Second version project");
+        }
+
+        private static HttpResponseMessage Project(string title) => Json(
+            $$"""{"data":[{"id":9,"name":"{{title}}","slug":"project","summary":"","downloadCount":120,"links":null,"logo":null}]}""");
     }
 }

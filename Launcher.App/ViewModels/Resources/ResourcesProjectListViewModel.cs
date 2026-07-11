@@ -33,7 +33,7 @@ namespace Launcher.App.ViewModels.Resources;
 /// </summary>
 public sealed partial class ResourcesProjectListViewModel : ObservableObject, IDisposable
 {
-    private const int SearchDebounceMilliseconds = 350;
+    private const int SearchDebounceMilliseconds = 250;
     private const int CatalogPageSize = 20;
     private const int InitialProjectBatchSize = 12;
     private const int AppendProjectBatchSize = 8;
@@ -51,6 +51,7 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
     private bool hasRequestedInitialLoad;
     private bool isApplyingVersionOptions;
     private bool isApplyingInstanceFilters;
+    private bool isApplyingPendingFilters;
 
     internal ResourcesProjectListViewModel(
         ResourcesOnlineProjectPageOptions options,
@@ -233,11 +234,29 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
     [RelayCommand]
     private void ConfirmFilterDialog()
     {
-        ApplyPendingOption(PendingVersionOption, SelectedVersionOption, value => SelectedVersionOption = value);
-        ApplyPendingOption(PendingLoaderOption, SelectedLoaderOption, value => SelectedLoaderOption = value);
-        ApplyPendingOption(PendingSourceOption, SelectedSourceOption, value => SelectedSourceOption = value);
-        ApplyPendingOption(PendingTypeOption, SelectedTypeOption, value => SelectedTypeOption = value);
+        var changed = !ReferenceEquals(PendingVersionOption, SelectedVersionOption)
+            || !ReferenceEquals(PendingLoaderOption, SelectedLoaderOption)
+            || !ReferenceEquals(PendingSourceOption, SelectedSourceOption)
+            || !ReferenceEquals(PendingTypeOption, SelectedTypeOption);
+        try
+        {
+            isApplyingPendingFilters = true;
+            ApplyPendingOption(PendingVersionOption, SelectedVersionOption, value => SelectedVersionOption = value);
+            ApplyPendingOption(PendingLoaderOption, SelectedLoaderOption, value => SelectedLoaderOption = value);
+            ApplyPendingOption(PendingSourceOption, SelectedSourceOption, value => SelectedSourceOption = value);
+            ApplyPendingOption(PendingTypeOption, SelectedTypeOption, value => SelectedTypeOption = value);
+        }
+        finally
+        {
+            isApplyingPendingFilters = false;
+        }
         IsFilterDialogOpen = false;
+        if (changed)
+        {
+            NavigationResetRequested?.Invoke();
+            logger?.LogInformation("Resource project filters confirmed. Kind={Kind}", options.Kind);
+            ScheduleRefresh(debounce: false);
+        }
     }
 
     public async Task ApplyInstanceFiltersAsync(GameInstance instance)
@@ -272,7 +291,7 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
         cancellation?.Dispose();
     }
 
-    partial void OnSearchQueryChanged(string value) => ScheduleRefresh();
+    partial void OnSearchQueryChanged(string value) => ScheduleRefresh(debounce: true);
 
     partial void OnSelectedVersionOptionChanged(ResourcesFilterOptionItem? value)
     {
@@ -303,33 +322,37 @@ public sealed partial class ResourcesProjectListViewModel : ObservableObject, ID
 
     private void FilterChanged(string filter, ResourcesFilterOptionItem? value)
     {
+        if (isApplyingPendingFilters)
+            return;
+
         NavigationResetRequested?.Invoke();
         logger?.LogInformation(
             "Resource project filter selected. Kind={Kind} FilterId={FilterId} OptionId={OptionId}",
             options.Kind,
             filter,
             value?.Id);
-        ScheduleRefresh();
+        ScheduleRefresh(debounce: false);
     }
 
-    private void ScheduleRefresh()
+    private void ScheduleRefresh(bool debounce)
     {
         if (resourceCatalogService is null)
             return;
 
         var token = BeginRequest();
-        Observe(ScheduleRefreshAsync(token), "refresh resource projects after filter change");
+        Observe(ScheduleRefreshAsync(token, debounce), "refresh resource projects after query change");
     }
 
     /// <summary>
-    /// 对搜索和筛选变化进行防抖，延迟结束后从第一页重新查询。
+    /// 搜索输入完成防抖后、筛选变化时立即从第一页重新查询。
     /// </summary>
-    private async Task ScheduleRefreshAsync(CancellationToken cancellationToken)
+    private async Task ScheduleRefreshAsync(CancellationToken cancellationToken, bool debounce)
     {
         try
         {
-            // 快速连续输入只保留最后一次，减少远端请求和列表反复清空造成的闪烁。
-            await Task.Delay(SearchDebounceMilliseconds, cancellationToken).ConfigureAwait(false);
+            // 快速连续输入只保留最后一次；明确提交的筛选不增加人为等待。
+            if (debounce)
+                await Task.Delay(SearchDebounceMilliseconds, cancellationToken).ConfigureAwait(false);
             await LoadAsync(CreateSearchRequest(0), append: false, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

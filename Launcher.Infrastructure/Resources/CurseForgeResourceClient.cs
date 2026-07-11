@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -42,6 +43,7 @@ internal sealed class CurseForgeResourceClient(
     private const int WorldsClassId = 17;
     private const int ModpacksClassId = 4471;
     private const int ShaderPacksClassId = 6552;
+    private const int MaxConcurrentVersionSearches = 4;
     // 分类目录跨搜索复用；锁只保护缓存任务的创建，不在网络等待期间持有。
     private readonly object categoryGate = new();
     private readonly Dictionary<ResourceProjectKind, Task<IReadOnlyList<CurseForgeCategory>>> categoryTasks = [];
@@ -70,17 +72,40 @@ internal sealed class CurseForgeResourceClient(
         if (versions.Count == 0)
             return await SearchSingleAsync(request, apiKey, null, categoryId, cancellationToken).ConfigureAwait(false);
 
+        var stopwatch = Stopwatch.StartNew();
+        var results = new ResourceProviderSearchResult[versions.Count];
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, versions.Count),
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = MaxConcurrentVersionSearches,
+                CancellationToken = cancellationToken
+            },
+            async (index, token) =>
+            {
+                results[index] = await SearchSingleAsync(request, apiKey, versions[index], categoryId, token)
+                    .ConfigureAwait(false);
+            }).ConfigureAwait(false);
+
+        var unavailableResult = results.FirstOrDefault(result => result.IsUnavailable);
+        if (unavailableResult is not null)
+            return unavailableResult;
+
         var projects = new Dictionary<string, ResourceProject>(StringComparer.OrdinalIgnoreCase);
         var hasMore = false;
-        foreach (var version in versions)
+        foreach (var result in results)
         {
-            var result = await SearchSingleAsync(request, apiKey, version, categoryId, cancellationToken).ConfigureAwait(false);
-            if (result.IsUnavailable)
-                return result;
             hasMore |= result.HasMore;
             foreach (var project in result.Projects)
                 projects.TryAdd(CreateProjectKey(project), project);
         }
+        logger.LogInformation(
+            "CurseForge multi-version resource search completed. Kind={Kind} VersionCount={VersionCount} ResultCount={ResultCount} MaxConcurrency={MaxConcurrency} ElapsedMilliseconds={ElapsedMilliseconds}",
+            request.Kind,
+            versions.Count,
+            projects.Count,
+            MaxConcurrentVersionSearches,
+            stopwatch.ElapsedMilliseconds);
         return new ResourceProviderSearchResult(projects.Values.ToList(), hasMore);
     }
 

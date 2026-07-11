@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Diagnostics;
 using System.Net.Http;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
@@ -90,27 +91,32 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             request.Offset,
             request.PageSize);
 
+        var totalStopwatch = Stopwatch.StartNew();
         var selectedProviders = request.Source is { } source
             ? providers.TryGetValue(source, out var selectedProvider) ? [selectedProvider] : []
             : providers.Values.ToArray();
+        var supportedProviders = selectedProviders
+            .Where(value => value.Supports(request.Kind))
+            .ToArray();
         var projects = new List<ResourceProject>();
         var hasMore = false;
         var curseForgeUnavailable = false;
         var curseForgeApiKeyMissing = false;
 
-        foreach (var provider in selectedProviders.Where(value => value.Supports(request.Kind)))
+        var providerResults = await Task.WhenAll(supportedProviders.Select(provider =>
+            SearchProviderAsync(provider, request, cancellationToken))).ConfigureAwait(false);
+        foreach (var (providerSource, result) in providerResults)
         {
-            var result = await provider.SearchAsync(request, cancellationToken).ConfigureAwait(false);
             projects.AddRange(result.Projects);
             hasMore |= result.HasMore;
-            if (provider.Source is ResourceProjectSource.CurseForge)
+            if (providerSource is ResourceProjectSource.CurseForge)
             {
                 curseForgeUnavailable |= result.IsUnavailable;
                 curseForgeApiKeyMissing |= result.IsApiKeyMissing;
             }
         }
 
-        return new ResourceCatalogSearchResult
+        var searchResult = new ResourceCatalogSearchResult
         {
             Projects = projects
                 .OrderByDescending(project => project.Downloads)
@@ -120,6 +126,46 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             IsCurseForgeApiKeyMissing = curseForgeApiKeyMissing,
             HasMore = hasMore
         };
+        logger.LogInformation(
+            "Resource project search completed. Kind={Kind} ProviderCount={ProviderCount} ResultCount={ResultCount} ElapsedMilliseconds={ElapsedMilliseconds}",
+            request.Kind,
+            supportedProviders.Length,
+            searchResult.Projects.Count,
+            totalStopwatch.ElapsedMilliseconds);
+        return searchResult;
+    }
+
+    private async Task<(ResourceProjectSource Source, ResourceProviderSearchResult Result)> SearchProviderAsync(
+        IResourceProviderClient provider,
+        ResourceCatalogSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            var result = await provider.SearchAsync(request, cancellationToken).ConfigureAwait(false);
+            logger.LogInformation(
+                "Resource provider search completed. Kind={Kind} Source={Source} ResultCount={ResultCount} ElapsedMilliseconds={ElapsedMilliseconds}",
+                request.Kind,
+                provider.Source,
+                result.Projects.Count,
+                stopwatch.ElapsedMilliseconds);
+            return (provider.Source, result);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Resource provider search failed. Kind={Kind} Source={Source} ElapsedMilliseconds={ElapsedMilliseconds}",
+                request.Kind,
+                provider.Source,
+                stopwatch.ElapsedMilliseconds);
+            throw;
+        }
     }
 
     public async Task<ResourceProjectVersionsResult> GetProjectVersionsAsync(
