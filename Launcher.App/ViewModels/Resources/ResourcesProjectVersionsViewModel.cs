@@ -99,6 +99,9 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
     private string targetsLoadErrorMessage = string.Empty;
 
     [ObservableProperty]
+    private int installTargetsEntranceAnimationToken;
+
+    [ObservableProperty]
     private bool isLoading;
 
     [ObservableProperty]
@@ -137,6 +140,8 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
     public bool CanShowTargetsLoadingState => IsLoadingTargets && InstallTargets.Count == 0;
 
     public bool CanShowTargetsLoadErrorState => !IsLoadingTargets && HasTargetsLoadErrorMessage;
+
+    public bool HasInstallTargets => InstallTargets.Count > 0;
 
     public bool HasLoadErrorMessage => !string.IsNullOrWhiteSpace(LoadErrorMessage);
 
@@ -371,6 +376,8 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
         TargetsLoadErrorMessage = error;
         IsLoadingTargets = false;
         RaiseTargetStateChanged();
+        if (InstallTargets.Count > 0)
+            InstallTargetsEntranceAnimationToken++;
     }
 
     /// <summary>
@@ -627,6 +634,7 @@ public sealed partial class ResourcesProjectVersionsViewModel : ObservableObject
 
     private void RaiseTargetStateChanged()
     {
+        OnPropertyChanged(nameof(HasInstallTargets));
         OnPropertyChanged(nameof(HasTargetsLoadErrorMessage));
         OnPropertyChanged(nameof(CanShowTargetsLoadingState));
         OnPropertyChanged(nameof(CanShowTargetsLoadErrorState));

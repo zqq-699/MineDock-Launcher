@@ -401,21 +401,36 @@
                                        Style="{StaticResource ResourcesModInstallTargetStateTextStyle}"
                                        Visibility="{Binding DataContext.Versions.CanShowTargetsLoadingState, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}, Converter={StaticResource BooleanToMenuTextVisibilityConverter}}" />
 
-                            <ItemsControl ItemsSource="{Binding DataContext.Versions.InstallTargets, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <controls:ListPageItemButton Title="{Binding Title}"
-                                                                     Subtitle="{Binding Subtitle}"
-                                                                     IconSource="{Binding IconSource}"
-                                                                     IconKey="{Binding IconKey}"
-                                                                     IsFirstVisible="{Binding IsFirstVisible}"
-                                                                     IsLastVisible="{Binding IsLastVisible}"
-                                                                     IsPreviousItemHighlighted="{Binding IsPreviousItemHighlighted}"
-                                                                     Command="{Binding DataContext.Versions.SelectTargetCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
-                                                                     CommandParameter="{Binding}" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                            <controls:DeferredListContentHost DataContext="{Binding DataContext, ElementName=Root}"
+                                                              IsListVisible="{Binding Versions.HasInstallTargets}">
+                                <ListBox ItemsSource="{Binding Versions.InstallTargets}"
+                                         ItemContainerStyle="{StaticResource ListPageVirtualizedListBoxItemStyle}"
+                                         Style="{StaticResource ListPageVirtualizedListBoxStyle}"
+                                         ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                         VirtualizingPanel.IsVirtualizing="True"
+                                         VirtualizingPanel.VirtualizationMode="Recycling"
+                                         VirtualizingPanel.ScrollUnit="Pixel"
+                                         ScrollViewer.CanContentScroll="True"
+                                         behaviors:VirtualizedListItemStateBehavior.IsEnabled="True"
+                                         behaviors:VirtualizedListItemStateBehavior.EntranceAnimationToken="{Binding Versions.InstallTargetsEntranceAnimationToken}">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <controls:ListPageItemButton Title="{Binding Title}"
+                                                                         Subtitle="{Binding Subtitle}"
+                                                                         IconSource="{Binding IconSource}"
+                                                                         IconKey="{Binding IconKey}"
+                                                                         IsFirstVisible="{Binding Tag.IsFirstVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                                                         IsLastVisible="{Binding Tag.IsLastVisible, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                                                         IsPreviousItemHighlighted="{Binding Tag.IsPreviousItemHighlighted, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                                                         ShouldPlayEnterAnimation="{Binding Tag.ShouldPlayEnterAnimation, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}, Mode=TwoWay}"
+                                                                         EnterAnimationIndex="{Binding Tag.EnterAnimationIndex, RelativeSource={RelativeSource AncestorType={x:Type ListBoxItem}}}"
+                                                                         Command="{Binding DataContext.Versions.SelectTargetCommand, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
+                                                                         CommandParameter="{Binding}"
+                                                                         Style="{StaticResource ListPageItemButtonEntranceStyle}" />
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </controls:DeferredListContentHost>
 
                             <TextBlock Text="{Binding DataContext.Versions.TargetsLoadErrorMessage, RelativeSource={RelativeSource AncestorType={x:Type views:ResourcesModPageView}}}"
                                        Style="{StaticResource ResourcesModInstallTargetStateTextStyle}"
