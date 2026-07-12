@@ -45,6 +45,9 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
     private readonly IUiDispatcher uiDispatcher;
     private readonly ILogger? logger;
     private readonly Action<string> reportStatus;
+    private readonly object installStateLock = new();
+    private int activeInstallCount;
+    private bool hasExclusiveInstall;
     private TaskCompletionSource<RequiredDependenciesDialogChoice>? pendingDependenciesChoice;
 
     [ObservableProperty]
@@ -118,10 +121,11 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
         ResourcesModProjectItemViewModel? selectedProject)
     {
         // 每次安装冻结目标、版本和文件名，防止用户切换页面选择后影响在途操作。
-        if (item is null || target is null || installationService is null || IsInstalling)
+        if (item is null || target is null || installationService is null)
             return;
 
-        IsInstalling = true;
+        if (!TryBeginInstall(target.IsNewInstanceInstall))
+            return;
         var context = new InstallOperationContext(item, target, selectedProject);
         try
         {
@@ -166,7 +170,34 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
         }
         finally
         {
-            IsInstalling = false;
+            EndInstall();
+        }
+    }
+
+    private bool TryBeginInstall(bool supportsParallelInstall)
+    {
+        // 新实例整合包拥有独立任务会话和临时工作区，只与同类任务并行。
+        // 其他资源路径继续独占安装器，避免共享依赖确认对话框出现并发竞争。
+        lock (installStateLock)
+        {
+            if (supportsParallelInstall ? hasExclusiveInstall : activeInstallCount > 0)
+                return false;
+
+            activeInstallCount++;
+            hasExclusiveInstall = !supportsParallelInstall;
+            IsInstalling = true;
+            return true;
+        }
+    }
+
+    private void EndInstall()
+    {
+        lock (installStateLock)
+        {
+            activeInstallCount = Math.Max(0, activeInstallCount - 1);
+            if (activeInstallCount == 0)
+                hasExclusiveInstall = false;
+            IsInstalling = activeInstallCount > 0;
         }
     }
 

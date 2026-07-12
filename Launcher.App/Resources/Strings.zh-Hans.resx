@@ -1126,4 +1126,11 @@
   <data name="Dialog_ThirdPartyImportProgressTitle" xml:space="preserve"><value>正在导入角色</value></data><data name="Dialog_ThirdPartyImportProgressSubtitle" xml:space="preserve"><value>正在保存角色资料和登录信息。</value></data>
   <data name="Dialog_ThirdPartyImportResultTitle" xml:space="preserve"><value>部分角色导入失败</value></data><data name="Dialog_ThirdPartyImportResultSubtitle" xml:space="preserve"><value>可以重试失败的角色，已成功导入的角色不会重复处理。</value></data>
   <data name="Dialog_ThirdPartyImportProgressFormat" xml:space="preserve"><value>已完成 {0}/{1}</value></data><data name="Dialog_ThirdPartyImportFailureFormat" xml:space="preserve"><value>{0} 个角色导入失败</value></data>
+  <data name="Dialog_UserAgreementTitle" xml:space="preserve"><value>用户协议</value></data>
+  <data name="Dialog_UserAgreementMessage" xml:space="preserve"><value>欢迎使用 BlockHelm Launcher。使用本软件即表示您已阅读、理解并同意用户协议。请在继续前阅读协议内容。</value></data>
+  <data name="Dialog_UserAgreementLink" xml:space="preserve"><value>用户协议</value></data>
+  <data name="Dialog_UserAgreementDisagreeButton" xml:space="preserve"><value>不同意并退出</value></data>
+  <data name="Dialog_UserAgreementAgreeButton" xml:space="preserve"><value>同意</value></data>
+  <data name="Status_UserAgreementSaveFailed" xml:space="preserve"><value>无法保存用户协议接受状态，请重试。</value></data>
+  <data name="Status_OpenUserAgreementFailed" xml:space="preserve"><value>无法打开用户协议，请检查系统浏览器设置后重试。</value></data>
 </root>

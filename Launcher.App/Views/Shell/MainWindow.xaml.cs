@@ -182,6 +182,9 @@ public partial class MainWindow : Window
         // 先显示已 Prime 的界面，再等待完整初始化，避免启动期间窗口长时间空白。
         try
         {
+            if (!await viewModel.WaitForUserAgreementDecisionAsync())
+                return;
+
             await viewModel.InitializeCommand.ExecuteAsync(null);
             IsMenuExpanded = viewModel.IsMenuExpanded;
             navigationMenuService.SetExpanded(IsMenuExpanded);

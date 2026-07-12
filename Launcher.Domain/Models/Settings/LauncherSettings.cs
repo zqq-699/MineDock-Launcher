@@ -30,6 +30,7 @@ public sealed class LauncherSettings
     public string Theme { get; set; } = LauncherDefaults.DefaultTheme;
     public string AccentColor { get; set; } = LauncherDefaults.DefaultAccentColor;
     public string LauncherLanguage { get; set; } = LauncherDefaults.DefaultLauncherLanguage;
+    public bool HasAcceptedUserAgreement { get; set; }
     public bool AutoSetGameLanguageToLauncherLanguage { get; set; } = true;
     public bool ThemeFollowSystem { get; set; } = true;
     public bool DisableBackgroundBlur { get; set; }

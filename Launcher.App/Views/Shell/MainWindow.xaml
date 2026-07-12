@@ -1088,6 +1088,49 @@
                 </Grid>
             </controls:DialogHost>
 
+            <controls:DialogHost Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="460"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding IsOpen}"
+                                 DataContext="{Binding UserAgreementDialog}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Dialog_UserAgreementTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <StackPanel Grid.Row="1"
+                                Margin="0,16,0,24">
+                        <TextBlock Text="{x:Static res:Strings.Dialog_UserAgreementMessage}"
+                                   Style="{StaticResource DialogBodyTextStyle}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Margin="0,12,0,0"
+                                   Style="{StaticResource DialogBodyTextStyle}">
+                            <Hyperlink Command="{Binding OpenAgreementCommand}"
+                                       Foreground="{DynamicResource LauncherAccentBrush}">
+                                <Run Text="{x:Static res:Strings.Dialog_UserAgreementLink}" />
+                            </Hyperlink>
+                        </TextBlock>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                Content="{x:Static res:Strings.Dialog_UserAgreementDisagreeButton}"
+                                Command="{Binding DisagreeAndExitCommand}" />
+                        <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
+                                Margin="{StaticResource DialogTrailingButtonMargin}"
+                                Content="{x:Static res:Strings.Dialog_UserAgreementAgreeButton}"
+                                Command="{Binding AgreeCommand}" />
+                    </StackPanel>
+                </Grid>
+            </controls:DialogHost>
+
             <controls:FloatingMessage Message="{Binding FloatingMessage}"
                                       IsOpen="{Binding IsFloatingMessageOpen}"
                                       Panel.ZIndex="9999"

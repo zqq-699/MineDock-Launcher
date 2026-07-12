@@ -110,10 +110,89 @@ public sealed class ResourcesProjectInstallViewModelTests
         Assert.DoesNotContain("download failed", statuses);
     }
 
+    [Fact]
+    public async Task NewModpackInstallsRunConcurrentlyAndShowFeedbackForEachTask()
+    {
+        var installation = new ControllableInstallationService();
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var messages = new RecordingFloatingMessageService();
+        var viewModel = CreateViewModel(installation, tasks, _ => { }, messages);
+        var target = ResourcesModInstallTargetItemViewModel.CreateNewInstanceInstall("new instance");
+
+        var first = viewModel.InstallAsync(CreateVersionItem(ResourceProjectKind.Modpack, "first"), target, null);
+        var second = viewModel.InstallAsync(CreateVersionItem(ResourceProjectKind.Modpack, "second"), target, null);
+        await installation.WaitForExecutionCountAsync(2);
+
+        Assert.True(viewModel.IsInstalling);
+        Assert.Equal(2, tasks.Tasks.Count);
+        Assert.All(tasks.Tasks, task => Assert.Equal(DownloadTaskState.Running, task.State));
+        Assert.Equal(2, messages.Messages.Count(message => message == "downloading"));
+
+        installation.Complete("first", CreateSuccessfulModpackResult("first-instance"));
+        installation.Fail("second", new InvalidOperationException("failure"));
+        await Task.WhenAll(first, second);
+
+        Assert.False(viewModel.IsInstalling);
+        Assert.Equal(DownloadTaskState.Completed, tasks.Tasks.Single(task => task.Title == "Version first").State);
+        Assert.Equal(DownloadTaskState.Failed, tasks.Tasks.Single(task => task.Title == "Version second").State);
+    }
+
+    [Fact]
+    public async Task CancelingOneConcurrentModpackInstallDoesNotCancelTheOther()
+    {
+        var installation = new ControllableInstallationService();
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var viewModel = CreateViewModel(installation, tasks, _ => { });
+        var target = ResourcesModInstallTargetItemViewModel.CreateNewInstanceInstall("new instance");
+
+        var first = viewModel.InstallAsync(CreateVersionItem(ResourceProjectKind.Modpack, "first"), target, null);
+        var second = viewModel.InstallAsync(CreateVersionItem(ResourceProjectKind.Modpack, "second"), target, null);
+        await installation.WaitForExecutionCountAsync(2);
+
+        tasks.CancelTask(tasks.Tasks.Single(task => task.Title == "Version first"));
+        await first;
+
+        Assert.True(viewModel.IsInstalling);
+        var remainingTask = Assert.Single(tasks.Tasks);
+        Assert.Equal("Version second", remainingTask.Title);
+        Assert.Equal(DownloadTaskState.Running, remainingTask.State);
+        Assert.False(installation.IsCompleted("second"));
+
+        installation.Complete("second", CreateSuccessfulModpackResult("second-instance"));
+        await second;
+
+        Assert.False(viewModel.IsInstalling);
+        Assert.Equal(DownloadTaskState.Completed, remainingTask.State);
+    }
+
+    [Fact]
+    public async Task ResourcePageTracksModpackInstallAsBackgroundTask()
+    {
+        var installation = new ControllableInstallationService();
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var parent = new ResourcesPageViewModel();
+        using var page = new ResourcesModpacksPageViewModel(
+            parent,
+            downloadTasksPage: tasks,
+            resourceProjectInstallationService: installation);
+        page.Versions.SelectedTarget = ResourcesModInstallTargetItemViewModel.CreateNewInstanceInstall("new instance");
+
+        page.Versions.InstallVersionCommand.Execute(CreateVersionItem(ResourceProjectKind.Modpack, "tracked"));
+        await installation.WaitForExecutionCountAsync(1);
+
+        Assert.Equal(1, tasks.TrackedBackgroundTaskCount);
+
+        installation.Complete("tracked", CreateSuccessfulModpackResult("tracked-instance"));
+        await WaitUntilAsync(() => tasks.TrackedBackgroundTaskCount == 0);
+
+        Assert.Equal(DownloadTaskState.Completed, Assert.Single(tasks.Tasks).State);
+    }
+
     private static ResourcesProjectInstallViewModel CreateViewModel(
-        RecordingInstallationService installation,
+        IResourceProjectInstallationService installation,
         DownloadTasksPageViewModel tasks,
-        Action<string> reportStatus)
+        Action<string> reportStatus,
+        IFloatingMessageService? floatingMessageService = null)
     {
         var options = CreateOptions();
         return new ResourcesProjectInstallViewModel(
@@ -121,22 +200,39 @@ public sealed class ResourcesProjectInstallViewModelTests
             installation,
             new ResourcesRequiredDependencyPlanner(null, options, null, reportStatus),
             new StubFilePickerService(),
-            null,
+            floatingMessageService,
             tasks,
             ImmediateUiDispatcher.Instance,
             NullLogger<ResourcesProjectInstallViewModel>.Instance,
             reportStatus);
     }
 
-    private static ResourcesModVersionItemViewModel CreateVersionItem(ResourceProjectKind kind) => new(
+    private static ResourcesModVersionItemViewModel CreateVersionItem(
+        ResourceProjectKind kind,
+        string versionId = "version") => new(
         new ResourceProjectVersion
         {
             Kind = kind,
-            VersionId = "version",
-            Name = "Version",
+            VersionId = versionId,
+            Name = $"Version {versionId}",
             FileName = kind is ResourceProjectKind.Mod ? "mod.jar" : "pack.zip"
         },
         null);
+
+    private static ResourceProjectInstallationResult CreateSuccessfulModpackResult(string instanceId) => new(
+        ModpackImportResult: ModpackImportResult.Success(new GameInstance
+        {
+            Id = instanceId,
+            Name = instanceId,
+            InstanceDirectory = instanceId
+        }));
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        while (!condition())
+            await Task.Delay(10, timeout.Token);
+    }
 
     private static ResourcesOnlineProjectPageOptions CreateOptions() => new(
         Kind: ResourceProjectKind.Mod,
@@ -206,6 +302,85 @@ public sealed class ResourcesProjectInstallViewModelTests
             if (WaitForCancellation)
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             return new ResourceProjectInstallationResult();
+        }
+    }
+
+    private sealed class ControllableInstallationService : IResourceProjectInstallationService
+    {
+        private readonly object syncRoot = new();
+        private readonly Dictionary<string, TaskCompletionSource<ResourceProjectInstallationResult>> executions = [];
+        private TaskCompletionSource<bool> executionCountChanged = CreateSignal();
+
+        public Task<ResourceProjectInstallationPreparationResult> PrepareAsync(
+            ResourceProjectInstallationRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ResourceProjectInstallationPreparationResult(false));
+
+        public Task<ResourceProjectInstallationResult> ExecuteAsync(
+            ResourceProjectInstallationRequest request,
+            IProgress<LauncherProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            TaskCompletionSource<ResourceProjectInstallationResult> completion;
+            lock (syncRoot)
+            {
+                completion = new TaskCompletionSource<ResourceProjectInstallationResult>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                executions.Add(request.Version.VersionId, completion);
+                executionCountChanged.TrySetResult(true);
+                executionCountChanged = CreateSignal();
+            }
+            return completion.Task.WaitAsync(cancellationToken);
+        }
+
+        public async Task WaitForExecutionCountAsync(int count)
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            while (true)
+            {
+                Task signal;
+                lock (syncRoot)
+                {
+                    if (executions.Count >= count)
+                        return;
+                    signal = executionCountChanged.Task;
+                }
+                await signal.WaitAsync(timeout.Token);
+            }
+        }
+
+        public void Complete(string versionId, ResourceProjectInstallationResult result)
+        {
+            lock (syncRoot)
+                executions[versionId].TrySetResult(result);
+        }
+
+        public void Fail(string versionId, Exception exception)
+        {
+            lock (syncRoot)
+                executions[versionId].TrySetException(exception);
+        }
+
+        public bool IsCompleted(string versionId)
+        {
+            lock (syncRoot)
+                return executions[versionId].Task.IsCompleted;
+        }
+
+        private static TaskCompletionSource<bool> CreateSignal() =>
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    private sealed class RecordingFloatingMessageService : IFloatingMessageService
+    {
+        public event Action<string>? MessageRequested;
+
+        public List<string> Messages { get; } = [];
+
+        public void Show(string message)
+        {
+            Messages.Add(message);
+            MessageRequested?.Invoke(message);
         }
     }
 

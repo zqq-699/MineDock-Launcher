@@ -109,6 +109,7 @@ public partial class App : System.Windows.Application
             services.AddSingleton<LauncherStateSyncService>();
             services.AddSingleton<LauncherShutdownService>();
             services.AddSingleton<LaunchStatusDialogViewModel>();
+            services.AddSingleton<UserAgreementDialogViewModel>();
             services.AddSingleton<AccountListViewModel>();
             services.AddSingleton<AccountDialogViewModel>();
             services.AddSingleton<AccountAppearanceViewModel>();
@@ -176,7 +177,7 @@ public partial class App : System.Windows.Application
             {
                 Log.Error(exception, "Failed to confirm launcher update startup.");
             }
-            _ = CheckForLauncherUpdatesOnStartupAsync(mainViewModel);
+            _ = CheckForLauncherUpdatesAfterAgreementAsync(mainViewModel);
         }
         catch (Exception exception)
         {
@@ -199,10 +200,13 @@ public partial class App : System.Windows.Application
         }
     }
 
-    private static async Task CheckForLauncherUpdatesOnStartupAsync(MainViewModel mainViewModel)
+    private static async Task CheckForLauncherUpdatesAfterAgreementAsync(MainViewModel mainViewModel)
     {
         try
         {
+            if (!await mainViewModel.WaitForUserAgreementDecisionAsync())
+                return;
+
             await mainViewModel.SettingsPage.Info.CheckUpdatesOnStartupAsync();
         }
         catch (Exception exception)

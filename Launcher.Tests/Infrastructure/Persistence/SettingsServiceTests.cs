@@ -54,6 +54,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         settings.DefaultMemoryMb = 6144;
         settings.DownloadSourcePreference = DownloadSourcePreference.BmclApi;
         settings.DownloadSpeedLimitMbPerSecond = 32;
+        settings.HasAcceptedUserAgreement = true;
 
         await service.SaveAsync(settings);
         var loaded = await service.LoadAsync();
@@ -66,6 +67,7 @@ public sealed class SettingsServiceTests : TestTempDirectory
         Assert.Equal(6144, loaded.DefaultMemoryMb);
         Assert.Equal(DownloadSourcePreference.BmclApi, loaded.DownloadSourcePreference);
         Assert.Equal(32, loaded.DownloadSpeedLimitMbPerSecond);
+        Assert.True(loaded.HasAcceptedUserAgreement);
     }
 
     [Fact]
@@ -133,5 +135,6 @@ public sealed class SettingsServiceTests : TestTempDirectory
         var loaded = await new JsonSettingsService(TempRoot).LoadAsync();
 
         Assert.Equal("Light", loaded.Theme);
+        Assert.False(loaded.HasAcceptedUserAgreement);
     }
 }

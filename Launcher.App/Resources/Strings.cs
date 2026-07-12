@@ -40,6 +40,13 @@ public static class Strings
     public static string Dialog_CloseWithDownloadsTitle => Get(nameof(Dialog_CloseWithDownloadsTitle));
     public static string Dialog_CloseWithDownloadsMessage => Get(nameof(Dialog_CloseWithDownloadsMessage));
     public static string Dialog_CloseAnywayButton => Get(nameof(Dialog_CloseAnywayButton));
+    public static string Dialog_UserAgreementTitle => Get(nameof(Dialog_UserAgreementTitle));
+    public static string Dialog_UserAgreementMessage => Get(nameof(Dialog_UserAgreementMessage));
+    public static string Dialog_UserAgreementLink => Get(nameof(Dialog_UserAgreementLink));
+    public static string Dialog_UserAgreementDisagreeButton => Get(nameof(Dialog_UserAgreementDisagreeButton));
+    public static string Dialog_UserAgreementAgreeButton => Get(nameof(Dialog_UserAgreementAgreeButton));
+    public static string Status_UserAgreementSaveFailed => Get(nameof(Status_UserAgreementSaveFailed));
+    public static string Status_OpenUserAgreementFailed => Get(nameof(Status_OpenUserAgreementFailed));
     public static string Refresh_Button => Get(nameof(Refresh_Button));
     public static string ManualImport_Button => Get(nameof(ManualImport_Button));
     public static string Apply_Button => Get(nameof(Apply_Button));

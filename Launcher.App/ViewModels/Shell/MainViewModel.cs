@@ -104,6 +104,7 @@ public sealed partial class MainViewModel : ObservableObject
         IUiDispatcher uiDispatcher,
         IHomePageViewModelFactory homePageFactory,
         LaunchStatusDialogViewModel launchStatusDialog,
+        UserAgreementDialogViewModel userAgreementDialog,
         ILogger<MainViewModel>? logger = null)
     {
         this.settingsService = settingsService;
@@ -119,6 +120,7 @@ public sealed partial class MainViewModel : ObservableObject
         SettingsPage = settingsPage;
         GameManagement = gameManagement;
         LaunchStatusDialog = launchStatusDialog;
+        UserAgreementDialog = userAgreementDialog;
         HomePage = homePageFactory.Create(
             AccountPage,
             percent => ProgressPercent = percent,
@@ -156,6 +158,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     public LaunchStatusDialogViewModel LaunchStatusDialog { get; }
 
+    public UserAgreementDialogViewModel UserAgreementDialog { get; }
+
     public NavigationItem DownloadTasksNavigationItem { get; } = NavigationCatalog.CreateDownloadTasksItem();
 
     public ObservableCollection<NavigationItem> NavigationItems { get; } = new(NavigationCatalog.CreatePrimaryItems());
@@ -169,6 +173,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
 
         Settings = initialSettings ?? await settingsService.LoadAsync();
+        UserAgreementDialog.Prime(Settings);
         IsMenuExpanded = Settings.IsMenuExpanded;
         AccountPage.PrimeFromSettings(Settings);
         await sessionCoordinator.PrimeAsync(Settings);
@@ -176,6 +181,8 @@ public sealed partial class MainViewModel : ObservableObject
         UpdateAccountNavigationAvatar();
         hasPrimedSettings = true;
     }
+
+    public Task<bool> WaitForUserAgreementDecisionAsync() => UserAgreementDialog.WaitForDecisionAsync();
 
     [RelayCommand]
     public async Task InitializeAsync()

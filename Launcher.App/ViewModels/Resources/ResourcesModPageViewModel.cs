@@ -35,6 +35,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase, 
 {
     // 列表、版本和安装分别拥有请求生命周期，本类只保存当前页面步骤和所选项目。
     private readonly ResourcesOnlineProjectPageOptions options;
+    private readonly DownloadTasksPageViewModel? downloadTasksPage;
     private readonly ILogger? logger;
 
     public ResourcesModPageViewModel(
@@ -84,6 +85,7 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase, 
         : base(parent, options.Title)
     {
         this.options = options;
+        this.downloadTasksPage = downloadTasksPage;
         this.logger = logger;
         var dispatcher = uiDispatcher ?? ImmediateUiDispatcher.Instance;
         Action<string> reportStatus = message =>
@@ -232,15 +234,17 @@ public partial class ResourcesModPageViewModel : ResourcesSectionViewModelBase, 
 
     private void ObserveInstall(ResourcesModVersionItemViewModel item)
     {
-        _ = ObserveInstallAsync(item);
+        var operation = Install.InstallAsync(item, Versions.SelectedTarget, Details.CurrentProject);
+        downloadTasksPage?.TrackBackgroundTask(operation);
+        _ = ObserveInstallAsync(operation);
     }
 
-    private async Task ObserveInstallAsync(ResourcesModVersionItemViewModel item)
+    private async Task ObserveInstallAsync(Task operation)
     {
         // 安装异常由安装 ViewModel 映射为用户反馈，此处只保证异步命令被观察。
         try
         {
-            await Install.InstallAsync(item, Versions.SelectedTarget, Details.CurrentProject).ConfigureAwait(false);
+            await operation.ConfigureAwait(false);
         }
         catch (Exception exception)
         {
