@@ -19,8 +19,10 @@
 
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Persistence;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Collections.Concurrent;
 using System.IO;
 using System.IO.Compression;
 using System.Text.Json;
@@ -34,6 +36,8 @@ public sealed class InstanceBackupService : IInstanceBackupService
 {
     private const string ManifestFileName = "launcher-backups.json";
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> DirectoryLocks =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly ILogger<InstanceBackupService> logger;
 
     public InstanceBackupService(ILogger<InstanceBackupService>? logger = null)
@@ -84,11 +88,21 @@ public sealed class InstanceBackupService : IInstanceBackupService
                     if (!Directory.Exists(normalizedDirectory))
                         return (IReadOnlyList<InstanceBackupRecord>)[];
 
-                    var manifestPath = GetManifestPath(normalizedDirectory);
-                    var records = await ReadManifestAsync(manifestPath, cancellationToken).ConfigureAwait(false);
-                    var filteredRecords = NormalizeAndFilterRecords(normalizedDirectory, records);
-                    if (filteredRecords.Count != records.Count)
-                        await WriteManifestAsync(manifestPath, filteredRecords, cancellationToken).ConfigureAwait(false);
+                    var directoryLock = GetDirectoryLock(normalizedDirectory);
+                    await directoryLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    List<InstanceBackupRecord> filteredRecords;
+                    try
+                    {
+                        var manifestPath = GetManifestPath(normalizedDirectory);
+                        var records = await ReadManifestAsync(manifestPath, cancellationToken).ConfigureAwait(false);
+                        filteredRecords = NormalizeAndFilterRecords(normalizedDirectory, records);
+                        if (filteredRecords.Count != records.Count)
+                            await WriteManifestAsync(manifestPath, filteredRecords, cancellationToken).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        directoryLock.Release();
+                    }
 
                     logger.LogInformation(
                         "Instance backups loaded. BackupDirectory={BackupDirectory} Count={BackupCount}",
@@ -154,44 +168,61 @@ public sealed class InstanceBackupService : IInstanceBackupService
                 }
 
                 Directory.CreateDirectory(normalizedBackupDirectory);
-                var manifestPath = GetManifestPath(normalizedBackupDirectory);
-                var records = NormalizeAndFilterRecords(
-                    normalizedBackupDirectory,
-                    await ReadManifestAsync(manifestPath, cancellationToken).ConfigureAwait(false));
-
                 var sanitizedBackupName = NormalizeBackupName(backupName);
-                var fileName = ResolveUniqueBackupFileName(normalizedBackupDirectory, records, sanitizedBackupName);
-                var finalPath = Path.Combine(normalizedBackupDirectory, fileName);
-                // 先生成临时归档，成功移动为最终文件后才更新清单，清单不会指向半成品。
-                var tempPath = Path.Combine(normalizedBackupDirectory, $".{fileName}.{Guid.NewGuid():N}.tmp");
+                var tempPath = Path.Combine(normalizedBackupDirectory, $".launcher-backup.{Guid.NewGuid():N}.tmp");
+                string? finalPath = null;
+                var shouldRollbackFinalPath = false;
 
                 try
                 {
                     CreateInstanceZip(normalizedInstanceDirectory, instance.Name, tempPath, cancellationToken);
-                    File.Move(tempPath, finalPath);
-
-                    var record = new InstanceBackupRecord
+                    var directoryLock = GetDirectoryLock(normalizedBackupDirectory);
+                    await directoryLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    try
                     {
-                        Name = backupName.Trim(),
-                        FileName = fileName,
-                        FullPath = finalPath,
-                        SizeBytes = new FileInfo(finalPath).Length,
-                        CreatedAt = DateTimeOffset.UtcNow
-                    };
+                        var manifestPath = GetManifestPath(normalizedBackupDirectory);
+                        var records = NormalizeAndFilterRecords(
+                            normalizedBackupDirectory,
+                            await ReadManifestAsync(manifestPath, cancellationToken).ConfigureAwait(false));
+                        var fileName = ResolveUniqueBackupFileName(normalizedBackupDirectory, records, sanitizedBackupName);
+                        finalPath = Path.Combine(normalizedBackupDirectory, fileName);
 
-                    records.Add(record);
-                    await WriteManifestAsync(manifestPath, records, cancellationToken).ConfigureAwait(false);
+                        File.Move(tempPath, finalPath);
+                        shouldRollbackFinalPath = true;
 
-                    logger.LogInformation(
-                        "Instance backup created. InstanceId={InstanceId} BackupFile={BackupFile}",
-                        instance.Id,
-                        finalPath);
-                    return record;
+                        var record = new InstanceBackupRecord
+                        {
+                            Name = backupName.Trim(),
+                            FileName = fileName,
+                            FullPath = finalPath,
+                            SizeBytes = new FileInfo(finalPath).Length,
+                            CreatedAt = DateTimeOffset.UtcNow
+                        };
+
+                        records.Add(record);
+                        await WriteManifestAsync(manifestPath, records, cancellationToken).ConfigureAwait(false);
+                        shouldRollbackFinalPath = false;
+
+                        logger.LogInformation(
+                            "Instance backup created. InstanceId={InstanceId} BackupFile={BackupFile}",
+                            instance.Id,
+                            finalPath);
+                        return record;
+                    }
+                    catch
+                    {
+                        if (shouldRollbackFinalPath && finalPath is not null)
+                            TryDeleteFileIfExists(finalPath);
+                        throw;
+                    }
+                    finally
+                    {
+                        directoryLock.Release();
+                    }
                 }
                 catch (Exception exception) when (exception is not InstanceBackupException)
                 {
-                    DeleteFileIfExists(tempPath);
-                    DeleteFileIfExists(finalPath);
+                    TryDeleteFileIfExists(tempPath);
                     logger.LogError(
                         exception,
                         "Failed to create instance backup. InstanceId={InstanceId} BackupDirectory={BackupDirectory}",
@@ -231,15 +262,24 @@ public sealed class InstanceBackupService : IInstanceBackupService
 
                 try
                 {
-                    var manifestPath = GetManifestPath(normalizedBackupDirectory);
-                    if (File.Exists(normalizedBackupFullPath))
-                        File.Delete(normalizedBackupFullPath);
+                    var directoryLock = GetDirectoryLock(normalizedBackupDirectory);
+                    await directoryLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        var manifestPath = GetManifestPath(normalizedBackupDirectory);
+                        if (File.Exists(normalizedBackupFullPath))
+                            File.Delete(normalizedBackupFullPath);
 
-                    var records = await ReadManifestAsync(manifestPath, cancellationToken).ConfigureAwait(false);
-                    var remainingRecords = NormalizeAndFilterRecords(normalizedBackupDirectory, records)
-                        .Where(record => !string.Equals(record.FullPath, normalizedBackupFullPath, StringComparison.OrdinalIgnoreCase))
-                        .ToList();
-                    await WriteManifestAsync(manifestPath, remainingRecords, cancellationToken).ConfigureAwait(false);
+                        var records = await ReadManifestAsync(manifestPath, cancellationToken).ConfigureAwait(false);
+                        var remainingRecords = NormalizeAndFilterRecords(normalizedBackupDirectory, records)
+                            .Where(record => !string.Equals(record.FullPath, normalizedBackupFullPath, StringComparison.OrdinalIgnoreCase))
+                            .ToList();
+                        await WriteManifestAsync(manifestPath, remainingRecords, cancellationToken).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        directoryLock.Release();
+                    }
 
                     logger.LogInformation(
                         "Instance backup deleted. BackupDirectory={BackupDirectory} BackupFile={BackupFile}",
@@ -277,7 +317,7 @@ public sealed class InstanceBackupService : IInstanceBackupService
         ArgumentException.ThrowIfNullOrWhiteSpace(backupFullPath);
 
         return Task.Run(
-            () =>
+            async () =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
@@ -294,15 +334,6 @@ public sealed class InstanceBackupService : IInstanceBackupService
                         "Backup directory cannot be inside the instance directory.");
                 }
 
-                if (!File.Exists(normalizedBackupFullPath))
-                    throw new FileNotFoundException("Backup file does not exist.", normalizedBackupFullPath);
-
-                logger.LogInformation(
-                    "Restoring instance backup. InstanceId={InstanceId} InstanceDirectory={InstanceDirectory} BackupFile={BackupFile}",
-                    instance.Id,
-                    normalizedInstanceDirectory,
-                    normalizedBackupFullPath);
-
                 var instanceParentDirectory = Directory.GetParent(normalizedInstanceDirectory)?.FullName
                     ?? throw new InvalidOperationException("Instance directory must have a parent directory.");
                 Directory.CreateDirectory(instanceParentDirectory);
@@ -312,12 +343,31 @@ public sealed class InstanceBackupService : IInstanceBackupService
                 var extractDirectory = Path.Combine(stagingDirectory, "extract");
                 var previousDirectory = Path.Combine(stagingDirectory, "previous");
                 var movedPreviousDirectory = false;
+                string archiveRootName;
 
                 try
                 {
-                    var archiveRootName = GetArchiveRootDirectoryName(normalizedBackupFullPath);
-                    Directory.CreateDirectory(extractDirectory);
-                    ZipFile.ExtractToDirectory(normalizedBackupFullPath, extractDirectory);
+                    var directoryLock = GetDirectoryLock(normalizedBackupDirectory);
+                    await directoryLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        if (!File.Exists(normalizedBackupFullPath))
+                            throw new FileNotFoundException("Backup file does not exist.", normalizedBackupFullPath);
+
+                        logger.LogInformation(
+                            "Restoring instance backup. InstanceId={InstanceId} InstanceDirectory={InstanceDirectory} BackupFile={BackupFile}",
+                            instance.Id,
+                            normalizedInstanceDirectory,
+                            normalizedBackupFullPath);
+
+                        archiveRootName = GetArchiveRootDirectoryName(normalizedBackupFullPath);
+                        Directory.CreateDirectory(extractDirectory);
+                        ZipFile.ExtractToDirectory(normalizedBackupFullPath, extractDirectory);
+                    }
+                    finally
+                    {
+                        directoryLock.Release();
+                    }
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var restoredDirectory = Path.GetFullPath(Path.Combine(extractDirectory, archiveRootName));
@@ -418,9 +468,14 @@ public sealed class InstanceBackupService : IInstanceBackupService
         IReadOnlyList<InstanceBackupRecord> records,
         CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(manifestPath)!);
-        await using var stream = File.Create(manifestPath);
-        await JsonSerializer.SerializeAsync(stream, records, JsonOptions, cancellationToken).ConfigureAwait(false);
+        await AtomicJsonFileWriter.WriteAsync(manifestPath, records, JsonOptions, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static SemaphoreSlim GetDirectoryLock(string normalizedBackupDirectory)
+    {
+        var lockKey = Path.TrimEndingDirectorySeparator(Path.GetFullPath(normalizedBackupDirectory));
+        return DirectoryLocks.GetOrAdd(lockKey, static _ => new SemaphoreSlim(1, 1));
     }
 
     /// <summary>
@@ -549,10 +604,19 @@ public sealed class InstanceBackupService : IInstanceBackupService
             : path + Path.DirectorySeparatorChar;
     }
 
-    private static void DeleteFileIfExists(string path)
+    private static void TryDeleteFileIfExists(string path)
     {
-        if (File.Exists(path))
-            File.Delete(path);
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     private static void DeleteDirectoryIfExists(string path)

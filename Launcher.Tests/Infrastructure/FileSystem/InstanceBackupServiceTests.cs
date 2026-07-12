@@ -94,6 +94,121 @@ public sealed class InstanceBackupServiceTests
         }
     }
 
+    [Fact]
+    public async Task CreateBackupAsyncSerializesConcurrentDuplicateNamesAcrossServiceInstances()
+    {
+        var rootDirectory = CreateTempDirectory();
+        try
+        {
+            var instanceDirectory = Path.Combine(rootDirectory, "instance-a");
+            var backupDirectory = Path.Combine(rootDirectory, "backups");
+            Directory.CreateDirectory(instanceDirectory);
+            File.WriteAllBytes(Path.Combine(instanceDirectory, "content.bin"), new byte[256 * 1024]);
+            var instance = CreateInstance(instanceDirectory);
+            var services = Enumerable.Range(0, 8).Select(_ => new InstanceBackupService()).ToArray();
+
+            var records = await Task.WhenAll(
+                services.Select(
+                    (service, index) => service.CreateBackupAsync(
+                        instance,
+                        index % 2 == 0 ? backupDirectory : backupDirectory + Path.DirectorySeparatorChar,
+                        "Backup")));
+
+            Assert.Equal(8, records.Length);
+            Assert.Equal(8, records.Select(record => record.FileName).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+            Assert.All(records, record => Assert.True(File.Exists(record.FullPath)));
+            var manifestRecords = await ReadManifestAsync(backupDirectory);
+            Assert.Equal(8, manifestRecords.Count);
+            Assert.Equal(
+                records.Select(record => record.FileName).Order(StringComparer.OrdinalIgnoreCase),
+                manifestRecords.Select(record => record.FileName).Order(StringComparer.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            DeleteDirectoryIfExists(rootDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task CreateBackupAsyncPreservesManifestRecordsForConcurrentDistinctNames()
+    {
+        var rootDirectory = CreateTempDirectory();
+        try
+        {
+            var instanceDirectory = Path.Combine(rootDirectory, "instance-a");
+            var backupDirectory = Path.Combine(rootDirectory, "backups");
+            Directory.CreateDirectory(instanceDirectory);
+            File.WriteAllText(Path.Combine(instanceDirectory, "options.txt"), "options");
+            var instance = CreateInstance(instanceDirectory);
+            var service = new InstanceBackupService();
+
+            var records = await Task.WhenAll(
+                Enumerable.Range(0, 8)
+                    .Select(index => service.CreateBackupAsync(instance, backupDirectory, $"Backup {index}")));
+
+            var manifestRecords = await ReadManifestAsync(backupDirectory);
+            Assert.Equal(8, manifestRecords.Count);
+            Assert.Equal(
+                records.Select(record => record.FileName).Order(StringComparer.OrdinalIgnoreCase),
+                manifestRecords.Select(record => record.FileName).Order(StringComparer.OrdinalIgnoreCase));
+            Assert.All(manifestRecords, record => Assert.True(File.Exists(record.FullPath)));
+        }
+        finally
+        {
+            DeleteDirectoryIfExists(rootDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task ConcurrentCreatesAndManifestCleanupDoNotLoseCreatedRecords()
+    {
+        var rootDirectory = CreateTempDirectory();
+        try
+        {
+            var instanceDirectory = Path.Combine(rootDirectory, "instance-a");
+            var backupDirectory = Path.Combine(rootDirectory, "backups");
+            Directory.CreateDirectory(instanceDirectory);
+            Directory.CreateDirectory(backupDirectory);
+            File.WriteAllText(Path.Combine(instanceDirectory, "options.txt"), "options");
+            await File.WriteAllTextAsync(
+                Path.Combine(backupDirectory, "launcher-backups.json"),
+                JsonSerializer.Serialize(
+                    new[]
+                    {
+                        new InstanceBackupRecord
+                        {
+                            Name = "Missing",
+                            FileName = "missing.zip",
+                            FullPath = Path.Combine(backupDirectory, "missing.zip"),
+                            CreatedAt = DateTimeOffset.UtcNow
+                        }
+                    }));
+            var instance = CreateInstance(instanceDirectory);
+            var service = new InstanceBackupService();
+            var createTasks = Enumerable.Range(0, 8)
+                .Select(index => service.CreateBackupAsync(instance, backupDirectory, $"Concurrent {index}"))
+                .ToArray();
+            var readTasks = Enumerable.Range(0, 8)
+                .Select(_ => service.GetBackupsAsync(backupDirectory))
+                .ToArray();
+
+            await Task.WhenAll(createTasks.Cast<Task>().Concat(readTasks));
+
+            var createdRecords = await Task.WhenAll(createTasks);
+            var manifestRecords = await ReadManifestAsync(backupDirectory);
+            Assert.Equal(8, manifestRecords.Count);
+            Assert.DoesNotContain(manifestRecords, record => record.FileName == "missing.zip");
+            Assert.Equal(
+                createdRecords.Select(record => record.FileName).Order(StringComparer.OrdinalIgnoreCase),
+                manifestRecords.Select(record => record.FileName).Order(StringComparer.OrdinalIgnoreCase));
+            Assert.Empty(Directory.EnumerateFiles(backupDirectory, "*.tmp"));
+        }
+        finally
+        {
+            DeleteDirectoryIfExists(rootDirectory);
+        }
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("nested")]
