@@ -166,6 +166,8 @@ public partial class App : System.Windows.Application
             Log.Information("Main window shown.");
             _ = CleanupPendingInstanceDeletionsOnStartupAsync(
                 serviceProvider.GetRequiredService<IInstanceDeletionCleanupService>());
+            _ = CleanupPendingInstanceInstallsOnStartupAsync(
+                serviceProvider.GetRequiredService<IInstanceInstallCleanupService>());
             try
             {
                 if (LauncherUpdateStartupCoordinator.TryConfirmStartup(
@@ -215,6 +217,19 @@ public partial class App : System.Windows.Application
         catch (Exception exception)
         {
             Log.Warning(exception, "Pending instance deletion cleanup failed; startup cleanup will retry later.");
+        }
+    }
+
+    private static async Task CleanupPendingInstanceInstallsOnStartupAsync(
+        IInstanceInstallCleanupService cleanupService)
+    {
+        try
+        {
+            await cleanupService.CleanupPendingAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Pending instance installation cleanup failed; startup cleanup will retry later.");
         }
     }
 

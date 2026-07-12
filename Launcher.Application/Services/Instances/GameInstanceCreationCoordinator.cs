@@ -33,8 +33,8 @@ internal sealed class GameInstanceCreationCoordinator
     private readonly IReadOnlyDictionary<LoaderKind, ILoaderProvider> providers;
     private readonly IModrinthService? modrinthService;
     private readonly IModpackGameInstaller gameInstaller;
+    private readonly IInstanceInstallTransactionService? installTransactionService;
     private readonly IGameInstallCoordinator installCoordinator;
-    private readonly IVersionDirectoryState versionDirectoryState;
     private readonly Func<LauncherSettings, CancellationToken, Task<IReadOnlyList<GameInstance>>> loadInstancesAsync;
     private readonly ILogger logger;
 
@@ -44,8 +44,8 @@ internal sealed class GameInstanceCreationCoordinator
         IReadOnlyDictionary<LoaderKind, ILoaderProvider> providers,
         IModrinthService? modrinthService,
         IModpackGameInstaller? gameInstaller,
+        IInstanceInstallTransactionService? installTransactionService,
         IGameInstallCoordinator installCoordinator,
-        IVersionDirectoryState versionDirectoryState,
         Func<LauncherSettings, CancellationToken, Task<IReadOnlyList<GameInstance>>> loadInstancesAsync,
         ILogger logger)
     {
@@ -54,8 +54,8 @@ internal sealed class GameInstanceCreationCoordinator
         this.providers = providers;
         this.modrinthService = modrinthService;
         this.gameInstaller = gameInstaller ?? new LoaderProviderGameInstaller(providers);
+        this.installTransactionService = installTransactionService;
         this.installCoordinator = installCoordinator;
-        this.versionDirectoryState = versionDirectoryState;
         this.loadInstancesAsync = loadInstancesAsync;
         this.logger = logger;
     }
@@ -96,14 +96,24 @@ internal sealed class GameInstanceCreationCoordinator
             logger.LogDebug("Game instance install acquired coordinator lease. VersionIdentity={VersionIdentity}", versionIdentity);
 
         // 安装前记录目录是否已存在，失败时只能删除本次新建的目录，绝不能损坏用户已有版本。
-        var cleanupCandidates = CreateCleanupCandidates(
-            settings.MinecraftDirectory,
-            minecraftVersion,
-            versionIdentity,
-            loader);
         var instances = (await loadInstancesAsync(settings, cancellationToken).ConfigureAwait(false)).ToList();
         if (instances.Any(instance => IsSameVersionIdentity(instance, versionIdentity)))
             throw new DuplicateGameInstanceNameException(versionIdentity);
+
+        var transactionService = installTransactionService
+            ?? throw new InvalidOperationException("Instance install transaction service is required.");
+        var instance = CreateInstance(settings, minecraftVersion, loader, loaderVersion, versionIdentity, string.Empty);
+        await using var transaction = await transactionService.BeginAsync(
+            settings.MinecraftDirectory,
+            versionIdentity,
+            instance.Id,
+            "game",
+            string.IsNullOrWhiteSpace(settings.DefaultInstanceId),
+            progress,
+            cancellationToken).ConfigureAwait(false);
+        instance.VersionName = versionIdentity;
+        instance.InstanceDirectory = transaction.PendingDirectory;
+        repository.CreateInstanceDirectories(instance.InstanceDirectory);
 
         try
         {
@@ -111,8 +121,7 @@ internal sealed class GameInstanceCreationCoordinator
                 minecraftVersion,
                 loader,
                 loaderVersion,
-                settings.MinecraftDirectory,
-                versionIdentity,
+                new LoaderInstallTarget(settings.MinecraftDirectory, versionIdentity, transaction.PendingDirectory),
                 progress,
                 cancellationToken,
                 downloadSourcePreference,
@@ -123,7 +132,8 @@ internal sealed class GameInstanceCreationCoordinator
                 versionName,
                 loader);
 
-            var instance = CreateInstance(settings, minecraftVersion, loader, loaderVersion, versionIdentity, versionName);
+            if (!string.Equals(versionName, versionIdentity, StringComparison.Ordinal))
+                throw new InvalidDataException("Installed version name does not match the requested logical name.");
             await InstallOptionalContentAsync(
                     instance,
                     installFabricApi,
@@ -133,21 +143,7 @@ internal sealed class GameInstanceCreationCoordinator
                     cancellationToken)
                 .ConfigureAwait(false);
 
-            instances.Add(instance);
-            await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(settings.DefaultInstanceId))
-            {
-                settings.DefaultInstanceId = instance.Id;
-                await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
-                logger.LogInformation("Default game instance initialized. InstanceId={InstanceId}", instance.Id);
-            }
-
-            logger.LogInformation(
-                "Game instance created. InstanceId={InstanceId} VersionName={VersionName} InstanceDirectory={InstanceDirectory}",
-                instance.Id,
-                instance.VersionName,
-                instance.InstanceDirectory);
-            return instance;
+            await transaction.CommitAsync(instance, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -156,9 +152,34 @@ internal sealed class GameInstanceCreationCoordinator
                 "Game instance creation failed. VersionIdentity={VersionIdentity} Loader={Loader}",
                 versionIdentity,
                 loader);
-            TryCleanupCreatedVersionDirectories(settings.MinecraftDirectory, cleanupCandidates);
             throw;
         }
+
+        instance.InstanceDirectory = transaction.FinalDirectory;
+        var logicalCommitCompleted = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(settings.DefaultInstanceId))
+            {
+                settings.DefaultInstanceId = instance.Id;
+                await settingsService.SaveAsync(settings, CancellationToken.None).ConfigureAwait(false);
+                logger.LogInformation("Default game instance initialized. InstanceId={InstanceId}", instance.Id);
+            }
+        }
+        catch (Exception exception)
+        {
+            logicalCommitCompleted = false;
+            logger.LogError(exception, "Instance install committed but logical persistence needs reconciliation. InstanceId={InstanceId}", instance.Id);
+        }
+        if (logicalCommitCompleted)
+            await transaction.CompleteLogicalCommitAsync(CancellationToken.None).ConfigureAwait(false);
+
+        logger.LogInformation(
+            "Game instance created. InstanceId={InstanceId} VersionName={VersionName} InstanceDirectory={InstanceDirectory}",
+            instance.Id,
+            instance.VersionName,
+            instance.InstanceDirectory);
+        return instance;
     }
 
     private GameInstance CreateInstance(
@@ -169,8 +190,9 @@ internal sealed class GameInstanceCreationCoordinator
         string versionIdentity,
         string versionName)
     {
-        var instanceDirectory = repository.GetVersionDirectory(settings.MinecraftDirectory, versionName);
-        repository.CreateInstanceDirectories(instanceDirectory);
+        var instanceDirectory = string.IsNullOrWhiteSpace(versionName)
+            ? string.Empty
+            : repository.GetVersionDirectory(settings.MinecraftDirectory, versionName);
         var now = DateTimeOffset.UtcNow;
         return new GameInstance
         {
@@ -258,77 +280,20 @@ internal sealed class GameInstanceCreationCoordinator
         };
     }
 
-    /// <summary>
-    /// 在安装前记录可能被创建的版本目录及其原始存在状态，供失败补偿使用。
-    /// </summary>
-    private IReadOnlyList<VersionCleanupCandidate> CreateCleanupCandidates(
-        string minecraftDirectory,
-        string minecraftVersion,
-        string versionIdentity,
-        LoaderKind loader)
-    {
-        var versionNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { versionIdentity };
-        if (loader is LoaderKind.Vanilla)
-            versionNames.Add(minecraftVersion);
-
-        return versionNames
-            .Select(versionName => new VersionCleanupCandidate(
-                versionName,
-                versionDirectoryState.Exists(minecraftDirectory, versionName)))
-            .ToArray();
-    }
-
-    /// <summary>
-    /// 尽力删除本次安装新建的目录，同时绝不删除安装前已有目录。
-    /// </summary>
-    private void TryCleanupCreatedVersionDirectories(
-        string minecraftDirectory,
-        IReadOnlyList<VersionCleanupCandidate> cleanupCandidates)
-    {
-        // 清理是原始失败后的尽力补偿；清理异常不得掩盖真正的安装异常。
-        foreach (var candidate in cleanupCandidates.Where(candidate => !candidate.ExistedBeforeInstall))
-        {
-            try
-            {
-                repository.DeleteVersionDirectory(minecraftDirectory, candidate.VersionName);
-            }
-            catch (IOException)
-            {
-            }
-            catch (UnauthorizedAccessException)
-            {
-            }
-        }
-    }
-
     private static bool IsSameVersionIdentity(GameInstance instance, string versionName)
     {
         return string.Equals(instance.VersionName, versionName, StringComparison.OrdinalIgnoreCase)
             || string.Equals(instance.Name, versionName, StringComparison.OrdinalIgnoreCase);
     }
 
-    private sealed record VersionCleanupCandidate(string VersionName, bool ExistedBeforeInstall);
-
     private sealed class LoaderProviderGameInstaller(IReadOnlyDictionary<LoaderKind, ILoaderProvider> providers)
         : IModpackGameInstaller
     {
-        public Task InstallMinecraftBaseAsync(
-            string minecraftVersion,
-            string gameDirectory,
-            IProgress<LauncherProgress>? progress,
-            CancellationToken cancellationToken = default,
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
-            int downloadSpeedLimitMbPerSecond = 0)
-        {
-            throw new NotSupportedException("InstallMinecraftBaseAsync requires the infrastructure modpack game installer.");
-        }
-
         public Task<string> InstallLoaderAsync(
             string minecraftVersion,
             LoaderKind loader,
             string? loaderVersion,
-            string gameDirectory,
-            string isolatedVersionName,
+            LoaderInstallTarget target,
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default,
             DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
@@ -338,8 +303,7 @@ internal sealed class GameInstanceCreationCoordinator
                 minecraftVersion,
                 loader,
                 loaderVersion,
-                gameDirectory,
-                isolatedVersionName,
+                target,
                 progress,
                 cancellationToken,
                 downloadSourcePreference,
@@ -350,8 +314,7 @@ internal sealed class GameInstanceCreationCoordinator
             string minecraftVersion,
             LoaderKind loader,
             string? loaderVersion,
-            string gameDirectory,
-            string isolatedVersionName,
+            LoaderInstallTarget target,
             IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default,
             DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
@@ -360,10 +323,23 @@ internal sealed class GameInstanceCreationCoordinator
             if (!providers.TryGetValue(loader, out var provider) || !provider.IsImplemented)
                 throw new NotSupportedException($"{loader} is not implemented yet.");
 
+            var derivedFinalDirectory = Path.GetFullPath(Path.Combine(
+                target.MinecraftDirectory,
+                "versions",
+                target.LogicalVersionName));
+            if (!string.Equals(
+                    derivedFinalDirectory,
+                    Path.GetFullPath(target.PhysicalOutputDirectory),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "The infrastructure game installer is required for an explicit physical version output directory.");
+            }
+
             return provider.InstallAsync(
                 minecraftVersion,
-                gameDirectory,
-                isolatedVersionName,
+                target.MinecraftDirectory,
+                target.LogicalVersionName,
                 loaderVersion,
                 progress,
                 downloadSourcePreference,

@@ -191,6 +191,12 @@ internal sealed class VersionRenameTransaction
             throw new FileNotFoundException("Version JSON not found.", Path.Combine(sourceDirectory, $"{oldVersionName}.json"));
         if (Directory.Exists(destinationDirectory))
             throw new IOException($"Version directory already exists: {destinationDirectory}");
+        if (PendingInstanceInstallDirectory.IsLogicalNameReserved(
+                Path.GetDirectoryName(destinationDirectory)!,
+                Path.GetFileName(destinationDirectory)))
+        {
+            throw new InstanceInstallNameConflictException(Path.GetFileName(destinationDirectory));
+        }
         if (File.Exists(PendingInstanceRenameDirectory.GetMarkerPath(sourceDirectory)))
             throw new IOException($"Version directory already has a pending rename marker: {sourceDirectory}");
     }

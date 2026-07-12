@@ -22,6 +22,7 @@ using System.Net.Http;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
+using Launcher.Infrastructure.Persistence;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -33,7 +34,6 @@ namespace Launcher.Infrastructure.Modpacks;
 internal sealed class ModpackGameInstaller : IModpackGameInstaller
 {
     private readonly IReadOnlyDictionary<LoaderKind, ILoaderProvider> providers;
-    private readonly IVanillaSharedRuntimePreparer vanillaSharedRuntimePreparer;
     private readonly IFinalVersionInstaller finalVersionInstaller;
     private readonly HttpClient httpClient;
     private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
@@ -46,7 +46,6 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         ILogger<ModpackGameInstaller>? logger = null)
         : this(
             providers,
-            new VanillaSharedRuntimePreparer(logger: logger),
             new FinalVersionInstaller(),
             httpClient: null,
             downloadSpeedLimitState,
@@ -57,7 +56,6 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
 
     internal ModpackGameInstaller(
         IEnumerable<ILoaderProvider> providers,
-        IVanillaSharedRuntimePreparer vanillaSharedRuntimePreparer,
         IFinalVersionInstaller finalVersionInstaller,
         HttpClient? httpClient = null,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
@@ -65,29 +63,11 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         ILogger? logger = null)
     {
         this.providers = providers.ToDictionary(provider => provider.Kind);
-        this.vanillaSharedRuntimePreparer = vanillaSharedRuntimePreparer;
         this.finalVersionInstaller = finalVersionInstaller;
         this.httpClient = httpClient ?? new HttpClient();
         this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.tempRootDirectory = string.IsNullOrWhiteSpace(tempRootDirectory) ? Path.GetTempPath() : tempRootDirectory;
         this.logger = logger ?? NullLogger.Instance;
-    }
-
-    public async Task InstallMinecraftBaseAsync(
-        string minecraftVersion,
-        string gameDirectory,
-        IProgress<LauncherProgress>? progress,
-        CancellationToken cancellationToken = default,
-        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
-        int downloadSpeedLimitMbPerSecond = 0)
-    {
-        await vanillaSharedRuntimePreparer.PrepareAsync(
-            minecraftVersion,
-            gameDirectory,
-            progress,
-            cancellationToken,
-            downloadSourcePreference,
-            downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -97,19 +77,18 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         string minecraftVersion,
         LoaderKind loader,
         string? loaderVersion,
-        string gameDirectory,
-        string isolatedVersionName,
+        LoaderInstallTarget target,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
         int downloadSpeedLimitMbPerSecond = 0)
     {
+        ValidateTarget(target);
         return loader switch
         {
             LoaderKind.Vanilla => InstallVanillaInSandboxAsync(
                 minecraftVersion,
-                gameDirectory,
-                isolatedVersionName,
+                target,
                 progress,
                 cancellationToken,
                 downloadSourcePreference,
@@ -117,8 +96,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
             LoaderKind.Fabric => InstallFabricInSandboxAsync(
                 minecraftVersion,
                 loaderVersion,
-                gameDirectory,
-                isolatedVersionName,
+                target,
                 progress,
                 cancellationToken,
                 downloadSourcePreference,
@@ -126,8 +104,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
             LoaderKind.Quilt => InstallQuiltInSandboxAsync(
                 minecraftVersion,
                 loaderVersion,
-                gameDirectory,
-                isolatedVersionName,
+                target,
                 progress,
                 cancellationToken,
                 downloadSourcePreference,
@@ -136,8 +113,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 minecraftVersion,
                 loader,
                 loaderVersion,
-                gameDirectory,
-                isolatedVersionName,
+                target,
                 progress,
                 cancellationToken,
                 downloadSourcePreference,
@@ -152,31 +128,30 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         string minecraftVersion,
         LoaderKind loader,
         string? loaderVersion,
-        string gameDirectory,
-        string isolatedVersionName,
+        LoaderInstallTarget target,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken = default,
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
         int downloadSpeedLimitMbPerSecond = 0)
     {
+        ValidateTarget(target);
         if (!providers.TryGetValue(loader, out var provider) || !provider.IsImplemented)
             throw new NotSupportedException($"{loader} is not implemented yet.");
 
-        return provider.InstallAsync(
+        return InstallProviderInSandboxAsync(
+            provider,
             minecraftVersion,
-            gameDirectory,
-            isolatedVersionName,
             loaderVersion,
+            target,
             progress,
-            downloadSourcePreference,
             cancellationToken,
+            downloadSourcePreference,
             downloadSpeedLimitMbPerSecond);
     }
 
     private Task<string> InstallVanillaInSandboxAsync(
         string minecraftVersion,
-        string gameDirectory,
-        string isolatedVersionName,
+        LoaderInstallTarget target,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken,
         DownloadSourcePreference downloadSourcePreference,
@@ -185,8 +160,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         return InstallComposedVersionInSandboxAsync(
             "Vanilla",
             minecraftVersion,
-            gameDirectory,
-            isolatedVersionName,
+            target,
             progress,
             cancellationToken,
             downloadSourcePreference,
@@ -194,7 +168,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
             sandboxMinecraftDirectory => VanillaVersionComposer.CreateFinalVersionAsync(
                 httpClient,
                 minecraftVersion,
-                isolatedVersionName,
+                target.LogicalVersionName,
                 sandboxMinecraftDirectory,
                 downloadSourcePreference,
                 downloadSpeedLimitMbPerSecond,
@@ -206,8 +180,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
     private async Task<string> InstallFabricInSandboxAsync(
         string minecraftVersion,
         string? loaderVersion,
-        string gameDirectory,
-        string isolatedVersionName,
+        LoaderInstallTarget target,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken,
         DownloadSourcePreference downloadSourcePreference,
@@ -234,8 +207,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         return await InstallComposedVersionInSandboxAsync(
             "Fabric",
             minecraftVersion,
-            gameDirectory,
-            isolatedVersionName,
+            target,
             progress,
             cancellationToken,
             downloadSourcePreference,
@@ -244,7 +216,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 httpClient,
                 minecraftVersion,
                 selectedLoaderVersion,
-                isolatedVersionName,
+                target.LogicalVersionName,
                 sandboxMinecraftDirectory,
                 downloadSourcePreference,
                 downloadSpeedLimitMbPerSecond,
@@ -256,8 +228,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
     private async Task<string> InstallQuiltInSandboxAsync(
         string minecraftVersion,
         string? loaderVersion,
-        string gameDirectory,
-        string isolatedVersionName,
+        LoaderInstallTarget target,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken,
         DownloadSourcePreference downloadSourcePreference,
@@ -284,8 +255,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         return await InstallComposedVersionInSandboxAsync(
             "Quilt",
             minecraftVersion,
-            gameDirectory,
-            isolatedVersionName,
+            target,
             progress,
             cancellationToken,
             downloadSourcePreference,
@@ -294,7 +264,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 httpClient,
                 minecraftVersion,
                 selectedLoaderVersion,
-                isolatedVersionName,
+                target.LogicalVersionName,
                 sandboxMinecraftDirectory,
                 downloadSourcePreference,
                 downloadSpeedLimitMbPerSecond,
@@ -309,8 +279,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
     private async Task<string> InstallComposedVersionInSandboxAsync(
         string loaderName,
         string minecraftVersion,
-        string targetMinecraftDirectory,
-        string isolatedVersionName,
+        LoaderInstallTarget target,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken,
         DownloadSourcePreference downloadSourcePreference,
@@ -326,17 +295,18 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
             "Installing modpack loader version through sandbox. Loader={Loader} MinecraftVersion={MinecraftVersion} TargetMinecraftDirectory={TargetMinecraftDirectory} TargetVersionName={TargetVersionName} SessionDirectory={SessionDirectory}",
             loaderName,
             minecraftVersion,
-            targetMinecraftDirectory,
-            isolatedVersionName,
+            target.MinecraftDirectory,
+            target.LogicalVersionName,
             sessionDirectory);
 
         try
         {
             // 先播种已有共享文件减少重复下载，安装成功后再把沙箱新增内容回写目标目录。
             var seededRuntimeCopy = MinecraftSharedContentCopier.CopySharedRuntimeContent(
-                targetMinecraftDirectory,
+                target.MinecraftDirectory,
                 sandboxMinecraftDirectory,
-                logger);
+                logger,
+                cancellationToken);
             var finalVersionName = await composeAsync(sandboxMinecraftDirectory).ConfigureAwait(false);
 
             await finalVersionInstaller.InstallAsync(
@@ -347,16 +317,17 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
 
-            MinecraftVersionDirectoryCopier.CopyVersionDirectory(
+            MinecraftVersionDirectoryCopier.CopyVersionDirectoryTo(
                 sandboxMinecraftDirectory,
-                targetMinecraftDirectory,
                 finalVersionName,
+                target.PhysicalOutputDirectory,
                 allowExistingDestination: true,
                 cancellationToken: cancellationToken);
             var appliedRuntimeCopy = MinecraftSharedContentCopier.CopySharedRuntimeContent(
                 sandboxMinecraftDirectory,
-                targetMinecraftDirectory,
-                logger);
+                target.MinecraftDirectory,
+                logger,
+                cancellationToken);
 
             logger.LogInformation(
                 "Installed modpack loader version through sandbox. Loader={Loader} MinecraftVersion={MinecraftVersion} FinalVersionName={FinalVersionName} SessionDirectory={SessionDirectory} SeededLibrariesCopied={SeededLibrariesCopied} SeededAssetIndexesCopied={SeededAssetIndexesCopied} SeededAssetObjectsCopied={SeededAssetObjectsCopied} SeededLogConfigsCopied={SeededLogConfigsCopied} AppliedLibrariesCopied={AppliedLibrariesCopied} AppliedAssetIndexesCopied={AppliedAssetIndexesCopied} AppliedAssetObjectsCopied={AppliedAssetObjectsCopied} AppliedLogConfigsCopied={AppliedLogConfigsCopied}",
@@ -381,14 +352,78 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 "Installing modpack loader version through sandbox failed. Loader={Loader} MinecraftVersion={MinecraftVersion} TargetVersionName={TargetVersionName} SessionDirectory={SessionDirectory}",
                 loaderName,
                 minecraftVersion,
-                isolatedVersionName,
+                target.LogicalVersionName,
                 sessionDirectory);
             throw;
         }
         finally
         {
-            TryDeleteSandboxDirectory(sessionDirectory);
+            CleanupSandboxDirectory(sessionDirectory, cancellationToken.IsCancellationRequested);
         }
+    }
+
+    private async Task<string> InstallProviderInSandboxAsync(
+        ILoaderProvider provider,
+        string minecraftVersion,
+        string? loaderVersion,
+        LoaderInstallTarget target,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken,
+        DownloadSourcePreference downloadSourcePreference,
+        int downloadSpeedLimitMbPerSecond)
+    {
+        var sessionDirectory = Path.Combine(tempRootDirectory, "launcher-instance-version", Guid.NewGuid().ToString("N"));
+        var sandboxMinecraftDirectory = Path.Combine(sessionDirectory, ".minecraft");
+        Directory.CreateDirectory(sessionDirectory);
+        try
+        {
+            MinecraftSharedContentCopier.CopySharedRuntimeContent(
+                target.MinecraftDirectory,
+                sandboxMinecraftDirectory,
+                logger,
+                cancellationToken);
+            var finalVersionName = await provider.InstallAsync(
+                minecraftVersion,
+                sandboxMinecraftDirectory,
+                target.LogicalVersionName,
+                loaderVersion,
+                progress,
+                downloadSourcePreference,
+                cancellationToken,
+                downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
+            if (!string.Equals(finalVersionName, target.LogicalVersionName, StringComparison.Ordinal))
+                throw new InvalidDataException("Loader returned a version identity different from the logical install name.");
+            MinecraftVersionDirectoryCopier.CopyVersionDirectoryTo(
+                sandboxMinecraftDirectory,
+                finalVersionName,
+                target.PhysicalOutputDirectory,
+                allowExistingDestination: true,
+                cancellationToken);
+            MinecraftSharedContentCopier.CopySharedRuntimeContent(
+                sandboxMinecraftDirectory,
+                target.MinecraftDirectory,
+                logger,
+                cancellationToken);
+            return finalVersionName;
+        }
+        finally
+        {
+            CleanupSandboxDirectory(sessionDirectory, cancellationToken.IsCancellationRequested);
+        }
+    }
+
+    private void CleanupSandboxDirectory(string directory, bool deferCleanup)
+    {
+        if (!deferCleanup)
+        {
+            TryDeleteSandboxDirectory(directory);
+            return;
+        }
+
+        logger.LogInformation(
+            "Deferring modpack loader sandbox cleanup after cancellation. Directory={Directory}",
+            directory);
+        _ = Task.Run(() => TryDeleteSandboxDirectory(directory));
     }
 
     private void TryDeleteSandboxDirectory(string directory)
@@ -411,6 +446,26 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 exception,
                 "Failed to delete modpack loader sandbox directory. Directory={Directory}",
                 directory);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Unexpected failure while deleting modpack loader sandbox directory. Directory={Directory}",
+                directory);
+        }
+    }
+
+    private static void ValidateTarget(LoaderInstallTarget target)
+    {
+        if (string.IsNullOrWhiteSpace(target.LogicalVersionName))
+            throw new ArgumentException("Logical version name is required.", nameof(target));
+        var versionsDirectory = Path.GetFullPath(Path.Combine(target.MinecraftDirectory, "versions"));
+        var outputDirectory = Path.GetFullPath(target.PhysicalOutputDirectory);
+        if (!string.Equals(Path.GetDirectoryName(outputDirectory), versionsDirectory, StringComparison.OrdinalIgnoreCase)
+            || !PendingInstanceInstallDirectory.IsPending(outputDirectory))
+        {
+            throw new ArgumentException("Physical version output must be a pending install directory.", nameof(target));
         }
     }
 }

@@ -47,7 +47,7 @@ public sealed class GameInstanceService : IGameInstanceService
         IModpackGameInstaller? modpackGameInstaller = null,
         ILogger<GameInstanceService>? logger = null,
         IGameInstallCoordinator? installCoordinator = null,
-        IVersionDirectoryState? versionDirectoryState = null)
+        IInstanceInstallTransactionService? installTransactionService = null)
     {
         this.settingsService = settingsService;
         this.repository = repository;
@@ -60,8 +60,8 @@ public sealed class GameInstanceService : IGameInstanceService
             providerMap,
             modrinthService,
             modpackGameInstaller,
+            installTransactionService,
             this.installCoordinator,
-            versionDirectoryState ?? new RepositoryVersionDirectoryState(repository),
             GetInstancesCoreAsync,
             this.logger);
     }
@@ -237,13 +237,20 @@ public sealed class GameInstanceService : IGameInstanceService
         {
             // 先完成目录及版本 JSON 的事务性重命名，再更新内存模型，失败时不会保存失配路径。
             var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
-            await repository.RenameVersionAsync(
-                settings.MinecraftDirectory,
-                instance,
-                sanitizedName,
-                normalizedIconSource,
-                updatedAt,
-                cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await repository.RenameVersionAsync(
+                    settings.MinecraftDirectory,
+                    instance,
+                    sanitizedName,
+                    normalizedIconSource,
+                    updatedAt,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (InstanceInstallNameConflictException)
+            {
+                throw new DuplicateGameInstanceNameException(sanitizedName);
+            }
 
             instance.VersionName = sanitizedName;
             instance.InstanceDirectory = repository.GetVersionDirectory(settings.MinecraftDirectory, sanitizedName);
@@ -582,18 +589,4 @@ public sealed class GameInstanceService : IGameInstanceService
         return VersionDirectoryName.NormalizeUserInput(value);
     }
 
-    private sealed class RepositoryVersionDirectoryState(IGameInstanceRepository repository) : IVersionDirectoryState
-    {
-        public bool Exists(string minecraftDirectory, string versionName)
-        {
-            return repository.IsInstanceInstalled(
-                new GameInstance
-                {
-                    Name = versionName,
-                    MinecraftVersion = versionName,
-                    VersionName = versionName
-                },
-                minecraftDirectory);
-        }
-    }
 }

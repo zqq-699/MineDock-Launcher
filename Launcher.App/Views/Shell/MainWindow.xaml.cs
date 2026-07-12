@@ -199,7 +199,7 @@ public partial class MainWindow : Window
 
     private async void Window_OnClosing(object? sender, CancelEventArgs e)
     {
-        // 第一次 Closing 只发起异步关闭握手；确认下载处理完成后再允许真正关闭。
+        // 第一次 Closing 立即隐藏窗口，再在后台完成有界关闭握手；收尾完成后允许真正关闭。
         if (isShutdownComplete)
             return;
 
@@ -214,6 +214,7 @@ public partial class MainWindow : Window
             return;
 
         isShutdownInProgress = true;
+        Hide();
         try
         {
             await shutdownService.PrepareForExitAsync(ShutdownTimeout);

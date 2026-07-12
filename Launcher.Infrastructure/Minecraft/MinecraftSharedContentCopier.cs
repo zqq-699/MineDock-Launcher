@@ -27,12 +27,13 @@ internal static class MinecraftSharedContentCopier
     public static MinecraftSharedContentCopyResult CopySharedRuntimeContent(
         string sourceGameDirectory,
         string destinationGameDirectory,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        CancellationToken cancellationToken = default)
     {
-        var librariesCopied = CopyLibraries(sourceGameDirectory, destinationGameDirectory);
-        var assetIndexesCopied = CopyAssetsIndexes(sourceGameDirectory, destinationGameDirectory);
-        var assetObjectsCopied = CopyAssetsObjects(sourceGameDirectory, destinationGameDirectory);
-        var logConfigsCopied = CopyLogConfigs(sourceGameDirectory, destinationGameDirectory);
+        var librariesCopied = CopyLibraries(sourceGameDirectory, destinationGameDirectory, cancellationToken);
+        var assetIndexesCopied = CopyAssetsIndexes(sourceGameDirectory, destinationGameDirectory, cancellationToken);
+        var assetObjectsCopied = CopyAssetsObjects(sourceGameDirectory, destinationGameDirectory, cancellationToken);
+        var logConfigsCopied = CopyLogConfigs(sourceGameDirectory, destinationGameDirectory, cancellationToken);
 
         logger?.LogDebug(
             "Copied shared Minecraft runtime content. Source={SourceGameDirectory} Destination={DestinationGameDirectory} LibrariesCopied={LibrariesCopied} AssetIndexesCopied={AssetIndexesCopied} AssetObjectsCopied={AssetObjectsCopied} LogConfigsCopied={LogConfigsCopied}",
@@ -50,42 +51,47 @@ internal static class MinecraftSharedContentCopier
             logConfigsCopied);
     }
 
-    public static int CopyLibraries(string sourceGameDirectory, string destinationGameDirectory)
+    public static int CopyLibraries(string sourceGameDirectory, string destinationGameDirectory, CancellationToken cancellationToken = default)
     {
         return CopyDirectoryContentIfMissing(
             Path.Combine(sourceGameDirectory, "libraries"),
-            Path.Combine(destinationGameDirectory, "libraries"));
+            Path.Combine(destinationGameDirectory, "libraries"), cancellationToken);
     }
 
-    public static int CopyAssetsIndexes(string sourceGameDirectory, string destinationGameDirectory)
+    public static int CopyAssetsIndexes(string sourceGameDirectory, string destinationGameDirectory, CancellationToken cancellationToken = default)
     {
         return CopyDirectoryContentIfMissing(
             Path.Combine(sourceGameDirectory, "assets", "indexes"),
-            Path.Combine(destinationGameDirectory, "assets", "indexes"));
+            Path.Combine(destinationGameDirectory, "assets", "indexes"), cancellationToken);
     }
 
-    public static int CopyAssetsObjects(string sourceGameDirectory, string destinationGameDirectory)
+    public static int CopyAssetsObjects(string sourceGameDirectory, string destinationGameDirectory, CancellationToken cancellationToken = default)
     {
         return CopyDirectoryContentIfMissing(
             Path.Combine(sourceGameDirectory, "assets", "objects"),
-            Path.Combine(destinationGameDirectory, "assets", "objects"));
+            Path.Combine(destinationGameDirectory, "assets", "objects"), cancellationToken);
     }
 
-    public static int CopyLogConfigs(string sourceGameDirectory, string destinationGameDirectory)
+    public static int CopyLogConfigs(string sourceGameDirectory, string destinationGameDirectory, CancellationToken cancellationToken = default)
     {
         return CopyDirectoryContentIfMissing(
             Path.Combine(sourceGameDirectory, "assets", "log_configs"),
-            Path.Combine(destinationGameDirectory, "assets", "log_configs"));
+            Path.Combine(destinationGameDirectory, "assets", "log_configs"), cancellationToken);
     }
 
-    private static int CopyDirectoryContentIfMissing(string sourceDirectory, string destinationDirectory)
+    private static int CopyDirectoryContentIfMissing(
+        string sourceDirectory,
+        string destinationDirectory,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!Directory.Exists(sourceDirectory))
             return 0;
 
         var copiedFileCount = 0;
-        foreach (var sourceFilePath in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+        foreach (var sourceFilePath in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var relativePath = Path.GetRelativePath(sourceDirectory, sourceFilePath);
             var destinationPath = Path.Combine(destinationDirectory, relativePath);
             if (File.Exists(destinationPath))

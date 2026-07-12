@@ -189,7 +189,10 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return deletionManager.Stage(minecraftDirectory, versionName);
+            await using var mutationLock = await AcquireVersionMutationLockAsync(minecraftDirectory, cancellationToken)
+                .ConfigureAwait(false);
+            return await deletionManager.StageAsync(minecraftDirectory, versionName, cancellationToken)
+                .ConfigureAwait(false);
         }
         finally
         {
@@ -227,6 +230,8 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         await ioLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            await using var mutationLock = await AcquireVersionMutationLockAsync(minecraftDirectory, cancellationToken)
+                .ConfigureAwait(false);
             await renameTransaction.ExecuteAsync(
                 minecraftDirectory,
                 instance,
@@ -248,6 +253,8 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         await ioLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            await using var mutationLock = await AcquireVersionMutationLockAsync(minecraftDirectory, cancellationToken)
+                .ConfigureAwait(false);
             await renameTransaction.RecoverAllAsync(minecraftDirectory, cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -261,6 +268,17 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         return string.IsNullOrWhiteSpace(instance.VersionName)
             ? instance.MinecraftVersion
             : instance.VersionName;
+    }
+
+    private static Task<FileStream> AcquireVersionMutationLockAsync(
+        string minecraftDirectory,
+        CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(Path.GetFullPath(Path.Combine(minecraftDirectory, "versions")));
+        return CrossProcessVersionLock.AcquireAsync(
+            CrossProcessVersionLock.GetMutationPath(minecraftDirectory),
+            progress: null,
+            cancellationToken);
     }
 
 }
@@ -295,6 +313,7 @@ internal sealed class InstalledVersionMetadataReader(ILogger logger)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (PendingInstanceDeletionDirectory.IsPending(versionDirectory)
+                || PendingInstanceInstallDirectory.IsPending(versionDirectory)
                 || PendingInstanceRenameDirectory.IsPending(versionDirectory)
                 || File.Exists(PendingInstanceRenameDirectory.GetMarkerPath(versionDirectory)))
                 continue;

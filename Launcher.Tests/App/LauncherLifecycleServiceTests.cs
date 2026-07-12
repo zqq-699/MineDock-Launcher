@@ -84,7 +84,8 @@ public sealed class LauncherLifecycleServiceTests
         var unfinishedTask = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         downloadTasks.TrackBackgroundTask(unfinishedTask.Task);
         var cleanup = new TestWorkspaceCleanupService();
-        var service = new LauncherShutdownService(downloadTasks, cleanup);
+        var installCleanup = new TestInstallCleanupService();
+        var service = new LauncherShutdownService(downloadTasks, installCleanup, cleanup);
 
         var first = service.PrepareForExitAsync(TimeSpan.FromMilliseconds(20));
         var second = service.PrepareForExitAsync(TimeSpan.FromSeconds(1));
@@ -92,8 +93,26 @@ public sealed class LauncherLifecycleServiceTests
 
         Assert.Same(first, second);
         Assert.True(downloadTask.IsCancellationRequested);
+        Assert.Equal(1, installCleanup.CallCount);
         Assert.Equal(1, cleanup.CallCount);
         Assert.True(cleanup.ObservedCancellation);
+    }
+
+    [Fact]
+    public async Task ShutdownRetriesInstallStagingCleanupAfterBackgroundTasksReleaseTheirLocks()
+    {
+        var downloadTasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var backgroundTask = Task.Delay(20);
+        downloadTasks.TrackBackgroundTask(backgroundTask);
+        var installCleanup = new TestInstallCleanupService(() => backgroundTask.IsCompleted);
+        var workspaceCleanup = new TestWorkspaceCleanupService(completeImmediately: true);
+        var service = new LauncherShutdownService(downloadTasks, installCleanup, workspaceCleanup);
+
+        await service.PrepareForExitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(1, installCleanup.CallCount);
+        Assert.True(installCleanup.ObservedPrerequisite);
+        Assert.False(installCleanup.ObservedCancellation);
     }
 
     private sealed class TestLauncherStateMonitor : ILauncherStateMonitor
@@ -127,7 +146,25 @@ public sealed class LauncherLifecycleServiceTests
         }
     }
 
-    private sealed class TestWorkspaceCleanupService : IModpackWorkspaceCleanupService
+    private sealed class TestInstallCleanupService(Func<bool>? prerequisite = null) : IInstanceInstallCleanupService
+    {
+        public int CallCount { get; private set; }
+
+        public bool ObservedCancellation { get; private set; }
+
+        public bool ObservedPrerequisite { get; private set; }
+
+        public Task CleanupPendingAsync(CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            ObservedCancellation = cancellationToken.IsCancellationRequested;
+            ObservedPrerequisite = prerequisite?.Invoke() ?? true;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class TestWorkspaceCleanupService(bool completeImmediately = false) : IModpackWorkspaceCleanupService
     {
         public int CallCount { get; private set; }
 
@@ -136,6 +173,8 @@ public sealed class LauncherLifecycleServiceTests
         public async Task CleanupAllAsync(CancellationToken cancellationToken = default)
         {
             CallCount++;
+            if (completeImmediately)
+                return;
             try
             {
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);

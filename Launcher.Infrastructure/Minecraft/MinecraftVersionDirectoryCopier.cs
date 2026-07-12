@@ -81,4 +81,52 @@ internal static class MinecraftVersionDirectoryCopier
             throw;
         }
     }
+
+    public static void CopyVersionDirectoryTo(
+        string sourceGameDirectory,
+        string versionName,
+        string destinationDirectory,
+        bool allowExistingDestination = false,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var sourceDirectory = Path.Combine(sourceGameDirectory, "versions", versionName);
+        if (!Directory.Exists(sourceDirectory))
+            throw new DirectoryNotFoundException($"Version directory is missing: {sourceDirectory}");
+
+        var destinationAlreadyExists = Directory.Exists(destinationDirectory);
+        if (destinationAlreadyExists && !allowExistingDestination)
+            throw new IOException($"Version output directory already exists: {destinationDirectory}");
+        Directory.CreateDirectory(destinationDirectory);
+        var copiedFiles = new List<string>();
+        try
+        {
+            foreach (var filePath in Directory.GetFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var relativePath = Path.GetRelativePath(sourceDirectory, filePath);
+                var destinationPath = Path.Combine(destinationDirectory, relativePath);
+                Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+                File.Copy(filePath, destinationPath, overwrite: false);
+                copiedFiles.Add(destinationPath);
+            }
+        }
+        catch
+        {
+            foreach (var copiedFile in copiedFiles)
+            {
+                try
+                {
+                    if (File.Exists(copiedFile))
+                        File.Delete(copiedFile);
+                }
+                catch (Exception) when (destinationAlreadyExists)
+                {
+                }
+            }
+            if (!destinationAlreadyExists && Directory.Exists(destinationDirectory))
+                Directory.Delete(destinationDirectory, recursive: true);
+            throw;
+        }
+    }
 }

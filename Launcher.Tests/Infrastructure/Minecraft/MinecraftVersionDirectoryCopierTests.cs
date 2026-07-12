@@ -77,6 +77,25 @@ public sealed class MinecraftVersionDirectoryCopierTests : TestTempDirectory
         Assert.False(Directory.Exists(Path.Combine(destinationGameDirectory, "versions", "1.21.4")));
     }
 
+    [Fact]
+    public void SharedRuntimeCopyHonorsCancellationBeforeEnumeratingLargeTrees()
+    {
+        var sourceGameDirectory = Path.Combine(TempRoot, "source-shared");
+        var destinationGameDirectory = Path.Combine(TempRoot, "destination-shared");
+        Directory.CreateDirectory(Path.Combine(sourceGameDirectory, "assets", "objects", "aa"));
+        File.WriteAllText(Path.Combine(sourceGameDirectory, "assets", "objects", "aa", "asset"), "asset");
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() =>
+            MinecraftSharedContentCopier.CopySharedRuntimeContent(
+                sourceGameDirectory,
+                destinationGameDirectory,
+                cancellationToken: cancellation.Token));
+
+        Assert.False(Directory.Exists(destinationGameDirectory));
+    }
+
     private string CreateVersionDirectory(string gameDirectoryName, string versionName)
     {
         var directory = Path.Combine(TempRoot, gameDirectoryName, "versions", versionName);

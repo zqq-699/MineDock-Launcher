@@ -21,6 +21,9 @@ using System.IO;
 using Launcher.Application.Repositories;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Persistence;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Modpacks;
 
@@ -29,16 +32,22 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
     private readonly ISettingsService settingsService;
     private readonly IGameInstanceRepository repository;
     private readonly IGameInstanceService instanceService;
+    private readonly IInstanceInstallTransactionService installTransactionService;
+    private readonly ILogger logger;
     private readonly SemaphoreSlim stagingLock = new(1, 1);
 
     public ModpackInstanceStagingService(
         ISettingsService settingsService,
         IGameInstanceRepository repository,
-        IGameInstanceService instanceService)
+        IGameInstanceService instanceService,
+        IInstanceInstallTransactionService installTransactionService,
+        ILogger<ModpackInstanceStagingService>? logger = null)
     {
         this.settingsService = settingsService;
         this.repository = repository;
         this.instanceService = instanceService;
+        this.installTransactionService = installTransactionService;
+        this.logger = logger ?? NullLogger<ModpackInstanceStagingService>.Instance;
     }
 
     public async Task<StagedModpackInstance> StageAsync(
@@ -50,20 +59,14 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
         try
         {
             var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
-            var resolvedInstanceName = await ResolveUniqueInstanceNameAsync(
-                preferredInstanceName,
-                settings.MinecraftDirectory,
-                cancellationToken).ConfigureAwait(false);
-            var instanceDirectory = repository.GetVersionDirectory(settings.MinecraftDirectory, resolvedInstanceName);
-            repository.CreateInstanceDirectories(instanceDirectory);
-
-            var now = DateTimeOffset.UtcNow;
-            return new StagedModpackInstance
+            while (true)
             {
-                ResolvedInstanceName = resolvedInstanceName,
-                MinecraftDirectory = settings.MinecraftDirectory,
-                InstanceDirectory = instanceDirectory,
-                Instance = new GameInstance
+                var resolvedInstanceName = await ResolveUniqueInstanceNameAsync(
+                    preferredInstanceName,
+                    settings.MinecraftDirectory,
+                    cancellationToken).ConfigureAwait(false);
+                var now = DateTimeOffset.UtcNow;
+                var instance = new GameInstance
                 {
                     Name = resolvedInstanceName,
                     MinecraftVersion = preparedModpack.MinecraftVersion,
@@ -71,12 +74,38 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
                     LoaderVersion = preparedModpack.Loader == LoaderKind.Vanilla ? null : preparedModpack.LoaderVersion,
                     VersionName = resolvedInstanceName,
                     VersionType = string.Empty,
-                    InstanceDirectory = instanceDirectory,
                     MemoryMb = settings.DefaultMemoryMb,
                     CreatedAt = now,
                     UpdatedAt = now
+                };
+                try
+                {
+                    var transaction = await installTransactionService.BeginAsync(
+                        settings.MinecraftDirectory,
+                        resolvedInstanceName,
+                        instance.Id,
+                        "modpack",
+                        string.IsNullOrWhiteSpace(settings.DefaultInstanceId),
+                        progress: null,
+                        cancellationToken).ConfigureAwait(false);
+                    instance.InstanceDirectory = transaction.PendingDirectory;
+                    repository.CreateInstanceDirectories(instance.InstanceDirectory);
+                    return new StagedModpackInstance
+                    {
+                        ResolvedInstanceName = resolvedInstanceName,
+                        MinecraftDirectory = settings.MinecraftDirectory,
+                        InstanceDirectory = transaction.PendingDirectory,
+                        Instance = instance,
+                        InstallTransaction = transaction
+                    };
                 }
-            };
+                catch (InstanceInstallNameConflictException)
+                {
+                    logger.LogInformation(
+                        "Modpack instance name became unavailable while staging; selecting a suffixed name. InstanceName={InstanceName}",
+                        resolvedInstanceName);
+                }
+            }
         }
         finally
         {
@@ -91,15 +120,29 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
     {
         var hadDefaultInstance = await instanceService.GetDefaultInstanceAsync(cancellationToken).ConfigureAwait(false) is not null;
         var instance = stagedInstance.Instance;
+        var transaction = stagedInstance.InstallTransaction
+            ?? throw new InvalidOperationException("Modpack install transaction is missing.");
         instance.VersionName = stagedInstance.ResolvedInstanceName;
         instance.InstanceDirectory = stagedInstance.InstanceDirectory;
         instance.UpdatedAt = DateTimeOffset.UtcNow;
         repository.CreateInstanceDirectories(instance.InstanceDirectory);
 
-        await instanceService.SaveInstanceAsync(instance, cancellationToken).ConfigureAwait(false);
-        if (!hadDefaultInstance)
-            await instanceService.SetDefaultInstanceAsync(instance.Id, cancellationToken).ConfigureAwait(false);
-
+        await transaction.CommitAsync(instance, cancellationToken).ConfigureAwait(false);
+        instance.InstanceDirectory = transaction.FinalDirectory;
+        var logicalCommitCompleted = true;
+        try
+        {
+            if (!hadDefaultInstance)
+                await instanceService.SetDefaultInstanceAsync(instance.Id, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            logicalCommitCompleted = false;
+            logger.LogError(exception, "Modpack installation committed but logical persistence needs reconciliation. InstanceId={InstanceId}", instance.Id);
+        }
+        if (logicalCommitCompleted)
+            await transaction.CompleteLogicalCommitAsync(CancellationToken.None).ConfigureAwait(false);
+        await transaction.DisposeAsync().ConfigureAwait(false);
         return instance;
     }
 
@@ -109,6 +152,13 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
         CancellationToken cancellationToken = default)
     {
         var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+
+        if (stagedInstance.InstallTransaction is not null)
+        {
+            await stagedInstance.InstallTransaction.AbortAsync(CancellationToken.None).ConfigureAwait(false);
+            await stagedInstance.InstallTransaction.DisposeAsync().ConfigureAwait(false);
+            return;
+        }
 
         if (!string.IsNullOrWhiteSpace(finalVersionName))
             TryDeleteVersionDirectory(settings.MinecraftDirectory, finalVersionName);
@@ -180,6 +230,12 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
 
         foreach (var versionDirectory in Directory.EnumerateDirectories(versionsDirectory))
         {
+            if (PendingInstanceInstallDirectory.IsPending(versionDirectory)
+                && PendingInstanceInstallDirectory.TryGetLogicalName(versionDirectory, out var logicalVersionName))
+            {
+                unavailableNames.Add(logicalVersionName);
+                continue;
+            }
             var versionName = Path.GetFileName(versionDirectory);
             if (!string.IsNullOrWhiteSpace(versionName))
                 unavailableNames.Add(versionName);

@@ -47,7 +47,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ISettingsService, JsonSettingsService>();
         services.AddSingleton<IAccountStateService, JsonAccountStateService>();
         services.AddSingleton<IGameInstanceRepository, JsonGameInstanceRepository>();
-        services.AddSingleton<IVersionDirectoryState, VersionDirectoryState>();
+        services.AddSingleton<IInstanceInstallTransactionService, InstanceInstallTransactionService>();
+        services.AddSingleton<IInstanceInstallCleanupService, InstanceInstallCleanupService>();
         services.AddSingleton<IGameVersionService, GameVersionService>();
         services.AddSingleton<ILoaderProvider, VanillaLoaderProvider>();
         services.AddSingleton<ILoaderProvider, FabricLoaderProvider>();

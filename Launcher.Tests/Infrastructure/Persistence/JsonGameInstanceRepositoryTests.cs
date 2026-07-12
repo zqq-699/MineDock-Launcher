@@ -535,6 +535,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         Assert.EndsWith(".bhl-delete-pending-Test-b94e32d5", stagedDirectory, StringComparison.Ordinal);
         Assert.False(Directory.Exists(Path.Combine(versionsDirectory, "Test")));
         Assert.True(Directory.Exists(stagedDirectory));
+        Assert.True(File.Exists(Path.Combine(stagedDirectory, ".bhl-delete-pending-.json")));
     }
 
     [Fact]
@@ -556,6 +557,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
             stageDeletionMove: (source, destination) =>
             {
                 moves++;
+                Assert.True(File.Exists(Path.Combine(source, ".bhl-delete-pending-.json")));
                 if (moves == 1)
                 {
                     Directory.CreateDirectory(destination);
@@ -620,7 +622,9 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
             repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Test"));
 
         Assert.Equal(1, moveAttempts);
-        Assert.True(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "Test")));
+        var sourceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Test");
+        Assert.True(Directory.Exists(sourceDirectory));
+        Assert.False(File.Exists(Path.Combine(sourceDirectory, ".bhl-delete-pending-.json")));
     }
 
     [Fact]
@@ -653,6 +657,8 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         var removed = Path.Combine(versionsDirectory, ".BHL-DELETE-PENDING-Removed-b94e32d5");
         Directory.CreateDirectory(retained);
         Directory.CreateDirectory(removed);
+        WriteDeletionMarker(retained, "Retained", "a83f21c4000000000000000000000000");
+        WriteDeletionMarker(removed, "Removed", "b94e32d5000000000000000000000000");
         var repository = new JsonGameInstanceRepository(
             settingsService,
             logger: null,
@@ -682,6 +688,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
             "versions",
             ".bhl-delete-pending-Test-a83f21c4");
         Directory.CreateDirectory(stagedDirectory);
+        WriteDeletionMarker(stagedDirectory, "Test", "a83f21c4000000000000000000000000");
         var recycleAttempts = 0;
         var permanentDeleteAttempts = 0;
         var repository = new JsonGameInstanceRepository(
@@ -704,6 +711,31 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         Assert.Equal(1, recycleAttempts);
         Assert.Equal(0, permanentDeleteAttempts);
         Assert.False(Directory.Exists(stagedDirectory));
+    }
+
+    [Fact]
+    public async Task CleanupPreservesPrefixedDeletionDirectoryWithoutValidMarker()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var directory = Path.Combine(
+            settings.MinecraftDirectory,
+            "versions",
+            ".bhl-delete-pending-UserData-a83f21c4");
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(Path.Combine(directory, "keep.txt"), "keep");
+        var repository = new JsonGameInstanceRepository(settingsService);
+
+        await repository.CleanupStagedVersionDirectoriesAsync(settings.MinecraftDirectory);
+
+        Assert.True(Directory.Exists(directory));
+        Assert.True(File.Exists(Path.Combine(directory, "keep.txt")));
+    }
+
+    private static void WriteDeletionMarker(string directory, string versionName, string transactionId)
+    {
+        File.WriteAllText(
+            Path.Combine(directory, ".bhl-delete-pending-.json"),
+            $$"""{"schemaVersion":1,"transactionId":"{{transactionId}}","versionName":"{{versionName}}","createdAtUtc":"2026-07-13T00:00:00Z"}""");
     }
 
     private (LauncherSettings Settings, TestSettingsService SettingsService) CreateSettings()

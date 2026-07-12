@@ -48,4 +48,6 @@ public sealed class StagedModpackInstance
     public string InstanceDirectory { get; init; } = string.Empty;
 
     public GameInstance Instance { get; init; } = new();
+
+    public IInstanceInstallTransaction? InstallTransaction { get; init; }
 }

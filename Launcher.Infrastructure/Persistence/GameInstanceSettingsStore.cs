@@ -123,6 +123,18 @@ internal sealed class GameInstanceSettingsStore(ILogger logger)
             .ConfigureAwait(false);
     }
 
+    public Task PrepareInstallAsync(
+        string pendingDirectory,
+        string finalDirectory,
+        string logicalVersionName,
+        GameInstance instance,
+        CancellationToken cancellationToken)
+    {
+        var settingsPath = GetSettingsPath(pendingDirectory);
+        var snapshot = CreateStorageSnapshot(instance, finalDirectory, logicalVersionName);
+        return AtomicJsonFileWriter.WriteAsync(settingsPath, snapshot, JsonOptions, cancellationToken);
+    }
+
     private async Task<GameInstance?> TryLoadAsync(string settingsPath, CancellationToken cancellationToken)
     {
         try
@@ -230,6 +242,7 @@ internal sealed class GameInstanceSettingsStore(ILogger logger)
 
     private static bool ShouldIgnoreDirectory(string versionDirectory) =>
         PendingInstanceDeletionDirectory.IsPending(versionDirectory)
+        || PendingInstanceInstallDirectory.IsPending(versionDirectory)
         || PendingInstanceRenameDirectory.IsPending(versionDirectory)
         || File.Exists(PendingInstanceRenameDirectory.GetMarkerPath(versionDirectory));
 

@@ -28,16 +28,19 @@ public sealed class LauncherShutdownService
 {
     private readonly object shutdownLock = new();
     private readonly DownloadTasksPageViewModel downloadTasksPage;
+    private readonly IInstanceInstallCleanupService installCleanupService;
     private readonly IModpackWorkspaceCleanupService workspaceCleanupService;
     private readonly ILogger<LauncherShutdownService> logger;
     private Task? shutdownTask;
 
     public LauncherShutdownService(
         DownloadTasksPageViewModel downloadTasksPage,
+        IInstanceInstallCleanupService installCleanupService,
         IModpackWorkspaceCleanupService workspaceCleanupService,
         ILogger<LauncherShutdownService>? logger = null)
     {
         this.downloadTasksPage = downloadTasksPage;
+        this.installCleanupService = installCleanupService;
         this.workspaceCleanupService = workspaceCleanupService;
         this.logger = logger ?? NullLogger<LauncherShutdownService>.Instance;
     }
@@ -65,6 +68,21 @@ public sealed class LauncherShutdownService
         catch (Exception exception)
         {
             logger.LogWarning(exception, "Failed while waiting for background download tasks during launcher exit.");
+        }
+
+        try
+        {
+            await installCleanupService
+                .CleanupPendingAsync(timeoutCancellation.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (timeoutCancellation.IsCancellationRequested)
+        {
+            logger.LogWarning("Timed out cleaning pending instance installations during launcher exit.");
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Failed to clean pending instance installations during launcher exit.");
         }
 
         try

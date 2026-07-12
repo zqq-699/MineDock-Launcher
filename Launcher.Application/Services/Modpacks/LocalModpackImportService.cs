@@ -31,7 +31,6 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
     private readonly IModpackPackageService modpackPackageService;
     private readonly IModpackGameInstaller modpackGameInstaller;
     private readonly IModpackInstanceStagingService stagingService;
-    private readonly IGameInstallCoordinator installCoordinator;
     private readonly ModpackImportCleanupCoordinator cleanupCoordinator;
     private readonly ILogger<LocalModpackImportService> logger;
 
@@ -40,13 +39,11 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         IModpackPackageService modpackPackageService,
         IModpackGameInstaller modpackGameInstaller,
         IModpackInstanceStagingService stagingService,
-        IGameInstallCoordinator? installCoordinator = null,
         ILogger<LocalModpackImportService>? logger = null)
     {
         this.modpackPackageService = modpackPackageService;
         this.modpackGameInstaller = modpackGameInstaller;
         this.stagingService = stagingService;
-        this.installCoordinator = installCoordinator ?? new GameInstallCoordinator();
         this.logger = logger ?? NullLogger<LocalModpackImportService>.Instance;
         cleanupCoordinator = new ModpackImportCleanupCoordinator(
             instanceService,
@@ -210,29 +207,9 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
             new LauncherProgress(ImportProgressStages.DownloadingPackFiles, string.Empty, 100));
         _ = CancelImportOnBranchFailureAsync(downloadModsTask, importCancellation);
 
-        var installLeaseTask = installCoordinator
-            .AcquireInstallAsync(
-                stagedInstance.MinecraftDirectory,
-                stagedInstance.ResolvedInstanceName,
-                session.Progress,
-                importCancellationToken)
-            .AsTask();
-        // 若内容下载在排队等安装租约时已经失败，不再无意义地继续占用安装队列。
-        await ThrowContentFailureBeforeInstallLeaseAsync(downloadModsTask, installLeaseTask, importCancellation)
-            .ConfigureAwait(false);
-
-        await using var installLease = await installLeaseTask.ConfigureAwait(false);
-        var minecraftBaseTask = modpackGameInstaller.InstallMinecraftBaseAsync(
-            preparedModpack.MinecraftVersion,
-            stagedInstance.MinecraftDirectory,
-            CreateInstallStageProgress(session.Progress, ImportProgressStages.InstallingMinecraftBase),
-            importCancellationToken,
-            downloadSourcePreference,
-            downloadSpeedLimitMbPerSecond);
-        var loaderInstallTask = InstallLoaderAfterBaseAsync(
+        var loaderInstallTask = InstallLoaderIntoStagingAsync(
             preparedModpack,
             stagedInstance,
-            minecraftBaseTask,
             session.Progress,
             importCancellationToken,
             downloadSourcePreference,
@@ -264,36 +241,35 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 session.Progress,
                 new LauncherProgress(ImportProgressStages.CopyingOverrides, string.Empty, 100))
             .ConfigureAwait(false);
-        session.ImportedInstance = await stagingService
-            .FinalizeAsync(stagedInstance, session.FinalVersionName!, cancellationToken)
-            .ConfigureAwait(false);
-
         preparedModpack.ManualDownloads = manualDownloads;
         preparedModpack.ManualDownloadsFilePath = await modpackPackageService
             .WriteManualDownloadsFileAsync(
                 preparedModpack,
-                session.ImportedInstance,
+                stagedInstance.Instance,
                 manualDownloads,
                 cancellationToken)
             .ConfigureAwait(false);
+        session.ImportedInstance = await stagingService
+            .FinalizeAsync(stagedInstance, session.FinalVersionName!, cancellationToken)
+            .ConfigureAwait(false);
     }
 
-    private async Task<string> InstallLoaderAfterBaseAsync(
+    private async Task<string> InstallLoaderIntoStagingAsync(
         PreparedModpack preparedModpack,
         StagedModpackInstance stagedInstance,
-        Task minecraftBaseTask,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken,
         DownloadSourcePreference downloadSourcePreference,
         int downloadSpeedLimitMbPerSecond)
     {
-        await minecraftBaseTask.ConfigureAwait(false);
         return await modpackGameInstaller.InstallLoaderAsync(
             preparedModpack.MinecraftVersion,
             preparedModpack.Loader,
             preparedModpack.LoaderVersion,
-            stagedInstance.MinecraftDirectory,
-            stagedInstance.ResolvedInstanceName,
+            new LoaderInstallTarget(
+                stagedInstance.MinecraftDirectory,
+                stagedInstance.ResolvedInstanceName,
+                stagedInstance.InstanceDirectory),
             CreateInstallStageProgress(progress, ImportProgressStages.InstallingLoader),
             cancellationToken,
             downloadSourcePreference,
@@ -349,30 +325,6 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         }
 
         return normalizedName;
-    }
-
-    /// <summary>
-    /// 内容分支在获取安装租约前失败时取消排队，并确保已取得的租约被正确释放。
-    /// </summary>
-    private static async Task ThrowContentFailureBeforeInstallLeaseAsync(
-        Task contentTask,
-        Task<IAsyncDisposable> installLeaseTask,
-        CancellationTokenSource importCancellation)
-    {
-        var firstCompleted = await Task.WhenAny(contentTask, installLeaseTask).ConfigureAwait(false);
-        if (!ReferenceEquals(firstCompleted, contentTask) || contentTask.IsCompletedSuccessfully)
-            return;
-
-        SafeCancel(importCancellation);
-        try
-        {
-            await using var abandonedLease = await installLeaseTask.ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-
-        await contentTask.ConfigureAwait(false);
     }
 
     /// <summary>

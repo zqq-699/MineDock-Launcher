@@ -23,7 +23,6 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
 
         Assert.True(result.IsSuccess);
         Assert.Equal(1, package.DownloadCount);
-        Assert.Equal(1, installer.BaseCount);
         Assert.Equal(1, installer.LoaderCount);
         Assert.Equal(1, staging.FinalizeCount);
         Assert.Equal(1, package.CleanupCount);
@@ -142,21 +141,16 @@ public sealed class LocalModpackImportServiceTests : TestTempDirectory
 
     private sealed class FakeInstaller : IModpackGameInstaller
     {
-        public int BaseCount { get; private set; }
         public int LoaderCount { get; private set; }
-        public Task InstallMinecraftBaseAsync(string minecraftVersion, string gameDirectory,
-            IProgress<LauncherProgress>? progress, CancellationToken cancellationToken = default,
-            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto, int downloadSpeedLimitMbPerSecond = 0)
-        { BaseCount++; return Task.CompletedTask; }
         public Task<string> InstallLoaderAsync(string minecraftVersion, LoaderKind loader, string? loaderVersion,
-            string gameDirectory, string isolatedVersionName, IProgress<LauncherProgress>? progress,
+            LoaderInstallTarget target, IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default, DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
             int downloadSpeedLimitMbPerSecond = 0)
-        { LoaderCount++; return Task.FromResult(isolatedVersionName); }
+        { LoaderCount++; return Task.FromResult(target.LogicalVersionName); }
         public Task<string> InstallInstanceAsync(string minecraftVersion, LoaderKind loader, string? loaderVersion,
-            string gameDirectory, string isolatedVersionName, IProgress<LauncherProgress>? progress,
+            LoaderInstallTarget target, IProgress<LauncherProgress>? progress,
             CancellationToken cancellationToken = default, DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
-            int downloadSpeedLimitMbPerSecond = 0) => Task.FromResult(isolatedVersionName);
+            int downloadSpeedLimitMbPerSecond = 0) => Task.FromResult(target.LogicalVersionName);
     }
 
     private sealed class FakeStaging(string root) : IModpackInstanceStagingService

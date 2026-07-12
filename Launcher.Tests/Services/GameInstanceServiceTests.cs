@@ -14,6 +14,7 @@ using System.Text.Json.Nodes;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
+using Launcher.Infrastructure.Modpacks;
 using Launcher.Infrastructure.Persistence;
 
 namespace Launcher.Tests.Services;
@@ -106,6 +107,28 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task CreateInstanceDoesNotExposeFinalDirectoryBeforeCommit()
+    {
+        var releaseInstall = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new FakeLoaderProvider { WaitBeforeInstall = releaseInstall.Task };
+        var (settings, repository, service, _) = CreateService(provider);
+
+        var creation = service.CreateInstanceAsync(
+            "1.20.1", LoaderKind.Vanilla, null, "Test", null);
+        await provider.InstallStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var versionsDirectory = Path.Combine(settings.MinecraftDirectory, "versions");
+        Assert.False(Directory.Exists(Path.Combine(versionsDirectory, "Test")));
+        Assert.Single(Directory.GetDirectories(versionsDirectory, ".bhl-install-pending-Test-*"));
+        Assert.Empty(await repository.DiscoverInstalledVersionsAsync(settings.MinecraftDirectory));
+
+        releaseInstall.SetResult(true);
+        var instance = await creation;
+        Assert.Equal(Path.Combine(versionsDirectory, "Test"), instance.InstanceDirectory);
+        Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, "Test.json")));
+    }
+
+    [Fact]
     public async Task DeleteInstancePreservesOriginalStateWhenStagingMoveFails()
     {
         var settings = CreateSettings("first");
@@ -149,7 +172,9 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
 
         var versionsDirectory = Path.Combine(settings.MinecraftDirectory, "versions");
         Assert.False(Directory.Exists(Path.Combine(versionsDirectory, "first")));
-        Assert.True(Directory.Exists(Path.Combine(versionsDirectory, ".bhl-delete-pending-first-a83f21c4")));
+        var pendingDirectory = Path.Combine(versionsDirectory, ".bhl-delete-pending-first-a83f21c4");
+        Assert.True(Directory.Exists(pendingDirectory));
+        Assert.True(File.Exists(Path.Combine(pendingDirectory, ".bhl-delete-pending-.json")));
         Assert.Empty(await repository.GetAllAsync());
         Assert.Empty(await service.GetInstancesAsync());
         Assert.Equal(string.Empty, (await settingsService.LoadAsync()).DefaultInstanceId);
@@ -210,6 +235,9 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
             "versions",
             ".bhl-delete-pending-Test-a83f21c4");
         Directory.CreateDirectory(pendingDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(pendingDirectory, ".bhl-delete-pending-.json"),
+            """{"schemaVersion":1,"transactionId":"a83f21c4000000000000000000000000","versionName":"Test","createdAtUtc":"2026-07-13T00:00:00Z"}""");
         await File.WriteAllTextAsync(Path.Combine(pendingDirectory, "Test.json"), """{"id":"Test"}""");
         var cleanupService = new InstanceDeletionCleanupService(settingsService, repository);
 
@@ -297,7 +325,18 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
             deleteStagedDirectory: null,
             recycleStagedDirectory: path => Directory.Delete(path, recursive: true));
         provider ??= new FakeLoaderProvider();
-        return (settings, repository, new GameInstanceService(settingsService, repository, [provider]), provider);
+        var installer = new ModpackGameInstaller([provider]);
+        var transactionService = new InstanceInstallTransactionService();
+        return (
+            settings,
+            repository,
+            new GameInstanceService(
+                settingsService,
+                repository,
+                [provider],
+                modpackGameInstaller: installer,
+                installTransactionService: transactionService),
+            provider);
     }
 
     private LauncherSettings CreateSettings(string? defaultInstanceId = null) => new()

@@ -38,16 +38,22 @@ internal sealed class VersionDeletionManager
         this.deleteDirectory = deleteDirectory ?? Directory.Delete;
     }
 
-    public string Stage(string minecraftDirectory, string versionName)
+    public async Task<string> StageAsync(
+        string minecraftDirectory,
+        string versionName,
+        CancellationToken cancellationToken)
     {
         var sourceDirectory = directoryManager.GetVersionDirectory(minecraftDirectory, versionName);
         if (!Directory.Exists(sourceDirectory))
             throw new DirectoryNotFoundException($"Version directory not found: {sourceDirectory}");
 
         var versionsDirectory = GetVersionsDirectory(minecraftDirectory);
+        var markerPath = PendingInstanceDeletionDirectory.GetMarkerPath(sourceDirectory);
         for (var attempt = 1; attempt <= MaxStageAttempts; attempt++)
         {
-            var suffix = guidFactory().ToString("N")[..8];
+            cancellationToken.ThrowIfCancellationRequested();
+            var transactionId = guidFactory().ToString("N");
+            var suffix = transactionId[..8].ToLowerInvariant();
             var stagedDirectory = Path.GetFullPath(Path.Combine(
                 versionsDirectory,
                 $"{PendingInstanceDeletionDirectory.Prefix}{versionName}-{suffix}"));
@@ -61,6 +67,11 @@ internal sealed class VersionDeletionManager
 
             try
             {
+                await AtomicJsonFileWriter.WriteAsync(
+                    markerPath,
+                    new PendingInstanceDeletionMarker(1, transactionId, versionName, DateTimeOffset.UtcNow),
+                    PendingInstanceDeletionDirectory.MarkerJsonOptions,
+                    cancellationToken).ConfigureAwait(false);
                 moveDirectory(sourceDirectory, stagedDirectory);
                 logger.LogInformation(
                     "Version directory staged for deletion. VersionName={VersionName} StagedDirectory={StagedDirectory}",
@@ -71,9 +82,16 @@ internal sealed class VersionDeletionManager
             catch (IOException) when (Directory.Exists(sourceDirectory) && PathExists(stagedDirectory))
             {
                 LogCollision(versionName, stagedDirectory, attempt);
+                TryDeletePreparationMarker(markerPath);
+            }
+            catch
+            {
+                TryDeletePreparationMarker(markerPath);
+                throw;
             }
         }
 
+        TryDeletePreparationMarker(markerPath);
         throw new IOException(
             $"Unable to stage version directory for deletion after {MaxStageAttempts} destination collisions: {sourceDirectory}");
     }
@@ -88,6 +106,13 @@ internal sealed class VersionDeletionManager
 
         if (!Directory.Exists(normalizedStagedDirectory))
             return true;
+        if (!PendingInstanceDeletionDirectory.TryReadValidMarker(normalizedStagedDirectory, out _))
+        {
+            logger.LogWarning(
+                "Pending deletion directory was preserved because its transaction marker is missing or invalid. StagedDirectory={StagedDirectory}",
+                normalizedStagedDirectory);
+            return false;
+        }
 
         try
         {
@@ -160,6 +185,21 @@ internal sealed class VersionDeletionManager
             stagedDirectory,
             attempt,
             MaxStageAttempts);
+    }
+
+    private void TryDeletePreparationMarker(string markerPath)
+    {
+        try
+        {
+            File.Delete(markerPath);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or SecurityException)
+        {
+            logger.LogWarning(
+                exception,
+                "Failed to remove pending deletion preparation marker after staging failed. MarkerPath={MarkerPath}",
+                markerPath);
+        }
     }
 
     private static bool PathExists(string path) => Directory.Exists(path) || File.Exists(path);

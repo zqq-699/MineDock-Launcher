@@ -6,16 +6,60 @@
  */
 
 using System.IO;
+using System.Text.Json;
 
 namespace Launcher.Infrastructure.Persistence;
 
 internal static class PendingInstanceDeletionDirectory
 {
     public const string Prefix = ".bhl-delete-pending-";
+    public const string MarkerFileName = ".bhl-delete-pending-.json";
+    public static readonly JsonSerializerOptions MarkerJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true
+    };
 
     public static bool IsPending(string path)
     {
         var name = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         return name.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase);
     }
+
+    public static string GetMarkerPath(string directory) => Path.Combine(directory, MarkerFileName);
+
+    public static bool TryReadValidMarker(string directory, out PendingInstanceDeletionMarker marker)
+    {
+        marker = default!;
+        try
+        {
+            var markerPath = GetMarkerPath(directory);
+            if (!File.Exists(markerPath))
+                return false;
+            var parsed = JsonSerializer.Deserialize<PendingInstanceDeletionMarker>(
+                File.ReadAllText(markerPath),
+                MarkerJsonOptions);
+            if (parsed is null
+                || parsed.SchemaVersion != 1
+                || string.IsNullOrWhiteSpace(parsed.VersionName)
+                || !Guid.TryParseExact(parsed.TransactionId, "N", out _))
+                return false;
+            var expectedName = $"{Prefix}{parsed.VersionName}-{parsed.TransactionId[..8].ToLowerInvariant()}";
+            if (!string.Equals(Path.GetFileName(directory), expectedName, StringComparison.OrdinalIgnoreCase))
+                return false;
+            marker = parsed;
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return false;
+        }
+    }
 }
+
+internal sealed record PendingInstanceDeletionMarker(
+    int SchemaVersion,
+    string TransactionId,
+    string VersionName,
+    DateTimeOffset CreatedAtUtc);
