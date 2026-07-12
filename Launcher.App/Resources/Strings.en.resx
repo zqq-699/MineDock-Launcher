@@ -2029,6 +2029,9 @@ Longer content wraps automatically.</value>
   <data name="Status_OpenLaunchLogFolderFailed" xml:space="preserve">
     <value>Failed to open the launch log folder.</value>
   </data>
+  <data name="Status_OpenLaunchReportFailed" xml:space="preserve">
+    <value>Could not open a report for this game session.</value>
+  </data>
   <data name="Status_OpenGithubRepositoryFailed" xml:space="preserve">
     <value>Failed to open the GitHub repository.</value>
   </data>
@@ -2474,6 +2477,9 @@ The current game folder will be backed up first.</value>
   <data name="Dialog_LaunchStatusExitedTitle" xml:space="preserve">
     <value>Game Exited</value>
   </data>
+  <data name="Dialog_LaunchStatusInitializationFailedTitle" xml:space="preserve">
+    <value>Game Crashed During Initialization</value>
+  </data>
   <data name="Dialog_LaunchStatusRuntimeFailedTitle" xml:space="preserve">
     <value>Game Exited Abnormally</value>
   </data>
@@ -2503,6 +2509,9 @@ The current game folder will be backed up first.</value>
   </data>
   <data name="Dialog_OpenLaunchLogFolderButton" xml:space="preserve">
     <value>Open Log Folder</value>
+  </data>
+  <data name="Dialog_ViewLaunchReportButton" xml:space="preserve">
+    <value>View Report</value>
   </data>
   <data name="Dialog_LaunchAnalysisCurrentInstance" xml:space="preserve">
     <value>Current Game</value>

@@ -87,7 +87,8 @@ public sealed class LaunchServiceTests : TestTempDirectory
         await File.WriteAllTextAsync(Path.Combine(instance.InstanceDirectory, "logs", "latest.log"), "[ERROR]: Missing launch target");
         var launcher = new FakeLauncherFactory
         {
-            BuildProcess = (_, _) => CreateCommandProcess("/c echo Missing launch target 1>&2 & exit 1")
+            BuildProcess = (_, _) => CreateCommandProcess(
+                "/c echo ERROR Missing launch target --accessToken super-secret-access-token 1>&2 & exit 1")
         };
         var service = CreateService(launcher: launcher, crashMonitor: new LaunchCrashMonitor(TimeSpan.FromSeconds(2)));
 
@@ -96,9 +97,19 @@ public sealed class LaunchServiceTests : TestTempDirectory
 
         Assert.Equal(LaunchFailureKind.StartupAbnormalExit, exception.Report.Kind);
         Assert.True(File.Exists(exception.DiagnosticPath));
+        Assert.Equal(LaunchDiagnosticType.CapturedOutput, exception.Report.PrimaryDiagnostic?.Type);
+        Assert.Equal(LaunchDiagnosticType.LauncherDiagnostic, exception.Report.DiagnosticCandidates[^1].Type);
         var diagnostic = await File.ReadAllTextAsync(exception.DiagnosticPath!);
         Assert.Contains("Missing launch target", diagnostic);
+        Assert.Contains("[PrimaryDiagnostic]", diagnostic);
+        Assert.Contains("Type: CapturedOutput", diagnostic);
+        Assert.Contains("[RelatedDiagnostics]", diagnostic);
+        Assert.Contains("LauncherDiagnostic:", diagnostic);
         Assert.DoesNotContain("super-secret-access-token", diagnostic);
+        var capturedOutput = await File.ReadAllTextAsync(exception.Report.PrimaryDiagnostic!.Path);
+        Assert.Contains("[stderr]", capturedOutput);
+        Assert.Contains("<redacted>", capturedOutput);
+        Assert.DoesNotContain("super-secret-access-token", capturedOutput);
     }
 
     [Fact]

@@ -33,6 +33,7 @@ internal static class LaunchDiagnosticsWriter
     // 诊断文件面向排障而非完整归档，所有外部文本进入前都必须脱敏并限制体积。
     private const int MaxDiagnosticLogFiles = 50;
     private const string DiagnosticFilePattern = "launch-diagnostics-*.log";
+    private const string CapturedOutputFilePattern = "launch-output-*.log";
 
     public static async Task<LaunchDiagnosticResult> WriteQuickExitDiagnosticAsync(
         LaunchDiagnosticContext context,
@@ -41,16 +42,20 @@ internal static class LaunchDiagnosticsWriter
         TimeSpan runtime,
         DateTimeOffset createdAt,
         ProcessStartInfo? startInfo,
-        IEnumerable<string> newCrashFiles,
+        IReadOnlyList<LaunchDiagnosticReference> diagnosticCandidates,
         string stdout,
         string stderr,
         CancellationToken cancellationToken)
     {
         // 快速退出通常没有异常对象，主要依靠退出码、最新日志和崩溃文件推断原因。
-        var latestLog = ReadLatestLogTail(context.MinecraftDirectory, context.InstanceDirectory, createdAt);
-        var latestLogTail = latestLog.Text;
-        var crashFiles = newCrashFiles
-            .Where(path => !string.IsNullOrWhiteSpace(path))
+        var latestLogPath = diagnosticCandidates
+            .FirstOrDefault(candidate => candidate.Type == LaunchDiagnosticType.MinecraftLatestLog)
+            ?.Path;
+        var latestLogTail = ReadFileTail(latestLogPath, 120);
+        var crashFiles = diagnosticCandidates
+            .Where(candidate => candidate.Type is LaunchDiagnosticType.MinecraftCrashReport
+                or LaunchDiagnosticType.JvmCrashReport)
+            .Select(candidate => candidate.Path)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         var matchedErrorLines = FindMatchedErrorLines(stdout, stderr, latestLogTail, crashFiles);
@@ -59,15 +64,16 @@ internal static class LaunchDiagnosticsWriter
             context,
             stdout,
             stderr,
-            latestLog.IsFresh ? latestLogTail : string.Empty,
+            latestLogTail,
             crashFiles);
 
-        var diagnosticPath = await WriteDiagnosticAsync(
+        var diagnosticWrite = await WriteDiagnosticAsync(
             context,
             failureKind,
             failureSummary,
             analysis,
             createdAt,
+            diagnosticCandidates,
             cancellationToken,
             builder =>
             {
@@ -82,7 +88,11 @@ internal static class LaunchDiagnosticsWriter
                 AppendTextSection(builder, "StdErr", RedactSensitiveText(LimitTail(stderr, 120), context.SensitiveValues));
             });
 
-        return new LaunchDiagnosticResult(diagnosticPath, analysis, failureSummary);
+        return new LaunchDiagnosticResult(
+            diagnosticWrite.Path,
+            analysis,
+            LaunchDiagnosticRedactor.Redact(failureSummary, context.SensitiveValues),
+            diagnosticWrite.Candidates);
     }
 
     public static async Task<LaunchDiagnosticResult> WriteExceptionDiagnosticAsync(
@@ -110,12 +120,13 @@ internal static class LaunchDiagnosticsWriter
             latestLog.IsFresh ? latestLogTail : string.Empty,
             crashFiles);
 
-        var diagnosticPath = await WriteDiagnosticAsync(
+        var diagnosticWrite = await WriteDiagnosticAsync(
             context,
             failureKind,
             failureSummary,
             analysis,
             createdAt,
+            [],
             cancellationToken,
             builder =>
             {
@@ -128,15 +139,20 @@ internal static class LaunchDiagnosticsWriter
                 AppendTextSection(builder, "LatestLogTail", RedactSensitiveText(LimitTail(latestLogTail, 120), context.SensitiveValues));
             });
 
-        return new LaunchDiagnosticResult(diagnosticPath, analysis, failureSummary);
+        return new LaunchDiagnosticResult(
+            diagnosticWrite.Path,
+            analysis,
+            LaunchDiagnosticRedactor.Redact(failureSummary, context.SensitiveValues),
+            diagnosticWrite.Candidates);
     }
 
-    private static async Task<string?> WriteDiagnosticAsync(
+    private static async Task<DiagnosticWriteResult> WriteDiagnosticAsync(
         LaunchDiagnosticContext context,
         string failureKind,
         string failureSummary,
         Launcher.Application.Services.LaunchFailureAnalysis? analysis,
         DateTimeOffset createdAt,
+        IReadOnlyList<LaunchDiagnosticReference> diagnosticCandidates,
         CancellationToken cancellationToken,
         Action<StringBuilder> appendSections)
     {
@@ -145,12 +161,16 @@ internal static class LaunchDiagnosticsWriter
         Directory.CreateDirectory(logsDirectory);
         var diagnosticPath = Path.Combine(
             logsDirectory,
-            $"launch-diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+            $"launch-diagnostics-{DateTime.Now:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid():N}.log");
+        var allCandidates = diagnosticCandidates
+            .Where(candidate => !string.IsNullOrWhiteSpace(candidate.Path))
+            .Concat([new LaunchDiagnosticReference(LaunchDiagnosticType.LauncherDiagnostic, diagnosticPath)])
+            .ToArray();
 
         var builder = new StringBuilder();
         builder.AppendLine($"CreatedAtUtc: {createdAt:O}");
         builder.AppendLine($"FailureKind: {failureKind}");
-        builder.AppendLine($"FailureSummary: {failureSummary}");
+        builder.AppendLine($"FailureSummary: {LaunchDiagnosticRedactor.Redact(failureSummary, context.SensitiveValues)}");
         builder.AppendLine($"InstanceName: {context.InstanceName}");
         builder.AppendLine($"VersionName: {context.VersionName}");
         builder.AppendLine($"MinecraftVersion: {context.MinecraftVersion}");
@@ -163,20 +183,53 @@ internal static class LaunchDiagnosticsWriter
         builder.AppendLine($"InstanceDirectory: {Path.GetFullPath(context.InstanceDirectory)}");
         builder.AppendLine($"MinecraftDirectory: {Path.GetFullPath(context.MinecraftDirectory)}");
 
+        AppendDiagnosticReferences(builder, allCandidates);
         AppendAnalysisSection(builder, analysis);
         appendSections(builder);
 
         await File.WriteAllTextAsync(diagnosticPath, builder.ToString(), cancellationToken);
         PruneOldDiagnostics(logsDirectory);
-        return diagnosticPath;
+        return new DiagnosticWriteResult(diagnosticPath, allCandidates);
+    }
+
+    private static void AppendDiagnosticReferences(
+        StringBuilder builder,
+        IReadOnlyList<LaunchDiagnosticReference> candidates)
+    {
+        var primary = candidates.FirstOrDefault();
+        builder.AppendLine();
+        builder.AppendLine("[PrimaryDiagnostic]");
+        builder.AppendLine($"Type: {primary?.Type.ToString() ?? "none"}");
+        builder.AppendLine($"Path: {primary?.Path ?? "none"}");
+
+        builder.AppendLine();
+        builder.AppendLine("[RelatedDiagnostics]");
+        foreach (var type in Enum.GetValues<LaunchDiagnosticType>())
+        {
+            var matches = candidates.Where(candidate => candidate.Type == type).ToArray();
+            if (matches.Length == 0)
+            {
+                builder.AppendLine($"{type}: none");
+                continue;
+            }
+
+            foreach (var match in matches)
+                builder.AppendLine($"{type}: {match.Path}");
+        }
     }
 
     private static void PruneOldDiagnostics(string logsDirectory)
     {
+        PruneOldFiles(logsDirectory, DiagnosticFilePattern);
+        PruneOldFiles(logsDirectory, CapturedOutputFilePattern);
+    }
+
+    private static void PruneOldFiles(string logsDirectory, string pattern)
+    {
         // 只清理启动器自己命名的诊断文件，绝不触碰 Minecraft 或 Mod 生成的其他日志。
         try
         {
-            var files = Directory.GetFiles(logsDirectory, DiagnosticFilePattern, SearchOption.TopDirectoryOnly)
+            var files = Directory.GetFiles(logsDirectory, pattern, SearchOption.TopDirectoryOnly)
                 .Select(path => new FileInfo(path))
                 .OrderByDescending(file => file.LastWriteTimeUtc)
                 .ThenByDescending(file => file.Name, StringComparer.OrdinalIgnoreCase)
@@ -237,6 +290,25 @@ internal static class LaunchDiagnosticsWriter
     }
 
     private sealed record LatestLogTail(string Text, bool IsFresh);
+
+    private static string ReadFileTail(string? path, int maxLines)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            return string.Empty;
+
+        try
+        {
+            return string.Join(Environment.NewLine, File.ReadLines(path).TakeLast(maxLines));
+        }
+        catch (IOException)
+        {
+            return string.Empty;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return string.Empty;
+        }
+    }
 
     private static LatestLogTail ReadLatestLogTail(
         string minecraftDirectory,
@@ -409,7 +481,10 @@ internal static class LaunchDiagnosticsWriter
         builder.AppendLine($"WorkingDirectory: {startInfo.WorkingDirectory}");
     }
 
-    private static string RedactSensitiveText(string text, IReadOnlyList<string> sensitiveValues)
+    private static string RedactSensitiveText(string text, IReadOnlyList<string> sensitiveValues) =>
+        LaunchDiagnosticRedactor.Redact(text, sensitiveValues);
+
+    private static string LegacyRedactSensitiveText(string text, IReadOnlyList<string> sensitiveValues)
     {
         // 先替换已知 token，再处理常见命令行键值，避免访问令牌出现在可分享诊断中。
         if (string.IsNullOrWhiteSpace(text))
@@ -531,4 +606,8 @@ internal static class LaunchDiagnosticsWriter
         builder.AppendLine($"[{title}]");
         builder.AppendLine(string.IsNullOrWhiteSpace(content) ? "(empty)" : content.Trim());
     }
+
+    private sealed record DiagnosticWriteResult(
+        string Path,
+        IReadOnlyList<LaunchDiagnosticReference> Candidates);
 }

@@ -30,6 +30,7 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
     private readonly IInstanceFolderService instanceFolderService;
     private readonly IStatusService statusService;
     private string? diagnosticDirectory;
+    private IReadOnlyList<LaunchDiagnosticReference> diagnosticCandidates = [];
 
     [ObservableProperty]
     private bool isOpen;
@@ -65,9 +66,16 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
 
     public bool CanOpenLogDirectory => IsOpen && !string.IsNullOrWhiteSpace(diagnosticDirectory);
 
+    public bool CanViewReport => IsOpen && diagnosticCandidates.Count > 0;
+
     public void Show(LaunchFailureReport report)
     {
         diagnosticDirectory = report.DiagnosticDirectory;
+        diagnosticCandidates = report.DiagnosticCandidates.Count > 0
+            ? report.DiagnosticCandidates
+            : report.PrimaryDiagnostic is { } primary
+                ? [primary]
+                : [];
         Title = GetTitle(report.Kind);
         ApplyAnalysis(report.Analysis);
         Message = string.Format(
@@ -78,6 +86,7 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
             ? Strings.Dialog_LaunchStatusDiagnosticDirectoryHint
             : Strings.Dialog_LaunchStatusDiagnosticFileHint;
         IsOpen = true;
+        ViewReportCommand.NotifyCanExecuteChanged();
         OpenLogDirectoryCommand.NotifyCanExecuteChanged();
     }
 
@@ -85,7 +94,20 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
     private void Close()
     {
         IsOpen = false;
+        ViewReportCommand.NotifyCanExecuteChanged();
         OpenLogDirectoryCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanViewReport))]
+    private void ViewReport()
+    {
+        foreach (var candidate in diagnosticCandidates)
+        {
+            if (instanceFolderService.TryOpenFile(candidate.Path))
+                return;
+        }
+
+        statusService.Report(Strings.Status_OpenLaunchReportFailed);
     }
 
     [RelayCommand(CanExecute = nameof(CanOpenLogDirectory))]
@@ -100,6 +122,7 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
 
     partial void OnIsOpenChanged(bool value)
     {
+        ViewReportCommand.NotifyCanExecuteChanged();
         OpenLogDirectoryCommand.NotifyCanExecuteChanged();
     }
 
@@ -108,6 +131,7 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
         return kind switch
         {
             LaunchFailureKind.StartupProcessExited => Strings.Dialog_LaunchStatusExitedTitle,
+            LaunchFailureKind.StartupAbnormalExit => Strings.Dialog_LaunchStatusInitializationFailedTitle,
             LaunchFailureKind.RuntimeAbnormalExit => Strings.Dialog_LaunchStatusRuntimeFailedTitle,
             _ => Strings.Dialog_LaunchStatusFailedTitle
         };

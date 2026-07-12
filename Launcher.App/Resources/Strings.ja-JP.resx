@@ -2029,6 +2029,9 @@
   <data name="Status_OpenLaunchLogFolderFailed" xml:space="preserve">
     <value>起動診断ログディレクトリを開けませんでした。しばらくしてから再試行してください。</value>
   </data>
+  <data name="Status_OpenLaunchReportFailed" xml:space="preserve">
+    <value>今回のゲームレポートを開けませんでした。しばらくしてから再試行してください。</value>
+  </data>
   <data name="Status_OpenGithubRepositoryFailed" xml:space="preserve">
     <value>GitHub リポジトリを開けませんでした</value>
   </data>
@@ -2474,6 +2477,9 @@
   <data name="Dialog_LaunchStatusExitedTitle" xml:space="preserve">
     <value>ゲームプロセスは終了しました</value>
   </data>
+  <data name="Dialog_LaunchStatusInitializationFailedTitle" xml:space="preserve">
+    <value>ゲームの初期化中にクラッシュしました</value>
+  </data>
   <data name="Dialog_LaunchStatusRuntimeFailedTitle" xml:space="preserve">
     <value>ゲームが異常終了しました</value>
   </data>
@@ -2503,6 +2509,9 @@
   </data>
   <data name="Dialog_OpenLaunchLogFolderButton" xml:space="preserve">
     <value>ログディレクトリを開く</value>
+  </data>
+  <data name="Dialog_ViewLaunchReportButton" xml:space="preserve">
+    <value>レポートを表示</value>
   </data>
   <data name="Dialog_LaunchAnalysisCurrentInstance" xml:space="preserve">
     <value>現在のインスタンス</value>

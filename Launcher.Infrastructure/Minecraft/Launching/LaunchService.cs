@@ -539,7 +539,10 @@ public sealed class LaunchService : ILaunchService
             diagnostic?.DiagnosticPath,
             ResolveDiagnosticDirectory(context, diagnostic?.DiagnosticPath),
             diagnostic?.Analysis,
-            diagnostic?.FailureSummary ?? failureSummary);
+            diagnostic?.FailureSummary ?? LaunchDiagnosticRedactor.Redact(failureSummary, context.SensitiveValues))
+        {
+            DiagnosticCandidates = diagnostic?.DiagnosticCandidates ?? []
+        };
         LogLaunchFailureReport(
             LogLevel.Error,
             "Game launch failed.",

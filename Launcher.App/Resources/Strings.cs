@@ -943,6 +943,7 @@ public static class Strings
     public static string Status_BackupRestored => Get(nameof(Status_BackupRestored));
     public static string Status_BackupRestoreFailed => Get(nameof(Status_BackupRestoreFailed));
     public static string Status_OpenLaunchLogFolderFailed => Get(nameof(Status_OpenLaunchLogFolderFailed));
+    public static string Status_OpenLaunchReportFailed => Get(nameof(Status_OpenLaunchReportFailed));
     public static string Status_OpenGithubRepositoryFailed => Get(nameof(Status_OpenGithubRepositoryFailed));
     public static string Status_OpenReferenceProjectFailed => Get(nameof(Status_OpenReferenceProjectFailed));
     public static string Status_UpdateCheckUnavailable => Get(nameof(Status_UpdateCheckUnavailable));
@@ -1091,6 +1092,7 @@ public static class Strings
     public static string FilePicker_BackupDirectoryTitle => Get(nameof(FilePicker_BackupDirectoryTitle));
     public static string Dialog_LaunchStatusFailedTitle => Get(nameof(Dialog_LaunchStatusFailedTitle));
     public static string Dialog_LaunchStatusExitedTitle => Get(nameof(Dialog_LaunchStatusExitedTitle));
+    public static string Dialog_LaunchStatusInitializationFailedTitle => Get(nameof(Dialog_LaunchStatusInitializationFailedTitle));
     public static string Dialog_LaunchStatusRuntimeFailedTitle => Get(nameof(Dialog_LaunchStatusRuntimeFailedTitle));
     public static string Dialog_LaunchStatusMessageFormat => Get(nameof(Dialog_LaunchStatusMessageFormat));
     public static string Dialog_LaunchStatusStartupFailedMessage => Get(nameof(Dialog_LaunchStatusStartupFailedMessage));
@@ -1101,6 +1103,7 @@ public static class Strings
     public static string Dialog_LaunchStatusDiagnosticFileHint => Get(nameof(Dialog_LaunchStatusDiagnosticFileHint));
     public static string Dialog_LaunchStatusDiagnosticDirectoryHint => Get(nameof(Dialog_LaunchStatusDiagnosticDirectoryHint));
     public static string Dialog_OpenLaunchLogFolderButton => Get(nameof(Dialog_OpenLaunchLogFolderButton));
+    public static string Dialog_ViewLaunchReportButton => Get(nameof(Dialog_ViewLaunchReportButton));
     public static string Dialog_LaunchAnalysisCurrentInstance => Get(nameof(Dialog_LaunchAnalysisCurrentInstance));
     public static string Dialog_LaunchAnalysisUnknownTitle => Get(nameof(Dialog_LaunchAnalysisUnknownTitle));
     public static string Dialog_LaunchAnalysisUnknownDetail => Get(nameof(Dialog_LaunchAnalysisUnknownDetail));

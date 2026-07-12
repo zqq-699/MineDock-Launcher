@@ -2029,6 +2029,9 @@
   <data name="Status_OpenLaunchLogFolderFailed" xml:space="preserve">
     <value>開啟啟動診斷日誌目錄失敗，請稍後再試。</value>
   </data>
+  <data name="Status_OpenLaunchReportFailed" xml:space="preserve">
+    <value>無法開啟本次遊戲報告，請稍後再試。</value>
+  </data>
   <data name="Status_OpenGithubRepositoryFailed" xml:space="preserve">
     <value>開啟 GitHub 儲存庫失敗</value>
   </data>
@@ -2474,6 +2477,9 @@
   <data name="Dialog_LaunchStatusExitedTitle" xml:space="preserve">
     <value>遊戲程式已退出</value>
   </data>
+  <data name="Dialog_LaunchStatusInitializationFailedTitle" xml:space="preserve">
+    <value>遊戲初始化期間崩潰</value>
+  </data>
   <data name="Dialog_LaunchStatusRuntimeFailedTitle" xml:space="preserve">
     <value>遊戲異常退出</value>
   </data>
@@ -2503,6 +2509,9 @@
   </data>
   <data name="Dialog_OpenLaunchLogFolderButton" xml:space="preserve">
     <value>開啟日誌目錄</value>
+  </data>
+  <data name="Dialog_ViewLaunchReportButton" xml:space="preserve">
+    <value>檢視報告</value>
   </data>
   <data name="Dialog_LaunchAnalysisCurrentInstance" xml:space="preserve">
     <value>目前實例</value>

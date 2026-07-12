@@ -27,4 +27,12 @@ public sealed record LaunchFailureReport(
     string? DiagnosticPath,
     string? DiagnosticDirectory,
     LaunchFailureAnalysis? Analysis = null,
-    string? FailureSummary = null);
+    string? FailureSummary = null)
+{
+    public IReadOnlyList<LaunchDiagnosticReference> DiagnosticCandidates { get; init; } = [];
+
+    public LaunchDiagnosticReference? PrimaryDiagnostic => DiagnosticCandidates.FirstOrDefault()
+        ?? (string.IsNullOrWhiteSpace(DiagnosticPath)
+            ? null
+            : new LaunchDiagnosticReference(LaunchDiagnosticType.LauncherDiagnostic, DiagnosticPath));
+}

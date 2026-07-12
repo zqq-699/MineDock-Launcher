@@ -943,6 +943,10 @@
                     <StackPanel Grid.Row="4"
                                 Style="{StaticResource DialogFooterStyle}">
                         <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                Content="{x:Static res:Strings.Dialog_ViewLaunchReportButton}"
+                                Command="{Binding ViewReportCommand}" />
+                        <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                Margin="{StaticResource DialogTrailingButtonMargin}"
                                 Content="{x:Static res:Strings.Dialog_OpenLaunchLogFolderButton}"
                                 Command="{Binding OpenLogDirectoryCommand}" />
                         <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"

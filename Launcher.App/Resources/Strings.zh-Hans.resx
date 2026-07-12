@@ -693,6 +693,7 @@
   <data name="Status_InstanceFolderNotFound" xml:space="preserve"><value>没有找到该版本对应的文件夹。</value></data>
   <data name="Status_OpenInstanceFolderFailed" xml:space="preserve"><value>打开版本文件夹失败，请稍后重试。</value></data>
   <data name="Status_OpenLaunchLogFolderFailed" xml:space="preserve"><value>打开启动诊断日志目录失败，请稍后重试。</value></data>
+  <data name="Status_OpenLaunchReportFailed" xml:space="preserve"><value>无法打开本次游戏报告，请稍后重试。</value></data>
   <data name="Status_OpenGithubRepositoryFailed" xml:space="preserve"><value>打开 GitHub 仓库失败</value></data>
   <data name="Status_OpenReferenceProjectFailed" xml:space="preserve"><value>打开项目链接失败</value></data>
   <data name="Status_UpdateCheckUnavailable" xml:space="preserve"><value>更新检查暂未接入</value></data>
@@ -844,6 +845,7 @@
   <data name="Dialog_CancelLaunchButton" xml:space="preserve"><value>取消启动</value></data>
   <data name="Dialog_LaunchStatusFailedTitle" xml:space="preserve"><value>游戏启动失败</value></data>
   <data name="Dialog_LaunchStatusExitedTitle" xml:space="preserve"><value>游戏进程已退出</value></data>
+  <data name="Dialog_LaunchStatusInitializationFailedTitle" xml:space="preserve"><value>游戏初始化过程中崩溃</value></data>
   <data name="Dialog_LaunchStatusRuntimeFailedTitle" xml:space="preserve"><value>游戏异常退出</value></data>
   <data name="Dialog_LaunchStatusMessageFormat" xml:space="preserve"><value>“{0}”：{1}</value></data>
   <data name="Dialog_LaunchStatusStartupFailedMessage" xml:space="preserve"><value>启动器未能完成游戏启动准备。</value></data>
@@ -854,6 +856,7 @@
   <data name="Dialog_LaunchStatusDiagnosticFileHint" xml:space="preserve"><value>已生成启动诊断日志，可打开日志目录查看详细信息。</value></data>
   <data name="Dialog_LaunchStatusDiagnosticDirectoryHint" xml:space="preserve"><value>可打开日志目录查看 latest.log 和崩溃报告。</value></data>
   <data name="Dialog_OpenLaunchLogFolderButton" xml:space="preserve"><value>打开日志目录</value></data>
+  <data name="Dialog_ViewLaunchReportButton" xml:space="preserve"><value>查看报告</value></data>
   <data name="Dialog_LaunchAnalysisCurrentInstance" xml:space="preserve"><value>当前实例</value></data>
   <data name="Dialog_LaunchAnalysisUnknownTitle" xml:space="preserve"><value>可能原因</value></data>
   <data name="Dialog_LaunchAnalysisUnknownDetail" xml:space="preserve"><value>启动器无法确定具体原因。</value></data>

@@ -431,6 +431,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
         public bool DirectoryExists(string folderPath) => false;
         public string EnsureDirectoryExists(string folderPath) => folderPath;
         public bool TryOpen(string folderPath) => false;
+        public bool TryOpenFile(string filePath) => false;
         public bool TryRevealFile(string filePath) => false;
     }
 

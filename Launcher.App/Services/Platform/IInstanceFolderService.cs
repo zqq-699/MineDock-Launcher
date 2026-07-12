@@ -27,5 +27,7 @@ public interface IInstanceFolderService
 
     bool TryOpen(string folderPath);
 
+    bool TryOpenFile(string filePath);
+
     bool TryRevealFile(string filePath);
 }
