@@ -408,6 +408,83 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         Assert.Equal("icon.png", stored.IconSource);
     }
 
+    [Theory]
+    [InlineData("{")]
+    [InlineData("""{"schemaVersion":1,"transactionId":"a83f21c4000000000000000000000000","oldName":"Test","newName":"Renamed"}""")]
+    [InlineData("""{"schemaVersion":1,"transactionId":"a83f21c4000000000000000000000000","instanceId":"test","oldName":"Other","newName":"Renamed","updatedAtUtc":"2026-07-13T00:00:00Z"}""")]
+    public async Task InvalidRenameMarkerInOrdinaryDirectoryDoesNotHideInstance(string markerJson)
+    {
+        var (settings, settingsService) = CreateSettings();
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var directory = await CreateStoredInstanceAsync(repository, settings.MinecraftDirectory, "Test");
+        var markerPath = Path.Combine(directory, ".bhl-rename-pending.json");
+        await File.WriteAllTextAsync(markerPath, markerJson);
+
+        await repository.RecoverPendingVersionRenamesAsync(settings.MinecraftDirectory);
+
+        Assert.False(File.Exists(markerPath));
+        Assert.True(File.Exists(Path.Combine(directory, ".bhl-rename-aborted.json")));
+        Assert.Equal("Test", Assert.Single(await repository.GetAllAsync()).VersionName);
+        Assert.Equal("Test", Assert.Single(await repository.DiscoverInstalledVersionsAsync(settings.MinecraftDirectory)).VersionName);
+    }
+
+    [Fact]
+    public async Task InvalidRenameMarkerDoesNotHideInstanceWhenQuarantineFails()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: null,
+            stageDeletionMove: null,
+            deleteStagedDirectory: null,
+            quarantineRenameMarker: (_, _) => throw new IOException("quarantine failed"));
+        var directory = await CreateStoredInstanceAsync(repository, settings.MinecraftDirectory, "Test");
+        var markerPath = Path.Combine(directory, ".bhl-rename-pending.json");
+        await File.WriteAllTextAsync(markerPath, "{");
+
+        await repository.RecoverPendingVersionRenamesAsync(settings.MinecraftDirectory);
+
+        Assert.True(File.Exists(markerPath));
+        Assert.Equal("Test", Assert.Single(await repository.GetAllAsync()).VersionName);
+        Assert.Equal("Test", Assert.Single(await repository.DiscoverInstalledVersionsAsync(settings.MinecraftDirectory)).VersionName);
+    }
+
+    [Fact]
+    public async Task UnreadableRenameMarkerInOrdinaryDirectoryKeepsInstanceHidden()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var directory = await CreateStoredInstanceAsync(repository, settings.MinecraftDirectory, "Test");
+        var markerPath = Path.Combine(directory, ".bhl-rename-pending.json");
+        await File.WriteAllTextAsync(markerPath, CreateRenameMarkerJson("test", "Test", "Renamed"));
+
+        await using (File.Open(markerPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            Assert.Empty(await repository.GetAllAsync());
+            Assert.Empty(await repository.DiscoverInstalledVersionsAsync(settings.MinecraftDirectory));
+        }
+    }
+
+    [Fact]
+    public async Task ValidRenameMarkerRemainsHiddenWhenRecoveryCannotMoveSource()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            moveDirectoryAsync: (_, _, _) => throw new IOException("source is locked"));
+        var directory = await CreateStoredInstanceAsync(repository, settings.MinecraftDirectory, "Test");
+        await File.WriteAllTextAsync(
+            Path.Combine(directory, ".bhl-rename-pending.json"),
+            CreateRenameMarkerJson("test", "Test", "Renamed"));
+
+        await repository.RecoverPendingVersionRenamesAsync(settings.MinecraftDirectory);
+
+        Assert.Empty(await repository.GetAllAsync());
+        Assert.Empty(await repository.DiscoverInstalledVersionsAsync(settings.MinecraftDirectory));
+    }
+
     [Fact]
     public async Task PendingRenameDirectoryWithValidMetadataIsNeverDiscovered()
     {
@@ -422,6 +499,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         await File.WriteAllTextAsync(
             Path.Combine(pendingDirectory, "BHL", "instance-settings.json"),
             """{"id":"test","name":"Test","versionName":"Test"}""");
+        await File.WriteAllTextAsync(Path.Combine(pendingDirectory, ".bhl-rename-pending.json"), "{");
 
         Assert.Empty(await repository.DiscoverInstalledVersionsAsync(settings.MinecraftDirectory));
         Assert.Empty(await repository.GetAllAsync());
@@ -736,6 +814,30 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         File.WriteAllText(
             Path.Combine(directory, ".bhl-delete-pending-.json"),
             $$"""{"schemaVersion":1,"transactionId":"{{transactionId}}","versionName":"{{versionName}}","createdAtUtc":"2026-07-13T00:00:00Z"}""");
+    }
+
+    private static string CreateRenameMarkerJson(string instanceId, string oldName, string newName) =>
+        $$"""{"schemaVersion":1,"transactionId":"a83f21c4000000000000000000000000","instanceId":"{{instanceId}}","oldName":"{{oldName}}","newName":"{{newName}}","updatedAtUtc":"2026-07-13T00:00:00Z"}""";
+
+    private static async Task<string> CreateStoredInstanceAsync(
+        JsonGameInstanceRepository repository,
+        string minecraftDirectory,
+        string versionName)
+    {
+        CreateVersionDirectory(minecraftDirectory, versionName);
+        var directory = Path.Combine(minecraftDirectory, "versions", versionName);
+        await repository.SaveAllAsync(
+        [
+            new GameInstance
+            {
+                Id = versionName.ToLowerInvariant(),
+                Name = versionName,
+                MinecraftVersion = "1.20.1",
+                VersionName = versionName,
+                InstanceDirectory = directory
+            }
+        ]);
+        return directory;
     }
 
     private (LauncherSettings Settings, TestSettingsService SettingsService) CreateSettings()

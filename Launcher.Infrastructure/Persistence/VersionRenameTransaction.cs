@@ -39,6 +39,156 @@ internal sealed record PendingInstanceRenameMarker
     public DateTimeOffset UpdatedAtUtc { get; init; }
 }
 
+internal enum PendingInstanceRenameMarkerStatus
+{
+    Missing,
+    Valid,
+    Invalid,
+    Unreadable
+}
+
+internal readonly record struct PendingInstanceRenameMarkerReadResult(
+    PendingInstanceRenameMarkerStatus Status,
+    PendingInstanceRenameMarker? Marker = null,
+    Exception? Exception = null);
+
+internal static class PendingInstanceRenameMarkerFile
+{
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
+    };
+
+    public static PendingInstanceRenameMarkerReadResult Read(string directory)
+    {
+        var markerPath = PendingInstanceRenameDirectory.GetMarkerPath(directory);
+        var presence = ProbePresence(directory);
+        if (presence is not null)
+            return presence.Value;
+        try
+        {
+            using var stream = OpenRead(markerPath, useAsync: false);
+            var marker = JsonSerializer.Deserialize<PendingInstanceRenameMarker>(stream, JsonOptions);
+            Validate(directory, marker);
+            return new(PendingInstanceRenameMarkerStatus.Valid, marker);
+        }
+        catch (FileNotFoundException)
+        {
+            return new(PendingInstanceRenameMarkerStatus.Missing);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return new(PendingInstanceRenameMarkerStatus.Missing);
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidDataException)
+        {
+            return new(PendingInstanceRenameMarkerStatus.Invalid, Exception: exception);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return new(PendingInstanceRenameMarkerStatus.Unreadable, Exception: exception);
+        }
+    }
+
+    public static async Task<PendingInstanceRenameMarkerReadResult> ReadAsync(
+        string directory,
+        CancellationToken cancellationToken)
+    {
+        var markerPath = PendingInstanceRenameDirectory.GetMarkerPath(directory);
+        var presence = ProbePresence(directory);
+        if (presence is not null)
+            return presence.Value;
+        try
+        {
+            await using var stream = OpenRead(markerPath, useAsync: true);
+            var marker = await JsonSerializer.DeserializeAsync<PendingInstanceRenameMarker>(
+                    stream,
+                    JsonOptions,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            Validate(directory, marker);
+            return new(PendingInstanceRenameMarkerStatus.Valid, marker);
+        }
+        catch (FileNotFoundException)
+        {
+            return new(PendingInstanceRenameMarkerStatus.Missing);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return new(PendingInstanceRenameMarkerStatus.Missing);
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidDataException)
+        {
+            return new(PendingInstanceRenameMarkerStatus.Invalid, Exception: exception);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return new(PendingInstanceRenameMarkerStatus.Unreadable, Exception: exception);
+        }
+    }
+
+    private static FileStream OpenRead(string markerPath, bool useAsync) => new(
+        markerPath,
+        FileMode.Open,
+        FileAccess.Read,
+        FileShare.Read | FileShare.Delete,
+        bufferSize: 4096,
+        useAsync);
+
+    private static PendingInstanceRenameMarkerReadResult? ProbePresence(string directory)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(
+                    directory,
+                    PendingInstanceRenameDirectory.MarkerFileName,
+                    SearchOption.TopDirectoryOnly)
+                .Any()
+                ? null
+                : new(PendingInstanceRenameMarkerStatus.Missing);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return new(PendingInstanceRenameMarkerStatus.Missing);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return new(PendingInstanceRenameMarkerStatus.Unreadable, Exception: exception);
+        }
+    }
+
+    private static void Validate(string directory, PendingInstanceRenameMarker? marker)
+    {
+        if (marker is null
+            || marker.SchemaVersion != 1
+            || string.IsNullOrWhiteSpace(marker.TransactionId)
+            || marker.TransactionId.Length < 8
+            || string.IsNullOrWhiteSpace(marker.InstanceId)
+            || !VersionDirectoryName.IsSafeDirectoryName(marker.OldName)
+            || !VersionDirectoryName.IsSafeDirectoryName(marker.NewName))
+        {
+            throw new InvalidDataException("Pending instance rename marker is invalid.");
+        }
+
+        var directoryName = Path.GetFileName(
+            directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        if (PendingInstanceRenameDirectory.IsPending(directory))
+        {
+            var expectedName = $"{PendingInstanceRenameDirectory.Prefix}{marker.OldName}-{marker.TransactionId[..8].ToLowerInvariant()}";
+            if (!string.Equals(directoryName, expectedName, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Pending instance rename marker does not match its staging directory.");
+            return;
+        }
+
+        if (!string.Equals(directoryName, marker.OldName, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(directoryName, marker.NewName, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("Pending instance rename marker does not match its directory.");
+        }
+    }
+}
+
 internal sealed class VersionRenameTransaction
 {
     private const int MaxMoveAttempts = 5;
@@ -57,6 +207,7 @@ internal sealed class VersionRenameTransaction
     private readonly Func<string, string, CancellationToken, Task> moveDirectoryAsync;
     private readonly Func<Guid> guidFactory;
     private readonly Action<string> deleteMarker;
+    private readonly Action<string, string> quarantineMarker;
     private readonly ILogger logger;
 
     public VersionRenameTransaction(
@@ -65,7 +216,8 @@ internal sealed class VersionRenameTransaction
         ILogger logger,
         Func<string, string, CancellationToken, Task>? moveDirectoryAsync = null,
         Func<Guid>? guidFactory = null,
-        Action<string>? deleteMarker = null)
+        Action<string>? deleteMarker = null,
+        Action<string, string>? quarantineMarker = null)
     {
         this.directoryManager = directoryManager;
         this.instanceSettingsStore = instanceSettingsStore;
@@ -73,6 +225,7 @@ internal sealed class VersionRenameTransaction
         this.moveDirectoryAsync = moveDirectoryAsync ?? MoveDirectoryAsync;
         this.guidFactory = guidFactory ?? Guid.NewGuid;
         this.deleteMarker = deleteMarker ?? File.Delete;
+        this.quarantineMarker = quarantineMarker ?? ((source, destination) => File.Move(source, destination, overwrite: true));
     }
 
     public async Task ExecuteAsync(
@@ -145,9 +298,25 @@ internal sealed class VersionRenameTransaction
         {
             cancellationToken.ThrowIfCancellationRequested();
             TryDeleteAbortedMarker(directory);
-            var marker = await TryReadMarkerAsync(directory, cancellationToken).ConfigureAwait(false);
-            if (marker is null)
+            var markerResult = await PendingInstanceRenameMarkerFile.ReadAsync(directory, cancellationToken)
+                .ConfigureAwait(false);
+            if (markerResult.Status == PendingInstanceRenameMarkerStatus.Missing)
                 continue;
+            if (markerResult.Status == PendingInstanceRenameMarkerStatus.Invalid)
+            {
+                HandleInvalidMarker(directory, markerResult.Exception);
+                continue;
+            }
+            if (markerResult.Status == PendingInstanceRenameMarkerStatus.Unreadable)
+            {
+                logger.LogWarning(
+                    markerResult.Exception,
+                    "Pending instance rename marker could not be read and remains for a later retry. MarkerPath={MarkerPath}",
+                    PendingInstanceRenameDirectory.GetMarkerPath(directory));
+                continue;
+            }
+
+            var marker = markerResult.Marker!;
 
             try
             {
@@ -393,32 +562,34 @@ internal sealed class VersionRenameTransaction
         return Task.CompletedTask;
     }
 
-    private async Task<PendingInstanceRenameMarker?> TryReadMarkerAsync(string directory, CancellationToken cancellationToken)
+    private void HandleInvalidMarker(string directory, Exception? validationException)
     {
         var markerPath = PendingInstanceRenameDirectory.GetMarkerPath(directory);
-        if (!File.Exists(markerPath))
-            return null;
+        if (PendingInstanceRenameDirectory.IsPending(directory))
+        {
+            logger.LogError(
+                validationException,
+                "Invalid pending instance rename marker was preserved in a staging directory. MarkerPath={MarkerPath}",
+                markerPath);
+            return;
+        }
+
+        var abortedMarkerPath = Path.Combine(directory, PendingInstanceRenameDirectory.AbortedMarkerFileName);
         try
         {
-            await using var stream = File.OpenRead(markerPath);
-            var marker = await JsonSerializer.DeserializeAsync<PendingInstanceRenameMarker>(stream, JsonOptions, cancellationToken)
-                .ConfigureAwait(false);
-            if (marker is null
-                || marker.SchemaVersion != 1
-                || string.IsNullOrWhiteSpace(marker.TransactionId)
-                || marker.TransactionId.Length < 8
-                || string.IsNullOrWhiteSpace(marker.InstanceId)
-                || !VersionDirectoryName.IsSafeDirectoryName(marker.OldName)
-                || !VersionDirectoryName.IsSafeDirectoryName(marker.NewName))
-            {
-                throw new InvalidDataException("Pending instance rename marker is invalid.");
-            }
-            return marker;
+            quarantineMarker(markerPath, abortedMarkerPath);
+            logger.LogError(
+                validationException,
+                "Invalid pending instance rename marker was quarantined. MarkerPath={MarkerPath} AbortedMarkerPath={AbortedMarkerPath}",
+                markerPath,
+                abortedMarkerPath);
         }
-        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidDataException)
+        catch (Exception quarantineException)
         {
-            logger.LogWarning(exception, "Invalid pending instance rename marker was ignored. MarkerPath={MarkerPath}", markerPath);
-            return null;
+            logger.LogError(
+                quarantineException,
+                "Invalid pending instance rename marker could not be quarantined but will not hide the instance. MarkerPath={MarkerPath}",
+                markerPath);
         }
     }
 

@@ -240,11 +240,19 @@ internal sealed class GameInstanceSettingsStore(ILogger logger)
     private static string GetSettingsPath(string versionDirectory)
         => Path.Combine(versionDirectory, LauncherDirectoryName, InstanceSettingsFileName);
 
-    private static bool ShouldIgnoreDirectory(string versionDirectory) =>
-        PendingInstanceDeletionDirectory.IsPending(versionDirectory)
-        || PendingInstanceInstallDirectory.IsPending(versionDirectory)
-        || PendingInstanceRenameDirectory.IsPending(versionDirectory)
-        || File.Exists(PendingInstanceRenameDirectory.GetMarkerPath(versionDirectory));
+    private static bool ShouldIgnoreDirectory(string versionDirectory)
+    {
+        if (PendingInstanceDeletionDirectory.IsPending(versionDirectory)
+            || PendingInstanceInstallDirectory.IsPending(versionDirectory)
+            || PendingInstanceRenameDirectory.IsPending(versionDirectory))
+        {
+            return true;
+        }
+
+        var markerStatus = PendingInstanceRenameMarkerFile.Read(versionDirectory).Status;
+        return markerStatus is PendingInstanceRenameMarkerStatus.Valid
+            or PendingInstanceRenameMarkerStatus.Unreadable;
+    }
 
     private static string GetVersionName(GameInstance instance)
         => string.IsNullOrWhiteSpace(instance.VersionName) ? instance.MinecraftVersion : instance.VersionName;

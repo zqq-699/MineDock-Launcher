@@ -64,7 +64,8 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         Action<string, bool>? deleteStagedDirectory,
         Action<string>? recycleStagedDirectory = null,
         Func<Guid>? renameGuidFactory = null,
-        Action<string>? deleteRenameMarker = null)
+        Action<string>? deleteRenameMarker = null,
+        Action<string, string>? quarantineRenameMarker = null)
     {
         this.settingsService = settingsService;
         this.logger = logger ?? NullLogger<JsonGameInstanceRepository>.Instance;
@@ -76,7 +77,8 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             this.logger,
             moveDirectoryAsync,
             renameGuidFactory,
-            deleteRenameMarker);
+            deleteRenameMarker,
+            quarantineRenameMarker);
         deletionManager = new VersionDeletionManager(
             directoryManager,
             this.logger,
@@ -312,10 +314,7 @@ internal sealed class InstalledVersionMetadataReader(ILogger logger)
         foreach (var versionDirectory in EnumerateDirectories(versionsDirectory))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (PendingInstanceDeletionDirectory.IsPending(versionDirectory)
-                || PendingInstanceInstallDirectory.IsPending(versionDirectory)
-                || PendingInstanceRenameDirectory.IsPending(versionDirectory)
-                || File.Exists(PendingInstanceRenameDirectory.GetMarkerPath(versionDirectory)))
+            if (ShouldIgnoreDirectory(versionDirectory))
                 continue;
             var versionName = Path.GetFileName(versionDirectory);
             if (string.IsNullOrWhiteSpace(versionName))
@@ -347,6 +346,20 @@ internal sealed class InstalledVersionMetadataReader(ILogger logger)
 
     public bool Exists(string versionDirectory, string versionName) =>
         TryReadVersionMetadata(versionDirectory, versionName, logger) is not null;
+
+    private static bool ShouldIgnoreDirectory(string versionDirectory)
+    {
+        if (PendingInstanceDeletionDirectory.IsPending(versionDirectory)
+            || PendingInstanceInstallDirectory.IsPending(versionDirectory)
+            || PendingInstanceRenameDirectory.IsPending(versionDirectory))
+        {
+            return true;
+        }
+
+        var markerStatus = PendingInstanceRenameMarkerFile.Read(versionDirectory).Status;
+        return markerStatus is PendingInstanceRenameMarkerStatus.Valid
+            or PendingInstanceRenameMarkerStatus.Unreadable;
+    }
 
     private static IEnumerable<string> EnumerateDirectories(string directory)
     {
