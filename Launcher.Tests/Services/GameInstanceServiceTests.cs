@@ -11,6 +11,7 @@
 
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Launcher.Application;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
@@ -104,6 +105,31 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         Assert.Equal("second", (await new TestSettingsService(settings).LoadAsync()).DefaultInstanceId);
         Assert.Single(await repository.GetAllAsync());
         Assert.Empty(Directory.GetDirectories(Path.Combine(settings.MinecraftDirectory, "versions"), ".bhl-delete-pending-*"));
+    }
+
+    [Fact]
+    public async Task DeleteInstanceDoesNotRewriteRemainingInstanceSettings()
+    {
+        var (settings, repository, service, _) = CreateService(defaultInstanceId: "first");
+        await CreateVersionAsync(settings.MinecraftDirectory, "first");
+        await CreateVersionAsync(settings.MinecraftDirectory, "second");
+        await repository.SaveAllAsync([CreateStoredInstance("first"), CreateStoredInstance("second")]);
+
+        var secondSettingsPath = Path.Combine(
+            settings.MinecraftDirectory,
+            "versions",
+            "second",
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "instance-settings.json");
+        var expectedContents = await File.ReadAllTextAsync(secondSettingsPath);
+        var expectedLastWriteTime = DateTime.UtcNow.AddMinutes(-5);
+        File.SetLastWriteTimeUtc(secondSettingsPath, expectedLastWriteTime);
+        expectedLastWriteTime = File.GetLastWriteTimeUtc(secondSettingsPath);
+
+        Assert.True(await service.DeleteInstanceAsync("first"));
+
+        Assert.Equal(expectedContents, await File.ReadAllTextAsync(secondSettingsPath));
+        Assert.Equal(expectedLastWriteTime, File.GetLastWriteTimeUtc(secondSettingsPath));
     }
 
     [Fact]

@@ -320,7 +320,8 @@ public sealed class GameInstanceService : IGameInstanceService
         try
         {
             var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
-            var instances = (await GetInstancesCoreAsync(settings, cancellationToken).ConfigureAwait(false)).ToList();
+            var instances = (await repository.GetAllAsync(settings.MinecraftDirectory, cancellationToken)
+                .ConfigureAwait(false)).ToList();
             var instance = instances.FirstOrDefault(existing =>
                 string.Equals(existing.Id, instanceId, StringComparison.OrdinalIgnoreCase));
 
@@ -340,7 +341,7 @@ public sealed class GameInstanceService : IGameInstanceService
 
             // Directory.Move is the irreversible commit point. From here on the instance must never be restored.
             instances.Remove(instance);
-            await PersistDeletionStateBestEffortAsync(settings, instances, instance).ConfigureAwait(false);
+            await PersistDefaultAfterDeletionBestEffortAsync(settings, instances, instance).ConfigureAwait(false);
 
             var physicalCleanupCompleted = await repository
                 .TryDeleteStagedVersionDirectoryAsync(
@@ -361,23 +362,11 @@ public sealed class GameInstanceService : IGameInstanceService
         }
     }
 
-    private async Task PersistDeletionStateBestEffortAsync(
+    private async Task PersistDefaultAfterDeletionBestEffortAsync(
         LauncherSettings settings,
         IReadOnlyCollection<GameInstance> remainingInstances,
         GameInstance deletedInstance)
     {
-        try
-        {
-            await repository.SaveAllAsync(remainingInstances, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            logger.LogError(
-                exception,
-                "Failed to persist remaining game instances after deletion commit. InstanceId={InstanceId}",
-                deletedInstance.Id);
-        }
-
         if (!string.Equals(settings.DefaultInstanceId, deletedInstance.Id, StringComparison.OrdinalIgnoreCase))
             return;
 
