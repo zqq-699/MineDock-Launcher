@@ -159,10 +159,11 @@ internal sealed class GameInstanceCreationCoordinator
         var logicalCommitCompleted = true;
         try
         {
-            if (string.IsNullOrWhiteSpace(settings.DefaultInstanceId))
+            var latestSettings = await settingsService.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(latestSettings.DefaultInstanceId))
             {
-                settings.DefaultInstanceId = instance.Id;
-                await settingsService.SaveAsync(settings, CancellationToken.None).ConfigureAwait(false);
+                latestSettings.DefaultInstanceId = instance.Id;
+                await settingsService.SaveAsync(latestSettings, CancellationToken.None).ConfigureAwait(false);
                 logger.LogInformation("Default game instance initialized. InstanceId={InstanceId}", instance.Id);
             }
         }

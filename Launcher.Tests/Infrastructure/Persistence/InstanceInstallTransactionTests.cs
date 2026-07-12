@@ -337,6 +337,85 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
         Assert.Equal("instance", (await settingsService.LoadAsync()).DefaultInstanceId);
     }
 
+    [Fact]
+    public async Task CleanupReloadsLatestSettingsBeforeInitializingDefaultInstance()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var initialSettings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = minecraftDirectory,
+            Theme = "Dark"
+        };
+        var latestSettings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = minecraftDirectory,
+            Theme = "Light",
+            DownloadSourcePreference = DownloadSourcePreference.BmclApi,
+            DefaultMemoryMb = 8192
+        };
+        var settingsService = new SequencedSettingsService(initialSettings, latestSettings);
+        var finalDirectory = Path.Combine(minecraftDirectory, "versions", "Test");
+        Directory.CreateDirectory(finalDirectory);
+        await File.WriteAllTextAsync(Path.Combine(finalDirectory, "Test.json"), """{"id":"Test"}""");
+        await File.WriteAllTextAsync(
+            Path.Combine(finalDirectory, ".bhl-install-pending.json"),
+            """
+            {
+              "schemaVersion": 1,
+              "transactionId": "a83f21c4000000000000000000000000",
+              "instanceId": "instance",
+              "logicalVersionName": "Test",
+              "installKind": "game",
+              "initializeDefaultIfEmpty": true,
+              "createdAtUtc": "2026-07-13T00:00:00Z"
+            }
+            """);
+
+        await new InstanceInstallCleanupService(settingsService).CleanupPendingAsync();
+
+        Assert.NotNull(settingsService.SavedSettings);
+        Assert.Equal("Light", settingsService.SavedSettings.Theme);
+        Assert.Equal(DownloadSourcePreference.BmclApi, settingsService.SavedSettings.DownloadSourcePreference);
+        Assert.Equal(8192, settingsService.SavedSettings.DefaultMemoryMb);
+        Assert.Equal("instance", settingsService.SavedSettings.DefaultInstanceId);
+        Assert.False(File.Exists(Path.Combine(finalDirectory, ".bhl-install-pending.json")));
+    }
+
+    [Fact]
+    public async Task CleanupPreservesCommittedMarkerWhenLatestSettingsSaveFails()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new FailingSaveSettingsService(settings);
+        var finalDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Test");
+        Directory.CreateDirectory(finalDirectory);
+        await File.WriteAllTextAsync(Path.Combine(finalDirectory, "Test.json"), """{"id":"Test"}""");
+        var markerPath = Path.Combine(finalDirectory, ".bhl-install-pending.json");
+        await File.WriteAllTextAsync(
+            markerPath,
+            """
+            {
+              "schemaVersion": 1,
+              "transactionId": "a83f21c4000000000000000000000000",
+              "instanceId": "instance",
+              "logicalVersionName": "Test",
+              "installKind": "game",
+              "initializeDefaultIfEmpty": true,
+              "createdAtUtc": "2026-07-13T00:00:00Z"
+            }
+            """);
+
+        await new InstanceInstallCleanupService(settingsService).CleanupPendingAsync();
+
+        Assert.True(Directory.Exists(finalDirectory));
+        Assert.True(File.Exists(markerPath));
+    }
+
     private static GameInstance CreateInstance(string id, string name, string directory) => new()
     {
         Id = id,
@@ -345,4 +424,36 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
         VersionName = name,
         InstanceDirectory = directory
     };
+
+    private sealed class SequencedSettingsService(
+        LauncherSettings initialSettings,
+        LauncherSettings latestSettings) : ISettingsService
+    {
+        private int loadCount;
+
+        public LauncherSettings? SavedSettings { get; private set; }
+
+        public Task<LauncherSettings> LoadAsync(CancellationToken cancellationToken = default)
+        {
+            var settings = Interlocked.Increment(ref loadCount) == 1
+                ? initialSettings
+                : latestSettings;
+            return Task.FromResult(settings);
+        }
+
+        public Task SaveAsync(LauncherSettings settings, CancellationToken cancellationToken = default)
+        {
+            SavedSettings = settings;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FailingSaveSettingsService(LauncherSettings settings) : ISettingsService
+    {
+        public Task<LauncherSettings> LoadAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(settings);
+
+        public Task SaveAsync(LauncherSettings value, CancellationToken cancellationToken = default) =>
+            Task.FromException(new IOException("settings are locked"));
+    }
 }

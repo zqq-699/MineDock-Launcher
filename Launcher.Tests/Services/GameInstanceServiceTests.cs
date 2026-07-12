@@ -129,6 +129,81 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task CreateInstancePreservesSettingsChangedWhileInstallIsRunning()
+    {
+        var settingsService = new JsonSettingsService(TempRoot);
+        var initialSettings = await settingsService.LoadAsync();
+        initialSettings.MinecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        initialSettings.Theme = "Dark";
+        initialSettings.DownloadSourcePreference = DownloadSourcePreference.Auto;
+        initialSettings.DefaultMemoryMb = 4096;
+        await settingsService.SaveAsync(initialSettings);
+
+        var releaseInstall = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new FakeLoaderProvider { WaitBeforeInstall = releaseInstall.Task };
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var transactionService = new InstanceInstallTransactionService();
+        var service = new GameInstanceService(
+            settingsService,
+            repository,
+            [provider],
+            modpackGameInstaller: new ModpackGameInstaller([provider]),
+            installTransactionService: transactionService);
+
+        var creation = service.CreateInstanceAsync(
+            "1.20.1", LoaderKind.Vanilla, null, "Test", null);
+        await provider.InstallStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var changedSettings = await settingsService.LoadAsync();
+        changedSettings.Theme = "Light";
+        changedSettings.DownloadSourcePreference = DownloadSourcePreference.BmclApi;
+        changedSettings.DefaultMemoryMb = 8192;
+        await settingsService.SaveAsync(changedSettings);
+
+        releaseInstall.SetResult(true);
+        var instance = await creation;
+        var persistedSettings = await settingsService.LoadAsync();
+
+        Assert.Equal("Light", persistedSettings.Theme);
+        Assert.Equal(DownloadSourcePreference.BmclApi, persistedSettings.DownloadSourcePreference);
+        Assert.Equal(8192, persistedSettings.DefaultMemoryMb);
+        Assert.Equal(instance.Id, persistedSettings.DefaultInstanceId);
+    }
+
+    [Fact]
+    public async Task CreateInstanceDoesNotReplaceDefaultSelectedWhileInstallIsRunning()
+    {
+        var settingsService = new JsonSettingsService(TempRoot);
+        var initialSettings = await settingsService.LoadAsync();
+        initialSettings.MinecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        await settingsService.SaveAsync(initialSettings);
+
+        var releaseInstall = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new FakeLoaderProvider { WaitBeforeInstall = releaseInstall.Task };
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var transactionService = new InstanceInstallTransactionService();
+        var service = new GameInstanceService(
+            settingsService,
+            repository,
+            [provider],
+            modpackGameInstaller: new ModpackGameInstaller([provider]),
+            installTransactionService: transactionService);
+
+        var creation = service.CreateInstanceAsync(
+            "1.20.1", LoaderKind.Vanilla, null, "Test", null);
+        await provider.InstallStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var changedSettings = await settingsService.LoadAsync();
+        changedSettings.DefaultInstanceId = "user-selected-instance";
+        await settingsService.SaveAsync(changedSettings);
+
+        releaseInstall.SetResult(true);
+        await creation;
+
+        Assert.Equal("user-selected-instance", (await settingsService.LoadAsync()).DefaultInstanceId);
+    }
+
+    [Fact]
     public async Task DeleteInstancePreservesOriginalStateWhenStagingMoveFails()
     {
         var settings = CreateSettings("first");

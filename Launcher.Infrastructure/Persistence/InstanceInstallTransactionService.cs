@@ -552,12 +552,14 @@ public sealed class InstanceInstallCleanupService(
                         markerStream,
                         MarkerJsonOptions,
                         cancellationToken: cancellationToken).ConfigureAwait(false);
-                    if (marker is not null
-                        && marker.InitializeDefaultIfEmpty
-                        && string.IsNullOrWhiteSpace(settings.DefaultInstanceId))
+                    if (marker is not null && marker.InitializeDefaultIfEmpty)
                     {
-                        settings.DefaultInstanceId = marker.InstanceId;
-                        await settingsService.SaveAsync(settings, CancellationToken.None).ConfigureAwait(false);
+                        var latestSettings = await settingsService.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                        if (string.IsNullOrWhiteSpace(latestSettings.DefaultInstanceId))
+                        {
+                            latestSettings.DefaultInstanceId = marker.InstanceId;
+                            await settingsService.SaveAsync(latestSettings, CancellationToken.None).ConfigureAwait(false);
+                        }
                     }
                 }
                 File.Delete(Path.Combine(normalized, PendingInstanceInstallDirectory.PendingLockFileName));
