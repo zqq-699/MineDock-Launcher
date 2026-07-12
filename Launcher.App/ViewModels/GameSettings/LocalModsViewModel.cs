@@ -102,6 +102,11 @@ public sealed class LocalModsViewModel : IDisposable
     public void SetWatcherEnabled(bool enabled)
     {
         contentWatcher.SetEnabled(enabled);
+        if (!enabled)
+        {
+            CancelRefresh();
+            CancelIconEnrichment();
+        }
     }
 
     public void SuspendWatcherForInstanceRename()
@@ -125,7 +130,7 @@ public sealed class LocalModsViewModel : IDisposable
     /// <summary>
     /// 重新扫描当前实例 Mod；缓存图标随首屏结果发布，远程图标随后渐进补全。
     /// </summary>
-    public async Task RefreshModsAsync()
+    public async Task<bool> RefreshModsAsync()
     {
         // 版本号负责兜底拒绝不响应取消的旧请求，CTS 负责尽快停止仍在执行的 I/O。
         var refreshVersion = Interlocked.Increment(ref modRefreshVersion);
@@ -137,7 +142,7 @@ public sealed class LocalModsViewModel : IDisposable
         {
             ClearMods();
             logger.LogInformation("Local mods view cleared because no instance is selected.");
-            return;
+            return true;
         }
 
         IReadOnlyList<LocalMod> loadedMods;
@@ -150,7 +155,7 @@ public sealed class LocalModsViewModel : IDisposable
         }
         catch (OperationCanceledException) when (refreshCts.IsCancellationRequested)
         {
-            return;
+            return false;
         }
         catch (Exception exception)
         {
@@ -168,7 +173,7 @@ public sealed class LocalModsViewModel : IDisposable
         // 服务可能忽略取消令牌，发布前仍需验证实例和刷新代次。
         if (!IsRefreshCurrent(instance, refreshVersion))
         {
-            return;
+            return false;
         }
 
         // 集合替换和 ModsChanged 在同一个 UI 临界区完成，观察者不会看到两份快照不一致。
@@ -184,6 +189,7 @@ public sealed class LocalModsViewModel : IDisposable
             Mods.Count);
         // 远程补全是非阻断增强，失败不会撤回已经可用的本地列表。
         QueueRemoteIconEnrichment(instance, loadedMods, refreshVersion);
+        return true;
     }
 
     /// <summary>

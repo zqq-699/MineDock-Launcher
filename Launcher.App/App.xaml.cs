@@ -161,6 +161,8 @@ public partial class App : System.Windows.Application
             var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
             mainWindow.Show();
             Log.Information("Main window shown.");
+            _ = CleanupPendingInstanceDeletionsOnStartupAsync(
+                serviceProvider.GetRequiredService<IInstanceDeletionCleanupService>());
             try
             {
                 if (LauncherUpdateStartupCoordinator.TryConfirmStartup(
@@ -197,6 +199,19 @@ public partial class App : System.Windows.Application
         catch (Exception exception)
         {
             Log.Warning(exception, "Confirmed launcher update cache cleanup failed; startup cleanup will retry later.");
+        }
+    }
+
+    private static async Task CleanupPendingInstanceDeletionsOnStartupAsync(
+        IInstanceDeletionCleanupService cleanupService)
+    {
+        try
+        {
+            await cleanupService.CleanupPendingAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Pending instance deletion cleanup failed; startup cleanup will retry later.");
         }
     }
 

@@ -76,7 +76,7 @@ public sealed class LocalResourcePacksViewModel : IDisposable
         return RefreshResourcePacksAsync();
     }
 
-    public Task RefreshResourcePacksAsync() => refreshCoordinator.RefreshAsync();
+    public Task<bool> RefreshResourcePacksAsync() => refreshCoordinator.RefreshAsync();
 
     public async Task<int> DeleteResourcePacksAsync(IEnumerable<LocalResourcePack> resourcePacks)
     {

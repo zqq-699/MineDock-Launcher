@@ -127,6 +127,7 @@ public sealed partial class GameSettingsDialogsViewModel : ObservableObject
         var pending = InstancePendingDelete;
         IsDeleteInstanceDialogOpen = false;
         InstancePendingDelete = null;
+        details.SuspendLocalWatchersForInstanceMove();
         try
         {
             if (!await instanceService.DeleteInstanceAsync(pending.Instance.Id))
@@ -141,6 +142,11 @@ public sealed partial class GameSettingsDialogsViewModel : ObservableObject
         {
             logger.LogWarning(exception, "Failed to delete game instance. InstanceId={InstanceId}", pending.Instance.Id);
             statusService.Report(Strings.Status_DeleteInstanceFailed);
+        }
+        finally
+        {
+            // 成功时选择已被清空，Resume 只复位挂起标志；失败时恢复当前详情 watcher。
+            details.ResumeLocalWatchersAfterInstanceMove();
         }
     }
 

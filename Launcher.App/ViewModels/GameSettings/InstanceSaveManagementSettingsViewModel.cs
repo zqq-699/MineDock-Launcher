@@ -492,7 +492,8 @@ public sealed partial class InstanceSaveManagementSettingsViewModel : GameSettin
 
         try
         {
-            await localSavesViewModel.RefreshSavesAsync();
+            if (!await localSavesViewModel.RefreshSavesAsync())
+                return;
             HasLoadedSaves = true;
             // 隐藏页面不播放动画，只记住下次激活需要一次完整视觉刷新。
             if (isSectionActive)

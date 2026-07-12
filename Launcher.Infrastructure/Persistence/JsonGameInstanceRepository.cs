@@ -43,6 +43,7 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
     private readonly GameInstanceSettingsStore instanceSettingsStore;
     private readonly VersionDirectoryManager directoryManager;
     private readonly VersionRenameTransaction renameTransaction;
+    private readonly VersionDeletionManager deletionManager;
     private readonly InstalledVersionMetadataReader metadataReader;
     private readonly SemaphoreSlim ioLock = new(1, 1);
 
@@ -50,12 +51,31 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         ISettingsService settingsService,
         ILogger<JsonGameInstanceRepository>? logger = null,
         Func<string, string, CancellationToken, Task>? moveDirectoryAsync = null)
+        : this(settingsService, logger, moveDirectoryAsync, null, null, null, null)
+    {
+    }
+
+    internal JsonGameInstanceRepository(
+        ISettingsService settingsService,
+        ILogger<JsonGameInstanceRepository>? logger,
+        Func<string, string, CancellationToken, Task>? moveDirectoryAsync,
+        Func<Guid>? deletionGuidFactory,
+        Action<string, string>? stageDeletionMove,
+        Action<string, bool>? deleteStagedDirectory,
+        Action<string>? recycleStagedDirectory = null)
     {
         this.settingsService = settingsService;
         this.logger = logger ?? NullLogger<JsonGameInstanceRepository>.Instance;
         instanceSettingsStore = new GameInstanceSettingsStore(this.logger);
         directoryManager = new VersionDirectoryManager(this.logger);
         renameTransaction = new VersionRenameTransaction(directoryManager, this.logger, moveDirectoryAsync);
+        deletionManager = new VersionDeletionManager(
+            directoryManager,
+            this.logger,
+            deletionGuidFactory,
+            stageDeletionMove,
+            deleteStagedDirectory,
+            recycleStagedDirectory);
         metadataReader = new InstalledVersionMetadataReader(this.logger);
     }
 
@@ -152,6 +172,42 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         directoryManager.DeleteVersionDirectory(minecraftDirectory, versionName);
     }
 
+    public async Task<string> StageVersionForDeletionAsync(
+        string minecraftDirectory,
+        string versionName,
+        CancellationToken cancellationToken = default)
+    {
+        await ioLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return deletionManager.Stage(minecraftDirectory, versionName);
+        }
+        finally
+        {
+            ioLock.Release();
+        }
+    }
+
+    public Task<bool> TryDeleteStagedVersionDirectoryAsync(
+        string minecraftDirectory,
+        string stagedDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.Run(
+            () => deletionManager.TryDelete(minecraftDirectory, stagedDirectory),
+            cancellationToken);
+    }
+
+    public Task CleanupStagedVersionDirectoriesAsync(
+        string minecraftDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.Run(
+            () => deletionManager.CleanupPending(minecraftDirectory, cancellationToken),
+            cancellationToken);
+    }
+
     public async Task RenameVersionAsync(
         string minecraftDirectory,
         string oldVersionName,
@@ -203,6 +259,8 @@ internal sealed class InstalledVersionMetadataReader(ILogger logger)
         foreach (var versionDirectory in EnumerateDirectories(versionsDirectory))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (PendingInstanceDeletionDirectory.IsPending(versionDirectory))
+                continue;
             var versionName = Path.GetFileName(versionDirectory);
             if (string.IsNullOrWhiteSpace(versionName))
                 continue;

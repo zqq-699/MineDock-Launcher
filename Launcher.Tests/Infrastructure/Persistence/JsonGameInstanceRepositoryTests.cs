@@ -343,6 +343,212 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "New Pack")));
     }
 
+    [Fact]
+    public async Task StageVersionForDeletionRetriesWhenGeneratedDestinationAlreadyExists()
+    {
+        var (settings, settingsService) = CreateSettings();
+        CreateVersionDirectory(settings.MinecraftDirectory, "Test");
+        var versionsDirectory = Path.Combine(settings.MinecraftDirectory, "versions");
+        Directory.CreateDirectory(Path.Combine(versionsDirectory, ".bhl-delete-pending-Test-a83f21c4"));
+        var guids = new Queue<Guid>(
+        [
+            Guid.ParseExact("a83f21c4000000000000000000000000", "N"),
+            Guid.ParseExact("b94e32d5000000000000000000000000", "N")
+        ]);
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: () => guids.Dequeue(),
+            stageDeletionMove: Directory.Move,
+            deleteStagedDirectory: null);
+
+        var stagedDirectory = await repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Test");
+
+        Assert.EndsWith(".bhl-delete-pending-Test-b94e32d5", stagedDirectory, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(Path.Combine(versionsDirectory, "Test")));
+        Assert.True(Directory.Exists(stagedDirectory));
+    }
+
+    [Fact]
+    public async Task StageVersionForDeletionRetriesWhenDestinationAppearsDuringMove()
+    {
+        var (settings, settingsService) = CreateSettings();
+        CreateVersionDirectory(settings.MinecraftDirectory, "Test");
+        var guids = new Queue<Guid>(
+        [
+            Guid.ParseExact("a83f21c4000000000000000000000000", "N"),
+            Guid.ParseExact("b94e32d5000000000000000000000000", "N")
+        ]);
+        var moves = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: () => guids.Dequeue(),
+            stageDeletionMove: (source, destination) =>
+            {
+                moves++;
+                if (moves == 1)
+                {
+                    Directory.CreateDirectory(destination);
+                    throw new IOException("destination won the race");
+                }
+
+                Directory.Move(source, destination);
+            },
+            deleteStagedDirectory: null);
+
+        var stagedDirectory = await repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Test");
+
+        Assert.Equal(2, moves);
+        Assert.EndsWith(".bhl-delete-pending-Test-b94e32d5", stagedDirectory, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StageVersionForDeletionStopsAfterThreeDestinationCollisions()
+    {
+        var (settings, settingsService) = CreateSettings();
+        CreateVersionDirectory(settings.MinecraftDirectory, "Test");
+        var versionsDirectory = Path.Combine(settings.MinecraftDirectory, "versions");
+        var values = new[] { "a83f21c4", "b94e32d5", "c05f43e6" };
+        foreach (var value in values)
+            Directory.CreateDirectory(Path.Combine(versionsDirectory, $".bhl-delete-pending-Test-{value}"));
+        var guids = new Queue<Guid>(values.Select(value => Guid.ParseExact(value + new string('0', 24), "N")));
+        var moveAttempts = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: () => guids.Dequeue(),
+            stageDeletionMove: (_, _) => moveAttempts++,
+            deleteStagedDirectory: null);
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Test"));
+
+        Assert.Equal(0, moveAttempts);
+        Assert.True(Directory.Exists(Path.Combine(versionsDirectory, "Test")));
+    }
+
+    [Fact]
+    public async Task StageVersionForDeletionDoesNotRetryNonCollisionMoveFailure()
+    {
+        var (settings, settingsService) = CreateSettings();
+        CreateVersionDirectory(settings.MinecraftDirectory, "Test");
+        var moveAttempts = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: () => Guid.ParseExact("a83f21c4000000000000000000000000", "N"),
+            stageDeletionMove: (_, _) =>
+            {
+                moveAttempts++;
+                throw new IOException("source is locked");
+            },
+            deleteStagedDirectory: null);
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Test"));
+
+        Assert.Equal(1, moveAttempts);
+        Assert.True(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "Test")));
+    }
+
+    [Fact]
+    public async Task InstanceScansIgnorePendingDeletionDirectoryWithValidMetadata()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var name = ".BHL-DELETE-PENDING-Test-a83f21c4";
+        var directory = Path.Combine(settings.MinecraftDirectory, "versions", name);
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(
+            Path.Combine(directory, $"{name}.json"),
+            $$"""{"id":"{{name}}","type":"release","minecraftVersion":"1.20.1"}""");
+        var metadataDirectory = Path.Combine(directory, InstanceMetadataDirectoryName);
+        Directory.CreateDirectory(metadataDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(metadataDirectory, "instance-settings.json"),
+            """{"Id":"deleted","Name":"Deleted","MinecraftVersion":"1.20.1","VersionName":"Test"}""");
+        var repository = new JsonGameInstanceRepository(settingsService);
+
+        Assert.Empty(await repository.GetAllAsync());
+        Assert.Empty(await repository.DiscoverInstalledVersionsAsync(settings.MinecraftDirectory));
+    }
+
+    [Fact]
+    public async Task CleanupStagedVersionDirectoriesContinuesAfterIndividualFailure()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var versionsDirectory = Path.Combine(settings.MinecraftDirectory, "versions");
+        var retained = Path.Combine(versionsDirectory, ".bhl-delete-pending-Retained-a83f21c4");
+        var removed = Path.Combine(versionsDirectory, ".BHL-DELETE-PENDING-Removed-b94e32d5");
+        Directory.CreateDirectory(retained);
+        Directory.CreateDirectory(removed);
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: null,
+            stageDeletionMove: null,
+            deleteStagedDirectory: (path, recursive) =>
+            {
+                if (string.Equals(path, retained, StringComparison.OrdinalIgnoreCase))
+                    throw new IOException("still locked");
+                Directory.Delete(path, recursive);
+            },
+            recycleStagedDirectory: _ => throw new IOException("recycle bin unavailable"));
+
+        await repository.CleanupStagedVersionDirectoriesAsync(settings.MinecraftDirectory);
+
+        Assert.True(Directory.Exists(retained));
+        Assert.False(Directory.Exists(removed));
+    }
+
+    [Fact]
+    public async Task TryDeleteStagedVersionDirectoryUsesRecycleBinBeforePermanentDeletion()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var stagedDirectory = Path.Combine(
+            settings.MinecraftDirectory,
+            "versions",
+            ".bhl-delete-pending-Test-a83f21c4");
+        Directory.CreateDirectory(stagedDirectory);
+        var recycleAttempts = 0;
+        var permanentDeleteAttempts = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: null,
+            stageDeletionMove: null,
+            deleteStagedDirectory: (_, _) => permanentDeleteAttempts++,
+            recycleStagedDirectory: path =>
+            {
+                recycleAttempts++;
+                Directory.Delete(path, recursive: true);
+            });
+
+        Assert.True(await repository.TryDeleteStagedVersionDirectoryAsync(
+            settings.MinecraftDirectory,
+            stagedDirectory));
+
+        Assert.Equal(1, recycleAttempts);
+        Assert.Equal(0, permanentDeleteAttempts);
+        Assert.False(Directory.Exists(stagedDirectory));
+    }
+
+    private (LauncherSettings Settings, TestSettingsService SettingsService) CreateSettings()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        return (settings, new TestSettingsService(settings));
+    }
+
     private static void CreateVersionDirectory(string minecraftDirectory, string versionName)
     {
         var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);

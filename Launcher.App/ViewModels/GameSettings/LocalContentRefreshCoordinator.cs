@@ -83,7 +83,12 @@ internal sealed class LocalContentRefreshCoordinator<TContent> : IDisposable
         uiDispatcher.Invoke(clear);
     }
 
-    public void SetWatcherEnabled(bool enabled) => watcher.SetEnabled(enabled);
+    public void SetWatcherEnabled(bool enabled)
+    {
+        watcher.SetEnabled(enabled);
+        if (!enabled)
+            CancelRefresh();
+    }
 
     public void SuspendForRename()
     {
@@ -96,7 +101,7 @@ internal sealed class LocalContentRefreshCoordinator<TContent> : IDisposable
     /// <summary>
     /// 加载当前实例内容，并且仅在实例和刷新代次仍匹配时发布结果。
     /// </summary>
-    public async Task RefreshAsync()
+    public async Task<bool> RefreshAsync()
     {
         // generation 与 CTS 同时使用：CTS 尽快停止旧工作，generation 则在依赖不响应取消时阻止陈旧结果发布。
         var generation = Interlocked.Increment(ref refreshGeneration);
@@ -111,7 +116,7 @@ internal sealed class LocalContentRefreshCoordinator<TContent> : IDisposable
             CurrentItems = [];
             uiDispatcher.Invoke(clear);
             Release(replacement);
-            return;
+            return true;
         }
 
         try
@@ -121,9 +126,10 @@ internal sealed class LocalContentRefreshCoordinator<TContent> : IDisposable
                 || replacement.IsCancellationRequested
                 || !string.Equals(instance.Id, SelectedInstance?.Id, StringComparison.Ordinal))
             {
-                return;
+                return false;
             }
 
+            var published = false;
             uiDispatcher.Invoke(() =>
             {
                 // 调度到 UI 线程期间可能又发起刷新，因此发布前需要再次验证代次。
@@ -131,10 +137,13 @@ internal sealed class LocalContentRefreshCoordinator<TContent> : IDisposable
                     return;
                 CurrentItems = items;
                 apply(items);
+                published = true;
             });
+            return published;
         }
         catch (OperationCanceledException) when (replacement.IsCancellationRequested)
         {
+            return false;
         }
         catch (Exception exception)
         {

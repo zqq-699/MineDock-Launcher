@@ -324,7 +324,9 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
     partial void OnCurrentStepChanged(GameSettingsPageStep value)
     {
         // 详情页保留被筛选掉的当前实例选择，返回列表时恢复普通筛选语义。
-        InstanceList.SetPreserveFilteredSelection(value is GameSettingsPageStep.Details);
+        var isDetailsActive = value is GameSettingsPageStep.Details;
+        InstanceList.SetPreserveFilteredSelection(isDetailsActive);
+        Details.SetPageActive(isDetailsActive);
         OnPropertyChanged(nameof(IsListStep));
         OnPropertyChanged(nameof(IsDetailsStep));
         OnPropertyChanged(nameof(IsGameSettingsContentVisible));
@@ -427,9 +429,9 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         OnPropertyChanged(nameof(PageTitleIconSource));
     }
 
-    private void EditDialog_InstanceRenameStarting() => Details.SuspendLocalWatchersForInstanceRename();
+    private void EditDialog_InstanceRenameStarting() => Details.SuspendLocalWatchersForInstanceMove();
 
-    private void EditDialog_InstanceRenameFinished() => Details.ResumeLocalWatchersAfterInstanceRename();
+    private void EditDialog_InstanceRenameFinished() => Details.ResumeLocalWatchersAfterInstanceMove();
 
     private void EditDialog_InstanceUpdated(GameInstance instance)
     {

@@ -80,7 +80,7 @@ public sealed class LocalSavesViewModel : IDisposable
         return RefreshSavesAsync();
     }
 
-    public Task RefreshSavesAsync() => refreshCoordinator.RefreshAsync();
+    public Task<bool> RefreshSavesAsync() => refreshCoordinator.RefreshAsync();
 
     public async Task DeleteSaveAsync(LocalSave save)
     {

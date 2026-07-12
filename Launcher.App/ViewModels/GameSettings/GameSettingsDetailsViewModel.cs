@@ -35,6 +35,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
     // 每个分区拥有独立状态和服务依赖；聚合层只同步实例引用与当前分区生命周期。
     private readonly InstanceSettingsPersistenceCoordinator persistence;
     private readonly ILogger logger;
+    private bool isPageActive;
 
     [ObservableProperty]
     private GameSettingsInstanceItem? selectedInstance;
@@ -222,26 +223,39 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
         SelectedSection = section;
     }
 
+    public void SetPageActive(bool value)
+    {
+        if (isPageActive == value)
+            return;
+
+        isPageActive = value;
+        if (isPageActive)
+            ActivateCurrentSection();
+        else
+            CurrentSectionViewModel?.OnSectionDeactivated();
+    }
+
     public void NotifyInstanceSettingsSaved(GameInstance instance)
     {
         InstanceSettingsSaved?.Invoke(instance);
     }
 
-    public void SuspendLocalWatchersForInstanceRename()
+    public void SuspendLocalWatchersForInstanceMove()
     {
-        // 重命名会短暂移动实例目录，暂停 watcher 可避免把事务中间态解释为内容删除。
+        // 重命名和删除都会移动实例目录；先释放 watcher 和刷新任务持有的目录句柄。
         ModManagement.SuspendLocalWatchersForInstanceRename();
         SaveManagement.SuspendLocalWatchersForInstanceRename();
         ResourcePackManagement.SuspendLocalWatchersForInstanceRename();
         ShaderPackManagement.SuspendLocalWatchersForInstanceRename();
     }
 
-    public void ResumeLocalWatchersAfterInstanceRename()
+    public void ResumeLocalWatchersAfterInstanceMove()
     {
         ModManagement.ResumeLocalWatchersAfterInstanceRename();
         SaveManagement.ResumeLocalWatchersAfterInstanceRename();
         ResourcePackManagement.ResumeLocalWatchersAfterInstanceRename();
         ShaderPackManagement.ResumeLocalWatchersAfterInstanceRename();
+        ActivateCurrentSection();
     }
 
     public Task DeleteModsAsync(IReadOnlyList<string> fullPaths) => ModManagement.DeleteModsAsync(fullPaths);
@@ -384,7 +398,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
 
     private void ActivateCurrentSection()
     {
-        if (CurrentSectionViewModel is { } section)
+        if (isPageActive && SelectedInstance is not null && CurrentSectionViewModel is { } section)
             _ = ObserveSectionActivationAsync(section);
     }
 

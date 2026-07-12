@@ -110,6 +110,52 @@ public sealed class InstanceContentRefreshWatcherTests
         Assert.Equal(["second"], applied);
     }
 
+    [Fact]
+    public async Task DisablingRefreshCoordinatorStopsWatchAndCancelsActiveRefresh()
+    {
+        var monitor = new RecordingDirectoryMonitor();
+        var cancellationObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var loadCount = 0;
+        IReadOnlyList<string> applied = [];
+        using var coordinator = new LocalContentRefreshCoordinator<string>(
+            monitor,
+            InstanceDirectoryKind.ResourcePacks,
+            async (_, cancellationToken) =>
+            {
+                if (Interlocked.Increment(ref loadCount) > 1)
+                    return ["loaded"];
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                    return [];
+                }
+                catch (OperationCanceledException)
+                {
+                    cancellationObserved.TrySetResult();
+                    throw;
+                }
+            },
+            values => applied = values,
+            () => { },
+            _ => { },
+            ImmediateUiDispatcher.Instance,
+            NullLogger.Instance);
+        coordinator.SetInstance(CreateInstance());
+        coordinator.SetWatcherEnabled(true);
+        var watch = monitor.Current;
+        var refresh = coordinator.RefreshAsync();
+
+        coordinator.SetWatcherEnabled(false);
+
+        await cancellationObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(await refresh);
+        Assert.True(watch.IsDisposed);
+
+        coordinator.SetWatcherEnabled(true);
+        Assert.True(await coordinator.RefreshAsync());
+        Assert.Equal(["loaded"], applied);
+    }
+
     private static GameInstance CreateInstance()
     {
         return new GameInstance

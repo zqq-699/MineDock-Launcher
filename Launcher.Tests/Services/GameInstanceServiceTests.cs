@@ -102,6 +102,120 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         Assert.True(await service.DeleteInstanceAsync("first"));
         Assert.Equal("second", (await new TestSettingsService(settings).LoadAsync()).DefaultInstanceId);
         Assert.Single(await repository.GetAllAsync());
+        Assert.Empty(Directory.GetDirectories(Path.Combine(settings.MinecraftDirectory, "versions"), ".bhl-delete-pending-*"));
+    }
+
+    [Fact]
+    public async Task DeleteInstancePreservesOriginalStateWhenStagingMoveFails()
+    {
+        var settings = CreateSettings("first");
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: () => Guid.ParseExact("a83f21c4000000000000000000000000", "N"),
+            stageDeletionMove: (_, _) => throw new IOException("source is locked"),
+            deleteStagedDirectory: null);
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+        await CreateVersionAsync(settings.MinecraftDirectory, "first");
+        await repository.SaveAllAsync([CreateStoredInstance("first")]);
+
+        await Assert.ThrowsAsync<IOException>(() => service.DeleteInstanceAsync("first"));
+
+        Assert.True(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "first")));
+        Assert.Single(await repository.GetAllAsync());
+        Assert.Equal("first", (await settingsService.LoadAsync()).DefaultInstanceId);
+    }
+
+    [Fact]
+    public async Task DeleteInstanceRemainsCommittedWhenPhysicalCleanupFails()
+    {
+        var settings = CreateSettings("first");
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: () => Guid.ParseExact("a83f21c4000000000000000000000000", "N"),
+            stageDeletionMove: Directory.Move,
+            deleteStagedDirectory: (_, _) => throw new IOException("directory is still in use"),
+            recycleStagedDirectory: _ => throw new IOException("recycle bin unavailable"));
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+        await CreateVersionAsync(settings.MinecraftDirectory, "first");
+        await repository.SaveAllAsync([CreateStoredInstance("first")]);
+
+        Assert.True(await service.DeleteInstanceAsync("first"));
+
+        var versionsDirectory = Path.Combine(settings.MinecraftDirectory, "versions");
+        Assert.False(Directory.Exists(Path.Combine(versionsDirectory, "first")));
+        Assert.True(Directory.Exists(Path.Combine(versionsDirectory, ".bhl-delete-pending-first-a83f21c4")));
+        Assert.Empty(await repository.GetAllAsync());
+        Assert.Empty(await service.GetInstancesAsync());
+        Assert.Equal(string.Empty, (await settingsService.LoadAsync()).DefaultInstanceId);
+    }
+
+    [Fact]
+    public async Task DeleteInstanceRejectsConcurrentDuplicateRequest()
+    {
+        var settings = CreateSettings();
+        var settingsService = new TestSettingsService(settings);
+        var moveStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var allowMove = new ManualResetEventSlim();
+        var moveCount = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: () => Guid.NewGuid(),
+            stageDeletionMove: (source, destination) =>
+            {
+                Interlocked.Increment(ref moveCount);
+                moveStarted.TrySetResult();
+                if (!allowMove.Wait(TimeSpan.FromSeconds(5)))
+                    throw new TimeoutException("test did not release staged deletion move");
+                Directory.Move(source, destination);
+            },
+            deleteStagedDirectory: null,
+            recycleStagedDirectory: path => Directory.Delete(path, recursive: true));
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+        await CreateVersionAsync(settings.MinecraftDirectory, "first");
+        await repository.SaveAllAsync([CreateStoredInstance("first")]);
+
+        var firstDelete = service.DeleteInstanceAsync("first");
+        await moveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var duplicateResult = await service.DeleteInstanceAsync("first");
+        allowMove.Set();
+
+        Assert.False(duplicateResult);
+        Assert.True(await firstDelete);
+        Assert.Equal(1, moveCount);
+    }
+
+    [Fact]
+    public async Task StartupCleanupServiceDeletesPendingInstanceDirectories()
+    {
+        var settings = CreateSettings();
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: null,
+            stageDeletionMove: null,
+            deleteStagedDirectory: null,
+            recycleStagedDirectory: path => Directory.Delete(path, recursive: true));
+        var pendingDirectory = Path.Combine(
+            settings.MinecraftDirectory,
+            "versions",
+            ".bhl-delete-pending-Test-a83f21c4");
+        Directory.CreateDirectory(pendingDirectory);
+        await File.WriteAllTextAsync(Path.Combine(pendingDirectory, "Test.json"), """{"id":"Test"}""");
+        var cleanupService = new InstanceDeletionCleanupService(settingsService, repository);
+
+        await cleanupService.CleanupPendingAsync();
+
+        Assert.False(Directory.Exists(pendingDirectory));
     }
 
     [Fact]
@@ -133,17 +247,26 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     private (LauncherSettings Settings, JsonGameInstanceRepository Repository, GameInstanceService Service, FakeLoaderProvider Provider)
         CreateService(FakeLoaderProvider? provider = null, string? defaultInstanceId = null)
     {
-        var settings = new LauncherSettings
-        {
-            DataDirectory = TempRoot,
-            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
-            DefaultInstanceId = defaultInstanceId ?? string.Empty
-        };
+        var settings = CreateSettings(defaultInstanceId);
         var settingsService = new TestSettingsService(settings);
-        var repository = new JsonGameInstanceRepository(settingsService);
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: null,
+            stageDeletionMove: null,
+            deleteStagedDirectory: null,
+            recycleStagedDirectory: path => Directory.Delete(path, recursive: true));
         provider ??= new FakeLoaderProvider();
         return (settings, repository, new GameInstanceService(settingsService, repository, [provider]), provider);
     }
+
+    private LauncherSettings CreateSettings(string? defaultInstanceId = null) => new()
+    {
+        DataDirectory = TempRoot,
+        MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+        DefaultInstanceId = defaultInstanceId ?? string.Empty
+    };
 
     private static async Task CreateVersionAsync(
         string minecraftDirectory,

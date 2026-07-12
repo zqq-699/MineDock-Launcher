@@ -492,7 +492,8 @@ public sealed partial class InstanceResourcePackManagementSettingsViewModel : Ga
 
         try
         {
-            await localResourcePacksViewModel.RefreshResourcePacksAsync();
+            if (!await localResourcePacksViewModel.RefreshResourcePacksAsync())
+                return;
             HasLoadedResourcePacks = true;
             // 只有可见页面立即播放列表动画，隐藏页面仅设置待刷新标志。
             if (isSectionActive)

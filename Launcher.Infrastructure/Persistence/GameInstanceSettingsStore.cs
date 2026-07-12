@@ -43,6 +43,8 @@ internal sealed class GameInstanceSettingsStore(ILogger logger)
         foreach (var versionDirectory in EnumerateDirectories(versionsDirectory))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (PendingInstanceDeletionDirectory.IsPending(versionDirectory))
+                continue;
 
             var settingsPath = GetSettingsPath(versionDirectory);
             if (!File.Exists(settingsPath))
@@ -175,6 +177,8 @@ internal sealed class GameInstanceSettingsStore(ILogger logger)
 
         foreach (var versionDirectory in EnumerateDirectories(versionsDirectory))
         {
+            if (PendingInstanceDeletionDirectory.IsPending(versionDirectory))
+                continue;
             var settingsPath = GetSettingsPath(versionDirectory);
             if (!File.Exists(settingsPath) || persistedSettingsPaths.Contains(Path.GetFullPath(settingsPath)))
                 continue;

@@ -768,7 +768,8 @@ public sealed partial class InstanceModManagementSettingsViewModel : GameSetting
 
         try
         {
-            await localModsViewModel.RefreshModsAsync();
+            if (!await localModsViewModel.RefreshModsAsync())
+                return;
             HasLoadedMods = true;
             // 隐藏页面不消费入场动画；下次激活时才触发一次完整视觉更新。
             if (isSectionActive)

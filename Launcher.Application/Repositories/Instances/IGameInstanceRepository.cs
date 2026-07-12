@@ -43,6 +43,20 @@ public interface IGameInstanceRepository
 
     void DeleteVersionDirectory(string minecraftDirectory, string versionName);
 
+    Task<string> StageVersionForDeletionAsync(
+        string minecraftDirectory,
+        string versionName,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> TryDeleteStagedVersionDirectoryAsync(
+        string minecraftDirectory,
+        string stagedDirectory,
+        CancellationToken cancellationToken = default);
+
+    Task CleanupStagedVersionDirectoriesAsync(
+        string minecraftDirectory,
+        CancellationToken cancellationToken = default);
+
     Task RenameVersionAsync(
         string minecraftDirectory,
         string oldVersionName,

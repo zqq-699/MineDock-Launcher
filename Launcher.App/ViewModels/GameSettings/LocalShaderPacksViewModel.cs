@@ -76,7 +76,7 @@ public sealed class LocalShaderPacksViewModel : IDisposable
         return RefreshShaderPacksAsync();
     }
 
-    public Task RefreshShaderPacksAsync() => refreshCoordinator.RefreshAsync();
+    public Task<bool> RefreshShaderPacksAsync() => refreshCoordinator.RefreshAsync();
 
     public async Task<int> DeleteShaderPacksAsync(IEnumerable<LocalShaderPack> shaderPacks)
     {

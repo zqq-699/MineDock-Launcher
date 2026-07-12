@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using Launcher.Application.Repositories;
@@ -36,6 +37,7 @@ public sealed class GameInstanceService : IGameInstanceService
     private readonly IGameInstallCoordinator installCoordinator;
     private readonly GameInstanceCreationCoordinator creationCoordinator;
     private readonly ILogger<GameInstanceService> logger;
+    private readonly ConcurrentDictionary<string, byte> pendingInstanceDeletions = new(StringComparer.OrdinalIgnoreCase);
 
     public GameInstanceService(
         ISettingsService settingsService,
@@ -283,32 +285,93 @@ public sealed class GameInstanceService : IGameInstanceService
         if (string.IsNullOrWhiteSpace(instanceId))
             return false;
 
-        var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
-        var instances = (await GetInstancesCoreAsync(settings, cancellationToken).ConfigureAwait(false)).ToList();
-        var instance = instances.FirstOrDefault(existing =>
-            string.Equals(existing.Id, instanceId, StringComparison.OrdinalIgnoreCase));
-
-        if (instance is null)
-            return false;
-
-        instances.Remove(instance);
-
-        var versionName = GetVersionName(instance);
-        if (!string.IsNullOrWhiteSpace(versionName))
-            repository.DeleteVersionDirectory(settings.MinecraftDirectory, versionName);
-
-        await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
-        logger.LogInformation("Game instance deleted. InstanceId={InstanceId} VersionName={VersionName}", instance.Id, versionName);
-
-        if (string.Equals(settings.DefaultInstanceId, instance.Id, StringComparison.OrdinalIgnoreCase))
+        var deletionKey = instanceId.Trim();
+        if (!pendingInstanceDeletions.TryAdd(deletionKey, 0))
         {
-            var nextDefaultInstance = instances.FirstOrDefault();
-            settings.DefaultInstanceId = nextDefaultInstance?.Id ?? string.Empty;
-            await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
-            logger.LogInformation("Default game instance changed after deletion. DefaultInstanceId={DefaultInstanceId}", settings.DefaultInstanceId);
+            logger.LogWarning("Duplicate game instance deletion ignored. InstanceId={InstanceId}", instanceId);
+            return false;
         }
 
-        return true;
+        try
+        {
+            var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var instances = (await GetInstancesCoreAsync(settings, cancellationToken).ConfigureAwait(false)).ToList();
+            var instance = instances.FirstOrDefault(existing =>
+                string.Equals(existing.Id, instanceId, StringComparison.OrdinalIgnoreCase));
+
+            if (instance is null)
+                return false;
+
+            var versionName = GetVersionName(instance);
+            if (string.IsNullOrWhiteSpace(versionName))
+                return false;
+
+            var stagedDirectory = await repository
+                .StageVersionForDeletionAsync(
+                    settings.MinecraftDirectory,
+                    versionName,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            // Directory.Move is the irreversible commit point. From here on the instance must never be restored.
+            instances.Remove(instance);
+            await PersistDeletionStateBestEffortAsync(settings, instances, instance).ConfigureAwait(false);
+
+            var physicalCleanupCompleted = await repository
+                .TryDeleteStagedVersionDirectoryAsync(
+                    settings.MinecraftDirectory,
+                    stagedDirectory,
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+            logger.LogInformation(
+                "Game instance deletion committed. InstanceId={InstanceId} VersionName={VersionName} PhysicalCleanupCompleted={PhysicalCleanupCompleted}",
+                instance.Id,
+                versionName,
+                physicalCleanupCompleted);
+            return true;
+        }
+        finally
+        {
+            pendingInstanceDeletions.TryRemove(deletionKey, out _);
+        }
+    }
+
+    private async Task PersistDeletionStateBestEffortAsync(
+        LauncherSettings settings,
+        IReadOnlyCollection<GameInstance> remainingInstances,
+        GameInstance deletedInstance)
+    {
+        try
+        {
+            await repository.SaveAllAsync(remainingInstances, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Failed to persist remaining game instances after deletion commit. InstanceId={InstanceId}",
+                deletedInstance.Id);
+        }
+
+        if (!string.Equals(settings.DefaultInstanceId, deletedInstance.Id, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        settings.DefaultInstanceId = remainingInstances.FirstOrDefault()?.Id ?? string.Empty;
+        try
+        {
+            await settingsService.SaveAsync(settings, CancellationToken.None).ConfigureAwait(false);
+            logger.LogInformation(
+                "Default game instance changed after deletion. DefaultInstanceId={DefaultInstanceId}",
+                settings.DefaultInstanceId);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Failed to persist default game instance after deletion commit. DeletedInstanceId={DeletedInstanceId} DefaultInstanceId={DefaultInstanceId}",
+                deletedInstance.Id,
+                settings.DefaultInstanceId);
+        }
     }
 
     private static bool IsSameVersionIdentity(GameInstance instance, string versionName)

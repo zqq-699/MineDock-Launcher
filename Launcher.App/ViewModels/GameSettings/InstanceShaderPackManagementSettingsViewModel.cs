@@ -492,7 +492,8 @@ public sealed partial class InstanceShaderPackManagementSettingsViewModel : Game
 
         try
         {
-            await localShaderPacksViewModel.RefreshShaderPacksAsync();
+            if (!await localShaderPacksViewModel.RefreshShaderPacksAsync())
+                return;
             HasLoadedShaderPacks = true;
             // 只有可见页面立即播放列表动画，隐藏页面仅设置待刷新标志。
             if (isSectionActive)
