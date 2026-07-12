@@ -1,34 +1,34 @@
 {
   "schemaVersion": 1,
   "appId": "BlockHelm-Launcher",
+  "keyId": "40a44dfdb94667529e614671a7fe557d124980877e0b25e1811beff9dd7a7f46",
   "channel": "beta",
-  "versionName": "0.9.3-beta.1",
-  "versionCode": 90301,
-  "publishedAt": "2026-07-11T19:56:27Z",
+  "versionName": "0.9.3-beta.2",
+  "versionCode": 90302,
+  "publishedAt": "2026-07-12T10:20:03Z",
   "mandatory": false,
   "minSupportedVersionCode": 0,
-  "releaseNotes": "# Beta 0.9.3-beta.1\r\n\r\n- Add complete third-party Yggdrasil account login, multi-profile import, profile refresh, and authlib-injector game launch support.\r\n- Show third-party account skins, capes, avatars, and authentication platform details with improved fallback behavior.\r\n- Protect third-party and Microsoft account credentials with Windows DPAPI and support interactive reauthentication when sessions expire.\r\n- Improve launcher architecture, list virtualization, resource search, UI stability, diagnostics, and automated coverage.",
+  "releaseNotes": "# Beta 0.9.3-beta.2\r\n\r\n- Secure launcher self-updates with Ed25519-signed manifests and mandatory SHA-256 and file-size verification.\r\n- Require byte-identical signed manifests from GitHub and Gitee while allowing one temporarily unavailable mirror.\r\n- Restrict update downloads and redirects to official HTTPS domains and stop safely on any integrity failure.\r\n- Add signed Release/Beta publishing, mirror verification, signing-key isolation, and updater security regression coverage.",
   "assets": [
     {
       "platform": "windows",
       "arch": "x64",
       "packageType": "exe",
       "fileName": "BlockHelm_Launcher_x64.exe",
-      "size": 7873547,
-      "sha256": "7c26df4028e89c86ee1e33bfd0ed891be3fb95394ae69a963443064b1724faca",
+      "size": 12925109,
+      "sha256": "b7f3281e7d5f7e5909e8f075b6e50e0901da6627929d7bd63f445585e34cd5fa",
       "urls": [
         {
           "name": "gitee",
-          "url": "https://gitee.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.3-beta.1/BlockHelm_Launcher_x64.exe",
+          "url": "https://gitee.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.3-beta.2/BlockHelm_Launcher_x64.exe",
           "priority": 1
         },
         {
           "name": "github",
-          "url": "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.3-beta.1/BlockHelm_Launcher_x64.exe",
+          "url": "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.3-beta.2/BlockHelm_Launcher_x64.exe",
           "priority": 2
         }
       ]
     }
   ]
 }
-
