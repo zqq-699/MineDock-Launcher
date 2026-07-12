@@ -23,5 +23,6 @@ public enum InstanceBackupFailureReason
 {
     Unknown,
     InstanceDirectoryNotFound,
-    BackupDirectoryInsideInstance
+    BackupDirectoryInsideInstance,
+    InstanceChanged
 }

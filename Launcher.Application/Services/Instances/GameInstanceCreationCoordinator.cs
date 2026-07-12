@@ -160,7 +160,16 @@ internal sealed class GameInstanceCreationCoordinator
         try
         {
             var latestSettings = await settingsService.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(latestSettings.DefaultInstanceId))
+            if (!PathsEqual(latestSettings.MinecraftDirectory, settings.MinecraftDirectory))
+            {
+                logicalCommitCompleted = false;
+                logger.LogWarning(
+                    "Instance install committed after the Minecraft directory changed; leaving recovery marker for the original directory. InstanceId={InstanceId} InstallMinecraftDirectory={InstallMinecraftDirectory} CurrentMinecraftDirectory={CurrentMinecraftDirectory}",
+                    instance.Id,
+                    settings.MinecraftDirectory,
+                    latestSettings.MinecraftDirectory);
+            }
+            else if (string.IsNullOrWhiteSpace(latestSettings.DefaultInstanceId))
             {
                 latestSettings.DefaultInstanceId = instance.Id;
                 await settingsService.SaveAsync(latestSettings, CancellationToken.None).ConfigureAwait(false);
@@ -181,6 +190,13 @@ internal sealed class GameInstanceCreationCoordinator
             instance.VersionName,
             instance.InstanceDirectory);
         return instance;
+    }
+
+    private static bool PathsEqual(string first, string second)
+    {
+        var normalizedFirst = Path.TrimEndingDirectorySeparator(Path.GetFullPath(first));
+        var normalizedSecond = Path.TrimEndingDirectorySeparator(Path.GetFullPath(second));
+        return string.Equals(normalizedFirst, normalizedSecond, StringComparison.OrdinalIgnoreCase);
     }
 
     private GameInstance CreateInstance(

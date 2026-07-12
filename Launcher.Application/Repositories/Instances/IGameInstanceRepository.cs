@@ -27,7 +27,16 @@ public interface IGameInstanceRepository
 
     Task<IReadOnlyList<GameInstance>> GetAllAsync(string minecraftDirectory, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Creates or updates settings for the supplied instances without deleting settings for omitted instances.
+    /// Instance removal must use the explicit deletion transaction.
+    /// </summary>
     Task SaveAllAsync(IReadOnlyCollection<GameInstance> instances, CancellationToken cancellationToken = default);
+
+    Task UpdateInstanceAsync(
+        string minecraftDirectory,
+        GameInstance instance,
+        CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<InstalledGameVersion>> DiscoverInstalledVersionsAsync(
         string minecraftDirectory,
@@ -46,6 +55,7 @@ public interface IGameInstanceRepository
     Task<string> StageVersionForDeletionAsync(
         string minecraftDirectory,
         string versionName,
+        string expectedInstanceId,
         CancellationToken cancellationToken = default);
 
     Task<bool> TryDeleteStagedVersionDirectoryAsync(

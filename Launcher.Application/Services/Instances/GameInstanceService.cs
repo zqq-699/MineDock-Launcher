@@ -176,6 +176,7 @@ public sealed class GameInstanceService : IGameInstanceService
 
     public async Task SaveInstanceAsync(GameInstance instance, CancellationToken cancellationToken = default)
     {
+        var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var instances = (await GetInstancesAsync(cancellationToken).ConfigureAwait(false)).ToList();
         var index = instances.FindIndex(existing => existing.Id == instance.Id);
         instance.UpdatedAt = DateTimeOffset.UtcNow;
@@ -185,7 +186,8 @@ public sealed class GameInstanceService : IGameInstanceService
         else
             instances.Add(instance);
 
-        await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
+        await repository.UpdateInstanceAsync(settings.MinecraftDirectory, instance, cancellationToken)
+            .ConfigureAwait(false);
         logger.LogInformation("Game instance saved. InstanceId={InstanceId} VersionName={VersionName}", instance.Id, instance.VersionName);
     }
 
@@ -266,7 +268,11 @@ public sealed class GameInstanceService : IGameInstanceService
             instances[index] = instance;
 
         if (!directoryRenamed)
-            await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
+        {
+            var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+            await repository.UpdateInstanceAsync(settings.MinecraftDirectory, instance, cancellationToken)
+                .ConfigureAwait(false);
+        }
         logger.LogInformation(
             "Game instance renamed. InstanceId={InstanceId} VersionName={VersionName} IconChanged={IconChanged}",
             instance.Id,
@@ -332,12 +338,26 @@ public sealed class GameInstanceService : IGameInstanceService
             if (string.IsNullOrWhiteSpace(versionName))
                 return false;
 
-            var stagedDirectory = await repository
-                .StageVersionForDeletionAsync(
-                    settings.MinecraftDirectory,
-                    versionName,
-                    cancellationToken)
-                .ConfigureAwait(false);
+            string stagedDirectory;
+            try
+            {
+                stagedDirectory = await repository
+                    .StageVersionForDeletionAsync(
+                        settings.MinecraftDirectory,
+                        versionName,
+                        instance.Id,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (GameInstanceMutationConflictException exception)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Stale game instance deletion was rejected. InstanceId={InstanceId} VersionName={VersionName}",
+                    instance.Id,
+                    versionName);
+                return false;
+            }
 
             // Directory.Move is the irreversible commit point. From here on the instance must never be restored.
             instances.Remove(instance);

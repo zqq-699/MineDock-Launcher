@@ -20,6 +20,7 @@
 using System.IO;
 using System.Text.Json;
 using Launcher.Application;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 
@@ -29,7 +30,11 @@ internal sealed class GameInstanceSettingsStore(ILogger logger)
 {
     private const string LauncherDirectoryName = LauncherApplicationIdentity.StorageDirectoryName;
     private const string InstanceSettingsFileName = "instance-settings.json";
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true
+    };
 
     public async Task<IReadOnlyList<GameInstance>> LoadAsync(
         string minecraftDirectory,
@@ -70,7 +75,7 @@ internal sealed class GameInstanceSettingsStore(ILogger logger)
         string minecraftDirectory,
         CancellationToken cancellationToken)
     {
-        var persistedSettingsPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var persistedCount = 0;
         var persistedVersionNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var instance in instances)
@@ -86,14 +91,93 @@ internal sealed class GameInstanceSettingsStore(ILogger logger)
                 continue;
 
             var settingsPath = GetSettingsPath(versionDirectory);
+            if (File.Exists(settingsPath))
+            {
+                var current = await TryLoadAsync(settingsPath, cancellationToken).ConfigureAwait(false);
+                if (current is null
+                    || !string.Equals(current.Id, instance.Id, StringComparison.OrdinalIgnoreCase))
+                {
+                    logger.LogWarning(
+                        "Skipped stale game instance settings update. ExpectedInstanceId={ExpectedInstanceId} CurrentInstanceId={CurrentInstanceId} VersionName={VersionName}",
+                        instance.Id,
+                        current?.Id,
+                        versionName);
+                    continue;
+                }
+            }
+
             var snapshot = CreateStorageSnapshot(instance, versionDirectory, versionName);
             await AtomicJsonFileWriter.WriteAsync(settingsPath, snapshot, JsonOptions, cancellationToken)
                 .ConfigureAwait(false);
-            persistedSettingsPaths.Add(Path.GetFullPath(settingsPath));
+            persistedCount++;
         }
 
-        CleanupOrphanedSettings(minecraftDirectory, persistedSettingsPaths);
-        return persistedSettingsPaths.Count;
+        return persistedCount;
+    }
+
+    public async Task UpdateAsync(
+        GameInstance instance,
+        string minecraftDirectory,
+        CancellationToken cancellationToken)
+    {
+        var versionName = GetVersionName(instance);
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", versionName);
+        await EnsureIdentityAsync(versionDirectory, instance.Id, cancellationToken).ConfigureAwait(false);
+        var snapshot = CreateStorageSnapshot(instance, versionDirectory, versionName);
+        await AtomicJsonFileWriter.WriteAsync(
+                GetSettingsPath(versionDirectory),
+                snapshot,
+                JsonOptions,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task EnsureIdentityAsync(
+        string versionDirectory,
+        string expectedInstanceId,
+        CancellationToken cancellationToken)
+    {
+        var settingsPath = GetSettingsPath(versionDirectory);
+        var current = File.Exists(settingsPath)
+            ? await TryLoadAsync(settingsPath, cancellationToken).ConfigureAwait(false)
+            : null;
+        if (current is null
+            || !string.Equals(current.Id, expectedInstanceId, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new GameInstanceMutationConflictException(
+                expectedInstanceId,
+                Path.GetFileName(Path.TrimEndingDirectorySeparator(versionDirectory)));
+        }
+    }
+
+    public static bool HasIdentity(string versionDirectory, string expectedInstanceId)
+    {
+        try
+        {
+            var settingsPath = GetSettingsPath(versionDirectory);
+            if (!File.Exists(settingsPath))
+                return false;
+            using var document = JsonDocument.Parse(File.ReadAllText(settingsPath));
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (string.Equals(property.Name, "Id", StringComparison.OrdinalIgnoreCase))
+                {
+                    return property.Value.ValueKind == JsonValueKind.String
+                        && string.Equals(
+                            property.Value.GetString(),
+                            expectedInstanceId,
+                            StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            return false;
+        }
+        catch (Exception exception) when (exception is IOException
+                                          or UnauthorizedAccessException
+                                          or JsonException)
+        {
+            return false;
+        }
     }
 
     public async Task CompleteRenameAsync(
@@ -206,35 +290,6 @@ internal sealed class GameInstanceSettingsStore(ILogger logger)
             CreatedAt = instance.CreatedAt,
             UpdatedAt = instance.UpdatedAt
         };
-    }
-
-    private void CleanupOrphanedSettings(string minecraftDirectory, IReadOnlySet<string> persistedSettingsPaths)
-    {
-        var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
-        if (!Directory.Exists(versionsDirectory))
-            return;
-
-        foreach (var versionDirectory in EnumerateDirectories(versionsDirectory))
-        {
-            if (ShouldIgnoreDirectory(versionDirectory))
-                continue;
-            var settingsPath = GetSettingsPath(versionDirectory);
-            if (!File.Exists(settingsPath) || persistedSettingsPaths.Contains(Path.GetFullPath(settingsPath)))
-                continue;
-
-            try
-            {
-                File.Delete(settingsPath);
-            }
-            catch (IOException exception)
-            {
-                logger.LogWarning(exception, "Failed to remove orphaned game instance settings. SettingsPath={SettingsPath}", settingsPath);
-            }
-            catch (UnauthorizedAccessException exception)
-            {
-                logger.LogWarning(exception, "Access denied while removing orphaned game instance settings. SettingsPath={SettingsPath}", settingsPath);
-            }
-        }
     }
 
     private static string GetSettingsPath(string versionDirectory)

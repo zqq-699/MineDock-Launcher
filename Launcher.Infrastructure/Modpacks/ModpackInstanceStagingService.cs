@@ -123,7 +123,6 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
         string finalVersionName,
         CancellationToken cancellationToken = default)
     {
-        var hadDefaultInstance = await instanceService.GetDefaultInstanceAsync(cancellationToken).ConfigureAwait(false) is not null;
         var instance = stagedInstance.Instance;
         var transaction = stagedInstance.InstallTransaction
             ?? throw new InvalidOperationException("Modpack install transaction is missing.");
@@ -137,7 +136,17 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
         var logicalCommitCompleted = true;
         try
         {
-            if (!hadDefaultInstance)
+            var latestSettings = await settingsService.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+            if (!PathsEqual(latestSettings.MinecraftDirectory, stagedInstance.MinecraftDirectory))
+            {
+                logicalCommitCompleted = false;
+                logger.LogWarning(
+                    "Modpack installation committed after the Minecraft directory changed; leaving recovery marker for the original directory. InstanceId={InstanceId} InstallMinecraftDirectory={InstallMinecraftDirectory} CurrentMinecraftDirectory={CurrentMinecraftDirectory}",
+                    instance.Id,
+                    stagedInstance.MinecraftDirectory,
+                    latestSettings.MinecraftDirectory);
+            }
+            else if (string.IsNullOrWhiteSpace(latestSettings.DefaultInstanceId))
                 await instanceService.SetDefaultInstanceAsync(instance.Id, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception exception)
@@ -149,6 +158,13 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
             await transaction.CompleteLogicalCommitAsync(CancellationToken.None).ConfigureAwait(false);
         await transaction.DisposeAsync().ConfigureAwait(false);
         return instance;
+    }
+
+    private static bool PathsEqual(string first, string second)
+    {
+        var normalizedFirst = Path.TrimEndingDirectorySeparator(Path.GetFullPath(first));
+        var normalizedSecond = Path.TrimEndingDirectorySeparator(Path.GetFullPath(second));
+        return string.Equals(normalizedFirst, normalizedSecond, StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task CleanupFailedImportAsync(
@@ -165,25 +181,12 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(finalVersionName))
-            TryDeleteVersionDirectory(settings.MinecraftDirectory, finalVersionName);
-
-        if (!string.IsNullOrWhiteSpace(stagedInstance.ResolvedInstanceName))
-            TryDeleteVersionDirectory(settings.MinecraftDirectory, stagedInstance.ResolvedInstanceName);
-    }
-
-    private void TryDeleteVersionDirectory(string minecraftDirectory, string versionName)
-    {
-        try
-        {
-            repository.DeleteVersionDirectory(minecraftDirectory, versionName);
-        }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
+        logger.LogWarning(
+            "Skipped non-transactional modpack cleanup because directory ownership cannot be proven. InstanceId={InstanceId} ResolvedInstanceName={ResolvedInstanceName} FinalVersionName={FinalVersionName} MinecraftDirectory={MinecraftDirectory}",
+            stagedInstance.Instance.Id,
+            stagedInstance.ResolvedInstanceName,
+            finalVersionName,
+            settings.MinecraftDirectory);
     }
 
     private async Task<string> ResolveUniqueInstanceNameAsync(

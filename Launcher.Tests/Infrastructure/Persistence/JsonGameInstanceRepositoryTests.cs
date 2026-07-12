@@ -18,6 +18,7 @@
  */
 
 using Launcher.Application;
+using Launcher.Application.Services;
 using System.Text.Json;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Persistence;
@@ -104,6 +105,101 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         Assert.Equal((int)LaunchSettingsMode.PerInstance, document.RootElement.GetProperty("JavaSettingsMode").GetInt32());
         Assert.Equal((int)JavaSelectionMode.Manual, document.RootElement.GetProperty("JavaSelectionMode").GetInt32());
         Assert.Equal(@"C:\Java\jdk-21\bin\java.exe", document.RootElement.GetProperty("SelectedJavaExecutablePath").GetString());
+    }
+
+    [Fact]
+    public async Task SaveAllAsyncDoesNotDeleteSettingsForOmittedInstances()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var firstDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "First");
+        var secondDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Second");
+        repository.CreateInstanceDirectories(firstDirectory);
+        repository.CreateInstanceDirectories(secondDirectory);
+        var first = CreateInstance("first", "First", firstDirectory);
+        var second = CreateInstance("second", "Second", secondDirectory);
+        await repository.SaveAllAsync([first, second]);
+
+        await repository.SaveAllAsync([first]);
+
+        var secondSettingsPath = Path.Combine(
+            secondDirectory,
+            InstanceMetadataDirectoryName,
+            "instance-settings.json");
+        Assert.True(File.Exists(secondSettingsPath));
+        Assert.Contains(await repository.GetAllAsync(), instance => instance.Id == "second");
+    }
+
+    [Fact]
+    public async Task SaveAllAsyncWithStaleSnapshotDoesNotDeleteInstanceSavedByAnotherRepository()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var staleRepository = new JsonGameInstanceRepository(settingsService);
+        var currentRepository = new JsonGameInstanceRepository(settingsService);
+        var existingDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Existing");
+        staleRepository.CreateInstanceDirectories(existingDirectory);
+        await staleRepository.SaveAllAsync([CreateInstance("existing", "Existing", existingDirectory)]);
+        var staleSnapshot = await staleRepository.GetAllAsync();
+
+        var newDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "NewlyInstalled");
+        currentRepository.CreateInstanceDirectories(newDirectory);
+        var newlyInstalled = CreateInstance("newly-installed", "NewlyInstalled", newDirectory);
+        await currentRepository.SaveAllAsync([.. staleSnapshot, newlyInstalled]);
+
+        await staleRepository.SaveAllAsync(staleSnapshot);
+
+        var newSettingsPath = Path.Combine(
+            newDirectory,
+            InstanceMetadataDirectoryName,
+            "instance-settings.json");
+        Assert.True(File.Exists(newSettingsPath));
+        var reloaded = await new JsonGameInstanceRepository(settingsService).GetAllAsync();
+        Assert.Contains(reloaded, instance => instance.Id == "newly-installed");
+    }
+
+    [Fact]
+    public async Task SaveAllAsyncDoesNotOverwriteSameNameReplacementInstance()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var staleRepository = new JsonGameInstanceRepository(settingsService);
+        var currentRepository = new JsonGameInstanceRepository(settingsService);
+        var directory = await CreateStoredInstanceAsync(staleRepository, settings.MinecraftDirectory, "Test");
+        var staleInstance = Assert.Single(await staleRepository.GetAllAsync());
+        Directory.Delete(directory, recursive: true);
+        CreateVersionDirectory(settings.MinecraftDirectory, "Test");
+        var replacement = CreateInstance("replacement", "Test", directory);
+        replacement.Description = "keep replacement";
+        await currentRepository.SaveAllAsync([replacement]);
+
+        staleInstance.Description = "stale overwrite";
+        await staleRepository.SaveAllAsync([staleInstance]);
+
+        var reloaded = Assert.Single(await currentRepository.GetAllAsync());
+        Assert.Equal("replacement", reloaded.Id);
+        Assert.Equal("keep replacement", reloaded.Description);
+    }
+
+    [Fact]
+    public async Task UpdateInstanceAsyncRejectsSameNameReplacementInstance()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var directory = await CreateStoredInstanceAsync(repository, settings.MinecraftDirectory, "Test");
+        var staleInstance = Assert.Single(await repository.GetAllAsync());
+        Directory.Delete(directory, recursive: true);
+        CreateVersionDirectory(settings.MinecraftDirectory, "Test");
+        var replacement = CreateInstance("replacement", "Test", directory);
+        replacement.IconSource = "replacement.png";
+        await repository.SaveAllAsync([replacement]);
+
+        staleInstance.IconSource = "stale.png";
+        await Assert.ThrowsAsync<GameInstanceMutationConflictException>(() => repository.UpdateInstanceAsync(
+            settings.MinecraftDirectory,
+            staleInstance));
+
+        var reloaded = Assert.Single(await repository.GetAllAsync());
+        Assert.Equal("replacement", reloaded.Id);
+        Assert.Equal("replacement.png", reloaded.IconSource);
     }
 
     [Fact]
@@ -365,6 +461,360 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "New Pack")));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RenameVersionAsyncRejectsOccupiedDestinationBeforeStaging(bool destinationIsDirectory)
+    {
+        var (settings, settingsService) = CreateSettings();
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var oldDirectory = await CreateStoredInstanceAsync(repository, settings.MinecraftDirectory, "Old Pack");
+        var instance = Assert.Single(await repository.GetAllAsync());
+        var destination = Path.Combine(settings.MinecraftDirectory, "versions", "New Pack");
+        if (destinationIsDirectory)
+        {
+            Directory.CreateDirectory(destination);
+            await File.WriteAllTextAsync(Path.Combine(destination, "keep.txt"), "keep");
+        }
+        else
+        {
+            await File.WriteAllTextAsync(destination, "keep");
+        }
+
+        await Assert.ThrowsAsync<InstanceInstallNameConflictException>(() => repository.RenameVersionAsync(
+            settings.MinecraftDirectory,
+            instance,
+            "New Pack",
+            null,
+            DateTimeOffset.UtcNow));
+
+        Assert.True(Directory.Exists(oldDirectory));
+        Assert.True(File.Exists(Path.Combine(oldDirectory, "Old Pack.json")));
+        Assert.False(File.Exists(Path.Combine(oldDirectory, ".bhl-rename-pending.json")));
+        Assert.Empty(Directory.EnumerateDirectories(
+            Path.Combine(settings.MinecraftDirectory, "versions"),
+            ".bhl-rename-pending-*"));
+        if (destinationIsDirectory)
+            Assert.Equal("keep", await File.ReadAllTextAsync(Path.Combine(destination, "keep.txt")));
+        else
+            Assert.Equal("keep", await File.ReadAllTextAsync(destination));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RenameVersionAsyncRollsBackWhenDestinationAppearsDuringFinalMove(bool destinationIsDirectory)
+    {
+        var (settings, settingsService) = CreateSettings();
+        var moveAttempts = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            moveDirectoryAsync: (source, destination, _) =>
+            {
+                moveAttempts++;
+                if (string.Equals(Path.GetFileName(destination), "New Pack", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (destinationIsDirectory)
+                    {
+                        Directory.CreateDirectory(destination);
+                        File.WriteAllText(Path.Combine(destination, "keep.txt"), "keep");
+                    }
+                    else
+                    {
+                        File.WriteAllText(destination, "keep");
+                    }
+
+                    throw new IOException("destination won the race");
+                }
+
+                Directory.Move(source, destination);
+                return Task.CompletedTask;
+            });
+        CreateVersionDirectory(settings.MinecraftDirectory, "Old Pack");
+        var oldDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Old Pack");
+        Directory.CreateDirectory(Path.Combine(oldDirectory, "Old Pack-natives"));
+        var instance = new GameInstance
+        {
+            Id = "old",
+            Name = "Old Pack",
+            MinecraftVersion = "1.20.1",
+            VersionName = "Old Pack",
+            InstanceDirectory = oldDirectory
+        };
+        await repository.SaveAllAsync([instance]);
+
+        await Assert.ThrowsAsync<InstanceInstallNameConflictException>(() => repository.RenameVersionAsync(
+            settings.MinecraftDirectory,
+            instance,
+            "New Pack",
+            null,
+            DateTimeOffset.UtcNow));
+
+        Assert.Equal(3, moveAttempts);
+        Assert.True(File.Exists(Path.Combine(oldDirectory, "Old Pack.json")));
+        Assert.True(File.Exists(Path.Combine(oldDirectory, "Old Pack.jar")));
+        Assert.True(Directory.Exists(Path.Combine(oldDirectory, "Old Pack-natives")));
+        Assert.False(File.Exists(Path.Combine(oldDirectory, ".bhl-rename-pending.json")));
+        Assert.Empty(Directory.EnumerateDirectories(
+            Path.Combine(settings.MinecraftDirectory, "versions"),
+            ".bhl-rename-pending-*"));
+        using (var document = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(oldDirectory, "Old Pack.json"))))
+        {
+            Assert.Equal("Old Pack", document.RootElement.GetProperty("id").GetString());
+            Assert.Equal("Old Pack", document.RootElement.GetProperty("jar").GetString());
+        }
+        Assert.Equal("Old Pack", Assert.Single(await repository.GetAllAsync()).VersionName);
+
+        var destination = Path.Combine(settings.MinecraftDirectory, "versions", "New Pack");
+        if (destinationIsDirectory)
+            Assert.Equal("keep", await File.ReadAllTextAsync(Path.Combine(destination, "keep.txt")));
+        else
+            Assert.Equal("keep", await File.ReadAllTextAsync(destination));
+    }
+
+    [Fact]
+    public async Task PendingRenameRecoveryRollsBackWhenDestinationIsAFile()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var oldDirectory = await CreateStoredInstanceAsync(repository, settings.MinecraftDirectory, "Old Pack");
+        Directory.CreateDirectory(Path.Combine(oldDirectory, "Old Pack-natives"));
+        var versionsDirectory = Path.Combine(settings.MinecraftDirectory, "versions");
+        var pendingDirectory = Path.Combine(versionsDirectory, ".bhl-rename-pending-Old Pack-a83f21c4");
+        await File.WriteAllTextAsync(
+            Path.Combine(oldDirectory, ".bhl-rename-pending.json"),
+            CreateRenameMarkerJson("old pack", "Old Pack", "New Pack"));
+        Directory.Move(oldDirectory, pendingDirectory);
+        File.Move(Path.Combine(pendingDirectory, "Old Pack.json"), Path.Combine(pendingDirectory, "New Pack.json"));
+        File.Move(Path.Combine(pendingDirectory, "Old Pack.jar"), Path.Combine(pendingDirectory, "New Pack.jar"));
+        Directory.Move(
+            Path.Combine(pendingDirectory, "Old Pack-natives"),
+            Path.Combine(pendingDirectory, "New Pack-natives"));
+        await File.WriteAllTextAsync(
+            Path.Combine(pendingDirectory, "New Pack.json"),
+            """{"id":"New Pack","jar":"New Pack"}""");
+        var destination = Path.Combine(versionsDirectory, "New Pack");
+        await File.WriteAllTextAsync(destination, "keep");
+
+        await repository.RecoverPendingVersionRenamesAsync(settings.MinecraftDirectory);
+        await repository.RecoverPendingVersionRenamesAsync(settings.MinecraftDirectory);
+
+        Assert.Equal("keep", await File.ReadAllTextAsync(destination));
+        Assert.True(File.Exists(Path.Combine(oldDirectory, "Old Pack.json")));
+        Assert.True(File.Exists(Path.Combine(oldDirectory, "Old Pack.jar")));
+        Assert.True(Directory.Exists(Path.Combine(oldDirectory, "Old Pack-natives")));
+        Assert.False(Directory.Exists(pendingDirectory));
+        Assert.False(File.Exists(Path.Combine(oldDirectory, ".bhl-rename-pending.json")));
+        Assert.Equal("Old Pack", Assert.Single(await repository.GetAllAsync()).VersionName);
+    }
+
+    [Fact]
+    public async Task PendingRenameRecoveryCompletesRollbackAfterDirectoryWasAlreadyMovedBack()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var oldDirectory = await CreateStoredInstanceAsync(repository, settings.MinecraftDirectory, "Old Pack");
+        var markerPath = Path.Combine(oldDirectory, ".bhl-rename-pending.json");
+        await File.WriteAllTextAsync(
+            markerPath,
+            CreateRenameMarkerJson("old pack", "Old Pack", "New Pack"));
+        var destination = Path.Combine(settings.MinecraftDirectory, "versions", "New Pack");
+        await File.WriteAllTextAsync(destination, "keep");
+
+        await repository.RecoverPendingVersionRenamesAsync(settings.MinecraftDirectory);
+        await repository.RecoverPendingVersionRenamesAsync(settings.MinecraftDirectory);
+
+        Assert.Equal("keep", await File.ReadAllTextAsync(destination));
+        Assert.True(Directory.Exists(oldDirectory));
+        Assert.True(File.Exists(Path.Combine(oldDirectory, "Old Pack.json")));
+        Assert.False(File.Exists(markerPath));
+        Assert.Equal("Old Pack", Assert.Single(await repository.GetAllAsync()).VersionName);
+    }
+
+    [Fact]
+    public async Task PendingRenameRollbackQuarantinesMarkerWhenDeletionFails()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: null,
+            stageDeletionMove: null,
+            deleteStagedDirectory: null,
+            recycleStagedDirectory: null,
+            renameGuidFactory: null,
+            deleteRenameMarker: _ => throw new IOException("marker is locked"));
+        var oldDirectory = await CreateStoredInstanceAsync(repository, settings.MinecraftDirectory, "Old Pack");
+        var markerPath = Path.Combine(oldDirectory, ".bhl-rename-pending.json");
+        await File.WriteAllTextAsync(
+            markerPath,
+            CreateRenameMarkerJson("old pack", "Old Pack", "New Pack"));
+        var destination = Path.Combine(settings.MinecraftDirectory, "versions", "New Pack");
+        await File.WriteAllTextAsync(destination, "keep");
+
+        await repository.RecoverPendingVersionRenamesAsync(settings.MinecraftDirectory);
+
+        Assert.False(File.Exists(markerPath));
+        Assert.True(File.Exists(Path.Combine(oldDirectory, ".bhl-rename-aborted.json")));
+        Assert.Equal("keep", await File.ReadAllTextAsync(destination));
+        Assert.Equal("Old Pack", Assert.Single(await repository.GetAllAsync()).VersionName);
+    }
+
+    [Fact]
+    public async Task RenameVersionAsyncRejectsSameNameReplacementBeforeWritingMarkerOrMoving()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var moveAttempts = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            moveDirectoryAsync: (source, destination, _) =>
+            {
+                moveAttempts++;
+                Directory.Move(source, destination);
+                return Task.CompletedTask;
+            });
+        var directory = await CreateStoredInstanceAsync(repository, settings.MinecraftDirectory, "Old Pack");
+        var staleInstance = Assert.Single(await repository.GetAllAsync());
+        Directory.Delete(directory, recursive: true);
+        CreateVersionDirectory(settings.MinecraftDirectory, "Old Pack");
+        WriteInstanceSettings(directory, "replacement");
+        await File.WriteAllTextAsync(Path.Combine(directory, "replacement.txt"), "keep");
+
+        await Assert.ThrowsAsync<GameInstanceMutationConflictException>(() => repository.RenameVersionAsync(
+            settings.MinecraftDirectory,
+            staleInstance,
+            "New Pack",
+            null,
+            DateTimeOffset.UtcNow));
+
+        Assert.Equal(0, moveAttempts);
+        Assert.Equal("keep", await File.ReadAllTextAsync(Path.Combine(directory, "replacement.txt")));
+        Assert.False(File.Exists(Path.Combine(directory, ".bhl-rename-pending.json")));
+        Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "New Pack")));
+    }
+
+    [Fact]
+    public async Task PendingRenameWithDifferentInstanceIdIsQuarantinedWithoutRollbackMoveOrArtifactChanges()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var moveAttempts = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            moveDirectoryAsync: (_, _, _) =>
+            {
+                moveAttempts++;
+                throw new InvalidOperationException("A mismatched instance must never be moved.");
+            });
+        var pendingDirectory = Path.Combine(
+            settings.MinecraftDirectory,
+            "versions",
+            ".bhl-rename-pending-Old Pack-a83f21c4");
+        Directory.CreateDirectory(pendingDirectory);
+        WriteInstanceSettings(pendingDirectory, "replacement");
+        var jsonPath = Path.Combine(pendingDirectory, "Old Pack.json");
+        await File.WriteAllTextAsync(jsonPath, """{"id":"Old Pack","jar":"Old Pack","sentinel":"keep"}""");
+        await File.WriteAllTextAsync(
+            Path.Combine(pendingDirectory, ".bhl-rename-pending.json"),
+            CreateRenameMarkerJson("expected", "Old Pack", "New Pack"));
+
+        await repository.RecoverPendingVersionRenamesAsync(settings.MinecraftDirectory);
+
+        Assert.Equal(0, moveAttempts);
+        Assert.True(Directory.Exists(pendingDirectory));
+        Assert.Equal(
+            """{"id":"Old Pack","jar":"Old Pack","sentinel":"keep"}""",
+            await File.ReadAllTextAsync(jsonPath));
+        Assert.False(File.Exists(Path.Combine(pendingDirectory, ".bhl-rename-pending.json")));
+        Assert.True(File.Exists(Path.Combine(pendingDirectory, ".bhl-rename-aborted.json")));
+
+        await repository.RecoverPendingVersionRenamesAsync(settings.MinecraftDirectory);
+        Assert.Equal(0, moveAttempts);
+        Assert.True(Directory.Exists(pendingDirectory));
+    }
+
+    [Fact]
+    public async Task RenameRollbackDoesNotMoveOwnedPendingDirectoryOverDifferentInstanceAtOldPath()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var versionsDirectory = Path.Combine(settings.MinecraftDirectory, "versions");
+        var moveAttempts = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            moveDirectoryAsync: (_, _, _) =>
+            {
+                moveAttempts++;
+                throw new InvalidOperationException("Rollback must not move when the old path is occupied.");
+            });
+        var oldDirectory = await CreateStoredInstanceAsync(
+            new JsonGameInstanceRepository(settingsService),
+            settings.MinecraftDirectory,
+            "Old Pack");
+        await File.WriteAllTextAsync(
+            Path.Combine(oldDirectory, ".bhl-rename-pending.json"),
+            CreateRenameMarkerJson("old pack", "Old Pack", "New Pack"));
+        var pendingDirectory = Path.Combine(versionsDirectory, ".bhl-rename-pending-Old Pack-a83f21c4");
+        Directory.Move(oldDirectory, pendingDirectory);
+        Directory.CreateDirectory(oldDirectory);
+        WriteInstanceSettings(oldDirectory, "replacement");
+        await File.WriteAllTextAsync(Path.Combine(oldDirectory, "replacement.txt"), "keep");
+        await File.WriteAllTextAsync(Path.Combine(versionsDirectory, "New Pack"), "occupied");
+
+        await repository.RecoverPendingVersionRenamesAsync(settings.MinecraftDirectory);
+        await repository.RecoverPendingVersionRenamesAsync(settings.MinecraftDirectory);
+
+        Assert.Equal(0, moveAttempts);
+        Assert.True(Directory.Exists(pendingDirectory));
+        Assert.True(Directory.Exists(oldDirectory));
+        Assert.Equal("keep", await File.ReadAllTextAsync(Path.Combine(oldDirectory, "replacement.txt")));
+        Assert.True(File.Exists(Path.Combine(pendingDirectory, ".bhl-rename-pending.json")));
+    }
+
+    [Fact]
+    public async Task RenameDoesNotRollbackDifferentInstanceInjectedAfterFinalMove()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var versionsDirectory = Path.Combine(settings.MinecraftDirectory, "versions");
+        var displacedOriginal = Path.Combine(versionsDirectory, "displaced-original");
+        var moveAttempts = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            moveDirectoryAsync: (source, destination, _) =>
+            {
+                moveAttempts++;
+                Directory.Move(source, destination);
+                if (string.Equals(Path.GetFileName(destination), "New Pack", StringComparison.OrdinalIgnoreCase))
+                {
+                    Directory.Move(destination, displacedOriginal);
+                    CreateVersionDirectory(settings.MinecraftDirectory, "New Pack");
+                    WriteInstanceSettings(destination, "replacement");
+                    File.Copy(
+                        Path.Combine(displacedOriginal, ".bhl-rename-pending.json"),
+                        Path.Combine(destination, ".bhl-rename-pending.json"));
+                    File.WriteAllText(Path.Combine(destination, "replacement.txt"), "keep");
+                }
+
+                return Task.CompletedTask;
+            });
+        var oldDirectory = await CreateStoredInstanceAsync(repository, settings.MinecraftDirectory, "Old Pack");
+        var instance = Assert.Single(await repository.GetAllAsync());
+
+        await Assert.ThrowsAsync<GameInstanceMutationConflictException>(() => repository.RenameVersionAsync(
+            settings.MinecraftDirectory,
+            instance,
+            "New Pack",
+            null,
+            DateTimeOffset.UtcNow));
+
+        var replacementDirectory = Path.Combine(versionsDirectory, "New Pack");
+        Assert.Equal(2, moveAttempts);
+        Assert.False(Directory.Exists(oldDirectory));
+        Assert.True(Directory.Exists(displacedOriginal));
+        Assert.Equal("keep", await File.ReadAllTextAsync(Path.Combine(replacementDirectory, "replacement.txt")));
+        Assert.True(File.Exists(Path.Combine(replacementDirectory, ".bhl-rename-aborted.json")));
+        Assert.False(File.Exists(Path.Combine(replacementDirectory, ".bhl-rename-pending.json")));
+    }
+
     [Fact]
     public async Task PendingRenameMarkerInSourceDirectoryIsRecovered()
     {
@@ -546,6 +996,51 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task RenameRetriesWithAnotherGuidWhenPendingPathIsAFile()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var guids = new Queue<Guid>(
+        [
+            Guid.ParseExact("a83f21c4000000000000000000000000", "N"),
+            Guid.ParseExact("b94e32d5000000000000000000000000", "N")
+        ]);
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: null,
+            stageDeletionMove: null,
+            deleteStagedDirectory: null,
+            recycleStagedDirectory: null,
+            renameGuidFactory: () => guids.Dequeue());
+        CreateVersionDirectory(settings.MinecraftDirectory, "Old Pack");
+        var oldDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Old Pack");
+        var instance = new GameInstance
+        {
+            Id = "old",
+            Name = "Old Pack",
+            MinecraftVersion = "1.20.1",
+            VersionName = "Old Pack",
+            InstanceDirectory = oldDirectory
+        };
+        await repository.SaveAllAsync([instance]);
+        var versionsDirectory = Path.Combine(settings.MinecraftDirectory, "versions");
+        var occupiedPendingPath = Path.Combine(versionsDirectory, ".bhl-rename-pending-Old Pack-a83f21c4");
+        await File.WriteAllTextAsync(occupiedPendingPath, "keep");
+
+        await repository.RenameVersionAsync(
+            settings.MinecraftDirectory,
+            instance,
+            "New Pack",
+            null,
+            DateTimeOffset.UtcNow);
+
+        Assert.Equal("keep", await File.ReadAllTextAsync(occupiedPendingPath));
+        Assert.True(Directory.Exists(Path.Combine(versionsDirectory, "New Pack")));
+        Assert.False(Directory.Exists(Path.Combine(versionsDirectory, ".bhl-rename-pending-Old Pack-b94e32d5")));
+    }
+
+    [Fact]
     public async Task RenameCancelsPreparationAfterThreePendingDirectoryConflicts()
     {
         var (settings, settingsService) = CreateSettings();
@@ -589,10 +1084,158 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task StageVersionForDeletionRejectsSameNameReplacementBeforeWritingMarkerOrMoving()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var moveAttempts = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: null,
+            stageDeletionMove: (_, _) => moveAttempts++,
+            deleteStagedDirectory: null);
+        var directory = await CreateStoredInstanceAsync(repository, settings.MinecraftDirectory, "Test");
+        Directory.Delete(directory, recursive: true);
+        CreateVersionDirectory(settings.MinecraftDirectory, "Test");
+        await repository.SaveAllAsync([CreateInstance("replacement", "Test", directory)]);
+        await File.WriteAllTextAsync(Path.Combine(directory, "replacement.txt"), "keep");
+
+        await Assert.ThrowsAsync<GameInstanceMutationConflictException>(() =>
+            repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Test", "test"));
+
+        Assert.Equal(0, moveAttempts);
+        Assert.Equal("keep", await File.ReadAllTextAsync(Path.Combine(directory, "replacement.txt")));
+        Assert.False(File.Exists(Path.Combine(directory, ".bhl-delete-pending-.json")));
+    }
+
+    [Fact]
+    public async Task StageVersionForDeletionDoesNotMoveBackDifferentInstanceDetectedAfterStaging()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var versionsDirectory = Path.Combine(settings.MinecraftDirectory, "versions");
+        var sourceDirectory = await CreateStoredInstanceAsync(
+            new JsonGameInstanceRepository(settingsService),
+            settings.MinecraftDirectory,
+            "Test");
+        var displacedOriginal = Path.Combine(versionsDirectory, "displaced-original");
+        var moveAttempts = 0;
+        var recycleAttempts = 0;
+        var deleteAttempts = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: () => Guid.ParseExact("a83f21c4000000000000000000000000", "N"),
+            stageDeletionMove: (source, destination) =>
+            {
+                moveAttempts++;
+                Directory.Move(source, displacedOriginal);
+                CreateVersionDirectory(settings.MinecraftDirectory, "Test");
+                WriteInstanceSettings(sourceDirectory, "replacement");
+                File.Copy(
+                    Path.Combine(displacedOriginal, ".bhl-delete-pending-.json"),
+                    Path.Combine(sourceDirectory, ".bhl-delete-pending-.json"));
+                File.WriteAllText(Path.Combine(sourceDirectory, "replacement.txt"), "keep");
+                Directory.Move(sourceDirectory, destination);
+            },
+            deleteStagedDirectory: (_, _) => deleteAttempts++,
+            recycleStagedDirectory: _ => recycleAttempts++);
+
+        await Assert.ThrowsAsync<GameInstanceMutationConflictException>(() =>
+            repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Test", "test"));
+
+        var stagedDirectory = Path.Combine(versionsDirectory, ".bhl-delete-pending-Test-a83f21c4");
+        Assert.Equal(1, moveAttempts);
+        Assert.True(Directory.Exists(stagedDirectory));
+        Assert.Equal("keep", await File.ReadAllTextAsync(Path.Combine(stagedDirectory, "replacement.txt")));
+        Assert.True(File.Exists(Path.Combine(stagedDirectory, ".bhl-delete-aborted.json")));
+        Assert.False(await repository.TryDeleteStagedVersionDirectoryAsync(
+            settings.MinecraftDirectory,
+            stagedDirectory));
+        Assert.Equal(0, recycleAttempts);
+        Assert.Equal(0, deleteAttempts);
+    }
+
+    [Fact]
+    public async Task SchemaTwoDeletionMarkerWithDifferentInstanceIdIsNeverCleaned()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var stagedDirectory = Path.Combine(
+            settings.MinecraftDirectory,
+            "versions",
+            ".bhl-delete-pending-Test-a83f21c4");
+        Directory.CreateDirectory(stagedDirectory);
+        WriteInstanceSettings(stagedDirectory, "replacement");
+        await File.WriteAllTextAsync(
+            Path.Combine(stagedDirectory, ".bhl-delete-pending-.json"),
+            """{"schemaVersion":2,"transactionId":"a83f21c4000000000000000000000000","versionName":"Test","instanceId":"expected","createdAtUtc":"2026-07-13T00:00:00Z"}""");
+        var recycleAttempts = 0;
+        var deleteAttempts = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: null,
+            stageDeletionMove: null,
+            deleteStagedDirectory: (_, _) => deleteAttempts++,
+            recycleStagedDirectory: _ => recycleAttempts++);
+
+        await repository.CleanupStagedVersionDirectoriesAsync(settings.MinecraftDirectory);
+        await repository.CleanupStagedVersionDirectoriesAsync(settings.MinecraftDirectory);
+
+        Assert.True(Directory.Exists(stagedDirectory));
+        Assert.True(File.Exists(Path.Combine(stagedDirectory, ".bhl-delete-aborted.json")));
+        Assert.Equal(0, recycleAttempts);
+        Assert.Equal(0, deleteAttempts);
+    }
+
+    [Fact]
+    public async Task PermanentDeletionIsSkippedWhenIdentityChangesAfterRecycleFailure()
+    {
+        var (settings, settingsService) = CreateSettings();
+        var stagedDirectory = Path.Combine(
+            settings.MinecraftDirectory,
+            "versions",
+            ".bhl-delete-pending-Test-a83f21c4");
+        Directory.CreateDirectory(stagedDirectory);
+        WriteInstanceSettings(stagedDirectory, "expected");
+        await File.WriteAllTextAsync(
+            Path.Combine(stagedDirectory, ".bhl-delete-pending-.json"),
+            """{"schemaVersion":2,"transactionId":"a83f21c4000000000000000000000000","versionName":"Test","instanceId":"expected","createdAtUtc":"2026-07-13T00:00:00Z"}""");
+        var deleteAttempts = 0;
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: null,
+            deletionGuidFactory: null,
+            stageDeletionMove: null,
+            deleteStagedDirectory: (_, _) => deleteAttempts++,
+            recycleStagedDirectory: path =>
+            {
+                WriteInstanceSettings(path, "replacement");
+                File.WriteAllText(Path.Combine(path, "replacement.txt"), "keep");
+                throw new IOException("recycle failed after replacement");
+            });
+
+        Assert.False(await repository.TryDeleteStagedVersionDirectoryAsync(
+            settings.MinecraftDirectory,
+            stagedDirectory));
+
+        Assert.Equal(0, deleteAttempts);
+        Assert.True(Directory.Exists(stagedDirectory));
+        Assert.Equal("keep", await File.ReadAllTextAsync(Path.Combine(stagedDirectory, "replacement.txt")));
+        Assert.True(File.Exists(Path.Combine(stagedDirectory, ".bhl-delete-aborted.json")));
+    }
+
+    [Fact]
     public async Task StageVersionForDeletionRetriesWhenGeneratedDestinationAlreadyExists()
     {
         var (settings, settingsService) = CreateSettings();
-        CreateVersionDirectory(settings.MinecraftDirectory, "Test");
+        await CreateStoredInstanceAsync(
+            new JsonGameInstanceRepository(settingsService),
+            settings.MinecraftDirectory,
+            "Test");
         var versionsDirectory = Path.Combine(settings.MinecraftDirectory, "versions");
         Directory.CreateDirectory(Path.Combine(versionsDirectory, ".bhl-delete-pending-Test-a83f21c4"));
         var guids = new Queue<Guid>(
@@ -608,7 +1251,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
             stageDeletionMove: Directory.Move,
             deleteStagedDirectory: null);
 
-        var stagedDirectory = await repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Test");
+        var stagedDirectory = await repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Test", "test");
 
         Assert.EndsWith(".bhl-delete-pending-Test-b94e32d5", stagedDirectory, StringComparison.Ordinal);
         Assert.False(Directory.Exists(Path.Combine(versionsDirectory, "Test")));
@@ -620,7 +1263,10 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
     public async Task StageVersionForDeletionRetriesWhenDestinationAppearsDuringMove()
     {
         var (settings, settingsService) = CreateSettings();
-        CreateVersionDirectory(settings.MinecraftDirectory, "Test");
+        await CreateStoredInstanceAsync(
+            new JsonGameInstanceRepository(settingsService),
+            settings.MinecraftDirectory,
+            "Test");
         var guids = new Queue<Guid>(
         [
             Guid.ParseExact("a83f21c4000000000000000000000000", "N"),
@@ -646,7 +1292,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
             },
             deleteStagedDirectory: null);
 
-        var stagedDirectory = await repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Test");
+        var stagedDirectory = await repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Test", "test");
 
         Assert.Equal(2, moves);
         Assert.EndsWith(".bhl-delete-pending-Test-b94e32d5", stagedDirectory, StringComparison.Ordinal);
@@ -656,7 +1302,10 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
     public async Task StageVersionForDeletionStopsAfterThreeDestinationCollisions()
     {
         var (settings, settingsService) = CreateSettings();
-        CreateVersionDirectory(settings.MinecraftDirectory, "Test");
+        await CreateStoredInstanceAsync(
+            new JsonGameInstanceRepository(settingsService),
+            settings.MinecraftDirectory,
+            "Test");
         var versionsDirectory = Path.Combine(settings.MinecraftDirectory, "versions");
         var values = new[] { "a83f21c4", "b94e32d5", "c05f43e6" };
         foreach (var value in values)
@@ -672,7 +1321,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
             deleteStagedDirectory: null);
 
         await Assert.ThrowsAsync<IOException>(() =>
-            repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Test"));
+            repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Test", "test"));
 
         Assert.Equal(0, moveAttempts);
         Assert.True(Directory.Exists(Path.Combine(versionsDirectory, "Test")));
@@ -682,7 +1331,10 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
     public async Task StageVersionForDeletionDoesNotRetryNonCollisionMoveFailure()
     {
         var (settings, settingsService) = CreateSettings();
-        CreateVersionDirectory(settings.MinecraftDirectory, "Test");
+        await CreateStoredInstanceAsync(
+            new JsonGameInstanceRepository(settingsService),
+            settings.MinecraftDirectory,
+            "Test");
         var moveAttempts = 0;
         var repository = new JsonGameInstanceRepository(
             settingsService,
@@ -697,7 +1349,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
             deleteStagedDirectory: null);
 
         await Assert.ThrowsAsync<IOException>(() =>
-            repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Test"));
+            repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Test", "test"));
 
         Assert.Equal(1, moveAttempts);
         var sourceDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Test");
@@ -838,6 +1490,34 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
             }
         ]);
         return directory;
+    }
+
+    private static GameInstance CreateInstance(string id, string versionName, string instanceDirectory)
+    {
+        return new GameInstance
+        {
+            Id = id,
+            Name = versionName,
+            MinecraftVersion = "1.20.1",
+            VersionName = versionName,
+            InstanceDirectory = instanceDirectory
+        };
+    }
+
+    private static void WriteInstanceSettings(string instanceDirectory, string instanceId)
+    {
+        var metadataDirectory = Path.Combine(instanceDirectory, InstanceMetadataDirectoryName);
+        Directory.CreateDirectory(metadataDirectory);
+        File.WriteAllText(
+            Path.Combine(metadataDirectory, "instance-settings.json"),
+            JsonSerializer.Serialize(new GameInstance
+            {
+                Id = instanceId,
+                Name = Path.GetFileName(instanceDirectory),
+                MinecraftVersion = "1.20.1",
+                VersionName = Path.GetFileName(instanceDirectory),
+                InstanceDirectory = instanceDirectory
+            }));
     }
 
     private (LauncherSettings Settings, TestSettingsService SettingsService) CreateSettings()

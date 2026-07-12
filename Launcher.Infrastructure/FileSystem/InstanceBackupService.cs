@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using Launcher.Application;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Persistence;
@@ -324,6 +325,7 @@ public sealed class InstanceBackupService : IInstanceBackupService
                 var normalizedBackupDirectory = Path.GetFullPath(backupDirectory);
                 var normalizedBackupFullPath = Path.GetFullPath(backupFullPath);
                 var normalizedInstanceDirectory = Path.GetFullPath(instance.InstanceDirectory);
+                var minecraftDirectory = GetMinecraftDirectory(normalizedInstanceDirectory);
                 if (!IsSameOrChildPath(normalizedBackupDirectory, normalizedBackupFullPath))
                     throw new ArgumentException("Backup file must be inside the backup directory.", nameof(backupFullPath));
 
@@ -334,8 +336,7 @@ public sealed class InstanceBackupService : IInstanceBackupService
                         "Backup directory cannot be inside the instance directory.");
                 }
 
-                var instanceParentDirectory = Directory.GetParent(normalizedInstanceDirectory)?.FullName
-                    ?? throw new InvalidOperationException("Instance directory must have a parent directory.");
+                var instanceParentDirectory = Directory.GetParent(normalizedInstanceDirectory)!.FullName;
                 Directory.CreateDirectory(instanceParentDirectory);
 
                 // 在实例同级目录完成解压和目录交换，确保移动可回滚且不跨卷复制。
@@ -374,16 +375,42 @@ public sealed class InstanceBackupService : IInstanceBackupService
                     if (!IsSameOrChildPath(extractDirectory, restoredDirectory) || !Directory.Exists(restoredDirectory))
                         throw new InvalidDataException("Backup archive does not contain a valid instance root directory.");
 
-                    if (Directory.Exists(normalizedInstanceDirectory))
+                    await using (var mutationLock = await CrossProcessVersionLock.AcquireAsync(
+                                     CrossProcessVersionLock.GetMutationPath(minecraftDirectory),
+                                     progress: null,
+                                     cancellationToken).ConfigureAwait(false))
                     {
+                        await EnsureCurrentInstanceIdentityAsync(
+                                normalizedInstanceDirectory,
+                                instance.Id,
+                                cancellationToken)
+                            .ConfigureAwait(false);
+
                         Directory.Move(normalizedInstanceDirectory, previousDirectory);
                         movedPreviousDirectory = true;
+
+                        try
+                        {
+                            Directory.Move(restoredDirectory, normalizedInstanceDirectory);
+                        }
+                        catch
+                        {
+                            if (Directory.Exists(previousDirectory)
+                                && !Directory.Exists(normalizedInstanceDirectory))
+                            {
+                                Directory.Move(previousDirectory, normalizedInstanceDirectory);
+                                movedPreviousDirectory = false;
+                            }
+
+                            throw;
+                        }
                     }
 
-                    Directory.Move(restoredDirectory, normalizedInstanceDirectory);
-
                     if (Directory.Exists(previousDirectory))
+                    {
                         Directory.Delete(previousDirectory, recursive: true);
+                        movedPreviousDirectory = false;
+                    }
 
                     logger.LogInformation(
                         "Instance backup restored. InstanceId={InstanceId} InstanceDirectory={InstanceDirectory} BackupFile={BackupFile}",
@@ -420,6 +447,71 @@ public sealed class InstanceBackupService : IInstanceBackupService
                 }
             },
             cancellationToken);
+    }
+
+    private static string GetMinecraftDirectory(string normalizedInstanceDirectory)
+    {
+        var versionsDirectory = Directory.GetParent(normalizedInstanceDirectory)?.FullName;
+        if (versionsDirectory is null
+            || !string.Equals(
+                Path.GetFileName(Path.TrimEndingDirectorySeparator(versionsDirectory)),
+                "versions",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Instance directory must be a direct child of the Minecraft versions directory.");
+        }
+
+        return Directory.GetParent(versionsDirectory)?.FullName
+            ?? throw new InvalidOperationException("Minecraft directory could not be determined from the instance path.");
+    }
+
+    private static async Task EnsureCurrentInstanceIdentityAsync(
+        string instanceDirectory,
+        string expectedInstanceId,
+        CancellationToken cancellationToken)
+    {
+        if (!Directory.Exists(instanceDirectory))
+        {
+            throw new InstanceBackupException(
+                InstanceBackupFailureReason.InstanceChanged,
+                "The instance was moved or deleted while its backup was being restored.");
+        }
+
+        var settingsPath = Path.Combine(
+            instanceDirectory,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "instance-settings.json");
+        try
+        {
+            await using var stream = File.OpenRead(settingsPath);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+            if (!document.RootElement.TryGetProperty("Id", out var idElement)
+                || !string.Equals(idElement.GetString(), expectedInstanceId, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InstanceBackupException(
+                    InstanceBackupFailureReason.InstanceChanged,
+                    "The instance directory now belongs to a different instance.");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (InstanceBackupException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is IOException
+                                          or UnauthorizedAccessException
+                                          or JsonException)
+        {
+            throw new InstanceBackupException(
+                InstanceBackupFailureReason.InstanceChanged,
+                "The current instance identity could not be verified.",
+                exception);
+        }
     }
 
     private async Task<int> CountBackupEntriesCoreAsync(string backupDirectory, CancellationToken cancellationToken)

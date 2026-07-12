@@ -69,6 +69,8 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
 
     public bool HasRunningTasks => RunningTaskCount > 0;
 
+    public bool HasActiveOperations => HasRunningTasks || TrackedBackgroundTaskCount > 0;
+
     public int RunningTaskCount => Tasks.Count(task => task.State is DownloadTaskState.Running);
 
     internal int TrackedBackgroundTaskCount
@@ -81,6 +83,8 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
     }
 
     public event EventHandler<DownloadTaskItem>? TaskStarted;
+
+    public event EventHandler? ActivityChanged;
 
     public DownloadTaskItem BeginTask(string title, string subtitle)
     {
@@ -132,6 +136,7 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
         {
             backgroundTasks.Add(task);
         }
+        NotifyActivityChanged();
 
         _ = RemoveTrackedBackgroundTaskWhenCompletedAsync(task);
     }
@@ -183,6 +188,7 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
         OnPropertyChanged(nameof(HasTasks));
         OnPropertyChanged(nameof(HasRunningTasks));
         OnPropertyChanged(nameof(RunningTaskCount));
+        NotifyActivityChanged();
     }
 
     private void Task_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -197,6 +203,7 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
 
         OnPropertyChanged(nameof(HasRunningTasks));
         OnPropertyChanged(nameof(RunningTaskCount));
+        NotifyActivityChanged();
     }
 
     private void ScheduleRemoval(DownloadTaskItem task)
@@ -246,7 +253,20 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
         {
             lock (backgroundTasksLock)
                 backgroundTasks.Remove(task);
+            NotifyActivityChanged();
         }
+    }
+
+    private void NotifyActivityChanged()
+    {
+        if (!uiDispatcher.HasAccess)
+        {
+            uiDispatcher.Post(NotifyActivityChanged);
+            return;
+        }
+
+        OnPropertyChanged(nameof(HasActiveOperations));
+        ActivityChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void RemoveTask(DownloadTaskItem task, bool force)

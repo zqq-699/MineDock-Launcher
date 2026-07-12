@@ -2636,6 +2636,9 @@
   <data name="Settings_MinecraftDirectoryDescription" xml:space="preserve">
     <value>ここではランチャーがインスタンス、バージョン、関連するゲームファイルをスキャンする場所を指定します。</value>
   </data>
+  <data name="Settings_MinecraftDirectoryChangeBlockedByActiveTasks" xml:space="preserve">
+    <value>ダウンロードまたはインストール中はディレクトリを変更できません。</value>
+  </data>
   <data name="Settings_OpenMinecraftDirectoryButton" xml:space="preserve">
     <value>ディレクトリを開く</value>
   </data>

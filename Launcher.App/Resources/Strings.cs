@@ -301,6 +301,7 @@ public static class Strings
     public static string Settings_MinecraftDirectoryLabel => Get(nameof(Settings_MinecraftDirectoryLabel));
     public static string Settings_MinecraftDirectoryItemTitle => Get(nameof(Settings_MinecraftDirectoryItemTitle));
     public static string Settings_MinecraftDirectoryDescription => Get(nameof(Settings_MinecraftDirectoryDescription));
+    public static string Settings_MinecraftDirectoryChangeBlockedByActiveTasks => Get(nameof(Settings_MinecraftDirectoryChangeBlockedByActiveTasks));
     public static string Settings_LauncherLogDirectoryLabel => Get(nameof(Settings_LauncherLogDirectoryLabel));
     public static string Settings_LauncherLogDirectoryDescription => Get(nameof(Settings_LauncherLogDirectoryDescription));
     public static string Settings_OpenMinecraftDirectoryButton => Get(nameof(Settings_OpenMinecraftDirectoryButton));

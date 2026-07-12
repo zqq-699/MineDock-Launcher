@@ -898,6 +898,7 @@
   <data name="Settings_GeneralFilesAndDirectoriesSection" xml:space="preserve"><value>文件与目录</value></data>
   <data name="Settings_MinecraftDirectoryItemTitle" xml:space="preserve"><value>.minecraft 目录</value></data>
   <data name="Settings_MinecraftDirectoryDescription" xml:space="preserve"><value>这里决定启动器扫描实例、版本和相关游戏文件的位置。</value></data>
+  <data name="Settings_MinecraftDirectoryChangeBlockedByActiveTasks" xml:space="preserve"><value>有下载或安装任务时不可切换目录。</value></data>
   <data name="Settings_OpenMinecraftDirectoryButton" xml:space="preserve"><value>打开目录</value></data>
   <data name="Settings_ChangeMinecraftDirectoryButton" xml:space="preserve"><value>更改目录</value></data>
   <data name="Status_OpenMinecraftDirectoryFailed" xml:space="preserve"><value>打开 .minecraft 目录失败，请稍后重试。</value></data>

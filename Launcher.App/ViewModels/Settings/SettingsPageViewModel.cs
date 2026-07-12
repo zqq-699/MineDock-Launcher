@@ -22,6 +22,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Download;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -54,7 +55,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
         IApplicationExitService applicationExitService,
         ILogger<SettingsFeedbackDialogViewModel>? feedbackDialogLogger = null,
         ILogger<InfoSettingsViewModel>? infoSettingsLogger = null,
-        ILogger<SettingsPageViewModel>? logger = null)
+        ILogger<SettingsPageViewModel>? logger = null,
+        DownloadTasksPageViewModel? downloadTasksPage = null)
     {
         var resolvedLogger = logger ?? NullLogger<SettingsPageViewModel>.Instance;
         persistence = new SettingsPersistenceCoordinator(settingsService, statusService, resolvedLogger);
@@ -64,6 +66,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
             statusService,
             filePickerService,
             instanceFolderService,
+            downloadTasksPage,
             resolvedLogger);
         Language = new LanguageSettingsViewModel(persistence);
         LaunchMemory = new LaunchMemorySettingsViewModel(persistence, systemMemoryService);
@@ -151,6 +154,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
 
     public void Dispose()
     {
+        General.Dispose();
         persistence.Dispose();
     }
 

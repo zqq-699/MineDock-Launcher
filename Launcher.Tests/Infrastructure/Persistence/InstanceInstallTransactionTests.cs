@@ -92,6 +92,26 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task BeginPublishesPendingDirectoryOnlyAfterMarkerExists()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var service = new InstanceInstallTransactionService();
+
+        await using var transaction = await service.BeginAsync(
+            minecraftDirectory, "Test", "instance", "game", false);
+
+        Assert.True(File.Exists(Path.Combine(
+            transaction.PendingDirectory,
+            PendingInstanceInstallDirectory.MarkerFileName)));
+        Assert.True(PendingInstanceInstallDirectory.TryReadValidPendingMarker(
+            transaction.PendingDirectory,
+            out var marker));
+        Assert.Equal("instance", marker.InstanceId);
+        Assert.False(Directory.Exists(PendingInstanceInstallDirectory.GetPreparationRoot(
+            Path.Combine(minecraftDirectory, "versions"))));
+    }
+
+    [Fact]
     public async Task CommitFailsWithoutOverwritingOrMergingWhenFinalDirectoryAppearsDuringInstall()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -321,6 +341,43 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ModpackFinalizeDoesNotPublishOldDirectoryInstanceIntoNewDirectorySettings()
+    {
+        var installMinecraftDirectory = Path.Combine(TempRoot, "first", ".minecraft");
+        var newMinecraftDirectory = Path.Combine(TempRoot, "second", ".minecraft");
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = installMinecraftDirectory
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var transactionService = new InstanceInstallTransactionService();
+        var instanceService = new GameInstanceService(
+            settingsService,
+            repository,
+            Array.Empty<ILoaderProvider>(),
+            installTransactionService: transactionService);
+        var staging = new ModpackInstanceStagingService(
+            settingsService,
+            repository,
+            instanceService,
+            transactionService);
+        var staged = await staging.StageAsync(CreatePreparedModpack(), "Same Pack");
+        await File.WriteAllTextAsync(
+            Path.Combine(staged.InstanceDirectory, "Same Pack.json"),
+            """{"id":"Same Pack"}""");
+
+        settings.MinecraftDirectory = newMinecraftDirectory;
+        var instance = await staging.FinalizeAsync(staged, "Same Pack");
+
+        Assert.Equal(newMinecraftDirectory, settings.MinecraftDirectory);
+        Assert.Null(settings.DefaultInstanceId);
+        Assert.StartsWith(Path.GetFullPath(installMinecraftDirectory), Path.GetFullPath(instance.InstanceDirectory));
+        Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, ".bhl-install-pending.json")));
+    }
+
+    [Fact]
     public async Task ActiveInstallationDoesNotBlockDeletingAnotherInstance()
     {
         var settings = new LauncherSettings
@@ -333,11 +390,22 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
         var oldDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Old");
         Directory.CreateDirectory(oldDirectory);
         await File.WriteAllTextAsync(Path.Combine(oldDirectory, "Old.json"), """{"id":"Old"}""");
+        await repository.SaveAllAsync(
+        [
+            new GameInstance
+            {
+                Id = "old",
+                Name = "Old",
+                MinecraftVersion = "1.20.1",
+                VersionName = "Old",
+                InstanceDirectory = oldDirectory
+            }
+        ]);
         var installService = new InstanceInstallTransactionService();
         await using var transaction = await installService.BeginAsync(
             settings.MinecraftDirectory, "Downloading", "downloading", "game", false);
 
-        var stagedDelete = await repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Old");
+        var stagedDelete = await repository.StageVersionForDeletionAsync(settings.MinecraftDirectory, "Old", "old");
 
         Assert.False(Directory.Exists(oldDirectory));
         Assert.True(Directory.Exists(stagedDelete));
@@ -432,6 +500,39 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
 
         Assert.True(Directory.Exists(directory));
         Assert.True(File.Exists(Path.Combine(directory, "keep.txt")));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StartupCleanupDeletesInterruptedInstallPreparation(bool markerWasPublished)
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var versionsDirectory = Path.Combine(settings.MinecraftDirectory, "versions");
+        var preparationRoot = PendingInstanceInstallDirectory.GetPreparationRoot(versionsDirectory);
+        var preparationDirectory = Path.Combine(
+            preparationRoot,
+            "a83f21c4000000000000000000000000");
+        Directory.CreateDirectory(preparationDirectory);
+        await File.WriteAllTextAsync(Path.Combine(preparationDirectory, "partial.tmp"), "partial");
+        if (markerWasPublished)
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(preparationDirectory, PendingInstanceInstallDirectory.MarkerFileName),
+                """{"schemaVersion":1,"transactionId":"a83f21c4000000000000000000000000","instanceId":"test","logicalVersionName":"Test","installKind":"game","initializeDefaultIfEmpty":false,"createdAtUtc":"2026-07-13T00:00:00Z"}""");
+        }
+
+        await new InstanceInstallCleanupService(new TestSettingsService(settings)).CleanupPendingAsync();
+
+        Assert.False(Directory.Exists(preparationDirectory));
+        Assert.False(Directory.Exists(preparationRoot));
+        Assert.False(Directory.Exists(Path.Combine(
+            versionsDirectory,
+            ".bhl-install-pending-Test-a83f21c4")));
     }
 
     [Fact]

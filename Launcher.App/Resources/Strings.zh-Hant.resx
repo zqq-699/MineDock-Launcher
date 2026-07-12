@@ -2636,6 +2636,9 @@
   <data name="Settings_MinecraftDirectoryDescription" xml:space="preserve">
     <value>這裡決定啟動器掃描實例、版本和相關遊戲檔案的位置。</value>
   </data>
+  <data name="Settings_MinecraftDirectoryChangeBlockedByActiveTasks" xml:space="preserve">
+    <value>有下載或安裝工作時不可切換目錄。</value>
+  </data>
   <data name="Settings_OpenMinecraftDirectoryButton" xml:space="preserve">
     <value>開啟目錄</value>
   </data>

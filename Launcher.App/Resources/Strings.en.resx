@@ -2636,6 +2636,9 @@ The current game folder will be backed up first.</value>
   <data name="Settings_MinecraftDirectoryDescription" xml:space="preserve">
     <value>This controls where the launcher scans instances, versions, and related game files.</value>
   </data>
+  <data name="Settings_MinecraftDirectoryChangeBlockedByActiveTasks" xml:space="preserve">
+    <value>The directory cannot be changed while a download or installation task is running.</value>
+  </data>
   <data name="Settings_OpenMinecraftDirectoryButton" xml:space="preserve">
     <value>Open Folder</value>
   </data>

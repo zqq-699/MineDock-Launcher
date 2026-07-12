@@ -17,9 +17,11 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using Launcher.Application;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.FileSystem;
+using Launcher.Infrastructure.Persistence;
 using System.IO.Compression;
 using System.Text.Json;
 
@@ -354,12 +356,12 @@ public sealed class InstanceBackupServiceTests
         var rootDirectory = CreateTempDirectory();
         try
         {
-            var instanceDirectory = Path.Combine(rootDirectory, "instance-a");
+            var instance = CreateRestorableInstance(rootDirectory);
+            var instanceDirectory = instance.InstanceDirectory;
             var backupDirectory = Path.Combine(rootDirectory, "backups");
             Directory.CreateDirectory(Path.Combine(instanceDirectory, "saves"));
             File.WriteAllText(Path.Combine(instanceDirectory, "options.txt"), "original");
             File.WriteAllText(Path.Combine(instanceDirectory, "saves", "level.dat"), "level");
-            var instance = CreateInstance(instanceDirectory);
             var service = new InstanceBackupService();
             var backup = await service.CreateBackupAsync(instance, backupDirectory, "Original");
             File.WriteAllText(Path.Combine(instanceDirectory, "options.txt"), "changed");
@@ -384,12 +386,11 @@ public sealed class InstanceBackupServiceTests
         var rootDirectory = CreateTempDirectory();
         try
         {
-            var instanceDirectory = Path.Combine(rootDirectory, "instance-a");
+            var instance = CreateRestorableInstance(rootDirectory);
+            var instanceDirectory = instance.InstanceDirectory;
             var backupDirectory = Path.Combine(rootDirectory, "backups");
-            Directory.CreateDirectory(instanceDirectory);
             Directory.CreateDirectory(backupDirectory);
             File.WriteAllText(Path.Combine(instanceDirectory, "options.txt"), "current");
-            var instance = CreateInstance(instanceDirectory);
             var service = new InstanceBackupService();
 
             await Assert.ThrowsAsync<FileNotFoundException>(
@@ -409,9 +410,9 @@ public sealed class InstanceBackupServiceTests
         var rootDirectory = CreateTempDirectory();
         try
         {
-            var instanceDirectory = Path.Combine(rootDirectory, "instance-a");
+            var instance = CreateRestorableInstance(rootDirectory);
+            var instanceDirectory = instance.InstanceDirectory;
             var backupDirectory = Path.Combine(rootDirectory, "backups");
-            Directory.CreateDirectory(instanceDirectory);
             Directory.CreateDirectory(backupDirectory);
             File.WriteAllText(Path.Combine(instanceDirectory, "options.txt"), "current");
             var invalidBackupPath = Path.Combine(backupDirectory, "invalid.zip");
@@ -422,8 +423,6 @@ public sealed class InstanceBackupServiceTests
                 await using var writer = new StreamWriter(stream);
                 await writer.WriteAsync("loose");
             }
-
-            var instance = CreateInstance(instanceDirectory);
             var service = new InstanceBackupService();
 
             await Assert.ThrowsAsync<InvalidDataException>(
@@ -431,6 +430,205 @@ public sealed class InstanceBackupServiceTests
 
             Assert.Equal("current", File.ReadAllText(Path.Combine(instanceDirectory, "options.txt")));
             Assert.False(Directory.EnumerateDirectories(rootDirectory, ".launcher-restore-*").Any());
+        }
+        finally
+        {
+            DeleteDirectoryIfExists(rootDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task RestoreBackupAsyncWaitsForMutationLockAndThenSucceedsWhenInstanceIsUnchanged()
+    {
+        var rootDirectory = CreateTempDirectory();
+        try
+        {
+            var instance = CreateRestorableInstance(rootDirectory);
+            var minecraftDirectory = GetMinecraftDirectory(instance);
+            var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
+            var backupDirectory = Path.Combine(rootDirectory, "backups");
+            File.WriteAllText(Path.Combine(instance.InstanceDirectory, "options.txt"), "original");
+            var service = new InstanceBackupService();
+            var backup = await service.CreateBackupAsync(instance, backupDirectory, "Original");
+            File.WriteAllText(Path.Combine(instance.InstanceDirectory, "options.txt"), "changed");
+            Task restoreTask;
+
+            await using (await CrossProcessVersionLock.AcquireAsync(
+                             CrossProcessVersionLock.GetMutationPath(minecraftDirectory),
+                             progress: null,
+                             CancellationToken.None))
+            {
+                restoreTask = service.RestoreBackupAsync(instance, backupDirectory, backup.FullPath);
+                await WaitForRestoreStagingAsync(versionsDirectory);
+                await Task.Delay(250);
+                Assert.False(restoreTask.IsCompleted);
+            }
+
+            await restoreTask;
+
+            Assert.Equal("original", File.ReadAllText(Path.Combine(instance.InstanceDirectory, "options.txt")));
+            Assert.Empty(Directory.EnumerateDirectories(versionsDirectory, ".launcher-restore-*"));
+        }
+        finally
+        {
+            DeleteDirectoryIfExists(rootDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task RestoreBackupAsyncDoesNotRepublishOldPathWhenRenameWinsMutationLock()
+    {
+        var rootDirectory = CreateTempDirectory();
+        try
+        {
+            var instance = CreateRestorableInstance(rootDirectory);
+            var minecraftDirectory = GetMinecraftDirectory(instance);
+            var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
+            var renamedDirectory = Path.Combine(versionsDirectory, "renamed");
+            var backupDirectory = Path.Combine(rootDirectory, "backups");
+            File.WriteAllText(Path.Combine(instance.InstanceDirectory, "options.txt"), "original");
+            var service = new InstanceBackupService();
+            var backup = await service.CreateBackupAsync(instance, backupDirectory, "Original");
+            Task restoreTask;
+
+            await using (await CrossProcessVersionLock.AcquireAsync(
+                             CrossProcessVersionLock.GetMutationPath(minecraftDirectory),
+                             progress: null,
+                             CancellationToken.None))
+            {
+                restoreTask = service.RestoreBackupAsync(instance, backupDirectory, backup.FullPath);
+                await WaitForRestoreStagingAsync(versionsDirectory);
+                Directory.Move(instance.InstanceDirectory, renamedDirectory);
+            }
+
+            var exception = await Assert.ThrowsAsync<InstanceBackupException>(() => restoreTask);
+
+            Assert.Equal(InstanceBackupFailureReason.InstanceChanged, exception.Reason);
+            Assert.False(Directory.Exists(instance.InstanceDirectory));
+            Assert.True(Directory.Exists(renamedDirectory));
+            Assert.Empty(Directory.EnumerateDirectories(versionsDirectory, ".launcher-restore-*"));
+        }
+        finally
+        {
+            DeleteDirectoryIfExists(rootDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task RestoreBackupAsyncDoesNotResurrectInstanceWhenDeleteWinsMutationLock()
+    {
+        var rootDirectory = CreateTempDirectory();
+        try
+        {
+            var instance = CreateRestorableInstance(rootDirectory);
+            var minecraftDirectory = GetMinecraftDirectory(instance);
+            var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
+            var deletedDirectory = Path.Combine(versionsDirectory, ".bhl-delete-pending-instance-a-test");
+            var backupDirectory = Path.Combine(rootDirectory, "backups");
+            File.WriteAllText(Path.Combine(instance.InstanceDirectory, "options.txt"), "original");
+            var service = new InstanceBackupService();
+            var backup = await service.CreateBackupAsync(instance, backupDirectory, "Original");
+            Task restoreTask;
+
+            await using (await CrossProcessVersionLock.AcquireAsync(
+                             CrossProcessVersionLock.GetMutationPath(minecraftDirectory),
+                             progress: null,
+                             CancellationToken.None))
+            {
+                restoreTask = service.RestoreBackupAsync(instance, backupDirectory, backup.FullPath);
+                await WaitForRestoreStagingAsync(versionsDirectory);
+                Directory.Move(instance.InstanceDirectory, deletedDirectory);
+            }
+
+            var exception = await Assert.ThrowsAsync<InstanceBackupException>(() => restoreTask);
+
+            Assert.Equal(InstanceBackupFailureReason.InstanceChanged, exception.Reason);
+            Assert.False(Directory.Exists(instance.InstanceDirectory));
+            Assert.True(Directory.Exists(deletedDirectory));
+            Assert.Empty(Directory.EnumerateDirectories(versionsDirectory, ".launcher-restore-*"));
+        }
+        finally
+        {
+            DeleteDirectoryIfExists(rootDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task RestoreBackupAsyncDoesNotOverwriteSameNameReplacementInstance()
+    {
+        var rootDirectory = CreateTempDirectory();
+        try
+        {
+            var instance = CreateRestorableInstance(rootDirectory);
+            var minecraftDirectory = GetMinecraftDirectory(instance);
+            var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
+            var replacedDirectory = Path.Combine(versionsDirectory, "replaced-original");
+            var backupDirectory = Path.Combine(rootDirectory, "backups");
+            File.WriteAllText(Path.Combine(instance.InstanceDirectory, "options.txt"), "original");
+            var service = new InstanceBackupService();
+            var backup = await service.CreateBackupAsync(instance, backupDirectory, "Original");
+            Task restoreTask;
+
+            await using (await CrossProcessVersionLock.AcquireAsync(
+                             CrossProcessVersionLock.GetMutationPath(minecraftDirectory),
+                             progress: null,
+                             CancellationToken.None))
+            {
+                restoreTask = service.RestoreBackupAsync(instance, backupDirectory, backup.FullPath);
+                await WaitForRestoreStagingAsync(versionsDirectory);
+                Directory.Move(instance.InstanceDirectory, replacedDirectory);
+                Directory.CreateDirectory(instance.InstanceDirectory);
+                WriteInstanceSettings(instance.InstanceDirectory, "replacement");
+                File.WriteAllText(Path.Combine(instance.InstanceDirectory, "replacement.txt"), "keep");
+            }
+
+            var exception = await Assert.ThrowsAsync<InstanceBackupException>(() => restoreTask);
+
+            Assert.Equal(InstanceBackupFailureReason.InstanceChanged, exception.Reason);
+            Assert.Equal("keep", File.ReadAllText(Path.Combine(instance.InstanceDirectory, "replacement.txt")));
+            Assert.True(Directory.Exists(replacedDirectory));
+            Assert.Empty(Directory.EnumerateDirectories(versionsDirectory, ".launcher-restore-*"));
+        }
+        finally
+        {
+            DeleteDirectoryIfExists(rootDirectory);
+        }
+    }
+
+    [Fact]
+    public async Task RestoreBackupAsyncCancellationWhileWaitingForMutationLockKeepsInstanceAndCleansStaging()
+    {
+        var rootDirectory = CreateTempDirectory();
+        try
+        {
+            var instance = CreateRestorableInstance(rootDirectory);
+            var minecraftDirectory = GetMinecraftDirectory(instance);
+            var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
+            var backupDirectory = Path.Combine(rootDirectory, "backups");
+            File.WriteAllText(Path.Combine(instance.InstanceDirectory, "options.txt"), "current");
+            var service = new InstanceBackupService();
+            var backup = await service.CreateBackupAsync(instance, backupDirectory, "Current");
+            using var cancellation = new CancellationTokenSource();
+
+            await using (await CrossProcessVersionLock.AcquireAsync(
+                             CrossProcessVersionLock.GetMutationPath(minecraftDirectory),
+                             progress: null,
+                             CancellationToken.None))
+            {
+                var restoreTask = service.RestoreBackupAsync(
+                    instance,
+                    backupDirectory,
+                    backup.FullPath,
+                    cancellation.Token);
+                await WaitForRestoreStagingAsync(versionsDirectory);
+                await Task.Delay(250);
+                Assert.False(restoreTask.IsCompleted);
+                cancellation.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => restoreTask);
+            }
+
+            Assert.Equal("current", File.ReadAllText(Path.Combine(instance.InstanceDirectory, "options.txt")));
+            Assert.Empty(Directory.EnumerateDirectories(versionsDirectory, ".launcher-restore-*"));
         }
         finally
         {
@@ -466,6 +664,40 @@ public sealed class InstanceBackupServiceTests
             Name = "Instance A",
             InstanceDirectory = instanceDirectory
         };
+    }
+
+    private static GameInstance CreateRestorableInstance(string rootDirectory)
+    {
+        var instanceDirectory = Path.Combine(rootDirectory, ".minecraft", "versions", "instance-a");
+        Directory.CreateDirectory(instanceDirectory);
+        var instance = CreateInstance(instanceDirectory);
+        WriteInstanceSettings(instanceDirectory, instance.Id);
+        return instance;
+    }
+
+    private static string GetMinecraftDirectory(GameInstance instance)
+    {
+        return Directory.GetParent(Directory.GetParent(instance.InstanceDirectory)!.FullName)!.FullName;
+    }
+
+    private static void WriteInstanceSettings(string instanceDirectory, string instanceId)
+    {
+        var metadataDirectory = Path.Combine(
+            instanceDirectory,
+            LauncherApplicationIdentity.StorageDirectoryName);
+        Directory.CreateDirectory(metadataDirectory);
+        File.WriteAllText(
+            Path.Combine(metadataDirectory, "instance-settings.json"),
+            JsonSerializer.Serialize(new GameInstance { Id = instanceId }));
+    }
+
+    private static async Task WaitForRestoreStagingAsync(string versionsDirectory)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (!Directory.EnumerateDirectories(versionsDirectory, ".launcher-restore-*").Any())
+        {
+            await Task.Delay(10, timeout.Token);
+        }
     }
 
     private static async Task<IReadOnlyList<InstanceBackupRecord>> ReadManifestAsync(string backupDirectory)

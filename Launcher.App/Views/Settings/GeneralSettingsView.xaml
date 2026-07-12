@@ -49,6 +49,21 @@
                             <TextBlock Text="{Binding MinecraftDirectory}"
                                        Style="{StaticResource ReadOnlyFieldTextStyle}" />
                         </Border>
+                        <TextBlock Margin="0,8,0,0"
+                                   Foreground="{DynamicResource LauncherDangerBrush}"
+                                   Text="{x:Static res:Strings.Settings_MinecraftDirectoryChangeBlockedByActiveTasks}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock"
+                                       BasedOn="{StaticResource SettingsDescriptionTextStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMinecraftDirectoryChangeBlocked}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
 
                         <WrapPanel Margin="0,16,0,0">
                             <Button Margin="0,0,10,10"

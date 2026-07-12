@@ -14,6 +14,7 @@ internal static class PendingInstanceDeletionDirectory
 {
     public const string Prefix = ".bhl-delete-pending-";
     public const string MarkerFileName = ".bhl-delete-pending-.json";
+    public const string AbortedMarkerFileName = ".bhl-delete-aborted.json";
     public static readonly JsonSerializerOptions MarkerJsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -41,8 +42,9 @@ internal static class PendingInstanceDeletionDirectory
                 File.ReadAllText(markerPath),
                 MarkerJsonOptions);
             if (parsed is null
-                || parsed.SchemaVersion != 1
+                || parsed.SchemaVersion is not (1 or 2)
                 || string.IsNullOrWhiteSpace(parsed.VersionName)
+                || (parsed.SchemaVersion == 2 && string.IsNullOrWhiteSpace(parsed.InstanceId))
                 || !Guid.TryParseExact(parsed.TransactionId, "N", out _))
                 return false;
             var expectedName = $"{Prefix}{parsed.VersionName}-{parsed.TransactionId[..8].ToLowerInvariant()}";
@@ -62,4 +64,5 @@ internal sealed record PendingInstanceDeletionMarker(
     int SchemaVersion,
     string TransactionId,
     string VersionName,
+    string? InstanceId,
     DateTimeOffset CreatedAtUtc);

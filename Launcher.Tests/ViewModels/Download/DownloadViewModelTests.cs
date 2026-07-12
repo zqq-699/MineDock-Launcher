@@ -167,6 +167,38 @@ public sealed class DownloadViewModelTests
     }
 
     [Fact]
+    public void ActiveOperationStateFollowsRunningDownloadTasks()
+    {
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var activityChanges = 0;
+        tasks.ActivityChanged += (_, _) => activityChanges++;
+
+        var task = tasks.BeginTask("install", "instance");
+
+        Assert.True(tasks.HasActiveOperations);
+        task.Complete("done");
+        Assert.False(tasks.HasActiveOperations);
+        Assert.True(activityChanges >= 2);
+    }
+
+    [Fact]
+    public async Task BackgroundCleanupKeepsOperationActiveAfterTaskEntryIsRemoved()
+    {
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var cleanup = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var task = tasks.BeginTask("import", "pack");
+        tasks.TrackBackgroundTask(cleanup.Task);
+
+        tasks.CancelTask(task);
+
+        Assert.Empty(tasks.Tasks);
+        Assert.True(tasks.HasActiveOperations);
+
+        cleanup.SetResult();
+        await WaitUntilAsync(() => !tasks.HasActiveOperations);
+    }
+
+    [Fact]
     public async Task CancelingDownloadTaskCancelsInstallationWithoutFailureMessage()
     {
         var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);

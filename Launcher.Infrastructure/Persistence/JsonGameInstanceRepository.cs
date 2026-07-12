@@ -129,6 +129,10 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         await ioLock.WaitAsync(cancellationToken);
         try
         {
+            await using var mutationLock = await AcquireVersionMutationLockAsync(
+                    settings.MinecraftDirectory,
+                    cancellationToken)
+                .ConfigureAwait(false);
             var persistedCount = await instanceSettingsStore.SaveAsync(
                     instances,
                     settings.MinecraftDirectory,
@@ -139,6 +143,25 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
                 instances.Count,
                 persistedCount,
                 settings.MinecraftDirectory);
+        }
+        finally
+        {
+            ioLock.Release();
+        }
+    }
+
+    public async Task UpdateInstanceAsync(
+        string minecraftDirectory,
+        GameInstance instance,
+        CancellationToken cancellationToken = default)
+    {
+        await ioLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await using var mutationLock = await AcquireVersionMutationLockAsync(minecraftDirectory, cancellationToken)
+                .ConfigureAwait(false);
+            await instanceSettingsStore.UpdateAsync(instance, minecraftDirectory, cancellationToken)
+                .ConfigureAwait(false);
         }
         finally
         {
@@ -185,6 +208,7 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
     public async Task<string> StageVersionForDeletionAsync(
         string minecraftDirectory,
         string versionName,
+        string expectedInstanceId,
         CancellationToken cancellationToken = default)
     {
         await ioLock.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -193,7 +217,14 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             cancellationToken.ThrowIfCancellationRequested();
             await using var mutationLock = await AcquireVersionMutationLockAsync(minecraftDirectory, cancellationToken)
                 .ConfigureAwait(false);
-            return await deletionManager.StageAsync(minecraftDirectory, versionName, cancellationToken)
+            var sourceDirectory = directoryManager.GetVersionDirectory(minecraftDirectory, versionName);
+            await instanceSettingsStore.EnsureIdentityAsync(sourceDirectory, expectedInstanceId, cancellationToken)
+                .ConfigureAwait(false);
+            return await deletionManager.StageAsync(
+                    minecraftDirectory,
+                    versionName,
+                    expectedInstanceId,
+                    cancellationToken)
                 .ConfigureAwait(false);
         }
         finally
@@ -202,23 +233,40 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         }
     }
 
-    public Task<bool> TryDeleteStagedVersionDirectoryAsync(
+    public async Task<bool> TryDeleteStagedVersionDirectoryAsync(
         string minecraftDirectory,
         string stagedDirectory,
         CancellationToken cancellationToken = default)
     {
-        return Task.Run(
-            () => deletionManager.TryDelete(minecraftDirectory, stagedDirectory),
-            cancellationToken);
+        await ioLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await using var mutationLock = await AcquireVersionMutationLockAsync(minecraftDirectory, cancellationToken)
+                .ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return deletionManager.TryDelete(minecraftDirectory, stagedDirectory);
+        }
+        finally
+        {
+            ioLock.Release();
+        }
     }
 
-    public Task CleanupStagedVersionDirectoriesAsync(
+    public async Task CleanupStagedVersionDirectoriesAsync(
         string minecraftDirectory,
         CancellationToken cancellationToken = default)
     {
-        return Task.Run(
-            () => deletionManager.CleanupPending(minecraftDirectory, cancellationToken),
-            cancellationToken);
+        await ioLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await using var mutationLock = await AcquireVersionMutationLockAsync(minecraftDirectory, cancellationToken)
+                .ConfigureAwait(false);
+            deletionManager.CleanupPending(minecraftDirectory, cancellationToken);
+        }
+        finally
+        {
+            ioLock.Release();
+        }
     }
 
     public async Task RenameVersionAsync(

@@ -24,16 +24,18 @@ using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Logging;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Download;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Launcher.App.ViewModels.Settings;
 
-public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelBase
+public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelBase, IDisposable
 {
     private readonly IStatusService statusService;
     private readonly IFilePickerService filePickerService;
     private readonly IInstanceFolderService instanceFolderService;
+    private readonly DownloadTasksPageViewModel? downloadTasksPage;
     private readonly ILogger logger;
 
     internal GeneralSettingsViewModel(
@@ -41,13 +43,17 @@ public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelB
         IStatusService statusService,
         IFilePickerService filePickerService,
         IInstanceFolderService instanceFolderService,
+        DownloadTasksPageViewModel? downloadTasksPage,
         ILogger logger)
         : base(persistence)
     {
         this.statusService = statusService;
         this.filePickerService = filePickerService;
         this.instanceFolderService = instanceFolderService;
+        this.downloadTasksPage = downloadTasksPage;
         this.logger = logger;
+        if (downloadTasksPage is not null)
+            downloadTasksPage.ActivityChanged += DownloadTasksPage_ActivityChanged;
         DownloadSourceOptions =
         [
             new(DownloadSourcePreference.Auto, Strings.Settings_DownloadSourceAuto),
@@ -62,6 +68,10 @@ public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelB
     public event EventHandler<SettingsMinecraftDirectoryChangedEventArgs>? MinecraftDirectoryChanged;
 
     public ObservableCollection<SettingsDownloadSourceOption> DownloadSourceOptions { get; }
+
+    public bool CanChangeMinecraftDirectory => downloadTasksPage?.HasActiveOperations != true;
+
+    public bool IsMinecraftDirectoryChangeBlocked => !CanChangeMinecraftDirectory;
 
     [ObservableProperty]
     private string minecraftDirectory = string.Empty;
@@ -101,14 +111,26 @@ public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelB
             LauncherLogDirectory = directory;
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanChangeMinecraftDirectory))]
     private async Task ChangeMinecraftDirectoryAsync()
     {
+        if (!CanChangeMinecraftDirectory)
+        {
+            statusService.Report(Strings.Settings_MinecraftDirectoryChangeBlockedByActiveTasks);
+            return;
+        }
+
         var selectedDirectory = filePickerService.PickFolder(
             Strings.FilePicker_MinecraftDirectoryTitle,
             MinecraftDirectory);
         if (string.IsNullOrWhiteSpace(selectedDirectory))
             return;
+
+        if (!CanChangeMinecraftDirectory)
+        {
+            statusService.Report(Strings.Settings_MinecraftDirectoryChangeBlockedByActiveTasks);
+            return;
+        }
 
         string normalizedDirectory;
         try
@@ -124,6 +146,12 @@ public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelB
 
         if (string.Equals(MinecraftDirectory, normalizedDirectory, StringComparison.OrdinalIgnoreCase))
             return;
+
+        if (!CanChangeMinecraftDirectory)
+        {
+            statusService.Report(Strings.Settings_MinecraftDirectoryChangeBlockedByActiveTasks);
+            return;
+        }
 
         var previousDirectory = Settings.MinecraftDirectory;
         try
@@ -142,6 +170,19 @@ public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelB
 
         statusService.Report(Strings.Status_MinecraftDirectoryChanged);
         MinecraftDirectoryChanged?.Invoke(this, new SettingsMinecraftDirectoryChangedEventArgs(normalizedDirectory));
+    }
+
+    public void Dispose()
+    {
+        if (downloadTasksPage is not null)
+            downloadTasksPage.ActivityChanged -= DownloadTasksPage_ActivityChanged;
+    }
+
+    private void DownloadTasksPage_ActivityChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(CanChangeMinecraftDirectory));
+        OnPropertyChanged(nameof(IsMinecraftDirectoryChangeBlocked));
+        ChangeMinecraftDirectoryCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedDownloadSourceOptionChanged(SettingsDownloadSourceOption? value)

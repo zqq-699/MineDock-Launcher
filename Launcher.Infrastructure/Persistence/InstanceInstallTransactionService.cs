@@ -20,6 +20,7 @@ namespace Launcher.Infrastructure.Persistence;
 internal static class PendingInstanceInstallDirectory
 {
     public const string Prefix = ".bhl-install-pending-";
+    public const string PreparationDirectoryName = ".bhl-install-preparing";
     public const string MarkerFileName = ".bhl-install-pending.json";
     public const string PendingLockFileName = ".bhl-install-active.lock";
     private static readonly JsonSerializerOptions MarkerJsonOptions = new()
@@ -30,6 +31,9 @@ internal static class PendingInstanceInstallDirectory
     public static bool IsPending(string path) =>
         Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
             .StartsWith(Prefix, StringComparison.OrdinalIgnoreCase);
+
+    public static string GetPreparationRoot(string versionsDirectory) =>
+        Path.Combine(versionsDirectory, PreparationDirectoryName);
 
     public static bool IsLogicalNameReserved(string versionsDirectory, string logicalVersionName)
     {
@@ -419,18 +423,19 @@ public sealed class InstanceInstallTransactionService : IInstanceInstallTransact
             var pendingDirectory = Path.Combine(
                 versionsDirectory,
                 $"{PendingInstanceInstallDirectory.Prefix}{logicalVersionName}-{transactionId[..8].ToLowerInvariant()}");
-            if (Directory.Exists(pendingDirectory))
+            var preparationRoot = PendingInstanceInstallDirectory.GetPreparationRoot(versionsDirectory);
+            var preparationDirectory = Path.Combine(preparationRoot, transactionId);
+            if (Directory.Exists(pendingDirectory)
+                || File.Exists(pendingDirectory)
+                || Directory.Exists(preparationDirectory)
+                || File.Exists(preparationDirectory))
                 continue;
 
-            Directory.CreateDirectory(pendingDirectory);
             FileStream? pendingLock = null;
+            var preparationRootOwned = false;
+            var preparationDirectoryOwned = false;
             try
             {
-                pendingLock = new FileStream(
-                    Path.Combine(pendingDirectory, PendingInstanceInstallDirectory.PendingLockFileName),
-                    FileMode.OpenOrCreate,
-                    FileAccess.ReadWrite,
-                    FileShare.Read | FileShare.Delete);
                 var marker = new PendingInstanceInstallMarker(
                     1,
                     transactionId,
@@ -439,11 +444,32 @@ public sealed class InstanceInstallTransactionService : IInstanceInstallTransact
                     installKind,
                     initializeDefaultIfEmpty,
                     DateTimeOffset.UtcNow);
+                // Build the recoverable metadata in a launcher-owned preparation area first.
+                // Publishing the directory into the pending namespace is then a same-volume atomic move,
+                // so a crash can never expose a markerless pending directory created by this service.
+                Directory.CreateDirectory(preparationRoot);
+                EnsureOrdinaryDirectory(preparationRoot, "Install preparation root");
+                preparationRootOwned = true;
+                Directory.CreateDirectory(preparationDirectory);
+                EnsureOrdinaryDirectory(preparationRoot, "Install preparation root");
+                EnsureOrdinaryDirectory(preparationDirectory, "Install preparation directory");
+                preparationDirectoryOwned = true;
                 await AtomicJsonFileWriter.WriteAsync(
-                    Path.Combine(pendingDirectory, PendingInstanceInstallDirectory.MarkerFileName),
+                    Path.Combine(preparationDirectory, PendingInstanceInstallDirectory.MarkerFileName),
                     marker,
                     JsonOptions,
                     cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                EnsureOrdinaryDirectory(preparationRoot, "Install preparation root");
+                EnsureOrdinaryDirectory(preparationDirectory, "Install preparation directory");
+                Directory.Move(preparationDirectory, pendingDirectory);
+                preparationDirectoryOwned = false;
+                TryDeleteEmptyDirectory(preparationRoot);
+                pendingLock = new FileStream(
+                    Path.Combine(pendingDirectory, PendingInstanceInstallDirectory.PendingLockFileName),
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.Read | FileShare.Delete);
                 logger.LogInformation(
                     "Instance installation staged. InstanceId={InstanceId} LogicalVersionName={LogicalVersionName} PendingDirectory={PendingDirectory}",
                     instanceId,
@@ -462,12 +488,45 @@ public sealed class InstanceInstallTransactionService : IInstanceInstallTransact
             {
                 if (pendingLock is not null)
                     await pendingLock.DisposeAsync().ConfigureAwait(false);
-                TryDeleteTree(pendingDirectory, logger);
+                if (preparationDirectoryOwned)
+                    TryDeleteTree(preparationDirectory, logger);
+                if (preparationRootOwned)
+                    TryDeleteEmptyDirectory(preparationRoot);
+                if (PendingInstanceInstallDirectory.TryReadValidPendingMarker(pendingDirectory, out var pendingMarker)
+                    && string.Equals(pendingMarker.TransactionId, transactionId, StringComparison.Ordinal))
+                {
+                    TryDeleteTree(pendingDirectory, logger);
+                }
                 throw;
             }
         }
 
         throw new IOException($"Unable to allocate an install staging directory after {MaxPendingNameAttempts} attempts.");
+    }
+
+    private static void TryDeleteEmptyDirectory(string directory)
+    {
+        try
+        {
+            Directory.Delete(directory, recursive: false);
+        }
+        catch (DirectoryNotFoundException)
+        {
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static void EnsureOrdinaryDirectory(string directory, string description)
+    {
+        if (!Directory.Exists(directory))
+            throw new DirectoryNotFoundException($"{description} is missing: {directory}");
+        if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+            throw new IOException($"{description} must not be a reparse point: {directory}");
     }
 
     private sealed class Transaction : IInstanceInstallTransaction
@@ -683,6 +742,12 @@ public sealed class InstanceInstallCleanupService(
             cancellationToken).ConfigureAwait(false);
         CrossProcessVersionLock.DeleteLegacyVersionDirectoryLocks(versionsDirectory);
         CrossProcessVersionLock.DeleteLegacyLauncherLocks(settings.MinecraftDirectory);
+
+        // This root is exclusively owned by the launcher and is never an install publication point.
+        // Any contents here were left before the atomic preparation -> pending move completed.
+        InstanceInstallTransactionService.TryDeleteTree(
+            PendingInstanceInstallDirectory.GetPreparationRoot(versionsDirectory),
+            logger);
 
         foreach (var directory in Directory.EnumerateDirectories(versionsDirectory).ToArray())
         {

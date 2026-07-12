@@ -230,6 +230,45 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task CreateInstanceDoesNotPublishOldDirectoryInstanceIntoNewDirectorySettings()
+    {
+        var settingsService = new JsonSettingsService(TempRoot);
+        var initialSettings = await settingsService.LoadAsync();
+        var installMinecraftDirectory = Path.Combine(TempRoot, "first", ".minecraft");
+        var newMinecraftDirectory = Path.Combine(TempRoot, "second", ".minecraft");
+        initialSettings.MinecraftDirectory = installMinecraftDirectory;
+        await settingsService.SaveAsync(initialSettings);
+
+        var releaseInstall = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new FakeLoaderProvider { WaitBeforeInstall = releaseInstall.Task };
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var transactionService = new InstanceInstallTransactionService();
+        var service = new GameInstanceService(
+            settingsService,
+            repository,
+            [provider],
+            modpackGameInstaller: new ModpackGameInstaller([provider]),
+            installTransactionService: transactionService);
+
+        var creation = service.CreateInstanceAsync(
+            "1.20.1", LoaderKind.Vanilla, null, "Test", null);
+        await provider.InstallStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var changedSettings = await settingsService.LoadAsync();
+        changedSettings.MinecraftDirectory = newMinecraftDirectory;
+        await settingsService.SaveAsync(changedSettings);
+        releaseInstall.SetResult(true);
+
+        var instance = await creation;
+        var persistedSettings = await settingsService.LoadAsync();
+
+        Assert.Equal(newMinecraftDirectory, persistedSettings.MinecraftDirectory);
+        Assert.Null(persistedSettings.DefaultInstanceId);
+        Assert.StartsWith(Path.GetFullPath(installMinecraftDirectory), Path.GetFullPath(instance.InstanceDirectory));
+        Assert.True(File.Exists(Path.Combine(instance.InstanceDirectory, ".bhl-install-pending.json")));
+    }
+
+    [Fact]
     public async Task DeleteInstancePreservesOriginalStateWhenStagingMoveFails()
     {
         var settings = CreateSettings("first");
@@ -316,6 +355,36 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
         Assert.False(duplicateResult);
         Assert.True(await firstDelete);
         Assert.Equal(1, moveCount);
+    }
+
+    [Fact]
+    public async Task SaveInstanceAsyncUsesIdentitySafeSingleInstanceUpdate()
+    {
+        var (settings, repository, service, _) = CreateService();
+        await CreateVersionAsync(settings.MinecraftDirectory, "first");
+        await repository.SaveAllAsync([CreateStoredInstance("first")]);
+        var instance = Assert.Single(await repository.GetAllAsync());
+        instance.Description = "updated";
+
+        await service.SaveInstanceAsync(instance);
+
+        Assert.Equal("updated", Assert.Single(await repository.GetAllAsync()).Description);
+    }
+
+    [Fact]
+    public async Task RenameInstanceAsyncWithIconOnlyUsesIdentitySafeSingleInstanceUpdate()
+    {
+        var (settings, repository, service, _) = CreateService();
+        await CreateVersionAsync(settings.MinecraftDirectory, "first");
+        await repository.SaveAllAsync([CreateStoredInstance("first")]);
+
+        var renamed = await service.RenameInstanceAsync("first", "first", "icon.png");
+
+        Assert.Equal("icon.png", renamed.IconSource);
+        Assert.True(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "first")));
+        var stored = Assert.Single(await repository.GetAllAsync());
+        Assert.Equal("first", stored.Id);
+        Assert.Equal("icon.png", stored.IconSource);
     }
 
     [Fact]
