@@ -176,8 +176,76 @@ public sealed class LaunchDiagnosticExportServiceTests : TestTempDirectory
         Assert.Empty(Directory.GetFiles(exportDirectory, "*.tmp", SearchOption.TopDirectoryOnly));
     }
 
-    private static LaunchDiagnosticExportService CreateService() =>
-        new(NullLogger<LaunchDiagnosticExportService>.Instance);
+    [Fact]
+    public async Task ExportSkipsFileAndTotalSizeLimitViolations()
+    {
+        var tooLarge = await WriteSourceAsync(TempRoot, "too-large.log", "123456789");
+        var first = await WriteSourceAsync(TempRoot, "first.log", "12345678");
+        var second = await WriteSourceAsync(TempRoot, "second.log", "abcdefgh");
+        var archivePath = Path.Combine(TempRoot, "limited.zip");
+        var service = CreateService(maxFileBytes: 8, maxTotalBytes: 12);
+
+        var result = await service.ExportAsync(new LaunchDiagnosticExportRequest(
+            archivePath,
+            "Example\r\nInjected: value",
+            "1.21.4\nInjected: value",
+            [
+                new(LaunchDiagnosticType.LauncherDiagnostic, tooLarge),
+                new(LaunchDiagnosticType.MinecraftLatestLog, first),
+                new(LaunchDiagnosticType.CapturedOutput, second)
+            ]));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, result.ExportedFileCount);
+        Assert.Equal(2, result.SkippedFileCount);
+        using var archive = ZipFile.OpenRead(archivePath);
+        var index = ReadEntry(archive, "report-index.txt");
+        Assert.Contains("Reason=file-too-large", index);
+        Assert.Contains("Reason=total-size-limit", index);
+        Assert.Contains("InstanceName: Example Injected: value", index);
+        Assert.DoesNotContain("\r\nInjected", index, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExportSkipsReparsePointDiagnosticWhenSupported()
+    {
+        var target = await WriteSourceAsync(TempRoot, "private.log", "private");
+        var link = Path.Combine(TempRoot, "linked-crash.log");
+        try
+        {
+            File.CreateSymbolicLink(link, target);
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        var launcher = await WriteSourceAsync(TempRoot, "launch-diagnostics.log", "launcher");
+        var archivePath = Path.Combine(TempRoot, "safe.zip");
+
+        var result = await CreateService().ExportAsync(new LaunchDiagnosticExportRequest(
+            archivePath,
+            "Example",
+            "1.21.4",
+            [
+                new(LaunchDiagnosticType.MinecraftCrashReport, link),
+                new(LaunchDiagnosticType.LauncherDiagnostic, launcher)
+            ]));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, result.ExportedFileCount);
+        Assert.Equal(1, result.SkippedFileCount);
+        using var archive = ZipFile.OpenRead(archivePath);
+        Assert.DoesNotContain(archive.Entries, entry => entry.FullName.Contains("linked-crash", StringComparison.Ordinal));
+        Assert.Contains("Reason=unsafe-reparse-point", ReadEntry(archive, "report-index.txt"));
+    }
+
+    private static LaunchDiagnosticExportService CreateService(
+        long maxFileBytes = 128L * 1024 * 1024,
+        long maxTotalBytes = 256L * 1024 * 1024) =>
+        new(
+            NullLogger<LaunchDiagnosticExportService>.Instance,
+            new LaunchDiagnosticExportLimits(maxFileBytes, maxTotalBytes));
 
     private static async Task<string> WriteSourceAsync(string directory, string fileName, string content)
     {

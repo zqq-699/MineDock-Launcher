@@ -20,7 +20,6 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text;
-using System.Text.RegularExpressions;
 using Launcher.Application.Services;
 
 namespace Launcher.Infrastructure.Minecraft;
@@ -32,6 +31,7 @@ internal static class LaunchDiagnosticsWriter
 {
     // 诊断文件面向排障而非完整归档，所有外部文本进入前都必须脱敏并限制体积。
     private const int MaxDiagnosticLogFiles = 50;
+    private const int MaxMatchedErrorLineLength = 800;
     private const string DiagnosticFilePattern = "launch-diagnostics-*.log";
     private const string CapturedOutputFilePattern = "launch-output-*.log";
 
@@ -45,27 +45,31 @@ internal static class LaunchDiagnosticsWriter
         IReadOnlyList<LaunchDiagnosticReference> diagnosticCandidates,
         string stdout,
         string stderr,
+        bool capturedOutputTruncated,
         CancellationToken cancellationToken)
     {
         // 快速退出通常没有异常对象，主要依靠退出码、最新日志和崩溃文件推断原因。
         var latestLogPath = diagnosticCandidates
             .FirstOrDefault(candidate => candidate.Type == LaunchDiagnosticType.MinecraftLatestLog)
             ?.Path;
-        var latestLogTail = ReadFileTail(latestLogPath, 120);
+        var latestLogTail = await BoundedDiagnosticFileReader
+            .ReadTailAsync(latestLogPath, cancellationToken)
+            .ConfigureAwait(false);
         var crashFiles = diagnosticCandidates
             .Where(candidate => candidate.Type is LaunchDiagnosticType.MinecraftCrashReport
                 or LaunchDiagnosticType.JvmCrashReport)
             .Select(candidate => candidate.Path)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        var matchedErrorLines = FindMatchedErrorLines(stdout, stderr, latestLogTail, crashFiles);
+        var crashPreviews = await ReadCrashPreviewsAsync(crashFiles, cancellationToken).ConfigureAwait(false);
+        var matchedErrorLines = FindMatchedErrorLines(stdout, stderr, latestLogTail, crashPreviews);
         var failureSummary = matchedErrorLines.FirstOrDefault() ?? $"Minecraft exited with code {exitCode}.";
         var analysis = LaunchFailureAnalyzer.Analyze(
             context,
             stdout,
             stderr,
             latestLogTail,
-            crashFiles);
+            crashPreviews.Select(preview => preview.Text).ToArray());
 
         var diagnosticWrite = await WriteDiagnosticAsync(
             context,
@@ -79,9 +83,10 @@ internal static class LaunchDiagnosticsWriter
             {
                 builder.AppendLine($"ExitCode: {exitCode}");
                 builder.AppendLine($"Runtime: {runtime}");
+                builder.AppendLine($"CapturedOutputTruncated: {capturedOutputTruncated}");
                 AppendProcessSection(builder, startInfo, context.SensitiveValues);
                 AppendFileSection(builder, "NewCrashFiles", crashFiles);
-                AppendCrashPreviewSection(builder, crashFiles, context.SensitiveValues);
+                AppendCrashPreviewSection(builder, crashPreviews, context.SensitiveValues);
                 AppendTextSection(builder, "MatchedErrorLines", RedactSensitiveLines(matchedErrorLines, context.SensitiveValues));
                 AppendTextSection(builder, "LatestLogTail", RedactSensitiveText(LimitTail(latestLogTail, 120), context.SensitiveValues));
                 AppendTextSection(builder, "StdOut", RedactSensitiveText(LimitTail(stdout, 120), context.SensitiveValues));
@@ -101,24 +106,32 @@ internal static class LaunchDiagnosticsWriter
         string failureSummary,
         Exception exception,
         ProcessStartInfo? startInfo,
+        DateTimeOffset createdAt,
+        IReadOnlyList<LaunchDiagnosticReference> diagnosticCandidates,
         CancellationToken cancellationToken)
     {
         // 异常链和下载诊断是结构化证据，仍与进程日志合并到同一份用户可分享文件中。
-        var createdAt = DateTimeOffset.UtcNow;
-        var latestLog = ReadLatestLogTail(context.MinecraftDirectory, context.InstanceDirectory, createdAt);
-        var latestLogTail = latestLog.Text;
-        var crashFiles = EnumerateCandidateCrashFiles(context.MinecraftDirectory, context.InstanceDirectory)
-            .Select(Path.GetFullPath)
-            .OrderByDescending(path => File.GetLastWriteTimeUtc(path))
+        var latestLogPath = diagnosticCandidates
+            .FirstOrDefault(candidate => candidate.Type == LaunchDiagnosticType.MinecraftLatestLog)
+            ?.Path;
+        var latestLogTail = await BoundedDiagnosticFileReader
+            .ReadTailAsync(latestLogPath, cancellationToken)
+            .ConfigureAwait(false);
+        var crashFiles = diagnosticCandidates
+            .Where(candidate => candidate.Type is LaunchDiagnosticType.MinecraftCrashReport
+                or LaunchDiagnosticType.JvmCrashReport)
+            .Select(candidate => candidate.Path)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        var matchedErrorLines = FindMatchedErrorLines(string.Empty, string.Empty, latestLogTail, crashFiles);
+        var crashPreviews = await ReadCrashPreviewsAsync(crashFiles, cancellationToken).ConfigureAwait(false);
+        var matchedErrorLines = FindMatchedErrorLines(string.Empty, string.Empty, latestLogTail, crashPreviews);
         var exceptionText = FormatExceptionChain(exception);
         var analysis = LaunchFailureAnalyzer.Analyze(
             context,
             string.Empty,
             exceptionText,
-            latestLog.IsFresh ? latestLogTail : string.Empty,
-            crashFiles);
+            latestLogTail,
+            crashPreviews.Select(preview => preview.Text).ToArray());
 
         var diagnosticWrite = await WriteDiagnosticAsync(
             context,
@@ -126,7 +139,7 @@ internal static class LaunchDiagnosticsWriter
             failureSummary,
             analysis,
             createdAt,
-            [],
+            diagnosticCandidates,
             cancellationToken,
             builder =>
             {
@@ -134,7 +147,7 @@ internal static class LaunchDiagnosticsWriter
                 AppendDownloadSection(builder, FindDownloadDiagnostic(exception), context.SensitiveValues);
                 AppendTextSection(builder, "ExceptionChain", RedactSensitiveText(exceptionText, context.SensitiveValues));
                 AppendFileSection(builder, "CrashFiles", crashFiles);
-                AppendCrashPreviewSection(builder, crashFiles, context.SensitiveValues);
+                AppendCrashPreviewSection(builder, crashPreviews, context.SensitiveValues);
                 AppendTextSection(builder, "MatchedErrorLines", RedactSensitiveLines(matchedErrorLines, context.SensitiveValues));
                 AppendTextSection(builder, "LatestLogTail", RedactSensitiveText(LimitTail(latestLogTail, 120), context.SensitiveValues));
             });
@@ -312,91 +325,11 @@ internal static class LaunchDiagnosticsWriter
         }
     }
 
-    private sealed record LatestLogTail(string Text, bool IsFresh);
-
-    private static string ReadFileTail(string? path, int maxLines)
-    {
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-            return string.Empty;
-
-        try
-        {
-            return string.Join(Environment.NewLine, File.ReadLines(path).TakeLast(maxLines));
-        }
-        catch (IOException)
-        {
-            return string.Empty;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return string.Empty;
-        }
-    }
-
-    private static LatestLogTail ReadLatestLogTail(
-        string minecraftDirectory,
-        string instanceDirectory,
-        DateTimeOffset createdAt)
-    {
-        // 仅采用启动时间附近更新的 latest.log，避免把上一次游戏会话的错误误判为本次原因。
-        foreach (var root in EnumerateRoots(minecraftDirectory, instanceDirectory))
-        {
-            var latestLogPath = Path.Combine(root, "logs", "latest.log");
-            if (!File.Exists(latestLogPath))
-                continue;
-
-            try
-            {
-                var lines = File.ReadAllLines(latestLogPath);
-                var lastWriteTime = File.GetLastWriteTimeUtc(latestLogPath);
-                return new LatestLogTail(
-                    string.Join(Environment.NewLine, lines.TakeLast(120)),
-                    lastWriteTime >= createdAt.UtcDateTime);
-            }
-            catch (IOException)
-            {
-            }
-            catch (UnauthorizedAccessException)
-            {
-            }
-        }
-
-        return new LatestLogTail(string.Empty, false);
-    }
-
-    private static IEnumerable<string> EnumerateCandidateCrashFiles(string minecraftDirectory, string instanceDirectory)
-    {
-        // 隔离实例和全局目录都可能产生 crash-reports，枚举根目录时去重但保留最近文件优先级。
-        foreach (var root in EnumerateRoots(minecraftDirectory, instanceDirectory))
-        {
-            var crashReportsDirectory = Path.Combine(root, "crash-reports");
-            if (Directory.Exists(crashReportsDirectory))
-            {
-                foreach (var file in Directory.GetFiles(crashReportsDirectory, "*.txt", SearchOption.TopDirectoryOnly))
-                    yield return file;
-            }
-
-            if (Directory.Exists(root))
-            {
-                foreach (var file in Directory.GetFiles(root, "hs_err_pid*.log", SearchOption.TopDirectoryOnly))
-                    yield return file;
-            }
-        }
-    }
-
-    private static IEnumerable<string> EnumerateRoots(string minecraftDirectory, string instanceDirectory)
-    {
-        return new[] { instanceDirectory, minecraftDirectory }
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .Select(Path.GetFullPath)
-            .Distinct(StringComparer.OrdinalIgnoreCase);
-    }
-
     private static List<string> FindMatchedErrorLines(
         string stdout,
         string stderr,
         string latestLogTail,
-        IReadOnlyList<string> crashFiles)
+        IReadOnlyList<CrashPreview> crashPreviews)
     {
         // 从尾部提取少量高信号错误行，完整日志路径仍写入诊断供进一步查看。
         var candidates = new List<string>();
@@ -404,8 +337,8 @@ internal static class LaunchDiagnosticsWriter
         AddMatches(stderr);
         AddMatches(latestLogTail);
 
-        foreach (var crashFile in crashFiles.Take(2))
-            AddMatches(ReadCrashFilePreview(crashFile));
+        foreach (var crashPreview in crashPreviews.Take(2))
+            AddMatches(crashPreview.Text);
 
         return candidates.Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToList();
 
@@ -417,7 +350,11 @@ internal static class LaunchDiagnosticsWriter
             foreach (var line in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
                 if (LooksLikeFailureLine(line))
-                    candidates.Add(line);
+                {
+                    candidates.Add(line.Length <= MaxMatchedErrorLineLength
+                        ? line
+                        : line[..MaxMatchedErrorLineLength] + "…");
+                }
             }
         }
     }
@@ -507,36 +444,6 @@ internal static class LaunchDiagnosticsWriter
     private static string RedactSensitiveText(string text, IReadOnlyList<string> sensitiveValues) =>
         LaunchDiagnosticRedactor.Redact(text, sensitiveValues);
 
-    private static string LegacyRedactSensitiveText(string text, IReadOnlyList<string> sensitiveValues)
-    {
-        // 先替换已知 token，再处理常见命令行键值，避免访问令牌出现在可分享诊断中。
-        if (string.IsNullOrWhiteSpace(text))
-            return text;
-
-        var redacted = Regex.Replace(
-            text,
-            @"(?i)(--?accessToken(?:=|\s+))(""[^""]+""|\S+)",
-            "$1<redacted>");
-        redacted = Regex.Replace(
-            redacted,
-            @"(?i)(--?session(?:=|\s+))(""[^""]+""|\S+)",
-            "$1<redacted>");
-        redacted = Regex.Replace(
-            redacted,
-            @"(?i)(--?token(?:=|\s+))(""[^""]+""|\S+)",
-            "$1<redacted>");
-
-        foreach (var sensitiveValue in sensitiveValues)
-        {
-            if (string.IsNullOrWhiteSpace(sensitiveValue) || sensitiveValue.Length < 8)
-                continue;
-
-            redacted = redacted.Replace(sensitiveValue, "<redacted>", StringComparison.Ordinal);
-        }
-
-        return redacted;
-    }
-
     private static IEnumerable<string> RedactSensitiveLines(
         IEnumerable<string> lines,
         IReadOnlyList<string> sensitiveValues)
@@ -557,40 +464,39 @@ internal static class LaunchDiagnosticsWriter
 
     private static void AppendCrashPreviewSection(
         StringBuilder builder,
-        IReadOnlyList<string> crashFiles,
+        IReadOnlyList<CrashPreview> crashPreviews,
         IReadOnlyList<string> sensitiveValues)
     {
         builder.AppendLine();
         builder.AppendLine("[CrashPreview]");
-        if (crashFiles.Count == 0)
+        if (crashPreviews.Count == 0)
         {
             builder.AppendLine("(none)");
             return;
         }
 
-        foreach (var crashFile in crashFiles.Take(2))
+        foreach (var crashPreview in crashPreviews.Take(2))
         {
-            builder.AppendLine($"> {crashFile}");
-            var preview = RedactSensitiveText(ReadCrashFilePreview(crashFile), sensitiveValues);
+            builder.AppendLine($"> {crashPreview.Path}");
+            var preview = RedactSensitiveText(crashPreview.Text, sensitiveValues);
             builder.AppendLine(string.IsNullOrWhiteSpace(preview) ? "(empty)" : preview);
         }
     }
 
-    private static string ReadCrashFilePreview(string crashFile)
+    private static async Task<IReadOnlyList<CrashPreview>> ReadCrashPreviewsAsync(
+        IReadOnlyList<string> crashFiles,
+        CancellationToken cancellationToken)
     {
-        try
+        var previews = new List<CrashPreview>();
+        foreach (var path in crashFiles.Take(2))
         {
-            var lines = File.ReadAllLines(crashFile);
-            return string.Join(Environment.NewLine, lines.Take(120));
+            var text = await BoundedDiagnosticFileReader
+                .ReadHeadAsync(path, cancellationToken)
+                .ConfigureAwait(false);
+            previews.Add(new CrashPreview(path, text));
         }
-        catch (IOException)
-        {
-            return string.Empty;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return string.Empty;
-        }
+
+        return previews;
     }
 
     private static void AppendFileSection(StringBuilder builder, string title, IEnumerable<string> paths)
@@ -633,4 +539,6 @@ internal static class LaunchDiagnosticsWriter
     private sealed record DiagnosticWriteResult(
         string Path,
         IReadOnlyList<LaunchDiagnosticReference> Candidates);
+
+    private sealed record CrashPreview(string Path, string Text);
 }

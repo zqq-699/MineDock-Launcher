@@ -125,6 +125,8 @@ public sealed class LaunchService : ILaunchService
             javaRuntime: null,
             memoryMb,
             sensitiveValues: []);
+        var launchAttemptStartedAt = DateTimeOffset.UtcNow;
+        LaunchSessionDiagnosticCollector? failureDiagnosticCollector = null;
         logger.LogInformation(
             "Game launch started. InstanceId={InstanceId} InstanceName={InstanceName} VersionName={VersionName} Loader={Loader} MemoryMb={MemoryMb}",
             instance.Id,
@@ -143,6 +145,9 @@ public sealed class LaunchService : ILaunchService
 
         try
         {
+            failureDiagnosticCollector = new LaunchSessionDiagnosticCollector(
+                settings.MinecraftDirectory,
+                instance.InstanceDirectory);
             var preparedRuntime = await PrepareRuntimeAsync(
                     instance,
                     account,
@@ -212,6 +217,8 @@ public sealed class LaunchService : ILaunchService
                 "Failed to create a valid Minecraft account session.",
                 exception,
                 process?.StartInfo,
+                failureDiagnosticCollector,
+                launchAttemptStartedAt,
                 cancellationToken);
             throw new LaunchFailedException(report, exception);
         }
@@ -223,6 +230,8 @@ public sealed class LaunchService : ILaunchService
                 exception.Message,
                 exception,
                 process?.StartInfo,
+                failureDiagnosticCollector,
+                launchAttemptStartedAt,
                 cancellationToken);
             throw new LaunchFailedException(report, exception);
         }
@@ -234,6 +243,8 @@ public sealed class LaunchService : ILaunchService
                 exception.Message,
                 exception,
                 process?.StartInfo,
+                failureDiagnosticCollector,
+                launchAttemptStartedAt,
                 cancellationToken);
             throw new LaunchFailedException(report, exception);
         }
@@ -245,6 +256,8 @@ public sealed class LaunchService : ILaunchService
                 exception.Message,
                 exception,
                 process?.StartInfo,
+                failureDiagnosticCollector,
+                launchAttemptStartedAt,
                 cancellationToken);
             throw new LaunchFailedException(report, exception);
         }
@@ -506,17 +519,29 @@ public sealed class LaunchService : ILaunchService
         string failureSummary,
         Exception exception,
         System.Diagnostics.ProcessStartInfo? startInfo,
+        LaunchSessionDiagnosticCollector? diagnosticCollector,
+        DateTimeOffset launchAttemptStartedAt,
         CancellationToken cancellationToken)
     {
         LaunchDiagnosticResult? diagnostic = null;
         try
         {
+            IReadOnlyList<LaunchDiagnosticReference> diagnosticCandidates = diagnosticCollector is null
+                ? []
+                : await diagnosticCollector
+                    .CollectAsync(
+                        launchAttemptStartedAt,
+                        capturedOutputPath: null,
+                        cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
             diagnostic = await LaunchDiagnosticsWriter.WriteExceptionDiagnosticAsync(
                 context,
                 failureKind,
                 failureSummary,
                 exception,
                 startInfo,
+                launchAttemptStartedAt,
+                diagnosticCandidates,
                 cancellationToken);
 
             if (!string.IsNullOrWhiteSpace(diagnostic.DiagnosticPath))

@@ -118,6 +118,7 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
                 diagnosticCandidates,
                 capturedOutput.StdOut,
                 capturedOutput.StdErr,
+                capturedOutput.WasTruncated,
                 cancellationToken);
 
             return new LaunchCrashMonitorResult(CreateReport(
@@ -164,6 +165,7 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
                 diagnosticCandidates,
                 capturedOutput.StdOut,
                 capturedOutput.StdErr,
+                capturedOutput.WasTruncated,
                 CancellationToken.None);
 
             var report = CreateReport(

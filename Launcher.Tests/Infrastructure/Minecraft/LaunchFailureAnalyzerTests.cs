@@ -100,6 +100,40 @@ public sealed class LaunchFailureAnalyzerTests : TestTempDirectory
     }
 
     [Fact]
+    public void AnalyzerPrefersStructuredLatestLogOverGenericCurrentMarker()
+    {
+        const string stdout = "Incompatible mods found!";
+        const string latestLog = """
+            Incompatible mods found!
+            More details:
+              - Mod 'Iris' (iris) 1.0 requires any 0.7.x version of sodium, which is missing!
+            """;
+
+        var analysis = LaunchFailureAnalyzer.Analyze(CreateContext(), stdout, string.Empty, latestLog, []);
+
+        Assert.NotNull(analysis);
+        Assert.Equal(LaunchFailureCategory.ModDependencyMissing, analysis.Category);
+        var detail = Assert.Single(analysis.Details);
+        Assert.Equal("Iris", detail.ModName);
+        Assert.Equal("sodium", detail.DependencyName);
+    }
+
+    [Fact]
+    public void AnalyzerMergesSameCategoryDetailsFromCurrentOutputAndLatestLog()
+    {
+        const string stdout = "Mod 'First' (first) 1.0 requires any version of alpha, which is missing!";
+        const string latestLog = "Mod 'Second' (second) 1.0 requires any version of beta, which is missing!";
+
+        var analysis = LaunchFailureAnalyzer.Analyze(CreateContext(), stdout, string.Empty, latestLog, []);
+
+        Assert.NotNull(analysis);
+        Assert.Collection(
+            analysis.Details,
+            detail => Assert.Equal("First", detail.ModName),
+            detail => Assert.Equal("Second", detail.ModName));
+    }
+
+    [Fact]
     public void AnalyzerDetectsMissingClientJarRepairFailure()
     {
         var context = CreateContext();
@@ -266,6 +300,84 @@ public sealed class LaunchFailureAnalyzerTests : TestTempDirectory
     }
 
     [Fact]
+    public void AnalyzerExtractsNeoForgeFailureWithoutFailureMessagePrefix()
+    {
+        const string latestLog = """
+            Error loading mods
+            1 error has occurred during loading
+            Mod sodium_extra requires sodium 0.8.13+mc1.21.11 or above
+            Currently, sodium is not installed
+            """;
+
+        var analysis = LaunchFailureAnalyzer.Analyze(
+            CreateContext(loader: LoaderKind.NeoForge),
+            string.Empty,
+            string.Empty,
+            latestLog,
+            []);
+
+        Assert.NotNull(analysis);
+        Assert.Equal(LaunchFailureCategory.ModDependencyMissing, analysis.Category);
+        var detail = Assert.Single(analysis.Details);
+        Assert.Equal(LaunchFailureDetailKind.MissingDependency, detail.Kind);
+        Assert.Equal("sodium_extra", detail.ModName);
+        Assert.Equal("sodium", detail.DependencyName);
+        Assert.Equal("0.8.13+mc1.21.11 or above", detail.RequiredVersion);
+        Assert.Null(detail.CurrentVersion);
+        Assert.Contains("Currently, sodium is not installed", detail.OriginalReason);
+    }
+
+    [Fact]
+    public void AnalyzerDoesNotJoinForgeFailureWithAnotherFailureBlock()
+    {
+        const string latestLog = """
+            Failure message: Mod first requires alpha 2.0 or above
+            Mod Issue URL: https://example.invalid/first
+            Failure message: Mod second requires beta 3.0 or above
+            Currently, alpha is not installed
+            """;
+
+        var analysis = LaunchFailureAnalyzer.Analyze(CreateContext(), string.Empty, string.Empty, latestLog, []);
+
+        Assert.NotNull(analysis);
+        Assert.Empty(analysis.Details);
+    }
+
+    [Fact]
+    public void AnalyzerFallbackDoesNotJoinUnrelatedLines()
+    {
+        const string latestLog = """
+            Incompatible mods found!
+            Mod 'First' reported an initialization problem.
+            A later subsystem requires 'alpha'.
+            Another unrelated value is missing.
+            """;
+
+        var analysis = LaunchFailureAnalyzer.Analyze(CreateContext(), string.Empty, string.Empty, latestLog, []);
+
+        Assert.NotNull(analysis);
+        Assert.Empty(analysis.Details);
+    }
+
+    [Fact]
+    public void AnalyzerDoesNotAssociateSuggestionByIdentifierSubstring()
+    {
+        const string latestLog = """
+            Incompatible mods found!
+            A potential solution has been determined:
+              - Install service_api 2.0 or later.
+            More details:
+              - Mod 'Example' (example) 1.0 requires any version of ice, which is missing!
+            """;
+
+        var analysis = LaunchFailureAnalyzer.Analyze(CreateContext(), string.Empty, string.Empty, latestLog, []);
+
+        Assert.NotNull(analysis);
+        var detail = Assert.Single(analysis.Details);
+        Assert.Null(detail.OriginalSuggestion);
+    }
+
+    [Fact]
     public void AnalyzerKeepsHighSignalEvidenceWhenModConflictFormatIsUnknown()
     {
         const string latestLog = """
@@ -343,6 +455,17 @@ public sealed class LaunchFailureAnalyzerTests : TestTempDirectory
         var evidence = Assert.Single(analysis.Evidence);
         Assert.Equal(801, evidence.Text.Length);
         Assert.EndsWith("…", evidence.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnalyzerDoesNotThrowForOversizedAdversarialLine()
+    {
+        var latestLog = $"Incompatible mods found!{Environment.NewLine}Mod '{new string('x', 300_000)} requires an invalid dependency";
+
+        var exception = Record.Exception(() =>
+            LaunchFailureAnalyzer.Analyze(CreateContext(), string.Empty, string.Empty, latestLog, []));
+
+        Assert.Null(exception);
     }
 
     [Fact]

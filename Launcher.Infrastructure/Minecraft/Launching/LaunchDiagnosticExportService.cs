@@ -6,8 +6,10 @@
 
 using System.IO;
 using System.IO.Compression;
+using System.Runtime.InteropServices;
 using System.Text;
 using Launcher.Application.Services;
+using Microsoft.Win32.SafeHandles;
 using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Minecraft;
@@ -15,10 +17,19 @@ namespace Launcher.Infrastructure.Minecraft;
 public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportService
 {
     private readonly ILogger<LaunchDiagnosticExportService> logger;
+    private readonly LaunchDiagnosticExportLimits limits;
 
     public LaunchDiagnosticExportService(ILogger<LaunchDiagnosticExportService> logger)
+        : this(logger, LaunchDiagnosticExportLimits.Default)
+    {
+    }
+
+    internal LaunchDiagnosticExportService(
+        ILogger<LaunchDiagnosticExportService> logger,
+        LaunchDiagnosticExportLimits limits)
     {
         this.logger = logger;
+        this.limits = limits;
     }
 
     public async Task<LaunchDiagnosticExportResult> ExportAsync(
@@ -62,6 +73,7 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
             var usedEntryNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var uniqueDiagnostics = NormalizeDiagnostics(request.Diagnostics, outcomes);
             var exportedFileCount = 0;
+            long exportedSourceBytes = 0;
 
             await using (var output = new FileStream(
                              temporaryPath,
@@ -81,10 +93,15 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
                         diagnostic,
                         entryName,
                         Path.GetDirectoryName(temporaryPath)!,
+                        limits,
+                        Math.Max(0, limits.MaxTotalSourceBytes - exportedSourceBytes),
                         cancellationToken);
                     outcomes.Add(outcome);
                     if (outcome.IsExported)
+                    {
                         exportedFileCount++;
+                        exportedSourceBytes += outcome.SourceBytes;
+                    }
                 }
 
                 await WriteIndexAsync(
@@ -152,14 +169,15 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
                 if (uniquePaths.Add(fullPath))
                     normalized.Add(diagnostic with { Path = fullPath });
             }
-            catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
+            catch (Exception exception) when (exception is ArgumentException or NotSupportedException or IOException)
             {
                 outcomes.Add(new ExportOutcome(
                     diagnostic.Type,
                     SafeFileName(diagnostic.Path),
                     null,
                     false,
-                    "invalid-path"));
+                    "invalid-path",
+                    0));
             }
         }
 
@@ -171,11 +189,22 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
         LaunchDiagnosticReference diagnostic,
         string entryName,
         string stagingDirectory,
+        LaunchDiagnosticExportLimits limits,
+        long remainingTotalBytes,
         CancellationToken cancellationToken)
     {
         var stagingPath = Path.Combine(stagingDirectory, $".launch-diagnostic-{Guid.NewGuid():N}.tmp");
         try
         {
+            if (!TryValidateSafePath(diagnostic.Path, out var validationReason))
+                return CreateSkippedOutcome(diagnostic, validationReason);
+            if (remainingTotalBytes <= 0)
+                return CreateSkippedOutcome(diagnostic, "total-size-limit");
+
+            long initialLength;
+            DateTime initialLastWriteTimeUtc;
+            DateTime initialCreationTimeUtc;
+            FileIdentity initialIdentity;
             try
             {
                 await using var source = new FileStream(
@@ -185,6 +214,19 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
                     FileShare.ReadWrite | FileShare.Delete,
                     81920,
                     useAsync: true);
+                if (!TryValidateSafePath(diagnostic.Path, out validationReason))
+                    return CreateSkippedOutcome(diagnostic, validationReason);
+
+                initialLength = source.Length;
+                initialLastWriteTimeUtc = File.GetLastWriteTimeUtc(diagnostic.Path);
+                initialCreationTimeUtc = File.GetCreationTimeUtc(diagnostic.Path);
+                if (!TryGetFileIdentity(source.SafeFileHandle, out initialIdentity))
+                    return CreateSkippedOutcome(diagnostic, "io-error");
+                if (initialLength > limits.MaxSourceFileBytes)
+                    return CreateSkippedOutcome(diagnostic, "file-too-large");
+                if (initialLength > remainingTotalBytes)
+                    return CreateSkippedOutcome(diagnostic, "total-size-limit");
+
                 await using var staging = new FileStream(
                     stagingPath,
                     FileMode.CreateNew,
@@ -192,7 +234,41 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
                     FileShare.None,
                     81920,
                     useAsync: true);
-                await source.CopyToAsync(staging, cancellationToken);
+                var buffer = new byte[81920];
+                long copiedBytes = 0;
+                while (true)
+                {
+                    var read = await source.ReadAsync(buffer, cancellationToken);
+                    if (read == 0)
+                        break;
+                    copiedBytes += read;
+                    if (copiedBytes > limits.MaxSourceFileBytes)
+                        return CreateSkippedOutcome(diagnostic, "file-too-large");
+                    if (copiedBytes > remainingTotalBytes)
+                        return CreateSkippedOutcome(diagnostic, "total-size-limit");
+                    await staging.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                }
+
+                await staging.FlushAsync(cancellationToken);
+                await using var verificationSource = new FileStream(
+                    diagnostic.Path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete,
+                    1,
+                    useAsync: false);
+                if (copiedBytes != initialLength
+                    || source.Length != initialLength
+                    || File.GetLastWriteTimeUtc(diagnostic.Path) != initialLastWriteTimeUtc
+                    || File.GetCreationTimeUtc(diagnostic.Path) != initialCreationTimeUtc
+                    || !TryGetFileIdentity(verificationSource.SafeFileHandle, out var currentIdentity)
+                    || currentIdentity != initialIdentity
+                    || !TryValidateSafePath(diagnostic.Path, out validationReason))
+                {
+                    return CreateSkippedOutcome(
+                        diagnostic,
+                        validationReason == "unsafe-reparse-point" ? validationReason : "source-changed");
+                }
             }
             catch (FileNotFoundException)
             {
@@ -226,7 +302,8 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
                 Path.GetFileName(diagnostic.Path),
                 entryName,
                 true,
-                null);
+                null,
+                initialLength);
         }
         finally
         {
@@ -244,15 +321,15 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
         await using var stream = entry.Open();
         await using var writer = new StreamWriter(stream, new UTF8Encoding(false));
         await writer.WriteLineAsync($"CreatedAtUtc: {DateTimeOffset.UtcNow:O}");
-        await writer.WriteLineAsync($"InstanceName: {request.InstanceName}");
-        await writer.WriteLineAsync($"VersionName: {request.VersionName}");
+        await writer.WriteLineAsync($"InstanceName: {NormalizeIndexValue(request.InstanceName)}");
+        await writer.WriteLineAsync($"VersionName: {NormalizeIndexValue(request.VersionName)}");
         await writer.WriteLineAsync();
         await writer.WriteLineAsync("[Diagnostics]");
         foreach (var outcome in outcomes)
         {
             cancellationToken.ThrowIfCancellationRequested();
             await writer.WriteLineAsync(
-                $"Type={outcome.Type}; Status={(outcome.IsExported ? "exported" : "skipped")}; FileName={outcome.FileName}; Entry={outcome.EntryName ?? "none"}; Reason={outcome.Reason ?? "none"}");
+                $"Type={outcome.Type}; Status={(outcome.IsExported ? "exported" : "skipped")}; FileName={NormalizeIndexValue(outcome.FileName)}; Entry={NormalizeIndexValue(outcome.EntryName ?? "none")}; Reason={NormalizeIndexValue(outcome.Reason ?? "none")}");
         }
     }
 
@@ -265,7 +342,8 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
             Path.GetFileName(diagnostic.Path),
             null,
             false,
-            reason);
+            reason,
+            0);
     }
 
     private static string ResolveUniqueEntryName(
@@ -319,6 +397,93 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
         }
     }
 
+    private static bool TryValidateSafePath(string path, out string reason)
+    {
+        reason = "none";
+        try
+        {
+            var fullPath = Path.GetFullPath(path);
+            var root = Path.GetPathRoot(fullPath);
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                reason = "invalid-path";
+                return false;
+            }
+
+            var current = root;
+            var relative = Path.GetRelativePath(root, fullPath);
+            foreach (var component in relative.Split(
+                         [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                         StringSplitOptions.RemoveEmptyEntries))
+            {
+                current = Path.Combine(current, component);
+                if (!File.Exists(current) && !Directory.Exists(current))
+                {
+                    reason = "missing";
+                    return false;
+                }
+
+                if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                {
+                    reason = "unsafe-reparse-point";
+                    return false;
+                }
+            }
+
+            if (!File.Exists(fullPath))
+            {
+                reason = "missing";
+                return false;
+            }
+
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            reason = "access-denied";
+            return false;
+        }
+        catch (IOException)
+        {
+            reason = "io-error";
+            return false;
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
+        {
+            reason = "invalid-path";
+            return false;
+        }
+    }
+
+    private static string NormalizeIndexValue(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var normalized = string.Join(
+            " ",
+            value.Split(['\r', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        return normalized.Length <= 512 ? normalized : normalized[..512] + "…";
+    }
+
+    private static bool TryGetFileIdentity(SafeFileHandle handle, out FileIdentity identity)
+    {
+        identity = default;
+        if (!GetFileInformationByHandle(handle, out var information))
+            return false;
+
+        identity = new FileIdentity(
+            information.VolumeSerialNumber,
+            ((ulong)information.FileIndexHigh << 32) | information.FileIndexLow);
+        return true;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetFileInformationByHandle(
+        SafeFileHandle fileHandle,
+        out ByHandleFileInformation fileInformation);
+
     private static void TryDelete(string path)
     {
         try
@@ -339,5 +504,32 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
         string FileName,
         string? EntryName,
         bool IsExported,
-        string? Reason);
+        string? Reason,
+        long SourceBytes);
+
+    private readonly record struct FileIdentity(uint VolumeSerialNumber, ulong FileIndex);
+
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    private struct ByHandleFileInformation
+    {
+        public uint FileAttributes;
+        public long CreationTime;
+        public long LastAccessTime;
+        public long LastWriteTime;
+        public uint VolumeSerialNumber;
+        public uint FileSizeHigh;
+        public uint FileSizeLow;
+        public uint NumberOfLinks;
+        public uint FileIndexHigh;
+        public uint FileIndexLow;
+    }
+}
+
+internal sealed record LaunchDiagnosticExportLimits(
+    long MaxSourceFileBytes,
+    long MaxTotalSourceBytes)
+{
+    public static LaunchDiagnosticExportLimits Default { get; } = new(
+        128L * 1024 * 1024,
+        256L * 1024 * 1024);
 }

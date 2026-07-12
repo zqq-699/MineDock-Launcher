@@ -15,25 +15,78 @@ internal static class LaunchFailureAnalyzer
     private const int MaxEvidenceCount = 24;
     private const int MaxEvidenceLineLength = 800;
     private const int MaxEvidenceTotalLength = 6000;
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(250);
 
     private static readonly Regex FabricDependencyPattern = new(
         @"Mod\s+'(?<mod>[^']+)'\s*(?:\([^)]+\))?\s*(?<modVersion>\S+)?\s+requires\s+(?<required>.+?)\s+of\s+(?:mod\s+)?(?:'(?<dependencyQuoted>[^']+)'(?:\s+\([^)]+\))?|(?<dependencyBare>[A-Za-z0-9_.-]+)),\s+(?:(?<missing>which\s+is\s+missing)|but\s+only\s+the\s+wrong\s+version\s+is\s+present:\s*(?<current>.+?))!?\s*$",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        RegexTimeout);
 
-    private static readonly Regex ForgeDependencyPattern = new(
-        @"Failure\s+message:\s*(?:Mod\s+)?(?<mod>[A-Za-z0-9_.-]+)\s+(?:requires|(?:only\s+)?supports)\s+(?<dependency>[A-Za-z0-9_.-]+)\s+(?<required>.+?)\s+Currently,\s*\k<dependency>\s+is\s+(?<current>[^\r\n|]+)",
-        RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
+    private static readonly Regex ForgeFailureLinePattern = new(
+        @"^(?:Failure\s+message:\s*)?(?:Mod\s+)?(?<mod>[A-Za-z0-9_.-]+)\s+(?:requires|(?:only\s+)?supports)\s+(?<dependency>[A-Za-z0-9_.-]+)\s+(?<required>.+?)\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        RegexTimeout);
+
+    private static readonly Regex ForgeCurrentLinePattern = new(
+        @"^Currently,\s*(?<dependency>[A-Za-z0-9_.-]+)\s+is\s+(?<current>[^|]+?)\s*$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        RegexTimeout);
+
+    private static readonly Regex JavaRequirementPattern = new(
+        @"Mod\s+'(?<mod>[^']+)'[^\r\n]*?requires\s+version\s+(?<required>\d+)\s+or\s+later\s+of\s+(?:'[^'\r\n]+'\s*)?\(java\),\s+but\s+only\s+the\s+wrong\s+version\s+is\s+present:\s*(?<current>\d+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        RegexTimeout);
+
+    private static readonly Regex JavaReplacementPattern = new(
+        @"Replace\s+'[^']*'\s+\(java\)\s+(?<current>\d+)\s+with\s+version\s+(?<required>\d+)\s+or\s+later",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        RegexTimeout);
+
+    private static readonly Regex SimpleMissingDependencyPattern = new(
+        @"Mod\s+'(?<mod>[^']+)'[^\r\n]*?(?:requires|depends on)[^\r\n]*?'(?<dependency>[^']+)'[^\r\n]*?(?:missing|not installed|not found)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        RegexTimeout);
+
+    private static readonly Regex MissingClasspathPattern = new(
+        @"Class path entries reference missing files:\s*(?<path>.+?)(?:\s+-\s+the game|\r|\n|$)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        RegexTimeout);
+
+    private static readonly Regex DependencyKindSeparatorPattern = new(
+        @"[\s_-]",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        RegexTimeout);
+
+    private static readonly Regex RequirementVersionPrefixPattern = new(
+        @"^version\s+",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        RegexTimeout);
+
+    private static readonly Regex AnyVersionPattern = new(
+        @"^any\s+(.+?)\s+version$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        RegexTimeout);
+
+    private static readonly Regex StackFrameTailPattern = new(
+        @"^\.\.\.\s+\d+\s+more$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        RegexTimeout);
+
+    private static readonly Regex WhitespacePattern = new(
+        @"\s+",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled,
+        RegexTimeout);
 
     public static LaunchFailureAnalysis? Analyze(
         LaunchDiagnosticContext context,
         string stdout,
         string stderr,
         string latestLogTail,
-        IReadOnlyList<string> crashFiles)
+        IReadOnlyList<string> crashPreviews)
     {
         var crashPreview = string.Join(
             Environment.NewLine,
-            crashFiles.Take(2).Select(ReadCrashFilePreview));
+            crashPreviews.Take(2));
 
         var currentProcessText = string.Join(
             Environment.NewLine,
@@ -42,10 +95,8 @@ internal static class LaunchFailureAnalyzer
             crashPreview);
 
         var currentProcessAnalysis = AnalyzeText(context, currentProcessText);
-        if (currentProcessAnalysis is not null)
-            return currentProcessAnalysis;
-
-        return AnalyzeText(context, latestLogTail);
+        var latestLogAnalysis = AnalyzeText(context, latestLogTail);
+        return SelectBestAnalysis(currentProcessAnalysis, latestLogAnalysis);
     }
 
     private static LaunchFailureAnalysis? AnalyzeText(LaunchDiagnosticContext context, string text)
@@ -53,22 +104,108 @@ internal static class LaunchFailureAnalyzer
         if (string.IsNullOrWhiteSpace(text))
             return null;
 
-        return AnalyzeMissingClientJar(context, text)
-               ?? AnalyzeMissingMinecraftGameProvider(context, text)
-               ?? AnalyzeJavaVersionMismatch(context, text)
-               ?? AnalyzeModCompatibility(context, text)
-               ?? AnalyzeMissingFiles(context, text)
-               ?? AnalyzeOutOfMemory(context, text);
+        return TryAnalyze(() => AnalyzeMissingClientJar(context, text))
+               ?? TryAnalyze(() => AnalyzeMissingMinecraftGameProvider(context, text))
+               ?? TryAnalyze(() => AnalyzeJavaVersionMismatch(context, text))
+               ?? TryAnalyze(() => AnalyzeModCompatibility(context, text))
+               ?? TryAnalyze(() => AnalyzeMissingFiles(context, text))
+               ?? TryAnalyze(() => AnalyzeOutOfMemory(context, text));
+    }
+
+    private static LaunchFailureAnalysis? SelectBestAnalysis(
+        LaunchFailureAnalysis? currentProcessAnalysis,
+        LaunchFailureAnalysis? latestLogAnalysis)
+    {
+        if (currentProcessAnalysis is null)
+            return latestLogAnalysis;
+        if (latestLogAnalysis is null)
+            return currentProcessAnalysis;
+
+        if (currentProcessAnalysis.Category == latestLogAnalysis.Category)
+        {
+            var preferred = IsGenericAnalysis(currentProcessAnalysis)
+                && !IsGenericAnalysis(latestLogAnalysis)
+                ? latestLogAnalysis
+                : currentProcessAnalysis;
+            var secondary = ReferenceEquals(preferred, currentProcessAnalysis)
+                ? latestLogAnalysis
+                : currentProcessAnalysis;
+            return MergeAnalyses(preferred, secondary);
+        }
+
+        return IsGenericAnalysis(currentProcessAnalysis) && !IsGenericAnalysis(latestLogAnalysis)
+            ? latestLogAnalysis
+            : currentProcessAnalysis;
+    }
+
+    private static LaunchFailureAnalysis MergeAnalyses(
+        LaunchFailureAnalysis preferred,
+        LaunchFailureAnalysis secondary)
+    {
+        var details = preferred.Details
+            .Concat(secondary.Details)
+            .DistinctBy(GetDetailKey)
+            .ToArray();
+        var evidence = new List<LaunchFailureEvidence>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var totalLength = 0;
+        foreach (var item in preferred.Evidence.Concat(secondary.Evidence))
+        {
+            if (!seen.Add($"{item.Kind}:{item.Text}"))
+                continue;
+            if (evidence.Count >= MaxEvidenceCount || totalLength + item.Text.Length > MaxEvidenceTotalLength)
+                continue;
+
+            evidence.Add(item);
+            totalLength += item.Text.Length;
+        }
+
+        return preferred with
+        {
+            ModName = preferred.ModName ?? secondary.ModName,
+            DependencyName = preferred.DependencyName ?? secondary.DependencyName,
+            Details = details,
+            Evidence = evidence
+        };
+    }
+
+    private static bool IsGenericAnalysis(LaunchFailureAnalysis analysis)
+    {
+        if (analysis.Details.Count > 0)
+            return false;
+        if (analysis.Evidence.Count == 0)
+            return true;
+
+        return analysis.Category == LaunchFailureCategory.ModVersionIncompatible
+               && analysis.Evidence.All(evidence => IsGenericCompatibilityMarker(evidence.Text));
+    }
+
+    private static bool IsGenericCompatibilityMarker(string text)
+    {
+        var normalized = TrimBullet(text).TrimEnd('!', '.').Trim();
+        return normalized.EndsWith("incompatible mods found", StringComparison.OrdinalIgnoreCase)
+               || normalized.EndsWith("incompatible mod set", StringComparison.OrdinalIgnoreCase)
+               || normalized.EndsWith("mod resolution failed", StringComparison.OrdinalIgnoreCase)
+               || normalized.EndsWith("mod loading has failed", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static LaunchFailureAnalysis? TryAnalyze(Func<LaunchFailureAnalysis?> analyzer)
+    {
+        try
+        {
+            return analyzer();
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return null;
+        }
     }
 
     private static LaunchFailureAnalysis? AnalyzeJavaVersionMismatch(
         LaunchDiagnosticContext context,
         string text)
     {
-        var modRequirementMatch = Regex.Match(
-            text,
-            @"Mod\s+'(?<mod>[^']+)'[^\r\n]*?requires\s+version\s+(?<required>\d+)\s+or\s+later\s+of\s+(?:'[^'\r\n]+'\s*)?\(java\),\s+but\s+only\s+the\s+wrong\s+version\s+is\s+present:\s*(?<current>\d+)",
-            RegexOptions.IgnoreCase);
+        var modRequirementMatch = JavaRequirementPattern.Match(text);
         if (modRequirementMatch.Success
             && TryGetInt(modRequirementMatch, "required", out var required)
             && TryGetInt(modRequirementMatch, "current", out var current))
@@ -79,10 +216,7 @@ internal static class LaunchFailureAnalyzer
                 evidence: [new(LaunchFailureEvidenceKind.Reason, GetContainingLine(text, modRequirementMatch.Index))]);
         }
 
-        var replaceMatch = Regex.Match(
-            text,
-            @"Replace\s+'[^']*'\s+\(java\)\s+(?<current>\d+)\s+with\s+version\s+(?<required>\d+)\s+or\s+later",
-            RegexOptions.IgnoreCase);
+        var replaceMatch = JavaReplacementPattern.Match(text);
         if (replaceMatch.Success
             && TryGetInt(replaceMatch, "required", out required)
             && TryGetInt(replaceMatch, "current", out current))
@@ -107,13 +241,13 @@ internal static class LaunchFailureAnalyzer
 
         if (details.Count == 0)
         {
-            var simpleMissingDependency = Regex.Match(
-                text,
-                @"Mod\s+'(?<mod>[^']+)'.*?(?:requires|depends on).*?'(?<dependency>[^']+)'.*?(?:missing|not installed|not found)",
-                RegexOptions.IgnoreCase | RegexOptions.Singleline);
-            if (simpleMissingDependency.Success)
+            foreach (var line in SplitLines(text))
             {
-                var evidenceLine = GetContainingLine(text, simpleMissingDependency.Index);
+                var evidenceLine = TrimBullet(line);
+                var simpleMissingDependency = SimpleMissingDependencyPattern.Match(evidenceLine);
+                if (!simpleMissingDependency.Success)
+                    continue;
+
                 details.Add(new LaunchFailureDetail(
                     LaunchFailureDetailKind.MissingDependency,
                     ModName: simpleMissingDependency.Groups["mod"].Value,
@@ -123,6 +257,7 @@ internal static class LaunchFailureAnalyzer
                         suggestions,
                         simpleMissingDependency.Groups["dependency"].Value,
                         simpleMissingDependency.Groups["mod"].Value)));
+                break;
             }
         }
 
@@ -213,18 +348,52 @@ internal static class LaunchFailureAnalyzer
 
     private static IEnumerable<LaunchFailureDetail> ParseForgeDetails(string text)
     {
-        foreach (Match match in ForgeDependencyPattern.Matches(text))
+        var lines = SplitLines(text);
+        for (var index = 0; index < lines.Count; index++)
         {
-            var current = CleanTerminalPunctuation(match.Groups["current"].Value);
+            var failureLine = TrimBullet(lines[index]);
+            var failureMatch = ForgeFailureLinePattern.Match(failureLine);
+            if (!failureMatch.Success)
+                continue;
+
+            Match? currentMatch = null;
+            string? currentLine = null;
+            for (var lookAhead = index + 1;
+                 lookAhead < lines.Count && lookAhead <= index + 6;
+                 lookAhead++)
+            {
+                var candidateLine = TrimBullet(lines[lookAhead]);
+                if (ForgeFailureLinePattern.IsMatch(candidateLine))
+                    break;
+
+                var candidateMatch = ForgeCurrentLinePattern.Match(candidateLine);
+                if (!candidateMatch.Success
+                    || !string.Equals(
+                        candidateMatch.Groups["dependency"].Value,
+                        failureMatch.Groups["dependency"].Value,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                currentMatch = candidateMatch;
+                currentLine = candidateLine;
+                break;
+            }
+
+            if (currentMatch is null || currentLine is null)
+                continue;
+
+            var current = CleanTerminalPunctuation(currentMatch.Groups["current"].Value);
             var missing = current.StartsWith("not installed", StringComparison.OrdinalIgnoreCase);
-            var dependency = match.Groups["dependency"].Value;
+            var dependency = failureMatch.Groups["dependency"].Value;
             yield return new LaunchFailureDetail(
                 missing ? LaunchFailureDetailKind.MissingDependency : ResolveDependencyDetailKind(dependency),
-                ModName: match.Groups["mod"].Value,
+                ModName: failureMatch.Groups["mod"].Value,
                 DependencyName: dependency,
-                RequiredVersion: NormalizeRequirement(match.Groups["required"].Value),
+                RequiredVersion: NormalizeRequirement(failureMatch.Groups["required"].Value),
                 CurrentVersion: missing ? null : current,
-                OriginalReason: match.Value.Trim());
+                OriginalReason: $"{failureLine} {currentLine}");
         }
     }
 
@@ -278,10 +447,7 @@ internal static class LaunchFailureAnalyzer
         LaunchDiagnosticContext context,
         string text)
     {
-        var missingClasspathMatch = Regex.Match(
-            text,
-            @"Class path entries reference missing files:\s*(?<path>.+?)(?:\s+-\s+the game|\r|\n|$)",
-            RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        var missingClasspathMatch = MissingClasspathPattern.Match(text);
         if (missingClasspathMatch.Success)
         {
             return FinalizeAnalysis(
@@ -368,13 +534,7 @@ internal static class LaunchFailureAnalyzer
                 OriginalReason = SanitizeEvidenceLine(context, detail.OriginalReason),
                 OriginalSuggestion = SanitizeEvidenceLine(context, detail.OriginalSuggestion)
             })
-            .DistinctBy(detail => (
-                detail.Kind,
-                NormalizeDetailKeyValue(detail.ModName),
-                NormalizeDetailKeyValue(detail.ModVersion),
-                NormalizeDetailKeyValue(detail.DependencyName),
-                NormalizeDetailKeyValue(detail.RequiredVersion),
-                NormalizeDetailKeyValue(detail.CurrentVersion)))
+            .DistinctBy(GetDetailKey)
             .ToArray();
         var collectedEvidence = (evidence ?? [])
             .Concat(sanitizedDetails.SelectMany(detail => new[]
@@ -460,18 +620,27 @@ internal static class LaunchFailureAnalyzer
     {
         return suggestions.FirstOrDefault(suggestion =>
                    !string.IsNullOrWhiteSpace(dependencyName)
-                   && suggestion.Contains(dependencyName, StringComparison.OrdinalIgnoreCase))
+                   && ContainsIdentifier(suggestion, dependencyName))
                ?? suggestions.FirstOrDefault(suggestion =>
                    !string.IsNullOrWhiteSpace(modName)
-                   && suggestion.Contains(modName, StringComparison.OrdinalIgnoreCase));
+                   && ContainsIdentifier(suggestion, modName));
+    }
+
+    private static bool ContainsIdentifier(string text, string identifier)
+    {
+        var pattern = $@"(?<![A-Za-z0-9_.-]){Regex.Escape(identifier)}(?![A-Za-z0-9_.-])";
+        return Regex.IsMatch(
+            text,
+            pattern,
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+            RegexTimeout);
     }
 
     private static LaunchFailureDetailKind ResolveDependencyDetailKind(string? dependencyName)
     {
-        var normalizedDependency = Regex.Replace(
-            dependencyName ?? string.Empty,
-            @"[\s_-]",
-            string.Empty).ToLowerInvariant();
+        var normalizedDependency = DependencyKindSeparatorPattern
+            .Replace(dependencyName ?? string.Empty, string.Empty)
+            .ToLowerInvariant();
         if (normalizedDependency == "minecraft")
             return LaunchFailureDetailKind.IncompatibleMinecraftVersion;
         if (normalizedDependency is "fabricloader" or "quiltloader" or "forge" or "neoforge")
@@ -485,8 +654,8 @@ internal static class LaunchFailureAnalyzer
     private static string NormalizeRequirement(string requirement)
     {
         var normalized = CleanTerminalPunctuation(requirement.Trim());
-        normalized = Regex.Replace(normalized, @"^version\s+", string.Empty, RegexOptions.IgnoreCase);
-        normalized = Regex.Replace(normalized, @"^any\s+(.+?)\s+version$", "$1", RegexOptions.IgnoreCase);
+        normalized = RequirementVersionPrefixPattern.Replace(normalized, string.Empty);
+        normalized = AnyVersionPattern.Replace(normalized, "$1");
         return normalized;
     }
 
@@ -535,7 +704,7 @@ internal static class LaunchFailureAnalyzer
     {
         var trimmed = line.TrimStart();
         return trimmed.StartsWith("at ", StringComparison.Ordinal)
-               || Regex.IsMatch(trimmed, @"^\.\.\.\s+\d+\s+more$", RegexOptions.IgnoreCase);
+               || StackFrameTailPattern.IsMatch(trimmed);
     }
 
     private static string? SanitizeValue(LaunchDiagnosticContext context, string? value, int maxLength)
@@ -550,7 +719,7 @@ internal static class LaunchFailureAnalyzer
     {
         if (string.IsNullOrWhiteSpace(value))
             return null;
-        var normalized = Regex.Replace(value.Trim(), @"\s+", " ");
+        var normalized = WhitespacePattern.Replace(value.Trim(), " ");
         if (IsStackFrame(normalized))
             return null;
         var redacted = LaunchDiagnosticRedactor.Redact(normalized, context.SensitiveValues);
@@ -576,23 +745,21 @@ internal static class LaunchFailureAnalyzer
     private static string NormalizeDetailKeyValue(string? value) =>
         value?.Trim().ToUpperInvariant() ?? string.Empty;
 
+    private static (
+        LaunchFailureDetailKind Kind,
+        string ModName,
+        string ModVersion,
+        string DependencyName,
+        string RequiredVersion,
+        string CurrentVersion) GetDetailKey(LaunchFailureDetail detail) =>
+        (
+            detail.Kind,
+            NormalizeDetailKeyValue(detail.ModName),
+            NormalizeDetailKeyValue(detail.ModVersion),
+            NormalizeDetailKeyValue(detail.DependencyName),
+            NormalizeDetailKeyValue(detail.RequiredVersion),
+            NormalizeDetailKeyValue(detail.CurrentVersion));
+
     private static string FirstNonEmpty(params string[] values) =>
         values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
-
-    private static string ReadCrashFilePreview(string crashFile)
-    {
-        try
-        {
-            var lines = File.ReadAllLines(crashFile);
-            return string.Join(Environment.NewLine, lines.Take(120));
-        }
-        catch (IOException)
-        {
-            return string.Empty;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return string.Empty;
-        }
-    }
 }
