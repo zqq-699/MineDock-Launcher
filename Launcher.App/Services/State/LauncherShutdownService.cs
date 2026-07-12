@@ -30,6 +30,7 @@ public sealed class LauncherShutdownService
     private readonly DownloadTasksPageViewModel downloadTasksPage;
     private readonly IInstanceInstallCleanupService installCleanupService;
     private readonly IModpackWorkspaceCleanupService workspaceCleanupService;
+    private readonly IModpackSandboxCleanupService sandboxCleanupService;
     private readonly ILogger<LauncherShutdownService> logger;
     private Task? shutdownTask;
 
@@ -37,11 +38,13 @@ public sealed class LauncherShutdownService
         DownloadTasksPageViewModel downloadTasksPage,
         IInstanceInstallCleanupService installCleanupService,
         IModpackWorkspaceCleanupService workspaceCleanupService,
+        IModpackSandboxCleanupService sandboxCleanupService,
         ILogger<LauncherShutdownService>? logger = null)
     {
         this.downloadTasksPage = downloadTasksPage;
         this.installCleanupService = installCleanupService;
         this.workspaceCleanupService = workspaceCleanupService;
+        this.sandboxCleanupService = sandboxCleanupService;
         this.logger = logger ?? NullLogger<LauncherShutdownService>.Instance;
     }
 
@@ -68,6 +71,21 @@ public sealed class LauncherShutdownService
         catch (Exception exception)
         {
             logger.LogWarning(exception, "Failed while waiting for background download tasks during launcher exit.");
+        }
+
+        try
+        {
+            await sandboxCleanupService
+                .WaitForPendingCleanupAsync(timeoutCancellation.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (timeoutCancellation.IsCancellationRequested)
+        {
+            logger.LogWarning("Timed out cleaning modpack loader sandboxes during launcher exit.");
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Failed while cleaning modpack loader sandboxes during launcher exit.");
         }
 
         try

@@ -37,20 +37,22 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
     private readonly IFinalVersionInstaller finalVersionInstaller;
     private readonly HttpClient httpClient;
     private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
-    private readonly string tempRootDirectory;
+    private readonly IModpackSandboxCleanupService sandboxCleanupService;
     private readonly ILogger logger;
 
     public ModpackGameInstaller(
         IEnumerable<ILoaderProvider> providers,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
-        ILogger<ModpackGameInstaller>? logger = null)
+        ILogger<ModpackGameInstaller>? logger = null,
+        IModpackSandboxCleanupService? sandboxCleanupService = null)
         : this(
             providers,
             new FinalVersionInstaller(),
             httpClient: null,
             downloadSpeedLimitState,
             tempRootDirectory: null,
-            logger)
+            logger,
+            sandboxCleanupService)
     {
     }
 
@@ -60,14 +62,17 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         HttpClient? httpClient = null,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         string? tempRootDirectory = null,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        IModpackSandboxCleanupService? sandboxCleanupService = null)
     {
         this.providers = providers.ToDictionary(provider => provider.Kind);
         this.finalVersionInstaller = finalVersionInstaller;
         this.httpClient = httpClient ?? new HttpClient();
         this.downloadSpeedLimitState = downloadSpeedLimitState;
-        this.tempRootDirectory = string.IsNullOrWhiteSpace(tempRootDirectory) ? Path.GetTempPath() : tempRootDirectory;
         this.logger = logger ?? NullLogger.Instance;
+        this.sandboxCleanupService = sandboxCleanupService ?? new ModpackSandboxCleanupService(
+            string.IsNullOrWhiteSpace(tempRootDirectory) ? Path.GetTempPath() : tempRootDirectory,
+            logger: this.logger);
     }
 
     /// <summary>
@@ -287,9 +292,10 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         Func<string, Task<string>> composeAsync)
     {
         // Loader 安装器只能面向完整 .minecraft 工作；沙箱隔离其中间文件，避免污染真实实例。
-        var sessionDirectory = Path.Combine(tempRootDirectory, "launcher-modpack-version", Guid.NewGuid().ToString("N"));
+        await using var sandboxSession = sandboxCleanupService.CreateSession(ModpackSandboxKind.ModpackVersion);
+        var sessionDirectory = sandboxSession.DirectoryPath;
         var sandboxMinecraftDirectory = Path.Combine(sessionDirectory, ".minecraft");
-        Directory.CreateDirectory(sessionDirectory);
+        var wasCanceled = false;
 
         logger.LogInformation(
             "Installing modpack loader version through sandbox. Loader={Loader} MinecraftVersion={MinecraftVersion} TargetMinecraftDirectory={TargetMinecraftDirectory} TargetVersionName={TargetVersionName} SessionDirectory={SessionDirectory}",
@@ -341,9 +347,16 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 sessionDirectory);
             throw;
         }
+        catch (OperationCanceledException)
+        {
+            wasCanceled = true;
+            throw;
+        }
         finally
         {
-            CleanupSandboxDirectory(sessionDirectory, cancellationToken.IsCancellationRequested);
+            await sandboxSession
+                .CleanupAsync(wasCanceled || cancellationToken.IsCancellationRequested)
+                .ConfigureAwait(false);
         }
     }
 
@@ -357,9 +370,10 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         DownloadSourcePreference downloadSourcePreference,
         int downloadSpeedLimitMbPerSecond)
     {
-        var sessionDirectory = Path.Combine(tempRootDirectory, "launcher-instance-version", Guid.NewGuid().ToString("N"));
+        await using var sandboxSession = sandboxCleanupService.CreateSession(ModpackSandboxKind.InstanceVersion);
+        var sessionDirectory = sandboxSession.DirectoryPath;
         var sandboxMinecraftDirectory = Path.Combine(sessionDirectory, ".minecraft");
-        Directory.CreateDirectory(sessionDirectory);
+        var wasCanceled = false;
         try
         {
             var finalVersionName = provider is IStagedLoaderProvider stagedProvider
@@ -398,53 +412,16 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 cancellationToken).ConfigureAwait(false);
             return finalVersionName;
         }
+        catch (OperationCanceledException)
+        {
+            wasCanceled = true;
+            throw;
+        }
         finally
         {
-            CleanupSandboxDirectory(sessionDirectory, cancellationToken.IsCancellationRequested);
-        }
-    }
-
-    private void CleanupSandboxDirectory(string directory, bool deferCleanup)
-    {
-        if (!deferCleanup)
-        {
-            TryDeleteSandboxDirectory(directory);
-            return;
-        }
-
-        logger.LogInformation(
-            "Deferring modpack loader sandbox cleanup after cancellation. Directory={Directory}",
-            directory);
-        _ = Task.Run(() => TryDeleteSandboxDirectory(directory));
-    }
-
-    private void TryDeleteSandboxDirectory(string directory)
-    {
-        try
-        {
-            if (Directory.Exists(directory))
-                Directory.Delete(directory, recursive: true);
-        }
-        catch (IOException exception)
-        {
-            logger.LogWarning(
-                exception,
-                "Failed to delete modpack loader sandbox directory. Directory={Directory}",
-                directory);
-        }
-        catch (UnauthorizedAccessException exception)
-        {
-            logger.LogWarning(
-                exception,
-                "Failed to delete modpack loader sandbox directory. Directory={Directory}",
-                directory);
-        }
-        catch (Exception exception)
-        {
-            logger.LogWarning(
-                exception,
-                "Unexpected failure while deleting modpack loader sandbox directory. Directory={Directory}",
-                directory);
+            await sandboxSession
+                .CleanupAsync(wasCanceled || cancellationToken.IsCancellationRequested)
+                .ConfigureAwait(false);
         }
     }
 

@@ -168,6 +168,8 @@ public partial class App : System.Windows.Application
                 serviceProvider.GetRequiredService<IInstanceDeletionCleanupService>());
             _ = CleanupPendingInstanceInstallsOnStartupAsync(
                 serviceProvider.GetRequiredService<IInstanceInstallCleanupService>());
+            _ = CleanupModpackSandboxesOnStartupAsync(
+                serviceProvider.GetRequiredService<IModpackSandboxCleanupService>());
             try
             {
                 if (LauncherUpdateStartupCoordinator.TryConfirmStartup(
@@ -230,6 +232,19 @@ public partial class App : System.Windows.Application
         catch (Exception exception)
         {
             Log.Warning(exception, "Pending instance installation cleanup failed; startup cleanup will retry later.");
+        }
+    }
+
+    private static async Task CleanupModpackSandboxesOnStartupAsync(
+        IModpackSandboxCleanupService cleanupService)
+    {
+        try
+        {
+            await cleanupService.CleanupStaleAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Modpack loader sandbox cleanup failed; startup cleanup will retry later.");
         }
     }
 

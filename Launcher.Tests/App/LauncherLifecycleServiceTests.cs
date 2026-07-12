@@ -85,7 +85,8 @@ public sealed class LauncherLifecycleServiceTests
         downloadTasks.TrackBackgroundTask(unfinishedTask.Task);
         var cleanup = new TestWorkspaceCleanupService();
         var installCleanup = new TestInstallCleanupService();
-        var service = new LauncherShutdownService(downloadTasks, installCleanup, cleanup);
+        var sandboxCleanup = new TestSandboxCleanupService();
+        var service = new LauncherShutdownService(downloadTasks, installCleanup, cleanup, sandboxCleanup);
 
         var first = service.PrepareForExitAsync(TimeSpan.FromMilliseconds(20));
         var second = service.PrepareForExitAsync(TimeSpan.FromSeconds(1));
@@ -106,13 +107,42 @@ public sealed class LauncherLifecycleServiceTests
         downloadTasks.TrackBackgroundTask(backgroundTask);
         var installCleanup = new TestInstallCleanupService(() => backgroundTask.IsCompleted);
         var workspaceCleanup = new TestWorkspaceCleanupService(completeImmediately: true);
-        var service = new LauncherShutdownService(downloadTasks, installCleanup, workspaceCleanup);
+        var sandboxCleanup = new TestSandboxCleanupService();
+        var service = new LauncherShutdownService(downloadTasks, installCleanup, workspaceCleanup, sandboxCleanup);
 
         await service.PrepareForExitAsync(TimeSpan.FromSeconds(1));
 
         Assert.Equal(1, installCleanup.CallCount);
         Assert.True(installCleanup.ObservedPrerequisite);
         Assert.False(installCleanup.ObservedCancellation);
+        Assert.Equal(1, sandboxCleanup.WaitCallCount);
+    }
+
+    [Fact]
+    public async Task ShutdownWaitsForTrackedSandboxCleanupBeforeContinuing()
+    {
+        var downloadTasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var installCleanup = new TestInstallCleanupService();
+        var workspaceCleanup = new TestWorkspaceCleanupService(completeImmediately: true);
+        var cleanupReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sandboxCleanup = new TestSandboxCleanupService(cleanupReleased.Task);
+        var service = new LauncherShutdownService(
+            downloadTasks,
+            installCleanup,
+            workspaceCleanup,
+            sandboxCleanup);
+
+        var shutdown = service.PrepareForExitAsync(TimeSpan.FromSeconds(1));
+        await Task.Delay(20);
+
+        Assert.False(shutdown.IsCompleted);
+        Assert.Equal(0, installCleanup.CallCount);
+
+        cleanupReleased.SetResult();
+        await shutdown;
+
+        Assert.Equal(1, sandboxCleanup.WaitCallCount);
+        Assert.Equal(1, installCleanup.CallCount);
     }
 
     private sealed class TestLauncherStateMonitor : ILauncherStateMonitor
@@ -184,6 +214,25 @@ public sealed class LauncherLifecycleServiceTests
                 ObservedCancellation = true;
                 throw;
             }
+        }
+    }
+
+    private sealed class TestSandboxCleanupService(Task? waitTask = null) : IModpackSandboxCleanupService
+    {
+        public int WaitCallCount { get; private set; }
+
+        public IModpackSandboxSession CreateSession(ModpackSandboxKind kind) =>
+            throw new NotSupportedException();
+
+        public Task CleanupStaleAsync(CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public async Task WaitForPendingCleanupAsync(CancellationToken cancellationToken = default)
+        {
+            WaitCallCount++;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (waitTask is not null)
+                await waitTask.WaitAsync(cancellationToken);
         }
     }
 }

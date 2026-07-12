@@ -8,6 +8,7 @@
 using System.Text.Json;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Minecraft;
 using Launcher.Infrastructure.Modpacks;
 using Launcher.Infrastructure.Persistence;
 using Launcher.Tests.Fakes;
@@ -125,6 +126,37 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
         Assert.False(provider.SawLibrariesDirectoryDuringInstall);
         Assert.False(provider.SawAssetObjectsDirectoryDuringInstall);
         Assert.False(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "Test")));
+    }
+
+    [Fact]
+    public async Task CanceledLoaderInstallDefersSandboxCleanupWithoutWaitingForDeletion()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var transactionService = new InstanceInstallTransactionService();
+        await using var transaction = await transactionService.BeginAsync(
+            minecraftDirectory, "Test", "instance", "game", false);
+        var provider = new FakeLoaderProvider { WaitBeforeInstall = Task.Delay(Timeout.InfiniteTimeSpan) };
+        var cleanupService = new RecordingSandboxCleanupService(TempRoot);
+        var installer = new ModpackGameInstaller(
+            [provider],
+            new FinalVersionInstaller(),
+            sandboxCleanupService: cleanupService);
+        using var cancellation = new CancellationTokenSource();
+
+        var installation = installer.InstallInstanceAsync(
+            "1.20.1",
+            LoaderKind.Vanilla,
+            null,
+            new LoaderInstallTarget(minecraftDirectory, "Test", transaction.PendingDirectory),
+            progress: null,
+            cancellation.Token);
+        await provider.InstallStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => installation);
+
+        Assert.True(cleanupService.Session.CleanupCalled);
+        Assert.True(cleanupService.Session.DeferCleanup);
     }
 
     [Fact]
@@ -609,5 +641,38 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
 
         public Task SaveAsync(LauncherSettings value, CancellationToken cancellationToken = default) =>
             Task.FromException(new IOException("settings are locked"));
+    }
+
+    private sealed class RecordingSandboxCleanupService : IModpackSandboxCleanupService
+    {
+        public RecordingSandboxCleanupService(string rootDirectory)
+        {
+            Session = new RecordingSandboxSession(Path.Combine(rootDirectory, "recording-sandbox"));
+            Directory.CreateDirectory(Session.DirectoryPath);
+        }
+
+        public RecordingSandboxSession Session { get; }
+
+        public IModpackSandboxSession CreateSession(ModpackSandboxKind kind) => Session;
+
+        public Task CleanupStaleAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task WaitForPendingCleanupAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class RecordingSandboxSession(string directoryPath) : IModpackSandboxSession
+    {
+        public string DirectoryPath { get; } = directoryPath;
+        public bool CleanupCalled { get; private set; }
+        public bool DeferCleanup { get; private set; }
+
+        public Task CleanupAsync(bool deferCleanup)
+        {
+            CleanupCalled = true;
+            DeferCleanup = deferCleanup;
+            return Task.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

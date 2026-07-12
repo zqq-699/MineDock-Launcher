@@ -66,6 +66,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILocalModIconEnrichmentService, LocalModIconEnrichmentService>();
         services.AddSingleton<IInstanceBackupService, InstanceBackupService>();
         services.AddSingleton<ILocalSaveService, LocalSaveService>();
+        services.AddSingleton<ModpackSandboxCleanupService>();
+        services.AddSingleton<IModpackSandboxCleanupService>(serviceProvider =>
+            serviceProvider.GetRequiredService<ModpackSandboxCleanupService>());
         services.AddSingleton<IModpackGameInstaller, ModpackGameInstaller>();
         services.AddSingleton<IModpackInstanceStagingService, ModpackInstanceStagingService>();
         services.AddSingleton<CurseForgeApiClient>();
