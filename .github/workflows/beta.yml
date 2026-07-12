@@ -571,6 +571,8 @@ jobs:
               throw "Failed to move Gitee release tag '$($env:GITHUB_REF_NAME)' to the final manifest commit."
             }
 
+            $manifestCommit = (git rev-parse HEAD).Trim()
+            "GITEE_MANIFEST_COMMIT=$manifestCommit" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             "GITEE_MANIFEST_SYNCED=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           } catch {
             Write-Host "Rolling back Gitee manifest sync after failure."
@@ -630,29 +632,48 @@ jobs:
             }
             "GITHUB_MANIFEST_SYNCED=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           }
+          $manifestCommit = (git rev-parse HEAD).Trim()
+          "GITHUB_MANIFEST_COMMIT=$manifestCommit" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Verify published signed manifests are byte-identical
         shell: pwsh
         run: |
-          $nonce = [Guid]::NewGuid().ToString("N")
-          $githubBase = "https://raw.githubusercontent.com/$($env:GITHUB_REPOSITORY)/$($env:GITHUB_MANIFEST_BRANCH)/update/$($env:CHANNEL)"
-          $giteeBase = "https://gitee.com/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/raw/$($env:GITEE_BRANCH)/update/$($env:CHANNEL)"
-          function Assert-ExactBytes([string]$expectedPath, [string]$actualPath) {
+          if ($env:GITHUB_MANIFEST_COMMIT -notmatch '^[0-9a-f]{40}$' -or $env:GITEE_MANIFEST_COMMIT -notmatch '^[0-9a-f]{40}$') {
+            throw "A synchronized manifest commit id is missing or invalid."
+          }
+          $githubBase = "https://raw.githubusercontent.com/$($env:GITHUB_REPOSITORY)/$($env:GITHUB_MANIFEST_COMMIT)/update/$($env:CHANNEL)"
+          $giteeBase = "https://gitee.com/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/raw/$($env:GITEE_MANIFEST_COMMIT)/update/$($env:CHANNEL)"
+          function Test-ExactBytes([string]$expectedPath, [string]$actualPath) {
             $expected = [IO.File]::ReadAllBytes($expectedPath)
             $actual = [IO.File]::ReadAllBytes($actualPath)
-            if ($expected.Length -ne $actual.Length) { throw "Published signed manifest length mismatch." }
+            if ($expected.Length -ne $actual.Length) { return $false }
             for ($index = 0; $index -lt $expected.Length; $index++) {
-              if ($expected[$index] -ne $actual[$index]) { throw "Published signed manifest byte mismatch." }
+              if ($expected[$index] -ne $actual[$index]) { return $false }
             }
+            return $true
+          }
+          function Receive-VerifiedCopy([string]$provider, [string]$name, [string]$url, [string]$expectedPath, [string]$actualPath) {
+            for ($attempt = 1; $attempt -le 6; $attempt++) {
+              $nonce = [Guid]::NewGuid().ToString("N")
+              try {
+                Invoke-WebRequest -Uri "$url`?cache=$nonce" -Headers @{ "Cache-Control" = "no-cache" } -OutFile $actualPath -TimeoutSec 60
+                if (Test-ExactBytes $expectedPath $actualPath) { return }
+                $expectedLength = (Get-Item $expectedPath).Length
+                $actualLength = (Get-Item $actualPath).Length
+                Write-Host "$provider $name differs on attempt $attempt. ExpectedLength=$expectedLength ActualLength=$actualLength"
+              } catch {
+                Write-Host "$provider $name readback failed on attempt ${attempt}: $($_.Exception.Message)"
+              }
+              if ($attempt -lt 6) { Start-Sleep -Seconds 10 }
+            }
+            throw "$provider $name did not become byte-identical after 6 attempts."
           }
           foreach ($name in @("latest.json", "latest.json.sig")) {
             $localPath = Join-Path $env:RUNNER_TEMP $(if ($name.EndsWith(".sig")) { "signed-latest.json.sig" } else { "signed-latest.json" })
             $githubPath = Join-Path $env:RUNNER_TEMP "github-$name"
             $giteePath = Join-Path $env:RUNNER_TEMP "gitee-$name"
-            Invoke-WebRequest -Uri "$githubBase/$name`?cache=$nonce" -OutFile $githubPath -TimeoutSec 60
-            Invoke-WebRequest -Uri "$giteeBase/$name`?cache=$nonce" -OutFile $giteePath -TimeoutSec 60
-            Assert-ExactBytes $localPath $githubPath
-            Assert-ExactBytes $localPath $giteePath
+            Receive-VerifiedCopy "GitHub" $name "$githubBase/$name" $localPath $githubPath
+            Receive-VerifiedCopy "Gitee" $name "$giteeBase/$name" $localPath $giteePath
           }
 
       - name: Cleanup failed beta publish
