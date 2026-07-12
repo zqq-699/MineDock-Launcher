@@ -12,6 +12,7 @@ jobs:
   beta:
     name: Build and publish beta
     runs-on: windows-latest
+    environment: release-signing
 
     env:
       CHANNEL: beta
@@ -75,7 +76,8 @@ jobs:
           "VERSION_NAME=$versionName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "VERSION_CODE=$versionCode" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "NOTES_PATH=$notesPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "GENERATED_MANIFEST_PATH=$($env:PUBLISH_DIR)/latest-beta.json" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GENERATED_MANIFEST_PATH=$($env:PUBLISH_DIR)/latest.json" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GENERATED_SIGNATURE_PATH=$($env:PUBLISH_DIR)/latest.json.sig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Restore
         run: dotnet restore Launcher.sln
@@ -128,6 +130,27 @@ jobs:
           New-Item -ItemType Directory -Force ".local-secrets" | Out-Null
           Set-Content -Path ".local-secrets/curseforge.key" -Value $env:CURSEFORGE_API_KEY.Trim() -NoNewline -Encoding utf8
 
+      - name: Prepare update signing key
+        shell: pwsh
+        env:
+          UPDATE_SIGNING_PRIVATE_KEY_BASE64: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_BASE64 }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:UPDATE_SIGNING_PRIVATE_KEY_BASE64)) {
+            throw "Environment secret UPDATE_SIGNING_PRIVATE_KEY_BASE64 is not configured."
+          }
+          New-Item -ItemType Directory -Force ".local-secrets" | Out-Null
+          try {
+            $privateBytes = [Convert]::FromBase64String($env:UPDATE_SIGNING_PRIVATE_KEY_BASE64)
+          } catch {
+            throw "Environment secret UPDATE_SIGNING_PRIVATE_KEY_BASE64 is not valid Base64."
+          }
+          [IO.File]::WriteAllBytes(".local-secrets/update-signing-private.pem", $privateBytes)
+          dotnet run --project Launcher.UpdateSigning/Launcher.UpdateSigning.csproj -c Release --no-restore -- derive-public --private-pem .local-secrets/update-signing-private.pem --public-pem .local-secrets/update-signing-public.pem --key-id-output "$env:RUNNER_TEMP/update-key-id.txt"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to derive the update signing public key." }
+          $keyId = [IO.File]::ReadAllText("$env:RUNNER_TEMP/update-key-id.txt").Trim()
+          if ($keyId -notmatch '^[0-9a-f]{64}$') { throw "Derived update signing key id is invalid." }
+          "UPDATE_SIGNING_KEY_ID=$keyId" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Publish win-x64 single file
         run: dotnet publish Launcher.App/Launcher.App.csproj -c Release -p:PublishProfile=WinX64FrameworkDependentSingleFile
 
@@ -142,19 +165,15 @@ jobs:
           $fileInfo = Get-Item $env:ASSET_PATH
           $hash = Get-FileHash -Algorithm SHA256 $env:ASSET_PATH
           $sha256 = $hash.Hash.ToLowerInvariant()
-          $shaPath = Join-Path $env:PUBLISH_DIR "$assetName.sha256"
           $githubDownloadUrl = "https://github.com/$($env:GITHUB_REPOSITORY)/releases/download/$($env:GITHUB_REF_NAME)/$assetName"
           $encodedTag = [uri]::EscapeDataString($env:GITHUB_REF_NAME)
           $encodedAssetName = [uri]::EscapeDataString($assetName)
           $giteeFallbackDownloadUrl = "https://gitee.com/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases/download/$encodedTag/$encodedAssetName"
           $releaseTitle = "BlockHelm Launcher $($env:VERSION_NAME) Beta"
 
-          Set-Content -Path $shaPath -Value "$sha256  $assetName" -Encoding ascii
-
           "ASSET_NAME=$assetName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "ASSET_SIZE=$($fileInfo.Length)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "ASSET_SHA256=$sha256" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "SHA_PATH=$shaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "GITHUB_DOWNLOAD_URL=$githubDownloadUrl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "GITEE_FALLBACK_DOWNLOAD_URL=$giteeFallbackDownloadUrl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "RELEASE_TITLE=$releaseTitle" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -185,17 +204,9 @@ jobs:
             git remote add origin $remoteUrl
 
             function Initialize-ManifestBranch {
-              param([string]$TemplatePath)
-
               git checkout --orphan $env:GITEE_BRANCH
-              New-Item -ItemType Directory -Force "update/release" | Out-Null
-              New-Item -ItemType Directory -Force "update/beta" | Out-Null
-              foreach ($channel in @("release", "beta")) {
-                $manifest = Get-Content -Raw -Encoding UTF8 $TemplatePath | ConvertFrom-Json
-                $manifest.channel = $channel
-                $manifest | ConvertTo-Json -Depth 20 | Set-Content -Path "update/$channel/latest.json" -Encoding utf8
-              }
-
+              New-Item -ItemType Directory -Force "update" | Out-Null
+              New-Item -ItemType File -Force "update/.gitkeep" | Out-Null
               git add update
               git commit -m "Initialize update manifests [skip ci]"
               git push origin HEAD:$($env:GITEE_BRANCH)
@@ -220,7 +231,7 @@ jobs:
 
             if ([string]::IsNullOrWhiteSpace($branchRef)) {
               Write-Host "Gitee manifest branch '$($env:GITEE_BRANCH)' does not exist. Initializing it from the manifest template."
-              Initialize-ManifestBranch -TemplatePath (Join-Path $env:GITHUB_WORKSPACE $env:MANIFEST_PATH)
+              Initialize-ManifestBranch
             }
 
             git fetch origin $env:GITEE_BRANCH
@@ -365,7 +376,7 @@ jobs:
           }
 
           $assetFullName = (Get-Item $env:ASSET_PATH).FullName
-          foreach ($filePath in @($env:ASSET_PATH, $env:SHA_PATH)) {
+          foreach ($filePath in @($env:ASSET_PATH)) {
             $file = Get-Item $filePath
             Write-Host "Uploading Gitee release attachment. File=$($file.Name) Size=$($file.Length)"
             $responsePath = Join-Path $env:RUNNER_TEMP "gitee-upload-$($file.Name).json"
@@ -416,6 +427,7 @@ jobs:
 
           $releaseNotes = Get-Content -Raw -Encoding UTF8 $env:NOTES_PATH
           $manifest = Get-Content -Raw -Encoding UTF8 $env:MANIFEST_PATH | ConvertFrom-Json
+          $manifest.keyId = $env:UPDATE_SIGNING_KEY_ID
           $manifest.channel = $env:CHANNEL
           $manifest.versionName = $env:VERSION_NAME
           $manifest.versionCode = [int]$env:VERSION_CODE
@@ -439,7 +451,10 @@ jobs:
             }
           )
 
-          $manifest | ConvertTo-Json -Depth 20 | Set-Content -Path $env:GENERATED_MANIFEST_PATH -Encoding utf8
+          $manifestJson = $manifest | ConvertTo-Json -Depth 20
+          [IO.File]::WriteAllText($env:GENERATED_MANIFEST_PATH, $manifestJson, [Text.UTF8Encoding]::new($false))
+          dotnet run --project Launcher.UpdateSigning/Launcher.UpdateSigning.csproj -c Release --no-restore -- sign --private-pem .local-secrets/update-signing-private.pem --manifest $env:GENERATED_MANIFEST_PATH --signature $env:GENERATED_SIGNATURE_PATH
+          if ($LASTEXITCODE -ne 0) { throw "Failed to sign the update manifest." }
 
       - name: Upload final beta manifest to Gitee release
         shell: pwsh
@@ -456,37 +471,23 @@ jobs:
 
           $encodedToken = [uri]::EscapeDataString($env:GITEE_TOKEN)
           $uploadUri = "https://gitee.com/api/v5/repos/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/releases/$($env:GITEE_RELEASE_ID)/attach_files?access_token=$encodedToken"
-          $file = Get-Item $env:GENERATED_MANIFEST_PATH
-          Write-Host "Uploading final manifest to Gitee release. File=$($file.Name) Size=$($file.Length)"
-          $responsePath = Join-Path $env:RUNNER_TEMP "gitee-upload-$($file.Name).json"
-          $statusPath = Join-Path $env:RUNNER_TEMP "gitee-upload-$($file.Name).status"
-          $curlArgs = @(
-            "--show-error",
-            "--location",
-            "--connect-timeout", "30",
-            "--max-time", "600",
-            "--retry", "2",
-            "--retry-delay", "5",
-            "--request", "POST",
-            "--output", $responsePath,
-            "--write-out", "%{http_code}",
-            $uploadUri,
-            "--form", "file=@$($file.FullName)"
-          )
-
-          & curl.exe @curlArgs | Set-Content -Path $statusPath -Encoding ascii
-          $curlExitCode = $LASTEXITCODE
-          $httpStatus = if (Test-Path $statusPath) { (Get-Content -Raw $statusPath).Trim() } else { "" }
-          $responseText = if (Test-Path $responsePath) { Get-Content -Raw -Encoding UTF8 $responsePath } else { "" }
-
-          Write-Host "Gitee final manifest upload completed. File=$($file.Name) CurlExitCode=$curlExitCode HttpStatus=$httpStatus"
-          if ($curlExitCode -ne 0 -or $httpStatus -notmatch '^2\d\d$') {
-            if (-not [string]::IsNullOrWhiteSpace($responseText)) {
-              Write-Host "Gitee final manifest upload response body:"
-              Write-Host ($responseText.Substring(0, [Math]::Min($responseText.Length, 4000)))
+          foreach ($path in @($env:GENERATED_MANIFEST_PATH, $env:GENERATED_SIGNATURE_PATH)) {
+            $file = Get-Item $path
+            Write-Host "Uploading signed manifest artifact to Gitee release. File=$($file.Name) Size=$($file.Length)"
+            $responsePath = Join-Path $env:RUNNER_TEMP "gitee-upload-$($file.Name).json"
+            $statusPath = Join-Path $env:RUNNER_TEMP "gitee-upload-$($file.Name).status"
+            $curlArgs = @(
+              "--show-error", "--location", "--connect-timeout", "30", "--max-time", "600",
+              "--retry", "2", "--retry-delay", "5", "--request", "POST",
+              "--output", $responsePath, "--write-out", "%{http_code}", $uploadUri,
+              "--form", "file=@$($file.FullName)"
+            )
+            & curl.exe @curlArgs | Set-Content -Path $statusPath -Encoding ascii
+            $curlExitCode = $LASTEXITCODE
+            $httpStatus = if (Test-Path $statusPath) { (Get-Content -Raw $statusPath).Trim() } else { "" }
+            if ($curlExitCode -ne 0 -or $httpStatus -notmatch '^2\d\d$') {
+              throw "Failed to upload signed manifest artifact to Gitee release. File=$($file.Name) curl=$curlExitCode HTTP=$httpStatus"
             }
-
-            throw "Failed to upload final manifest to Gitee release. curl exit code: $curlExitCode HTTP status: $httpStatus"
           }
 
       - name: Create GitHub beta release
@@ -494,7 +495,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $env:GITHUB_REF_NAME $env:ASSET_PATH $env:SHA_PATH $env:GENERATED_MANIFEST_PATH --title $env:RELEASE_TITLE --notes-file $env:NOTES_PATH --prerelease --latest=false
+          gh release create $env:GITHUB_REF_NAME $env:ASSET_PATH $env:GENERATED_MANIFEST_PATH $env:GENERATED_SIGNATURE_PATH --title $env:RELEASE_TITLE --notes-file $env:NOTES_PATH --prerelease --latest=false
           "GITHUB_RELEASE_CREATED=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Sync Gitee update repository and tag
@@ -508,8 +509,12 @@ jobs:
 
           $workspace = $env:GITHUB_WORKSPACE
           $generatedManifestPath = Join-Path $workspace $env:GENERATED_MANIFEST_PATH
+          $generatedSignaturePath = Join-Path $workspace $env:GENERATED_SIGNATURE_PATH
           if (-not (Test-Path $generatedManifestPath)) {
             throw "Generated manifest was not found: $generatedManifestPath"
+          }
+          if (-not (Test-Path $generatedSignaturePath)) {
+            throw "Generated manifest signature was not found: $generatedSignaturePath"
           }
 
           $mirrorDirectory = Join-Path $env:RUNNER_TEMP "gitee-update-mirror-final"
@@ -529,22 +534,6 @@ jobs:
             $remoteUrl = "https://oauth2:$encodedToken@gitee.com/$($env:GITEE_OWNER)/$($env:GITEE_REPO).git"
             git remote add origin $remoteUrl
 
-            function Ensure-ChannelManifest {
-              param(
-                [string]$Channel,
-                [string]$TemplatePath
-              )
-
-              $manifestPath = "update/$Channel/latest.json"
-              if (Test-Path $manifestPath) {
-                return
-              }
-
-              $manifest = Get-Content -Raw -Encoding UTF8 $TemplatePath | ConvertFrom-Json
-              $manifest.channel = $Channel
-              $manifest | ConvertTo-Json -Depth 20 | Set-Content -Path $manifestPath -Encoding utf8
-            }
-
             $branchRef = & git ls-remote --heads origin $env:GITEE_BRANCH
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to query Gitee branch '$($env:GITEE_BRANCH)'."
@@ -561,9 +550,8 @@ jobs:
 
             New-Item -ItemType Directory -Force "update/release" | Out-Null
             New-Item -ItemType Directory -Force "update/beta" | Out-Null
-            Ensure-ChannelManifest -Channel "release" -TemplatePath (Join-Path $workspace $env:MANIFEST_PATH)
-            Ensure-ChannelManifest -Channel "beta" -TemplatePath (Join-Path $workspace $env:MANIFEST_PATH)
             Copy-Item $generatedManifestPath "update/$($env:CHANNEL)/latest.json" -Force
+            Copy-Item $generatedSignaturePath "update/$($env:CHANNEL)/latest.json.sig" -Force
 
             git add update
             if (git diff --cached --quiet) {
@@ -598,29 +586,16 @@ jobs:
       - name: Sync GitHub beta manifest branch
         shell: pwsh
         run: |
-          $manifestJson = Get-Content -Raw -Encoding UTF8 $env:GENERATED_MANIFEST_PATH
-          $templateJson = Get-Content -Raw -Encoding UTF8 $env:MANIFEST_PATH
+          $manifestSourcePath = Join-Path $env:RUNNER_TEMP "signed-latest.json"
+          $signatureSourcePath = Join-Path $env:RUNNER_TEMP "signed-latest.json.sig"
+          Copy-Item $env:GENERATED_MANIFEST_PATH $manifestSourcePath -Force
+          Copy-Item $env:GENERATED_SIGNATURE_PATH $signatureSourcePath -Force
           $targetPath = "update/$($env:CHANNEL)/latest.json"
+          $signatureTargetPath = "$targetPath.sig"
           $branch = $env:GITHUB_MANIFEST_BRANCH
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          function Ensure-ChannelManifest {
-            param(
-              [string]$Channel,
-              [string]$TemplateJson
-            )
-
-            $manifestPath = "update/$Channel/latest.json"
-            if (Test-Path $manifestPath) {
-              return
-            }
-
-            $manifest = $TemplateJson | ConvertFrom-Json
-            $manifest.channel = $Channel
-            $manifest | ConvertTo-Json -Depth 20 | Set-Content -Path $manifestPath -Encoding utf8
-          }
 
           $branchRef = & git ls-remote --heads origin $branch
           if ($LASTEXITCODE -ne 0) {
@@ -628,19 +603,21 @@ jobs:
           }
 
           if ([string]::IsNullOrWhiteSpace($branchRef)) {
+            "GITHUB_MANIFEST_BRANCH_CREATED=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             git checkout --orphan $branch
             Get-ChildItem -Force | Where-Object { $_.Name -ne ".git" } | Remove-Item -Recurse -Force
             git rm -r --cached . --ignore-unmatch
           } else {
+            $githubBranchBase = ($branchRef -split "\s+")[0]
+            "GITHUB_MANIFEST_BRANCH_BASE=$githubBranchBase" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             git fetch origin $branch
             git checkout -B $branch FETCH_HEAD
           }
 
           New-Item -ItemType Directory -Force "update/release" | Out-Null
           New-Item -ItemType Directory -Force "update/beta" | Out-Null
-          Ensure-ChannelManifest -Channel "release" -TemplateJson $templateJson
-          Ensure-ChannelManifest -Channel "beta" -TemplateJson $templateJson
-          Set-Content -Path $targetPath -Value $manifestJson -Encoding utf8
+          Copy-Item $manifestSourcePath $targetPath -Force
+          Copy-Item $signatureSourcePath $signatureTargetPath -Force
           git add update
 
           if (git diff --cached --quiet) {
@@ -651,6 +628,31 @@ jobs:
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to push GitHub manifest update to '$branch'."
             }
+            "GITHUB_MANIFEST_SYNCED=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          }
+
+      - name: Verify published signed manifests are byte-identical
+        shell: pwsh
+        run: |
+          $nonce = [Guid]::NewGuid().ToString("N")
+          $githubBase = "https://raw.githubusercontent.com/$($env:GITHUB_REPOSITORY)/$($env:GITHUB_MANIFEST_BRANCH)/update/$($env:CHANNEL)"
+          $giteeBase = "https://gitee.com/$($env:GITEE_OWNER)/$($env:GITEE_REPO)/raw/$($env:GITEE_BRANCH)/update/$($env:CHANNEL)"
+          function Assert-ExactBytes([string]$expectedPath, [string]$actualPath) {
+            $expected = [IO.File]::ReadAllBytes($expectedPath)
+            $actual = [IO.File]::ReadAllBytes($actualPath)
+            if ($expected.Length -ne $actual.Length) { throw "Published signed manifest length mismatch." }
+            for ($index = 0; $index -lt $expected.Length; $index++) {
+              if ($expected[$index] -ne $actual[$index]) { throw "Published signed manifest byte mismatch." }
+            }
+          }
+          foreach ($name in @("latest.json", "latest.json.sig")) {
+            $localPath = Join-Path $env:RUNNER_TEMP $(if ($name.EndsWith(".sig")) { "signed-latest.json.sig" } else { "signed-latest.json" })
+            $githubPath = Join-Path $env:RUNNER_TEMP "github-$name"
+            $giteePath = Join-Path $env:RUNNER_TEMP "gitee-$name"
+            Invoke-WebRequest -Uri "$githubBase/$name`?cache=$nonce" -OutFile $githubPath -TimeoutSec 60
+            Invoke-WebRequest -Uri "$giteeBase/$name`?cache=$nonce" -OutFile $giteePath -TimeoutSec 60
+            Assert-ExactBytes $localPath $githubPath
+            Assert-ExactBytes $localPath $giteePath
           }
 
       - name: Cleanup failed beta publish
@@ -663,6 +665,14 @@ jobs:
           if ($env:GITHUB_RELEASE_CREATED -eq "true") {
             Write-Host "Deleting GitHub release created by failed workflow. Tag=$($env:GITHUB_REF_NAME)"
             gh release delete $env:GITHUB_REF_NAME --yes
+          }
+
+          if ($env:GITHUB_MANIFEST_SYNCED -eq "true") {
+            if ($env:GITHUB_MANIFEST_BRANCH_CREATED -eq "true") {
+              git push origin ":refs/heads/$($env:GITHUB_MANIFEST_BRANCH)"
+            } elseif (-not [string]::IsNullOrWhiteSpace($env:GITHUB_MANIFEST_BRANCH_BASE)) {
+              git push --force-with-lease origin "$($env:GITHUB_MANIFEST_BRANCH_BASE):refs/heads/$($env:GITHUB_MANIFEST_BRANCH)"
+            }
           }
 
           if (-not [string]::IsNullOrWhiteSpace($env:GITEE_TOKEN) -and -not [string]::IsNullOrWhiteSpace($env:GITEE_RELEASE_ID)) {
@@ -702,3 +712,10 @@ jobs:
               Pop-Location
             }
           }
+
+      - name: Remove update signing private key
+        if: always()
+        shell: pwsh
+        run: |
+          Remove-Item ".local-secrets/update-signing-private.pem" -Force -ErrorAction SilentlyContinue
+          Remove-Item "$env:RUNNER_TEMP/update-key-id.txt" -Force -ErrorAction SilentlyContinue

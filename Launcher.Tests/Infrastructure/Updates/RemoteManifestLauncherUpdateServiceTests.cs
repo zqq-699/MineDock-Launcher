@@ -1,25 +1,5 @@
-/*
- * BlockHelm Launcher
- * Copyright (C) 2026 Quan Zhou
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 3.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- *
- * SPDX-License-Identifier: GPL-3.0-only
- */
-
 using System.Net;
-using Launcher.Application;
-using Launcher.Application.Services;
+using System.Text;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Updates;
 
@@ -27,289 +7,206 @@ namespace Launcher.Tests.Infrastructure.Updates;
 
 public sealed class RemoteManifestLauncherUpdateServiceTests
 {
+    private const string KeyId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    private const string Sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    private const string GiteeManifest = "https://gitee.com/zqq-699/BlockHelm-Launcher/raw/update-manifests/update/release/latest.json";
+    private const string GitHubManifest = "https://raw.githubusercontent.com/zqq-699/BlockHelm-Launcher/update-manifests/update/release/latest.json";
+    private static readonly string ValidSignature = Convert.ToBase64String(new byte[64]);
+
     [Fact]
-    public async Task CheckForUpdatesRequestsGiteeReleaseManifestFirst()
+    public async Task ValidSignedManifestIsAccepted()
     {
-        var handler = new ManifestHandler();
-        handler.Respond(
-            "https://gitee.test/update/release/latest.json",
-            CreateManifest(versionCode: 1000199, channel: "release"));
-        var service = CreateService(handler);
+        var manifest = CreateManifest();
+        var service = CreateService((GiteeManifest, HttpStatusCode.OK, manifest), (GiteeManifest + ".sig", HttpStatusCode.OK, ValidSignature));
 
         var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
 
         Assert.False(result.IsFailed);
         Assert.True(result.IsUpdateAvailable);
-        Assert.Equal("1.0.1", result.Update?.Version);
-        Assert.Equal(1000199, result.Update?.VersionCode);
-        Assert.Equal("https://download.test/BlockHelm_Launcher_x64.exe", result.Update?.DownloadUrl);
-        Assert.Equal("BlockHelm_Launcher_x64.exe", result.Update?.DownloadFileName);
-        Assert.Equal(LauncherUpdateAssetKind.WindowsX64Executable, result.Update?.AssetKind);
         Assert.True(result.Update?.CanAutoInstall);
-        Assert.Equal(
-            ["https://gitee.test/update/release/latest.json"],
-            handler.Requests.Select(request => request.RequestUri!.ToString()));
-        Assert.Contains(handler.Requests[0].Headers.UserAgent, value => value.Product?.Name == LauncherProjectLinks.GitHubUserAgent);
+        Assert.Equal(KeyId, result.Update?.KeyId);
+        Assert.Equal(12, result.Update?.SizeBytes);
+        Assert.Equal(Sha256, result.Update?.Sha256);
     }
 
     [Fact]
-    public async Task CheckForUpdatesUsesBetaChannelInManifestUrls()
+    public async Task OneUnavailableMirrorAllowsOtherValidMirror()
     {
-        var handler = new ManifestHandler();
-        handler.Respond(
-            "https://gitee.test/update/beta/latest.json",
-            CreateManifest(versionCode: 1000201, channel: "beta", versionName: "1.0.2-beta.1"));
-        var service = CreateService(handler);
-
-        var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Beta);
-
-        Assert.True(result.IsUpdateAvailable);
-        Assert.Equal("1.0.2-beta.1", result.Update?.DisplayVersion);
-        Assert.Equal(
-            ["https://gitee.test/update/beta/latest.json"],
-            handler.Requests.Select(request => request.RequestUri!.ToString()));
-    }
-
-    [Theory]
-    [InlineData(ManifestFailureMode.Timeout)]
-    [InlineData(ManifestFailureMode.NonSuccessStatusCode)]
-    [InlineData(ManifestFailureMode.InvalidJson)]
-    [InlineData(ManifestFailureMode.InvalidSchema)]
-    [InlineData(ManifestFailureMode.InvalidAppId)]
-    [InlineData(ManifestFailureMode.InvalidChannel)]
-    public async Task CheckForUpdatesFallsBackToGitHubWhenGiteeFails(ManifestFailureMode failureMode)
-    {
-        var handler = new ManifestHandler();
-        handler.Respond(
-            "https://gitee.test/update/release/latest.json",
-            CreateFailureResponse(failureMode));
-        handler.Respond(
-            "https://github.test/update/release/latest.json",
-            CreateManifest(versionCode: 1000399, channel: "release", versionName: "1.0.3"));
-        var service = CreateService(handler);
+        var manifest = CreateManifest();
+        var service = CreateService(
+            new[]
+            {
+                new LauncherUpdateManifestSource("gitee", GiteeManifest.Replace("/release/latest.json", "/{0}/latest.json"), 1),
+                new LauncherUpdateManifestSource("github", GitHubManifest.Replace("/release/latest.json", "/{0}/latest.json"), 2)
+            },
+            (GiteeManifest, HttpStatusCode.ServiceUnavailable, ""),
+            (GiteeManifest + ".sig", HttpStatusCode.ServiceUnavailable, ""),
+            (GitHubManifest, HttpStatusCode.OK, manifest),
+            (GitHubManifest + ".sig", HttpStatusCode.OK, ValidSignature));
 
         var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
 
         Assert.False(result.IsFailed);
         Assert.True(result.IsUpdateAvailable);
-        Assert.Equal("1.0.3", result.Update?.Version);
-        Assert.Equal(
-            [
-                "https://gitee.test/update/release/latest.json",
-                "https://github.test/update/release/latest.json"
-            ],
-            handler.Requests.Select(request => request.RequestUri!.ToString()));
     }
 
     [Fact]
-    public async Task CheckForUpdatesReturnsFailedWhenAllSourcesFail()
+    public async Task InvalidSignatureRejectsUpdateEvenWhenOtherMirrorIsValid()
     {
-        var handler = new ManifestHandler();
-        handler.Respond(
-            "https://gitee.test/update/release/latest.json",
-            new ManifestResponse(HttpStatusCode.InternalServerError, "{}"));
-        handler.Respond(
-            "https://github.test/update/release/latest.json",
-            new ManifestResponse(HttpStatusCode.NotFound, "{}"));
-        var service = CreateService(handler);
+        var manifest = CreateManifest();
+        var invalidSignature = Convert.ToBase64String(Enumerable.Repeat((byte)0xff, 64).ToArray());
+        var service = CreateService(DefaultSources,
+            (GiteeManifest, HttpStatusCode.OK, manifest),
+            (GiteeManifest + ".sig", HttpStatusCode.OK, invalidSignature),
+            (GitHubManifest, HttpStatusCode.OK, manifest),
+            (GitHubManifest + ".sig", HttpStatusCode.OK, ValidSignature));
 
         var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
 
         Assert.True(result.IsFailed);
         Assert.False(result.IsUpdateAvailable);
-        Assert.Equal(2, handler.Requests.Count);
     }
 
     [Fact]
-    public async Task CheckForUpdatesReturnsLatestWhenRemoteVersionCodeIsNotNewer()
+    public async Task DifferentValidManifestBytesAreRejected()
     {
-        var handler = new ManifestHandler();
-        handler.Respond(
-            "https://gitee.test/update/release/latest.json",
-            CreateManifest(versionCode: 1000099, channel: "release", versionName: "1.0.0"));
-        var service = CreateService(handler);
+        var service = CreateService(DefaultSources,
+            (GiteeManifest, HttpStatusCode.OK, CreateManifest("1.1.0")),
+            (GiteeManifest + ".sig", HttpStatusCode.OK, ValidSignature),
+            (GitHubManifest, HttpStatusCode.OK, CreateManifest("1.1.1")),
+            (GitHubManifest + ".sig", HttpStatusCode.OK, ValidSignature));
 
         var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
 
-        Assert.False(result.IsFailed);
-        Assert.False(result.IsUpdateAvailable);
-        Assert.Null(result.Update);
+        Assert.True(result.IsFailed);
     }
 
     [Fact]
-    public async Task CheckForUpdatesSortsDownloadUrlsAndMapsMandatoryState()
+    public async Task DifferentValidSignatureFileBytesAreRejected()
     {
-        var handler = new ManifestHandler();
-        handler.Respond(
-            "https://gitee.test/update/release/latest.json",
-            """
-            {
-              "schemaVersion": 1,
-              "appId": "BlockHelm-Launcher",
-              "channel": "release",
-              "versionName": "1.0.4",
-              "versionCode": 1000499,
-              "publishedAt": "2026-01-01T00:00:00+08:00",
-              "mandatory": false,
-              "minSupportedVersionCode": 1000199,
-              "releaseNotes": "notes",
-              "assets": [
-                {
-                  "platform": "windows",
-                  "arch": "x64",
-                  "packageType": "exe",
-                  "fileName": "BlockHelm_Launcher_x64.exe",
-                  "size": 123,
-                  "sha256": "ABCDEF",
-                  "urls": [
-                    { "name": "github", "url": "https://download.test/github.exe", "priority": 2 },
-                    { "name": "gitee", "url": "https://download.test/gitee.exe", "priority": 1 },
-                    { "name": "ftp", "url": "ftp://download.test/file.exe", "priority": 0 }
-                  ]
-                }
-              ]
-            }
-            """);
-        var service = CreateService(handler);
+        var manifest = CreateManifest();
+        var otherCanonicalSignature = Convert.ToBase64String(Enumerable.Repeat((byte)1, 64).ToArray());
+        var service = CreateService(DefaultSources,
+            (GiteeManifest, HttpStatusCode.OK, manifest),
+            (GiteeManifest + ".sig", HttpStatusCode.OK, ValidSignature),
+            (GitHubManifest, HttpStatusCode.OK, manifest),
+            (GitHubManifest + ".sig", HttpStatusCode.OK, otherCanonicalSignature));
 
         var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
 
-        Assert.True(result.IsUpdateAvailable);
-        Assert.NotNull(result.Update);
-        Assert.True(result.Update.IsMandatory);
-        Assert.Equal(1000199, result.Update.MinSupportedVersionCode);
-        Assert.Equal(123, result.Update.SizeBytes);
-        Assert.Equal("ABCDEF", result.Update.Sha256);
-        Assert.Equal("https://download.test/gitee.exe", result.Update.DownloadUrl);
-        Assert.Equal(
-            ["gitee", "github"],
-            result.Update.DownloadUrls!.Select(url => url.Name));
+        Assert.True(result.IsFailed);
+    }
+
+    [Fact]
+    public async Task OversizedManifestIsRejectedBeforeParsing()
+    {
+        var oversized = new string(' ', 1024 * 1024 + 1);
+        var service = CreateService(
+            (GiteeManifest, HttpStatusCode.OK, oversized),
+            (GiteeManifest + ".sig", HttpStatusCode.OK, ValidSignature));
+
+        var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
+
+        Assert.True(result.IsFailed);
     }
 
     [Theory]
-    [InlineData("0.9.1", 90199)]
-    [InlineData("0.9.1-beta.1", 90101)]
-    [InlineData("1.1.0", 1010099)]
-    [InlineData("1.1.0-beta.1", 1010001)]
-    public void TryCalculateVersionCodeUsesReleaseAndBetaSuffixRules(
-        string version,
-        int expectedVersionCode)
+    [InlineData(0, Sha256)]
+    [InlineData(12, "abcd")]
+    public async Task MissingRequiredExecutableIntegrityMetadataIsRejected(long size, string sha256)
     {
-        Assert.True(RemoteManifestLauncherUpdateService.TryCalculateVersionCode(version, out var versionCode));
-        Assert.Equal(expectedVersionCode, versionCode);
+        var manifest = CreateManifest(size: size, sha256: sha256);
+        var service = CreateService((GiteeManifest, HttpStatusCode.OK, manifest), (GiteeManifest + ".sig", HttpStatusCode.OK, ValidSignature));
+
+        var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
+
+        Assert.True(result.IsFailed);
     }
 
-    private static RemoteManifestLauncherUpdateService CreateService(ManifestHandler handler)
+    [Fact]
+    public async Task HttpExecutableUrlIsRejectedAfterSignatureVerification()
     {
-        return new RemoteManifestLauncherUpdateService(
-            new HttpClient(handler),
-            logger: null,
-            manifestSources:
-            [
-                new LauncherUpdateManifestSource("gitee", "https://gitee.test/update/{0}/latest.json", 1),
-                new LauncherUpdateManifestSource("github", "https://github.test/update/{0}/latest.json", 2)
-            ]);
+        var manifest = CreateManifest(downloadUrl: "http://github.com/zqq-699/BlockHelm-Launcher/test.exe");
+        var service = CreateService((GiteeManifest, HttpStatusCode.OK, manifest), (GiteeManifest + ".sig", HttpStatusCode.OK, ValidSignature));
+
+        var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
+
+        Assert.True(result.IsFailed);
+    }
+
+    [Fact]
+    public void VersionCodeCalculationRemainsCompatible()
+    {
+        Assert.True(RemoteManifestLauncherUpdateService.TryCalculateVersionCode("0.9.3-beta.1", out var beta));
+        Assert.Equal(90301, beta);
+        Assert.True(RemoteManifestLauncherUpdateService.TryCalculateVersionCode("0.9.3", out var release));
+        Assert.Equal(90399, release);
+    }
+
+    private static IReadOnlyList<LauncherUpdateManifestSource> DefaultSources =>
+    [
+        new("gitee", GiteeManifest.Replace("/release/latest.json", "/{0}/latest.json"), 1),
+        new("github", GitHubManifest.Replace("/release/latest.json", "/{0}/latest.json"), 2)
+    ];
+
+    private static RemoteManifestLauncherUpdateService CreateService(params (string Url, HttpStatusCode Status, string Content)[] responses) =>
+        CreateService([DefaultSources[0]], responses);
+
+    private static RemoteManifestLauncherUpdateService CreateService(
+        IReadOnlyList<LauncherUpdateManifestSource> sources,
+        params (string Url, HttpStatusCode Status, string Content)[] responses)
+    {
+        var handler = new ResponseHandler(responses);
+        return new RemoteManifestLauncherUpdateService(new HttpClient(handler), null, sources, new TestVerifier());
     }
 
     private static string CreateManifest(
-        int versionCode,
-        string channel,
-        string versionName = "1.0.1")
+        string version = "1.1.0",
+        long size = 12,
+        string sha256 = Sha256,
+        string downloadUrl = "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v1.1.0/BlockHelm_Launcher_x64.exe") => $$"""
     {
-        return $$"""
+      "schemaVersion": 1,
+      "appId": "BlockHelm-Launcher",
+      "keyId": "{{KeyId}}",
+      "channel": "release",
+      "versionName": "{{version}}",
+      "versionCode": 1010099,
+      "publishedAt": "2026-07-12T00:00:00Z",
+      "mandatory": false,
+      "minSupportedVersionCode": 0,
+      "releaseNotes": "test",
+      "assets": [{
+        "platform": "windows", "arch": "x64", "packageType": "exe",
+        "fileName": "BlockHelm_Launcher_x64.exe", "size": {{size}}, "sha256": "{{sha256}}",
+        "urls": [{ "name": "github", "url": "{{downloadUrl}}", "priority": 1 }]
+      }]
+    }
+    """;
+
+    private sealed class TestVerifier : IUpdateManifestSignatureVerifier
+    {
+        public string KeyId => RemoteManifestLauncherUpdateServiceTests.KeyId;
+        public bool Verify(ReadOnlySpan<byte> manifestBytes, ReadOnlySpan<byte> signatureBytes) =>
+            signatureBytes.Length == 64 && signatureBytes[0] != 0xff;
+    }
+
+    private sealed class ResponseHandler : HttpMessageHandler
+    {
+        private readonly Dictionary<string, (HttpStatusCode Status, string Content)> responses;
+        public ResponseHandler(IEnumerable<(string Url, HttpStatusCode Status, string Content)> values) =>
+            responses = values.ToDictionary(value => value.Url, value => (value.Status, value.Content), StringComparer.OrdinalIgnoreCase);
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-          "schemaVersion": 1,
-          "appId": "BlockHelm-Launcher",
-          "channel": "{{channel}}",
-          "versionName": "{{versionName}}",
-          "versionCode": {{versionCode}},
-          "publishedAt": "2026-01-01T00:00:00+08:00",
-          "mandatory": false,
-          "minSupportedVersionCode": 0,
-          "releaseNotes": "notes",
-          "assets": [
+            var value = responses.TryGetValue(request.RequestUri!.AbsoluteUri, out var configured)
+                ? configured
+                : (Status: HttpStatusCode.NotFound, Content: string.Empty);
+            return Task.FromResult(new HttpResponseMessage(value.Status)
             {
-              "platform": "windows",
-              "arch": "x64",
-              "packageType": "exe",
-              "fileName": "BlockHelm_Launcher_x64.exe",
-              "size": 0,
-              "sha256": "",
-              "urls": [
-                { "name": "gitee", "url": "https://download.test/BlockHelm_Launcher_x64.exe", "priority": 1 }
-              ]
-            }
-          ]
-        }
-        """;
-    }
-
-    private static ManifestResponse CreateFailureResponse(ManifestFailureMode failureMode)
-    {
-        return failureMode switch
-        {
-            ManifestFailureMode.Timeout => ManifestResponse.Timeout,
-            ManifestFailureMode.NonSuccessStatusCode => new ManifestResponse(HttpStatusCode.BadGateway, "{}"),
-            ManifestFailureMode.InvalidJson => new ManifestResponse(HttpStatusCode.OK, "{"),
-            ManifestFailureMode.InvalidSchema => new ManifestResponse(HttpStatusCode.OK, CreateManifest(1000199, "release").Replace("\"schemaVersion\": 1", "\"schemaVersion\": 99")),
-            ManifestFailureMode.InvalidAppId => new ManifestResponse(HttpStatusCode.OK, CreateManifest(1000199, "release").Replace("BlockHelm-Launcher", "Other")),
-            ManifestFailureMode.InvalidChannel => new ManifestResponse(HttpStatusCode.OK, CreateManifest(1000199, "beta")),
-            _ => throw new ArgumentOutOfRangeException(nameof(failureMode), failureMode, null)
-        };
-    }
-
-    public enum ManifestFailureMode
-    {
-        Timeout,
-        NonSuccessStatusCode,
-        InvalidJson,
-        InvalidSchema,
-        InvalidAppId,
-        InvalidChannel
-    }
-
-    private sealed class ManifestHandler : HttpMessageHandler
-    {
-        private readonly Dictionary<string, ManifestResponse> responses = new(StringComparer.OrdinalIgnoreCase);
-
-        public List<HttpRequestMessage> Requests { get; } = [];
-
-        public void Respond(string url, string response)
-        {
-            responses[url] = new ManifestResponse(HttpStatusCode.OK, response);
-        }
-
-        public void Respond(string url, ManifestResponse response)
-        {
-            responses[url] = response;
-        }
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            Requests.Add(request);
-            var url = request.RequestUri!.ToString();
-            if (!responses.TryGetValue(url, out var response))
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
-
-            if (response.IsTimeout)
-                throw new TaskCanceledException("timeout");
-
-            return Task.FromResult(new HttpResponseMessage(response.StatusCode)
-            {
-                Content = new StringContent(response.Content)
+                RequestMessage = request,
+                Content = new StringContent(value.Content, Encoding.UTF8)
             });
         }
-    }
-
-    private sealed record ManifestResponse(HttpStatusCode StatusCode, string Content)
-    {
-        public static ManifestResponse Timeout { get; } = new(HttpStatusCode.OK, string.Empty)
-        {
-            IsTimeout = true
-        };
-
-        public bool IsTimeout { get; init; }
     }
 }

@@ -30,17 +30,23 @@ public sealed record LauncherUpdateInfo(
     string ReleasePageUrl,
     string? DownloadUrl,
     string? Changelog,
-    string? DownloadFileName = null,
-    LauncherUpdateAssetKind AssetKind = LauncherUpdateAssetKind.ReleasePage,
+    string? DownloadFileName,
+    LauncherUpdateAssetKind AssetKind,
+    long SizeBytes,
+    string Sha256,
+    string KeyId,
     int VersionCode = 0,
     bool IsMandatory = false,
     int MinSupportedVersionCode = 0,
     DateTimeOffset? PublishedAt = null,
-    long SizeBytes = 0,
-    string? Sha256 = null,
     IReadOnlyList<LauncherUpdateDownloadUrl>? DownloadUrls = null)
 {
     public bool CanAutoInstall => AssetKind is LauncherUpdateAssetKind.WindowsX64Executable
+        && SizeBytes > 0
+        && Sha256.Length == 64
+        && Sha256.All(Uri.IsHexDigit)
+        && KeyId.Length == 64
+        && KeyId.All(Uri.IsHexDigit)
         && EffectiveDownloadUrls.Count > 0;
 
     public IReadOnlyList<LauncherUpdateDownloadUrl> EffectiveDownloadUrls =>

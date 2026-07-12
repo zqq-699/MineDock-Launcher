@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="CmlLib.Core" Version="4.0.6" />
     <PackageReference Include="CmlLib.Core.Auth.Microsoft" Version="3.3.1" />
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
     <PackageReference Include="SharpCompress" Version="0.39.0" />
@@ -17,6 +18,12 @@
     <EmbeddedResource Include="$(MSBuildProjectDirectory)\..\.local-secrets\curseforge.key"
                       Condition="Exists('$(MSBuildProjectDirectory)\..\.local-secrets\curseforge.key')"
                       LogicalName="Launcher.Infrastructure.CurseForge.curseforge.key" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="$(MSBuildProjectDirectory)\..\.local-secrets\update-signing-public.pem"
+                      Condition="Exists('$(MSBuildProjectDirectory)\..\.local-secrets\update-signing-public.pem')"
+                      LogicalName="Launcher.Infrastructure.Updates.update-signing-public.pem" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -29,6 +36,11 @@
   <Target Name="WarnMissingCurseForgeEmbeddedKey" BeforeTargets="CoreCompile"
           Condition="!Exists('$(MSBuildProjectDirectory)\..\.local-secrets\curseforge.key')">
     <Warning Text="CurseForge API key file was not found at $(MSBuildProjectDirectory)\..\.local-secrets\curseforge.key. The launcher will be built without an embedded CurseForge key." />
+  </Target>
+
+  <Target Name="WarnMissingUpdateSigningPublicKey" BeforeTargets="CoreCompile"
+          Condition="!Exists('$(MSBuildProjectDirectory)\..\.local-secrets\update-signing-public.pem')">
+    <Warning Text="Update signing public key was not found. Remote self-update verification will be unavailable." />
   </Target>
 
 </Project>

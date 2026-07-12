@@ -16,7 +16,27 @@ Live channel manifests are written by the release workflows to the
 `update-manifests` branch in both GitHub and Gitee:
 
 - `update/release/latest.json`: stable release channel for normal users.
+- `update/release/latest.json.sig`: Ed25519 signature for the exact manifest bytes.
 - `update/beta/latest.json`: beta channel for test builds and early validation.
+- `update/beta/latest.json.sig`: Ed25519 signature for the exact manifest bytes.
+
+## Signing key
+
+`latest.json` is written as UTF-8 without a BOM and is signed byte-for-byte with
+an Ed25519 PKCS#8 private key. `latest.json.sig` is the 64-byte signature encoded
+as canonical Base64 without a BOM or trailing newline. `keyId` is the lowercase
+SHA-256 of the public key's SubjectPublicKeyInfo DER bytes.
+
+Local signing material lives only in `.local-secrets/update-signing-private.pem`
+and `.local-secrets/update-signing-public.pem`. GitHub Actions uses the
+`release-signing` Environment secret `UPDATE_SIGNING_PRIVATE_KEY_BASE64`; its
+value is the Base64 encoding of the private PEM file's exact UTF-8 bytes. The
+workflow derives and embeds only the public key and removes the private key in
+an `always()` cleanup step.
+
+This first version trusts one public key. Key rotation requires first releasing
+a transition client that trusts both the old and new keys; replacing the key in
+the workflow alone would make existing clients reject future manifests.
 
 ## Release Checklist
 
@@ -40,6 +60,7 @@ final remote manifest to `update/{channel}/latest.json` on the
 `update-manifests` branch in GitHub and Gitee:
 
 - `versionName`: user-facing version, for example `1.2.3`.
+- `keyId`: signing public-key identifier described above.
 - `versionCode`: numeric version used for comparisons, for example `1020399`.
 - `publishedAt`: publish time in ISO 8601 format.
 - `mandatory`: whether this update is mandatory.
@@ -55,4 +76,7 @@ Final manifests contain only `gitee` and `github` download URLs. Gitee is the
 first update manifest source and the first download mirror; GitHub is the
 fallback. The Gitee repository is not a source-code mirror; its
 `update-manifests` branch only stores `update/release/latest.json`,
-`update/beta/latest.json`, lightweight tags, and Release attachments.
+`update/beta/latest.json`, their `.sig` files, lightweight tags, and Release
+attachments. Both providers receive the same local manifest and signature
+files; the workflow reads them back with cache-busting URLs and fails unless
+both copies are byte-identical.
