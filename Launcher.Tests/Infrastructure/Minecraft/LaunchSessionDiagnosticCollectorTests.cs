@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using Launcher.Application;
 using Launcher.Application.Services;
 using Launcher.Infrastructure.Minecraft;
 using Launcher.Tests.Helpers;
@@ -37,7 +38,11 @@ public sealed class LaunchSessionDiagnosticCollectorTests : TestTempDirectory
 
         var newCrash = Path.Combine(crashDirectory, "crash-current-client.txt");
         var jvmCrash = Path.Combine(instanceDirectory, "hs_err_pid123.log");
-        var capturedOutput = Path.Combine(instanceDirectory, "logs", "launcher", "launch-output-test.log");
+        var capturedOutput = Path.Combine(
+            instanceDirectory,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "logs",
+            "launch-output-test.log");
         Directory.CreateDirectory(Path.GetDirectoryName(capturedOutput)!);
         await File.WriteAllTextAsync(newCrash, "current crash");
         await File.WriteAllTextAsync(jvmCrash, "jvm crash");

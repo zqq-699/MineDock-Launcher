@@ -21,6 +21,7 @@ using System.IO;
 using CmlLib.Core;
 using CmlLib.Core.Auth;
 using CmlLib.Core.ProcessBuilder;
+using Launcher.Application;
 using Launcher.Application.Accounts;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
@@ -759,9 +760,15 @@ public sealed class LaunchService : ILaunchService
     private static string ResolveDiagnosticDirectory(LaunchDiagnosticContext context, string? diagnosticPath)
     {
         if (!string.IsNullOrWhiteSpace(diagnosticPath))
-            return Path.GetDirectoryName(diagnosticPath) ?? Path.Combine(context.InstanceDirectory, "logs", "launcher");
+            return Path.GetDirectoryName(diagnosticPath) ?? Path.Combine(
+                context.InstanceDirectory,
+                LauncherApplicationIdentity.StorageDirectoryName,
+                "logs");
 
-        return Path.Combine(context.InstanceDirectory, "logs", "launcher");
+        return Path.Combine(
+            context.InstanceDirectory,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "logs");
     }
 
     private static MinecraftPath CreateIsolatedLaunchPath(string minecraftDirectory, string versionName)

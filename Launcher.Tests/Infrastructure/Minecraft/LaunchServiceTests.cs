@@ -6,6 +6,7 @@
 
 using System.Diagnostics;
 using CmlLib.Core.ProcessBuilder;
+using Launcher.Application;
 using Launcher.Application.Accounts;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
@@ -98,7 +99,14 @@ public sealed class LaunchServiceTests : TestTempDirectory
         Assert.Equal(LaunchFailureKind.StartupAbnormalExit, exception.Report.Kind);
         Assert.Contains("super-secret-access-token", exception.Report.ExportSensitiveValues);
         Assert.True(File.Exists(exception.DiagnosticPath));
+        var expectedDiagnosticDirectory = Path.Combine(
+            instance.InstanceDirectory,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "logs");
+        Assert.Equal(expectedDiagnosticDirectory, exception.Report.DiagnosticDirectory);
+        Assert.Equal(expectedDiagnosticDirectory, Path.GetDirectoryName(exception.DiagnosticPath));
         Assert.Equal(LaunchDiagnosticType.CapturedOutput, exception.Report.PrimaryDiagnostic?.Type);
+        Assert.Equal(expectedDiagnosticDirectory, Path.GetDirectoryName(exception.Report.PrimaryDiagnostic?.Path));
         Assert.Equal(LaunchDiagnosticType.LauncherDiagnostic, exception.Report.DiagnosticCandidates[^1].Type);
         var diagnostic = await File.ReadAllTextAsync(exception.DiagnosticPath!);
         Assert.Contains("Missing launch target", diagnostic);
@@ -133,6 +141,12 @@ public sealed class LaunchServiceTests : TestTempDirectory
         Assert.IsType<InstanceRepairException>(exception.InnerException);
         Assert.Null(launcher.Launcher.LastVersionName);
         Assert.True(File.Exists(exception.Report.DiagnosticPath));
+        var expectedDiagnosticDirectory = Path.Combine(
+            instance.InstanceDirectory,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "logs");
+        Assert.Equal(expectedDiagnosticDirectory, exception.Report.DiagnosticDirectory);
+        Assert.Equal(expectedDiagnosticDirectory, Path.GetDirectoryName(exception.Report.DiagnosticPath));
         Assert.Contains("instance_repair_failed", await File.ReadAllTextAsync(exception.Report.DiagnosticPath!));
     }
 

@@ -20,6 +20,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using Launcher.Application;
 using Launcher.Application.Services;
 
 namespace Launcher.Infrastructure.Minecraft;
@@ -170,7 +171,10 @@ internal static class LaunchDiagnosticsWriter
         Action<StringBuilder> appendSections)
     {
         // 写入使用单一入口以统一目录创建、命名、保留数量和失败降级行为。
-        var logsDirectory = Path.Combine(context.InstanceDirectory, "logs", "launcher");
+        var logsDirectory = Path.Combine(
+            context.InstanceDirectory,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "logs");
         Directory.CreateDirectory(logsDirectory);
         var diagnosticPath = Path.Combine(
             logsDirectory,

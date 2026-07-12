@@ -19,6 +19,7 @@
 
 using System.Diagnostics;
 using System.IO;
+using Launcher.Application;
 using Launcher.Application.Services;
 
 namespace Launcher.Infrastructure.Minecraft;
@@ -186,8 +187,8 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
 
             var outputPath = Path.Combine(
                 instanceDirectory,
+                LauncherApplicationIdentity.StorageDirectoryName,
                 "logs",
-                "launcher",
                 $"launch-output-{Guid.NewGuid():N}.log");
             outputCapture = new LaunchOutputCapture(outputPath, context.SensitiveValues);
             outputCapture.Start(process);
@@ -264,9 +265,15 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
         private static string ResolveDiagnosticDirectory(LaunchDiagnosticContext context, string? diagnosticPath)
         {
             if (!string.IsNullOrWhiteSpace(diagnosticPath))
-                return Path.GetDirectoryName(diagnosticPath) ?? Path.Combine(context.InstanceDirectory, "logs", "launcher");
+                return Path.GetDirectoryName(diagnosticPath) ?? Path.Combine(
+                    context.InstanceDirectory,
+                    LauncherApplicationIdentity.StorageDirectoryName,
+                    "logs");
 
-            return Path.Combine(context.InstanceDirectory, "logs", "launcher");
+            return Path.Combine(
+                context.InstanceDirectory,
+                LauncherApplicationIdentity.StorageDirectoryName,
+                "logs");
         }
 
         private static string GetFailureKindText(LaunchFailureKind failureKind)
