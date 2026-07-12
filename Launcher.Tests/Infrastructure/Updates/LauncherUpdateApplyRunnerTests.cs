@@ -6,14 +6,6 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- *
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
@@ -24,83 +16,237 @@ namespace Launcher.Tests.Infrastructure.Updates;
 
 public sealed class LauncherUpdateApplyRunnerTests : IDisposable
 {
-    private readonly string tempRoot = Path.Combine(Path.GetTempPath(), "launcher-update-apply-tests", Guid.NewGuid().ToString("N"));
+    private readonly string tempRoot = Path.Combine(
+        Path.GetTempPath(),
+        "launcher-update-apply-tests",
+        Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void RunReplacesTargetExecutable()
+    public void RunAtomicallyReplacesTargetAndCleansTransactionWithoutRestart()
     {
-        Directory.CreateDirectory(tempRoot);
-        var sourcePath = Path.Combine(tempRoot, "BlockHelm_Launcher_x64.exe");
-        var targetPath = Path.Combine(tempRoot, "BlockHelm-Launcher.exe");
-        var logDirectory = Path.Combine(tempRoot, "log");
-        File.WriteAllText(sourcePath, "new");
-        File.WriteAllText(targetPath, "old");
-        var runner = new LauncherUpdateApplyRunner();
+        var context = CreateContext();
 
-        var exitCode = runner.Run(new LauncherUpdateApplyOptions(
-            ProcessId: 0,
-            SourcePath: sourcePath,
-            TargetPath: targetPath,
-            LogDirectory: logDirectory,
-            Restart: false));
+        var exitCode = context.Runner.Run(context.Options with { Restart = false });
 
         Assert.Equal(0, exitCode);
-        Assert.Equal("new", File.ReadAllText(targetPath));
-        Assert.NotEmpty(Directory.GetFiles(logDirectory, "updater-*.log"));
+        Assert.Equal("new", File.ReadAllText(context.Options.TargetPath));
+        Assert.False(File.Exists(LauncherUpdateTransaction.GetBackupPath(context.Options.TargetPath)));
+        Assert.False(File.Exists(LauncherUpdateTransaction.GetMarkerPath(context.Options.TargetPath)));
+        Assert.Empty(context.Processes.StartedProcesses);
+        Assert.NotEmpty(Directory.GetFiles(context.Options.LogDirectory, "updater-*.log"));
     }
 
     [Fact]
-    public void RunStartsTargetExecutableWhenRestartIsRequested()
+    public void RunStartsUpdatedTargetAndCleansBackupAfterStartupConfirmation()
     {
-        Directory.CreateDirectory(tempRoot);
-        var sourcePath = Path.Combine(tempRoot, "BlockHelm_Launcher_x64.exe");
-        var targetPath = Path.Combine(tempRoot, "BlockHelm-Launcher.exe");
-        var logDirectory = Path.Combine(tempRoot, "log");
-        File.WriteAllText(sourcePath, "new");
-        File.WriteAllText(targetPath, "old");
-        ProcessStartInfo? startedProcess = null;
-        var runner = new LauncherUpdateApplyRunner(startInfo => startedProcess = startInfo);
+        var context = CreateContext();
+        context.Processes.OnStart = startInfo =>
+        {
+            if (startInfo.ArgumentList.Contains(LauncherUpdateStartupCoordinator.ConfirmationArgument))
+            {
+                Assert.True(LauncherUpdateStartupCoordinator.TryConfirmStartup(
+                    startInfo.ArgumentList.ToArray(),
+                    context.Options.TargetPath));
+            }
+        };
 
-        var exitCode = runner.Run(new LauncherUpdateApplyOptions(
+        var exitCode = context.Runner.Run(context.Options);
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal("new", File.ReadAllText(context.Options.TargetPath));
+        var startedProcess = Assert.Single(context.Processes.StartedProcesses);
+        Assert.Equal(context.Options.TargetPath, startedProcess.FileName);
+        Assert.True(startedProcess.UseShellExecute);
+        Assert.Contains(LauncherUpdateStartupCoordinator.ConfirmationArgument, startedProcess.ArgumentList);
+        Assert.False(File.Exists(LauncherUpdateTransaction.GetBackupPath(context.Options.TargetPath)));
+        Assert.False(File.Exists(LauncherUpdateTransaction.GetMarkerPath(context.Options.TargetPath)));
+    }
+
+    [Theory]
+    [InlineData(UpdateFileFault.CopyCandidate)]
+    [InlineData(UpdateFileFault.FlushCandidate)]
+    [InlineData(UpdateFileFault.HashMismatch)]
+    [InlineData(UpdateFileFault.CommitReplace)]
+    public void FailureBeforeAtomicCommitLeavesCompleteOldTarget(UpdateFileFault fault)
+    {
+        var context = CreateContext(fault);
+
+        var exitCode = context.Runner.Run(context.Options);
+
+        Assert.Equal(1, exitCode);
+        Assert.Equal("old", File.ReadAllText(context.Options.TargetPath));
+        Assert.False(File.Exists(LauncherUpdateTransaction.GetBackupPath(context.Options.TargetPath)));
+        Assert.False(File.Exists(LauncherUpdateTransaction.GetMarkerPath(context.Options.TargetPath)));
+        Assert.Empty(context.Processes.StartedProcesses);
+    }
+
+    [Theory]
+    [InlineData(UpdateProcessFault.StartThrows)]
+    [InlineData(UpdateProcessFault.ExitsBeforeConfirmation)]
+    [InlineData(UpdateProcessFault.ConfirmationTimeout)]
+    public void UnconfirmedUpdatedLauncherIsRolledBackAndOldVersionRestarts(UpdateProcessFault fault)
+    {
+        var context = CreateContext(processFault: fault);
+
+        var exitCode = context.Runner.Run(context.Options);
+
+        Assert.Equal(1, exitCode);
+        Assert.Equal("old", File.ReadAllText(context.Options.TargetPath));
+        Assert.False(File.Exists(LauncherUpdateTransaction.GetBackupPath(context.Options.TargetPath)));
+        Assert.False(File.Exists(LauncherUpdateTransaction.GetMarkerPath(context.Options.TargetPath)));
+        Assert.Equal(2, context.Processes.StartAttempts);
+        Assert.Equal(context.Options.TargetPath, context.Processes.StartedProcesses[^1].FileName);
+        Assert.DoesNotContain(
+            LauncherUpdateStartupCoordinator.ConfirmationArgument,
+            context.Processes.StartedProcesses[^1].ArgumentList);
+        if (fault == UpdateProcessFault.ConfirmationTimeout)
+            Assert.True(context.Processes.FirstProcess?.WasKilled);
+    }
+
+    [Fact]
+    public void RollbackFailurePreservesBackupAndPendingMarker()
+    {
+        var context = CreateContext(UpdateFileFault.RollbackReplace, UpdateProcessFault.StartThrows);
+
+        var exitCode = context.Runner.Run(context.Options);
+
+        Assert.Equal(1, exitCode);
+        Assert.Equal("new", File.ReadAllText(context.Options.TargetPath));
+        Assert.True(File.Exists(LauncherUpdateTransaction.GetBackupPath(context.Options.TargetPath)));
+        Assert.True(File.Exists(LauncherUpdateTransaction.GetMarkerPath(context.Options.TargetPath)));
+    }
+
+    [Fact]
+    public void RecoveryAtomicallyRestoresBackupLeftAfterInterruptedCommit()
+    {
+        var context = CreateContext();
+        var transaction = LauncherUpdateTransaction.Create(context.Options) with
+        {
+            Phase = LauncherUpdateTransactionPhase.Committed
+        };
+        context.Files.CopyCandidateAndFlush(context.Options.SourcePath, transaction.CandidatePath);
+        context.Files.WriteTransaction(transaction with { Phase = LauncherUpdateTransactionPhase.Prepared });
+        context.Files.Replace(transaction.CandidatePath, transaction.TargetPath, transaction.BackupPath);
+        context.Files.WriteTransaction(transaction);
+
+        var exitCode = context.Runner.RunRecovery(new LauncherUpdateRecoveryOptions(
             ProcessId: 0,
-            SourcePath: sourcePath,
-            TargetPath: targetPath,
-            LogDirectory: logDirectory,
+            TargetPath: context.Options.TargetPath,
+            LogDirectory: context.Options.LogDirectory,
             Restart: true));
 
         Assert.Equal(0, exitCode);
-        Assert.Equal(targetPath, startedProcess?.FileName);
-        Assert.True(startedProcess?.UseShellExecute);
+        Assert.Equal("old", File.ReadAllText(context.Options.TargetPath));
+        Assert.False(File.Exists(transaction.BackupPath));
+        Assert.False(File.Exists(transaction.MarkerPath));
+        Assert.Single(context.Processes.StartedProcesses);
+    }
+
+    [Fact]
+    public void StartupCoordinatorStartsRecoveryForUnconfirmedInterruptedTransaction()
+    {
+        var context = CreateContext();
+        var transaction = LauncherUpdateTransaction.Create(context.Options) with
+        {
+            Phase = LauncherUpdateTransactionPhase.Committed
+        };
+        context.Files.CopyCandidateAndFlush(context.Options.SourcePath, transaction.CandidatePath);
+        context.Files.WriteTransaction(transaction with { Phase = LauncherUpdateTransactionPhase.Prepared });
+        context.Files.Replace(transaction.CandidatePath, transaction.TargetPath, transaction.BackupPath);
+        context.Files.WriteTransaction(transaction);
+
+        ProcessStartInfo? recoveryStartInfo = null;
+        var started = LauncherUpdateStartupCoordinator.TryStartPendingRecovery(
+            [],
+            context.Options.TargetPath,
+            Environment.ProcessId,
+            context.Files,
+            startInfo =>
+            {
+                recoveryStartInfo = startInfo;
+                return true;
+            });
+
+        Assert.True(started);
+        Assert.NotNull(recoveryStartInfo);
+        Assert.Equal(context.Options.SourcePath, recoveryStartInfo.FileName);
+        Assert.Contains("--recover-update", recoveryStartInfo.ArgumentList);
+        Assert.True(File.Exists(transaction.BackupPath));
+        Assert.True(File.Exists(transaction.MarkerPath));
+    }
+
+    [Fact]
+    public void StartupConfirmationWriteFailureLeavesTransactionPendingForRollback()
+    {
+        var context = CreateContext(UpdateFileFault.ConfirmationWrite);
+        var transaction = LauncherUpdateTransaction.Create(context.Options) with
+        {
+            Phase = LauncherUpdateTransactionPhase.Committed
+        };
+        context.Files.WriteTransaction(transaction);
+
+        Assert.Throws<IOException>(() => LauncherUpdateStartupCoordinator.TryConfirmStartup(
+            [LauncherUpdateStartupCoordinator.ConfirmationArgument, transaction.TransactionId],
+            context.Options.TargetPath,
+            context.Files));
+        Assert.True(File.Exists(transaction.MarkerPath));
+        Assert.False(File.Exists(transaction.ConfirmationPath));
+    }
+
+    [Fact]
+    public void DurableConfirmationPreventsRollbackWhenUpdaterStopsBeforeMarkingTransactionConfirmed()
+    {
+        var context = CreateContext();
+        var transaction = LauncherUpdateTransaction.Create(context.Options) with
+        {
+            Phase = LauncherUpdateTransactionPhase.Committed
+        };
+        context.Files.CopyCandidateAndFlush(context.Options.SourcePath, transaction.CandidatePath);
+        context.Files.WriteTransaction(transaction with { Phase = LauncherUpdateTransactionPhase.Prepared });
+        context.Files.Replace(transaction.CandidatePath, transaction.TargetPath, transaction.BackupPath);
+        context.Files.WriteTransaction(transaction);
+        context.Files.WriteAllTextAndFlush(transaction.ConfirmationPath, transaction.TransactionId);
+        var recoveryStartCalled = false;
+
+        var started = LauncherUpdateStartupCoordinator.TryStartPendingRecovery(
+            [],
+            context.Options.TargetPath,
+            Environment.ProcessId,
+            context.Files,
+            _ =>
+            {
+                recoveryStartCalled = true;
+                return true;
+            });
+
+        Assert.False(started);
+        Assert.False(recoveryStartCalled);
+        Assert.Equal("new", File.ReadAllText(context.Options.TargetPath));
+        Assert.False(File.Exists(transaction.BackupPath));
+        Assert.False(File.Exists(transaction.MarkerPath));
+        Assert.False(File.Exists(transaction.ConfirmationPath));
     }
 
     [Fact]
     public void RunRejectsMissingSourceExecutable()
     {
-        Directory.CreateDirectory(tempRoot);
-        var targetPath = Path.Combine(tempRoot, "BlockHelm-Launcher.exe");
-        var logDirectory = Path.Combine(tempRoot, "log");
-        File.WriteAllText(targetPath, "old");
-        var runner = new LauncherUpdateApplyRunner();
+        var context = CreateContext();
+        File.Delete(context.Options.SourcePath);
 
-        var exitCode = runner.Run(new LauncherUpdateApplyOptions(
-            ProcessId: 0,
-            SourcePath: Path.Combine(tempRoot, "missing.exe"),
-            TargetPath: targetPath,
-            LogDirectory: logDirectory,
-            Restart: false));
+        var exitCode = context.Runner.Run(context.Options with { Restart = false });
 
         Assert.Equal(1, exitCode);
-        Assert.Equal("old", File.ReadAllText(targetPath));
-        Assert.NotEmpty(Directory.GetFiles(logDirectory, "updater-*.log"));
+        Assert.Equal("old", File.ReadAllText(context.Options.TargetPath));
+        Assert.NotEmpty(Directory.GetFiles(context.Options.LogDirectory, "updater-*.log"));
     }
 
     [Fact]
-    public void ParseRequiresApplyUpdateSourceTargetAndLogDirectory()
+    public void ParseRequiresCompleteApplyAndRecoveryArguments()
     {
         Assert.Null(LauncherUpdateApplyOptions.Parse(["--source", "a.exe", "--target", "b.exe", "--log-dir", "log"]));
         Assert.Null(LauncherUpdateApplyOptions.Parse(["--apply-update", "--source", "a.exe", "--target", "b.exe"]));
 
-        var parsed = LauncherUpdateApplyOptions.Parse([
+        var apply = LauncherUpdateApplyOptions.Parse([
             "--apply-update",
             "--pid", "12",
             "--source", "a.exe",
@@ -108,15 +254,174 @@ public sealed class LauncherUpdateApplyRunnerTests : IDisposable
             "--log-dir", "log",
             "--restart"
         ]);
+        var recovery = LauncherUpdateRecoveryOptions.Parse([
+            "--recover-update",
+            "--pid", "13",
+            "--target", "b.exe",
+            "--log-dir", "log",
+            "--restart"
+        ]);
 
-        Assert.NotNull(parsed);
-        Assert.Equal(12, parsed.ProcessId);
-        Assert.True(parsed.Restart);
+        Assert.NotNull(apply);
+        Assert.Equal(12, apply.ProcessId);
+        Assert.True(apply.Restart);
+        Assert.NotNull(recovery);
+        Assert.Equal(13, recovery.ProcessId);
+        Assert.True(recovery.Restart);
+    }
+
+    private TestContext CreateContext(
+        UpdateFileFault fileFault = UpdateFileFault.None,
+        UpdateProcessFault processFault = UpdateProcessFault.None)
+    {
+        Directory.CreateDirectory(tempRoot);
+        var sourcePath = Path.Combine(tempRoot, "BlockHelm_Launcher_x64.exe");
+        var targetPath = Path.Combine(tempRoot, "BlockHelm-Launcher.exe");
+        var logDirectory = Path.Combine(tempRoot, "log");
+        File.WriteAllText(sourcePath, "new");
+        File.WriteAllText(targetPath, "old");
+        var files = new FaultInjectingFileOperations(fileFault);
+        var processes = new FakeProcessOperations(processFault);
+        var runner = new LauncherUpdateApplyRunner(
+            files,
+            processes,
+            TimeSpan.FromMilliseconds(2),
+            TimeSpan.FromMilliseconds(1));
+        var options = new LauncherUpdateApplyOptions(
+            ProcessId: 0,
+            SourcePath: sourcePath,
+            TargetPath: targetPath,
+            LogDirectory: logDirectory,
+            Restart: true);
+        return new TestContext(runner, options, files, processes);
     }
 
     public void Dispose()
     {
         if (Directory.Exists(tempRoot))
             Directory.Delete(tempRoot, recursive: true);
+    }
+
+    private sealed record TestContext(
+        LauncherUpdateApplyRunner Runner,
+        LauncherUpdateApplyOptions Options,
+        FaultInjectingFileOperations Files,
+        FakeProcessOperations Processes);
+
+    public enum UpdateFileFault
+    {
+        None,
+        CopyCandidate,
+        FlushCandidate,
+        HashMismatch,
+        CommitReplace,
+        RollbackReplace,
+        ConfirmationWrite
+    }
+
+    public enum UpdateProcessFault
+    {
+        None,
+        StartThrows,
+        ExitsBeforeConfirmation,
+        ConfirmationTimeout
+    }
+
+    private sealed class FaultInjectingFileOperations(UpdateFileFault fault) : ILauncherUpdateFileOperations
+    {
+        private readonly LauncherUpdateFileOperations inner = new();
+
+        public bool Exists(string path) => inner.Exists(path);
+
+        public void CopyCandidateAndFlush(string sourcePath, string candidatePath)
+        {
+            if (fault == UpdateFileFault.CopyCandidate)
+                throw new IOException("Injected candidate copy failure.");
+            inner.CopyCandidateAndFlush(sourcePath, candidatePath);
+            if (fault == UpdateFileFault.FlushCandidate)
+                throw new IOException("Injected candidate flush failure.");
+        }
+
+        public long GetLength(string path) => inner.GetLength(path);
+
+        public byte[] ComputeSha256(string path)
+        {
+            var hash = inner.ComputeSha256(path);
+            if (fault == UpdateFileFault.HashMismatch && path.EndsWith(".candidate", StringComparison.Ordinal))
+                hash[0] ^= 0xff;
+            return hash;
+        }
+
+        public void Replace(string sourcePath, string targetPath, string? destinationBackupPath)
+        {
+            if (fault == UpdateFileFault.CommitReplace && destinationBackupPath is not null)
+                throw new IOException("Injected commit failure.");
+            if (fault == UpdateFileFault.RollbackReplace
+                && sourcePath.EndsWith(".update-backup", StringComparison.Ordinal))
+                throw new IOException("Injected rollback failure.");
+            inner.Replace(sourcePath, targetPath, destinationBackupPath);
+        }
+
+        public void WriteTransaction(LauncherUpdateTransaction transaction) => inner.WriteTransaction(transaction);
+
+        public LauncherUpdateTransaction? ReadTransaction(string markerPath) => inner.ReadTransaction(markerPath);
+
+        public string ReadAllText(string path) => inner.ReadAllText(path);
+
+        public void WriteAllTextAndFlush(string path, string content)
+        {
+            if (fault == UpdateFileFault.ConfirmationWrite && path.EndsWith(".confirmed", StringComparison.Ordinal))
+                throw new IOException("Injected startup confirmation write failure.");
+            inner.WriteAllTextAndFlush(path, content);
+        }
+
+        public void Delete(string path) => inner.Delete(path);
+    }
+
+    private sealed class FakeProcessOperations(UpdateProcessFault fault) : ILauncherUpdateProcessOperations
+    {
+        public List<ProcessStartInfo> StartedProcesses { get; } = [];
+        public Action<ProcessStartInfo>? OnStart { get; set; }
+        public FakeUpdateProcess? FirstProcess { get; private set; }
+        public int StartAttempts { get; private set; }
+
+        public ILauncherUpdateProcess Start(ProcessStartInfo startInfo)
+        {
+            StartAttempts++;
+            StartedProcesses.Add(startInfo);
+            if (fault == UpdateProcessFault.StartThrows && StartAttempts == 1)
+                throw new InvalidOperationException("Injected process start failure.");
+
+            OnStart?.Invoke(startInfo);
+            var process = new FakeUpdateProcess
+            {
+                HasExitedValue = fault == UpdateProcessFault.ExitsBeforeConfirmation && StartAttempts == 1
+            };
+            FirstProcess ??= process;
+            return process;
+        }
+
+        public void Delay(TimeSpan delay)
+        {
+        }
+    }
+
+    private sealed class FakeUpdateProcess : ILauncherUpdateProcess
+    {
+        public bool HasExitedValue { get; set; }
+        public bool WasKilled { get; private set; }
+        public bool HasExited => HasExitedValue;
+
+        public void Kill()
+        {
+            WasKilled = true;
+            HasExitedValue = true;
+        }
+
+        public bool WaitForExit(int milliseconds) => HasExitedValue;
+
+        public void Dispose()
+        {
+        }
     }
 }

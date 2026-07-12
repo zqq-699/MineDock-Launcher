@@ -41,7 +41,8 @@ public partial class App : System.Windows.Application
     public App()
     {
         var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
-        if (LauncherUpdateApplyOptions.Parse(args) is null)
+        if (LauncherUpdateApplyOptions.Parse(args) is null
+            && LauncherUpdateRecoveryOptions.Parse(args) is null)
         {
             ApplyLauncherCulture(
                 new JsonSettingsService().LoadLauncherLanguageForBootstrap());
@@ -59,12 +60,30 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        var updateRecoveryOptions = LauncherUpdateRecoveryOptions.Parse(e.Args);
+        if (updateRecoveryOptions is not null)
+        {
+            isUpdateApplyMode = true;
+            var exitCode = new LauncherUpdateApplyRunner().RunRecovery(updateRecoveryOptions);
+            Shutdown(exitCode);
+            return;
+        }
+
         Log.Logger = LauncherLogConfiguration.CreateLogger();
         RegisterUnhandledExceptionLogging();
 
         try
         {
             Log.Information("Launcher startup started. ArgumentCount={ArgumentCount}", e.Args.Length);
+            if (LauncherUpdateStartupCoordinator.TryStartPendingRecovery(
+                    e.Args,
+                    Environment.ProcessPath,
+                    Environment.ProcessId))
+            {
+                Log.Information("Pending launcher update recovery process started.");
+                Shutdown(0);
+                return;
+            }
 
             var services = new ServiceCollection();
             services.AddLogging(builder =>
@@ -138,6 +157,15 @@ public partial class App : System.Windows.Application
             var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
             mainWindow.Show();
             Log.Information("Main window shown.");
+            try
+            {
+                if (LauncherUpdateStartupCoordinator.TryConfirmStartup(e.Args, Environment.ProcessPath))
+                    Log.Information("Launcher update startup confirmed.");
+            }
+            catch (Exception exception)
+            {
+                Log.Error(exception, "Failed to confirm launcher update startup.");
+            }
             _ = CheckForLauncherUpdatesOnStartupAsync(mainViewModel);
         }
         catch (Exception exception)
