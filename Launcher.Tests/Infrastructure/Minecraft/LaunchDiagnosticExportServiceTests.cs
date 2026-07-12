@@ -52,6 +52,59 @@ public sealed class LaunchDiagnosticExportServiceTests : TestTempDirectory
         var index = ReadEntry(archive, "report-index.txt");
         Assert.Contains("InstanceName: Example", index);
         Assert.Contains("VersionName: 1.21.4", index);
+        Assert.Contains("Sanitization=credentials-redacted", index);
+    }
+
+    [Fact]
+    public async Task ExportRedactsCredentialFormatsAndKnownSensitiveValuesFromEveryDiagnosticType()
+    {
+        const string actualToken = "actual-session-token-value";
+        const string retainedPath = @"C:\Users\Alice\Minecraft\logs\latest.log";
+        var sourceRoot = Path.Combine(TempRoot, "sources");
+        var diagnostics = new[]
+        {
+            new LaunchDiagnosticReference(
+                LaunchDiagnosticType.MinecraftCrashReport,
+                await WriteSourceAsync(sourceRoot, "crash-client.txt", $"--accessToken crash-secret\nPath: {retainedPath}")),
+            new LaunchDiagnosticReference(
+                LaunchDiagnosticType.JvmCrashReport,
+                await WriteSourceAsync(sourceRoot, "hs_err_pid1.log", "Authorization: Bearer bearer-secret")),
+            new LaunchDiagnosticReference(
+                LaunchDiagnosticType.MinecraftLatestLog,
+                await WriteSourceAsync(sourceRoot, "latest.log", "{\"accessToken\":\"json-access-secret\",\"clientToken\":\"json-client-secret\"}\nhttps://example.test/?token=url-token-secret&view=full")),
+            new LaunchDiagnosticReference(
+                LaunchDiagnosticType.CapturedOutput,
+                await WriteSourceAsync(sourceRoot, "launch-output.log", "session=session-secret password: password-secret apiKey=api-key-secret")),
+            new LaunchDiagnosticReference(
+                LaunchDiagnosticType.LauncherDiagnostic,
+                await WriteSourceAsync(sourceRoot, "launch-diagnostics.log", $"Unlabelled value: {actualToken}\nProxy-Authorization: Basic YmFzaWMtc2VjcmV0"))
+        };
+        var archivePath = Path.Combine(TempRoot, "report.zip");
+
+        var result = await CreateService().ExportAsync(new LaunchDiagnosticExportRequest(
+            archivePath,
+            "Example",
+            "1.21.4",
+            diagnostics)
+        {
+            SensitiveValues = [actualToken]
+        });
+
+        Assert.True(result.IsSuccess);
+        using var archive = ZipFile.OpenRead(archivePath);
+        var exportedText = string.Join('\n', archive.Entries.Select(entry => ReadEntry(archive, entry.FullName)));
+        Assert.DoesNotContain("crash-secret", exportedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("bearer-secret", exportedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("json-access-secret", exportedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("json-client-secret", exportedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("url-token-secret", exportedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("session-secret", exportedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("password-secret", exportedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("api-key-secret", exportedText, StringComparison.Ordinal);
+        Assert.DoesNotContain(actualToken, exportedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("YmFzaWMtc2VjcmV0", exportedText, StringComparison.Ordinal);
+        Assert.Contains(retainedPath, exportedText, StringComparison.Ordinal);
+        Assert.Contains("<redacted>", exportedText, StringComparison.Ordinal);
     }
 
     [Fact]

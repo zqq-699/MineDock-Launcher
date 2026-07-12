@@ -31,6 +31,8 @@ public sealed record LaunchFailureReport(
 {
     public IReadOnlyList<LaunchDiagnosticReference> DiagnosticCandidates { get; init; } = [];
 
+    public IReadOnlyList<string> ExportSensitiveValues { get; init; } = [];
+
     public LaunchDiagnosticReference? PrimaryDiagnostic => DiagnosticCandidates.FirstOrDefault()
         ?? (string.IsNullOrWhiteSpace(DiagnosticPath)
             ? null

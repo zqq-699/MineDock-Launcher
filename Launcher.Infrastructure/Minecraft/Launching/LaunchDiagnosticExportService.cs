@@ -95,6 +95,7 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
                         Path.GetDirectoryName(temporaryPath)!,
                         limits,
                         Math.Max(0, limits.MaxTotalSourceBytes - exportedSourceBytes),
+                        request.SensitiveValues,
                         cancellationToken);
                     outcomes.Add(outcome);
                     if (outcome.IsExported)
@@ -191,6 +192,7 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
         string stagingDirectory,
         LaunchDiagnosticExportLimits limits,
         long remainingTotalBytes,
+        IReadOnlyList<string> sensitiveValues,
         CancellationToken cancellationToken)
     {
         var stagingPath = Path.Combine(stagingDirectory, $".launch-diagnostic-{Guid.NewGuid():N}.tmp");
@@ -234,22 +236,7 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
                     FileShare.None,
                     81920,
                     useAsync: true);
-                var buffer = new byte[81920];
-                long copiedBytes = 0;
-                while (true)
-                {
-                    var read = await source.ReadAsync(buffer, cancellationToken);
-                    if (read == 0)
-                        break;
-                    copiedBytes += read;
-                    if (copiedBytes > limits.MaxSourceFileBytes)
-                        return CreateSkippedOutcome(diagnostic, "file-too-large");
-                    if (copiedBytes > remainingTotalBytes)
-                        return CreateSkippedOutcome(diagnostic, "total-size-limit");
-                    await staging.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-                }
-
-                await staging.FlushAsync(cancellationToken);
+                await CopyRedactedTextAsync(source, staging, sensitiveValues, cancellationToken);
                 await using var verificationSource = new FileStream(
                     diagnostic.Path,
                     FileMode.Open,
@@ -257,8 +244,7 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
                     FileShare.ReadWrite | FileShare.Delete,
                     1,
                     useAsync: false);
-                if (copiedBytes != initialLength
-                    || source.Length != initialLength
+                if (source.Length != initialLength
                     || File.GetLastWriteTimeUtc(diagnostic.Path) != initialLastWriteTimeUtc
                     || File.GetCreationTimeUtc(diagnostic.Path) != initialCreationTimeUtc
                     || !TryGetFileIdentity(verificationSource.SafeFileHandle, out var currentIdentity)
@@ -311,6 +297,52 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
         }
     }
 
+    private static async Task CopyRedactedTextAsync(
+        Stream source,
+        Stream destination,
+        IReadOnlyList<string> sensitiveValues,
+        CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(
+            source,
+            Encoding.UTF8,
+            detectEncodingFromByteOrderMarks: true,
+            bufferSize: 81920,
+            leaveOpen: true);
+        await using var writer = new StreamWriter(
+            destination,
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+            bufferSize: 81920,
+            leaveOpen: true);
+        var buffer = new char[81920];
+        var line = new StringBuilder();
+        while (true)
+        {
+            var read = await reader.ReadAsync(buffer.AsMemory(), cancellationToken);
+            if (read == 0)
+                break;
+
+            for (var index = 0; index < read; index++)
+            {
+                var character = buffer[index];
+                if (character is '\r' or '\n')
+                {
+                    await writer.WriteAsync(
+                        LaunchDiagnosticRedactor.Redact(line.ToString(), sensitiveValues));
+                    line.Clear();
+                    await writer.WriteAsync(character);
+                    continue;
+                }
+
+                line.Append(character);
+            }
+        }
+
+        if (line.Length > 0)
+            await writer.WriteAsync(LaunchDiagnosticRedactor.Redact(line.ToString(), sensitiveValues));
+        await writer.FlushAsync(cancellationToken);
+    }
+
     private static async Task WriteIndexAsync(
         ZipArchive archive,
         LaunchDiagnosticExportRequest request,
@@ -329,7 +361,7 @@ public sealed class LaunchDiagnosticExportService : ILaunchDiagnosticExportServi
         {
             cancellationToken.ThrowIfCancellationRequested();
             await writer.WriteLineAsync(
-                $"Type={outcome.Type}; Status={(outcome.IsExported ? "exported" : "skipped")}; FileName={NormalizeIndexValue(outcome.FileName)}; Entry={NormalizeIndexValue(outcome.EntryName ?? "none")}; Reason={NormalizeIndexValue(outcome.Reason ?? "none")}");
+                $"Type={outcome.Type}; Status={(outcome.IsExported ? "exported" : "skipped")}; Sanitization={(outcome.IsExported ? "credentials-redacted" : "none")}; FileName={NormalizeIndexValue(outcome.FileName)}; Entry={NormalizeIndexValue(outcome.EntryName ?? "none")}; Reason={NormalizeIndexValue(outcome.Reason ?? "none")}");
         }
     }
 

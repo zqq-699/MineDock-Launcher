@@ -183,6 +183,34 @@ public sealed class LaunchStatusDialogViewModelTests
     }
 
     [Fact]
+    public async Task ExportReportPassesSensitiveValuesAndDoesNotReuseThemForNextReport()
+    {
+        const string token = "sensitive-session-token";
+        var exportService = new FakeLaunchDiagnosticExportService();
+        var viewModel = CreateViewModel(
+            new FakeInstanceFolderService(_ => false),
+            new FakeStatusService(),
+            new FakeFilePickerService(@"C:\exports\report.zip"),
+            exportService);
+        viewModel.Show(CreateReport(
+            new LaunchDiagnosticReference(LaunchDiagnosticType.LauncherDiagnostic, @"C:\logs\launcher.log")) with
+        {
+            ExportSensitiveValues = [token]
+        });
+
+        await viewModel.ExportReportCommand.ExecuteAsync(null);
+
+        Assert.Equal([token], exportService.LastRequest!.SensitiveValues);
+
+        viewModel.CloseCommand.Execute(null);
+        viewModel.Show(CreateReport(
+            new LaunchDiagnosticReference(LaunchDiagnosticType.LauncherDiagnostic, @"C:\logs\launcher.log")));
+        await viewModel.ExportReportCommand.ExecuteAsync(null);
+
+        Assert.Empty(exportService.LastRequest!.SensitiveValues);
+    }
+
+    [Fact]
     public async Task ExportReportShowsPartialSuccessStatus()
     {
         var statusService = new FakeStatusService();

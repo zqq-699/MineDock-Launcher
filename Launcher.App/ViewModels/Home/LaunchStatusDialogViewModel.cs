@@ -36,6 +36,7 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
     private readonly IStatusService statusService;
     private readonly ILogger<LaunchStatusDialogViewModel> logger;
     private IReadOnlyList<LaunchDiagnosticReference> diagnosticCandidates = [];
+    private IReadOnlyList<string> exportSensitiveValues = [];
     private string instanceName = string.Empty;
     private string versionName = string.Empty;
 
@@ -105,6 +106,7 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
             : report.PrimaryDiagnostic is { } primary
                 ? [primary]
                 : [];
+        exportSensitiveValues = report.ExportSensitiveValues.ToArray();
         Title = GetTitle(report.Kind);
         ApplyAnalysis(report.Analysis);
         Message = string.Format(
@@ -153,7 +155,10 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
                 outputArchivePath,
                 instanceName,
                 versionName,
-                diagnosticCandidates));
+                diagnosticCandidates)
+            {
+                SensitiveValues = exportSensitiveValues
+            });
             if (result.IsSuccess)
             {
                 statusService.Report(result.SkippedFileCount > 0
@@ -191,6 +196,8 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
 
     partial void OnIsOpenChanged(bool value)
     {
+        if (!value)
+            exportSensitiveValues = [];
         ViewReportCommand.NotifyCanExecuteChanged();
         ExportReportCommand.NotifyCanExecuteChanged();
     }

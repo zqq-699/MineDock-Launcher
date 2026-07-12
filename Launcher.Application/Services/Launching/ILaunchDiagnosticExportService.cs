@@ -17,7 +17,10 @@ public sealed record LaunchDiagnosticExportRequest(
     string OutputArchivePath,
     string InstanceName,
     string VersionName,
-    IReadOnlyList<LaunchDiagnosticReference> Diagnostics);
+    IReadOnlyList<LaunchDiagnosticReference> Diagnostics)
+{
+    public IReadOnlyList<string> SensitiveValues { get; init; } = [];
+}
 
 public sealed record LaunchDiagnosticExportResult(
     bool IsSuccess,

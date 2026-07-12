@@ -11,14 +11,15 @@ namespace Launcher.Infrastructure.Minecraft;
 internal static class LaunchDiagnosticRedactor
 {
     private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(250);
-    private static readonly Regex AccessTokenArgumentPattern = Create(
-        @"(?i)(--?accessToken(?:=|\s+))(""[^""]+""|\S+)");
-    private static readonly Regex SessionArgumentPattern = Create(
-        @"(?i)(--?session(?:=|\s+))(""[^""]+""|\S+)");
-    private static readonly Regex SecretArgumentPattern = Create(
-        @"(?i)(--?(?:token|password|secret)(?:=|\s+))(""[^""]+""|\S+)");
-    private static readonly Regex SecretAssignmentPattern = Create(
-        @"(?i)\b((?:access[_-]?token|session|token|password|secret)\s*=\s*)(""[^""]+""|\S+)");
+    private const string CredentialNamePattern =
+        @"(?:access[_-]?token|client[_-]?token|token|session|password|secret|api[_-]?key)";
+    private const string CredentialValuePattern = @"(?:""[^""]*""|'[^']*'|[^\s&,;}]+)";
+    private static readonly Regex CredentialArgumentPattern = Create(
+        $@"(?i)(?<![\w-])(--?{CredentialNamePattern}(?:=|\s+))({CredentialValuePattern})");
+    private static readonly Regex CredentialAssignmentPattern = Create(
+        $@"(?i)(?<![\w-])((?:""|')?{CredentialNamePattern}(?:""|')?\s*[:=]\s*)({CredentialValuePattern})");
+    private static readonly Regex AuthorizationHeaderPattern = Create(
+        @"(?i)\b((?:proxy-)?authorization\s*:\s*(?:bearer|basic)\s+)(\S+)");
 
     public static string Redact(string text, IReadOnlyList<string> sensitiveValues)
     {
@@ -28,10 +29,9 @@ internal static class LaunchDiagnosticRedactor
         string redacted;
         try
         {
-            redacted = AccessTokenArgumentPattern.Replace(text, "$1<redacted>");
-            redacted = SessionArgumentPattern.Replace(redacted, "$1<redacted>");
-            redacted = SecretArgumentPattern.Replace(redacted, "$1<redacted>");
-            redacted = SecretAssignmentPattern.Replace(redacted, "$1<redacted>");
+            redacted = CredentialArgumentPattern.Replace(text, "$1<redacted>");
+            redacted = CredentialAssignmentPattern.Replace(redacted, "$1<redacted>");
+            redacted = AuthorizationHeaderPattern.Replace(redacted, "$1<redacted>");
         }
         catch (RegexMatchTimeoutException)
         {

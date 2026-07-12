@@ -96,6 +96,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
             service.LaunchAsync(instance, CreateAccount(), settings, null));
 
         Assert.Equal(LaunchFailureKind.StartupAbnormalExit, exception.Report.Kind);
+        Assert.Contains("super-secret-access-token", exception.Report.ExportSensitiveValues);
         Assert.True(File.Exists(exception.DiagnosticPath));
         Assert.Equal(LaunchDiagnosticType.CapturedOutput, exception.Report.PrimaryDiagnostic?.Type);
         Assert.Equal(LaunchDiagnosticType.LauncherDiagnostic, exception.Report.DiagnosticCandidates[^1].Type);

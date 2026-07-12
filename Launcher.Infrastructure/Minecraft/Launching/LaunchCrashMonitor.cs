@@ -217,7 +217,8 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
                 analysis,
                 failureSummary)
             {
-                DiagnosticCandidates = diagnosticCandidates ?? []
+                DiagnosticCandidates = diagnosticCandidates ?? [],
+                ExportSensitiveValues = context.SensitiveValues.ToArray()
             };
         }
 

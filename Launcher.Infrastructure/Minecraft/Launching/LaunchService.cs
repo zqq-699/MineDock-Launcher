@@ -18,7 +18,6 @@
  */
 
 using System.IO;
-using System.Text.RegularExpressions;
 using CmlLib.Core;
 using CmlLib.Core.Auth;
 using CmlLib.Core.ProcessBuilder;
@@ -566,7 +565,8 @@ public sealed class LaunchService : ILaunchService
             diagnostic?.Analysis,
             diagnostic?.FailureSummary ?? LaunchDiagnosticRedactor.Redact(failureSummary, context.SensitiveValues))
         {
-            DiagnosticCandidates = diagnostic?.DiagnosticCandidates ?? []
+            DiagnosticCandidates = diagnostic?.DiagnosticCandidates ?? [],
+            ExportSensitiveValues = context.SensitiveValues.ToArray()
         };
         LogLaunchFailureReport(
             LogLevel.Error,
@@ -729,17 +729,7 @@ public sealed class LaunchService : ILaunchService
         if (string.IsNullOrWhiteSpace(text))
             return string.Empty;
 
-        // 启动命令允许自由文本，日志前同时覆盖命令行参数和 key=value 两类常见凭据格式。
-        var redacted = text.Trim();
-        redacted = Regex.Replace(
-            redacted,
-            @"(?i)(--?(?:accessToken|session|token|password|secret)(?:=|\s+))(""[^""]+""|\S+)",
-            "$1<redacted>");
-        redacted = Regex.Replace(
-            redacted,
-            @"(?i)\b((?:access[_-]?token|session|token|password|secret)\s*=\s*)(""[^""]+""|\S+)",
-            "$1<redacted>");
-        return redacted;
+        return LaunchDiagnosticRedactor.Redact(text.Trim(), []);
     }
 
     private static LaunchDiagnosticContext CreateDiagnosticContext(
