@@ -326,6 +326,13 @@ internal sealed class CurseForgeResourceClient(
             FileName = file.FileName,
             PrimaryDownloadUrl = string.IsNullOrWhiteSpace(file.DownloadUrl) ? BuildCdnUrl("edge.forgecdn.net", file.Id, file.FileName) : file.DownloadUrl,
             FallbackDownloadUrls = CreateFallbackUrls(file.Id, file.FileName, file.DownloadUrl),
+            ExpectedFileSize = file.FileLength,
+            FileHashes = file.Hashes
+                .Where(hash => hash.Algorithm is 1 or 2)
+                .Select(hash => new ResourceFileHash(
+                    hash.Algorithm == 1 ? ResourceFileHashAlgorithm.Sha1 : ResourceFileHashAlgorithm.Md5,
+                    hash.Value))
+                .ToList(),
             Downloads = file.DownloadCount,
             PublishedAt = file.FileDate,
             GameVersions = NormalizeDistinct(file.GameVersions),
@@ -529,12 +536,19 @@ internal sealed class CurseForgeResourceClient(
         [JsonPropertyName("displayName")] public string DisplayName { get; init; } = string.Empty;
         [JsonPropertyName("fileName")] public string FileName { get; init; } = string.Empty;
         [JsonPropertyName("downloadUrl")] public string? DownloadUrl { get; init; }
+        [JsonPropertyName("fileLength")] public long? FileLength { get; init; }
+        [JsonPropertyName("hashes")] public List<CurseForgeFileHash> Hashes { get; init; } = [];
         [JsonPropertyName("releaseType")] public int ReleaseType { get; init; }
         [JsonPropertyName("downloadCount")] public long DownloadCount { get; init; }
         [JsonPropertyName("fileDate")] public DateTimeOffset? FileDate { get; init; }
         [JsonPropertyName("gameVersions")] public List<string> GameVersions { get; init; } = [];
         [JsonPropertyName("sortableGameVersions")] public List<SortableVersion> SortableGameVersions { get; init; } = [];
         [JsonPropertyName("dependencies")] public List<FileDependency> Dependencies { get; init; } = [];
+    }
+    private sealed class CurseForgeFileHash
+    {
+        [JsonPropertyName("value")] public string Value { get; init; } = string.Empty;
+        [JsonPropertyName("algo")] public int Algorithm { get; init; }
     }
     private sealed class SortableVersion { [JsonPropertyName("modLoader")] public int? ModLoader { get; init; } }
     private sealed class FileDependency

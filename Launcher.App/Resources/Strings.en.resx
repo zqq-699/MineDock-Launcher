@@ -1825,6 +1825,9 @@ Longer content wraps automatically.</value>
   <data name="Status_ModpackHashMismatch" xml:space="preserve">
     <value>Modpack file verification failed</value>
   </data>
+  <data name="Status_ResourceProjectIntegrityFailed" xml:space="preserve">
+    <value>File integrity verification failed, so the download or installation was stopped. Try again or download it manually from the provider's official site.</value>
+  </data>
   <data name="Status_ModpackInstalling" xml:space="preserve">
     <value>Installing</value>
   </data>

@@ -219,11 +219,11 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         ResourceProjectVersion version,
         string targetDirectory,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult(storage.DownloadExists(version, targetDirectory));
+        storage.DownloadExistsAsync(version, targetDirectory, cancellationToken);
 
     public Task<bool> ProjectVersionInstallExistsAsync(
         ResourceProjectVersion version,
         GameInstance instance,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult(storage.InstallExists(version, instance));
+        storage.InstallExistsAsync(version, instance, cancellationToken);
 }

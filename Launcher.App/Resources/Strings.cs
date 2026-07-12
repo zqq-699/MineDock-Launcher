@@ -1005,6 +1005,7 @@ public static class Strings
     public static string Status_ModpackUnsupportedLoader => Get(nameof(Status_ModpackUnsupportedLoader));
     public static string Status_ModpackMissingCurseForgeApiKey => Get(nameof(Status_ModpackMissingCurseForgeApiKey));
     public static string Status_ModpackHashMismatch => Get(nameof(Status_ModpackHashMismatch));
+    public static string Status_ResourceProjectIntegrityFailed => Get(nameof(Status_ResourceProjectIntegrityFailed));
     public static string Status_ModpackExporting => Get(nameof(Status_ModpackExporting));
     public static string Status_ModpackExported => Get(nameof(Status_ModpackExported));
     public static string Status_ModpackExportedFormat => Get(nameof(Status_ModpackExportedFormat));

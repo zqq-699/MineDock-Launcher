@@ -199,6 +199,11 @@ internal sealed class ModrinthResourceClient(HttpClient httpClient) : IResourceP
             VersionType = version.VersionType,
             FileName = file.FileName,
             PrimaryDownloadUrl = file.Url,
+            ExpectedFileSize = file.Size,
+            FileHashes = file.Hashes
+                .Where(pair => TryMapHashAlgorithm(pair.Key, out _))
+                .Select(pair => new ResourceFileHash(MapHashAlgorithm(pair.Key), pair.Value))
+                .ToList(),
             Downloads = version.Downloads,
             PublishedAt = version.DatePublished,
             GameVersions = NormalizeDistinct(version.GameVersions),
@@ -248,6 +253,34 @@ internal sealed class ModrinthResourceClient(HttpClient httpClient) : IResourceP
         .Select(value => value!.Trim().ToLowerInvariant())
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToList();
+
+    private static bool TryMapHashAlgorithm(string value, out ResourceFileHashAlgorithm algorithm)
+    {
+        if (string.Equals(value, "sha512", StringComparison.OrdinalIgnoreCase))
+        {
+            algorithm = ResourceFileHashAlgorithm.Sha512;
+            return true;
+        }
+        if (string.Equals(value, "sha1", StringComparison.OrdinalIgnoreCase))
+        {
+            algorithm = ResourceFileHashAlgorithm.Sha1;
+            return true;
+        }
+        if (string.Equals(value, "md5", StringComparison.OrdinalIgnoreCase))
+        {
+            algorithm = ResourceFileHashAlgorithm.Md5;
+            return true;
+        }
+        algorithm = default;
+        return false;
+    }
+
+    private static ResourceFileHashAlgorithm MapHashAlgorithm(string value)
+    {
+        return TryMapHashAlgorithm(value, out var algorithm)
+            ? algorithm
+            : throw new ArgumentOutOfRangeException(nameof(value));
+    }
 
     private static bool HasLoaderFacet(ResourceProjectKind kind) =>
         kind is ResourceProjectKind.Mod or ResourceProjectKind.Modpack;
@@ -318,6 +351,8 @@ internal sealed class ModrinthResourceClient(HttpClient httpClient) : IResourceP
         [JsonPropertyName("filename")] public string FileName { get; init; } = string.Empty;
         [JsonPropertyName("url")] public string Url { get; init; } = string.Empty;
         [JsonPropertyName("primary")] public bool IsPrimary { get; init; }
+        [JsonPropertyName("size")] public long? Size { get; init; }
+        [JsonPropertyName("hashes")] public Dictionary<string, string> Hashes { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
     private sealed class ModrinthDependency

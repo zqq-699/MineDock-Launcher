@@ -37,6 +37,10 @@ public sealed class ResourceProjectVersion
 
     public IReadOnlyList<string> FallbackDownloadUrls { get; init; } = [];
 
+    public long? ExpectedFileSize { get; init; }
+
+    public IReadOnlyList<ResourceFileHash> FileHashes { get; init; } = [];
+
     public long Downloads { get; init; }
 
     public DateTimeOffset? PublishedAt { get; init; }

@@ -625,6 +625,7 @@
   <data name="Status_ModpackUnsupportedLoader" xml:space="preserve"><value>当前仅支持 Vanilla、Fabric、Forge、NeoForge、Quilt 整合包</value></data>
   <data name="Status_ModpackMissingCurseForgeApiKey" xml:space="preserve"><value>未配置 CurseForge API Key</value></data>
   <data name="Status_ModpackHashMismatch" xml:space="preserve"><value>整合包文件校验失败</value></data>
+  <data name="Status_ResourceProjectIntegrityFailed" xml:space="preserve"><value>文件完整性验证失败，已停止下载或安装。请重试或从资源提供方官网手动下载。</value></data>
   <data name="Status_ModpackInstalling" xml:space="preserve"><value>正在安装</value></data>
   <data name="Status_ModpackImportFailed" xml:space="preserve"><value>导入整合包失败</value></data>
   <data name="Status_LoaderInstallPending" xml:space="preserve"><value>该加载器将在后续版本接入安装。</value></data>

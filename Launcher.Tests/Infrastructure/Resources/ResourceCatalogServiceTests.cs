@@ -5,6 +5,9 @@
  */
 
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
+using Launcher.Application.Services;
 using Launcher.Infrastructure.CurseForge;
 using Launcher.Infrastructure.Resources;
 
@@ -140,6 +143,53 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ModrinthVersionsPreserveFileIntegrityMetadata()
+    {
+        const string sha512 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        const string sha1 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        var handler = new StubHandler(_ => Json(
+            $$$"""[{"id":"v1","name":"Main","version_number":"1","version_type":"release","files":[{"filename":"main.jar","url":"https://download/main.jar","primary":true,"size":123,"hashes":{"sha512":"{{{sha512}}}","sha1":"{{{sha1}}}"}}]}]"""));
+        var service = CreateService(handler);
+
+        var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
+        {
+            Kind = ResourceProjectKind.Mod,
+            Source = ResourceProjectSource.Modrinth,
+            ProjectId = "main",
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Fabric
+        });
+
+        var version = Assert.Single(result.Versions);
+        Assert.Equal(123, version.ExpectedFileSize);
+        Assert.Contains(version.FileHashes, hash => hash.Algorithm == ResourceFileHashAlgorithm.Sha512 && hash.Value == sha512);
+        Assert.Contains(version.FileHashes, hash => hash.Algorithm == ResourceFileHashAlgorithm.Sha1 && hash.Value == sha1);
+    }
+
+    [Fact]
+    public async Task CurseForgeVersionsPreserveFileIntegrityMetadata()
+    {
+        const string sha1 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        const string md5 = "cccccccccccccccccccccccccccccccc";
+        var handler = new StubHandler(_ => Json(
+            $$$"""{"data":[{"id":7,"displayName":"Pack","fileName":"pack.zip","downloadUrl":"https://download/pack.zip","fileLength":456,"hashes":[{"value":"{{{sha1}}}","algo":1},{"value":"{{{md5}}}","algo":2}]}],"pagination":{"totalCount":1}}"""));
+        var service = CreateService(handler, "key");
+
+        var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
+        {
+            Kind = ResourceProjectKind.ResourcePack,
+            Source = ResourceProjectSource.CurseForge,
+            ProjectId = "42",
+            IncludeAllVersions = true
+        });
+
+        var version = Assert.Single(result.Versions);
+        Assert.Equal(456, version.ExpectedFileSize);
+        Assert.Contains(version.FileHashes, hash => hash.Algorithm == ResourceFileHashAlgorithm.Sha1 && hash.Value == sha1);
+        Assert.Contains(version.FileHashes, hash => hash.Algorithm == ResourceFileHashAlgorithm.Md5 && hash.Value == md5);
+    }
+
+    [Fact]
     public async Task DownloadFallsBackAfterPrimaryFailure()
     {
         var handler = new StubHandler(request => request.RequestUri!.AbsolutePath.Contains("fallback", StringComparison.Ordinal)
@@ -152,7 +202,9 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
             VersionId = "v1",
             FileName = "mod.jar",
             PrimaryDownloadUrl = "https://download/missing.jar",
-            FallbackDownloadUrls = ["https://download/fallback.jar"]
+            FallbackDownloadUrls = ["https://download/fallback.jar"],
+            ExpectedFileSize = Encoding.UTF8.GetByteCount("fallback"),
+            FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "fallback")]
         }, TempRoot);
 
         Assert.Equal("fallback", await File.ReadAllTextAsync(path));
@@ -170,11 +222,306 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
         {
             VersionId = "v1",
             FileName = "mod.jar",
-            PrimaryDownloadUrl = "https://download/mod.jar"
+            PrimaryDownloadUrl = "https://download/mod.jar",
+            ExpectedFileSize = Encoding.UTF8.GetByteCount("jar"),
+            FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "jar")]
         }, instance);
 
         Assert.Equal(Path.Combine(TempRoot, "mods", "mod.jar"), path);
         Assert.Equal("jar", await File.ReadAllTextAsync(path));
+    }
+
+    [Fact]
+    public async Task DownloadFallsBackAfterIntegrityMismatch()
+    {
+        var handler = new StubHandler(request => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(request.RequestUri!.AbsolutePath.Contains("fallback", StringComparison.Ordinal)
+                ? "expected"
+                : "modified")
+        });
+        var service = CreateService(handler);
+
+        var path = await service.DownloadProjectVersionAsync(new ResourceProjectVersion
+        {
+            VersionId = "v1",
+            FileName = "mod.jar",
+            PrimaryDownloadUrl = "https://download/primary.jar",
+            FallbackDownloadUrls = ["https://download/fallback.jar"],
+            ExpectedFileSize = Encoding.UTF8.GetByteCount("expected"),
+            FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "expected")]
+        }, TempRoot);
+
+        Assert.Equal("expected", await File.ReadAllTextAsync(path));
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task HashMismatchPreservesExistingFileAndCleansTemporaryFile()
+    {
+        Directory.CreateDirectory(TempRoot);
+        var target = Path.Combine(TempRoot, "mod.jar");
+        await File.WriteAllTextAsync(target, "existing");
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("modified")
+        });
+        var service = CreateService(handler);
+
+        var exception = await Assert.ThrowsAsync<ResourceProjectIntegrityException>(() =>
+            service.DownloadProjectVersionAsync(new ResourceProjectVersion
+            {
+                VersionId = "v1",
+                FileName = "mod.jar",
+                PrimaryDownloadUrl = "https://download/mod.jar",
+                ExpectedFileSize = Encoding.UTF8.GetByteCount("modified"),
+                FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "expected")]
+            }, TempRoot));
+
+        Assert.Equal(ResourceProjectIntegrityFailureReason.HashMismatch, exception.Reason);
+        Assert.Equal("existing", await File.ReadAllTextAsync(target));
+        Assert.Empty(Directory.GetFiles(TempRoot, "*.download"));
+    }
+
+    [Theory]
+    [InlineData("abc")]
+    [InlineData("abcde")]
+    public async Task LengthMismatchRejectsTruncatedOrOversizedContent(string content)
+    {
+        var service = CreateService(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(content)
+        }));
+
+        var exception = await Assert.ThrowsAsync<ResourceProjectIntegrityException>(() =>
+            service.DownloadProjectVersionAsync(new ResourceProjectVersion
+            {
+                Kind = ResourceProjectKind.ResourcePack,
+                VersionId = "v1",
+                FileName = "pack.zip",
+                PrimaryDownloadUrl = "https://download/pack.zip",
+                ExpectedFileSize = 4
+            }, TempRoot));
+
+        Assert.Equal(ResourceProjectIntegrityFailureReason.LengthMismatch, exception.Reason);
+        Assert.False(File.Exists(Path.Combine(TempRoot, "pack.zip")));
+        Assert.Empty(Directory.GetFiles(TempRoot, "*.download"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExecutableResourceWithoutTrustedHashIsRejectedBeforeDownload(bool md5Only)
+    {
+        var handler = new StubHandler(_ => throw new InvalidOperationException("Download must not start."));
+        var service = CreateService(handler);
+
+        var exception = await Assert.ThrowsAsync<ResourceProjectIntegrityException>(() =>
+            service.DownloadProjectVersionAsync(new ResourceProjectVersion
+            {
+                VersionId = "v1",
+                FileName = "mod.jar",
+                PrimaryDownloadUrl = "https://download/mod.jar",
+                ExpectedFileSize = 3,
+                FileHashes = md5Only ? [CreateHash(ResourceFileHashAlgorithm.Md5, "jar")] : []
+            }, TempRoot));
+
+        Assert.Equal(ResourceProjectIntegrityFailureReason.MissingTrustedHash, exception.Reason);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task NonExecutableResourceAllowsLengthOnlyVerification()
+    {
+        var service = CreateService(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("pack")
+        }));
+
+        var path = await service.DownloadProjectVersionAsync(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.ResourcePack,
+            VersionId = "v1",
+            FileName = "pack.zip",
+            PrimaryDownloadUrl = "https://download/pack.zip",
+            ExpectedFileSize = 4
+        }, TempRoot);
+
+        Assert.Equal("pack", await File.ReadAllTextAsync(path));
+    }
+
+    [Fact]
+    public async Task MalformedHashMetadataIsRejectedBeforeDownload()
+    {
+        var handler = new StubHandler(_ => throw new InvalidOperationException("Download must not start."));
+        var service = CreateService(handler);
+
+        var exception = await Assert.ThrowsAsync<ResourceProjectIntegrityException>(() =>
+            service.DownloadProjectVersionAsync(new ResourceProjectVersion
+            {
+                Kind = ResourceProjectKind.ResourcePack,
+                VersionId = "v1",
+                FileName = "pack.zip",
+                PrimaryDownloadUrl = "https://download/pack.zip",
+                FileHashes = [new ResourceFileHash(ResourceFileHashAlgorithm.Sha1, "not-a-hash")]
+            }, TempRoot));
+
+        Assert.Equal(ResourceProjectIntegrityFailureReason.InvalidMetadata, exception.Reason);
+        Assert.Empty(handler.Requests);
+    }
+
+    [Fact]
+    public async Task CancellationCleansTemporaryFileWithoutPublishingTarget()
+    {
+        var stream = new CancelableDownloadStream();
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StreamContent(stream)
+        });
+        var service = CreateService(handler);
+        using var cancellation = new CancellationTokenSource();
+        var download = service.DownloadProjectVersionAsync(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.ResourcePack,
+            VersionId = "v1",
+            FileName = "pack.zip",
+            PrimaryDownloadUrl = "https://download/pack.zip",
+            FallbackDownloadUrls = ["https://download/fallback.zip"]
+        }, TempRoot, cancellation.Token);
+        await stream.BlockingReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => download);
+        Assert.Single(handler.Requests);
+        Assert.False(File.Exists(Path.Combine(TempRoot, "pack.zip")));
+        Assert.Empty(Directory.GetFiles(TempRoot, "*.download"));
+    }
+
+    [Fact]
+    public async Task InterruptedResponseBodyDoesNotPublishPartialFile()
+    {
+        var service = CreateService(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StreamContent(new InterruptingDownloadStream())
+        }));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.DownloadProjectVersionAsync(new ResourceProjectVersion
+            {
+                Kind = ResourceProjectKind.ResourcePack,
+                VersionId = "v1",
+                FileName = "pack.zip",
+                PrimaryDownloadUrl = "https://download/pack.zip"
+            }, TempRoot));
+
+        Assert.False(File.Exists(Path.Combine(TempRoot, "pack.zip")));
+        Assert.Empty(Directory.GetFiles(TempRoot, "*.download"));
+    }
+
+    [Fact]
+    public async Task HttpClientTimeoutFallsBackAndPublishesVerifiedFile()
+    {
+        var handler = new TimeoutThenFallbackHandler();
+        using var httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromMilliseconds(100) };
+        var service = new ResourceCatalogService(
+            httpClient,
+            curseForgeApiKeyResolver: new StubKeyResolver(null));
+
+        var path = await service.DownloadProjectVersionAsync(new ResourceProjectVersion
+        {
+            Kind = ResourceProjectKind.ResourcePack,
+            VersionId = "v1",
+            FileName = "pack.zip",
+            PrimaryDownloadUrl = "https://download/primary.zip",
+            FallbackDownloadUrls = ["https://download/fallback.zip"],
+            ExpectedFileSize = Encoding.UTF8.GetByteCount("fallback"),
+            FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "fallback")]
+        }, TempRoot);
+
+        Assert.Equal("fallback", await File.ReadAllTextAsync(path));
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Empty(Directory.GetFiles(TempRoot, "*.download"));
+    }
+
+    [Theory]
+    [InlineData("expected", true)]
+    [InlineData("modified", false)]
+    [InlineData("short", false)]
+    public async Task ExistingDownloadMustMatchLengthAndHash(string content, bool expectedExists)
+    {
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(Path.Combine(TempRoot, "mod.jar"), content);
+        var service = CreateService(new StubHandler(_ => throw new InvalidOperationException("Download must not start.")));
+        var version = new ResourceProjectVersion
+        {
+            VersionId = "v1",
+            FileName = "mod.jar",
+            ExpectedFileSize = Encoding.UTF8.GetByteCount("expected"),
+            FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "expected")]
+        };
+
+        var exists = await service.ProjectVersionDownloadExistsAsync(version, TempRoot);
+
+        Assert.Equal(expectedExists, exists);
+    }
+
+    [Fact]
+    public async Task ExistingInstallMustMatchLengthAndHash()
+    {
+        var modsDirectory = Path.Combine(TempRoot, "mods");
+        Directory.CreateDirectory(modsDirectory);
+        await File.WriteAllTextAsync(Path.Combine(modsDirectory, "mod.jar"), "modified");
+        var service = CreateService(new StubHandler(_ => throw new InvalidOperationException("Download must not start.")));
+
+        var exists = await service.ProjectVersionInstallExistsAsync(
+            new ResourceProjectVersion
+            {
+                VersionId = "v1",
+                FileName = "mod.jar",
+                ExpectedFileSize = Encoding.UTF8.GetByteCount("modified"),
+                FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "expected")]
+            },
+            new GameInstance { Id = "instance", InstanceDirectory = TempRoot });
+
+        Assert.False(exists);
+    }
+
+    [Fact]
+    public async Task TemporaryFileCreationFailureDoesNotPublishTarget()
+    {
+        var downloadDirectory = Path.Combine(TempRoot, "download");
+        var handler = new StubHandler(_ =>
+        {
+            Directory.Delete(downloadDirectory);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("pack") };
+        });
+        var service = CreateService(handler);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.DownloadProjectVersionAsync(new ResourceProjectVersion
+            {
+                Kind = ResourceProjectKind.ResourcePack,
+                VersionId = "v1",
+                FileName = "pack.zip",
+                PrimaryDownloadUrl = "https://download/pack.zip",
+                ExpectedFileSize = 4
+            }, downloadDirectory));
+
+        Assert.False(File.Exists(Path.Combine(downloadDirectory, "pack.zip")));
+    }
+
+    private static ResourceFileHash CreateHash(ResourceFileHashAlgorithm algorithm, string content)
+    {
+        var bytes = Encoding.UTF8.GetBytes(content);
+        var hash = algorithm switch
+        {
+            ResourceFileHashAlgorithm.Sha512 => SHA512.HashData(bytes),
+            ResourceFileHashAlgorithm.Sha1 => SHA1.HashData(bytes),
+            ResourceFileHashAlgorithm.Md5 => MD5.HashData(bytes),
+            _ => throw new ArgumentOutOfRangeException(nameof(algorithm))
+        };
+        return new ResourceFileHash(algorithm, Convert.ToHexString(hash));
     }
 
     private static ResourceCatalogService CreateService(HttpMessageHandler handler, string? key = null) =>
@@ -199,6 +546,79 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
     private sealed class StubKeyResolver(string? key) : ICurseForgeApiKeyResolver
     {
         public Task<string?> TryResolveAsync(CancellationToken cancellationToken = default) => Task.FromResult(key);
+    }
+
+    private sealed class CancelableDownloadStream : Stream
+    {
+        private int readCount;
+
+        public TaskCompletionSource BlockingReadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref readCount) == 1)
+            {
+                "partial"u8.CopyTo(buffer.Span);
+                return 7;
+            }
+            BlockingReadStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    private sealed class InterruptingDownloadStream : Stream
+    {
+        private int readCount;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref readCount) == 1)
+            {
+                "partial"u8.CopyTo(buffer.Span);
+                return ValueTask.FromResult(7);
+            }
+            return ValueTask.FromException<int>(new IOException("The response body was interrupted."));
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    private sealed class TimeoutThenFallbackHandler : HttpMessageHandler
+    {
+        public List<Uri> Requests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(request.RequestUri!);
+            if (request.RequestUri!.AbsolutePath.Contains("primary", StringComparison.Ordinal))
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("fallback") };
+        }
     }
 
     private sealed class ConcurrentProviderSearchHandler : HttpMessageHandler

@@ -19,6 +19,7 @@
 
 using System.IO;
 using System.Net.Http;
+using System.Security.Cryptography;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -67,19 +68,33 @@ internal sealed class ResourceProjectStorage
         return await DownloadCoreAsync(version, targetDirectory, cancellationToken).ConfigureAwait(false);
     }
 
-    public bool DownloadExists(ResourceProjectVersion version, string targetDirectory)
+    public Task<bool> DownloadExistsAsync(
+        ResourceProjectVersion version,
+        string targetDirectory,
+        CancellationToken cancellationToken)
     {
-        return !string.IsNullOrWhiteSpace(targetDirectory)
-            && File.Exists(Path.Combine(targetDirectory, ResolveFileName(version)));
+        return string.IsNullOrWhiteSpace(targetDirectory)
+            ? Task.FromResult(false)
+            : ExistingFileMatchesAsync(
+                version,
+                Path.Combine(targetDirectory, ResolveFileName(version)),
+                cancellationToken);
     }
 
-    public bool InstallExists(ResourceProjectVersion version, GameInstance instance)
+    public Task<bool> InstallExistsAsync(
+        ResourceProjectVersion version,
+        GameInstance instance,
+        CancellationToken cancellationToken)
     {
-        return version.Kind is not ResourceProjectKind.World
-            && !string.IsNullOrWhiteSpace(instance.InstanceDirectory)
-            && File.Exists(Path.Combine(
-                ResolveInstallDirectory(instance, version.Kind),
-                ResolveFileName(version)));
+        return version.Kind is ResourceProjectKind.World
+            || string.IsNullOrWhiteSpace(instance.InstanceDirectory)
+            ? Task.FromResult(false)
+            : ExistingFileMatchesAsync(
+                version,
+                Path.Combine(
+                    ResolveInstallDirectory(instance, version.Kind),
+                    ResolveFileName(version)),
+                cancellationToken);
     }
 
     private async Task<string> DownloadCoreAsync(
@@ -88,6 +103,7 @@ internal sealed class ResourceProjectStorage
         CancellationToken cancellationToken)
     {
         var target = Path.Combine(targetDirectory, ResolveFileName(version));
+        var expectation = ResolveIntegrityExpectation(version);
         var urls = new[] { version.PrimaryDownloadUrl }
             .Concat(version.FallbackDownloadUrls)
             .Where(url => !string.IsNullOrWhiteSpace(url))
@@ -97,27 +113,245 @@ internal sealed class ResourceProjectStorage
             throw new InvalidOperationException($"Resource project version has no download URL: {version.VersionId}");
 
         Exception? lastException = null;
-        foreach (var url in urls)
+        for (var candidateIndex = 0; candidateIndex < urls.Length; candidateIndex++)
         {
+            var tempPath = Path.Combine(targetDirectory, $".{Path.GetFileName(target)}.{Guid.NewGuid():N}.download");
             try
             {
-                await using var stream = await httpClient.GetStreamAsync(url, cancellationToken).ConfigureAwait(false);
-                await using var destination = File.Create(target);
-                await stream.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+                await DownloadAndVerifyAsync(
+                    version,
+                    urls[candidateIndex],
+                    tempPath,
+                    expectation,
+                    cancellationToken).ConfigureAwait(false);
+                File.Move(tempPath, target, overwrite: true);
                 return target;
             }
-            catch (Exception exception) when (exception is HttpRequestException or IOException)
+            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
             {
                 lastException = exception;
                 logger.LogWarning(
                     exception,
-                    "Failed to download resource project version candidate. VersionId={VersionId} Url={Url}",
+                    "Resource project download candidate timed out. VersionId={VersionId} Candidate={Candidate} CandidateCount={CandidateCount}",
                     version.VersionId,
-                    url);
+                    candidateIndex + 1,
+                    urls.Length);
+            }
+            catch (Exception exception) when (exception is HttpRequestException or IOException or ResourceProjectIntegrityException)
+            {
+                lastException = exception;
+                logger.LogWarning(
+                    exception,
+                    "Failed to verify resource project download candidate. VersionId={VersionId} Candidate={Candidate} CandidateCount={CandidateCount}",
+                    version.VersionId,
+                    candidateIndex + 1,
+                    urls.Length);
+            }
+            finally
+            {
+                TryDeleteTemporaryFile(tempPath, version.VersionId);
             }
         }
 
+        if (lastException is ResourceProjectIntegrityException integrityException)
+            throw integrityException;
         throw new InvalidOperationException($"Failed to download resource project version: {version.VersionId}", lastException);
+    }
+
+    private static async Task<bool> ExistingFileMatchesAsync(
+        ResourceProjectVersion version,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!File.Exists(path))
+            return false;
+
+        var expectation = ResolveIntegrityExpectation(version);
+        if (expectation.FileSize is null && expectation.Hash is null)
+            return true;
+
+        try
+        {
+            var fileInfo = new FileInfo(path);
+            if (expectation.FileSize.HasValue && fileInfo.Length != expectation.FileSize.Value)
+                return false;
+            if (expectation.Hash is null)
+                return true;
+
+            await using var source = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                81920,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+            using var hasher = IncrementalHash.CreateHash(ToHashAlgorithmName(expectation.Hash.Algorithm));
+            var buffer = new byte[81920];
+            while (true)
+            {
+                var read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                if (read == 0)
+                    break;
+                hasher.AppendData(buffer.AsSpan(0, read));
+            }
+            return CryptographicOperations.FixedTimeEquals(hasher.GetHashAndReset(), expectation.Hash.Value);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private async Task DownloadAndVerifyAsync(
+        ResourceProjectVersion version,
+        string url,
+        string tempPath,
+        IntegrityExpectation expectation,
+        CancellationToken cancellationToken)
+    {
+        using var response = await httpClient.GetAsync(
+            url,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        await using var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        await using var destination = new FileStream(
+            tempPath,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            81920,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        using var hasher = expectation.Hash is null
+            ? null
+            : IncrementalHash.CreateHash(ToHashAlgorithmName(expectation.Hash.Algorithm));
+        var buffer = new byte[81920];
+        long totalBytes = 0;
+        while (true)
+        {
+            var read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            if (read == 0)
+                break;
+            totalBytes += read;
+            if (expectation.FileSize.HasValue && totalBytes > expectation.FileSize.Value)
+                throw CreateIntegrityException(version, ResourceProjectIntegrityFailureReason.LengthMismatch, expectation.Hash?.Algorithm);
+            hasher?.AppendData(buffer.AsSpan(0, read));
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+        }
+        await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+
+        if (expectation.FileSize.HasValue && totalBytes != expectation.FileSize.Value)
+            throw CreateIntegrityException(version, ResourceProjectIntegrityFailureReason.LengthMismatch, expectation.Hash?.Algorithm);
+        if (expectation.Hash is not null
+            && !CryptographicOperations.FixedTimeEquals(hasher!.GetHashAndReset(), expectation.Hash.Value))
+        {
+            throw CreateIntegrityException(version, ResourceProjectIntegrityFailureReason.HashMismatch, expectation.Hash.Algorithm);
+        }
+    }
+
+    private static IntegrityExpectation ResolveIntegrityExpectation(ResourceProjectVersion version)
+    {
+        if (version.ExpectedFileSize < 0)
+            throw CreateIntegrityException(version, ResourceProjectIntegrityFailureReason.InvalidMetadata);
+
+        var hashes = new Dictionary<ResourceFileHashAlgorithm, byte[]>();
+        foreach (var group in version.FileHashes.GroupBy(hash => hash.Algorithm))
+        {
+            var values = group
+                .Select(hash => hash.Value?.Trim() ?? string.Empty)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (values.Length != 1 || !TryParseHash(group.Key, values[0], out var value))
+                throw CreateIntegrityException(version, ResourceProjectIntegrityFailureReason.InvalidMetadata, group.Key);
+            hashes[group.Key] = value;
+        }
+
+        ExpectedHash? expectedHash = null;
+        foreach (var algorithm in new[]
+                 {
+                     ResourceFileHashAlgorithm.Sha512,
+                     ResourceFileHashAlgorithm.Sha1,
+                     ResourceFileHashAlgorithm.Md5
+                 })
+        {
+            if (hashes.TryGetValue(algorithm, out var value))
+            {
+                expectedHash = new ExpectedHash(algorithm, value);
+                break;
+            }
+        }
+
+        var requiresTrustedHash = version.Kind is ResourceProjectKind.Mod
+            || string.Equals(Path.GetExtension(ResolveFileName(version)), ".jar", StringComparison.OrdinalIgnoreCase);
+        if (requiresTrustedHash
+            && expectedHash?.Algorithm is not ResourceFileHashAlgorithm.Sha512 and not ResourceFileHashAlgorithm.Sha1)
+        {
+            throw CreateIntegrityException(version, ResourceProjectIntegrityFailureReason.MissingTrustedHash, expectedHash?.Algorithm);
+        }
+        return new IntegrityExpectation(version.ExpectedFileSize, expectedHash);
+    }
+
+    private static bool TryParseHash(ResourceFileHashAlgorithm algorithm, string value, out byte[] result)
+    {
+        var expectedLength = algorithm switch
+        {
+            ResourceFileHashAlgorithm.Sha512 => 128,
+            ResourceFileHashAlgorithm.Sha1 => 40,
+            ResourceFileHashAlgorithm.Md5 => 32,
+            _ => 0
+        };
+        if (value.Length != expectedLength)
+        {
+            result = [];
+            return false;
+        }
+        try
+        {
+            result = Convert.FromHexString(value);
+            return true;
+        }
+        catch (FormatException)
+        {
+            result = [];
+            return false;
+        }
+    }
+
+    private static HashAlgorithmName ToHashAlgorithmName(ResourceFileHashAlgorithm algorithm)
+    {
+        return algorithm switch
+        {
+            ResourceFileHashAlgorithm.Sha512 => HashAlgorithmName.SHA512,
+            ResourceFileHashAlgorithm.Sha1 => HashAlgorithmName.SHA1,
+            ResourceFileHashAlgorithm.Md5 => HashAlgorithmName.MD5,
+            _ => throw new ArgumentOutOfRangeException(nameof(algorithm))
+        };
+    }
+
+    private static ResourceProjectIntegrityException CreateIntegrityException(
+        ResourceProjectVersion version,
+        ResourceProjectIntegrityFailureReason reason,
+        ResourceFileHashAlgorithm? algorithm = null)
+    {
+        return new ResourceProjectIntegrityException(version.VersionId, reason, algorithm);
+    }
+
+    private void TryDeleteTemporaryFile(string path, string versionId)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(
+                exception,
+                "Failed to delete temporary resource project download. VersionId={VersionId} FileName={FileName}",
+                versionId,
+                Path.GetFileName(path));
+        }
     }
 
     private async Task<string> InstallWorldAsync(
@@ -182,4 +416,8 @@ internal sealed class ResourceProjectStorage
         };
         return Path.Combine(instance.InstanceDirectory, directoryName);
     }
+
+    private sealed record IntegrityExpectation(long? FileSize, ExpectedHash? Hash);
+
+    private sealed record ExpectedHash(ResourceFileHashAlgorithm Algorithm, byte[] Value);
 }

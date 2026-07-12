@@ -140,6 +140,18 @@ public sealed partial class ResourcesProjectInstallViewModel : ObservableObject
                 selectedProject?.Project.ProjectId,
                 item.Version.VersionId);
         }
+        catch (ResourceProjectIntegrityException exception)
+        {
+            PresentFailure(context, Strings.Status_ResourceProjectIntegrityFailed);
+            logger?.LogWarning(
+                exception,
+                "Resource project integrity verification prevented installation. Kind={Kind} ProjectId={ProjectId} VersionId={VersionId} Reason={Reason} Algorithm={Algorithm}",
+                options.Kind,
+                selectedProject?.Project.ProjectId,
+                item.Version.VersionId,
+                exception.Reason,
+                exception.Algorithm);
+        }
         catch (Exception exception)
         {
             var message = target.IsLocalDownload ? options.DownloadFailedText : options.InstallFailedText;

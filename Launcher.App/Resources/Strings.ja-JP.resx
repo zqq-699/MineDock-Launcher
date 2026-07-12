@@ -1825,6 +1825,9 @@
   <data name="Status_ModpackHashMismatch" xml:space="preserve">
     <value>Modパックファイルの検証に失敗しました</value>
   </data>
+  <data name="Status_ResourceProjectIntegrityFailed" xml:space="preserve">
+    <value>ファイルの整合性を確認できなかったため、ダウンロードまたはインストールを中止しました。再試行するか、提供元の公式サイトから手動でダウンロードしてください。</value>
+  </data>
   <data name="Status_ModpackInstalling" xml:space="preserve">
     <value>インストール中</value>
   </data>

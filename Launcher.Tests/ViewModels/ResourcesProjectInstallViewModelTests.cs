@@ -18,6 +18,7 @@
  */
 
 using Launcher.App.Services;
+using Launcher.App.Resources;
 using Launcher.App.ViewModels.Download;
 using Launcher.App.ViewModels.Resources;
 using Launcher.Application.Services;
@@ -87,6 +88,26 @@ public sealed class ResourcesProjectInstallViewModelTests
 
         Assert.False(viewModel.IsInstalling);
         Assert.Empty(tasks.Tasks);
+    }
+
+    [Fact]
+    public async Task IntegrityFailureUsesLocalizedMessageInsteadOfGenericFailure()
+    {
+        var installation = new RecordingInstallationService { IntegrityFailure = true };
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var statuses = new List<string>();
+        var viewModel = CreateViewModel(installation, tasks, statuses.Add);
+
+        await viewModel.InstallAsync(
+            CreateVersionItem(ResourceProjectKind.ResourcePack),
+            ResourcesModInstallTargetItemViewModel.CreateLocalDownload(),
+            null);
+
+        var task = Assert.Single(tasks.Tasks);
+        Assert.Equal(DownloadTaskState.Failed, task.State);
+        Assert.Equal(Strings.Status_ResourceProjectIntegrityFailed, task.StatusMessage);
+        Assert.Contains(Strings.Status_ResourceProjectIntegrityFailed, statuses);
+        Assert.DoesNotContain("download failed", statuses);
     }
 
     private static ResourcesProjectInstallViewModel CreateViewModel(
@@ -159,6 +180,7 @@ public sealed class ResourcesProjectInstallViewModelTests
     {
         public bool TargetExists { get; init; }
         public bool WaitForCancellation { get; init; }
+        public bool IntegrityFailure { get; init; }
         public TaskCompletionSource<bool> ExecuteStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<ResourceProjectInstallationRequest> ExecutedRequests { get; } = [];
 
@@ -174,6 +196,13 @@ public sealed class ResourcesProjectInstallViewModelTests
         {
             ExecutedRequests.Add(request);
             ExecuteStarted.TrySetResult(true);
+            if (IntegrityFailure)
+            {
+                throw new ResourceProjectIntegrityException(
+                    request.Version.VersionId,
+                    ResourceProjectIntegrityFailureReason.HashMismatch,
+                    ResourceFileHashAlgorithm.Sha512);
+            }
             if (WaitForCancellation)
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             return new ResourceProjectInstallationResult();

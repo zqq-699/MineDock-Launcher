@@ -1825,6 +1825,9 @@
   <data name="Status_ModpackHashMismatch" xml:space="preserve">
     <value>整合包檔案校驗失敗</value>
   </data>
+  <data name="Status_ResourceProjectIntegrityFailed" xml:space="preserve">
+    <value>檔案完整性驗證失敗，已停止下載或安裝。請重試或從資源提供方官網手動下載。</value>
+  </data>
   <data name="Status_ModpackInstalling" xml:space="preserve">
     <value>正在安裝</value>
   </data>
