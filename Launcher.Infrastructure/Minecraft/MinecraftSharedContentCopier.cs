@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Buffers;
 using System.IO;
 using Microsoft.Extensions.Logging;
 
@@ -24,16 +25,36 @@ namespace Launcher.Infrastructure.Minecraft;
 
 internal static class MinecraftSharedContentCopier
 {
+    private const int CopyBufferSize = 128 * 1024;
+    private const string TemporaryFilePrefix = ".bhl-copy-pending-";
+    private const string TemporaryFileSuffix = ".tmp";
+
     public static MinecraftSharedContentCopyResult CopySharedRuntimeContent(
         string sourceGameDirectory,
         string destinationGameDirectory,
         ILogger? logger = null,
         CancellationToken cancellationToken = default)
     {
-        var librariesCopied = CopyLibraries(sourceGameDirectory, destinationGameDirectory, cancellationToken);
-        var assetIndexesCopied = CopyAssetsIndexes(sourceGameDirectory, destinationGameDirectory, cancellationToken);
-        var assetObjectsCopied = CopyAssetsObjects(sourceGameDirectory, destinationGameDirectory, cancellationToken);
-        var logConfigsCopied = CopyLogConfigs(sourceGameDirectory, destinationGameDirectory, cancellationToken);
+        var librariesCopied = CopyDirectoryContentIfMissing(
+            Path.Combine(sourceGameDirectory, "libraries"),
+            Path.Combine(destinationGameDirectory, "libraries"),
+            logger,
+            cancellationToken);
+        var assetIndexesCopied = CopyDirectoryContentIfMissing(
+            Path.Combine(sourceGameDirectory, "assets", "indexes"),
+            Path.Combine(destinationGameDirectory, "assets", "indexes"),
+            logger,
+            cancellationToken);
+        var assetObjectsCopied = CopyDirectoryContentIfMissing(
+            Path.Combine(sourceGameDirectory, "assets", "objects"),
+            Path.Combine(destinationGameDirectory, "assets", "objects"),
+            logger,
+            cancellationToken);
+        var logConfigsCopied = CopyDirectoryContentIfMissing(
+            Path.Combine(sourceGameDirectory, "assets", "log_configs"),
+            Path.Combine(destinationGameDirectory, "assets", "log_configs"),
+            logger,
+            cancellationToken);
 
         logger?.LogDebug(
             "Copied shared Minecraft runtime content. Source={SourceGameDirectory} Destination={DestinationGameDirectory} LibrariesCopied={LibrariesCopied} AssetIndexesCopied={AssetIndexesCopied} AssetObjectsCopied={AssetObjectsCopied} LogConfigsCopied={LogConfigsCopied}",
@@ -55,33 +76,42 @@ internal static class MinecraftSharedContentCopier
     {
         return CopyDirectoryContentIfMissing(
             Path.Combine(sourceGameDirectory, "libraries"),
-            Path.Combine(destinationGameDirectory, "libraries"), cancellationToken);
+            Path.Combine(destinationGameDirectory, "libraries"),
+            logger: null,
+            cancellationToken);
     }
 
     public static int CopyAssetsIndexes(string sourceGameDirectory, string destinationGameDirectory, CancellationToken cancellationToken = default)
     {
         return CopyDirectoryContentIfMissing(
             Path.Combine(sourceGameDirectory, "assets", "indexes"),
-            Path.Combine(destinationGameDirectory, "assets", "indexes"), cancellationToken);
+            Path.Combine(destinationGameDirectory, "assets", "indexes"),
+            logger: null,
+            cancellationToken);
     }
 
     public static int CopyAssetsObjects(string sourceGameDirectory, string destinationGameDirectory, CancellationToken cancellationToken = default)
     {
         return CopyDirectoryContentIfMissing(
             Path.Combine(sourceGameDirectory, "assets", "objects"),
-            Path.Combine(destinationGameDirectory, "assets", "objects"), cancellationToken);
+            Path.Combine(destinationGameDirectory, "assets", "objects"),
+            logger: null,
+            cancellationToken);
     }
 
     public static int CopyLogConfigs(string sourceGameDirectory, string destinationGameDirectory, CancellationToken cancellationToken = default)
     {
         return CopyDirectoryContentIfMissing(
             Path.Combine(sourceGameDirectory, "assets", "log_configs"),
-            Path.Combine(destinationGameDirectory, "assets", "log_configs"), cancellationToken);
+            Path.Combine(destinationGameDirectory, "assets", "log_configs"),
+            logger: null,
+            cancellationToken);
     }
 
     private static int CopyDirectoryContentIfMissing(
         string sourceDirectory,
         string destinationDirectory,
+        ILogger? logger,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -94,18 +124,118 @@ internal static class MinecraftSharedContentCopier
             cancellationToken.ThrowIfCancellationRequested();
             var relativePath = Path.GetRelativePath(sourceDirectory, sourceFilePath);
             var destinationPath = Path.Combine(destinationDirectory, relativePath);
-            if (File.Exists(destinationPath))
-                continue;
-
-            var destinationFileDirectory = Path.GetDirectoryName(destinationPath);
-            if (!string.IsNullOrWhiteSpace(destinationFileDirectory))
-                Directory.CreateDirectory(destinationFileDirectory);
-
-            File.Copy(sourceFilePath, destinationPath, overwrite: false);
-            copiedFileCount++;
+            if (CopyFileIfMissing(sourceFilePath, destinationPath, logger, cancellationToken))
+                copiedFileCount++;
         }
 
         return copiedFileCount;
+    }
+
+    internal static bool CopyFileIfMissing(
+        string sourceFilePath,
+        string destinationPath,
+        ILogger? logger = null,
+        CancellationToken cancellationToken = default,
+        Action<string, string>? beforePublish = null)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (File.Exists(destinationPath))
+            return false;
+
+        var destinationFileDirectory = Path.GetDirectoryName(destinationPath);
+        if (string.IsNullOrWhiteSpace(destinationFileDirectory))
+            throw new IOException($"The destination file has no parent directory: {destinationPath}");
+
+        Directory.CreateDirectory(destinationFileDirectory);
+        var temporaryPath = Path.Combine(
+            destinationFileDirectory,
+            $"{TemporaryFilePrefix}{Guid.NewGuid():N}{TemporaryFileSuffix}");
+        var published = false;
+
+        try
+        {
+            CopyToTemporaryFile(sourceFilePath, temporaryPath, cancellationToken);
+            beforePublish?.Invoke(temporaryPath, destinationPath);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                File.Move(temporaryPath, destinationPath, overwrite: false);
+                published = true;
+                return true;
+            }
+            catch (IOException) when (File.Exists(destinationPath))
+            {
+                // Another process atomically published the same destination first.
+                return false;
+            }
+        }
+        finally
+        {
+            if (!published)
+                TryDeleteTemporaryFile(temporaryPath, destinationPath, logger);
+        }
+    }
+
+    private static void CopyToTemporaryFile(
+        string sourceFilePath,
+        string temporaryPath,
+        CancellationToken cancellationToken)
+    {
+        using var source = new FileStream(
+            sourceFilePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            CopyBufferSize,
+            FileOptions.SequentialScan);
+        using var destination = new FileStream(
+            temporaryPath,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            CopyBufferSize,
+            FileOptions.SequentialScan);
+        var buffer = ArrayPool<byte>.Shared.Rent(CopyBufferSize);
+
+        try
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var bytesRead = source.Read(buffer, 0, buffer.Length);
+                if (bytesRead == 0)
+                    break;
+
+                destination.Write(buffer, 0, bytesRead);
+            }
+
+            destination.Flush(flushToDisk: true);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    private static void TryDeleteTemporaryFile(
+        string temporaryPath,
+        string destinationPath,
+        ILogger? logger)
+    {
+        try
+        {
+            if (File.Exists(temporaryPath))
+                File.Delete(temporaryPath);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(
+                ex,
+                "Failed to delete temporary shared runtime copy. TemporaryPath={TemporaryPath} DestinationPath={DestinationPath}",
+                temporaryPath,
+                destinationPath);
+        }
     }
 }
 
