@@ -194,6 +194,66 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ModpackStagingSuffixesNameOccupiedByFile()
+    {
+        var context = CreateModpackStagingContext();
+        var versionsDirectory = Path.Combine(context.Settings.MinecraftDirectory, "versions");
+        Directory.CreateDirectory(versionsDirectory);
+        var occupiedPath = Path.Combine(versionsDirectory, "Same Pack");
+        await File.WriteAllTextAsync(occupiedPath, "user file");
+
+        var staged = await context.Staging.StageAsync(context.PreparedModpack, "Same Pack");
+
+        Assert.Equal("Same Pack (1)", staged.ResolvedInstanceName);
+        Assert.Equal("user file", await File.ReadAllTextAsync(occupiedPath));
+        await context.Staging.CleanupFailedImportAsync(staged, null);
+    }
+
+    [Fact]
+    public async Task ModpackStagingSuffixesPastOccupiedFileAndDirectoryNames()
+    {
+        var context = CreateModpackStagingContext();
+        var versionsDirectory = Path.Combine(context.Settings.MinecraftDirectory, "versions");
+        Directory.CreateDirectory(versionsDirectory);
+        await File.WriteAllTextAsync(Path.Combine(versionsDirectory, "Same Pack"), "user file");
+        Directory.CreateDirectory(Path.Combine(versionsDirectory, "Same Pack (1)"));
+
+        var staged = await context.Staging.StageAsync(context.PreparedModpack, "Same Pack");
+
+        Assert.Equal("Same Pack (2)", staged.ResolvedInstanceName);
+        await context.Staging.CleanupFailedImportAsync(staged, null);
+    }
+
+    [Fact]
+    public async Task ModpackStagingDoesNotRetryNameRejectedAfterResolutionRace()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var transactionService = new RejectFirstInstallNameTransactionService();
+        var instanceService = new GameInstanceService(
+            settingsService,
+            repository,
+            Array.Empty<ILoaderProvider>(),
+            installTransactionService: transactionService);
+        var staging = new ModpackInstanceStagingService(
+            settingsService,
+            repository,
+            instanceService,
+            transactionService);
+
+        var staged = await staging.StageAsync(CreatePreparedModpack(), "Same Pack");
+
+        Assert.Equal(new[] { "Same Pack", "Same Pack (1)" }, transactionService.RequestedNames);
+        Assert.Equal("Same Pack (1)", staged.ResolvedInstanceName);
+        await staging.CleanupFailedImportAsync(staged, null);
+    }
+
+    [Fact]
     public async Task ActiveInstallationDoesNotBlockDeletingAnotherInstance()
     {
         var settings = new LauncherSettings
@@ -450,6 +510,74 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
         VersionName = name,
         InstanceDirectory = directory
     };
+
+    private (
+        LauncherSettings Settings,
+        ModpackInstanceStagingService Staging,
+        PreparedModpack PreparedModpack) CreateModpackStagingContext()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(settingsService);
+        var transactionService = new InstanceInstallTransactionService();
+        var instanceService = new GameInstanceService(
+            settingsService,
+            repository,
+            Array.Empty<ILoaderProvider>(),
+            installTransactionService: transactionService);
+        var staging = new ModpackInstanceStagingService(
+            settingsService,
+            repository,
+            instanceService,
+            transactionService);
+        return (settings, staging, CreatePreparedModpack());
+    }
+
+    private PreparedModpack CreatePreparedModpack() => new()
+    {
+        PackageKind = ModpackPackageKind.Modrinth,
+        SourceArchivePath = Path.Combine(TempRoot, "pack.mrpack"),
+        WorkingDirectory = Path.Combine(TempRoot, "work"),
+        PackageName = "Same Pack",
+        MinecraftVersion = "1.20.1",
+        Loader = LoaderKind.Fabric,
+        LoaderVersion = "0.16.10"
+    };
+
+    private sealed class RejectFirstInstallNameTransactionService : IInstanceInstallTransactionService
+    {
+        private readonly InstanceInstallTransactionService inner = new();
+        private int requestCount;
+
+        public List<string> RequestedNames { get; } = [];
+
+        public async Task<IInstanceInstallTransaction> BeginAsync(
+            string minecraftDirectory,
+            string logicalVersionName,
+            string instanceId,
+            string installKind,
+            bool initializeDefaultIfEmpty,
+            IProgress<LauncherProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            RequestedNames.Add(logicalVersionName);
+            if (Interlocked.Increment(ref requestCount) == 1)
+                throw new InstanceInstallNameConflictException(logicalVersionName);
+
+            return await inner.BeginAsync(
+                minecraftDirectory,
+                logicalVersionName,
+                instanceId,
+                installKind,
+                initializeDefaultIfEmpty,
+                progress,
+                cancellationToken);
+        }
+    }
 
     private sealed class SequencedSettingsService(
         LauncherSettings initialSettings,

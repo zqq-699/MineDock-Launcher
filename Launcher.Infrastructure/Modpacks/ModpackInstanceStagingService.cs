@@ -59,11 +59,14 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
         try
         {
             var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+            var rejectedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             while (true)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var resolvedInstanceName = await ResolveUniqueInstanceNameAsync(
                     preferredInstanceName,
                     settings.MinecraftDirectory,
+                    rejectedNames,
                     cancellationToken).ConfigureAwait(false);
                 var now = DateTimeOffset.UtcNow;
                 var instance = new GameInstance
@@ -99,8 +102,10 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
                         InstallTransaction = transaction
                     };
                 }
-                catch (InstanceInstallNameConflictException)
+                catch (InstanceInstallNameConflictException exception)
                 {
+                    rejectedNames.Add(resolvedInstanceName);
+                    rejectedNames.Add(exception.LogicalVersionName);
                     logger.LogInformation(
                         "Modpack instance name became unavailable while staging; selecting a suffixed name. InstanceName={InstanceName}",
                         resolvedInstanceName);
@@ -184,6 +189,7 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
     private async Task<string> ResolveUniqueInstanceNameAsync(
         string preferredInstanceName,
         string minecraftDirectory,
+        IReadOnlySet<string> rejectedNames,
         CancellationToken cancellationToken)
     {
         var baseName = preferredInstanceName?.Trim() ?? string.Empty;
@@ -198,7 +204,10 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
             AddUnavailableName(instance.VersionName);
         }
 
-        AddExistingVersionDirectoryNames(minecraftDirectory, unavailableNames);
+        foreach (var rejectedName in rejectedNames)
+            AddUnavailableName(rejectedName);
+
+        AddExistingVersionEntryNames(minecraftDirectory, unavailableNames);
 
         if (!unavailableNames.Contains(baseName))
             return baseName;
@@ -220,7 +229,7 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
         }
     }
 
-    private static void AddExistingVersionDirectoryNames(
+    private static void AddExistingVersionEntryNames(
         string minecraftDirectory,
         HashSet<string> unavailableNames)
     {
@@ -228,15 +237,16 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
         if (!Directory.Exists(versionsDirectory))
             return;
 
-        foreach (var versionDirectory in Directory.EnumerateDirectories(versionsDirectory))
+        foreach (var versionEntry in Directory.EnumerateFileSystemEntries(versionsDirectory))
         {
-            if (PendingInstanceInstallDirectory.IsPending(versionDirectory)
-                && PendingInstanceInstallDirectory.TryGetLogicalName(versionDirectory, out var logicalVersionName))
+            if (Directory.Exists(versionEntry)
+                && PendingInstanceInstallDirectory.IsPending(versionEntry)
+                && PendingInstanceInstallDirectory.TryGetLogicalName(versionEntry, out var logicalVersionName))
             {
                 unavailableNames.Add(logicalVersionName);
                 continue;
             }
-            var versionName = Path.GetFileName(versionDirectory);
+            var versionName = Path.GetFileName(versionEntry);
             if (!string.IsNullOrWhiteSpace(versionName))
                 unavailableNames.Add(versionName);
         }
