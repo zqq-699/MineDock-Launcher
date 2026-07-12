@@ -678,6 +678,18 @@
   <data name="Settings_SectionTheme" xml:space="preserve">
     <value>主題</value>
   </data>
+  <data name="Settings_SectionFeedback" xml:space="preserve">
+    <value>建議與意見回饋</value>
+  </data>
+  <data name="Dialog_FeedbackTitle" xml:space="preserve">
+    <value>建議與意見回饋</value>
+  </data>
+  <data name="Dialog_FeedbackFeatureSuggestionsButton" xml:space="preserve">
+    <value>新功能建議</value>
+  </data>
+  <data name="Dialog_FeedbackBugReportsButton" xml:space="preserve">
+    <value>Bug 意見回饋</value>
+  </data>
   <data name="Settings_SectionInfo" xml:space="preserve">
     <value>資訊</value>
   </data>
@@ -2049,6 +2061,9 @@
   </data>
   <data name="Status_OpenGithubRepositoryFailed" xml:space="preserve">
     <value>開啟 GitHub 儲存庫失敗</value>
+  </data>
+  <data name="Status_OpenFeedbackPageFailed" xml:space="preserve">
+    <value>無法開啟意見回饋頁面，請稍後再試。</value>
   </data>
   <data name="Status_OpenReferenceProjectFailed" xml:space="preserve">
     <value>開啟專案連結失敗</value>

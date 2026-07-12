@@ -52,6 +52,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
         ILauncherUpdateService launcherUpdateService,
         ILauncherSelfUpdateService launcherSelfUpdateService,
         IApplicationExitService applicationExitService,
+        ILogger<SettingsFeedbackDialogViewModel>? feedbackDialogLogger = null,
         ILogger<InfoSettingsViewModel>? infoSettingsLogger = null,
         ILogger<SettingsPageViewModel>? logger = null)
     {
@@ -74,6 +75,11 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
             floatingMessageService,
             () => General.MinecraftDirectory);
         Theme = new ThemeSettingsViewModel(persistence, themeService);
+        Feedback = new SettingsFeedbackDialogViewModel(
+            statusService,
+            floatingMessageService,
+            externalLinkService,
+            feedbackDialogLogger);
         Info = new InfoSettingsViewModel(
             persistence,
             statusService,
@@ -98,7 +104,8 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
             new(SettingsPageSection.LaunchMemory, Strings.Settings_SectionLaunchMemory, "instance_setting_page/launch"),
             new(SettingsPageSection.Java, Strings.Settings_SectionJava, "instance_setting_page/java"),
             new(SettingsPageSection.Theme, Strings.Settings_SectionTheme, "setting_page/theme"),
-            new(SettingsPageSection.Info, Strings.Settings_SectionInfo, "setting_page/info")
+            new(SettingsPageSection.Info, Strings.Settings_SectionInfo, "setting_page/info"),
+            new(SettingsPageSection.Feedback, Strings.Settings_SectionFeedback, "setting_page/message")
         ];
         SelectedSection = Sections[0];
     }
@@ -109,6 +116,7 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
     public LaunchMemorySettingsViewModel LaunchMemory { get; }
     public JavaSettingsViewModel Java { get; }
     public ThemeSettingsViewModel Theme { get; }
+    public SettingsFeedbackDialogViewModel Feedback { get; }
     public InfoSettingsViewModel Info { get; }
     public ControlListSettingsViewModel ControlList { get; }
 
@@ -154,8 +162,16 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
 
     private void SelectSectionCore(SettingsSectionItem? section)
     {
-        if (section is not null)
-            SelectedSection = section;
+        if (section is null)
+            return;
+
+        if (section.Section is SettingsPageSection.Feedback)
+        {
+            Feedback.Open();
+            return;
+        }
+
+        SelectedSection = section;
     }
 
     partial void OnSelectedSectionChanged(SettingsSectionItem? value)

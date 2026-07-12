@@ -803,6 +803,82 @@
                 </Grid>
             </controls:DialogHost>
 
+            <controls:DialogHost x:Name="SettingsFeedbackDialogHost"
+                                 Grid.ColumnSpan="2"
+                                 Grid.RowSpan="2"
+                                 DialogWidth="460"
+                                 UseIntegratedOverlay="True"
+                                 IsOpen="{Binding DataContext.SettingsPage.Feedback.IsOpen, ElementName=RootWindow}"
+                                 DataContext="{Binding DataContext.SettingsPage.Feedback, ElementName=RootWindow}">
+                <Grid Style="{StaticResource DialogContentGridStyle}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{x:Static res:Strings.Dialog_FeedbackTitle}"
+                               Style="{StaticResource DialogTitleTextStyle}" />
+
+                    <StackPanel Grid.Row="1"
+                                Margin="0,22,0,18">
+                        <Button Style="{StaticResource DialogActionItemButtonStyle}"
+                                Command="{Binding OpenFeatureSuggestionsCommand}">
+                            <Grid MinHeight="44">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="42" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <controls:SvgIcon Width="30"
+                                                  Height="30"
+                                                  IconKey="setting_page/new_feature"
+                                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           Margin="10,0,0,0"
+                                           Text="{x:Static res:Strings.Dialog_FeedbackFeatureSuggestionsButton}"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+
+                        <Button Margin="0"
+                                Style="{StaticResource DialogActionItemButtonStyle}"
+                                Command="{Binding OpenBugReportsCommand}">
+                            <Grid MinHeight="44">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="42" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <controls:SvgIcon Width="30"
+                                                  Height="30"
+                                                  IconKey="setting_page/bug"
+                                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1"
+                                           Margin="10,0,0,0"
+                                           Text="{x:Static res:Strings.Dialog_FeedbackBugReportsButton}"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2"
+                                Style="{StaticResource DialogFooterStyle}">
+                        <Button Style="{StaticResource LauncherDialogButtonStyle}"
+                                Content="{x:Static res:Strings.Cancel_Button}"
+                                Command="{Binding CancelCommand}" />
+                    </StackPanel>
+                </Grid>
+            </controls:DialogHost>
+
             <controls:DialogHost x:Name="LauncherUpdateDialogHost"
                                  Grid.ColumnSpan="2"
                                  Grid.RowSpan="2"

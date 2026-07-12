@@ -678,6 +678,18 @@
   <data name="Settings_SectionTheme" xml:space="preserve">
     <value>Appearance</value>
   </data>
+  <data name="Settings_SectionFeedback" xml:space="preserve">
+    <value>Suggestions and Feedback</value>
+  </data>
+  <data name="Dialog_FeedbackTitle" xml:space="preserve">
+    <value>Suggestions and Feedback</value>
+  </data>
+  <data name="Dialog_FeedbackFeatureSuggestionsButton" xml:space="preserve">
+    <value>Suggest a New Feature</value>
+  </data>
+  <data name="Dialog_FeedbackBugReportsButton" xml:space="preserve">
+    <value>Report a Bug</value>
+  </data>
   <data name="Settings_SectionInfo" xml:space="preserve">
     <value>Info</value>
   </data>
@@ -2049,6 +2061,9 @@ Longer content wraps automatically.</value>
   </data>
   <data name="Status_OpenGithubRepositoryFailed" xml:space="preserve">
     <value>Failed to open the GitHub repository.</value>
+  </data>
+  <data name="Status_OpenFeedbackPageFailed" xml:space="preserve">
+    <value>Failed to open the feedback page. Please try again later.</value>
   </data>
   <data name="Status_OpenReferenceProjectFailed" xml:space="preserve">
     <value>Failed to open the reference project.</value>

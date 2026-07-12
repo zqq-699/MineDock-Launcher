@@ -249,6 +249,7 @@ public static class Strings
     public static string Settings_SectionLaunchMemory => Get(nameof(Settings_SectionLaunchMemory));
     public static string Settings_SectionJava => Get(nameof(Settings_SectionJava));
     public static string Settings_SectionTheme => Get(nameof(Settings_SectionTheme));
+    public static string Settings_SectionFeedback => Get(nameof(Settings_SectionFeedback));
     public static string Settings_SectionInfo => Get(nameof(Settings_SectionInfo));
     public static string Settings_SectionControlList => Get(nameof(Settings_SectionControlList));
     public static string Settings_InfoContent => Get(nameof(Settings_InfoContent));
@@ -262,6 +263,9 @@ public static class Strings
     public static string Settings_UpdateChannelBetaTitle => Get(nameof(Settings_UpdateChannelBetaTitle));
     public static string Settings_ReferenceProjectsSection => Get(nameof(Settings_ReferenceProjectsSection));
     public static string Dialog_UpdateAvailableTitle => Get(nameof(Dialog_UpdateAvailableTitle));
+    public static string Dialog_FeedbackTitle => Get(nameof(Dialog_FeedbackTitle));
+    public static string Dialog_FeedbackFeatureSuggestionsButton => Get(nameof(Dialog_FeedbackFeatureSuggestionsButton));
+    public static string Dialog_FeedbackBugReportsButton => Get(nameof(Dialog_FeedbackBugReportsButton));
     public static string Dialog_UpdateAvailableVersionFormat => Get(nameof(Dialog_UpdateAvailableVersionFormat));
     public static string Dialog_OpenUpdateChangelogButton => Get(nameof(Dialog_OpenUpdateChangelogButton));
     public static string Dialog_UpdateButton => Get(nameof(Dialog_UpdateButton));
@@ -949,6 +953,7 @@ public static class Strings
     public static string Status_OpenLaunchLogFolderFailed => Get(nameof(Status_OpenLaunchLogFolderFailed));
     public static string Status_OpenLaunchReportFailed => Get(nameof(Status_OpenLaunchReportFailed));
     public static string Status_OpenGithubRepositoryFailed => Get(nameof(Status_OpenGithubRepositoryFailed));
+    public static string Status_OpenFeedbackPageFailed => Get(nameof(Status_OpenFeedbackPageFailed));
     public static string Status_OpenReferenceProjectFailed => Get(nameof(Status_OpenReferenceProjectFailed));
     public static string Status_UpdateCheckUnavailable => Get(nameof(Status_UpdateCheckUnavailable));
     public static string Status_CheckingUpdates => Get(nameof(Status_CheckingUpdates));

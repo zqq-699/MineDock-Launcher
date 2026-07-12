@@ -27,5 +27,6 @@ public enum SettingsPageSection
     Java,
     Theme,
     Info,
+    Feedback,
     ControlList
 }

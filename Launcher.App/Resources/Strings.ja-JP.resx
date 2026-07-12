@@ -678,6 +678,18 @@
   <data name="Settings_SectionTheme" xml:space="preserve">
     <value>テーマ</value>
   </data>
+  <data name="Settings_SectionFeedback" xml:space="preserve">
+    <value>提案とフィードバック</value>
+  </data>
+  <data name="Dialog_FeedbackTitle" xml:space="preserve">
+    <value>提案とフィードバック</value>
+  </data>
+  <data name="Dialog_FeedbackFeatureSuggestionsButton" xml:space="preserve">
+    <value>新機能の提案</value>
+  </data>
+  <data name="Dialog_FeedbackBugReportsButton" xml:space="preserve">
+    <value>バグの報告</value>
+  </data>
   <data name="Settings_SectionInfo" xml:space="preserve">
     <value>情報</value>
   </data>
@@ -2049,6 +2061,9 @@
   </data>
   <data name="Status_OpenGithubRepositoryFailed" xml:space="preserve">
     <value>GitHub リポジトリを開けませんでした</value>
+  </data>
+  <data name="Status_OpenFeedbackPageFailed" xml:space="preserve">
+    <value>フィードバックページを開けませんでした。しばらくしてからもう一度お試しください。</value>
   </data>
   <data name="Status_OpenReferenceProjectFailed" xml:space="preserve">
     <value>プロジェクトリンクを開けませんでした</value>
