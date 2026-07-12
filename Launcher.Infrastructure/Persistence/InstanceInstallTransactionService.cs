@@ -112,6 +112,12 @@ internal static class CrossProcessVersionLock
         TryDelete(Path.Combine(versionsDirectory, LegacyMutationLockFileName));
     }
 
+    public static void DeleteLegacyLauncherLocks(string minecraftDirectory)
+    {
+        TryDelete(GetLegacyLauncherPath(minecraftDirectory, "install"));
+        TryDelete(GetLegacyLauncherPath(minecraftDirectory, "mutation"));
+    }
+
     public static async Task<FileStream> AcquireAsync(
         string path,
         IProgress<LauncherProgress>? progress,
@@ -157,18 +163,28 @@ internal static class CrossProcessVersionLock
 
     private static string GetPath(string minecraftDirectory, string lockKind)
     {
+        var lockDirectory = Path.Combine(
+            Path.GetFullPath(minecraftDirectory),
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "locks",
+            "versions");
+        Directory.CreateDirectory(lockDirectory);
+        return Path.Combine(lockDirectory, $"{lockKind}.lock");
+    }
+
+    private static string GetLegacyLauncherPath(string minecraftDirectory, string lockKind)
+    {
         var normalizedDirectory = Path.GetFullPath(minecraftDirectory)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
             .ToUpperInvariant();
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedDirectory)))
             .ToLowerInvariant();
-        var lockDirectory = Path.Combine(
+        return Path.Combine(
             AppContext.BaseDirectory,
             LauncherApplicationIdentity.StorageDirectoryName,
             "locks",
-            "versions");
-        Directory.CreateDirectory(lockDirectory);
-        return Path.Combine(lockDirectory, $"{hash}.{lockKind}.lock");
+            "versions",
+            $"{hash}.{lockKind}.lock");
     }
 
     private static void TryDelete(string path)
@@ -513,6 +529,7 @@ public sealed class InstanceInstallCleanupService(
             progress: null,
             cancellationToken).ConfigureAwait(false);
         CrossProcessVersionLock.DeleteLegacyVersionDirectoryLocks(versionsDirectory);
+        CrossProcessVersionLock.DeleteLegacyLauncherLocks(settings.MinecraftDirectory);
 
         foreach (var directory in Directory.EnumerateDirectories(versionsDirectory).ToArray())
         {

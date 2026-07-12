@@ -29,10 +29,9 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
         var versionsDirectory = Path.Combine(minecraftDirectory, "versions");
         Assert.False(File.Exists(Path.Combine(versionsDirectory, ".bhl-install-transaction.lock")));
         Assert.False(File.Exists(Path.Combine(versionsDirectory, ".bhl-version-mutation.lock")));
-        Assert.StartsWith(
-            Path.Combine(AppContext.BaseDirectory, "BHL", "locks", "versions"),
-            CrossProcessVersionLock.GetInstallCoordinationPath(minecraftDirectory),
-            StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(
+            Path.Combine(Path.GetFullPath(minecraftDirectory), "BHL", "locks", "versions", "install.lock"),
+            CrossProcessVersionLock.GetInstallCoordinationPath(minecraftDirectory));
         Directory.CreateDirectory(Path.Combine(transaction.PendingDirectory, "mods"));
         await File.WriteAllTextAsync(
             Path.Combine(transaction.PendingDirectory, "Test.json"),
@@ -54,6 +53,42 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
             Path.Combine(transaction.FinalDirectory, "BHL", "instance-settings.json")));
         Assert.Equal("Test", settings.RootElement.GetProperty("VersionName").GetString());
         Assert.Equal(transaction.FinalDirectory, settings.RootElement.GetProperty("InstanceDirectory").GetString());
+    }
+
+    [Fact]
+    public void CrossProcessLocksAreScopedToTheMinecraftDirectory()
+    {
+        var firstMinecraftDirectory = Path.Combine(TempRoot, "first", ".minecraft");
+        var secondMinecraftDirectory = Path.Combine(TempRoot, "second", ".minecraft");
+
+        var firstInstallPath = CrossProcessVersionLock.GetInstallCoordinationPath(firstMinecraftDirectory);
+        var firstMutationPath = CrossProcessVersionLock.GetMutationPath(firstMinecraftDirectory);
+        var secondInstallPath = CrossProcessVersionLock.GetInstallCoordinationPath(secondMinecraftDirectory);
+
+        Assert.Equal(
+            Path.Combine(Path.GetFullPath(firstMinecraftDirectory), "BHL", "locks", "versions", "install.lock"),
+            firstInstallPath);
+        Assert.Equal(
+            Path.Combine(Path.GetFullPath(firstMinecraftDirectory), "BHL", "locks", "versions", "mutation.lock"),
+            firstMutationPath);
+        Assert.NotEqual(firstInstallPath, secondInstallPath);
+    }
+
+    [Fact]
+    public async Task InstallFailsSafelyWhenSharedLockDirectoryCannotBeCreated()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        Directory.CreateDirectory(minecraftDirectory);
+        await File.WriteAllTextAsync(Path.Combine(minecraftDirectory, "BHL"), "occupied");
+        var service = new InstanceInstallTransactionService();
+
+        await Assert.ThrowsAnyAsync<IOException>(() => service.BeginAsync(
+            minecraftDirectory, "Test", "instance", "game", false));
+
+        Assert.False(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "Test")));
+        Assert.Empty(Directory.EnumerateDirectories(
+            Path.Combine(minecraftDirectory, "versions"),
+            ".bhl-install-pending-*"));
     }
 
     [Fact]
