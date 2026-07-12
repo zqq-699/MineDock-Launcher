@@ -100,7 +100,19 @@ public static class LauncherUpdateStartupCoordinator
 
     public static bool TryConfirmStartup(string[] args, string? currentExecutablePath)
     {
-        return TryConfirmStartup(args, currentExecutablePath, new LauncherUpdateFileOperations());
+        return TryConfirmStartup(args, currentExecutablePath, out _);
+    }
+
+    public static bool TryConfirmStartup(
+        string[] args,
+        string? currentExecutablePath,
+        out string? updaterPath)
+    {
+        return TryConfirmStartup(
+            args,
+            currentExecutablePath,
+            new LauncherUpdateFileOperations(),
+            out updaterPath);
     }
 
     internal static bool TryConfirmStartup(
@@ -108,6 +120,16 @@ public static class LauncherUpdateStartupCoordinator
         string? currentExecutablePath,
         ILauncherUpdateFileOperations files)
     {
+        return TryConfirmStartup(args, currentExecutablePath, files, out _);
+    }
+
+    internal static bool TryConfirmStartup(
+        string[] args,
+        string? currentExecutablePath,
+        ILauncherUpdateFileOperations files,
+        out string? updaterPath)
+    {
+        updaterPath = null;
         if (!TryGetConfirmationId(args, out var confirmationId)
             || string.IsNullOrWhiteSpace(currentExecutablePath))
         {
@@ -127,6 +149,7 @@ public static class LauncherUpdateStartupCoordinator
         }
 
         files.WriteAllTextAndFlush(transaction.ConfirmationPath, transaction.TransactionId);
+        updaterPath = transaction.UpdaterPath;
         return true;
     }
 

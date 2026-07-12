@@ -34,6 +34,8 @@ internal sealed class LaunchCommandRunner : ILaunchCommandRunner
         if (string.IsNullOrWhiteSpace(command))
             return;
 
+        cancellationToken.ThrowIfCancellationRequested();
+
         using var process = new Process
         {
             StartInfo = new ProcessStartInfo
@@ -50,10 +52,44 @@ internal sealed class LaunchCommandRunner : ILaunchCommandRunner
         if (!waitForExit)
             return;
 
-        await process.WaitForExitAsync(cancellationToken);
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await TerminateProcessTreeAsync(process);
+            throw;
+        }
 
         if (process.ExitCode != 0)
             throw new InvalidOperationException($"Launch command exited with code {process.ExitCode}.");
+    }
+
+    private static async Task TerminateProcessTreeAsync(Process process)
+    {
+        try
+        {
+            if (process.HasExited)
+                return;
+
+            process.Kill(entireProcessTree: true);
+        }
+        catch
+        {
+            // Cancellation remains the primary result when the process exits concurrently
+            // or the operating system no longer allows the process to be inspected or killed.
+            return;
+        }
+
+        try
+        {
+            await process.WaitForExitAsync(CancellationToken.None);
+        }
+        catch
+        {
+            // Do not replace the caller's cancellation with a cleanup race or process-state error.
+        }
     }
 
     private static string ResolveWorkingDirectory(string workingDirectory)

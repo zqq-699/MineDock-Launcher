@@ -139,6 +139,9 @@ public partial class App : System.Windows.Application
             serviceProvider = services.BuildServiceProvider();
             Log.Information("Service provider built.");
 
+            var updateCacheCleaner = serviceProvider.GetRequiredService<LauncherUpdateCacheCleaner>();
+            updateCacheCleaner.CleanupStaleCache(Environment.ProcessPath);
+
             var startupSettings = await serviceProvider.GetRequiredService<ISettingsService>().LoadAsync();
             ApplyLauncherCulture(startupSettings.LauncherLanguage);
             Log.Information("Launcher culture initialized. Language={Language}", CultureInfo.CurrentUICulture.Name);
@@ -159,8 +162,15 @@ public partial class App : System.Windows.Application
             Log.Information("Main window shown.");
             try
             {
-                if (LauncherUpdateStartupCoordinator.TryConfirmStartup(e.Args, Environment.ProcessPath))
+                if (LauncherUpdateStartupCoordinator.TryConfirmStartup(
+                        e.Args,
+                        Environment.ProcessPath,
+                        out var confirmedUpdaterPath))
+                {
                     Log.Information("Launcher update startup confirmed.");
+                    if (confirmedUpdaterPath is not null)
+                        _ = CleanupConfirmedUpdateCacheAsync(updateCacheCleaner, confirmedUpdaterPath);
+                }
             }
             catch (Exception exception)
             {
@@ -172,6 +182,20 @@ public partial class App : System.Windows.Application
         {
             Log.Fatal(exception, "Launcher startup failed.");
             Shutdown(-1);
+        }
+    }
+
+    private static async Task CleanupConfirmedUpdateCacheAsync(
+        LauncherUpdateCacheCleaner cacheCleaner,
+        string updaterPath)
+    {
+        try
+        {
+            await cacheCleaner.CleanupConfirmedUpdateAsync(updaterPath).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Confirmed launcher update cache cleanup failed; startup cleanup will retry later.");
         }
     }
 

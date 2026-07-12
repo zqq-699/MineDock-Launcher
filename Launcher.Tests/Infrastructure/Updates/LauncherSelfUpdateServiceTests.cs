@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using Launcher.Application;
 using Launcher.Application.Services;
 using Launcher.Infrastructure.Updates;
 
@@ -34,6 +35,22 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
         Assert.Contains("--target", startedProcess.ArgumentList);
         Assert.Contains(Path.Combine(tempRoot, "BlockHelm-Launcher.exe"), startedProcess.ArgumentList);
         Assert.Contains("--restart", startedProcess.ArgumentList);
+    }
+
+    [Fact]
+    public async Task FailedUpdateProcessStartDeletesDownloadedCache()
+    {
+        var handler = new DownloadHandler().Respond(GitHubUrl, HttpStatusCode.OK, Payload);
+
+        var result = await CreateService(handler, _ => false).StartUpdateAsync(CreateUpdate());
+
+        Assert.False(result.Succeeded);
+        var updatesRoot = Path.Combine(
+            tempRoot,
+            LauncherApplicationIdentity.StorageDirectoryName,
+            "cache",
+            "updates");
+        Assert.False(Directory.Exists(updatesRoot));
     }
 
     [Fact]

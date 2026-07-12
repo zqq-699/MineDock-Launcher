@@ -208,7 +208,7 @@ internal sealed class LocalSaveArchiveImporter
     private static ArchiveEntryDescriptor[] ReadGenericArchiveEntries(string archivePath)
     {
         using var stream = File.OpenRead(archivePath);
-        using var archive = ArchiveFactory.Open(stream);
+        using var archive = ArchiveFactory.OpenArchive(stream);
         return archive.Entries
             .Where(entry => !entry.IsDirectory)
             .Select(entry => NormalizeArchivePath(entry.Key))
@@ -259,7 +259,7 @@ internal sealed class LocalSaveArchiveImporter
         CancellationToken cancellationToken)
     {
         using var extractionStream = File.OpenRead(archivePath);
-        using var archive = ArchiveFactory.Open(extractionStream);
+        using var archive = ArchiveFactory.OpenArchive(extractionStream);
         foreach (var entry in archive.Entries.Where(entry => !entry.IsDirectory))
         {
             cancellationToken.ThrowIfCancellationRequested();

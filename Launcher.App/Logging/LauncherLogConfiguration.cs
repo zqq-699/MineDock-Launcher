@@ -32,7 +32,7 @@ internal static class LauncherLogConfiguration
     public const string LogFileNamePattern = "bhl-.log";
 
     private const string LogDirectoryName = "log";
-    private const string LogFileSearchPattern = "bhl*.log";
+    private static readonly string[] LogFileSearchPatterns = ["bhl*.log", "updater-*.log"];
 
     public static Serilog.ILogger CreateLogger()
     {
@@ -67,8 +67,11 @@ internal static class LauncherLogConfiguration
             return;
 
         var cutoff = now.AddDays(-RetainedDays).UtcDateTime;
-        foreach (var path in Directory.EnumerateFiles(logDirectory, LogFileSearchPattern, SearchOption.TopDirectoryOnly))
-            DeleteIfExpired(path, cutoff);
+        foreach (var searchPattern in LogFileSearchPatterns)
+        {
+            foreach (var path in Directory.EnumerateFiles(logDirectory, searchPattern, SearchOption.TopDirectoryOnly))
+                DeleteIfExpired(path, cutoff);
+        }
     }
 
     private static void DeleteIfExpired(string path, DateTime cutoff)

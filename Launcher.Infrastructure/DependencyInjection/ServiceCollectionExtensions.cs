@@ -78,6 +78,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IResourceCatalogService, ResourceCatalogService>();
         services.AddSingleton<IResourceProjectInstallationService, ResourceProjectInstallationService>();
         services.AddSingleton<ILauncherUpdateService, RemoteManifestLauncherUpdateService>();
+        services.AddSingleton<LauncherUpdateCacheCleaner>();
         services.AddSingleton<ILauncherSelfUpdateService, LauncherSelfUpdateService>();
         services.AddSingleton<ILauncherStateMonitor, LauncherStateMonitor>();
         services.AddSingleton<IInstanceDirectoryMonitor, InstanceDirectoryMonitor>();

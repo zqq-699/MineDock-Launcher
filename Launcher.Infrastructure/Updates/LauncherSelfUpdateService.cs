@@ -18,9 +18,20 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
     private readonly string? currentExecutablePath;
     private readonly int currentProcessId;
     private readonly Func<ProcessStartInfo, bool> startProcess;
+    private readonly LauncherUpdateCacheCleaner cacheCleaner;
 
-    public LauncherSelfUpdateService(HttpClient? httpClient = null, ILogger<LauncherSelfUpdateService>? logger = null)
-        : this(httpClient, logger, AppContext.BaseDirectory, Environment.ProcessPath, Environment.ProcessId, StartProcess)
+    public LauncherSelfUpdateService(
+        HttpClient? httpClient = null,
+        ILogger<LauncherSelfUpdateService>? logger = null,
+        LauncherUpdateCacheCleaner? cacheCleaner = null)
+        : this(
+            httpClient,
+            logger,
+            AppContext.BaseDirectory,
+            Environment.ProcessPath,
+            Environment.ProcessId,
+            StartProcess,
+            cacheCleaner)
     {
     }
 
@@ -30,7 +41,8 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
         string baseDirectory,
         string? currentExecutablePath,
         int currentProcessId,
-        Func<ProcessStartInfo, bool> startProcess)
+        Func<ProcessStartInfo, bool> startProcess,
+        LauncherUpdateCacheCleaner? cacheCleaner = null)
     {
         this.httpClient = httpClient ?? OfficialUpdateHttp.CreateClient(DefaultRequestTimeout);
         this.logger = logger;
@@ -38,6 +50,7 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
         this.currentExecutablePath = currentExecutablePath;
         this.currentProcessId = currentProcessId;
         this.startProcess = startProcess;
+        this.cacheCleaner = cacheCleaner ?? new LauncherUpdateCacheCleaner(baseDirectory);
         if (this.httpClient.DefaultRequestHeaders.UserAgent.Count == 0)
             this.httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
     }
@@ -51,9 +64,11 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
         if (string.IsNullOrWhiteSpace(currentExecutablePath))
             return LauncherSelfUpdateStartResult.Failed("Current launcher executable path is unavailable.");
 
+        string? downloadPath = null;
         try
         {
-            var downloadPath = await DownloadUpdateExecutableAsync(
+            cacheCleaner.CleanupStaleCache(currentExecutablePath);
+            downloadPath = await DownloadUpdateExecutableAsync(
                 update, update.EffectiveDownloadUrls, cancellationToken).ConfigureAwait(false);
             var logDirectory = Path.Combine(baseDirectory, LauncherApplicationIdentity.StorageDirectoryName, "log");
             Directory.CreateDirectory(logDirectory);
@@ -75,7 +90,10 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
             startInfo.ArgumentList.Add("--restart");
 
             if (!startProcess(startInfo))
+            {
+                cacheCleaner.CleanupCachedUpdater(downloadPath);
                 return LauncherSelfUpdateStartResult.Failed("Failed to start update apply mode.");
+            }
             logger?.LogInformation(
                 "Verified launcher update apply mode started. Version={Version} KeyId={KeyId}",
                 update.Version, update.KeyId);
@@ -83,10 +101,14 @@ public sealed class LauncherSelfUpdateService : ILauncherSelfUpdateService
         }
         catch (OperationCanceledException)
         {
+            if (downloadPath is not null)
+                cacheCleaner.CleanupCachedUpdater(downloadPath);
             throw;
         }
         catch (Exception exception)
         {
+            if (downloadPath is not null)
+                cacheCleaner.CleanupCachedUpdater(downloadPath);
             logger?.LogWarning(exception, "Launcher self update verification or startup failed.");
             return LauncherSelfUpdateStartResult.Failed("The launcher update could not be verified or started.");
         }

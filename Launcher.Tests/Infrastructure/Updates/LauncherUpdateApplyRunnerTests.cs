@@ -62,6 +62,27 @@ public sealed class LauncherUpdateApplyRunnerTests : IDisposable
         Assert.False(File.Exists(LauncherUpdateTransaction.GetMarkerPath(context.Options.TargetPath)));
     }
 
+    [Fact]
+    public void StartupConfirmationReturnsUpdaterPathForDeferredCacheCleanup()
+    {
+        var context = CreateContext();
+        var transaction = LauncherUpdateTransaction.Create(context.Options) with
+        {
+            Phase = LauncherUpdateTransactionPhase.Committed
+        };
+        context.Files.WriteTransaction(transaction);
+
+        var confirmed = LauncherUpdateStartupCoordinator.TryConfirmStartup(
+            [LauncherUpdateStartupCoordinator.ConfirmationArgument, transaction.TransactionId],
+            context.Options.TargetPath,
+            context.Files,
+            out var updaterPath);
+
+        Assert.True(confirmed);
+        Assert.Equal(context.Options.SourcePath, updaterPath);
+        Assert.True(File.Exists(transaction.ConfirmationPath));
+    }
+
     [Theory]
     [InlineData(UpdateFileFault.CopyCandidate)]
     [InlineData(UpdateFileFault.FlushCandidate)]
