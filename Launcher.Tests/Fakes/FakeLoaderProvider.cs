@@ -43,6 +43,8 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
     public bool WriteJsonBeforeWaiting { get; init; }
     public string? PartialVersionName { get; init; }
     public int InstallCallCount => installCallCount;
+    public bool SawLibrariesDirectoryDuringInstall { get; private set; }
+    public bool SawAssetObjectsDirectoryDuringInstall { get; private set; }
 
     public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
         string minecraftVersion,
@@ -84,6 +86,8 @@ internal sealed class FakeLoaderProvider : ILoaderProvider
         LastLoaderVersion = loaderVersion;
         LastDownloadSourcePreference = downloadSourcePreference;
         LastDownloadSpeedLimitMbPerSecond = downloadSpeedLimitMbPerSecond;
+        SawLibrariesDirectoryDuringInstall = Directory.Exists(Path.Combine(gameDirectory, "libraries"));
+        SawAssetObjectsDirectoryDuringInstall = Directory.Exists(Path.Combine(gameDirectory, "assets", "objects"));
         Interlocked.Increment(ref installCallCount);
         InstallStarted.TrySetResult(true);
 

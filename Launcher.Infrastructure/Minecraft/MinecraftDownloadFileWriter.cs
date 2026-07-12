@@ -157,6 +157,7 @@ internal static class MinecraftDownloadFileWriter
         try
         {
             await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+            destination.Flush(flushToDisk: true);
             await destination.DisposeAsync().ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

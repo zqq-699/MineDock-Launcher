@@ -26,6 +26,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using CmlLib.Core;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -47,11 +48,28 @@ internal interface IFinalVersionInstaller
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken,
         int downloadSpeedLimitMbPerSecond = 0);
+
+    Task InstallAsync(
+        MinecraftPath path,
+        string versionName,
+        DownloadSourcePreference downloadSourcePreference,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond = 0)
+    {
+        return InstallAsync(
+            path.BasePath,
+            versionName,
+            downloadSourcePreference,
+            progress,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
+    }
 }
 
 internal sealed class FinalVersionInstaller : IFinalVersionInstaller
 {
-    public async Task InstallAsync(
+    public Task InstallAsync(
         string gameDirectory,
         string versionName,
         DownloadSourcePreference downloadSourcePreference,
@@ -59,8 +77,25 @@ internal sealed class FinalVersionInstaller : IFinalVersionInstaller
         CancellationToken cancellationToken,
         int downloadSpeedLimitMbPerSecond = 0)
     {
+        return InstallAsync(
+            new MinecraftPath(gameDirectory),
+            versionName,
+            downloadSourcePreference,
+            progress,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
+    }
+
+    public async Task InstallAsync(
+        MinecraftPath path,
+        string versionName,
+        DownloadSourcePreference downloadSourcePreference,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond = 0)
+    {
         var launcher = VanillaLoaderProvider.CreateLauncher(
-            gameDirectory,
+            path,
             progress,
             downloadSourcePreference,
             downloadSpeedLimitMbPerSecond: downloadSpeedLimitMbPerSecond);
@@ -121,7 +156,7 @@ internal sealed class ForgeInstallerRunner : IForgeInstallerRunner
 /// <summary>
 /// 在隔离沙箱中安装 Forge，兼容现代与旧版安装器，并只把自包含的最终版本提交到用户目录。
 /// </summary>
-public sealed class ForgeLoaderProvider : ILoaderProvider
+public sealed class ForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvider
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private static readonly Regex InstallerUrlRegex = new(
@@ -198,7 +233,7 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
     /// <summary>
     /// 在临时 .minecraft 中运行 Forge 安装器，生成自包含隔离版本后提交到目标目录。
     /// </summary>
-    public async Task<string> InstallAsync(
+    public Task<string> InstallAsync(
         string minecraftVersion,
         string gameDirectory,
         string isolatedVersionName,
@@ -207,6 +242,52 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
+    {
+        return InstallCoreAsync(
+            minecraftVersion,
+            gameDirectory,
+            gameDirectory,
+            isolatedVersionName,
+            loaderVersion,
+            progress,
+            downloadSourcePreference,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
+    }
+
+    public Task<string> InstallStagedAsync(
+        string minecraftVersion,
+        string outputGameDirectory,
+        string sharedMinecraftDirectory,
+        string isolatedVersionName,
+        string? loaderVersion,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond)
+    {
+        return InstallCoreAsync(
+            minecraftVersion,
+            outputGameDirectory,
+            sharedMinecraftDirectory,
+            isolatedVersionName,
+            loaderVersion,
+            progress,
+            downloadSourcePreference,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
+    }
+
+    private async Task<string> InstallCoreAsync(
+        string minecraftVersion,
+        string gameDirectory,
+        string sharedMinecraftDirectory,
+        string isolatedVersionName,
+        string? loaderVersion,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond)
     {
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
         var selectedLoaderVersion = loaderVersion;
@@ -249,6 +330,14 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
                 downloadSourcePreference,
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
+
+            var prerequisiteSeeder = new LoaderInstallerPrerequisiteSeeder();
+            var workspaceSnapshot = await prerequisiteSeeder.SeedAsync(
+                sharedMinecraftDirectory,
+                installerMinecraftDirectory,
+                minecraftVersion,
+                installerJarPath,
+                cancellationToken).ConfigureAwait(false);
 
             progress?.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
             try
@@ -297,7 +386,7 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
 
             progress?.Report(new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty));
             await finalVersionInstaller.InstallAsync(
-                installerMinecraftDirectory,
+                new MinecraftPath(installerMinecraftDirectory),
                 finalVersionName,
                 downloadSourcePreference,
                 progress,
@@ -310,7 +399,10 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
                 gameDirectory,
                 finalVersionName,
                 cancellationToken);
-            MinecraftSharedContentCopier.CopySharedRuntimeContent(installerMinecraftDirectory, gameDirectory, logger);
+            await prerequisiteSeeder.PublishDeltaAsync(
+                workspaceSnapshot,
+                gameDirectory,
+                cancellationToken).ConfigureAwait(false);
 
             LoaderVersionDirectoryTransaction.CleanupCreatedVersionDirectories(gameDirectory, existingVersionNames, finalVersionName);
             return finalVersionName;
@@ -656,7 +748,7 @@ public sealed class ForgeLoaderProvider : ILoaderProvider
         var profile = await ReadLegacyForgeInstallProfileAsync(installerJarPath, minecraftVersion, forgeVersion, cancellationToken);
 
         await finalVersionInstaller.InstallAsync(
-            gameDirectory,
+            new MinecraftPath(gameDirectory),
             minecraftVersion,
             downloadSourcePreference,
             progress,

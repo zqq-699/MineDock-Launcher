@@ -23,6 +23,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CmlLib.Core;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Launcher.Application.Services;
@@ -35,7 +36,7 @@ namespace Launcher.Infrastructure.Minecraft;
 /// <summary>
 /// 在隔离沙箱中安装 NeoForge，并通过元数据匹配、版本扁平化和修复生成可独立启动的版本。
 /// </summary>
-public sealed class NeoForgeLoaderProvider : ILoaderProvider
+public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvider
 {
     private const string MetadataUrl = "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml";
     private const string ArtifactBaseUrl = "https://maven.neoforged.net/releases/net/neoforged/neoforge";
@@ -155,7 +156,7 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
     /// <summary>
     /// 在临时 .minecraft 中安装 NeoForge，修复最终版本后只提交必要文件。
     /// </summary>
-    public async Task<string> InstallAsync(
+    public Task<string> InstallAsync(
         string minecraftVersion,
         string gameDirectory,
         string isolatedVersionName,
@@ -164,6 +165,52 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
+    {
+        return InstallCoreAsync(
+            minecraftVersion,
+            gameDirectory,
+            gameDirectory,
+            isolatedVersionName,
+            loaderVersion,
+            progress,
+            downloadSourcePreference,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
+    }
+
+    public Task<string> InstallStagedAsync(
+        string minecraftVersion,
+        string outputGameDirectory,
+        string sharedMinecraftDirectory,
+        string isolatedVersionName,
+        string? loaderVersion,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond)
+    {
+        return InstallCoreAsync(
+            minecraftVersion,
+            outputGameDirectory,
+            sharedMinecraftDirectory,
+            isolatedVersionName,
+            loaderVersion,
+            progress,
+            downloadSourcePreference,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
+    }
+
+    private async Task<string> InstallCoreAsync(
+        string minecraftVersion,
+        string gameDirectory,
+        string sharedMinecraftDirectory,
+        string isolatedVersionName,
+        string? loaderVersion,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond)
     {
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
 
@@ -206,6 +253,14 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
 
+            var prerequisiteSeeder = new LoaderInstallerPrerequisiteSeeder();
+            var workspaceSnapshot = await prerequisiteSeeder.SeedAsync(
+                sharedMinecraftDirectory,
+                installerMinecraftDirectory,
+                minecraftVersion,
+                installerJarPath,
+                cancellationToken).ConfigureAwait(false);
+
             progress?.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
             await installerRunner.RunInstallerAsync("java", installerJarPath, installerMinecraftDirectory, cancellationToken);
 
@@ -231,7 +286,7 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
 
             progress?.Report(new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty));
             await finalVersionInstaller.InstallAsync(
-                installerMinecraftDirectory,
+                new MinecraftPath(installerMinecraftDirectory),
                 finalVersionName,
                 downloadSourcePreference,
                 progress,
@@ -243,7 +298,10 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider
                 gameDirectory,
                 finalVersionName,
                 cancellationToken);
-            MinecraftSharedContentCopier.CopySharedRuntimeContent(installerMinecraftDirectory, gameDirectory, logger);
+            await prerequisiteSeeder.PublishDeltaAsync(
+                workspaceSnapshot,
+                gameDirectory,
+                cancellationToken).ConfigureAwait(false);
 
             LoaderVersionDirectoryTransaction.CleanupCreatedVersionDirectories(gameDirectory, existingVersionNames, finalVersionName);
             logger.LogInformation(

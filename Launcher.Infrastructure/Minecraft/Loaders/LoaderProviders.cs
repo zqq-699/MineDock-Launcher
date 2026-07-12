@@ -228,11 +228,27 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             logger,
             bandwidthLimiter,
             category: DownloadConcurrencyCategory.Runtime);
+        var assetIndexExecutor = new MinecraftDownloadRequestExecutor(
+            runtimeHttpClient,
+            logger,
+            bandwidthLimiter,
+            category: DownloadConcurrencyCategory.Metadata);
         parameters.GameInstaller = DownloadSpeedTrackingGameInstaller.CreateAsCoreCount(
             parameters.HttpClient,
             runtimeExecutor,
             downloadSourcePreference,
-            progress);
+            progress,
+            path);
+        var defaultAssetExtractor = parameters.FileExtractors!
+            .Select((extractor, index) => (extractor, index))
+            .First(entry => entry.extractor is CmlLib.Core.FileExtractors.AssetFileExtractor);
+        if (parameters.FileExtractors is not null)
+        {
+            parameters.FileExtractors.RemoveAt(defaultAssetExtractor.index);
+            parameters.FileExtractors.Insert(
+                defaultAssetExtractor.index,
+                new SafeAssetFileExtractor(assetIndexExecutor, downloadSourcePreference));
+        }
         return new MinecraftLauncher(parameters);
     }
 }

@@ -31,6 +31,7 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
     private readonly DownloadSpeedAggregator speedAggregator;
     private readonly MinecraftDownloadRequestExecutor downloadExecutor;
     private readonly DownloadSourcePreference downloadSourcePreference;
+    private readonly MinecraftPath? minecraftPath;
 
     private DownloadSpeedTrackingGameInstaller(
         int maxChecker,
@@ -39,11 +40,13 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         HttpClient httpClient,
         MinecraftDownloadRequestExecutor downloadExecutor,
         DownloadSourcePreference downloadSourcePreference,
-        IProgress<LauncherProgress>? progress)
+        IProgress<LauncherProgress>? progress,
+        MinecraftPath? minecraftPath)
         : base(maxChecker, maxDownloader, boundedCapacity, httpClient)
     {
         this.downloadExecutor = downloadExecutor;
         this.downloadSourcePreference = downloadSourcePreference;
+        this.minecraftPath = minecraftPath;
         speedAggregator = new DownloadSpeedAggregator(progress);
     }
 
@@ -51,7 +54,8 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         HttpClient httpClient,
         MinecraftDownloadRequestExecutor downloadExecutor,
         DownloadSourcePreference downloadSourcePreference,
-        IProgress<LauncherProgress>? progress)
+        IProgress<LauncherProgress>? progress,
+        MinecraftPath? minecraftPath = null)
     {
         var maxChecker = Environment.ProcessorCount;
         maxChecker = Math.Max(1, maxChecker);
@@ -68,7 +72,8 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
             httpClient,
             downloadExecutor,
             downloadSourcePreference,
-            progress);
+            progress,
+            minecraftPath);
     }
 
     protected override Task Download(
@@ -89,6 +94,8 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
             ?? throw new InvalidDataException($"CmlLib game file URL is missing: {file.Name}");
         var filePath = file.Path
             ?? throw new InvalidDataException($"CmlLib game file path is missing: {file.Name}");
+        if (minecraftPath is not null)
+            filePath = MinecraftPathGuard.EnsureInstallFilePath(minecraftPath, filePath);
         NetworkDownloadProgress? attemptProgress = null;
         var currentAttempt = 0;
         return downloadExecutor.DownloadFileAsync(

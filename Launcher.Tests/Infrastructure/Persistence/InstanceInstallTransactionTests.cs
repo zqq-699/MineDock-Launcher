@@ -102,6 +102,32 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task LoaderSandboxIsNotSeededWithExistingSharedRuntimeTrees()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        Directory.CreateDirectory(Path.Combine(minecraftDirectory, "libraries", "unrelated"));
+        Directory.CreateDirectory(Path.Combine(minecraftDirectory, "assets", "objects", "aa"));
+        await File.WriteAllTextAsync(Path.Combine(minecraftDirectory, "libraries", "unrelated", "library.jar"), "library");
+        await File.WriteAllTextAsync(Path.Combine(minecraftDirectory, "assets", "objects", "aa", "asset"), "asset");
+        var transactionService = new InstanceInstallTransactionService();
+        await using var transaction = await transactionService.BeginAsync(
+            minecraftDirectory, "Test", "instance", "game", false);
+        var provider = new FakeLoaderProvider();
+        var installer = new ModpackGameInstaller([provider]);
+
+        await installer.InstallInstanceAsync(
+            "1.20.1",
+            LoaderKind.Vanilla,
+            null,
+            new LoaderInstallTarget(minecraftDirectory, "Test", transaction.PendingDirectory),
+            progress: null);
+
+        Assert.False(provider.SawLibrariesDirectoryDuringInstall);
+        Assert.False(provider.SawAssetObjectsDirectoryDuringInstall);
+        Assert.False(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "Test")));
+    }
+
+    [Fact]
     public async Task ConcurrentInstallersProceedWhileCleanupSkipsTheirActivePendingDirectories()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");

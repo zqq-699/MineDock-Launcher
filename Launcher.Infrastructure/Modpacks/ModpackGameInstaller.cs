@@ -301,16 +301,14 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
 
         try
         {
-            // 先播种已有共享文件减少重复下载，安装成功后再把沙箱新增内容回写目标目录。
-            var seededRuntimeCopy = MinecraftSharedContentCopier.CopySharedRuntimeContent(
-                target.MinecraftDirectory,
-                sandboxMinecraftDirectory,
-                logger,
-                cancellationToken);
+            // 版本文件留在私有沙箱；共享运行库通过分离路径直接复用真实 Minecraft 缓存。
             var finalVersionName = await composeAsync(sandboxMinecraftDirectory).ConfigureAwait(false);
+            var installLayout = MinecraftInstallPathLayout.Create(
+                sandboxMinecraftDirectory,
+                target.MinecraftDirectory);
 
             await finalVersionInstaller.InstallAsync(
-                sandboxMinecraftDirectory,
+                installLayout.Path,
                 finalVersionName,
                 downloadSourcePreference,
                 progress,
@@ -323,26 +321,13 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 target.PhysicalOutputDirectory,
                 allowExistingDestination: true,
                 cancellationToken: cancellationToken);
-            var appliedRuntimeCopy = MinecraftSharedContentCopier.CopySharedRuntimeContent(
-                sandboxMinecraftDirectory,
-                target.MinecraftDirectory,
-                logger,
-                cancellationToken);
-
             logger.LogInformation(
-                "Installed modpack loader version through sandbox. Loader={Loader} MinecraftVersion={MinecraftVersion} FinalVersionName={FinalVersionName} SessionDirectory={SessionDirectory} SeededLibrariesCopied={SeededLibrariesCopied} SeededAssetIndexesCopied={SeededAssetIndexesCopied} SeededAssetObjectsCopied={SeededAssetObjectsCopied} SeededLogConfigsCopied={SeededLogConfigsCopied} AppliedLibrariesCopied={AppliedLibrariesCopied} AppliedAssetIndexesCopied={AppliedAssetIndexesCopied} AppliedAssetObjectsCopied={AppliedAssetObjectsCopied} AppliedLogConfigsCopied={AppliedLogConfigsCopied}",
+                "Installed modpack loader version through split sandbox paths. Loader={Loader} MinecraftVersion={MinecraftVersion} FinalVersionName={FinalVersionName} SessionDirectory={SessionDirectory} SharedMinecraftDirectory={SharedMinecraftDirectory}",
                 loaderName,
                 minecraftVersion,
                 finalVersionName,
                 sessionDirectory,
-                seededRuntimeCopy.LibrariesCopied,
-                seededRuntimeCopy.AssetIndexesCopied,
-                seededRuntimeCopy.AssetObjectsCopied,
-                seededRuntimeCopy.LogConfigsCopied,
-                appliedRuntimeCopy.LibrariesCopied,
-                appliedRuntimeCopy.AssetIndexesCopied,
-                appliedRuntimeCopy.AssetObjectsCopied,
-                appliedRuntimeCopy.LogConfigsCopied);
+                target.MinecraftDirectory);
             return finalVersionName;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -377,20 +362,26 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         Directory.CreateDirectory(sessionDirectory);
         try
         {
-            MinecraftSharedContentCopier.CopySharedRuntimeContent(
-                target.MinecraftDirectory,
-                sandboxMinecraftDirectory,
-                logger,
-                cancellationToken);
-            var finalVersionName = await provider.InstallAsync(
-                minecraftVersion,
-                sandboxMinecraftDirectory,
-                target.LogicalVersionName,
-                loaderVersion,
-                progress,
-                downloadSourcePreference,
-                cancellationToken,
-                downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
+            var finalVersionName = provider is IStagedLoaderProvider stagedProvider
+                ? await stagedProvider.InstallStagedAsync(
+                    minecraftVersion,
+                    sandboxMinecraftDirectory,
+                    target.MinecraftDirectory,
+                    target.LogicalVersionName,
+                    loaderVersion,
+                    progress,
+                    downloadSourcePreference,
+                    cancellationToken,
+                    downloadSpeedLimitMbPerSecond).ConfigureAwait(false)
+                : await provider.InstallAsync(
+                    minecraftVersion,
+                    sandboxMinecraftDirectory,
+                    target.LogicalVersionName,
+                    loaderVersion,
+                    progress,
+                    downloadSourcePreference,
+                    cancellationToken,
+                    downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
             if (!string.Equals(finalVersionName, target.LogicalVersionName, StringComparison.Ordinal))
                 throw new InvalidDataException("Loader returned a version identity different from the logical install name.");
             MinecraftVersionDirectoryCopier.CopyVersionDirectoryTo(
@@ -399,11 +390,12 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 target.PhysicalOutputDirectory,
                 allowExistingDestination: true,
                 cancellationToken);
-            MinecraftSharedContentCopier.CopySharedRuntimeContent(
-                sandboxMinecraftDirectory,
+            await new LoaderInstallerPrerequisiteSeeder().PublishDeltaAsync(
+                new LoaderInstallerWorkspaceSnapshot(
+                    sandboxMinecraftDirectory,
+                    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)),
                 target.MinecraftDirectory,
-                logger,
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
             return finalVersionName;
         }
         finally
