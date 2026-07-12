@@ -875,6 +875,12 @@
   <data name="Dialog_LaunchAnalysisModVersionTitle" xml:space="preserve"><value>模组版本不兼容</value></data>
   <data name="Dialog_LaunchAnalysisModVersionDetail" xml:space="preserve"><value>当前实例中的某些模组与 Minecraft、加载器或其他模组版本不兼容。</value></data>
   <data name="Dialog_LaunchAnalysisModVersionRecommendation" xml:space="preserve"><value>请检查模组是否匹配当前 Minecraft 和加载器版本，必要时更新或移除冲突模组。</value></data>
+  <data name="Dialog_LaunchAnalysisDetailMissingDependencyFormat" xml:space="preserve"><value>{0} 需要依赖 {1}，但当前实例未安装该依赖。</value></data>
+  <data name="Dialog_LaunchAnalysisDetailWrongVersionFormat" xml:space="preserve"><value>{0} 需要 {1}，但当前版本为 {2}。</value></data>
+  <data name="Dialog_LaunchAnalysisDetailConflictFormat" xml:space="preserve"><value>检测到与 {0} 相关的模组冲突。</value></data>
+  <data name="Dialog_LaunchAnalysisOriginalReasonLabel" xml:space="preserve"><value>原始原因</value></data>
+  <data name="Dialog_LaunchAnalysisOriginalSuggestionLabel" xml:space="preserve"><value>Loader 建议</value></data>
+  <data name="Dialog_LaunchAnalysisAdditionalDetailsFormat" xml:space="preserve"><value>还有 {0} 个问题未显示，请查看或导出完整报告。</value></data>
   <data name="Dialog_LaunchAnalysisMissingFilesTitle" xml:space="preserve"><value>游戏文件或库缺失</value></data>
   <data name="Dialog_LaunchAnalysisMissingFilesDetail" xml:space="preserve"><value>启动过程缺少关键游戏文件、库文件或启动目标。</value></data>
   <data name="Dialog_LaunchAnalysisMissingClasspathEntryDetailFormat" xml:space="preserve"><value>启动命令引用了不存在的文件：{0}</value></data>

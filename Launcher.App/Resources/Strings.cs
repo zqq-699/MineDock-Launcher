@@ -1124,6 +1124,12 @@ public static class Strings
     public static string Dialog_LaunchAnalysisModVersionTitle => Get(nameof(Dialog_LaunchAnalysisModVersionTitle));
     public static string Dialog_LaunchAnalysisModVersionDetail => Get(nameof(Dialog_LaunchAnalysisModVersionDetail));
     public static string Dialog_LaunchAnalysisModVersionRecommendation => Get(nameof(Dialog_LaunchAnalysisModVersionRecommendation));
+    public static string Dialog_LaunchAnalysisDetailMissingDependencyFormat => Get(nameof(Dialog_LaunchAnalysisDetailMissingDependencyFormat));
+    public static string Dialog_LaunchAnalysisDetailWrongVersionFormat => Get(nameof(Dialog_LaunchAnalysisDetailWrongVersionFormat));
+    public static string Dialog_LaunchAnalysisDetailConflictFormat => Get(nameof(Dialog_LaunchAnalysisDetailConflictFormat));
+    public static string Dialog_LaunchAnalysisOriginalReasonLabel => Get(nameof(Dialog_LaunchAnalysisOriginalReasonLabel));
+    public static string Dialog_LaunchAnalysisOriginalSuggestionLabel => Get(nameof(Dialog_LaunchAnalysisOriginalSuggestionLabel));
+    public static string Dialog_LaunchAnalysisAdditionalDetailsFormat => Get(nameof(Dialog_LaunchAnalysisAdditionalDetailsFormat));
     public static string Dialog_LaunchAnalysisMissingFilesTitle => Get(nameof(Dialog_LaunchAnalysisMissingFilesTitle));
     public static string Dialog_LaunchAnalysisMissingFilesDetail => Get(nameof(Dialog_LaunchAnalysisMissingFilesDetail));
     public static string Dialog_LaunchAnalysisMissingClasspathEntryDetailFormat => Get(nameof(Dialog_LaunchAnalysisMissingClasspathEntryDetailFormat));

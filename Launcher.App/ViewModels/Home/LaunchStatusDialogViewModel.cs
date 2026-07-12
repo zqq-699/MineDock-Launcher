@@ -29,6 +29,7 @@ namespace Launcher.App.ViewModels.Home;
 
 public sealed partial class LaunchStatusDialogViewModel : ObservableObject
 {
+    private const int MaxVisibleAnalysisDetails = 5;
     private readonly IInstanceFolderService instanceFolderService;
     private readonly IFilePickerService filePickerService;
     private readonly ILaunchDiagnosticExportService diagnosticExportService;
@@ -64,6 +65,18 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
 
     [ObservableProperty]
     private bool isExporting;
+
+    [ObservableProperty]
+    private IReadOnlyList<LaunchAnalysisDetailItem> analysisDetails = [];
+
+    [ObservableProperty]
+    private bool hasAnalysisDetails;
+
+    [ObservableProperty]
+    private string analysisAdditionalDetailsHint = string.Empty;
+
+    [ObservableProperty]
+    private bool hasAdditionalAnalysisDetails;
 
     public LaunchStatusDialogViewModel(
         IInstanceFolderService instanceFolderService,
@@ -225,6 +238,10 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
             AnalysisReasonTitle = string.Empty;
             AnalysisReasonDetail = string.Empty;
             AnalysisRecommendation = string.Empty;
+            AnalysisDetails = [];
+            HasAnalysisDetails = false;
+            AnalysisAdditionalDetailsHint = string.Empty;
+            HasAdditionalAnalysisDetails = false;
             return;
         }
 
@@ -232,6 +249,80 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
         AnalysisReasonTitle = GetAnalysisReasonTitle(analysis);
         AnalysisReasonDetail = GetAnalysisReasonDetail(analysis);
         AnalysisRecommendation = GetAnalysisRecommendation(analysis);
+        AnalysisDetails = BuildAnalysisDetails(analysis);
+        HasAnalysisDetails = AnalysisDetails.Count > 0;
+        var additionalDetailCount = analysis.Details.Count > 0
+            ? Math.Max(0, analysis.Details.Count - MaxVisibleAnalysisDetails)
+            : Math.Max(0, analysis.Evidence.Count - MaxVisibleAnalysisDetails);
+        AnalysisAdditionalDetailsHint = additionalDetailCount > 0
+            ? string.Format(Strings.Dialog_LaunchAnalysisAdditionalDetailsFormat, additionalDetailCount)
+            : string.Empty;
+        HasAdditionalAnalysisDetails = additionalDetailCount > 0;
+    }
+
+    private static IReadOnlyList<LaunchAnalysisDetailItem> BuildAnalysisDetails(LaunchFailureAnalysis analysis)
+    {
+        if (analysis.Details.Count > 0)
+        {
+            return analysis.Details
+                .Take(MaxVisibleAnalysisDetails)
+                .Select(detail => new LaunchAnalysisDetailItem(
+                    GetAnalysisDetailSummary(detail),
+                    detail.OriginalReason ?? string.Empty,
+                    detail.OriginalSuggestion ?? string.Empty))
+                .ToArray();
+        }
+
+        if (analysis.Evidence.Count == 0)
+            return [];
+
+        var visibleEvidence = analysis.Evidence.Take(MaxVisibleAnalysisDetails).ToArray();
+        var reasons = visibleEvidence
+            .Where(item => item.Kind == LaunchFailureEvidenceKind.Reason)
+            .Select(item => item.Text);
+        var suggestions = visibleEvidence
+            .Where(item => item.Kind == LaunchFailureEvidenceKind.Suggestion)
+            .Select(item => item.Text);
+        return
+        [
+            new LaunchAnalysisDetailItem(
+                GetAnalysisReasonDetail(analysis),
+                string.Join(Environment.NewLine, reasons),
+                string.Join(Environment.NewLine, suggestions))
+        ];
+    }
+
+    private static string GetAnalysisDetailSummary(LaunchFailureDetail detail)
+    {
+        var mod = FormatNameAndVersion(detail.ModName, detail.ModVersion);
+        var dependency = FormatNameAndVersion(detail.DependencyName, detail.RequiredVersion);
+        return detail.Kind switch
+        {
+            LaunchFailureDetailKind.MissingDependency => string.Format(
+                Strings.Dialog_LaunchAnalysisDetailMissingDependencyFormat,
+                mod,
+                dependency),
+            LaunchFailureDetailKind.IncompatibleDependencyVersion
+                or LaunchFailureDetailKind.IncompatibleMinecraftVersion
+                or LaunchFailureDetailKind.IncompatibleLoaderVersion => string.Format(
+                    Strings.Dialog_LaunchAnalysisDetailWrongVersionFormat,
+                    mod,
+                    dependency,
+                    string.IsNullOrWhiteSpace(detail.CurrentVersion)
+                        ? Strings.Dialog_LaunchStatusUnknownExitCode
+                        : detail.CurrentVersion),
+            _ => string.Format(
+                Strings.Dialog_LaunchAnalysisDetailConflictFormat,
+                mod)
+        };
+    }
+
+    private static string FormatNameAndVersion(string? name, string? version)
+    {
+        var displayName = string.IsNullOrWhiteSpace(name)
+            ? Strings.Dialog_LaunchAnalysisCurrentInstance
+            : name;
+        return string.IsNullOrWhiteSpace(version) ? displayName : $"{displayName} {version}";
     }
 
     private static string GetAnalysisReasonTitle(LaunchFailureAnalysis analysis)
@@ -294,4 +385,14 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
             _ => Strings.Dialog_LaunchAnalysisUnknownRecommendation
         };
     }
+}
+
+public sealed record LaunchAnalysisDetailItem(
+    string Summary,
+    string OriginalReason,
+    string OriginalSuggestion)
+{
+    public bool HasOriginalReason => !string.IsNullOrWhiteSpace(OriginalReason);
+
+    public bool HasOriginalSuggestion => !string.IsNullOrWhiteSpace(OriginalSuggestion);
 }

@@ -184,7 +184,7 @@ internal static class LaunchDiagnosticsWriter
         builder.AppendLine($"MinecraftDirectory: {Path.GetFullPath(context.MinecraftDirectory)}");
 
         AppendDiagnosticReferences(builder, allCandidates);
-        AppendAnalysisSection(builder, analysis);
+        AppendAnalysisSection(builder, analysis, context.SensitiveValues);
         appendSections(builder);
 
         await File.WriteAllTextAsync(diagnosticPath, builder.ToString(), cancellationToken);
@@ -263,7 +263,8 @@ internal static class LaunchDiagnosticsWriter
 
     private static void AppendAnalysisSection(
         StringBuilder builder,
-        Launcher.Application.Services.LaunchFailureAnalysis? analysis)
+        Launcher.Application.Services.LaunchFailureAnalysis? analysis,
+        IReadOnlyList<string> sensitiveValues)
     {
         builder.AppendLine();
         builder.AppendLine("[Analysis]");
@@ -287,6 +288,28 @@ internal static class LaunchDiagnosticsWriter
             builder.AppendLine($"DependencyName: {analysis.DependencyName}");
         if (!string.IsNullOrWhiteSpace(analysis.MissingPath))
             builder.AppendLine($"MissingPath: {analysis.MissingPath}");
+
+        for (var index = 0; index < analysis.Details.Count; index++)
+        {
+            var detail = analysis.Details[index];
+            builder.AppendLine();
+            builder.AppendLine($"[Analysis.Detail.{index + 1}]");
+            builder.AppendLine($"Kind: {detail.Kind}");
+            builder.AppendLine($"ModName: {detail.ModName ?? string.Empty}");
+            builder.AppendLine($"ModVersion: {detail.ModVersion ?? string.Empty}");
+            builder.AppendLine($"DependencyName: {detail.DependencyName ?? string.Empty}");
+            builder.AppendLine($"RequiredVersion: {detail.RequiredVersion ?? string.Empty}");
+            builder.AppendLine($"CurrentVersion: {detail.CurrentVersion ?? string.Empty}");
+            builder.AppendLine($"OriginalReason: {RedactSensitiveText(detail.OriginalReason ?? string.Empty, sensitiveValues)}");
+            builder.AppendLine($"OriginalSuggestion: {RedactSensitiveText(detail.OriginalSuggestion ?? string.Empty, sensitiveValues)}");
+        }
+
+        for (var index = 0; index < analysis.Evidence.Count; index++)
+        {
+            var evidence = analysis.Evidence[index];
+            builder.AppendLine(
+                $"Evidence.{index + 1}: {evidence.Kind}: {RedactSensitiveText(evidence.Text, sensitiveValues)}");
+        }
     }
 
     private sealed record LatestLogTail(string Text, bool IsFresh);

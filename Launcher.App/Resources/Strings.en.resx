@@ -2567,6 +2567,24 @@ The current game folder will be backed up first.</value>
   <data name="Dialog_LaunchAnalysisModVersionRecommendation" xml:space="preserve">
     <value>Check whether the mods match the current Minecraft and loader versions. Update or remove conflicting mods if needed.</value>
   </data>
+  <data name="Dialog_LaunchAnalysisDetailMissingDependencyFormat" xml:space="preserve">
+    <value>{0} requires dependency {1}, but it is not installed in this instance.</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisDetailWrongVersionFormat" xml:space="preserve">
+    <value>{0} requires {1}, but the current version is {2}.</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisDetailConflictFormat" xml:space="preserve">
+    <value>A mod conflict related to {0} was detected.</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisOriginalReasonLabel" xml:space="preserve">
+    <value>Original reason</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisOriginalSuggestionLabel" xml:space="preserve">
+    <value>Loader suggestion</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisAdditionalDetailsFormat" xml:space="preserve">
+    <value>{0} more issue(s) are not shown. View or export the complete report for details.</value>
+  </data>
   <data name="Dialog_LaunchAnalysisMissingFilesTitle" xml:space="preserve">
     <value>Missing Game Files</value>
   </data>

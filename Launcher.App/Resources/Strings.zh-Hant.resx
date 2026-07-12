@@ -2567,6 +2567,24 @@
   <data name="Dialog_LaunchAnalysisModVersionRecommendation" xml:space="preserve">
     <value>請檢查模組是否符合目前 Minecraft 和載入器版本，必要時更新或移除衝突模組。</value>
   </data>
+  <data name="Dialog_LaunchAnalysisDetailMissingDependencyFormat" xml:space="preserve">
+    <value>{0} 需要依賴 {1}，但目前實例未安裝該依賴。</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisDetailWrongVersionFormat" xml:space="preserve">
+    <value>{0} 需要 {1}，但目前版本為 {2}。</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisDetailConflictFormat" xml:space="preserve">
+    <value>偵測到與 {0} 相關的模組衝突。</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisOriginalReasonLabel" xml:space="preserve">
+    <value>原始原因</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisOriginalSuggestionLabel" xml:space="preserve">
+    <value>Loader 建議</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisAdditionalDetailsFormat" xml:space="preserve">
+    <value>還有 {0} 個問題未顯示，請檢視或匯出完整報告。</value>
+  </data>
   <data name="Dialog_LaunchAnalysisMissingFilesTitle" xml:space="preserve">
     <value>遊戲檔案或函式庫缺少</value>
   </data>

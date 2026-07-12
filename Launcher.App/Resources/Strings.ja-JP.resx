@@ -2567,6 +2567,24 @@
   <data name="Dialog_LaunchAnalysisModVersionRecommendation" xml:space="preserve">
     <value>Mod が現在の Minecraft とローダーバージョンに一致しているか確認し、必要に応じて競合する Mod を更新または削除してください。</value>
   </data>
+  <data name="Dialog_LaunchAnalysisDetailMissingDependencyFormat" xml:space="preserve">
+    <value>{0} には依存関係 {1} が必要ですが、このインスタンスにはインストールされていません。</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisDetailWrongVersionFormat" xml:space="preserve">
+    <value>{0} には {1} が必要ですが、現在のバージョンは {2} です。</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisDetailConflictFormat" xml:space="preserve">
+    <value>{0} に関連する Mod の競合が検出されました。</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisOriginalReasonLabel" xml:space="preserve">
+    <value>元の原因</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisOriginalSuggestionLabel" xml:space="preserve">
+    <value>Loader の提案</value>
+  </data>
+  <data name="Dialog_LaunchAnalysisAdditionalDetailsFormat" xml:space="preserve">
+    <value>ほかに {0} 件の問題があります。完全なレポートを表示またはエクスポートしてください。</value>
+  </data>
   <data name="Dialog_LaunchAnalysisMissingFilesTitle" xml:space="preserve">
     <value>ゲームファイルまたはライブラリが不足しています</value>
   </data>

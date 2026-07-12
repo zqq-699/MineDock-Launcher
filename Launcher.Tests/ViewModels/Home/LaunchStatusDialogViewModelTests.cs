@@ -67,6 +67,86 @@ public sealed class LaunchStatusDialogViewModelTests
     }
 
     [Fact]
+    public void DialogShowsStructuredReasonAndLoaderEvidence()
+    {
+        var viewModel = CreateViewModel(new FakeInstanceFolderService(_ => false), new FakeStatusService());
+        var analysis = new LaunchFailureAnalysis(
+            LaunchFailureCategory.ModDependencyMissing,
+            "mod_dependency_missing",
+            "required_mod_dependency_missing",
+            "install_missing_dependency")
+        {
+            Details =
+            [
+                new LaunchFailureDetail(
+                    LaunchFailureDetailKind.MissingDependency,
+                    ModName: "Iris",
+                    ModVersion: "1.9.6+mc1.21.8",
+                    DependencyName: "sodium",
+                    RequiredVersion: "0.7.x",
+                    OriginalReason: "Mod 'Iris' requires sodium, which is missing!",
+                    OriginalSuggestion: "Install sodium, any 0.7.x version.")
+            ]
+        };
+
+        viewModel.Show(CreateReport() with { Analysis = analysis });
+
+        Assert.True(viewModel.HasAnalysisDetails);
+        var detail = Assert.Single(viewModel.AnalysisDetails);
+        Assert.Contains("Iris", detail.Summary);
+        Assert.Contains("1.9.6+mc1.21.8", detail.Summary);
+        Assert.Contains("sodium", detail.Summary);
+        Assert.Contains("0.7.x", detail.Summary);
+        Assert.Equal("Mod 'Iris' requires sodium, which is missing!", detail.OriginalReason);
+        Assert.Equal("Install sodium, any 0.7.x version.", detail.OriginalSuggestion);
+    }
+
+    [Fact]
+    public void DialogShowsOnlyFirstFiveAnalysisDetails()
+    {
+        var viewModel = CreateViewModel(new FakeInstanceFolderService(_ => false), new FakeStatusService());
+        var analysis = new LaunchFailureAnalysis(
+            LaunchFailureCategory.ModDependencyMissing,
+            "mod_dependency_missing",
+            "required_mod_dependency_missing",
+            "install_missing_dependency")
+        {
+            Details = Enumerable.Range(1, 7)
+                .Select(index => new LaunchFailureDetail(
+                    LaunchFailureDetailKind.MissingDependency,
+                    ModName: $"Mod {index}",
+                    DependencyName: $"Dependency {index}",
+                    OriginalReason: $"Reason {index}"))
+                .ToArray()
+        };
+
+        viewModel.Show(CreateReport() with { Analysis = analysis });
+
+        Assert.Equal(5, viewModel.AnalysisDetails.Count);
+        Assert.True(viewModel.HasAdditionalAnalysisDetails);
+        Assert.Contains("2", viewModel.AnalysisAdditionalDetailsHint);
+        Assert.DoesNotContain(viewModel.AnalysisDetails, item => item.Summary.Contains("Mod 6", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void DialogKeepsGenericAnalysisWhenNoSpecificEvidenceExists()
+    {
+        var viewModel = CreateViewModel(new FakeInstanceFolderService(_ => false), new FakeStatusService());
+        var analysis = new LaunchFailureAnalysis(
+            LaunchFailureCategory.ModVersionIncompatible,
+            "mod_version_incompatible",
+            "mod_version_incompatible",
+            "check_mod_versions");
+
+        viewModel.Show(CreateReport() with { Analysis = analysis });
+
+        Assert.True(viewModel.HasAnalysis);
+        Assert.False(viewModel.HasAnalysisDetails);
+        Assert.Empty(viewModel.AnalysisDetails);
+        Assert.Contains(Strings.Dialog_LaunchAnalysisModVersionDetail, viewModel.Message);
+    }
+
+    [Fact]
     public async Task ExportReportDoesNothingWhenSaveDialogIsCanceled()
     {
         var exportService = new FakeLaunchDiagnosticExportService();

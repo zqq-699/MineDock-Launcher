@@ -634,7 +634,7 @@ public sealed class LaunchService : ILaunchService
         {
             LaunchFailureCategory.JavaVersionMismatch => FormatJavaVersionMismatch(analysis),
             LaunchFailureCategory.ModDependencyMissing => FormatModDependencyMissing(analysis),
-            LaunchFailureCategory.ModVersionIncompatible => "Mod versions appear to be incompatible. Check whether the installed mods match this Minecraft and loader version.",
+            LaunchFailureCategory.ModVersionIncompatible => FormatModVersionIncompatible(analysis),
             LaunchFailureCategory.MissingGameFiles => FormatMissingGameFiles(analysis),
             LaunchFailureCategory.OutOfMemory => "Minecraft ran out of memory. Increase the allocated memory or reduce loaded mods/resources.",
             _ => $"{analysis.ReasonTitle}: {analysis.ReasonDetail}. {analysis.Recommendation}"
@@ -660,6 +660,25 @@ public sealed class LaunchService : ILaunchService
             ? "a required dependency"
             : $"required dependency '{analysis.DependencyName}'";
         return $"{modText} is missing {dependencyText}. Install the missing dependency and try again.";
+    }
+
+    private static string FormatModVersionIncompatible(LaunchFailureAnalysis analysis)
+    {
+        var detail = analysis.Details.FirstOrDefault();
+        if (detail is null)
+            return "Mod versions appear to be incompatible. Check whether the installed mods match this Minecraft and loader version.";
+
+        var modText = string.IsNullOrWhiteSpace(detail.ModName) ? "A mod" : $"Mod '{detail.ModName}'";
+        var dependencyText = string.IsNullOrWhiteSpace(detail.DependencyName)
+            ? "a dependency"
+            : $"dependency '{detail.DependencyName}'";
+        var requiredText = string.IsNullOrWhiteSpace(detail.RequiredVersion)
+            ? string.Empty
+            : $" Required: {detail.RequiredVersion}.";
+        var currentText = string.IsNullOrWhiteSpace(detail.CurrentVersion)
+            ? string.Empty
+            : $" Current: {detail.CurrentVersion}.";
+        return $"{modText} has an incompatible {dependencyText}.{requiredText}{currentText}";
     }
 
     private static string FormatMissingGameFiles(LaunchFailureAnalysis analysis)

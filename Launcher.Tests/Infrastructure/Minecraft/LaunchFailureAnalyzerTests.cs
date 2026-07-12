@@ -45,6 +45,36 @@ public sealed class LaunchFailureAnalyzerTests : TestTempDirectory
     }
 
     [Fact]
+    public void AnalyzerDoesNotCombineUnrelatedFabricVersionRequirementsIntoJavaMismatch()
+    {
+        const string latestLog = """
+            Incompatible mods found!
+            A potential solution has been determined:
+             - Install bclib, any version between 3.0.14 (inclusive) and 3.1- (exclusive).
+             - Install bookshelf, version 20 or later.
+            More details:
+             - Mod 'Better End' (betterend) 4.0.11 requires any 3.0.x version of bclib, which is missing!
+             - Mod 'EnchantmentDescriptions' (enchdesc) 17.1.19 requires version 20 or later of bookshelf, which is missing!
+             - Mod 'Statement Vanilla Compatibility Module' (statement_vanilla_compatibility) 1.0 requires any version between 1.14-0 (inclusive) and 1.16-0 (exclusive) of 'Minecraft' (minecraft), but only the wrong version is present: 1.20.1!
+            """;
+
+        var analysis = LaunchFailureAnalyzer.Analyze(CreateContext(), string.Empty, string.Empty, latestLog, []);
+
+        Assert.NotNull(analysis);
+        Assert.Equal(LaunchFailureCategory.ModDependencyMissing, analysis.Category);
+        Assert.Null(analysis.RequiredJavaMajorVersion);
+        Assert.Null(analysis.CurrentJavaMajorVersion);
+        Assert.Equal(3, analysis.Details.Count);
+        Assert.Contains(analysis.Details, detail =>
+            detail.ModName == "Better End"
+            && detail.DependencyName == "bclib"
+            && detail.Kind == LaunchFailureDetailKind.MissingDependency);
+        Assert.Contains(analysis.Details, detail =>
+            detail.ModName == "Statement Vanilla Compatibility Module"
+            && detail.Kind == LaunchFailureDetailKind.IncompatibleMinecraftVersion);
+    }
+
+    [Fact]
     public void AnalyzerPrefersCurrentMissingClasspathEntryOverStaleLatestLog()
     {
         const string missingPath = @"C:\Users\zhouquan\Documents\launcher\.minecraft\versions\1.21.9-fabric-0.19.3\1.21.9-fabric-0.19.3.jar";
@@ -100,6 +130,222 @@ public sealed class LaunchFailureAnalyzerTests : TestTempDirectory
     }
 
     [Fact]
+    public void AnalyzerExtractsFabricMissingDependencyReasonAndSuggestion()
+    {
+        const string latestLog = """
+            Incompatible mods found!
+            A potential solution has been determined, this may resolve your problem:
+              - Install sodium, any 0.7.x version.
+            More details:
+              - Mod 'Iris' (iris) 1.9.6+mc1.21.8 requires any 0.7.x version of sodium, which is missing!
+            """;
+
+        var analysis = LaunchFailureAnalyzer.Analyze(CreateContext(), string.Empty, string.Empty, latestLog, []);
+
+        Assert.NotNull(analysis);
+        Assert.Equal(LaunchFailureCategory.ModDependencyMissing, analysis.Category);
+        var detail = Assert.Single(analysis.Details);
+        Assert.Equal(LaunchFailureDetailKind.MissingDependency, detail.Kind);
+        Assert.Equal("Iris", detail.ModName);
+        Assert.Equal("1.9.6+mc1.21.8", detail.ModVersion);
+        Assert.Equal("sodium", detail.DependencyName);
+        Assert.Equal("0.7.x", detail.RequiredVersion);
+        Assert.Null(detail.CurrentVersion);
+        Assert.Contains("which is missing", detail.OriginalReason, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("Install sodium, any 0.7.x version.", detail.OriginalSuggestion);
+        Assert.Contains(analysis.Evidence, evidence =>
+            evidence.Kind == LaunchFailureEvidenceKind.Reason
+            && evidence.Text.Contains("Iris", StringComparison.Ordinal));
+        Assert.Contains(analysis.Evidence, evidence =>
+            evidence.Kind == LaunchFailureEvidenceKind.Suggestion
+            && evidence.Text.Contains("Install sodium", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AnalyzerExtractsMultipleFabricWrongVersionDetails()
+    {
+        const string latestLog = """
+            Incompatible mods found!
+            A potential solution has been determined:
+              - Replace mod 'Fabric Loader' (fabricloader) 0.14.21 with version 0.16.10 or later.
+            Unmet dependency listing:
+              - Mod 'Fabric API' (fabric-api) 0.92.5 requires version 0.16.10 or later of mod 'Fabric Loader' (fabricloader), but only the wrong version is present: 0.14.21!
+              - Mod 'GeckoLib' (geckolib) 4.2.4 requires version 0.14.22 or later of mod 'Fabric Loader' (fabricloader), but only the wrong version is present: 0.14.21!
+            """;
+
+        var analysis = LaunchFailureAnalyzer.Analyze(CreateContext(), string.Empty, string.Empty, latestLog, []);
+
+        Assert.NotNull(analysis);
+        Assert.Equal(LaunchFailureCategory.ModVersionIncompatible, analysis.Category);
+        Assert.Equal(2, analysis.Details.Count);
+        Assert.All(analysis.Details, detail =>
+        {
+            Assert.Equal(LaunchFailureDetailKind.IncompatibleLoaderVersion, detail.Kind);
+            Assert.Equal("Fabric Loader", detail.DependencyName);
+            Assert.Equal("0.14.21", detail.CurrentVersion);
+            Assert.Contains("Replace mod", detail.OriginalSuggestion);
+        });
+    }
+
+    [Theory]
+    [InlineData("not installed", LaunchFailureDetailKind.MissingDependency, null)]
+    [InlineData("0.6.8.a", LaunchFailureDetailKind.IncompatibleDependencyVersion, "0.6.8.a")]
+    public void AnalyzerExtractsForgeAndNeoForgeFailureMessage(
+        string currentState,
+        LaunchFailureDetailKind expectedKind,
+        string? expectedCurrentVersion)
+    {
+        var latestLog = $"""
+            Mod File: create.jar
+            Failure message: Mod create requires flywheel 0.6.9 or above, and below 0.6.10
+            Currently, flywheel is {currentState}
+            Mod Issue URL: https://example.invalid
+            """;
+
+        var analysis = LaunchFailureAnalyzer.Analyze(CreateContext(), string.Empty, string.Empty, latestLog, []);
+
+        Assert.NotNull(analysis);
+        var detail = Assert.Single(analysis.Details);
+        Assert.Equal(expectedKind, detail.Kind);
+        Assert.Equal("create", detail.ModName);
+        Assert.Equal("flywheel", detail.DependencyName);
+        Assert.Equal("0.6.9 or above, and below 0.6.10", detail.RequiredVersion);
+        Assert.Equal(expectedCurrentVersion, detail.CurrentVersion);
+        Assert.Contains("Currently, flywheel", detail.OriginalReason);
+    }
+
+    [Fact]
+    public void AnalyzerDeduplicatesRepeatedForgeFailureMessages()
+    {
+        const string failure = """
+            Failure message: Mod craftingtweaks requires balm 21.11.2 or above
+            Currently, balm is not installed
+            """;
+        var latestLog = $"{failure}{Environment.NewLine}{failure}";
+
+        var analysis = LaunchFailureAnalyzer.Analyze(CreateContext(), string.Empty, string.Empty, latestLog, []);
+
+        Assert.NotNull(analysis);
+        var detail = Assert.Single(analysis.Details);
+        Assert.Equal("craftingtweaks", detail.ModName);
+        Assert.Equal("balm", detail.DependencyName);
+    }
+
+    [Fact]
+    public void AnalyzerExtractsMultipleForgeFailuresWithSupportsAndRequiresWording()
+    {
+        const string latestLog = """
+            Failure message: Mod irons_only only supports curios 5.14.1 or above
+            Currently, curios is 5.6.1+1.20.1
+            Failure message: Mod sdrp requires cloth_config 9.0.94 or above
+            Currently, cloth_config is not installed
+            """;
+
+        var analysis = LaunchFailureAnalyzer.Analyze(CreateContext(), string.Empty, string.Empty, latestLog, []);
+
+        Assert.NotNull(analysis);
+        Assert.Equal(LaunchFailureCategory.ModDependencyMissing, analysis.Category);
+        Assert.Collection(
+            analysis.Details,
+            detail =>
+            {
+                Assert.Equal(LaunchFailureDetailKind.IncompatibleDependencyVersion, detail.Kind);
+                Assert.Equal("irons_only", detail.ModName);
+                Assert.Equal("curios", detail.DependencyName);
+                Assert.Equal("5.14.1 or above", detail.RequiredVersion);
+                Assert.Equal("5.6.1+1.20.1", detail.CurrentVersion);
+            },
+            detail =>
+            {
+                Assert.Equal(LaunchFailureDetailKind.MissingDependency, detail.Kind);
+                Assert.Equal("sdrp", detail.ModName);
+                Assert.Equal("cloth_config", detail.DependencyName);
+                Assert.Equal("9.0.94 or above", detail.RequiredVersion);
+                Assert.Null(detail.CurrentVersion);
+            });
+    }
+
+    [Fact]
+    public void AnalyzerKeepsHighSignalEvidenceWhenModConflictFormatIsUnknown()
+    {
+        const string latestLog = """
+            Mod loading has failed
+            Incompatible custom loader constraint for ExampleMod and Minecraft 1.21.7
+            at example.Loader.start(Loader.java:12)
+            """;
+
+        var analysis = LaunchFailureAnalyzer.Analyze(CreateContext(), string.Empty, string.Empty, latestLog, []);
+
+        Assert.NotNull(analysis);
+        Assert.Equal(LaunchFailureCategory.ModVersionIncompatible, analysis.Category);
+        Assert.Empty(analysis.Details);
+        Assert.Contains(analysis.Evidence, evidence => evidence.Text.Contains("ExampleMod", StringComparison.Ordinal));
+        Assert.DoesNotContain(analysis.Evidence, evidence => evidence.Text.StartsWith("at ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AnalyzerRedactsSensitiveValuesFromEvidence()
+    {
+        const string token = "secret-token-value";
+        const string latestLog = """
+            Incompatible mods found!
+            A potential solution has been determined:
+              - Install sodium --accessToken secret-token-value
+            More details:
+              - Mod 'Iris' (iris) 1.0 requires any version of sodium, which is missing!
+            """;
+
+        var analysis = LaunchFailureAnalyzer.Analyze(
+            CreateContext([token]),
+            string.Empty,
+            string.Empty,
+            latestLog,
+            []);
+
+        Assert.NotNull(analysis);
+        Assert.DoesNotContain(analysis.Evidence, evidence => evidence.Text.Contains(token, StringComparison.Ordinal));
+        Assert.Contains(analysis.Evidence, evidence => evidence.Text.Contains("<redacted>", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AnalyzerExtractsQuiltRemoveSuggestion()
+    {
+        const string latestLog = """
+            Incompatible mod set!
+            A potential solution has been determined:
+              - Remove mod 'Quilted API' (qsl) 7.0.0.
+            More details:
+              - Mod 'Quilted API' (qsl) 7.0.0 requires any 8.x version of quilt_loader, but only the wrong version is present: 0.26.0!
+            """;
+
+        var analysis = LaunchFailureAnalyzer.Analyze(
+            CreateContext(loader: LoaderKind.Quilt),
+            string.Empty,
+            string.Empty,
+            latestLog,
+            []);
+
+        Assert.NotNull(analysis);
+        var detail = Assert.Single(analysis.Details);
+        Assert.Equal(LaunchFailureDetailKind.IncompatibleLoaderVersion, detail.Kind);
+        Assert.Equal("Remove mod 'Quilted API' (qsl) 7.0.0.", detail.OriginalSuggestion);
+    }
+
+    [Fact]
+    public void AnalyzerDeduplicatesAndLimitsFallbackEvidence()
+    {
+        var repeatedLine = "Incompatible custom loader constraint " + new string('x', 1000);
+        var latestLog = $"Mod loading has failed{Environment.NewLine}{repeatedLine}{Environment.NewLine}{repeatedLine}";
+
+        var analysis = LaunchFailureAnalyzer.Analyze(CreateContext(), string.Empty, string.Empty, latestLog, []);
+
+        Assert.NotNull(analysis);
+        var evidence = Assert.Single(analysis.Evidence);
+        Assert.Equal(801, evidence.Text.Length);
+        Assert.EndsWith("…", evidence.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AnalyzerDetectsOutOfMemory()
     {
         var latestLog = "java.lang.OutOfMemoryError: Java heap space";
@@ -132,7 +378,9 @@ public sealed class LaunchFailureAnalyzerTests : TestTempDirectory
         Assert.Null(analysis);
     }
 
-    private LaunchDiagnosticContext CreateContext()
+    private LaunchDiagnosticContext CreateContext(
+        IReadOnlyList<string>? sensitiveValues = null,
+        LoaderKind loader = LoaderKind.Fabric)
     {
         return new LaunchDiagnosticContext(
             Path.Combine(TempRoot, ".minecraft"),
@@ -141,12 +389,12 @@ public sealed class LaunchFailureAnalyzerTests : TestTempDirectory
             "Example",
             "Example",
             "1.21.9",
-            LoaderKind.Fabric,
+            loader,
             "0.19.3",
             @"C:\Java\bin\java.exe",
             "21.0.1",
             "Test",
             4096,
-            []);
+            sensitiveValues ?? []);
     }
 }

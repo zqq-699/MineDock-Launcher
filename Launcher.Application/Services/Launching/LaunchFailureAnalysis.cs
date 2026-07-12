@@ -28,4 +28,9 @@ public sealed record LaunchFailureAnalysis(
     int? CurrentJavaMajorVersion = null,
     string? ModName = null,
     string? DependencyName = null,
-    string? MissingPath = null);
+    string? MissingPath = null)
+{
+    public IReadOnlyList<LaunchFailureDetail> Details { get; init; } = [];
+
+    public IReadOnlyList<LaunchFailureEvidence> Evidence { get; init; } = [];
+}

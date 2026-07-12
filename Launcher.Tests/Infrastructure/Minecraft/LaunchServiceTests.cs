@@ -105,6 +105,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
         Assert.Contains("Type: CapturedOutput", diagnostic);
         Assert.Contains("[RelatedDiagnostics]", diagnostic);
         Assert.Contains("LauncherDiagnostic:", diagnostic);
+        Assert.Contains("Evidence.1: Reason:", diagnostic);
         Assert.DoesNotContain("super-secret-access-token", diagnostic);
         var capturedOutput = await File.ReadAllTextAsync(exception.Report.PrimaryDiagnostic!.Path);
         Assert.Contains("[stderr]", capturedOutput);
