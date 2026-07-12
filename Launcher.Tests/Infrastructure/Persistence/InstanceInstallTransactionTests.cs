@@ -466,21 +466,7 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
         };
         var settingsService = new TestSettingsService(settings);
         var finalDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Test");
-        Directory.CreateDirectory(finalDirectory);
-        await File.WriteAllTextAsync(Path.Combine(finalDirectory, "Test.json"), """{"id":"Test"}""");
-        await File.WriteAllTextAsync(
-            Path.Combine(finalDirectory, ".bhl-install-pending.json"),
-            """
-            {
-              "schemaVersion": 1,
-              "transactionId": "a83f21c4000000000000000000000000",
-              "instanceId": "instance",
-              "logicalVersionName": "Test",
-              "installKind": "game",
-              "initializeDefaultIfEmpty": true,
-              "createdAtUtc": "2026-07-13T00:00:00Z"
-            }
-            """);
+        await WriteCommittedInstallAsync(finalDirectory);
 
         await new InstanceInstallCleanupService(settingsService).CleanupPendingAsync();
 
@@ -510,21 +496,7 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
         };
         var settingsService = new SequencedSettingsService(initialSettings, latestSettings);
         var finalDirectory = Path.Combine(minecraftDirectory, "versions", "Test");
-        Directory.CreateDirectory(finalDirectory);
-        await File.WriteAllTextAsync(Path.Combine(finalDirectory, "Test.json"), """{"id":"Test"}""");
-        await File.WriteAllTextAsync(
-            Path.Combine(finalDirectory, ".bhl-install-pending.json"),
-            """
-            {
-              "schemaVersion": 1,
-              "transactionId": "a83f21c4000000000000000000000000",
-              "instanceId": "instance",
-              "logicalVersionName": "Test",
-              "installKind": "game",
-              "initializeDefaultIfEmpty": true,
-              "createdAtUtc": "2026-07-13T00:00:00Z"
-            }
-            """);
+        await WriteCommittedInstallAsync(finalDirectory);
 
         await new InstanceInstallCleanupService(settingsService).CleanupPendingAsync();
 
@@ -546,27 +518,118 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
         };
         var settingsService = new FailingSaveSettingsService(settings);
         var finalDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Test");
-        Directory.CreateDirectory(finalDirectory);
-        await File.WriteAllTextAsync(Path.Combine(finalDirectory, "Test.json"), """{"id":"Test"}""");
+        await WriteCommittedInstallAsync(finalDirectory);
         var markerPath = Path.Combine(finalDirectory, ".bhl-install-pending.json");
-        await File.WriteAllTextAsync(
-            markerPath,
-            """
-            {
-              "schemaVersion": 1,
-              "transactionId": "a83f21c4000000000000000000000000",
-              "instanceId": "instance",
-              "logicalVersionName": "Test",
-              "installKind": "game",
-              "initializeDefaultIfEmpty": true,
-              "createdAtUtc": "2026-07-13T00:00:00Z"
-            }
-            """);
 
         await new InstanceInstallCleanupService(settingsService).CleanupPendingAsync();
 
         Assert.True(Directory.Exists(finalDirectory));
         Assert.True(File.Exists(markerPath));
+    }
+
+    [Theory]
+    [InlineData("schema")]
+    [InlineData("transaction")]
+    [InlineData("directory-name")]
+    [InlineData("empty-instance-id")]
+    [InlineData("instance-id")]
+    [InlineData("version-json-id")]
+    [InlineData("settings-version")]
+    [InlineData("settings-directory")]
+    [InlineData("missing-version-json")]
+    [InlineData("missing-instance-settings")]
+    [InlineData("invalid-marker")]
+    [InlineData("invalid-version-json")]
+    [InlineData("invalid-instance-settings")]
+    public async Task CleanupPreservesInvalidCommittedMarkerWithoutChangingDefaultInstance(string invalidPart)
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var settingsService = new TestSettingsService(settings);
+        var finalDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Test");
+        await WriteCommittedInstallAsync(
+            finalDirectory,
+            schemaVersion: invalidPart == "schema" ? 2 : 1,
+            transactionId: invalidPart == "transaction" ? "invalid" : "a83f21c4000000000000000000000000",
+            markerInstanceId: invalidPart == "empty-instance-id" ? string.Empty : "instance",
+            logicalVersionName: invalidPart == "directory-name" ? "Other" : "Test",
+            versionJsonId: invalidPart == "version-json-id" ? "Other" : "Test",
+            settingsInstanceId: invalidPart == "instance-id" ? "other-instance" : "instance",
+            settingsVersionName: invalidPart == "settings-version" ? "Other" : "Test",
+            settingsDirectory: invalidPart == "settings-directory" ? Path.Combine(TempRoot, "other") : finalDirectory);
+        var markerPath = Path.Combine(finalDirectory, ".bhl-install-pending.json");
+        if (invalidPart == "missing-version-json")
+            File.Delete(Path.Combine(finalDirectory, "Test.json"));
+        if (invalidPart == "missing-instance-settings")
+            File.Delete(Path.Combine(finalDirectory, "BHL", "instance-settings.json"));
+        if (invalidPart == "invalid-marker")
+            await File.WriteAllTextAsync(markerPath, "{");
+        if (invalidPart == "invalid-version-json")
+            await File.WriteAllTextAsync(Path.Combine(finalDirectory, "Test.json"), "{");
+        if (invalidPart == "invalid-instance-settings")
+            await File.WriteAllTextAsync(Path.Combine(finalDirectory, "BHL", "instance-settings.json"), "{");
+
+        await new InstanceInstallCleanupService(settingsService).CleanupPendingAsync();
+
+        Assert.Null((await settingsService.LoadAsync()).DefaultInstanceId);
+        Assert.True(File.Exists(markerPath));
+    }
+
+    [Fact]
+    public async Task CleanupDoesNotOverwriteExistingDefaultInstance()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft"),
+            DefaultInstanceId = "existing"
+        };
+        var finalDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Test");
+        await WriteCommittedInstallAsync(finalDirectory);
+        var settingsService = new TestSettingsService(settings);
+
+        await new InstanceInstallCleanupService(settingsService).CleanupPendingAsync();
+
+        Assert.Equal("existing", (await settingsService.LoadAsync()).DefaultInstanceId);
+        Assert.False(File.Exists(Path.Combine(finalDirectory, ".bhl-install-pending.json")));
+    }
+
+    private static async Task WriteCommittedInstallAsync(
+        string finalDirectory,
+        int schemaVersion = 1,
+        string transactionId = "a83f21c4000000000000000000000000",
+        string markerInstanceId = "instance",
+        string logicalVersionName = "Test",
+        string versionJsonId = "Test",
+        string settingsInstanceId = "instance",
+        string settingsVersionName = "Test",
+        string? settingsDirectory = null)
+    {
+        Directory.CreateDirectory(Path.Combine(finalDirectory, "BHL"));
+        await File.WriteAllTextAsync(
+            Path.Combine(finalDirectory, "Test.json"),
+            JsonSerializer.Serialize(new { id = versionJsonId }));
+        await File.WriteAllTextAsync(
+            Path.Combine(finalDirectory, ".bhl-install-pending.json"),
+            JsonSerializer.Serialize(new
+            {
+                schemaVersion,
+                transactionId,
+                instanceId = markerInstanceId,
+                logicalVersionName,
+                installKind = "game",
+                initializeDefaultIfEmpty = true,
+                createdAtUtc = DateTimeOffset.Parse("2026-07-13T00:00:00Z")
+            }));
+        await File.WriteAllTextAsync(
+            Path.Combine(finalDirectory, "BHL", "instance-settings.json"),
+            JsonSerializer.Serialize(CreateInstance(
+                settingsInstanceId,
+                settingsVersionName,
+                settingsDirectory ?? finalDirectory)));
     }
 
     private static GameInstance CreateInstance(string id, string name, string directory) => new()

@@ -57,29 +57,183 @@ internal static class PendingInstanceInstallDirectory
         string pendingDirectory,
         out PendingInstanceInstallMarker marker)
     {
+        if (!TryReadStructurallyValidMarker(pendingDirectory, out marker, out _))
+            return false;
+        var expectedName = $"{Prefix}{marker.LogicalVersionName}-{marker.TransactionId[..8].ToLowerInvariant()}";
+        return string.Equals(Path.GetFileName(pendingDirectory), expectedName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool TryReadValidCommittedMarker(
+        string versionsDirectory,
+        string committedDirectory,
+        out PendingInstanceInstallMarker marker,
+        out string failureReason)
+    {
         marker = default!;
+        failureReason = string.Empty;
         try
         {
-            var markerPath = Path.Combine(pendingDirectory, MarkerFileName);
-            if (!File.Exists(markerPath))
+            var normalizedVersionsDirectory = Path.GetFullPath(versionsDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var normalizedCommittedDirectory = Path.GetFullPath(committedDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (!string.Equals(
+                    Path.GetDirectoryName(normalizedCommittedDirectory),
+                    normalizedVersionsDirectory,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                failureReason = "not a direct child of the versions directory";
                 return false;
+            }
+            if ((File.GetAttributes(normalizedCommittedDirectory) & FileAttributes.ReparsePoint) != 0)
+            {
+                failureReason = "committed instance directory is a reparse point";
+                return false;
+            }
+            if (IsPending(normalizedCommittedDirectory)
+                || PendingInstanceDeletionDirectory.IsPending(normalizedCommittedDirectory)
+                || PendingInstanceRenameDirectory.IsPending(normalizedCommittedDirectory))
+            {
+                failureReason = "not an ordinary committed instance directory";
+                return false;
+            }
+            if (!TryReadStructurallyValidMarker(normalizedCommittedDirectory, out marker, out failureReason))
+                return false;
+
+            var directoryName = Path.GetFileName(normalizedCommittedDirectory);
+            if (!string.Equals(directoryName, marker.LogicalVersionName, StringComparison.Ordinal))
+            {
+                failureReason = "directory name does not match the logical version name";
+                return false;
+            }
+
+            var versionJsonPath = Path.Combine(normalizedCommittedDirectory, $"{marker.LogicalVersionName}.json");
+            if (!File.Exists(versionJsonPath))
+            {
+                failureReason = "version JSON is missing";
+                return false;
+            }
+            if ((File.GetAttributes(versionJsonPath) & FileAttributes.ReparsePoint) != 0)
+            {
+                failureReason = "version JSON is a reparse point";
+                return false;
+            }
+            using (var versionJson = JsonDocument.Parse(File.ReadAllText(versionJsonPath)))
+            {
+                if (!versionJson.RootElement.TryGetProperty("id", out var id)
+                    || id.ValueKind != JsonValueKind.String
+                    || !string.Equals(id.GetString(), marker.LogicalVersionName, StringComparison.Ordinal))
+                {
+                    failureReason = "version JSON id does not match the logical version name";
+                    return false;
+                }
+            }
+
+            var instanceSettingsPath = Path.Combine(
+                normalizedCommittedDirectory,
+                LauncherApplicationIdentity.StorageDirectoryName,
+                "instance-settings.json");
+            if (!File.Exists(instanceSettingsPath))
+            {
+                failureReason = "instance settings are missing";
+                return false;
+            }
+            if ((File.GetAttributes(instanceSettingsPath) & FileAttributes.ReparsePoint) != 0)
+            {
+                failureReason = "instance settings are a reparse point";
+                return false;
+            }
+            var instance = JsonSerializer.Deserialize<GameInstance>(
+                File.ReadAllText(instanceSettingsPath),
+                MarkerJsonOptions);
+            if (instance is null)
+            {
+                failureReason = "instance settings are empty";
+                return false;
+            }
+            if (!string.Equals(instance.Id, marker.InstanceId, StringComparison.Ordinal))
+            {
+                failureReason = "instance settings id does not match the install marker";
+                return false;
+            }
+            if (!string.Equals(instance.VersionName, marker.LogicalVersionName, StringComparison.Ordinal))
+            {
+                failureReason = "instance settings version name does not match the logical version name";
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(instance.InstanceDirectory)
+                || !string.Equals(
+                    Path.GetFullPath(instance.InstanceDirectory)
+                        .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    normalizedCommittedDirectory,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                failureReason = "instance settings directory does not match the committed directory";
+                return false;
+            }
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException
+                                           or UnauthorizedAccessException
+                                           or JsonException
+                                           or ArgumentException
+                                           or NotSupportedException)
+        {
+            failureReason = $"validation failed with {exception.GetType().Name}";
+            marker = default!;
+            return false;
+        }
+    }
+
+    private static bool TryReadStructurallyValidMarker(
+        string directory,
+        out PendingInstanceInstallMarker marker,
+        out string failureReason)
+    {
+        marker = default!;
+        failureReason = string.Empty;
+        try
+        {
+            var markerPath = Path.Combine(directory, MarkerFileName);
+            if (!File.Exists(markerPath))
+            {
+                failureReason = "transaction marker is missing";
+                return false;
+            }
             var parsed = JsonSerializer.Deserialize<PendingInstanceInstallMarker>(
                 File.ReadAllText(markerPath),
                 MarkerJsonOptions);
-            if (parsed is null
-                || parsed.SchemaVersion != 1
-                || string.IsNullOrWhiteSpace(parsed.InstanceId)
-                || string.IsNullOrWhiteSpace(parsed.LogicalVersionName)
-                || !Guid.TryParseExact(parsed.TransactionId, "N", out _))
+            if (parsed is null)
+            {
+                failureReason = "transaction marker is empty";
                 return false;
-            var expectedName = $"{Prefix}{parsed.LogicalVersionName}-{parsed.TransactionId[..8].ToLowerInvariant()}";
-            if (!string.Equals(Path.GetFileName(pendingDirectory), expectedName, StringComparison.OrdinalIgnoreCase))
+            }
+            if (parsed.SchemaVersion != 1)
+            {
+                failureReason = "unsupported schema version";
                 return false;
+            }
+            if (string.IsNullOrWhiteSpace(parsed.InstanceId))
+            {
+                failureReason = "instance id is missing";
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(parsed.LogicalVersionName))
+            {
+                failureReason = "logical version name is missing";
+                return false;
+            }
+            if (!Guid.TryParseExact(parsed.TransactionId, "N", out _))
+            {
+                failureReason = "transaction id is invalid";
+                return false;
+            }
             marker = parsed;
             return true;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
+            failureReason = $"marker could not be read ({exception.GetType().Name})";
             return false;
         }
     }
@@ -510,7 +664,6 @@ public sealed class InstanceInstallCleanupService(
     ISettingsService settingsService,
     ILogger<InstanceInstallCleanupService>? logger = null) : IInstanceInstallCleanupService
 {
-    private static readonly JsonSerializerOptions MarkerJsonOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly ILogger logger = logger ?? NullLogger<InstanceInstallCleanupService>.Instance;
 
     public async Task CleanupPendingAsync(CancellationToken cancellationToken = default)
@@ -561,22 +714,27 @@ public sealed class InstanceInstallCleanupService(
             var markerPath = Path.Combine(normalized, PendingInstanceInstallDirectory.MarkerFileName);
             if (!File.Exists(markerPath))
                 continue;
+            if (!PendingInstanceInstallDirectory.TryReadValidCommittedMarker(
+                    versionsDirectory,
+                    normalized,
+                    out var marker,
+                    out var failureReason))
+            {
+                logger.LogWarning(
+                    "Committed install marker was preserved because validation failed. MarkerPath={MarkerPath} Reason={Reason}",
+                    markerPath,
+                    failureReason);
+                continue;
+            }
             try
             {
-                await using (var markerStream = File.OpenRead(markerPath))
+                if (marker.InitializeDefaultIfEmpty)
                 {
-                    var marker = await JsonSerializer.DeserializeAsync<PendingInstanceInstallMarker>(
-                        markerStream,
-                        MarkerJsonOptions,
-                        cancellationToken: cancellationToken).ConfigureAwait(false);
-                    if (marker is not null && marker.InitializeDefaultIfEmpty)
+                    var latestSettings = await settingsService.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                    if (string.IsNullOrWhiteSpace(latestSettings.DefaultInstanceId))
                     {
-                        var latestSettings = await settingsService.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-                        if (string.IsNullOrWhiteSpace(latestSettings.DefaultInstanceId))
-                        {
-                            latestSettings.DefaultInstanceId = marker.InstanceId;
-                            await settingsService.SaveAsync(latestSettings, CancellationToken.None).ConfigureAwait(false);
-                        }
+                        latestSettings.DefaultInstanceId = marker.InstanceId;
+                        await settingsService.SaveAsync(latestSettings, CancellationToken.None).ConfigureAwait(false);
                     }
                 }
                 File.Delete(Path.Combine(normalized, PendingInstanceInstallDirectory.PendingLockFileName));
