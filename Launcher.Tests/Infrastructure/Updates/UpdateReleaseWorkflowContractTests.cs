@@ -14,6 +14,7 @@ public sealed class UpdateReleaseWorkflowContractTests
         Assert.Equal(1, Count(workflow, "${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_BASE64 }}"));
         Assert.Contains("derive-public --private-pem .local-secrets/update-signing-private.pem", workflow, StringComparison.Ordinal);
         Assert.Contains("--signature $env:GENERATED_SIGNATURE_PATH", workflow, StringComparison.Ordinal);
+        Assert.Contains(".Replace(\"`r`n\", \"`n\")", workflow, StringComparison.Ordinal);
         Assert.Contains("latest.json.sig", workflow, StringComparison.Ordinal);
         Assert.Contains("Verify published signed manifests are byte-identical", workflow, StringComparison.Ordinal);
         Assert.Contains("if: always()", workflow, StringComparison.Ordinal);

@@ -22,7 +22,7 @@ Live channel manifests are written by the release workflows to the
 
 ## Signing key
 
-`latest.json` is written as UTF-8 without a BOM and is signed byte-for-byte with
+`latest.json` is written with LF line endings as UTF-8 without a BOM and is signed byte-for-byte with
 an Ed25519 PKCS#8 private key. `latest.json.sig` is the 64-byte signature encoded
 as canonical Base64 without a BOM or trailing newline. `keyId` is the lowercase
 SHA-256 of the public key's SubjectPublicKeyInfo DER bytes.

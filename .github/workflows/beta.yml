@@ -451,7 +451,7 @@ jobs:
             }
           )
 
-          $manifestJson = $manifest | ConvertTo-Json -Depth 20
+          $manifestJson = ($manifest | ConvertTo-Json -Depth 20).Replace("`r`n", "`n")
           [IO.File]::WriteAllText($env:GENERATED_MANIFEST_PATH, $manifestJson, [Text.UTF8Encoding]::new($false))
           dotnet run --project Launcher.UpdateSigning/Launcher.UpdateSigning.csproj -c Release --no-restore -- sign --private-pem .local-secrets/update-signing-private.pem --manifest $env:GENERATED_MANIFEST_PATH --signature $env:GENERATED_SIGNATURE_PATH
           if ($LASTEXITCODE -ne 0) { throw "Failed to sign the update manifest." }
