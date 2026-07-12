@@ -37,7 +37,7 @@ public sealed class GameInstanceService : IGameInstanceService
     private readonly IGameInstallCoordinator installCoordinator;
     private readonly GameInstanceCreationCoordinator creationCoordinator;
     private readonly ILogger<GameInstanceService> logger;
-    private readonly ConcurrentDictionary<string, byte> pendingInstanceDeletions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, string> pendingInstanceMutations = new(StringComparer.OrdinalIgnoreCase);
 
     public GameInstanceService(
         ISettingsService settingsService,
@@ -69,6 +69,7 @@ public sealed class GameInstanceService : IGameInstanceService
     public async Task<IReadOnlyList<GameInstance>> GetInstancesAsync(CancellationToken cancellationToken = default)
     {
         var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+        await repository.RecoverPendingVersionRenamesAsync(settings.MinecraftDirectory, cancellationToken).ConfigureAwait(false);
         var instances = await GetInstancesCoreAsync(settings, cancellationToken).ConfigureAwait(false);
         logger.LogDebug(
             "Game instances refreshed. Count={InstanceCount} DefaultInstanceId={DefaultInstanceId}",
@@ -81,6 +82,7 @@ public sealed class GameInstanceService : IGameInstanceService
         LauncherSettings settings,
         CancellationToken cancellationToken = default)
     {
+        await repository.RecoverPendingVersionRenamesAsync(settings.MinecraftDirectory, cancellationToken).ConfigureAwait(false);
         var instances = await repository.GetAllAsync(settings.MinecraftDirectory, cancellationToken).ConfigureAwait(false);
         logger.LogDebug(
             "Stored game instances loaded. Count={InstanceCount} DefaultInstanceId={DefaultInstanceId}",
@@ -199,6 +201,12 @@ public sealed class GameInstanceService : IGameInstanceService
         if (string.IsNullOrWhiteSpace(instanceId))
             throw new InvalidOperationException("Instance id is required.");
 
+        var mutationKey = instanceId.Trim();
+        if (!pendingInstanceMutations.TryAdd(mutationKey, "rename"))
+            throw new InvalidOperationException("Instance is already being modified.");
+
+        try
+        {
         var instances = (await GetInstancesAsync(cancellationToken).ConfigureAwait(false)).ToList();
         var instance = instances.FirstOrDefault(existing =>
             string.Equals(existing.Id, instanceId, StringComparison.OrdinalIgnoreCase))
@@ -223,14 +231,18 @@ public sealed class GameInstanceService : IGameInstanceService
         if (!nameChanged && !iconChanged)
             return instance;
 
-        if (!string.Equals(currentVersionName, sanitizedName, StringComparison.OrdinalIgnoreCase))
+        var directoryRenamed = !string.Equals(currentVersionName, sanitizedName, StringComparison.OrdinalIgnoreCase);
+        var updatedAt = DateTimeOffset.UtcNow;
+        if (directoryRenamed)
         {
             // 先完成目录及版本 JSON 的事务性重命名，再更新内存模型，失败时不会保存失配路径。
             var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
             await repository.RenameVersionAsync(
                 settings.MinecraftDirectory,
-                currentVersionName,
+                instance,
                 sanitizedName,
+                normalizedIconSource,
+                updatedAt,
                 cancellationToken).ConfigureAwait(false);
 
             instance.VersionName = sanitizedName;
@@ -239,20 +251,26 @@ public sealed class GameInstanceService : IGameInstanceService
 
         instance.Name = sanitizedName;
         instance.IconSource = normalizedIconSource;
-        instance.UpdatedAt = DateTimeOffset.UtcNow;
+        instance.UpdatedAt = updatedAt;
 
         var index = instances.FindIndex(existing =>
             string.Equals(existing.Id, instance.Id, StringComparison.OrdinalIgnoreCase));
         if (index >= 0)
             instances[index] = instance;
 
-        await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
+        if (!directoryRenamed)
+            await repository.SaveAllAsync(instances, cancellationToken).ConfigureAwait(false);
         logger.LogInformation(
             "Game instance renamed. InstanceId={InstanceId} VersionName={VersionName} IconChanged={IconChanged}",
             instance.Id,
             instance.VersionName,
             iconChanged);
         return instance;
+        }
+        finally
+        {
+            pendingInstanceMutations.TryRemove(mutationKey, out _);
+        }
     }
 
     public async Task<bool> SetDefaultInstanceAsync(string instanceId, CancellationToken cancellationToken = default)
@@ -286,7 +304,7 @@ public sealed class GameInstanceService : IGameInstanceService
             return false;
 
         var deletionKey = instanceId.Trim();
-        if (!pendingInstanceDeletions.TryAdd(deletionKey, 0))
+        if (!pendingInstanceMutations.TryAdd(deletionKey, "delete"))
         {
             logger.LogWarning("Duplicate game instance deletion ignored. InstanceId={InstanceId}", instanceId);
             return false;
@@ -332,7 +350,7 @@ public sealed class GameInstanceService : IGameInstanceService
         }
         finally
         {
-            pendingInstanceDeletions.TryRemove(deletionKey, out _);
+            pendingInstanceMutations.TryRemove(deletionKey, out _);
         }
     }
 

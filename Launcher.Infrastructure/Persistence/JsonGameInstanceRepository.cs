@@ -62,13 +62,21 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         Func<Guid>? deletionGuidFactory,
         Action<string, string>? stageDeletionMove,
         Action<string, bool>? deleteStagedDirectory,
-        Action<string>? recycleStagedDirectory = null)
+        Action<string>? recycleStagedDirectory = null,
+        Func<Guid>? renameGuidFactory = null,
+        Action<string>? deleteRenameMarker = null)
     {
         this.settingsService = settingsService;
         this.logger = logger ?? NullLogger<JsonGameInstanceRepository>.Instance;
         instanceSettingsStore = new GameInstanceSettingsStore(this.logger);
         directoryManager = new VersionDirectoryManager(this.logger);
-        renameTransaction = new VersionRenameTransaction(directoryManager, this.logger, moveDirectoryAsync);
+        renameTransaction = new VersionRenameTransaction(
+            directoryManager,
+            instanceSettingsStore,
+            this.logger,
+            moveDirectoryAsync,
+            renameGuidFactory,
+            deleteRenameMarker);
         deletionManager = new VersionDeletionManager(
             directoryManager,
             this.logger,
@@ -210,15 +218,42 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
 
     public async Task RenameVersionAsync(
         string minecraftDirectory,
-        string oldVersionName,
+        GameInstance instance,
         string newVersionName,
+        string? newIconSource,
+        DateTimeOffset updatedAt,
         CancellationToken cancellationToken = default)
     {
-        await renameTransaction.ExecuteAsync(
-            minecraftDirectory,
-            oldVersionName,
-            newVersionName,
-            cancellationToken).ConfigureAwait(false);
+        await ioLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await renameTransaction.ExecuteAsync(
+                minecraftDirectory,
+                instance,
+                newVersionName,
+                newIconSource,
+                updatedAt,
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            ioLock.Release();
+        }
+    }
+
+    public async Task RecoverPendingVersionRenamesAsync(
+        string minecraftDirectory,
+        CancellationToken cancellationToken = default)
+    {
+        await ioLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await renameTransaction.RecoverAllAsync(minecraftDirectory, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            ioLock.Release();
+        }
     }
 
     private static string GetVersionName(GameInstance instance)
@@ -259,7 +294,9 @@ internal sealed class InstalledVersionMetadataReader(ILogger logger)
         foreach (var versionDirectory in EnumerateDirectories(versionsDirectory))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (PendingInstanceDeletionDirectory.IsPending(versionDirectory))
+            if (PendingInstanceDeletionDirectory.IsPending(versionDirectory)
+                || PendingInstanceRenameDirectory.IsPending(versionDirectory)
+                || File.Exists(PendingInstanceRenameDirectory.GetMarkerPath(versionDirectory)))
                 continue;
             var versionName = Path.GetFileName(versionDirectory);
             if (string.IsNullOrWhiteSpace(versionName))

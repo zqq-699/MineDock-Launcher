@@ -150,6 +150,9 @@ public partial class App : System.Windows.Application
 
             await CleanupModpackWorkspacesOnStartupAsync();
 
+            await RecoverPendingInstanceRenamesOnStartupAsync(
+                serviceProvider.GetRequiredService<IInstanceRenameRecoveryService>());
+
             var mainViewModel = serviceProvider.GetRequiredService<MainViewModel>();
             await mainViewModel.PrimeAsync(startupSettings);
             serviceProvider.GetRequiredService<IThemeService>().ApplyPreference(
@@ -212,6 +215,19 @@ public partial class App : System.Windows.Application
         catch (Exception exception)
         {
             Log.Warning(exception, "Pending instance deletion cleanup failed; startup cleanup will retry later.");
+        }
+    }
+
+    private static async Task RecoverPendingInstanceRenamesOnStartupAsync(
+        IInstanceRenameRecoveryService recoveryService)
+    {
+        try
+        {
+            await recoveryService.RecoverPendingAsync().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Pending instance rename recovery failed before instance scanning.");
         }
     }
 

@@ -59,7 +59,13 @@ public interface IGameInstanceRepository
 
     Task RenameVersionAsync(
         string minecraftDirectory,
-        string oldVersionName,
+        GameInstance instance,
         string newVersionName,
+        string? newIconSource,
+        DateTimeOffset updatedAt,
+        CancellationToken cancellationToken = default);
+
+    Task RecoverPendingVersionRenamesAsync(
+        string minecraftDirectory,
         CancellationToken cancellationToken = default);
 }

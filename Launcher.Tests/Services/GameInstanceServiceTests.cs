@@ -219,7 +219,7 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task RenameRollsBackWhenPrimaryJarRenameFails()
+    public async Task RenameRemainsCommittedWhenPrimaryJarRenameFails()
     {
         var (settings, repository, service, _) = CreateService();
         await CreateVersionAsync(settings.MinecraftDirectory, "Old Pack", writeJar: true);
@@ -238,10 +238,49 @@ public sealed class GameInstanceServiceTests : TestTempDirectory
 
         await Assert.ThrowsAsync<IOException>(() => service.RenameInstanceAsync("old", "Renamed Pack", null));
 
-        Assert.True(Directory.Exists(oldDirectory));
+        Assert.False(Directory.Exists(oldDirectory));
         Assert.False(Directory.Exists(Path.Combine(settings.MinecraftDirectory, "versions", "Renamed Pack")));
-        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(oldDirectory, "Old Pack.json")));
+        var pendingDirectory = Assert.Single(Directory.GetDirectories(
+            Path.Combine(settings.MinecraftDirectory, "versions"),
+            ".bhl-rename-pending-Old Pack-*"));
+        Assert.True(File.Exists(Path.Combine(pendingDirectory, ".bhl-rename-pending.json")));
+        using var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(pendingDirectory, "Old Pack.json")));
         Assert.Equal("Old Pack", json.RootElement.GetProperty("id").GetString());
+    }
+
+    [Fact]
+    public async Task RenameStagingFailureKeepsInstanceVisibleWhenMarkerDeleteFails()
+    {
+        var settings = CreateSettings();
+        var settingsService = new TestSettingsService(settings);
+        var repository = new JsonGameInstanceRepository(
+            settingsService,
+            logger: null,
+            moveDirectoryAsync: (_, _, _) => throw new IOException("source is locked"),
+            deletionGuidFactory: null,
+            stageDeletionMove: null,
+            deleteStagedDirectory: null,
+            recycleStagedDirectory: null,
+            renameGuidFactory: () => Guid.ParseExact("a83f21c4000000000000000000000000", "N"),
+            deleteRenameMarker: _ => throw new IOException("marker is locked"));
+        var service = new GameInstanceService(settingsService, repository, [new FakeLoaderProvider()]);
+        await CreateVersionAsync(settings.MinecraftDirectory, "Old Pack");
+        var oldDirectory = Path.Combine(settings.MinecraftDirectory, "versions", "Old Pack");
+        await repository.SaveAllAsync([new GameInstance
+        {
+            Id = "old",
+            Name = "Old Pack",
+            MinecraftVersion = "1.20.1",
+            VersionName = "Old Pack",
+            InstanceDirectory = oldDirectory
+        }]);
+
+        await Assert.ThrowsAsync<IOException>(() => service.RenameInstanceAsync("old", "New Pack", null));
+
+        Assert.True(Directory.Exists(oldDirectory));
+        Assert.False(File.Exists(Path.Combine(oldDirectory, ".bhl-rename-pending.json")));
+        Assert.True(File.Exists(Path.Combine(oldDirectory, ".bhl-rename-aborted.json")));
+        Assert.Single(await repository.GetAllAsync());
     }
 
     private (LauncherSettings Settings, JsonGameInstanceRepository Repository, GameInstanceService Service, FakeLoaderProvider Provider)

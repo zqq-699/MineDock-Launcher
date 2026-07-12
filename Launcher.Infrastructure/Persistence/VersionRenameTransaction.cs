@@ -2,136 +2,363 @@
  * BlockHelm Launcher
  * Copyright (C) 2026 Quan Zhou
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 3.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- *
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Launcher.Application;
+using Launcher.Application.Services;
+using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Persistence;
 
-/// <summary>
-/// 将版本目录、同名 JSON/JAR 及 JSON 内部身份作为一个可回滚的重命名事务处理。
-/// </summary>
+internal static class PendingInstanceRenameDirectory
+{
+    public const string Prefix = ".bhl-rename-pending-";
+    public const string MarkerFileName = ".bhl-rename-pending.json";
+    public const string AbortedMarkerFileName = ".bhl-rename-aborted.json";
+
+    public static bool IsPending(string path) =>
+        Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+            .StartsWith(Prefix, StringComparison.OrdinalIgnoreCase);
+
+    public static string GetMarkerPath(string directory) => Path.Combine(directory, MarkerFileName);
+}
+
+internal sealed record PendingInstanceRenameMarker
+{
+    public int SchemaVersion { get; init; } = 1;
+    public string TransactionId { get; init; } = string.Empty;
+    public string InstanceId { get; init; } = string.Empty;
+    public string OldName { get; init; } = string.Empty;
+    public string NewName { get; init; } = string.Empty;
+    public string? NewIconSource { get; init; }
+    public DateTimeOffset UpdatedAtUtc { get; init; }
+}
+
 internal sealed class VersionRenameTransaction
 {
     private const int MaxMoveAttempts = 5;
+    private const int MaxStagingTargets = 3;
+    private const int MaxMarkerDeleteAttempts = 3;
     private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(150);
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        WriteIndented = true
+    };
+
     private readonly VersionDirectoryManager directoryManager;
+    private readonly GameInstanceSettingsStore instanceSettingsStore;
     private readonly Func<string, string, CancellationToken, Task> moveDirectoryAsync;
+    private readonly Func<Guid> guidFactory;
+    private readonly Action<string> deleteMarker;
     private readonly ILogger logger;
 
     public VersionRenameTransaction(
         VersionDirectoryManager directoryManager,
+        GameInstanceSettingsStore instanceSettingsStore,
         ILogger logger,
-        Func<string, string, CancellationToken, Task>? moveDirectoryAsync = null)
+        Func<string, string, CancellationToken, Task>? moveDirectoryAsync = null,
+        Func<Guid>? guidFactory = null,
+        Action<string>? deleteMarker = null)
     {
         this.directoryManager = directoryManager;
+        this.instanceSettingsStore = instanceSettingsStore;
         this.logger = logger;
         this.moveDirectoryAsync = moveDirectoryAsync ?? MoveDirectoryAsync;
+        this.guidFactory = guidFactory ?? Guid.NewGuid;
+        this.deleteMarker = deleteMarker ?? File.Delete;
     }
 
-    /// <summary>
-    /// 验证目标后依次移动目录、重命名 JSON/JAR、重写身份，并在任一步失败时回滚。
-    /// </summary>
     public async Task ExecuteAsync(
         string minecraftDirectory,
-        string oldVersionName,
+        GameInstance instance,
         string newVersionName,
+        string? newIconSource,
+        DateTimeOffset updatedAt,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(oldVersionName)
-            || string.IsNullOrWhiteSpace(newVersionName)
-            || string.Equals(oldVersionName, newVersionName, StringComparison.OrdinalIgnoreCase))
-        {
+        var oldVersionName = string.IsNullOrWhiteSpace(instance.VersionName)
+            ? instance.MinecraftVersion
+            : instance.VersionName;
+        if (string.Equals(oldVersionName, newVersionName, StringComparison.OrdinalIgnoreCase))
             return;
-        }
 
         var sourceDirectory = directoryManager.GetVersionDirectory(minecraftDirectory, oldVersionName);
         var destinationDirectory = directoryManager.GetVersionDirectory(minecraftDirectory, newVersionName);
-        var sourceJsonPath = Path.Combine(sourceDirectory, $"{oldVersionName}.json");
-        var destinationJsonPath = Path.Combine(destinationDirectory, $"{newVersionName}.json");
-        var destinationJarPath = Path.Combine(destinationDirectory, $"{newVersionName}.jar");
-        var movedJsonPath = Path.Combine(destinationDirectory, $"{oldVersionName}.json");
-        var movedJarPath = Path.Combine(destinationDirectory, $"{oldVersionName}.jar");
-        var temporaryJsonPath = Path.Combine(destinationDirectory, $"{LauncherApplicationIdentity.StorageDirectoryName}-rename-{Guid.NewGuid():N}.json.tmp");
-        var backupJsonPath = Path.Combine(destinationDirectory, $"{LauncherApplicationIdentity.StorageDirectoryName}-rename-{Guid.NewGuid():N}.json.bak");
+        ValidateNewTransaction(sourceDirectory, destinationDirectory, oldVersionName);
 
-        if (!Directory.Exists(sourceDirectory))
-            throw new DirectoryNotFoundException($"Version directory not found: {sourceDirectory}");
-        if (!File.Exists(sourceJsonPath))
-            throw new FileNotFoundException($"Version JSON not found: {sourceJsonPath}", sourceJsonPath);
-        if (Directory.Exists(destinationDirectory))
-            throw new IOException($"Version directory already exists: {destinationDirectory}");
+        var marker = CreateMarker(instance.Id, oldVersionName, newVersionName, newIconSource, updatedAt);
+        var markerPath = PendingInstanceRenameDirectory.GetMarkerPath(sourceDirectory);
+        await AtomicJsonFileWriter.WriteAsync(markerPath, marker, JsonOptions, cancellationToken).ConfigureAwait(false);
 
-        var versionJson = await ReadVersionJsonAsync(sourceJsonPath, cancellationToken).ConfigureAwait(false);
-        RewriteIdentity(versionJson, oldVersionName, newVersionName);
-        var rewrittenJson = versionJson.ToJsonString(JsonOptions);
-        var oldJarExists = File.Exists(Path.Combine(sourceDirectory, $"{oldVersionName}.jar"));
-        var stopwatch = Stopwatch.StartNew();
-        // 每个标记代表一个已经提交的步骤，失败时按相反顺序精确回滚。
-        var directoryMoved = false;
-        var jsonMoved = false;
-        var jarMoved = false;
-        var jsonReplaced = false;
-
+        string stagedDirectory;
         try
         {
-            await MoveWithRetryAsync(sourceDirectory, destinationDirectory, cancellationToken).ConfigureAwait(false);
-            directoryMoved = true;
-            cancellationToken.ThrowIfCancellationRequested();
-            File.Move(movedJsonPath, destinationJsonPath);
-            jsonMoved = true;
-            cancellationToken.ThrowIfCancellationRequested();
-            if (oldJarExists)
-            {
-                File.Move(movedJarPath, destinationJarPath);
-                jarMoved = true;
-            }
-            cancellationToken.ThrowIfCancellationRequested();
-            // 新 JSON 先写临时文件，再用 File.Replace 原子替换并保留备份，避免中途留下截断文件。
-            await File.WriteAllTextAsync(temporaryJsonPath, rewrittenJson, cancellationToken).ConfigureAwait(false);
-            File.Replace(temporaryJsonPath, destinationJsonPath, backupJsonPath, ignoreMetadataErrors: true);
-            jsonReplaced = true;
-            TryDelete(backupJsonPath);
-            logger.LogInformation(
-                "Version directory renamed. OldVersionName={OldVersionName} NewVersionName={NewVersionName} ElapsedMs={ElapsedMs}",
-                oldVersionName, newVersionName, stopwatch.ElapsedMilliseconds);
+            stagedDirectory = await MoveSourceToStagingAsync(
+                sourceDirectory, marker, cancellationToken, rollbackMarkerOnFailure: true).ConfigureAwait(false);
         }
-        catch (Exception exception)
+        catch (Exception moveException)
         {
-            var rollbackSucceeded = TryRollback(
-                sourceDirectory, destinationDirectory, movedJsonPath, destinationJsonPath,
-                movedJarPath, destinationJarPath, temporaryJsonPath, backupJsonPath,
-                directoryMoved, jsonMoved, jarMoved, jsonReplaced);
-            logger.LogError(
-                exception,
-                "Version directory rename failed. OldVersionName={OldVersionName} NewVersionName={NewVersionName} RollbackSucceeded={RollbackSucceeded}",
-                oldVersionName, newVersionName, rollbackSucceeded);
+            try
+            {
+                await DeleteMarkerWithRetryAsync(markerPath, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception cleanupException)
+            {
+                var abortedMarkerPath = Path.Combine(sourceDirectory, PendingInstanceRenameDirectory.AbortedMarkerFileName);
+                try
+                {
+                    File.Move(markerPath, abortedMarkerPath, overwrite: true);
+                    logger.LogError(
+                        cleanupException,
+                        "Pending rename marker could not be deleted and was quarantined after staging failed. MarkerPath={MarkerPath}",
+                        markerPath);
+                }
+                catch (Exception quarantineException)
+                {
+                    throw new AggregateException(
+                        "Instance rename staging and marker rollback both failed.",
+                        moveException,
+                        cleanupException,
+                        quarantineException);
+                }
+            }
             throw;
+        }
+
+        await CompleteCommittedRenameAsync(stagedDirectory, marker, CancellationToken.None).ConfigureAwait(false);
+    }
+
+    public async Task RecoverAllAsync(string minecraftDirectory, CancellationToken cancellationToken)
+    {
+        var versionsDirectory = Path.GetFullPath(Path.Combine(minecraftDirectory, "versions"));
+        if (!Directory.Exists(versionsDirectory))
+            return;
+
+        foreach (var directory in EnumerateDirectories(versionsDirectory))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            TryDeleteAbortedMarker(directory);
+            var marker = await TryReadMarkerAsync(directory, cancellationToken).ConfigureAwait(false);
+            if (marker is null)
+                continue;
+
+            try
+            {
+                if (PendingInstanceRenameDirectory.IsPending(directory))
+                {
+                    await CompleteCommittedRenameAsync(directory, marker, CancellationToken.None).ConfigureAwait(false);
+                    continue;
+                }
+
+                var directoryName = Path.GetFileName(directory);
+                if (string.Equals(directoryName, marker.NewName, StringComparison.OrdinalIgnoreCase))
+                {
+                    await CompleteCommittedRenameAsync(directory, marker, CancellationToken.None).ConfigureAwait(false);
+                    continue;
+                }
+
+                if (!string.Equals(directoryName, marker.OldName, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("Pending rename marker does not match its directory.");
+
+                var stagedDirectory = await MoveSourceToStagingAsync(
+                    directory, marker, CancellationToken.None, rollbackMarkerOnFailure: false).ConfigureAwait(false);
+                await CompleteCommittedRenameAsync(stagedDirectory, marker, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Pending instance rename remains for a later retry. Directory={Directory} OldName={OldName} NewName={NewName}",
+                    directory,
+                    marker.OldName,
+                    marker.NewName);
+            }
         }
     }
 
-    /// <summary>
-    /// 对可能由杀毒软件或短暂文件占用造成的目录移动失败进行有限重试。
-    /// </summary>
+    private static void ValidateNewTransaction(string sourceDirectory, string destinationDirectory, string oldVersionName)
+    {
+        if (!Directory.Exists(sourceDirectory))
+            throw new DirectoryNotFoundException($"Version directory not found: {sourceDirectory}");
+        if (!File.Exists(Path.Combine(sourceDirectory, $"{oldVersionName}.json")))
+            throw new FileNotFoundException("Version JSON not found.", Path.Combine(sourceDirectory, $"{oldVersionName}.json"));
+        if (Directory.Exists(destinationDirectory))
+            throw new IOException($"Version directory already exists: {destinationDirectory}");
+        if (File.Exists(PendingInstanceRenameDirectory.GetMarkerPath(sourceDirectory)))
+            throw new IOException($"Version directory already has a pending rename marker: {sourceDirectory}");
+    }
+
+    private PendingInstanceRenameMarker CreateMarker(
+        string instanceId,
+        string oldName,
+        string newName,
+        string? newIconSource,
+        DateTimeOffset updatedAt) => new()
+    {
+        TransactionId = guidFactory().ToString("N"),
+        InstanceId = instanceId,
+        OldName = oldName,
+        NewName = newName,
+        NewIconSource = newIconSource,
+        UpdatedAtUtc = updatedAt
+    };
+
+    private async Task<string> MoveSourceToStagingAsync(
+        string sourceDirectory,
+        PendingInstanceRenameMarker marker,
+        CancellationToken cancellationToken,
+        bool rollbackMarkerOnFailure)
+    {
+        var currentMarker = marker;
+        for (var targetAttempt = 1; targetAttempt <= MaxStagingTargets; targetAttempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var parent = Path.GetDirectoryName(sourceDirectory)!;
+            var suffix = currentMarker.TransactionId[..8].ToLowerInvariant();
+            var stagedDirectory = Path.Combine(parent, $"{PendingInstanceRenameDirectory.Prefix}{marker.OldName}-{suffix}");
+            if (Directory.Exists(stagedDirectory))
+            {
+                if (targetAttempt == MaxStagingTargets)
+                    break;
+                currentMarker = marker with { TransactionId = guidFactory().ToString("N") };
+                await AtomicJsonFileWriter.WriteAsync(
+                    PendingInstanceRenameDirectory.GetMarkerPath(sourceDirectory),
+                    currentMarker,
+                    JsonOptions,
+                    cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+
+            try
+            {
+                await MoveWithRetryAsync(sourceDirectory, stagedDirectory, cancellationToken).ConfigureAwait(false);
+                logger.LogInformation(
+                    "Instance rename entered committed staging. OldName={OldName} NewName={NewName} StagedDirectory={StagedDirectory}",
+                    marker.OldName,
+                    marker.NewName,
+                    stagedDirectory);
+                return stagedDirectory;
+            }
+            catch (Exception) when (!Directory.Exists(sourceDirectory) && Directory.Exists(stagedDirectory))
+            {
+                return stagedDirectory;
+            }
+            catch (IOException) when (Directory.Exists(sourceDirectory) && Directory.Exists(stagedDirectory))
+            {
+                if (targetAttempt == MaxStagingTargets)
+                    break;
+                currentMarker = marker with { TransactionId = guidFactory().ToString("N") };
+                await AtomicJsonFileWriter.WriteAsync(
+                    PendingInstanceRenameDirectory.GetMarkerPath(sourceDirectory),
+                    currentMarker,
+                    JsonOptions,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                if (!rollbackMarkerOnFailure)
+                    throw;
+                throw;
+            }
+        }
+
+        throw new IOException($"Unable to allocate a pending rename directory after {MaxStagingTargets} attempts.");
+    }
+
+    private async Task CompleteCommittedRenameAsync(
+        string currentDirectory,
+        PendingInstanceRenameMarker marker,
+        CancellationToken cancellationToken)
+    {
+        var destinationDirectory = directoryManager.GetVersionDirectory(
+            Path.GetDirectoryName(Path.GetDirectoryName(currentDirectory)!)!,
+            marker.NewName);
+
+        if (PendingInstanceRenameDirectory.IsPending(currentDirectory))
+        {
+            await RenameArtifactsAsync(currentDirectory, marker, cancellationToken).ConfigureAwait(false);
+            if (Directory.Exists(destinationDirectory))
+                throw new IOException($"Rename destination already exists: {destinationDirectory}");
+            await moveDirectoryAsync(currentDirectory, destinationDirectory, cancellationToken).ConfigureAwait(false);
+            currentDirectory = destinationDirectory;
+        }
+
+        await instanceSettingsStore.CompleteRenameAsync(
+            currentDirectory,
+            marker.InstanceId,
+            marker.NewName,
+            marker.NewIconSource,
+            marker.UpdatedAtUtc,
+            cancellationToken).ConfigureAwait(false);
+        await DeleteMarkerWithRetryAsync(
+            PendingInstanceRenameDirectory.GetMarkerPath(currentDirectory),
+            cancellationToken).ConfigureAwait(false);
+        logger.LogInformation(
+            "Pending instance rename completed. InstanceId={InstanceId} OldName={OldName} NewName={NewName}",
+            marker.InstanceId,
+            marker.OldName,
+            marker.NewName);
+    }
+
+    private static async Task RenameArtifactsAsync(
+        string directory,
+        PendingInstanceRenameMarker marker,
+        CancellationToken cancellationToken)
+    {
+        RenameOptionalArtifact(directory, $"{marker.OldName}.jar", $"{marker.NewName}.jar");
+        RenameOptionalDirectory(directory, $"{marker.OldName}-natives", $"{marker.NewName}-natives");
+
+        var oldJsonPath = Path.Combine(directory, $"{marker.OldName}.json");
+        var newJsonPath = Path.Combine(directory, $"{marker.NewName}.json");
+        if (File.Exists(oldJsonPath) && File.Exists(newJsonPath))
+            throw new IOException("Both old and new version JSON files exist.");
+        if (File.Exists(oldJsonPath))
+            File.Move(oldJsonPath, newJsonPath);
+        if (!File.Exists(newJsonPath))
+            throw new FileNotFoundException("Version JSON was not found while resuming rename.", newJsonPath);
+
+        JsonObject json;
+        await using (var stream = File.OpenRead(newJsonPath))
+        {
+            json = (await JsonNode.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false)
+                    ?? throw new InvalidDataException("Version JSON is empty.")).AsObject();
+        }
+        json["id"] = marker.NewName;
+        if (json["jar"] is JsonValue jarValue
+            && string.Equals(jarValue.ToString(), marker.OldName, StringComparison.OrdinalIgnoreCase))
+        {
+            json["jar"] = marker.NewName;
+        }
+        await AtomicJsonFileWriter.WriteAsync(newJsonPath, json, JsonOptions, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static void RenameOptionalArtifact(string directory, string oldName, string newName)
+    {
+        var oldPath = Path.Combine(directory, oldName);
+        var newPath = Path.Combine(directory, newName);
+        if (File.Exists(oldPath) && File.Exists(newPath))
+            throw new IOException($"Both old and new rename artifacts exist: {oldName}, {newName}");
+        if (File.Exists(oldPath))
+            File.Move(oldPath, newPath);
+    }
+
+    private static void RenameOptionalDirectory(string directory, string oldName, string newName)
+    {
+        var oldPath = Path.Combine(directory, oldName);
+        var newPath = Path.Combine(directory, newName);
+        if (Directory.Exists(oldPath) && Directory.Exists(newPath))
+            throw new IOException($"Both old and new rename directories exist: {oldName}, {newName}");
+        if (Directory.Exists(oldPath))
+            Directory.Move(oldPath, newPath);
+    }
+
     private async Task MoveWithRetryAsync(string source, string destination, CancellationToken cancellationToken)
     {
         for (var attempt = 1; ; attempt++)
@@ -142,7 +369,10 @@ internal sealed class VersionRenameTransaction
                 await moveDirectoryAsync(source, destination, cancellationToken).ConfigureAwait(false);
                 return;
             }
-            catch (Exception exception) when (attempt < MaxMoveAttempts && exception is IOException or UnauthorizedAccessException)
+            catch (Exception exception) when (
+                attempt < MaxMoveAttempts
+                && exception is IOException or UnauthorizedAccessException
+                && !Directory.Exists(destination))
             {
                 logger.LogWarning(exception, "Version directory move will be retried. Attempt={Attempt} MaxAttempts={MaxAttempts}", attempt, MaxMoveAttempts);
                 await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
@@ -157,60 +387,82 @@ internal sealed class VersionRenameTransaction
         return Task.CompletedTask;
     }
 
-    private static async Task<JsonObject> ReadVersionJsonAsync(string path, CancellationToken cancellationToken)
+    private async Task<PendingInstanceRenameMarker?> TryReadMarkerAsync(string directory, CancellationToken cancellationToken)
     {
-        await using var stream = File.OpenRead(path);
-        return (await JsonNode.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false)
-            ?? throw new InvalidDataException($"Version JSON is empty: {path}")).AsObject();
-    }
-
-    private static void RewriteIdentity(JsonObject json, string oldName, string newName)
-    {
-        json["id"] = newName;
-        if (json["jar"] is JsonValue jarValue
-            && string.Equals(jarValue.ToString(), oldName, StringComparison.OrdinalIgnoreCase))
-        {
-            json["jar"] = newName;
-        }
-    }
-
-    /// <summary>
-    /// 根据已完成步骤恢复 JSON 内容、文件名和原目录；回滚本身失败时返回 false。
-    /// </summary>
-    private static bool TryRollback(
-        string sourceDirectory, string destinationDirectory,
-        string movedJsonPath, string destinationJsonPath,
-        string movedJarPath, string destinationJarPath,
-        string temporaryJsonPath, string backupJsonPath,
-        bool directoryMoved, bool jsonMoved, bool jarMoved, bool jsonReplaced)
-    {
-        // 回滚顺序必须与正向步骤相反：恢复 JSON 内容，再恢复文件名，最后移回目录。
+        var markerPath = PendingInstanceRenameDirectory.GetMarkerPath(directory);
+        if (!File.Exists(markerPath))
+            return null;
         try
         {
-            TryDelete(temporaryJsonPath);
-            if (jsonReplaced && File.Exists(backupJsonPath))
+            await using var stream = File.OpenRead(markerPath);
+            var marker = await JsonSerializer.DeserializeAsync<PendingInstanceRenameMarker>(stream, JsonOptions, cancellationToken)
+                .ConfigureAwait(false);
+            if (marker is null
+                || marker.SchemaVersion != 1
+                || string.IsNullOrWhiteSpace(marker.TransactionId)
+                || marker.TransactionId.Length < 8
+                || string.IsNullOrWhiteSpace(marker.InstanceId)
+                || !VersionDirectoryName.IsSafeDirectoryName(marker.OldName)
+                || !VersionDirectoryName.IsSafeDirectoryName(marker.NewName))
             {
-                TryDelete(destinationJsonPath);
-                File.Move(backupJsonPath, destinationJsonPath);
+                throw new InvalidDataException("Pending instance rename marker is invalid.");
             }
-            if (jarMoved && File.Exists(destinationJarPath))
-                File.Move(destinationJarPath, movedJarPath);
-            if (jsonMoved && File.Exists(destinationJsonPath))
-                File.Move(destinationJsonPath, movedJsonPath);
-            if (directoryMoved && Directory.Exists(destinationDirectory) && !Directory.Exists(sourceDirectory))
-                Directory.Move(destinationDirectory, sourceDirectory);
-            TryDelete(backupJsonPath);
-            return true;
+            return marker;
         }
-        catch
+        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            return false;
+            logger.LogWarning(exception, "Invalid pending instance rename marker was ignored. MarkerPath={MarkerPath}", markerPath);
+            return null;
         }
     }
 
-    private static void TryDelete(string path)
+    private async Task DeleteMarkerWithRetryAsync(string markerPath, CancellationToken cancellationToken)
     {
-        if (File.Exists(path))
-            File.Delete(path);
+        for (var attempt = 1; attempt <= MaxMarkerDeleteAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                if (File.Exists(markerPath))
+                    deleteMarker(markerPath);
+                if (!File.Exists(markerPath))
+                    return;
+            }
+            catch (Exception) when (attempt < MaxMarkerDeleteAttempts)
+            {
+                await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        throw new IOException($"Failed to delete pending rename marker: {markerPath}");
+    }
+
+    private void TryDeleteAbortedMarker(string directory)
+    {
+        var path = Path.Combine(directory, PendingInstanceRenameDirectory.AbortedMarkerFileName);
+        try
+        {
+            if (File.Exists(path))
+                deleteMarker(path);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Failed to clean an aborted instance rename marker. MarkerPath={MarkerPath}", path);
+        }
+    }
+
+    private static IEnumerable<string> EnumerateDirectories(string directory)
+    {
+        try
+        {
+            return Directory.EnumerateDirectories(directory).ToArray();
+        }
+        catch (IOException)
+        {
+            return [];
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return [];
+        }
     }
 }

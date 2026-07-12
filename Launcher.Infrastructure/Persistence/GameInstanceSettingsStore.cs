@@ -43,7 +43,7 @@ internal sealed class GameInstanceSettingsStore(ILogger logger)
         foreach (var versionDirectory in EnumerateDirectories(versionsDirectory))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (PendingInstanceDeletionDirectory.IsPending(versionDirectory))
+            if (ShouldIgnoreDirectory(versionDirectory))
                 continue;
 
             var settingsPath = GetSettingsPath(versionDirectory);
@@ -94,6 +94,33 @@ internal sealed class GameInstanceSettingsStore(ILogger logger)
 
         CleanupOrphanedSettings(minecraftDirectory, persistedSettingsPaths);
         return persistedSettingsPaths.Count;
+    }
+
+    public async Task CompleteRenameAsync(
+        string versionDirectory,
+        string instanceId,
+        string newVersionName,
+        string? newIconSource,
+        DateTimeOffset updatedAt,
+        CancellationToken cancellationToken)
+    {
+        var settingsPath = GetSettingsPath(versionDirectory);
+        if (!File.Exists(settingsPath))
+            throw new FileNotFoundException("Instance settings were not found while completing rename.", settingsPath);
+
+        var instance = await TryLoadAsync(settingsPath, cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidDataException("Instance settings could not be read while completing rename.");
+        if (!string.Equals(instance.Id, instanceId, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Pending rename marker does not match the instance settings.");
+
+        instance.Name = newVersionName;
+        instance.VersionName = newVersionName;
+        instance.InstanceDirectory = versionDirectory;
+        instance.IconSource = newIconSource;
+        instance.UpdatedAt = updatedAt;
+        var snapshot = CreateStorageSnapshot(instance, versionDirectory, newVersionName);
+        await AtomicJsonFileWriter.WriteAsync(settingsPath, snapshot, JsonOptions, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task<GameInstance?> TryLoadAsync(string settingsPath, CancellationToken cancellationToken)
@@ -177,7 +204,7 @@ internal sealed class GameInstanceSettingsStore(ILogger logger)
 
         foreach (var versionDirectory in EnumerateDirectories(versionsDirectory))
         {
-            if (PendingInstanceDeletionDirectory.IsPending(versionDirectory))
+            if (ShouldIgnoreDirectory(versionDirectory))
                 continue;
             var settingsPath = GetSettingsPath(versionDirectory);
             if (!File.Exists(settingsPath) || persistedSettingsPaths.Contains(Path.GetFullPath(settingsPath)))
@@ -200,6 +227,11 @@ internal sealed class GameInstanceSettingsStore(ILogger logger)
 
     private static string GetSettingsPath(string versionDirectory)
         => Path.Combine(versionDirectory, LauncherDirectoryName, InstanceSettingsFileName);
+
+    private static bool ShouldIgnoreDirectory(string versionDirectory) =>
+        PendingInstanceDeletionDirectory.IsPending(versionDirectory)
+        || PendingInstanceRenameDirectory.IsPending(versionDirectory)
+        || File.Exists(PendingInstanceRenameDirectory.GetMarkerPath(versionDirectory));
 
     private static string GetVersionName(GameInstance instance)
         => string.IsNullOrWhiteSpace(instance.VersionName) ? instance.MinecraftVersion : instance.VersionName;
