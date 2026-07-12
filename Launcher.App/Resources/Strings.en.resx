@@ -2026,6 +2026,18 @@ Longer content wraps automatically.</value>
   <data name="Status_OpenInstanceFolderFailed" xml:space="preserve">
     <value>Failed to open the instance folder.</value>
   </data>
+  <data name="Status_LaunchReportExportSucceededFormat" xml:space="preserve">
+    <value>Report exported with {0} file(s).</value>
+  </data>
+  <data name="Status_LaunchReportExportPartialFormat" xml:space="preserve">
+    <value>Report exported with {0} file(s); {1} unavailable file(s) were skipped.</value>
+  </data>
+  <data name="Status_LaunchReportExportNoReadableFiles" xml:space="preserve">
+    <value>No report files are available to export.</value>
+  </data>
+  <data name="Status_LaunchReportExportFailed" xml:space="preserve">
+    <value>Failed to export the report. Please try again.</value>
+  </data>
   <data name="Status_OpenLaunchLogFolderFailed" xml:space="preserve">
     <value>Failed to open the launch log folder.</value>
   </data>
@@ -2502,13 +2514,13 @@ The current game folder will be backed up first.</value>
     <value>Unknown</value>
   </data>
   <data name="Dialog_LaunchStatusDiagnosticFileHint" xml:space="preserve">
-    <value>A launch diagnostic log has been generated. Open the log folder for details.</value>
+    <value>View the primary report, or export a complete report package for this session.</value>
   </data>
   <data name="Dialog_LaunchStatusDiagnosticDirectoryHint" xml:space="preserve">
-    <value>Open the log folder to view latest.log and crash reports.</value>
+    <value>View the available reports, or export them as a ZIP package.</value>
   </data>
-  <data name="Dialog_OpenLaunchLogFolderButton" xml:space="preserve">
-    <value>Open Log Folder</value>
+  <data name="Dialog_ExportLaunchReportButton" xml:space="preserve">
+    <value>Export Report</value>
   </data>
   <data name="Dialog_ViewLaunchReportButton" xml:space="preserve">
     <value>View Report</value>
@@ -3079,6 +3091,12 @@ The current game folder will be backed up first.</value>
   </data>
   <data name="FilePicker_ModpackExportArchiveTitle" xml:space="preserve">
     <value>Save CurseForge Modpack</value>
+  </data>
+  <data name="FilePicker_LaunchDiagnosticExportTitle" xml:space="preserve">
+    <value>Export Game Crash Report</value>
+  </data>
+  <data name="FilePicker_LaunchDiagnosticExportFilter" xml:space="preserve">
+    <value>ZIP Archive (*.zip)|*.zip</value>
   </data>
   <data name="FilePicker_ModpackExportArchiveFilter" xml:space="preserve">
     <value>CurseForge modpack (*.zip)|*.zip|All files (*.*)|*.*</value>

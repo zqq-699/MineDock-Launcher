@@ -2026,6 +2026,18 @@
   <data name="Status_OpenInstanceFolderFailed" xml:space="preserve">
     <value>バージョンフォルダーを開けませんでした。しばらくしてから再試行してください。</value>
   </data>
+  <data name="Status_LaunchReportExportSucceededFormat" xml:space="preserve">
+    <value>{0} 個のファイルを含むレポートをエクスポートしました。</value>
+  </data>
+  <data name="Status_LaunchReportExportPartialFormat" xml:space="preserve">
+    <value>{0} 個のファイルをエクスポートし、利用できない {1} 個のファイルをスキップしました。</value>
+  </data>
+  <data name="Status_LaunchReportExportNoReadableFiles" xml:space="preserve">
+    <value>エクスポートできるレポートファイルがありません。</value>
+  </data>
+  <data name="Status_LaunchReportExportFailed" xml:space="preserve">
+    <value>レポートのエクスポートに失敗しました。しばらくしてから再試行してください。</value>
+  </data>
   <data name="Status_OpenLaunchLogFolderFailed" xml:space="preserve">
     <value>起動診断ログディレクトリを開けませんでした。しばらくしてから再試行してください。</value>
   </data>
@@ -2502,13 +2514,13 @@
     <value>不明</value>
   </data>
   <data name="Dialog_LaunchStatusDiagnosticFileHint" xml:space="preserve">
-    <value>起動診断ログを生成しました。ログディレクトリを開いて詳細を確認できます。</value>
+    <value>主要なレポートを表示するか、このセッションの完全なレポートパッケージをエクスポートできます。</value>
   </data>
   <data name="Dialog_LaunchStatusDiagnosticDirectoryHint" xml:space="preserve">
-    <value>ログディレクトリを開いて latest.log とクラッシュレポートを確認できます。</value>
+    <value>利用可能なレポートを表示するか、ZIP パッケージとしてエクスポートできます。</value>
   </data>
-  <data name="Dialog_OpenLaunchLogFolderButton" xml:space="preserve">
-    <value>ログディレクトリを開く</value>
+  <data name="Dialog_ExportLaunchReportButton" xml:space="preserve">
+    <value>レポートをエクスポート</value>
   </data>
   <data name="Dialog_ViewLaunchReportButton" xml:space="preserve">
     <value>レポートを表示</value>
@@ -3079,6 +3091,12 @@
   </data>
   <data name="FilePicker_ModpackExportArchiveTitle" xml:space="preserve">
     <value>CurseForge Modパックを保存</value>
+  </data>
+  <data name="FilePicker_LaunchDiagnosticExportTitle" xml:space="preserve">
+    <value>ゲーム異常レポートをエクスポート</value>
+  </data>
+  <data name="FilePicker_LaunchDiagnosticExportFilter" xml:space="preserve">
+    <value>ZIP アーカイブ (*.zip)|*.zip</value>
   </data>
   <data name="FilePicker_ModpackExportArchiveFilter" xml:space="preserve">
     <value>CurseForge Modパック (*.zip)|*.zip|すべてのファイル (*.*)|*.*</value>

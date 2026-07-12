@@ -140,6 +140,28 @@ public sealed class FilePickerService : IFilePickerService
         return dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) == true ? dialog.FileName : null;
     }
 
+    public string? PickLaunchDiagnosticExportArchive(string instanceName)
+    {
+        var invalidCharacters = Path.GetInvalidFileNameChars().ToHashSet();
+        var safeInstanceName = new string((instanceName ?? string.Empty)
+            .Select(character => invalidCharacters.Contains(character) ? '_' : character)
+            .ToArray()).Trim();
+        if (string.IsNullOrWhiteSpace(safeInstanceName))
+            safeInstanceName = "Minecraft";
+
+        var dialog = new SaveFileDialog
+        {
+            Title = Strings.FilePicker_LaunchDiagnosticExportTitle,
+            Filter = Strings.FilePicker_LaunchDiagnosticExportFilter,
+            FileName = $"BlockHelm-{safeInstanceName}-diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}.zip",
+            AddExtension = true,
+            DefaultExt = ".zip",
+            OverwritePrompt = true
+        };
+
+        return dialog.ShowDialog(System.Windows.Application.Current?.MainWindow) == true ? dialog.FileName : null;
+    }
+
     public string? PickFolder(string title, string? initialDirectory = null)
     {
         var dialog = new OpenFolderDialog

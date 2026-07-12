@@ -2026,6 +2026,18 @@
   <data name="Status_OpenInstanceFolderFailed" xml:space="preserve">
     <value>開啟版本資料夾失敗，請稍後再試。</value>
   </data>
+  <data name="Status_LaunchReportExportSucceededFormat" xml:space="preserve">
+    <value>報告已匯出，共包含 {0} 個檔案。</value>
+  </data>
+  <data name="Status_LaunchReportExportPartialFormat" xml:space="preserve">
+    <value>報告已匯出 {0} 個檔案，另有 {1} 個檔案無法使用。</value>
+  </data>
+  <data name="Status_LaunchReportExportNoReadableFiles" xml:space="preserve">
+    <value>沒有可匯出的報告檔案。</value>
+  </data>
+  <data name="Status_LaunchReportExportFailed" xml:space="preserve">
+    <value>匯出報告失敗，請稍後再試。</value>
+  </data>
   <data name="Status_OpenLaunchLogFolderFailed" xml:space="preserve">
     <value>開啟啟動診斷日誌目錄失敗，請稍後再試。</value>
   </data>
@@ -2502,13 +2514,13 @@
     <value>未知</value>
   </data>
   <data name="Dialog_LaunchStatusDiagnosticFileHint" xml:space="preserve">
-    <value>已產生啟動診斷日誌，可開啟日誌目錄查看詳細資訊。</value>
+    <value>可檢視主要報告，或匯出本次工作階段的完整報告包。</value>
   </data>
   <data name="Dialog_LaunchStatusDiagnosticDirectoryHint" xml:space="preserve">
-    <value>可開啟日誌目錄查看 latest.log 和崩潰報告。</value>
+    <value>可檢視目前可用報告，或將它們匯出為 ZIP 壓縮包。</value>
   </data>
-  <data name="Dialog_OpenLaunchLogFolderButton" xml:space="preserve">
-    <value>開啟日誌目錄</value>
+  <data name="Dialog_ExportLaunchReportButton" xml:space="preserve">
+    <value>匯出報告</value>
   </data>
   <data name="Dialog_ViewLaunchReportButton" xml:space="preserve">
     <value>檢視報告</value>
@@ -3079,6 +3091,12 @@
   </data>
   <data name="FilePicker_ModpackExportArchiveTitle" xml:space="preserve">
     <value>儲存 CurseForge 整合包</value>
+  </data>
+  <data name="FilePicker_LaunchDiagnosticExportTitle" xml:space="preserve">
+    <value>匯出遊戲異常報告</value>
+  </data>
+  <data name="FilePicker_LaunchDiagnosticExportFilter" xml:space="preserve">
+    <value>ZIP 壓縮包 (*.zip)|*.zip</value>
   </data>
   <data name="FilePicker_ModpackExportArchiveFilter" xml:space="preserve">
     <value>CurseForge 整合包 (*.zip)|*.zip|所有檔案 (*.*)|*.*</value>

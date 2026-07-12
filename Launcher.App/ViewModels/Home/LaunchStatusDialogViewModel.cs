@@ -22,15 +22,21 @@ using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.Application.Services;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.App.ViewModels.Home;
 
 public sealed partial class LaunchStatusDialogViewModel : ObservableObject
 {
     private readonly IInstanceFolderService instanceFolderService;
+    private readonly IFilePickerService filePickerService;
+    private readonly ILaunchDiagnosticExportService diagnosticExportService;
     private readonly IStatusService statusService;
-    private string? diagnosticDirectory;
+    private readonly ILogger<LaunchStatusDialogViewModel> logger;
     private IReadOnlyList<LaunchDiagnosticReference> diagnosticCandidates = [];
+    private string instanceName = string.Empty;
+    private string versionName = string.Empty;
 
     [ObservableProperty]
     private bool isOpen;
@@ -56,21 +62,31 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
     [ObservableProperty]
     private string analysisRecommendation = string.Empty;
 
+    [ObservableProperty]
+    private bool isExporting;
+
     public LaunchStatusDialogViewModel(
         IInstanceFolderService instanceFolderService,
-        IStatusService statusService)
+        IFilePickerService filePickerService,
+        ILaunchDiagnosticExportService diagnosticExportService,
+        IStatusService statusService,
+        ILogger<LaunchStatusDialogViewModel>? logger = null)
     {
         this.instanceFolderService = instanceFolderService;
+        this.filePickerService = filePickerService;
+        this.diagnosticExportService = diagnosticExportService;
         this.statusService = statusService;
+        this.logger = logger ?? NullLogger<LaunchStatusDialogViewModel>.Instance;
     }
-
-    public bool CanOpenLogDirectory => IsOpen && !string.IsNullOrWhiteSpace(diagnosticDirectory);
 
     public bool CanViewReport => IsOpen && diagnosticCandidates.Count > 0;
 
+    public bool CanExportReport => IsOpen && !IsExporting && diagnosticCandidates.Count > 0;
+
     public void Show(LaunchFailureReport report)
     {
-        diagnosticDirectory = report.DiagnosticDirectory;
+        instanceName = string.IsNullOrWhiteSpace(report.InstanceName) ? report.VersionName : report.InstanceName;
+        versionName = report.VersionName;
         diagnosticCandidates = report.DiagnosticCandidates.Count > 0
             ? report.DiagnosticCandidates
             : report.PrimaryDiagnostic is { } primary
@@ -87,7 +103,7 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
             : Strings.Dialog_LaunchStatusDiagnosticFileHint;
         IsOpen = true;
         ViewReportCommand.NotifyCanExecuteChanged();
-        OpenLogDirectoryCommand.NotifyCanExecuteChanged();
+        ExportReportCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
@@ -95,7 +111,7 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
     {
         IsOpen = false;
         ViewReportCommand.NotifyCanExecuteChanged();
-        OpenLogDirectoryCommand.NotifyCanExecuteChanged();
+        ExportReportCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand(CanExecute = nameof(CanViewReport))]
@@ -110,21 +126,63 @@ public sealed partial class LaunchStatusDialogViewModel : ObservableObject
         statusService.Report(Strings.Status_OpenLaunchReportFailed);
     }
 
-    [RelayCommand(CanExecute = nameof(CanOpenLogDirectory))]
-    private void OpenLogDirectory()
+    [RelayCommand(CanExecute = nameof(CanExportReport))]
+    private async Task ExportReportAsync()
     {
-        if (string.IsNullOrWhiteSpace(diagnosticDirectory)
-            || !instanceFolderService.TryOpen(diagnosticDirectory))
+        var outputArchivePath = filePickerService.PickLaunchDiagnosticExportArchive(instanceName);
+        if (string.IsNullOrWhiteSpace(outputArchivePath))
+            return;
+
+        IsExporting = true;
+        try
         {
-            statusService.Report(Strings.Status_OpenLaunchLogFolderFailed);
+            var result = await diagnosticExportService.ExportAsync(new LaunchDiagnosticExportRequest(
+                outputArchivePath,
+                instanceName,
+                versionName,
+                diagnosticCandidates));
+            if (result.IsSuccess)
+            {
+                statusService.Report(result.SkippedFileCount > 0
+                    ? string.Format(
+                        Strings.Status_LaunchReportExportPartialFormat,
+                        result.ExportedFileCount,
+                        result.SkippedFileCount)
+                    : string.Format(
+                        Strings.Status_LaunchReportExportSucceededFormat,
+                        result.ExportedFileCount));
+                return;
+            }
+
+            statusService.Report(result.FailureReason == LaunchDiagnosticExportFailureReason.NoReadableDiagnostics
+                ? Strings.Status_LaunchReportExportNoReadableFiles
+                : Strings.Status_LaunchReportExportFailed);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Launch diagnostic export command failed. InstanceName={InstanceName} VersionName={VersionName}",
+                instanceName,
+                versionName);
+            statusService.Report(Strings.Status_LaunchReportExportFailed);
+        }
+        finally
+        {
+            IsExporting = false;
         }
     }
 
     partial void OnIsOpenChanged(bool value)
     {
         ViewReportCommand.NotifyCanExecuteChanged();
-        OpenLogDirectoryCommand.NotifyCanExecuteChanged();
+        ExportReportCommand.NotifyCanExecuteChanged();
     }
+
+    partial void OnIsExportingChanged(bool value) => ExportReportCommand.NotifyCanExecuteChanged();
 
     private static string GetTitle(LaunchFailureKind kind)
     {

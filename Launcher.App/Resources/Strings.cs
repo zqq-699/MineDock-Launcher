@@ -942,6 +942,10 @@ public static class Strings
     public static string Status_BackupRestoring => Get(nameof(Status_BackupRestoring));
     public static string Status_BackupRestored => Get(nameof(Status_BackupRestored));
     public static string Status_BackupRestoreFailed => Get(nameof(Status_BackupRestoreFailed));
+    public static string Status_LaunchReportExportSucceededFormat => Get(nameof(Status_LaunchReportExportSucceededFormat));
+    public static string Status_LaunchReportExportPartialFormat => Get(nameof(Status_LaunchReportExportPartialFormat));
+    public static string Status_LaunchReportExportNoReadableFiles => Get(nameof(Status_LaunchReportExportNoReadableFiles));
+    public static string Status_LaunchReportExportFailed => Get(nameof(Status_LaunchReportExportFailed));
     public static string Status_OpenLaunchLogFolderFailed => Get(nameof(Status_OpenLaunchLogFolderFailed));
     public static string Status_OpenLaunchReportFailed => Get(nameof(Status_OpenLaunchReportFailed));
     public static string Status_OpenGithubRepositoryFailed => Get(nameof(Status_OpenGithubRepositoryFailed));
@@ -1086,6 +1090,8 @@ public static class Strings
     public static string FilePicker_ModpackDownloadDirectoryTitle => Get(nameof(FilePicker_ModpackDownloadDirectoryTitle));
     public static string FilePicker_ModpackExportArchiveTitle => Get(nameof(FilePicker_ModpackExportArchiveTitle));
     public static string FilePicker_ModpackExportArchiveFilter => Get(nameof(FilePicker_ModpackExportArchiveFilter));
+    public static string FilePicker_LaunchDiagnosticExportTitle => Get(nameof(FilePicker_LaunchDiagnosticExportTitle));
+    public static string FilePicker_LaunchDiagnosticExportFilter => Get(nameof(FilePicker_LaunchDiagnosticExportFilter));
     public static string FilePicker_ModrinthModpackExportArchiveTitle => Get(nameof(FilePicker_ModrinthModpackExportArchiveTitle));
     public static string FilePicker_ModrinthModpackExportArchiveFilter => Get(nameof(FilePicker_ModrinthModpackExportArchiveFilter));
     public static string FilePicker_MinecraftDirectoryTitle => Get(nameof(FilePicker_MinecraftDirectoryTitle));
@@ -1102,7 +1108,7 @@ public static class Strings
     public static string Dialog_LaunchStatusUnknownExitCode => Get(nameof(Dialog_LaunchStatusUnknownExitCode));
     public static string Dialog_LaunchStatusDiagnosticFileHint => Get(nameof(Dialog_LaunchStatusDiagnosticFileHint));
     public static string Dialog_LaunchStatusDiagnosticDirectoryHint => Get(nameof(Dialog_LaunchStatusDiagnosticDirectoryHint));
-    public static string Dialog_OpenLaunchLogFolderButton => Get(nameof(Dialog_OpenLaunchLogFolderButton));
+    public static string Dialog_ExportLaunchReportButton => Get(nameof(Dialog_ExportLaunchReportButton));
     public static string Dialog_ViewLaunchReportButton => Get(nameof(Dialog_ViewLaunchReportButton));
     public static string Dialog_LaunchAnalysisCurrentInstance => Get(nameof(Dialog_LaunchAnalysisCurrentInstance));
     public static string Dialog_LaunchAnalysisUnknownTitle => Get(nameof(Dialog_LaunchAnalysisUnknownTitle));

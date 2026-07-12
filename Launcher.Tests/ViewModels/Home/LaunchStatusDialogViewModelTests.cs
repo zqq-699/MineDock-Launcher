@@ -18,7 +18,7 @@ public sealed class LaunchStatusDialogViewModelTests
     {
         var folderService = new FakeInstanceFolderService(path => path.EndsWith("latest.log", StringComparison.Ordinal));
         var statusService = new FakeStatusService();
-        var viewModel = new LaunchStatusDialogViewModel(folderService, statusService);
+        var viewModel = CreateViewModel(folderService, statusService);
         viewModel.Show(CreateReport(
             new LaunchDiagnosticReference(LaunchDiagnosticType.MinecraftCrashReport, @"C:\logs\crash.txt"),
             new LaunchDiagnosticReference(LaunchDiagnosticType.JvmCrashReport, @"C:\logs\hs_err.log"),
@@ -38,7 +38,7 @@ public sealed class LaunchStatusDialogViewModelTests
     {
         var folderService = new FakeInstanceFolderService(_ => false);
         var statusService = new FakeStatusService();
-        var viewModel = new LaunchStatusDialogViewModel(folderService, statusService);
+        var viewModel = CreateViewModel(folderService, statusService);
         viewModel.Show(CreateReport(
             new LaunchDiagnosticReference(LaunchDiagnosticType.CapturedOutput, @"C:\logs\output.log"),
             new LaunchDiagnosticReference(LaunchDiagnosticType.LauncherDiagnostic, @"C:\logs\launcher.log")));
@@ -53,7 +53,7 @@ public sealed class LaunchStatusDialogViewModelTests
     public void StartupStageChangesTitleButNotDiagnosticOrder()
     {
         var folderService = new FakeInstanceFolderService(_ => false);
-        var viewModel = new LaunchStatusDialogViewModel(folderService, new FakeStatusService());
+        var viewModel = CreateViewModel(folderService, new FakeStatusService());
         var report = CreateReport(
             new LaunchDiagnosticReference(LaunchDiagnosticType.MinecraftLatestLog, @"C:\logs\latest.log"),
             new LaunchDiagnosticReference(LaunchDiagnosticType.LauncherDiagnostic, @"C:\logs\launcher.log"))
@@ -64,6 +64,181 @@ public sealed class LaunchStatusDialogViewModelTests
 
         Assert.Equal(Strings.Dialog_LaunchStatusInitializationFailedTitle, viewModel.Title);
         Assert.Equal([@"C:\logs\latest.log", @"C:\logs\launcher.log"], folderService.OpenFileAttempts);
+    }
+
+    [Fact]
+    public async Task ExportReportDoesNothingWhenSaveDialogIsCanceled()
+    {
+        var exportService = new FakeLaunchDiagnosticExportService();
+        var viewModel = CreateViewModel(
+            new FakeInstanceFolderService(_ => false),
+            new FakeStatusService(),
+            new FakeFilePickerService(null),
+            exportService);
+        viewModel.Show(CreateReport(
+            new LaunchDiagnosticReference(LaunchDiagnosticType.LauncherDiagnostic, @"C:\logs\launcher.log")));
+
+        await viewModel.ExportReportCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, exportService.CallCount);
+        Assert.True(viewModel.IsOpen);
+    }
+
+    [Fact]
+    public async Task ExportReportUsesLauncherDiagnosticFallbackForLegacyReport()
+    {
+        var exportService = new FakeLaunchDiagnosticExportService();
+        var viewModel = CreateViewModel(
+            new FakeInstanceFolderService(_ => false),
+            new FakeStatusService(),
+            new FakeFilePickerService(@"C:\exports\report.zip"),
+            exportService);
+        viewModel.Show(CreateReport());
+
+        await viewModel.ExportReportCommand.ExecuteAsync(null);
+
+        var diagnostic = Assert.Single(exportService.LastRequest!.Diagnostics);
+        Assert.Equal(LaunchDiagnosticType.LauncherDiagnostic, diagnostic.Type);
+        Assert.Equal(@"C:\logs\launcher.log", diagnostic.Path);
+    }
+
+    [Fact]
+    public async Task ExportReportShowsPartialSuccessStatus()
+    {
+        var statusService = new FakeStatusService();
+        var exportService = new FakeLaunchDiagnosticExportService
+        {
+            Result = new LaunchDiagnosticExportResult(
+                true,
+                ExportedFileCount: 3,
+                SkippedFileCount: 1)
+        };
+        var viewModel = CreateViewModel(
+            new FakeInstanceFolderService(_ => false),
+            statusService,
+            new FakeFilePickerService(@"C:\exports\report.zip"),
+            exportService);
+        viewModel.Show(CreateReport(
+            new LaunchDiagnosticReference(LaunchDiagnosticType.LauncherDiagnostic, @"C:\logs\launcher.log")));
+
+        await viewModel.ExportReportCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, exportService.CallCount);
+        Assert.Equal(
+            string.Format(Strings.Status_LaunchReportExportPartialFormat, 3, 1),
+            statusService.LastMessage);
+        Assert.False(viewModel.IsExporting);
+        Assert.True(viewModel.IsOpen);
+    }
+
+    [Fact]
+    public async Task ExportReportShowsCompleteSuccessStatus()
+    {
+        var statusService = new FakeStatusService();
+        var exportService = new FakeLaunchDiagnosticExportService
+        {
+            Result = new LaunchDiagnosticExportResult(true, ExportedFileCount: 4)
+        };
+        var viewModel = CreateViewModel(
+            new FakeInstanceFolderService(_ => false),
+            statusService,
+            new FakeFilePickerService(@"C:\exports\report.zip"),
+            exportService);
+        viewModel.Show(CreateReport(
+            new LaunchDiagnosticReference(LaunchDiagnosticType.LauncherDiagnostic, @"C:\logs\launcher.log")));
+
+        await viewModel.ExportReportCommand.ExecuteAsync(null);
+
+        Assert.Equal(
+            string.Format(Strings.Status_LaunchReportExportSucceededFormat, 4),
+            statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task ExportReportShowsNoReadableFilesStatus()
+    {
+        var statusService = new FakeStatusService();
+        var exportService = new FakeLaunchDiagnosticExportService
+        {
+            Result = new LaunchDiagnosticExportResult(
+                false,
+                LaunchDiagnosticExportFailureReason.NoReadableDiagnostics)
+        };
+        var viewModel = CreateViewModel(
+            new FakeInstanceFolderService(_ => false),
+            statusService,
+            new FakeFilePickerService(@"C:\exports\report.zip"),
+            exportService);
+        viewModel.Show(CreateReport(
+            new LaunchDiagnosticReference(LaunchDiagnosticType.LauncherDiagnostic, @"C:\logs\launcher.log")));
+
+        await viewModel.ExportReportCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_LaunchReportExportNoReadableFiles, statusService.LastMessage);
+    }
+
+    [Fact]
+    public async Task ExportReportCannotRunTwiceConcurrently()
+    {
+        var completion = new TaskCompletionSource<LaunchDiagnosticExportResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var exportService = new FakeLaunchDiagnosticExportService
+        {
+            Behavior = _ => completion.Task
+        };
+        var viewModel = CreateViewModel(
+            new FakeInstanceFolderService(_ => false),
+            new FakeStatusService(),
+            new FakeFilePickerService(@"C:\exports\report.zip"),
+            exportService);
+        viewModel.Show(CreateReport(
+            new LaunchDiagnosticReference(LaunchDiagnosticType.LauncherDiagnostic, @"C:\logs\launcher.log")));
+
+        var exportTask = viewModel.ExportReportCommand.ExecuteAsync(null);
+        await Task.Yield();
+
+        Assert.True(viewModel.IsExporting);
+        Assert.False(viewModel.ExportReportCommand.CanExecute(null));
+        completion.SetResult(new LaunchDiagnosticExportResult(true, ExportedFileCount: 1));
+        await exportTask;
+
+        Assert.False(viewModel.IsExporting);
+        Assert.True(viewModel.ExportReportCommand.CanExecute(null));
+        Assert.Equal(1, exportService.CallCount);
+    }
+
+    [Fact]
+    public async Task ExportReportConvertsUnexpectedExceptionToFriendlyStatus()
+    {
+        var statusService = new FakeStatusService();
+        var exportService = new FakeLaunchDiagnosticExportService
+        {
+            Behavior = _ => throw new IOException("export failed")
+        };
+        var viewModel = CreateViewModel(
+            new FakeInstanceFolderService(_ => false),
+            statusService,
+            new FakeFilePickerService(@"C:\exports\report.zip"),
+            exportService);
+        viewModel.Show(CreateReport(
+            new LaunchDiagnosticReference(LaunchDiagnosticType.LauncherDiagnostic, @"C:\logs\launcher.log")));
+
+        await viewModel.ExportReportCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Status_LaunchReportExportFailed, statusService.LastMessage);
+        Assert.False(viewModel.IsExporting);
+    }
+
+    private static LaunchStatusDialogViewModel CreateViewModel(
+        IInstanceFolderService folderService,
+        IStatusService statusService,
+        IFilePickerService? filePickerService = null,
+        ILaunchDiagnosticExportService? exportService = null)
+    {
+        return new LaunchStatusDialogViewModel(
+            folderService,
+            filePickerService ?? new FakeFilePickerService(null),
+            exportService ?? new FakeLaunchDiagnosticExportService(),
+            statusService);
     }
 
     private static LaunchFailureReport CreateReport(params LaunchDiagnosticReference[] candidates)
@@ -105,6 +280,37 @@ public sealed class LaunchStatusDialogViewModelTests
         {
             LastMessage = message;
             MessageReported?.Invoke(message);
+        }
+    }
+
+    private sealed class FakeFilePickerService(string? exportPath) : IFilePickerService
+    {
+        public string? PickMinecraftSkin() => null;
+        public string? PickJavaExecutable() => null;
+        public string? PickLocalImportFile() => null;
+        public string? PickModFile() => null;
+        public string? PickSaveArchive() => null;
+        public string? PickResourcePackArchive() => null;
+        public string? PickShaderPackArchive() => null;
+        public string? PickModpackExportArchive(string defaultFileName, ModpackExportKind kind) => null;
+        public string? PickLaunchDiagnosticExportArchive(string instanceName) => exportPath;
+        public string? PickFolder(string title, string? initialDirectory = null) => null;
+    }
+
+    private sealed class FakeLaunchDiagnosticExportService : ILaunchDiagnosticExportService
+    {
+        public int CallCount { get; private set; }
+        public LaunchDiagnosticExportRequest? LastRequest { get; private set; }
+        public LaunchDiagnosticExportResult Result { get; init; } = new(true, ExportedFileCount: 1);
+        public Func<LaunchDiagnosticExportRequest, Task<LaunchDiagnosticExportResult>>? Behavior { get; init; }
+
+        public Task<LaunchDiagnosticExportResult> ExportAsync(
+            LaunchDiagnosticExportRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            LastRequest = request;
+            return Behavior?.Invoke(request) ?? Task.FromResult(Result);
         }
     }
 }

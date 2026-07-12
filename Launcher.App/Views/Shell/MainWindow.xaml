@@ -947,8 +947,8 @@
                                 Command="{Binding ViewReportCommand}" />
                         <Button Style="{StaticResource LauncherDialogButtonStyle}"
                                 Margin="{StaticResource DialogTrailingButtonMargin}"
-                                Content="{x:Static res:Strings.Dialog_OpenLaunchLogFolderButton}"
-                                Command="{Binding OpenLogDirectoryCommand}" />
+                                Content="{x:Static res:Strings.Dialog_ExportLaunchReportButton}"
+                                Command="{Binding ExportReportCommand}" />
                         <Button Style="{StaticResource LauncherPrimaryDialogButtonStyle}"
                                 Margin="{StaticResource DialogTrailingButtonMargin}"
                                 Content="{x:Static res:Strings.Confirm_Button}"

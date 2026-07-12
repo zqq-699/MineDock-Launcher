@@ -692,6 +692,10 @@
   <data name="Status_DeleteInstanceFailed" xml:space="preserve"><value>删除版本失败，请稍后重试。</value></data>
   <data name="Status_InstanceFolderNotFound" xml:space="preserve"><value>没有找到该版本对应的文件夹。</value></data>
   <data name="Status_OpenInstanceFolderFailed" xml:space="preserve"><value>打开版本文件夹失败，请稍后重试。</value></data>
+  <data name="Status_LaunchReportExportSucceededFormat" xml:space="preserve"><value>报告已导出，共包含 {0} 个文件。</value></data>
+  <data name="Status_LaunchReportExportPartialFormat" xml:space="preserve"><value>报告已导出 {0} 个文件，另有 {1} 个文件不可用。</value></data>
+  <data name="Status_LaunchReportExportNoReadableFiles" xml:space="preserve"><value>没有可导出的报告文件。</value></data>
+  <data name="Status_LaunchReportExportFailed" xml:space="preserve"><value>导出报告失败，请稍后重试。</value></data>
   <data name="Status_OpenLaunchLogFolderFailed" xml:space="preserve"><value>打开启动诊断日志目录失败，请稍后重试。</value></data>
   <data name="Status_OpenLaunchReportFailed" xml:space="preserve"><value>无法打开本次游戏报告，请稍后重试。</value></data>
   <data name="Status_OpenGithubRepositoryFailed" xml:space="preserve"><value>打开 GitHub 仓库失败</value></data>
@@ -853,9 +857,9 @@
   <data name="Dialog_LaunchStatusStartupAbnormalMessage" xml:space="preserve"><value>游戏进程在启动阶段异常退出，退出码：{0}。</value></data>
   <data name="Dialog_LaunchStatusRuntimeAbnormalMessage" xml:space="preserve"><value>游戏运行过程中异常退出，退出码：{0}。</value></data>
   <data name="Dialog_LaunchStatusUnknownExitCode" xml:space="preserve"><value>未知</value></data>
-  <data name="Dialog_LaunchStatusDiagnosticFileHint" xml:space="preserve"><value>已生成启动诊断日志，可打开日志目录查看详细信息。</value></data>
-  <data name="Dialog_LaunchStatusDiagnosticDirectoryHint" xml:space="preserve"><value>可打开日志目录查看 latest.log 和崩溃报告。</value></data>
-  <data name="Dialog_OpenLaunchLogFolderButton" xml:space="preserve"><value>打开日志目录</value></data>
+  <data name="Dialog_LaunchStatusDiagnosticFileHint" xml:space="preserve"><value>可查看主要报告，或导出本次会话的完整报告包。</value></data>
+  <data name="Dialog_LaunchStatusDiagnosticDirectoryHint" xml:space="preserve"><value>可查看当前可用报告，或将它们导出为压缩包。</value></data>
+  <data name="Dialog_ExportLaunchReportButton" xml:space="preserve"><value>导出报告</value></data>
   <data name="Dialog_ViewLaunchReportButton" xml:space="preserve"><value>查看报告</value></data>
   <data name="Dialog_LaunchAnalysisCurrentInstance" xml:space="preserve"><value>当前实例</value></data>
   <data name="Dialog_LaunchAnalysisUnknownTitle" xml:space="preserve"><value>可能原因</value></data>
@@ -1047,6 +1051,8 @@
   <data name="FilePicker_ModpackDownloadDirectoryTitle" xml:space="preserve"><value>选择整合包下载目录</value></data>
   <data name="FilePicker_ModpackExportArchiveTitle" xml:space="preserve"><value>保存 CurseForge 整合包</value></data>
   <data name="FilePicker_ModpackExportArchiveFilter" xml:space="preserve"><value>CurseForge 整合包 (*.zip)|*.zip|所有文件 (*.*)|*.*</value></data>
+  <data name="FilePicker_LaunchDiagnosticExportTitle" xml:space="preserve"><value>导出游戏异常报告</value></data>
+  <data name="FilePicker_LaunchDiagnosticExportFilter" xml:space="preserve"><value>ZIP 压缩包 (*.zip)|*.zip</value></data>
   <data name="FilePicker_ModrinthModpackExportArchiveTitle" xml:space="preserve"><value>保存 Modrinth 整合包</value></data>
   <data name="FilePicker_ModrinthModpackExportArchiveFilter" xml:space="preserve"><value>Modrinth 整合包 (*.mrpack)|*.mrpack|所有文件 (*.*)|*.*</value></data>
   <data name="GameSettings_DropImportShaderPacksMessage" xml:space="preserve"><value>释放以导入光影包</value></data>
