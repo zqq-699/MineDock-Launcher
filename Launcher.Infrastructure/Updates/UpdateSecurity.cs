@@ -39,7 +39,6 @@ internal static class OfficialUpdateHttp
         CancellationToken cancellationToken)
     {
         ValidateInitialUri(initialUri, kind);
-        var sourceFamily = GetSourceFamily(initialUri);
         var currentUri = initialUri;
         for (var redirectCount = 0; ; redirectCount++)
         {
@@ -62,7 +61,7 @@ internal static class OfficialUpdateHttp
             }
 
             var finalUri = response.RequestMessage?.RequestUri ?? currentUri;
-            ValidateRedirectUri(finalUri, sourceFamily);
+            ValidateRedirectUri(finalUri);
             if (!IsRedirect(response.StatusCode))
             {
                 if (!response.IsSuccessStatusCode)
@@ -85,7 +84,7 @@ internal static class OfficialUpdateHttp
             if (location is null)
                 throw new UpdateSecurityException("The update source returned a redirect without a location.");
             currentUri = location.IsAbsoluteUri ? location : new Uri(finalUri, location);
-            ValidateRedirectUri(currentUri, sourceFamily);
+            ValidateRedirectUri(currentUri);
         }
     }
 
@@ -125,21 +124,7 @@ internal static class OfficialUpdateHttp
             throw new UpdateSecurityException("The update URL is not an approved official source.");
     }
 
-    private static string GetSourceFamily(Uri uri) =>
-        uri.Host.Equals("gitee.com", StringComparison.OrdinalIgnoreCase) ? "gitee" : "github";
-
-    private static void ValidateRedirectUri(Uri uri, string sourceFamily)
-    {
-        ValidateHttps(uri);
-        var valid = sourceFamily == "gitee"
-            ? uri.Host.Equals("gitee.com", StringComparison.OrdinalIgnoreCase)
-              || uri.Host.EndsWith(".gitee.com", StringComparison.OrdinalIgnoreCase)
-            : uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)
-              || uri.Host.Equals("raw.githubusercontent.com", StringComparison.OrdinalIgnoreCase)
-              || uri.Host.EndsWith(".githubusercontent.com", StringComparison.OrdinalIgnoreCase);
-        if (!valid)
-            throw new UpdateSecurityException("The update redirect left the approved official domains.");
-    }
+    private static void ValidateRedirectUri(Uri uri) => ValidateHttps(uri);
 
     private static void ValidateHttps(Uri uri)
     {

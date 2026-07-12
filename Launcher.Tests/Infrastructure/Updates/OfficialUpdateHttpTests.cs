@@ -35,6 +35,35 @@ public sealed class OfficialUpdateHttpTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    [Fact]
+    public async Task GiteeManifestMayRedirectToExactOfficialRawContentHost()
+    {
+        const string start = "https://gitee.com/owner/repo/raw/update-manifests/update/beta/latest.json";
+        const string redirected = "https://raw.giteeusercontent.com/owner/repo/raw/update-manifests/update/beta/latest.json?signature=test";
+        var client = new HttpClient(new RedirectHandler()
+            .Redirect(start, redirected)
+            .Ok(redirected));
+
+        using var response = await OfficialUpdateHttp.SendAsync(
+            client, new Uri(start), OfficialUpdateUriKind.Manifest, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("https://raw.giteeusercontent.com/file")]
+    [InlineData("https://cdn.example.test/file")]
+    public async Task GiteeRedirectMayUseAnyHttpsContentHost(string location)
+    {
+        const string start = "https://gitee.com/owner/repo/raw/update-manifests/update/beta/latest.json";
+        var client = new HttpClient(new RedirectHandler().Redirect(start, location).Ok(location));
+
+        using var response = await OfficialUpdateHttp.SendAsync(
+            client, new Uri(start), OfficialUpdateUriKind.Manifest, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
     [Theory]
     [InlineData("http://github.com/owner/repo/app.exe")]
     [InlineData("https://example.test/app.exe")]
@@ -44,17 +73,28 @@ public sealed class OfficialUpdateHttpTests
             new HttpClient(new RedirectHandler()), new Uri(url), OfficialUpdateUriKind.Executable, CancellationToken.None));
     }
 
-    [Theory]
-    [InlineData("http://release-assets.githubusercontent.com/app.exe")]
-    [InlineData("https://example.test/app.exe")]
-    [InlineData("https://gitee.com/owner/repo/app.exe")]
-    public async Task GithubRedirectCannotDowngradeOrLeaveProvider(string location)
+    [Fact]
+    public async Task RedirectCannotDowngradeToHttp()
     {
         const string start = "https://github.com/owner/repo/releases/download/v1/app.exe";
-        var client = new HttpClient(new RedirectHandler().Redirect(start, location));
+        var client = new HttpClient(new RedirectHandler().Redirect(start, "http://cdn.example.test/app.exe"));
 
         await Assert.ThrowsAsync<UpdateSecurityException>(() => OfficialUpdateHttp.SendAsync(
             client, new Uri(start), OfficialUpdateUriKind.Executable, CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData("https://cdn.example.test/app.exe")]
+    [InlineData("https://gitee.com/owner/repo/app.exe")]
+    public async Task GithubRedirectMayLeaveProviderOverHttps(string location)
+    {
+        const string start = "https://github.com/owner/repo/releases/download/v1/app.exe";
+        var client = new HttpClient(new RedirectHandler().Redirect(start, location).Ok(location));
+
+        using var response = await OfficialUpdateHttp.SendAsync(
+            client, new Uri(start), OfficialUpdateUriKind.Executable, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]

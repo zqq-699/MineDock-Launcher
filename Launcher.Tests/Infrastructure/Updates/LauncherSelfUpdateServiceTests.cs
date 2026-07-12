@@ -117,14 +117,14 @@ public sealed class LauncherSelfUpdateServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CrossProviderRedirectIsSecurityFailure()
+    public async Task CrossProviderHttpsRedirectIsAllowedAndFollowed()
     {
-        var handler = new DownloadHandler().Redirect(GiteeUrl, GitHubUrl);
+        var handler = new DownloadHandler().Redirect(GiteeUrl, GitHubUrl).Respond(GitHubUrl, HttpStatusCode.OK, Payload);
         var result = await CreateService(handler, _ => true).StartUpdateAsync(CreateUpdate([
             new LauncherUpdateDownloadUrl("gitee", GiteeUrl, 1)]));
 
-        Assert.False(result.Succeeded);
-        Assert.Equal([GiteeUrl], handler.Requests);
+        Assert.True(result.Succeeded, result.ErrorMessage);
+        Assert.Equal([GiteeUrl, GitHubUrl], handler.Requests);
     }
 
     private LauncherSelfUpdateService CreateService(DownloadHandler handler, Func<ProcessStartInfo, bool> startProcess)

@@ -51,7 +51,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
     }
 
     [Fact]
-    public async Task InvalidSignatureRejectsUpdateEvenWhenOtherMirrorIsValid()
+    public async Task InvalidSignatureFallsBackToNextValidMirror()
     {
         var manifest = CreateManifest();
         var invalidSignature = Convert.ToBase64String(Enumerable.Repeat((byte)0xff, 64).ToArray());
@@ -63,12 +63,12 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
 
         var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
 
-        Assert.True(result.IsFailed);
-        Assert.False(result.IsUpdateAvailable);
+        Assert.False(result.IsFailed);
+        Assert.True(result.IsUpdateAvailable);
     }
 
     [Fact]
-    public async Task DifferentValidManifestBytesAreRejected()
+    public async Task FirstValidManifestWinsWithoutLoadingEveryMirror()
     {
         var service = CreateService(DefaultSources,
             (GiteeManifest, HttpStatusCode.OK, CreateManifest("1.1.0")),
@@ -78,11 +78,12 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
 
         var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
 
-        Assert.True(result.IsFailed);
+        Assert.False(result.IsFailed);
+        Assert.Equal("1.1.0", result.Update?.Version);
     }
 
     [Fact]
-    public async Task DifferentValidSignatureFileBytesAreRejected()
+    public async Task LaterMirrorSignatureDoesNotNeedToBeComparedAfterValidSource()
     {
         var manifest = CreateManifest();
         var otherCanonicalSignature = Convert.ToBase64String(Enumerable.Repeat((byte)1, 64).ToArray());
@@ -94,7 +95,7 @@ public sealed class RemoteManifestLauncherUpdateServiceTests
 
         var result = await service.CheckForUpdatesAsync("1.0.0", LauncherUpdateChannel.Release);
 
-        Assert.True(result.IsFailed);
+        Assert.False(result.IsFailed);
     }
 
     [Fact]

@@ -74,7 +74,11 @@ final remote manifest to `update/{channel}/latest.json` on the
 
 Final manifests contain only `gitee` and `github` download URLs. Gitee is the
 first update manifest source and the first download mirror; GitHub is the
-fallback. The Gitee repository is not a source-code mirror; its
+fallback. The client verifies each source independently and stops at the first
+valid signed manifest; any network or validation failure falls through to the
+next source. Initial update URLs must use the configured official GitHub or
+Gitee HTTPS hosts; redirects may use any HTTPS host, remain limited to five
+hops, and can never downgrade to HTTP. The Gitee repository is not a source-code mirror; its
 `update-manifests` branch only stores `update/release/latest.json`,
 `update/beta/latest.json`, their `.sig` files, lightweight tags, and Release
 attachments. Both providers receive the same local manifest and signature

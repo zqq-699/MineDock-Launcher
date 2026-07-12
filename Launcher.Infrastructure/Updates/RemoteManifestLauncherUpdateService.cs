@@ -1,6 +1,5 @@
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.IO;
@@ -61,47 +60,23 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
             return LauncherUpdateCheckResult.Failed(currentVersion, "The current launcher version is invalid.");
 
         var channelText = channel is LauncherUpdateChannel.Beta ? "beta" : "release";
-        var sourceResults = await Task.WhenAll(manifestSources.Select(source =>
-            LoadSourceAsync(source, channelText, cancellationToken))).ConfigureAwait(false);
-
-        var invalid = sourceResults.FirstOrDefault(result => result.Status is ManifestSourceStatus.Invalid);
-        if (invalid is not null)
+        foreach (var source in manifestSources)
         {
-            logger?.LogError(
-                "Launcher update manifest security validation failed. Source={Source} Reason={Reason}",
-                invalid.Source.Name,
-                invalid.FailureReason);
-            return LauncherUpdateCheckResult.Failed(currentVersion, "Update manifest security validation failed.");
+            var result = await LoadSourceAsync(source, channelText, cancellationToken).ConfigureAwait(false);
+            if (result.Status is not ManifestSourceStatus.Valid)
+                continue;
+            var manifest = result.Manifest!;
+            logger?.LogInformation(
+                "Verified launcher update manifest. Source={Source} Channel={Channel} KeyId={KeyId} VersionCode={VersionCode}",
+                result.Source.Name,
+                channelText,
+                manifest.KeyId,
+                manifest.VersionCode);
+            return CreateResult(currentVersion, currentVersionCode, manifest);
         }
 
-        var valid = sourceResults.Where(result => result.Status is ManifestSourceStatus.Valid).ToArray();
-        if (valid.Length == 0)
-        {
-            logger?.LogWarning("All launcher update manifest sources were unavailable. Channel={Channel}", channelText);
-            return LauncherUpdateCheckResult.Failed(currentVersion, "All update manifest sources were unavailable.");
-        }
-
-        if (valid.Length > 1)
-        {
-            var expectedManifest = valid[0].ManifestBytes!;
-            var expectedSignature = valid[0].SignatureFileBytes!;
-            if (valid.Skip(1).Any(result =>
-                    !CryptographicOperations.FixedTimeEquals(expectedManifest, result.ManifestBytes!)
-                    || !CryptographicOperations.FixedTimeEquals(expectedSignature, result.SignatureFileBytes!)))
-            {
-                logger?.LogError("Valid launcher update mirrors returned different signed content. Channel={Channel}", channelText);
-                return LauncherUpdateCheckResult.Failed(currentVersion, "Official update mirrors returned inconsistent signed manifests.");
-            }
-        }
-
-        var selected = valid.OrderBy(result => result.Source.Priority).First();
-        logger?.LogInformation(
-            "Verified launcher update manifest. Source={Source} Channel={Channel} KeyId={KeyId} VersionCode={VersionCode}",
-            selected.Source.Name,
-            channelText,
-            selected.Manifest!.KeyId,
-            selected.Manifest.VersionCode);
-        return CreateResult(currentVersion, currentVersionCode, selected.Manifest!);
+        logger?.LogWarning("All launcher update manifest sources failed or were unavailable. Channel={Channel}", channelText);
+        return LauncherUpdateCheckResult.Failed(currentVersion, "All signed update manifest sources failed or were unavailable.");
     }
 
     private async Task<ManifestSourceResult> LoadSourceAsync(
@@ -143,7 +118,7 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
             var manifest = JsonSerializer.Deserialize<RemoteUpdateManifestDto>(manifestBytes, JsonOptions)
                 ?? throw new UpdateSecurityException("The update manifest JSON is empty.");
             ValidateManifest(manifest, expectedChannel, signatureVerifier.KeyId);
-            return ManifestSourceResult.Valid(source, manifest, manifestBytes, signatureFileBytes);
+            return ManifestSourceResult.Valid(source, manifest);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -339,16 +314,14 @@ public sealed class RemoteManifestLauncherUpdateService : ILauncherUpdateService
         LauncherUpdateManifestSource Source,
         ManifestSourceStatus Status,
         RemoteUpdateManifestDto? Manifest,
-        byte[]? ManifestBytes,
-        byte[]? SignatureFileBytes,
         string? FailureReason)
     {
-        public static ManifestSourceResult Valid(LauncherUpdateManifestSource source, RemoteUpdateManifestDto manifest, byte[] bytes, byte[] signature) =>
-            new(source, ManifestSourceStatus.Valid, manifest, bytes, signature, null);
+        public static ManifestSourceResult Valid(LauncherUpdateManifestSource source, RemoteUpdateManifestDto manifest) =>
+            new(source, ManifestSourceStatus.Valid, manifest, null);
         public static ManifestSourceResult Unavailable(LauncherUpdateManifestSource source, string reason) =>
-            new(source, ManifestSourceStatus.Unavailable, null, null, null, reason);
+            new(source, ManifestSourceStatus.Unavailable, null, reason);
         public static ManifestSourceResult Invalid(LauncherUpdateManifestSource source, string reason) =>
-            new(source, ManifestSourceStatus.Invalid, null, null, null, reason);
+            new(source, ManifestSourceStatus.Invalid, null, reason);
     }
 }
 
