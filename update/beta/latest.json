@@ -3,12 +3,12 @@
   "appId": "BlockHelm-Launcher",
   "keyId": "40a44dfdb94667529e614671a7fe557d124980877e0b25e1811beff9dd7a7f46",
   "channel": "beta",
-  "versionName": "0.9.3-beta.3",
-  "versionCode": 90303,
-  "publishedAt": "2026-07-12T10:43:49Z",
+  "versionName": "0.9.3-beta.4",
+  "versionCode": 90304,
+  "publishedAt": "2026-07-12T10:53:28Z",
   "mandatory": false,
   "minSupportedVersionCode": 0,
-  "releaseNotes": "# Beta 0.9.3-beta.3\r\n\r\n- Fall back to the next signed update source when a mirror is unavailable or fails validation.\r\n- Use the first independently verified signed manifest instead of requiring every mirror to succeed.\r\n- Allow official update requests to follow HTTPS redirects across content-delivery hosts while still rejecting HTTP downgrade.\r\n- Preserve Ed25519 manifest verification and mandatory executable size and SHA-256 checks across all mirrors.",
+  "releaseNotes": "# Beta 0.9.3-beta.4\r\n\r\n- Publish a follow-up beta for end-to-end signed self-update validation from beta.3.\r\n- Retain independent update-source fallback and HTTPS redirect support.\r\n- Continue enforcing Ed25519 manifest signatures and executable size and SHA-256 verification.",
   "assets": [
     {
       "platform": "windows",
@@ -16,16 +16,16 @@
       "packageType": "exe",
       "fileName": "BlockHelm_Launcher_x64.exe",
       "size": 12922037,
-      "sha256": "e912e62b148b74c8f19bd4f462d591e2df6d6c0f78f9201126af03e7b0904215",
+      "sha256": "1a2cf95b86b02e8d4cfa218541ffa9c9904c60f4624864d226120a3e61fad906",
       "urls": [
         {
           "name": "gitee",
-          "url": "https://gitee.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.3-beta.3/BlockHelm_Launcher_x64.exe",
+          "url": "https://gitee.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.3-beta.4/BlockHelm_Launcher_x64.exe",
           "priority": 1
         },
         {
           "name": "github",
-          "url": "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.3-beta.3/BlockHelm_Launcher_x64.exe",
+          "url": "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.3-beta.4/BlockHelm_Launcher_x64.exe",
           "priority": 2
         }
       ]
