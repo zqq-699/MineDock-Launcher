@@ -264,6 +264,20 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
             progress?.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
             await installerRunner.RunInstallerAsync("java", installerJarPath, installerMinecraftDirectory, cancellationToken);
 
+            var processorArtifactService = new NeoForgeProcessorArtifactService(
+                httpClient,
+                installerRunner,
+                finalVersionInstaller,
+                downloadSpeedLimitState,
+                logger,
+                tempRootDirectory);
+            var processorManifest = await processorArtifactService.ValidateInstallerOutputsAsync(
+                installerJarPath,
+                installerMinecraftDirectory,
+                minecraftVersion,
+                selectedLoaderVersion,
+                cancellationToken).ConfigureAwait(false);
+
             var sourceVersionName = FindInstalledSourceVersionName(
                 installerMinecraftDirectory,
                 selectedLoaderVersion,
@@ -293,6 +307,12 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
 
+            await LoaderVersionDirectoryTransaction.WriteNeoForgeProcessorMetadataAsync(
+                installerMinecraftDirectory,
+                finalVersionName,
+                processorManifest,
+                cancellationToken).ConfigureAwait(false);
+
             LoaderVersionDirectoryTransaction.CopyFinalVersionDirectory(
                 installerMinecraftDirectory,
                 gameDirectory,
@@ -301,6 +321,10 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
             await prerequisiteSeeder.PublishDeltaAsync(
                 workspaceSnapshot,
                 gameDirectory,
+                cancellationToken).ConfigureAwait(false);
+            await processorArtifactService.ValidateManifestAsync(
+                gameDirectory,
+                processorManifest,
                 cancellationToken).ConfigureAwait(false);
 
             LoaderVersionDirectoryTransaction.CleanupCreatedVersionDirectories(gameDirectory, existingVersionNames, finalVersionName);

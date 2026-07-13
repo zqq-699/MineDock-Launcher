@@ -93,6 +93,20 @@ private async Task<string> InstallCoreAsync(
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
 
+            var processorArtifactService = new ForgeProcessorArtifactService(
+                httpClient,
+                installerRunner,
+                finalVersionInstaller,
+                downloadSpeedLimitState,
+                logger,
+                tempRootDirectory);
+            var processorManifest = await processorArtifactService.ValidateInstallerOutputsAsync(
+                installerJarPath,
+                installerMinecraftDirectory,
+                minecraftVersion,
+                selectedLoaderVersion,
+                cancellationToken).ConfigureAwait(false);
+
             var sourceVersionName = FindInstalledSourceVersionName(
                 installerMinecraftDirectory,
                 minecraftVersion,
@@ -123,6 +137,12 @@ private async Task<string> InstallCoreAsync(
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
 
+            await LoaderVersionDirectoryTransaction.WriteForgeProcessorMetadataAsync(
+                installerMinecraftDirectory,
+                finalVersionName,
+                processorManifest,
+                cancellationToken).ConfigureAwait(false);
+
             // 最终版本完成扁平化、修复和文件补齐后才提交，用户目录不会看到依赖沙箱的半成品。
             LoaderVersionDirectoryTransaction.CopyFinalVersionDirectory(
                 installerMinecraftDirectory,
@@ -132,6 +152,10 @@ private async Task<string> InstallCoreAsync(
             await prerequisiteSeeder.PublishDeltaAsync(
                 workspaceSnapshot,
                 gameDirectory,
+                cancellationToken).ConfigureAwait(false);
+            await processorArtifactService.ValidateManifestAsync(
+                gameDirectory,
+                processorManifest,
                 cancellationToken).ConfigureAwait(false);
 
             LoaderVersionDirectoryTransaction.CleanupCreatedVersionDirectories(gameDirectory, existingVersionNames, finalVersionName);

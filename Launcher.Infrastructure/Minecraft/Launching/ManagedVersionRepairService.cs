@@ -53,15 +53,34 @@ internal sealed partial class ManagedVersionRepairService : IManagedVersionRepai
     private readonly HttpClient httpClient;
     private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
     private readonly ILogger logger;
+    private readonly ForgeProcessorArtifactService forgeProcessorArtifactService;
+    private readonly NeoForgeProcessorArtifactService neoForgeProcessorArtifactService;
 
     public ManagedVersionRepairService(
         HttpClient? httpClient = null,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
-        ILogger? logger = null)
+        ILogger? logger = null,
+        IForgeInstallerRunner? forgeInstallerRunner = null,
+        IFinalVersionInstaller? finalVersionInstaller = null,
+        string? tempRootDirectory = null)
     {
         this.httpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.logger = logger ?? NullLogger.Instance;
+        forgeProcessorArtifactService = new ForgeProcessorArtifactService(
+            this.httpClient,
+            forgeInstallerRunner,
+            finalVersionInstaller,
+            downloadSpeedLimitState,
+            this.logger,
+            tempRootDirectory);
+        neoForgeProcessorArtifactService = new NeoForgeProcessorArtifactService(
+            this.httpClient,
+            forgeInstallerRunner,
+            finalVersionInstaller,
+            downloadSpeedLimitState,
+            this.logger,
+            tempRootDirectory);
     }
 
     /// <summary>
@@ -127,6 +146,24 @@ internal sealed partial class ManagedVersionRepairService : IManagedVersionRepai
             allowRepair,
             downloadBatch,
             cancellationToken);
+
+        await forgeProcessorArtifactService.EnsureLaunchArtifactsAsync(
+            minecraftDirectory,
+            Path.Combine(versionDirectory, $"{versionName}.json"),
+            resolvedVersion.VersionJson,
+            allowRepair,
+            downloadSourcePreference,
+            downloadSpeedLimitMbPerSecond,
+            cancellationToken).ConfigureAwait(false);
+
+        await neoForgeProcessorArtifactService.EnsureLaunchArtifactsAsync(
+            minecraftDirectory,
+            Path.Combine(versionDirectory, $"{versionName}.json"),
+            resolvedVersion.VersionJson,
+            allowRepair,
+            downloadSourcePreference,
+            downloadSpeedLimitMbPerSecond,
+            cancellationToken).ConfigureAwait(false);
 
         ReportProgress(
             progress,

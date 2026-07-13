@@ -86,14 +86,18 @@ private static void AppendAnalysisSection(
     {
         // 从尾部提取少量高信号错误行，完整日志路径仍写入诊断供进一步查看。
         var candidates = new List<string>();
-        AddMatches(stdout);
         AddMatches(stderr);
+        AddMatches(stdout);
         AddMatches(latestLogTail);
 
         foreach (var crashPreview in crashPreviews.Take(2))
             AddMatches(crashPreview.Text);
 
-        return candidates.Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToList();
+        return candidates
+            .OrderByDescending(GetFailureLineScore)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(20)
+            .ToList();
 
         void AddMatches(string text)
         {
@@ -112,11 +116,29 @@ private static void AppendAnalysisSection(
         }
     }
 
+    private static int GetFailureLineScore(string line)
+    {
+        if (line.Contains("Invalid paths argument, contained no existing paths", StringComparison.OrdinalIgnoreCase))
+            return 600;
+        if (line.Contains("caused by", StringComparison.OrdinalIgnoreCase))
+            return 550;
+        if (line.Contains("exception", StringComparison.OrdinalIgnoreCase))
+            return 500;
+        if (line.Contains("fatal", StringComparison.OrdinalIgnoreCase))
+            return 450;
+        if (line.Contains("error", StringComparison.OrdinalIgnoreCase))
+            return 400;
+        if (line.Contains("failed", StringComparison.OrdinalIgnoreCase))
+            return 300;
+        return 100;
+    }
+
     private static bool LooksLikeFailureLine(string line)
     {
         return line.Contains("error", StringComparison.OrdinalIgnoreCase)
                || line.Contains("exception", StringComparison.OrdinalIgnoreCase)
                || line.Contains("caused by", StringComparison.OrdinalIgnoreCase)
+               || line.Contains("Invalid paths argument, contained no existing paths", StringComparison.OrdinalIgnoreCase)
                || line.Contains("missing", StringComparison.OrdinalIgnoreCase)
                || line.Contains("failed", StringComparison.OrdinalIgnoreCase)
                || line.Contains("fatal", StringComparison.OrdinalIgnoreCase);

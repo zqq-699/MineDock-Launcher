@@ -21,6 +21,7 @@ private static LaunchFailureAnalysis? AnalyzeMissingFiles(
             "Could not find or load main class",
             "Unable to access jarfile",
             "The system cannot find the file specified",
+            "Invalid paths argument, contained no existing paths",
             "Missing launch target",
             "NoClassDefFoundError");
         if (evidence is null)

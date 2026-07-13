@@ -480,6 +480,23 @@ public sealed class LaunchFailureAnalyzerTests : TestTempDirectory
     }
 
     [Fact]
+    public void AnalyzerClassifiesForgeInvalidPathsAsMissingGameFiles()
+    {
+        const string stderr = "java.lang.IllegalArgumentException: Invalid paths argument, contained no existing paths";
+
+        var analysis = LaunchFailureAnalyzer.Analyze(
+            CreateContext(loader: LoaderKind.Forge),
+            string.Empty,
+            stderr,
+            string.Empty,
+            []);
+
+        Assert.NotNull(analysis);
+        Assert.Equal(LaunchFailureCategory.MissingGameFiles, analysis.Category);
+        Assert.Contains("Invalid paths argument", Assert.Single(analysis.Evidence).Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AnalyzerDoesNotTreatLog4jErrorsAsPrimaryCause()
     {
         var latestLog = """

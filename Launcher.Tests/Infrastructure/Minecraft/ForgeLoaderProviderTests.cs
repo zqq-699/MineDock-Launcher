@@ -20,6 +20,8 @@
 using System.Diagnostics;
 using System.Net;
 using System.IO.Compression;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Launcher.Domain.Models;
@@ -193,6 +195,15 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
             "forge",
             "1.20.1-47.4.20",
             "forge-1.20.1-47.4.20-client.jar")));
+        Assert.True(File.Exists(GetGeneratedLibraryPath(
+            minecraftDirectory,
+            "net/minecraft/client/1.20.1-20230612.114412/client-1.20.1-20230612.114412-extra.jar")));
+        Assert.True(File.Exists(GetGeneratedLibraryPath(
+            minecraftDirectory,
+            "net/minecraft/client/1.20.1-20230612.114412/client-1.20.1-20230612.114412-srg.jar")));
+        Assert.True(File.Exists(GetGeneratedLibraryPath(
+            minecraftDirectory,
+            "net/minecraftforge/fmlcore/1.20.1-47.4.20/fmlcore-1.20.1-47.4.20.jar")));
         Assert.False(File.Exists(Path.Combine(minecraftDirectory, "launcher_profiles.json")));
         Assert.Equal("1.20.1-forge-47.4.20", finalInstaller.LastVersionName);
 
@@ -201,6 +212,9 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
         Assert.Equal("1.20.1-forge-47.4.20", json.RootElement.GetProperty("jar").GetString());
         Assert.False(json.RootElement.TryGetProperty("inheritsFrom", out _));
         Assert.Equal("1.20.1", json.RootElement.GetProperty("launcher").GetProperty("minecraftVersion").GetString());
+        Assert.Equal(
+            4,
+            json.RootElement.GetProperty("launcher").GetProperty("forgeProcessorArtifacts").GetProperty("artifacts").GetArrayLength());
     }
 
     [Fact]
@@ -255,6 +269,34 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
 
         Assert.True(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "1.20.1")));
         Assert.False(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "forge-1.20.1-47.4.20")));
+        Assert.False(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "1.20.1-forge-47.4.20")));
+    }
+
+    [Fact]
+    public async Task ForgeLoaderProviderRejectsSuccessfulInstallerWithMissingProcessorOutput()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        await CreateVanillaVersionAsync(minecraftDirectory, "1.20.1");
+        var provider = CreateProvider(new ScriptedForgeInstallerRunner(async (gameDirectory, _, _) =>
+        {
+            await CreateSandboxForgeInstallAsync(
+                gameDirectory,
+                "forge-1.20.1-47.4.20",
+                "1.20.1",
+                "1.20.1-47.4.20");
+            File.Delete(GetGeneratedLibraryPath(
+                gameDirectory,
+                "net/minecraft/client/1.20.1-20230612.114412/client-1.20.1-20230612.114412-srg.jar"));
+        }));
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => provider.InstallAsync(
+            "1.20.1",
+            minecraftDirectory,
+            "1.20.1-forge-47.4.20",
+            "47.4.20",
+            progress: null));
+
+        Assert.Contains("processor output", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.False(Directory.Exists(Path.Combine(minecraftDirectory, "versions", "1.20.1-forge-47.4.20")));
     }
 
@@ -419,17 +461,82 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
 
     private static void CreateGeneratedForgeLibrary(string minecraftDirectory, string combinedForgeVersion)
     {
-        var forgeLibraryDirectory = Path.Combine(
+        WriteGeneratedLibrary(
             minecraftDirectory,
-            "libraries",
-            "net",
-            "minecraftforge",
-            "forge",
-            combinedForgeVersion);
-        Directory.CreateDirectory(forgeLibraryDirectory);
-        File.WriteAllText(
-            Path.Combine(forgeLibraryDirectory, $"forge-{combinedForgeVersion}-client.jar"),
+            "net/minecraft/client/1.20.1-20230612.114412/client-1.20.1-20230612.114412-extra.jar",
+            "minecraft extra");
+        WriteGeneratedLibrary(
+            minecraftDirectory,
+            "net/minecraft/client/1.20.1-20230612.114412/client-1.20.1-20230612.114412-srg.jar",
+            "minecraft srg");
+        WriteGeneratedLibrary(
+            minecraftDirectory,
+            $"net/minecraftforge/forge/{combinedForgeVersion}/forge-{combinedForgeVersion}-client.jar",
             "patched forge client");
+        WriteGeneratedLibrary(
+            minecraftDirectory,
+            "net/minecraftforge/fmlcore/1.20.1-47.4.20/fmlcore-1.20.1-47.4.20.jar",
+            "forge runtime");
+    }
+
+    private static void WriteGeneratedLibrary(string minecraftDirectory, string relativePath, string content)
+    {
+        var path = GetGeneratedLibraryPath(minecraftDirectory, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, content);
+    }
+
+    private static string GetGeneratedLibraryPath(string minecraftDirectory, string relativePath) =>
+        Path.Combine(minecraftDirectory, "libraries", relativePath.Replace('/', Path.DirectorySeparatorChar));
+
+    private static byte[] CreateModernForgeInstallerBytes()
+    {
+        static string Sha1(string content) => Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(content))).ToLowerInvariant();
+
+        using var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var profileEntry = archive.CreateEntry("install_profile.json");
+            using (var writer = new StreamWriter(profileEntry.Open()))
+            {
+                writer.Write(
+                    $$"""
+                {
+                  "spec": 1,
+                  "minecraft": "1.20.1",
+                  "data": {
+                    "MC_EXTRA": { "client": "[net.minecraft:client:1.20.1-20230612.114412:extra]" },
+                    "MC_EXTRA_SHA": { "client": "'{{Sha1("minecraft extra")}}'" },
+                    "MC_SRG": { "client": "[net.minecraft:client:1.20.1-20230612.114412:srg]" },
+                    "PATCHED": { "client": "[net.minecraftforge:forge:1.20.1-47.4.20:client]" },
+                    "PATCHED_SHA": { "client": "'{{Sha1("patched forge client")}}'" }
+                  },
+                  "libraries": [
+                    {
+                      "name": "net.minecraftforge:fmlcore:1.20.1-47.4.20",
+                      "downloads": {
+                        "artifact": {
+                          "path": "net/minecraftforge/fmlcore/1.20.1-47.4.20/fmlcore-1.20.1-47.4.20.jar",
+                          "sha1": "{{Sha1("forge runtime")}}",
+                          "size": 13
+                        }
+                      }
+                    }
+                  ],
+                  "processors": [
+                    { "sides": ["client"], "args": ["--extra", "{MC_EXTRA}"], "outputs": { "{MC_EXTRA}": "{MC_EXTRA_SHA}" } },
+                    { "args": ["--output", "{MC_SRG}"] },
+                    { "args": ["--output", "{PATCHED}"], "outputs": { "{PATCHED}": "{PATCHED_SHA}" } }
+                  ]
+                }
+                """);
+            }
+            var runtimeEntry = archive.CreateEntry(
+                "maven/net/minecraftforge/fmlcore/1.20.1-47.4.20/fmlcore-1.20.1-47.4.20.jar");
+            using var runtimeWriter = new StreamWriter(runtimeEntry.Open());
+            runtimeWriter.Write("forge runtime");
+        }
+        return stream.ToArray();
     }
 
     private static byte[] CreateLegacyForgeInstallerBytes()
@@ -645,7 +752,7 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
 
         private static HttpResponseMessage CreateBinaryResponse(HttpRequestMessage request)
         {
-            return CreateBinaryResponse(request, "forge installer bytes"u8.ToArray());
+            return CreateBinaryResponse(request, CreateModernForgeInstallerBytes());
         }
 
         private static HttpResponseMessage CreateBinaryResponse(HttpRequestMessage request, byte[]? content)

@@ -140,6 +140,29 @@ public sealed class LaunchDiagnosticResourceLimitTests : TestTempDirectory
             await File.ReadAllTextAsync(result.DiagnosticPath!));
     }
 
+    [Fact]
+    public async Task QuickExitDiagnosticPrefersStderrExceptionOverStdoutMissingInfo()
+    {
+        var context = CreateContext();
+
+        var result = await LaunchDiagnosticsWriter.WriteQuickExitDiagnosticAsync(
+            context,
+            "runtime_abnormal_exit",
+            exitCode: 1,
+            runtime: TimeSpan.FromSeconds(3),
+            createdAt: DateTimeOffset.UtcNow,
+            startInfo: null,
+            diagnosticCandidates: [],
+            stdout: "[INFO] Missing Mods Checker: All mods found!",
+            stderr: "java.lang.IllegalArgumentException: Invalid paths argument, contained no existing paths",
+            capturedOutputTruncated: false,
+            cancellationToken: CancellationToken.None);
+
+        Assert.Contains("Invalid paths argument", result.FailureSummary, StringComparison.Ordinal);
+        Assert.DoesNotContain("All mods found", result.FailureSummary, StringComparison.Ordinal);
+        Assert.Equal(LaunchFailureCategory.MissingGameFiles, result.Analysis?.Category);
+    }
+
     private static string[] SplitLines(string text) =>
         text.Split(
             ['\r', '\n'],

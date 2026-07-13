@@ -428,6 +428,9 @@ internal sealed class InstalledVersionMetadataReader(ILogger logger)
         if (resolvedLoader.Kind is LoaderKind.NeoForge && string.IsNullOrWhiteSpace(resolvedLoader.Version))
             return resolvedLoader with { Version = TryReadNeoForgeVersion(metadata.ArgumentText) };
 
+        if (resolvedLoader.Kind is LoaderKind.Forge && string.IsNullOrWhiteSpace(resolvedLoader.Version))
+            return resolvedLoader with { Version = TryReadArgumentValue(metadata.ArgumentText, "--fml.forgeVersion") };
+
         return resolvedLoader;
     }
 
@@ -466,7 +469,8 @@ internal sealed class InstalledVersionMetadataReader(ILogger logger)
         }
 
         if (group.Equals("net.minecraftforge", StringComparison.OrdinalIgnoreCase)
-            && artifact.Equals("forge", StringComparison.OrdinalIgnoreCase))
+            && (artifact.Equals("forge", StringComparison.OrdinalIgnoreCase)
+                || artifact.Equals("fmlloader", StringComparison.OrdinalIgnoreCase)))
         {
             return new LoaderInfo(LoaderKind.Forge, TryReadForgeVersion(version));
         }
@@ -500,6 +504,7 @@ internal sealed class InstalledVersionMetadataReader(ILogger logger)
         }
 
         if (normalized.Contains("net.minecraftforge:forge", StringComparison.Ordinal)
+            || normalized.Contains("net.minecraftforge:fmlloader", StringComparison.Ordinal)
             || (allowLooseMatch && normalized.Contains("forge", StringComparison.Ordinal)))
         {
             return new LoaderInfo(LoaderKind.Forge, TryReadMavenVersion(value));
@@ -515,7 +520,8 @@ internal sealed class InstalledVersionMetadataReader(ILogger logger)
             return null;
 
         if (parts[0].Equals("net.minecraftforge", StringComparison.OrdinalIgnoreCase)
-            && parts[1].Equals("forge", StringComparison.OrdinalIgnoreCase))
+            && (parts[1].Equals("forge", StringComparison.OrdinalIgnoreCase)
+                || parts[1].Equals("fmlloader", StringComparison.OrdinalIgnoreCase)))
         {
             return TryReadForgeVersion(parts[2]);
         }

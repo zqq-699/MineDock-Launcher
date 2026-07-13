@@ -89,6 +89,56 @@ internal static class LoaderVersionDirectoryTransaction
             cancellationToken);
     }
 
+    public static async Task WriteForgeProcessorMetadataAsync(
+        string gameDirectory,
+        string versionName,
+        ForgeProcessorArtifactManifest manifest,
+        CancellationToken cancellationToken)
+    {
+        if (manifest.Artifacts.Count == 0)
+            return;
+
+        var versionJsonPath = Path.Combine(gameDirectory, "versions", versionName, $"{versionName}.json");
+        JsonNode versionJson;
+        await using (var jsonStream = File.OpenRead(versionJsonPath))
+        {
+            versionJson = await JsonNode.ParseAsync(jsonStream, cancellationToken: cancellationToken)
+                ?? throw new InvalidDataException($"Version JSON is empty: {versionJsonPath}");
+        }
+
+        var versionObject = versionJson.AsObject();
+        ForgeProcessorArtifactService.ApplyManifest(versionObject, manifest);
+        await File.WriteAllTextAsync(
+            versionJsonPath,
+            versionObject.ToJsonString(JsonOptions),
+            cancellationToken);
+    }
+
+    public static async Task WriteNeoForgeProcessorMetadataAsync(
+        string gameDirectory,
+        string versionName,
+        NeoForgeProcessorArtifactManifest manifest,
+        CancellationToken cancellationToken)
+    {
+        if (manifest.Artifacts.Count == 0)
+            return;
+
+        var versionJsonPath = Path.Combine(gameDirectory, "versions", versionName, $"{versionName}.json");
+        JsonNode versionJson;
+        await using (var jsonStream = File.OpenRead(versionJsonPath))
+        {
+            versionJson = await JsonNode.ParseAsync(jsonStream, cancellationToken: cancellationToken)
+                ?? throw new InvalidDataException($"Version JSON is empty: {versionJsonPath}");
+        }
+
+        var versionObject = versionJson.AsObject();
+        NeoForgeProcessorArtifactService.ApplyManifest(versionObject, manifest);
+        await File.WriteAllTextAsync(
+            versionJsonPath,
+            versionObject.ToJsonString(JsonOptions),
+            cancellationToken);
+    }
+
     public static void CopyFinalVersionDirectory(
         string sourceGameDirectory,
         string destinationGameDirectory,

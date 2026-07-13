@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.IO.Compression;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -95,6 +96,33 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
         Assert.Equal("1.20.4-neoforge-20.4.237", json.RootElement.GetProperty("jar").GetString());
         Assert.False(json.RootElement.TryGetProperty("inheritsFrom", out _));
         Assert.Equal("1.20.4", json.RootElement.GetProperty("launcher").GetProperty("minecraftVersion").GetString());
+        Assert.Single(
+            json.RootElement.GetProperty("launcher").GetProperty("neoForgeProcessorArtifacts").GetProperty("artifacts").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task NeoForgeLoaderProviderRejectsSuccessfulInstallerWithMissingProcessorOutput()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        await CreateVanillaVersionAsync(minecraftDirectory, "1.20.4");
+        var provider = CreateProvider(new ScriptedForgeInstallerRunner((gameDirectory, _, _) =>
+        {
+            CreateNeoForgeDerivedVersion(gameDirectory, "neoforge-20.4.237", "1.20.4", "20.4.237");
+            return Task.CompletedTask;
+        }));
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => provider.InstallAsync(
+            "1.20.4",
+            minecraftDirectory,
+            "1.20.4-neoforge-20.4.237",
+            "20.4.237",
+            progress: null));
+
+        Assert.Contains("processor output", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(Directory.Exists(Path.Combine(
+            minecraftDirectory,
+            "versions",
+            "1.20.4-neoforge-20.4.237")));
     }
 
     [Fact]
@@ -229,6 +257,14 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
             ["id"] = versionName,
             ["inheritsFrom"] = inheritsFrom,
             ["mainClass"] = "cpw.mods.modlauncher.Launcher",
+            ["arguments"] = new JsonObject
+            {
+                ["game"] = new JsonArray(
+                    "--fml.neoForgeVersion",
+                    loaderVersion,
+                    "--fml.mcVersion",
+                    inheritsFrom)
+            },
             ["libraries"] = new JsonArray
             {
                 new JsonObject { ["name"] = $"net.neoforged:neoforge:{loaderVersion}" }
@@ -341,7 +377,7 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
             }
 
             if (uri == "https://maven.neoforged.net/releases/net/neoforged/neoforge/20.4.237/neoforge-20.4.237-installer.jar")
-                return Task.FromResult(CreateBinaryResponse(request));
+                return Task.FromResult(CreateBinaryResponse(request, CreateInstallerBytes()));
 
             throw new InvalidOperationException($"Unexpected request: {uri}");
         }
@@ -355,13 +391,35 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
             };
         }
 
-        private static HttpResponseMessage CreateBinaryResponse(HttpRequestMessage request)
+        private static HttpResponseMessage CreateBinaryResponse(HttpRequestMessage request, byte[] content)
         {
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 RequestMessage = request,
-                Content = new ByteArrayContent("neoforge installer bytes"u8.ToArray())
+                Content = new ByteArrayContent(content)
             };
         }
+    }
+
+    private static byte[] CreateInstallerBytes()
+    {
+        using var stream = new MemoryStream();
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var entry = archive.CreateEntry("install_profile.json");
+            using var writer = new StreamWriter(entry.Open());
+            writer.Write(
+                """
+                {
+                  "data": {
+                    "PATCHED": { "client": "[net.neoforged:neoforge:20.4.237:client]" }
+                  },
+                  "processors": [
+                    { "args": ["--clean", "{MC_SRG}", "--output", "{PATCHED}"] }
+                  ]
+                }
+                """);
+        }
+        return stream.ToArray();
     }
 }

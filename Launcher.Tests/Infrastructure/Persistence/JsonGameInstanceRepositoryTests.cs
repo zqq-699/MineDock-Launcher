@@ -60,6 +60,41 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task DiscoverInstalledVersionsResolvesFlattenedForgeMetadataFromFmlLoader()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var versionDirectory = Path.Combine(minecraftDirectory, "versions", "Better MC");
+        Directory.CreateDirectory(versionDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(versionDirectory, "Better MC.json"),
+            """
+            {
+              "id": "Better MC",
+              "launcher": { "minecraftVersion": "1.20.1" },
+              "mainClass": "cpw.mods.bootstraplauncher.BootstrapLauncher",
+              "libraries": [
+                { "name": "net.minecraftforge:fmlloader:1.20.1-47.4.20" }
+              ],
+              "arguments": {
+                "game": [ "--fml.mcVersion", "1.20.1", "--fml.forgeVersion", "47.4.20" ]
+              }
+            }
+            """);
+        var repository = new JsonGameInstanceRepository(new TestSettingsService(new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = minecraftDirectory
+        }));
+
+        var versions = await repository.DiscoverInstalledVersionsAsync(minecraftDirectory);
+
+        var forge = Assert.Single(versions);
+        Assert.Equal("1.20.1", forge.MinecraftVersion);
+        Assert.Equal(LoaderKind.Forge, forge.Loader);
+        Assert.Equal("47.4.20", forge.LoaderVersion);
+    }
+
+    [Fact]
     public async Task SaveAllAsyncWritesInstanceSettingsIntoVersionLauncherDirectory()
     {
         var settings = new LauncherSettings
