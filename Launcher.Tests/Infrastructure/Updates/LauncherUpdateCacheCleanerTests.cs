@@ -58,7 +58,6 @@ public sealed class LauncherUpdateCacheCleanerTests : IDisposable
             FileShare.None);
 
         var cleanupTask = cleaner.CleanupConfirmedUpdateAsync(updaterPath);
-        await Task.Delay(30);
         await updaterLock.DisposeAsync();
         await cleanupTask;
 

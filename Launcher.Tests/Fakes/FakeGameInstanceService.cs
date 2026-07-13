@@ -37,6 +37,7 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
     public Task? WaitBeforeGetInstances { get; set; }
     public Task? WaitBeforeSave { get; set; }
     public TaskCompletionSource<bool> SaveStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource<bool> SaveCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public string? LastMinecraftVersion { get; private set; }
     public LoaderKind LastLoader { get; private set; }
     public string? LastLoaderVersion { get; private set; }
@@ -169,6 +170,7 @@ internal sealed class FakeGameInstanceService : IGameInstanceService
             else
                 CreatedInstances.Add(instance);
         }
+        SaveCompleted.TrySetResult(true);
     }
 
     public Task<GameInstance> RenameInstanceAsync(

@@ -49,7 +49,7 @@ public sealed class InstanceSettingsPersistenceCoordinatorTests
             () => { },
             TimeSpan.FromMilliseconds(80));
 
-        await WaitUntilAsync(() => instanceService.SaveCallCount == 1);
+        await instanceService.SaveCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.Equal(1, instanceService.SaveCallCount);
         Assert.Equal("latest", instance.Description);
@@ -78,7 +78,7 @@ public sealed class InstanceSettingsPersistenceCoordinatorTests
             () => { },
             TimeSpan.FromMilliseconds(10));
 
-        await WaitUntilAsync(() => instanceService.SaveCallCount == 1);
+        await instanceService.SaveCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await Task.Delay(150);
 
         Assert.Equal("first", first.Description);
@@ -138,13 +138,6 @@ public sealed class InstanceSettingsPersistenceCoordinatorTests
             return null;
         instance.Description = description;
         return () => instance.Description = original;
-    }
-
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        while (!condition())
-            await Task.Delay(10, timeout.Token);
     }
 
     private sealed class RecordingStatusService : IStatusService
