@@ -110,6 +110,38 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task NeoForgeLoaderProviderStagedInstallPublishesSeededRuntimeToOutputSandbox()
+    {
+        var sharedMinecraftDirectory = Path.Combine(TempRoot, "shared", ".minecraft");
+        var outputMinecraftDirectory = Path.Combine(TempRoot, "output", ".minecraft");
+        await CreateVanillaVersionAsync(sharedMinecraftDirectory, "1.20.4");
+        CreateGeneratedNeoForgeLibrary(sharedMinecraftDirectory, "20.4.237", includeUniversal: true);
+        var provider = CreateProvider(new ScriptedForgeInstallerRunner((gameDirectory, _, _) =>
+            CreateSandboxNeoForgeInstallAsync(gameDirectory, "neoforge-20.4.237", "1.20.4", "20.4.237")));
+
+        var finalVersionName = await provider.InstallStagedAsync(
+            "1.20.4",
+            outputMinecraftDirectory,
+            sharedMinecraftDirectory,
+            "Imported NeoForge Pack",
+            "20.4.237",
+            progress: null,
+            DownloadSourcePreference.Auto,
+            CancellationToken.None,
+            downloadSpeedLimitMbPerSecond: 0);
+
+        Assert.Equal("Imported NeoForge Pack", finalVersionName);
+        Assert.True(File.Exists(Path.Combine(
+            outputMinecraftDirectory,
+            "libraries",
+            "net",
+            "neoforged",
+            "neoforge",
+            "20.4.237",
+            "neoforge-20.4.237-universal.jar")));
+    }
+
+    [Fact]
     public async Task NeoForgeLoaderProviderRejectsSuccessfulInstallerWithMissingProcessorOutput()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");

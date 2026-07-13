@@ -70,20 +70,26 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
                     sourceDirectory,
                     "Loader installer shared output");
                 var relativePath = NormalizeRelativePath(Path.GetRelativePath(snapshot.WorkspaceMinecraftDirectory, sourcePath));
-                if (snapshot.SeededFiles.TryGetValue(relativePath, out var seededSha1))
-                {
-                    var sourceSha1 = AtomicSharedFilePublisher.ComputeSha1(confinedSourcePath);
-                    if (!string.Equals(sourceSha1, seededSha1, StringComparison.OrdinalIgnoreCase))
-                        throw new InvalidDataException($"Loader installer modified a seeded prerequisite: {relativePath}");
-                    continue;
-                }
-
                 var destinationRoot = Path.Combine(destinationMinecraftDirectory, directoryName);
                 var destinationPath = MinecraftPathGuard.EnsureWithin(
                     Path.Combine(destinationMinecraftDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar)),
                     destinationRoot,
                     "Loader installer shared destination");
                 EnsureOrdinaryExistingPath(destinationRoot, destinationPath);
+                if (snapshot.SeededFiles.TryGetValue(relativePath, out var seededSha1))
+                {
+                    var sourceSha1 = AtomicSharedFilePublisher.ComputeSha1(confinedSourcePath);
+                    if (!string.Equals(sourceSha1, seededSha1, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException($"Loader installer modified a seeded prerequisite: {relativePath}");
+
+                    await AtomicSharedFilePublisher.PublishCopyAsync(
+                        confinedSourcePath,
+                        destinationPath,
+                        seededSha1,
+                        cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
+
                 if (verifiedSharedFiles.TryGetValue(relativePath, out var expectation))
                 {
                     if (expectation.Size is > 0 && new FileInfo(confinedSourcePath).Length != expectation.Size.Value)

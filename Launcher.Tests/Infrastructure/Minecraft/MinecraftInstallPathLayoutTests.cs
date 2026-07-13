@@ -178,7 +178,7 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task ForgePrerequisitesSeedOnlyReferencedLibrariesAndPublishOnlyDelta()
+    public async Task ForgePrerequisitesSeedOnlyReferencedLibrariesAndPublishRequiredWorkspaceFiles()
     {
         var shared = Path.Combine(TempRoot, "shared");
         var workspace = Path.Combine(TempRoot, "installer", ".minecraft");
@@ -199,8 +199,9 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
         var destination = Path.Combine(TempRoot, "published");
         await seeder.PublishDeltaAsync(snapshot, destination, CancellationToken.None);
 
-        Assert.False(File.Exists(Path.Combine(destination, "libraries", referencedRelativePath)));
+        Assert.True(File.Exists(Path.Combine(destination, "libraries", referencedRelativePath)));
         Assert.True(File.Exists(Path.Combine(destination, "libraries", newRelativePath)));
+        Assert.False(File.Exists(Path.Combine(destination, "libraries", unrelatedRelativePath)));
     }
 
     [Fact]
@@ -220,6 +221,28 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
             snapshot,
             Path.Combine(TempRoot, "published"),
             CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ForgePrerequisiteConflictStopsPublication()
+    {
+        var shared = Path.Combine(TempRoot, "shared");
+        var workspace = Path.Combine(TempRoot, "installer", ".minecraft");
+        var relativePath = Path.Combine("com", "example", "needed", "1.0", "needed-1.0.jar");
+        var source = CreateFile(Path.Combine("shared", "libraries", relativePath), "needed");
+        var installerJar = Path.Combine(TempRoot, "installer.jar");
+        CreateInstallerArchive(installerJar, relativePath.Replace('\\', '/'), AtomicSharedFilePublisher.ComputeSha1(source));
+        var seeder = new LoaderInstallerPrerequisiteSeeder();
+        var snapshot = await seeder.SeedAsync(shared, workspace, "1.20.1", installerJar, CancellationToken.None);
+        var destination = Path.Combine(TempRoot, "published");
+        var conflictingFile = CreateFile(Path.Combine("published", "libraries", relativePath), "different");
+
+        await Assert.ThrowsAsync<IOException>(() => seeder.PublishDeltaAsync(
+            snapshot,
+            destination,
+            CancellationToken.None));
+
+        Assert.Equal("different", await File.ReadAllTextAsync(conflictingFile));
     }
 
     [Fact]

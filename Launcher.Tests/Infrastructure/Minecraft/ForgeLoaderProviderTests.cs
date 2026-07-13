@@ -218,6 +218,33 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ForgeLoaderProviderStagedInstallPublishesSeededRuntimeToOutputSandbox()
+    {
+        var sharedMinecraftDirectory = Path.Combine(TempRoot, "shared", ".minecraft");
+        var outputMinecraftDirectory = Path.Combine(TempRoot, "output", ".minecraft");
+        await CreateVanillaVersionAsync(sharedMinecraftDirectory, "1.20.1");
+        CreateGeneratedForgeLibrary(sharedMinecraftDirectory, "1.20.1-47.4.20");
+        var provider = CreateProvider(new ScriptedForgeInstallerRunner((gameDirectory, _, _) =>
+            CreateSandboxForgeInstallAsync(gameDirectory, "forge-1.20.1-47.4.20", "1.20.1", "1.20.1-47.4.20")));
+
+        var finalVersionName = await provider.InstallStagedAsync(
+            "1.20.1",
+            outputMinecraftDirectory,
+            sharedMinecraftDirectory,
+            "Imported Forge Pack",
+            "47.4.20",
+            progress: null,
+            DownloadSourcePreference.Auto,
+            CancellationToken.None,
+            downloadSpeedLimitMbPerSecond: 0);
+
+        Assert.Equal("Imported Forge Pack", finalVersionName);
+        Assert.True(File.Exists(GetGeneratedLibraryPath(
+            outputMinecraftDirectory,
+            "net/minecraftforge/fmlcore/1.20.1-47.4.20/fmlcore-1.20.1-47.4.20.jar")));
+    }
+
+    [Fact]
     public async Task ForgeLoaderProviderRunsInstallerInTempSandboxInsteadOfMainMinecraftDirectory()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
