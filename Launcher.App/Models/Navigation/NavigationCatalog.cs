@@ -103,4 +103,17 @@ internal static class NavigationCatalog
     {
         return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
     }
+
+    public static bool UsesLocalModpackDrop(string? currentPage, bool isGameSettingsListStep)
+    {
+        if (IsPage(currentPage, GameSettingsPage))
+            return isGameSettingsListStep;
+
+        return IsPage(currentPage, AccountPage)
+            || IsPage(currentPage, HomePage)
+            || IsPage(currentPage, DownloadPage)
+            || IsPage(currentPage, InstallPage)
+            || IsPage(currentPage, ResourcesPage)
+            || IsPage(currentPage, SettingsPage);
+    }
 }

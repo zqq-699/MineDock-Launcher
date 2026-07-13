@@ -411,8 +411,9 @@ public partial class MainWindow : Window
 
     private bool IsLocalImportDropPage()
     {
-        return NavigationCatalog.IsPage(viewModel.CurrentPage, NavigationCatalog.HomePage)
-            || NavigationCatalog.IsPage(viewModel.CurrentPage, NavigationCatalog.DownloadPage);
+        return NavigationCatalog.UsesLocalModpackDrop(
+            viewModel.CurrentPage,
+            viewModel.GameSettingsPage.IsListStep);
     }
 
     private bool IsPointWithinWindow(Point point)
