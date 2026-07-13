@@ -404,7 +404,7 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 target.PhysicalOutputDirectory,
                 allowExistingDestination: true,
                 cancellationToken);
-            await new LoaderInstallerPrerequisiteSeeder().PublishDeltaAsync(
+            await new LoaderInstallerPrerequisiteSeeder(logger).PublishDeltaAsync(
                 new LoaderInstallerWorkspaceSnapshot(
                     sandboxMinecraftDirectory,
                     new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)),

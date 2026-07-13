@@ -44,7 +44,12 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
             path.GetIndexFilePath(metadata.Id),
             path.Assets,
             "Asset index");
-        if (!IsValidFile(indexPath, metadata.GetSha1(), metadata.Size))
+        if (!await MinecraftFileIntegrity.IsValidAsync(
+                indexPath,
+                metadata.GetSha1(),
+                metadata.Size,
+                MinecraftFileVerification.Full,
+                cancellationToken).ConfigureAwait(false))
         {
             if (string.IsNullOrWhiteSpace(metadata.Url))
                 throw new InvalidDataException($"Asset index URL is missing: {metadata.Id}");
@@ -114,20 +119,6 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
         }
     }
 
-    private static bool IsValidFile(string path, string? expectedSha1, long expectedSize)
-    {
-        if (!File.Exists(path))
-            return false;
-        if (expectedSize > 0 && new FileInfo(path).Length != expectedSize)
-            return false;
-        if (string.IsNullOrWhiteSpace(expectedSha1))
-            return true;
-        return string.Equals(
-            AtomicSharedFilePublisher.ComputeSha1(path),
-            expectedSha1,
-            StringComparison.OrdinalIgnoreCase);
-    }
-
     private sealed class AtomicAssetCopyTask(string destinationPath, string expectedSha1) : IUpdateTask
     {
         public async ValueTask Execute(GameFile file, CancellationToken cancellationToken)
@@ -135,7 +126,7 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
             if (string.IsNullOrWhiteSpace(file.Path))
                 throw new InvalidDataException("Asset object path is missing.");
 
-            await AtomicSharedFilePublisher.PublishCopyAsync(
+            await AtomicSharedFilePublisher.PublishVerifiedReplacementAsync(
                 file.Path,
                 destinationPath,
                 expectedSha1,

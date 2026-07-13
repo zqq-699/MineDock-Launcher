@@ -143,6 +143,41 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task AtomicPublisherReplacesDifferentContentOnlyAfterSourceHashIsVerified()
+    {
+        var source = CreateFile("source-index.json", "current");
+        var destination = CreateFile("destination-index.json", "stale");
+        var expectedSha1 = AtomicSharedFilePublisher.ComputeSha1(source);
+
+        var result = await AtomicSharedFilePublisher.PublishVerifiedReplacementAsync(
+            source,
+            destination,
+            expectedSha1,
+            CancellationToken.None);
+
+        Assert.Equal(SharedFilePublishDisposition.Replaced, result.Disposition);
+        Assert.Equal("current", await File.ReadAllTextAsync(destination));
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(destination)!, ".destination-index.json.*.tmp"));
+    }
+
+    [Fact]
+    public async Task AtomicPublisherPreservesDestinationWhenReplacementSourceHashIsInvalid()
+    {
+        var source = CreateFile("source-index.json", "untrusted");
+        var destination = CreateFile("destination-index.json", "stale");
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            AtomicSharedFilePublisher.PublishVerifiedReplacementAsync(
+                source,
+                destination,
+                ComputeSha1("expected"),
+                CancellationToken.None));
+
+        Assert.Equal("stale", await File.ReadAllTextAsync(destination));
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(destination)!, ".destination-index.json.*.tmp"));
+    }
+
+    [Fact]
     public async Task ForgePrerequisitesSeedOnlyReferencedLibrariesAndPublishOnlyDelta()
     {
         var shared = Path.Combine(TempRoot, "shared");
@@ -185,6 +220,273 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
             snapshot,
             Path.Combine(TempRoot, "published"),
             CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task LoaderDeltaReplacesStaleAssetIndexWhenVersionMetadataMatchesSource()
+    {
+        var workspace = Path.Combine(TempRoot, "installer", ".minecraft");
+        var source = CreateFile(Path.Combine("installer", ".minecraft", "assets", "indexes", "5.json"), "current");
+        var sourceSha1 = AtomicSharedFilePublisher.ComputeSha1(source);
+        CreateFile(
+            Path.Combine("installer", ".minecraft", "versions", "Test", "Test.json"),
+            $"{{\"assetIndex\":{{\"id\":\"5\",\"sha1\":\"{sourceSha1}\",\"size\":{new FileInfo(source).Length}}}}}");
+        var destination = Path.Combine(TempRoot, "published");
+        var destinationIndex = CreateFile(Path.Combine("published", "assets", "indexes", "5.json"), "stale");
+        var snapshot = new LoaderInstallerWorkspaceSnapshot(
+            workspace,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+
+        await new LoaderInstallerPrerequisiteSeeder().PublishDeltaAsync(
+            snapshot,
+            destination,
+            CancellationToken.None);
+
+        Assert.Equal("current", await File.ReadAllTextAsync(destinationIndex));
+    }
+
+    [Fact]
+    public async Task LoaderDeltaPreservesStaleAssetIndexWhenVersionMetadataDoesNotMatchSource()
+    {
+        var workspace = Path.Combine(TempRoot, "installer", ".minecraft");
+        CreateFile(Path.Combine("installer", ".minecraft", "assets", "indexes", "5.json"), "tampered");
+        CreateFile(
+            Path.Combine("installer", ".minecraft", "versions", "Test", "Test.json"),
+            $"{{\"assetIndex\":{{\"id\":\"5\",\"sha1\":\"{ComputeSha1("expected")}\",\"size\":8}}}}");
+        var destination = Path.Combine(TempRoot, "published");
+        var destinationIndex = CreateFile(Path.Combine("published", "assets", "indexes", "5.json"), "stale");
+        var snapshot = new LoaderInstallerWorkspaceSnapshot(
+            workspace,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            new LoaderInstallerPrerequisiteSeeder().PublishDeltaAsync(
+                snapshot,
+                destination,
+                CancellationToken.None));
+
+        Assert.Equal("stale", await File.ReadAllTextAsync(destinationIndex));
+    }
+
+    [Fact]
+    public async Task LoaderDeltaReplacesLoggingConfigWhenVersionMetadataMatchesSource()
+    {
+        var workspace = Path.Combine(TempRoot, "installer", ".minecraft");
+        var source = CreateFile(
+            Path.Combine("installer", ".minecraft", "assets", "log_configs", "client.xml"),
+            "current-log");
+        var sourceSha1 = AtomicSharedFilePublisher.ComputeSha1(source);
+        CreateFile(
+            Path.Combine("installer", ".minecraft", "versions", "Test", "Test.json"),
+            "{\"logging\":{\"client\":{\"file\":{\"id\":\"client.xml\",\"sha1\":\""
+            + sourceSha1
+            + "\",\"size\":"
+            + new FileInfo(source).Length
+            + "}}}}");
+        var destination = Path.Combine(TempRoot, "published");
+        var destinationConfig = CreateFile(
+            Path.Combine("published", "assets", "log_configs", "client.xml"),
+            "stale-log");
+
+        await new LoaderInstallerPrerequisiteSeeder().PublishDeltaAsync(
+            EmptySnapshot(workspace),
+            destination,
+            CancellationToken.None);
+
+        Assert.Equal("current-log", await File.ReadAllTextAsync(destinationConfig));
+    }
+
+    [Fact]
+    public async Task LoaderDeltaReplacesVerifiedVirtualAndLegacyResources()
+    {
+        var workspace = Path.Combine(TempRoot, "installer", ".minecraft");
+        const string assetContent = "current";
+        var assetSha1 = ComputeSha1(assetContent);
+        var indexContent = $"{{\"virtual\":true,\"map_to_resources\":true,\"objects\":{{\"minecraft/lang/en_us.json\":{{\"hash\":\"{assetSha1}\",\"size\":{assetContent.Length}}}}}}}";
+        var index = CreateFile(
+            Path.Combine("installer", ".minecraft", "assets", "indexes", "5.json"),
+            indexContent);
+        CreateFile(
+            Path.Combine("installer", ".minecraft", "assets", "virtual", "5", "minecraft", "lang", "en_us.json"),
+            assetContent);
+        CreateFile(
+            Path.Combine("installer", ".minecraft", "resources", "minecraft", "lang", "en_us.json"),
+            assetContent);
+        CreateFile(
+            Path.Combine("installer", ".minecraft", "versions", "Test", "Test.json"),
+            $"{{\"assetIndex\":{{\"id\":\"5\",\"sha1\":\"{AtomicSharedFilePublisher.ComputeSha1(index)}\",\"size\":{new FileInfo(index).Length}}}}}");
+        var destination = Path.Combine(TempRoot, "published");
+        var virtualDestination = CreateFile(
+            Path.Combine("published", "assets", "virtual", "5", "minecraft", "lang", "en_us.json"),
+            "stale!!");
+        var resourceDestination = CreateFile(
+            Path.Combine("published", "resources", "minecraft", "lang", "en_us.json"),
+            "stale!!");
+
+        await new LoaderInstallerPrerequisiteSeeder().PublishDeltaAsync(
+            EmptySnapshot(workspace),
+            destination,
+            CancellationToken.None);
+
+        Assert.Equal(assetContent, await File.ReadAllTextAsync(virtualDestination));
+        Assert.Equal(assetContent, await File.ReadAllTextAsync(resourceDestination));
+    }
+
+    [Fact]
+    public async Task LoaderDeltaDoesNotTrustDerivedResourcesFromTamperedAssetIndex()
+    {
+        var workspace = Path.Combine(TempRoot, "installer", ".minecraft");
+        const string assetContent = "current";
+        var assetSha1 = ComputeSha1(assetContent);
+        var tamperedIndex = CreateFile(
+            Path.Combine("installer", ".minecraft", "assets", "indexes", "5.json"),
+            $"{{\"map_to_resources\":true,\"objects\":{{\"minecraft/lang/en_us.json\":{{\"hash\":\"{assetSha1}\",\"size\":{assetContent.Length}}}}}}}");
+        CreateFile(
+            Path.Combine("installer", ".minecraft", "resources", "minecraft", "lang", "en_us.json"),
+            assetContent);
+        CreateFile(
+            Path.Combine("installer", ".minecraft", "versions", "Test", "Test.json"),
+            $"{{\"assetIndex\":{{\"id\":\"5\",\"sha1\":\"{ComputeSha1("trusted-index")}\",\"size\":13}}}}");
+        var destination = Path.Combine(TempRoot, "published");
+        var resourceDestination = CreateFile(
+            Path.Combine("published", "resources", "minecraft", "lang", "en_us.json"),
+            "stale!!");
+        var snapshot = new LoaderInstallerWorkspaceSnapshot(
+            workspace,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["assets/indexes/5.json"] = AtomicSharedFilePublisher.ComputeSha1(tamperedIndex)
+            });
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            new LoaderInstallerPrerequisiteSeeder().PublishDeltaAsync(
+                snapshot,
+                destination,
+                CancellationToken.None));
+
+        Assert.Equal("stale!!", await File.ReadAllTextAsync(resourceDestination));
+    }
+
+    [Fact]
+    public async Task LoaderDeltaDoesNotTrustDerivedResourcesFromAmbiguousAssetIndexMetadata()
+    {
+        var workspace = Path.Combine(TempRoot, "installer", ".minecraft");
+        const string assetContent = "current";
+        var assetSha1 = ComputeSha1(assetContent);
+        var index = CreateFile(
+            Path.Combine("installer", ".minecraft", "assets", "indexes", "5.json"),
+            $"{{\"map_to_resources\":true,\"objects\":{{\"minecraft/lang/en_us.json\":{{\"hash\":\"{assetSha1}\",\"size\":{assetContent.Length}}}}}}}");
+        var indexSha1 = AtomicSharedFilePublisher.ComputeSha1(index);
+        CreateFile(
+            Path.Combine("installer", ".minecraft", "resources", "minecraft", "lang", "en_us.json"),
+            assetContent);
+        CreateFile(
+            Path.Combine("installer", ".minecraft", "versions", "First", "First.json"),
+            $"{{\"assetIndex\":{{\"id\":\"5\",\"sha1\":\"{indexSha1}\",\"size\":{new FileInfo(index).Length}}}}}");
+        CreateFile(
+            Path.Combine("installer", ".minecraft", "versions", "Second", "Second.json"),
+            $"{{\"assetIndex\":{{\"id\":\"5\",\"sha1\":\"{ComputeSha1("other-index")}\",\"size\":11}}}}");
+        var destination = Path.Combine(TempRoot, "published");
+        var resourceDestination = CreateFile(
+            Path.Combine("published", "resources", "minecraft", "lang", "en_us.json"),
+            "stale!!");
+        var snapshot = new LoaderInstallerWorkspaceSnapshot(
+            workspace,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["assets/indexes/5.json"] = indexSha1
+            });
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            new LoaderInstallerPrerequisiteSeeder().PublishDeltaAsync(
+                snapshot,
+                destination,
+                CancellationToken.None));
+
+        Assert.Equal("stale!!", await File.ReadAllTextAsync(resourceDestination));
+    }
+
+    [Fact]
+    public async Task LoaderDeltaKeepsLibraryConflictsStrict()
+    {
+        var workspace = Path.Combine(TempRoot, "installer", ".minecraft");
+        CreateFile(Path.Combine("installer", ".minecraft", "libraries", "example", "library.jar"), "new-library");
+        var destination = Path.Combine(TempRoot, "published");
+        var destinationLibrary = CreateFile(
+            Path.Combine("published", "libraries", "example", "library.jar"),
+            "old-library");
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            new LoaderInstallerPrerequisiteSeeder().PublishDeltaAsync(
+                EmptySnapshot(workspace),
+                destination,
+                CancellationToken.None));
+
+        Assert.Equal("old-library", await File.ReadAllTextAsync(destinationLibrary));
+    }
+
+    [Fact]
+    public async Task LoaderDeltaDoesNotPublishRuntimeDirectory()
+    {
+        var workspace = Path.Combine(TempRoot, "installer", ".minecraft");
+        CreateFile(Path.Combine("installer", ".minecraft", "runtime", "java", "bin", "java.exe"), "runtime");
+        var destination = Path.Combine(TempRoot, "published");
+
+        await new LoaderInstallerPrerequisiteSeeder().PublishDeltaAsync(
+            EmptySnapshot(workspace),
+            destination,
+            CancellationToken.None);
+
+        Assert.False(File.Exists(Path.Combine(destination, "runtime", "java", "bin", "java.exe")));
+    }
+
+    [Fact]
+    public async Task LoaderDeltaRejectsAssetObjectConflict()
+    {
+        var workspace = Path.Combine(TempRoot, "installer", ".minecraft");
+        var relativePath = Path.Combine("assets", "objects", "aa", new string('a', 40));
+        CreateFile(Path.Combine("installer", ".minecraft", relativePath), "new-object");
+        var destination = Path.Combine(TempRoot, "published");
+        var destinationObject = CreateFile(Path.Combine("published", relativePath), "old-object");
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            new LoaderInstallerPrerequisiteSeeder().PublishDeltaAsync(
+                EmptySnapshot(workspace),
+                destination,
+                CancellationToken.None));
+
+        Assert.Equal("old-object", await File.ReadAllTextAsync(destinationObject));
+    }
+
+    [Fact]
+    public async Task LoaderDeltaRejectsAmbiguousLoggingMetadata()
+    {
+        var workspace = Path.Combine(TempRoot, "installer", ".minecraft");
+        CreateFile(
+            Path.Combine("installer", ".minecraft", "assets", "log_configs", "client.xml"),
+            "current-log");
+        CreateFile(
+            Path.Combine("installer", ".minecraft", "versions", "First", "First.json"),
+            "{\"logging\":{\"client\":{\"file\":{\"id\":\"client.xml\",\"sha1\":\""
+            + ComputeSha1("current-log")
+            + "\",\"size\":11}}}}");
+        CreateFile(
+            Path.Combine("installer", ".minecraft", "versions", "Second", "Second.json"),
+            "{\"logging\":{\"client\":{\"file\":{\"id\":\"client.xml\",\"sha1\":\""
+            + ComputeSha1("other-value")
+            + "\",\"size\":11}}}}");
+        var destination = Path.Combine(TempRoot, "published");
+        var destinationConfig = CreateFile(
+            Path.Combine("published", "assets", "log_configs", "client.xml"),
+            "stale-log");
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            new LoaderInstallerPrerequisiteSeeder().PublishDeltaAsync(
+                EmptySnapshot(workspace),
+                destination,
+                CancellationToken.None));
+
+        Assert.Equal("stale-log", await File.ReadAllTextAsync(destinationConfig));
     }
 
     [Fact]
@@ -246,6 +548,13 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, content);
         return path;
+    }
+
+    private static LoaderInstallerWorkspaceSnapshot EmptySnapshot(string workspace)
+    {
+        return new LoaderInstallerWorkspaceSnapshot(
+            workspace,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
     }
 
     private static void CreateDirectoryJunction(string linkPath, string targetPath)

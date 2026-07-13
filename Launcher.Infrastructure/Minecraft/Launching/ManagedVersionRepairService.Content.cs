@@ -39,21 +39,51 @@ private async Task EnsureVersionJarAsync(
         CancellationToken cancellationToken)
     {
         var jarPath = Path.Combine(versionDirectory, $"{versionName}.jar");
-        if (File.Exists(jarPath))
+        var jarStatus = await MinecraftFileIntegrity.EvaluateAsync(
+            jarPath,
+            resolvedVersion.ClientJarSha1,
+            resolvedVersion.ClientJarSize,
+            MinecraftFileVerification.Full,
+            cancellationToken).ConfigureAwait(false);
+        if (jarStatus == MinecraftFileIntegrityStatus.Valid)
             return;
 
         if (!allowRepair)
         {
             throw new InstanceRepairException(
-                $"Version {versionName} is missing its client jar and automatic repair is disabled.");
+                $"Version {versionName} client jar is missing or failed integrity validation and automatic repair is disabled.");
         }
 
+        LogInvalidFile(jarPath, jarStatus);
         if (!string.IsNullOrWhiteSpace(resolvedVersion.LocalJarPath)
-            && File.Exists(resolvedVersion.LocalJarPath))
+            && !PathComparer.Equals(Path.GetFullPath(resolvedVersion.LocalJarPath), Path.GetFullPath(jarPath))
+            && await MinecraftFileIntegrity.IsValidAsync(
+                resolvedVersion.LocalJarPath,
+                resolvedVersion.ClientJarSha1,
+                resolvedVersion.ClientJarSize,
+                MinecraftFileVerification.Full,
+                cancellationToken).ConfigureAwait(false))
         {
             // 优先复用父版本或本地已有 JAR，只有无可用本地来源时才下载。
-            File.Copy(resolvedVersion.LocalJarPath, jarPath, overwrite: false);
-            return;
+            if (!string.IsNullOrWhiteSpace(resolvedVersion.ClientJarSha1))
+            {
+                await AtomicSharedFilePublisher.PublishVerifiedReplacementAsync(
+                    resolvedVersion.LocalJarPath,
+                    jarPath,
+                    resolvedVersion.ClientJarSha1,
+                    cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            if (jarStatus == MinecraftFileIntegrityStatus.Missing)
+            {
+                await AtomicSharedFilePublisher.PublishCopyAsync(
+                    resolvedVersion.LocalJarPath,
+                    jarPath,
+                    expectedSha1: null,
+                    cancellationToken).ConfigureAwait(false);
+                return;
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(resolvedVersion.ClientJarUrl))
@@ -71,7 +101,7 @@ private async Task EnsureVersionJarAsync(
             return;
         }
 
-        throw new InstanceRepairException($"Version {versionName} is missing its client jar and no repair source is available.");
+        throw new InstanceRepairException($"Version {versionName} client jar is missing or invalid and no repair source is available.");
     }
 
     /// <summary>
@@ -96,16 +126,27 @@ private async Task EnsureVersionJarAsync(
 
             foreach (var artifact in ManagedLibraryArtifactResolver.EnumerateDownloads(library))
             {
-                var destinationPath = Path.Combine(minecraftDirectory, "libraries", artifact.RelativePath.Replace('/', Path.DirectorySeparatorChar));
-                if (File.Exists(destinationPath))
+                var librariesRoot = Path.Combine(minecraftDirectory, "libraries");
+                var destinationPath = MinecraftPathGuard.EnsureWithin(
+                    Path.Combine(librariesRoot, artifact.RelativePath.Replace('/', Path.DirectorySeparatorChar)),
+                    librariesRoot,
+                    "Managed library");
+                var status = await MinecraftFileIntegrity.EvaluateAsync(
+                    destinationPath,
+                    artifact.Sha1,
+                    artifact.Size,
+                    MinecraftFileVerification.Full,
+                    cancellationToken).ConfigureAwait(false);
+                if (status == MinecraftFileIntegrityStatus.Valid)
                     continue;
 
                 if (!allowRepair)
                 {
                     throw new InstanceRepairException(
-                        $"Required library {artifact.RelativePath} is missing and automatic repair is disabled.");
+                        $"Required library {artifact.RelativePath} is missing or failed integrity validation and automatic repair is disabled.");
                 }
 
+                LogInvalidFile(artifact.RelativePath, status);
                 downloads.Add(new RepairDownloadRequest(
                     OriginalUrl: artifact.Url,
                     destinationPath,
@@ -139,12 +180,23 @@ private async Task EnsureVersionJarAsync(
         if (string.IsNullOrWhiteSpace(assetIndexId) || string.IsNullOrWhiteSpace(assetIndexUrl))
             return;
 
-        var indexPath = Path.Combine(minecraftDirectory, "assets", "indexes", $"{assetIndexId}.json");
-        if (!File.Exists(indexPath))
+        var assetIndexesRoot = Path.Combine(minecraftDirectory, "assets", "indexes");
+        var indexPath = MinecraftPathGuard.EnsureWithin(
+            Path.Combine(assetIndexesRoot, $"{assetIndexId}.json"),
+            assetIndexesRoot,
+            "Asset index");
+        var indexStatus = await MinecraftFileIntegrity.EvaluateAsync(
+            indexPath,
+            GetStringProperty(assetIndex, "sha1"),
+            GetLongProperty(assetIndex, "size"),
+            MinecraftFileVerification.Full,
+            cancellationToken).ConfigureAwait(false);
+        if (indexStatus != MinecraftFileIntegrityStatus.Valid)
         {
             if (!allowRepair)
-                throw new InstanceRepairException($"Asset index {assetIndexId} is missing and automatic repair is disabled.");
+                throw new InstanceRepairException($"Asset index {assetIndexId} is missing or failed integrity validation and automatic repair is disabled.");
 
+            LogInvalidFile($"assets/indexes/{assetIndexId}.json", indexStatus);
             await downloadBatch.DownloadAsync(
                 new RepairDownloadRequest(
                     OriginalUrl: assetIndexUrl,
@@ -171,19 +223,29 @@ private async Task EnsureVersionJarAsync(
                 continue;
 
             var hash = GetStringProperty(assetObject, "hash");
-            if (hash.Length < 2)
+            if (!MinecraftFileIntegrity.IsSha1(hash))
                 continue;
 
-            var objectPath = Path.Combine(minecraftDirectory, "assets", "objects", hash[..2], hash);
-            if (File.Exists(objectPath))
+            var assetObjectsRoot = Path.Combine(minecraftDirectory, "assets", "objects");
+            var objectPath = MinecraftPathGuard.EnsureWithin(
+                Path.Combine(assetObjectsRoot, hash[..2], hash),
+                assetObjectsRoot,
+                "Asset object");
+            var objectStatus = MinecraftFileIntegrity.Evaluate(
+                objectPath,
+                expectedSha1: hash,
+                expectedSize: GetLongProperty(assetObject, "size"),
+                MinecraftFileVerification.SizeOnly);
+            if (objectStatus == MinecraftFileIntegrityStatus.Valid)
                 continue;
 
             if (!allowRepair)
             {
                 throw new InstanceRepairException(
-                    $"Required asset {hash} is missing and automatic repair is disabled.");
+                    $"Required asset {hash} is missing or has an invalid size and automatic repair is disabled.");
             }
 
+            LogInvalidFile($"assets/objects/{hash[..2]}/{hash}", objectStatus);
             var assetUrl = $"https://resources.download.minecraft.net/{hash[..2]}/{hash}";
             downloads.Add(new RepairDownloadRequest(
                 OriginalUrl: assetUrl,
@@ -219,13 +281,24 @@ private async Task EnsureVersionJarAsync(
         if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(url))
             return;
 
-        var logConfigPath = Path.Combine(minecraftDirectory, "assets", "log_configs", id);
-        if (File.Exists(logConfigPath))
+        var logConfigsRoot = Path.Combine(minecraftDirectory, "assets", "log_configs");
+        var logConfigPath = MinecraftPathGuard.EnsureWithin(
+            Path.Combine(logConfigsRoot, id),
+            logConfigsRoot,
+            "Logging configuration");
+        var loggingStatus = await MinecraftFileIntegrity.EvaluateAsync(
+            logConfigPath,
+            GetStringProperty(loggingFile, "sha1"),
+            GetLongProperty(loggingFile, "size"),
+            MinecraftFileVerification.Full,
+            cancellationToken).ConfigureAwait(false);
+        if (loggingStatus == MinecraftFileIntegrityStatus.Valid)
             return;
 
         if (!allowRepair)
-            throw new InstanceRepairException($"Logging configuration {id} is missing and automatic repair is disabled.");
+            throw new InstanceRepairException($"Logging configuration {id} is missing or failed integrity validation and automatic repair is disabled.");
 
+        LogInvalidFile($"assets/log_configs/{id}", loggingStatus);
         await downloadBatch.DownloadAsync(
             new RepairDownloadRequest(
                 OriginalUrl: url,
@@ -236,5 +309,16 @@ private async Task EnsureVersionJarAsync(
                 ExpectedSha1: GetStringProperty(loggingFile, "sha1"),
                 ExpectedSize: GetLongProperty(loggingFile, "size")),
             cancellationToken).ConfigureAwait(false);
+    }
+
+    private void LogInvalidFile(string artifactPath, MinecraftFileIntegrityStatus status)
+    {
+        if (status == MinecraftFileIntegrityStatus.Missing)
+            return;
+
+        logger.LogWarning(
+            "Repairing Minecraft file after integrity validation failed. ArtifactPath={ArtifactPath} IntegrityStatus={IntegrityStatus}",
+            artifactPath,
+            status);
     }
 }

@@ -253,7 +253,7 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
 
-            var prerequisiteSeeder = new LoaderInstallerPrerequisiteSeeder();
+            var prerequisiteSeeder = new LoaderInstallerPrerequisiteSeeder(logger);
             var workspaceSnapshot = await prerequisiteSeeder.SeedAsync(
                 sharedMinecraftDirectory,
                 installerMinecraftDirectory,

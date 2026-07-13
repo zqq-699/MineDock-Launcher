@@ -9,12 +9,20 @@ using System.IO;
 using System.IO.Compression;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Minecraft;
 
 internal sealed class LoaderInstallerPrerequisiteSeeder
 {
-    private static readonly string[] SharedDirectoryNames = ["libraries", "assets", "resources", "runtime"];
+    private static readonly string[] SharedDirectoryNames = ["libraries", "assets", "resources"];
+    private readonly ILogger logger;
+
+    public LoaderInstallerPrerequisiteSeeder(ILogger? logger = null)
+    {
+        this.logger = logger ?? NullLogger.Instance;
+    }
 
     public async Task<LoaderInstallerWorkspaceSnapshot> SeedAsync(
         string sharedMinecraftDirectory,
@@ -44,6 +52,10 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
         string destinationMinecraftDirectory,
         CancellationToken cancellationToken)
     {
+        var verifiedSharedFiles = await ReadVerifiedSharedFileExpectationsAsync(
+            snapshot.WorkspaceMinecraftDirectory,
+            cancellationToken).ConfigureAwait(false);
+
         foreach (var directoryName in SharedDirectoryNames)
         {
             var sourceDirectory = Path.Combine(snapshot.WorkspaceMinecraftDirectory, directoryName);
@@ -72,12 +84,263 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
                     destinationRoot,
                     "Loader installer shared destination");
                 EnsureOrdinaryExistingPath(destinationRoot, destinationPath);
-                await AtomicSharedFilePublisher.PublishCopyAsync(
-                    confinedSourcePath,
-                    destinationPath,
-                    expectedSha1: null,
-                    cancellationToken: cancellationToken).ConfigureAwait(false);
+                if (verifiedSharedFiles.TryGetValue(relativePath, out var expectation))
+                {
+                    if (expectation.Size is > 0 && new FileInfo(confinedSourcePath).Length != expectation.Size.Value)
+                    {
+                        throw new InvalidDataException(
+                            $"Loader installer shared file size did not match version metadata: {relativePath}");
+                    }
+
+                    var result = await AtomicSharedFilePublisher.PublishVerifiedReplacementAsync(
+                        confinedSourcePath,
+                        destinationPath,
+                        expectation.Sha1,
+                        cancellationToken).ConfigureAwait(false);
+                    if (result.Disposition == SharedFilePublishDisposition.Replaced)
+                    {
+                        logger.LogInformation(
+                            "Replaced shared Minecraft file after metadata validation. RelativePath={RelativePath} ExpectedSha1={ExpectedSha1}",
+                            relativePath,
+                            expectation.Sha1);
+                    }
+                }
+                else
+                {
+                    await AtomicSharedFilePublisher.PublishCopyAsync(
+                        confinedSourcePath,
+                        destinationPath,
+                        expectedSha1: null,
+                        cancellationToken: cancellationToken).ConfigureAwait(false);
+                }
             }
+        }
+    }
+
+    private static async Task<IReadOnlyDictionary<string, VerifiedSharedFileExpectation>> ReadVerifiedSharedFileExpectationsAsync(
+        string workspaceMinecraftDirectory,
+        CancellationToken cancellationToken)
+    {
+        var expectations = new Dictionary<string, VerifiedSharedFileExpectation>(StringComparer.OrdinalIgnoreCase);
+        var ambiguousPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var versionsDirectory = Path.Combine(workspaceMinecraftDirectory, "versions");
+        if (!Directory.Exists(versionsDirectory))
+            return expectations;
+
+        foreach (var versionJsonPath in EnumerateOrdinaryFiles(versionsDirectory)
+                     .Where(path => string.Equals(Path.GetExtension(path), ".json", StringComparison.OrdinalIgnoreCase)))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            JsonObject? root;
+            try
+            {
+                root = JsonNode.Parse(
+                    await File.ReadAllTextAsync(versionJsonPath, cancellationToken).ConfigureAwait(false)) as JsonObject;
+            }
+            catch (JsonException)
+            {
+                continue;
+            }
+
+            if (root is null)
+            {
+                continue;
+            }
+
+            if (root["assetIndex"] is JsonObject assetIndex
+                && GetString(assetIndex["id"]) is { } id
+                && IsOrdinaryFileName(id)
+                && GetString(assetIndex["sha1"]) is { } assetIndexSha1
+                && MinecraftFileIntegrity.IsSha1(assetIndexSha1))
+            {
+                var relativeIndexPath = $"assets/indexes/{id}.json";
+                var indexExpectation = new VerifiedSharedFileExpectation(
+                    assetIndexSha1,
+                    GetLong(assetIndex["size"]));
+                AddExpectation(
+                    relativeIndexPath,
+                    indexExpectation,
+                    expectations,
+                    ambiguousPaths);
+            }
+
+            if (root["logging"]?["client"]?["file"] is JsonObject loggingFile
+                && GetString(loggingFile["id"]) is { } loggingId
+                && IsOrdinaryFileName(loggingId)
+                && GetString(loggingFile["sha1"]) is { } loggingSha1
+                && MinecraftFileIntegrity.IsSha1(loggingSha1))
+            {
+                AddExpectation(
+                    $"assets/log_configs/{loggingId}",
+                    new VerifiedSharedFileExpectation(loggingSha1, GetLong(loggingFile["size"])),
+                    expectations,
+                    ambiguousPaths);
+            }
+        }
+
+        foreach (var item in expectations
+                     .Where(item => item.Key.StartsWith("assets/indexes/", StringComparison.OrdinalIgnoreCase))
+                     .ToArray())
+        {
+            var assetIndexId = Path.GetFileNameWithoutExtension(item.Key);
+            await AddDerivedAssetExpectationsAsync(
+                workspaceMinecraftDirectory,
+                assetIndexId,
+                item.Key,
+                item.Value,
+                expectations,
+                ambiguousPaths,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        return expectations;
+    }
+
+    private static async Task AddDerivedAssetExpectationsAsync(
+        string workspaceMinecraftDirectory,
+        string assetIndexId,
+        string relativeIndexPath,
+        VerifiedSharedFileExpectation indexExpectation,
+        IDictionary<string, VerifiedSharedFileExpectation> expectations,
+        ISet<string> ambiguousPaths,
+        CancellationToken cancellationToken)
+    {
+        var indexPath = Path.Combine(
+            workspaceMinecraftDirectory,
+            relativeIndexPath.Replace('/', Path.DirectorySeparatorChar));
+        if (!await MinecraftFileIntegrity.IsValidAsync(
+                indexPath,
+                indexExpectation.Sha1,
+                indexExpectation.Size,
+                MinecraftFileVerification.Full,
+                cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        JsonObject? indexRoot;
+        try
+        {
+            await using var stream = new FileStream(indexPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            indexRoot = await JsonNode.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false) as JsonObject;
+        }
+        catch (JsonException)
+        {
+            return;
+        }
+
+        if (indexRoot?["objects"] is not JsonObject objects)
+            return;
+
+        var isVirtual = GetBoolean(indexRoot["virtual"]);
+        var mapsToResources = GetBoolean(indexRoot["map_to_resources"]);
+        if (!isVirtual && !mapsToResources)
+            return;
+
+        foreach (var item in objects)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (item.Value is not JsonObject asset
+                || GetString(asset["hash"]) is not { } hash
+                || !MinecraftFileIntegrity.IsSha1(hash))
+            {
+                continue;
+            }
+
+            var expectation = new VerifiedSharedFileExpectation(hash, GetLong(asset["size"]));
+            if (isVirtual
+                && TryCreateDerivedRelativePath(
+                    workspaceMinecraftDirectory,
+                    Path.Combine("assets", "virtual", assetIndexId),
+                    item.Key,
+                    out var virtualPath))
+            {
+                AddExpectation(virtualPath, expectation, expectations, ambiguousPaths);
+            }
+
+            if (mapsToResources
+                && TryCreateDerivedRelativePath(
+                    workspaceMinecraftDirectory,
+                    "resources",
+                    item.Key,
+                    out var resourcePath))
+            {
+                AddExpectation(resourcePath, expectation, expectations, ambiguousPaths);
+            }
+        }
+    }
+
+    private static bool TryCreateDerivedRelativePath(
+        string workspaceMinecraftDirectory,
+        string relativeRoot,
+        string assetName,
+        out string relativePath)
+    {
+        relativePath = string.Empty;
+        try
+        {
+            var root = Path.Combine(workspaceMinecraftDirectory, relativeRoot);
+            var candidate = MinecraftPathGuard.EnsureWithin(
+                Path.Combine(root, assetName.Replace('/', Path.DirectorySeparatorChar)),
+                root,
+                "Derived asset output");
+            relativePath = NormalizeRelativePath(Path.GetRelativePath(workspaceMinecraftDirectory, candidate));
+            return true;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+    }
+
+    private static void AddExpectation(
+        string relativePath,
+        VerifiedSharedFileExpectation expectation,
+        IDictionary<string, VerifiedSharedFileExpectation> expectations,
+        ISet<string> ambiguousPaths)
+    {
+        if (ambiguousPaths.Contains(relativePath))
+            return;
+
+        if (!expectations.TryGetValue(relativePath, out var existing))
+        {
+            expectations[relativePath] = expectation;
+            return;
+        }
+
+        if (!string.Equals(existing.Sha1, expectation.Sha1, StringComparison.OrdinalIgnoreCase)
+            || existing.Size is > 0 && expectation.Size is > 0 && existing.Size != expectation.Size)
+        {
+            expectations.Remove(relativePath);
+            ambiguousPaths.Add(relativePath);
+            return;
+        }
+
+        if (existing.Size is null && expectation.Size is > 0)
+            expectations[relativePath] = expectation;
+    }
+
+    private static bool IsOrdinaryFileName(string value)
+    {
+        return !string.IsNullOrWhiteSpace(value)
+            && value is not "." and not ".."
+            && string.Equals(Path.GetFileName(value), value, StringComparison.Ordinal)
+            && value.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
+    }
+
+    private static bool GetBoolean(JsonNode? node)
+    {
+        try
+        {
+            return node?.GetValue<bool>() ?? false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+        catch (FormatException)
+        {
+            return false;
         }
     }
 
@@ -400,3 +663,5 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
 internal sealed record LoaderInstallerWorkspaceSnapshot(
     string WorkspaceMinecraftDirectory,
     IReadOnlyDictionary<string, string> SeededFiles);
+
+internal sealed record VerifiedSharedFileExpectation(string Sha1, long? Size);
