@@ -1,0 +1,136 @@
+/*
+ * BlockHelm Launcher
+ * Copyright (C) 2026 Quan Zhou
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
+
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Launcher.App.Models;
+using Launcher.App.Resources;
+using Launcher.App.Services;
+using Launcher.App.ViewModels.Resources;
+using Launcher.App.ViewModels.Settings;
+using Launcher.Application.Services;
+using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Launcher.App.ViewModels.Shell;
+
+public sealed partial class MainViewModel
+{
+public Task SyncCurrentStateAsync()
+    {
+        return hasInitialized
+            ? sessionCoordinator.SyncCurrentStateAsync(CurrentPage)
+            : Task.CompletedTask;
+    }
+
+    private void AccountPage_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(AccountPageViewModel.SelectedAccount))
+            UpdateAccountNavigationAvatar();
+    }
+
+    private void UpdateSecondaryItems()
+    {
+        SecondaryItems.Clear();
+        foreach (var item in NavigationCatalog.CreateSecondaryItems(CurrentPage))
+            SecondaryItems.Add(item);
+    }
+
+    private void UpdateNavigationSelection()
+    {
+        // 原地更新稳定导航对象可保留控件动画、焦点和外部引用。
+        foreach (var item in NavigationItems)
+            item.IsSelected = NavigationCatalog.IsPage(item.Page, CurrentPage);
+
+        DownloadTasksNavigationItem.IsSelected = NavigationCatalog.IsPage(
+            DownloadTasksNavigationItem.Page,
+            CurrentPage);
+    }
+
+    private void SessionCoordinator_NavigationRequested(string page)
+    {
+        CurrentPage = page;
+        UpdateSecondaryItems();
+        UpdateNavigationSelection();
+    }
+
+    private void HomePage_JavaRequirementNotMet(object? sender, JavaRequirementNotMetEventArgs e)
+    {
+        pendingJavaRequirementInstance = e.Instance;
+        IsJavaRequirementForceLaunchAvailable = e.Reason is JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow;
+
+        if (e.Reason is JavaRuntimeSelectionFailureReason.ManualRuntimeVersionTooLow)
+        {
+            JavaRequirementDialogTitle = Strings.Dialog_JavaManualVersionTooLowTitle;
+            JavaRequirementDialogMessage = string.Format(
+                Strings.Dialog_JavaManualVersionTooLowMessageFormat,
+                string.IsNullOrWhiteSpace(e.Instance.Name) ? e.Instance.VersionName : e.Instance.Name,
+                e.RequiredMajorVersion?.ToString() ?? Strings.Dialog_LaunchStatusUnknownExitCode,
+                e.CurrentMajorVersion?.ToString() ?? Strings.Dialog_LaunchStatusUnknownExitCode);
+        }
+        else if (e.Reason is JavaRuntimeSelectionFailureReason.AutomaticRuntimeMissing)
+        {
+            JavaRequirementDialogTitle = Strings.Dialog_JavaRuntimeMissingTitle;
+            JavaRequirementDialogMessage = e.RequiredMajorVersion is int missingRequiredMajorVersion
+                ? string.Format(Strings.Dialog_JavaRuntimeMissingMessageFormat, missingRequiredMajorVersion)
+                : Strings.Dialog_JavaRuntimeMissingMessage;
+        }
+        else
+        {
+            JavaRequirementDialogTitle = Strings.Dialog_JavaRequirementNotMetTitle;
+            JavaRequirementDialogMessage = e.RequiredMajorVersion is int requiredMajorVersion
+                ? string.Format(Strings.Dialog_JavaRequirementNotMetMessageFormat, requiredMajorVersion)
+                : Strings.Dialog_JavaRequirementNotMetMessage;
+        }
+
+        IsJavaRequirementDialogOpen = true;
+    }
+
+    private void HomePage_LaunchFailureReported(object? sender, LaunchFailureReport report)
+    {
+        // Shell 只承载诊断弹窗，错误分类和脱敏内容已由启动服务准备。
+        if (!uiDispatcher.HasAccess)
+        {
+            uiDispatcher.Post(() => HomePage_LaunchFailureReported(sender, report));
+            return;
+        }
+
+        windowService.RestoreAndActivate();
+        LaunchStatusDialog.Show(report);
+    }
+
+    private void UpdateAccountNavigationAvatar()
+    {
+        var accountItem = NavigationItems.FirstOrDefault(item => item.Page == NavigationCatalog.AccountPage);
+        if (accountItem is not null)
+            accountItem.AvatarUrl = AccountPage.SelectedAccount?.AvatarUrl;
+    }
+
+    private Task OpenGameSettingsForInstanceAsync(GameInstance? instance)
+    {
+        GameSettingsPage.ShowInstanceDetails(instance);
+        CurrentPage = NavigationCatalog.GameSettingsPage;
+        UpdateSecondaryItems();
+        UpdateNavigationSelection();
+        return Task.CompletedTask;
+    }
+}

@@ -1,0 +1,163 @@
+/*
+ * BlockHelm Launcher
+ * Copyright (C) 2026 Quan Zhou
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
+ */
+
+using System.Reflection;
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Launcher.App.Resources;
+using Launcher.App.Services;
+using Launcher.Application;
+using Launcher.Application.Services;
+using Launcher.Domain.Models;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Launcher.App.ViewModels.Settings;
+
+public sealed partial class InfoSettingsViewModel
+{
+[RelayCommand]
+    private void OpenGithubRepository()
+    {
+        try
+        {
+            if (!externalLinkService.TryOpen(LauncherProjectLinks.GitHubRepositoryUrl))
+                statusService.Report(Strings.Status_OpenGithubRepositoryFailed);
+        }
+        catch (Exception)
+        {
+            statusService.Report(Strings.Status_OpenGithubRepositoryFailed);
+        }
+    }
+
+    [RelayCommand]
+    private void OpenReferenceProject(InfoReferenceProjectItem? project)
+    {
+        // 外部链接统一交给服务校验和打开，ViewModel 不直接启动进程。
+        if (project is null)
+            return;
+
+        try
+        {
+            if (!externalLinkService.TryOpen(project.Url))
+                ReportVisibleStatus(Strings.Status_OpenReferenceProjectFailed);
+        }
+        catch (Exception)
+        {
+            ReportVisibleStatus(Strings.Status_OpenReferenceProjectFailed);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCheckUpdates), AllowConcurrentExecutions = true)]
+    private async Task CheckUpdatesAsync()
+    {
+        await CheckUpdatesCoreAsync(UpdateCheckPresentation.Manual);
+    }
+
+    public Task CheckUpdatesOnStartupAsync()
+    {
+        // 启动检查使用静默展示策略：无更新不打扰用户，有更新才打开对话框。
+        return CheckUpdatesCoreAsync(UpdateCheckPresentation.StartupSilent);
+    }
+
+    [RelayCommand]
+    private void OpenUpdateChangelog()
+    {
+        if (!TryOpenUpdateUrl(updateDialogReleasePageUrl))
+            ReportVisibleStatus(Strings.Status_OpenUpdatePageFailed);
+    }
+
+    [RelayCommand]
+    private void CancelUpdateDialog()
+    {
+        IsUpdateAvailableDialogOpen = false;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanConfirmUpdate))]
+    private async Task ConfirmUpdateAsync()
+    {
+        // 自更新开始后不再允许重复确认；下载、校验、替换和退出由专用服务负责。
+        if (IsStartingUpdate)
+            return;
+
+        if (availableUpdate is null)
+        {
+            ReportVisibleStatus(Strings.Status_OpenUpdatePageFailed);
+            return;
+        }
+
+        if (!availableUpdate.CanAutoInstall)
+        {
+            ReportVisibleStatus(Strings.Status_UpdateAutoInstallPackageNotFound);
+            return;
+        }
+
+        IsStartingUpdate = true;
+        ReportStatus(Strings.Status_DownloadingLauncherUpdate);
+        try
+        {
+            var result = await launcherSelfUpdateService.StartUpdateAsync(availableUpdate);
+            if (!result.Succeeded)
+            {
+                ReportVisibleStatus(Strings.Status_LauncherUpdateStartFailed);
+                return;
+            }
+
+            IsUpdateAvailableDialogOpen = false;
+            ReportVisibleStatus(Strings.Status_LauncherUpdateRestarting);
+            applicationExitService.Shutdown();
+        }
+        catch (Exception)
+        {
+            ReportVisibleStatus(Strings.Status_LauncherUpdateStartFailed);
+        }
+        finally
+        {
+            IsStartingUpdate = false;
+        }
+    }
+
+    private bool CanCheckUpdates()
+    {
+        return !IsStartingUpdate && !isUpdateCheckRunning;
+    }
+
+    private bool CanConfirmUpdate()
+    {
+        return !IsStartingUpdate;
+    }
+
+    partial void OnIsCheckingUpdatesChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CheckUpdatesButtonText));
+    }
+
+    partial void OnIsStartingUpdateChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ConfirmUpdateButtonText));
+        CheckUpdatesCommand.NotifyCanExecuteChanged();
+        ConfirmUpdateCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnSelectedUpdateChannelOptionChanged(SettingsUpdateChannelOption? value)
+    {
+        Persist(settings => settings.UpdateChannel = value?.Channel ?? LauncherDefaults.DefaultUpdateChannel);
+    }
+}

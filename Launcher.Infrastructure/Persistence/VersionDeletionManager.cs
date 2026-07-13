@@ -57,15 +57,17 @@ internal sealed class VersionDeletionManager
 
         var versionsDirectory = GetVersionsDirectory(minecraftDirectory);
         var markerPath = PendingInstanceDeletionDirectory.GetMarkerPath(sourceDirectory);
+        var context = new StageContext(
+            sourceDirectory,
+            versionsDirectory,
+            markerPath,
+            versionName,
+            expectedInstanceId);
         for (var attempt = 1; attempt <= MaxStageAttempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var transactionId = guidFactory().ToString("N");
-            var suffix = transactionId[..8].ToLowerInvariant();
-            var stagedDirectory = Path.GetFullPath(Path.Combine(
-                versionsDirectory,
-                $"{PendingInstanceDeletionDirectory.Prefix}{versionName}-{suffix}"));
-            EnsureDirectChild(versionsDirectory, stagedDirectory);
+            var stagedDirectory = GetStagedDirectory(context, transactionId);
 
             if (PathExists(stagedDirectory))
             {
@@ -73,68 +75,129 @@ internal sealed class VersionDeletionManager
                 continue;
             }
 
-            try
-            {
-                await AtomicJsonFileWriter.WriteAsync(
-                    markerPath,
-                    new PendingInstanceDeletionMarker(
-                        2,
-                        transactionId,
-                        versionName,
-                        expectedInstanceId,
-                        DateTimeOffset.UtcNow),
-                    PendingInstanceDeletionDirectory.MarkerJsonOptions,
-                    cancellationToken).ConfigureAwait(false);
-                if (!GameInstanceSettingsStore.HasIdentity(sourceDirectory, expectedInstanceId))
-                {
-                    throw new GameInstanceMutationConflictException(expectedInstanceId, versionName);
-                }
-                if (useIdentitySafeMove)
-                {
-                    try
-                    {
-                        WindowsDirectoryHandleMover.MoveOwnedDirectory(
-                            sourceDirectory,
-                            stagedDirectory,
-                            () => GameInstanceSettingsStore.HasIdentity(sourceDirectory, expectedInstanceId),
-                            beforeMove is null ? null : () => beforeMove(sourceDirectory, stagedDirectory));
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        throw new GameInstanceMutationConflictException(expectedInstanceId, versionName);
-                    }
-                }
-                else
-                {
-                    beforeMove?.Invoke(sourceDirectory, stagedDirectory);
-                    moveDirectory(sourceDirectory, stagedDirectory);
-                }
-                if (!GameInstanceSettingsStore.HasIdentity(stagedDirectory, expectedInstanceId))
-                {
-                    QuarantineMarker(stagedDirectory);
-                    throw new GameInstanceMutationConflictException(expectedInstanceId, versionName);
-                }
-                logger.LogInformation(
-                    "Version directory staged for deletion. VersionName={VersionName} StagedDirectory={StagedDirectory}",
-                    versionName,
-                    stagedDirectory);
-                return stagedDirectory;
-            }
-            catch (IOException) when (Directory.Exists(sourceDirectory) && PathExists(stagedDirectory))
-            {
-                LogCollision(versionName, stagedDirectory, attempt);
-                TryDeleteOwnedPreparationMarker(sourceDirectory, markerPath, expectedInstanceId);
-            }
-            catch
-            {
-                TryDeleteOwnedPreparationMarker(sourceDirectory, markerPath, expectedInstanceId);
-                throw;
-            }
+            var stagedResult = await TryStageAsync(
+                context,
+                transactionId,
+                stagedDirectory,
+                attempt,
+                cancellationToken).ConfigureAwait(false);
+            if (stagedResult is not null)
+                return stagedResult;
         }
 
         TryDeleteOwnedPreparationMarker(sourceDirectory, markerPath, expectedInstanceId);
         throw new IOException(
             $"Unable to stage version directory for deletion after {MaxStageAttempts} destination collisions: {sourceDirectory}");
+    }
+
+    private async Task<string?> TryStageAsync(
+        StageContext context,
+        string transactionId,
+        string stagedDirectory,
+        int attempt,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await WritePreparationMarkerAsync(context, transactionId, cancellationToken).ConfigureAwait(false);
+            MoveToStagedDirectory(context, stagedDirectory);
+            EnsureStagedIdentity(context, stagedDirectory);
+            logger.LogInformation(
+                "Version directory staged for deletion. VersionName={VersionName} StagedDirectory={StagedDirectory}",
+                context.VersionName,
+                stagedDirectory);
+            return stagedDirectory;
+        }
+        catch (IOException) when (Directory.Exists(context.SourceDirectory) && PathExists(stagedDirectory))
+        {
+            LogCollision(context.VersionName, stagedDirectory, attempt);
+            TryDeleteOwnedPreparationMarker(
+                context.SourceDirectory,
+                context.MarkerPath,
+                context.ExpectedInstanceId);
+            return null;
+        }
+        catch
+        {
+            TryDeleteOwnedPreparationMarker(
+                context.SourceDirectory,
+                context.MarkerPath,
+                context.ExpectedInstanceId);
+            throw;
+        }
+    }
+
+    private static async Task WritePreparationMarkerAsync(
+        StageContext context,
+        string transactionId,
+        CancellationToken cancellationToken)
+    {
+        await AtomicJsonFileWriter.WriteAsync(
+            context.MarkerPath,
+            new PendingInstanceDeletionMarker(
+                2,
+                transactionId,
+                context.VersionName,
+                context.ExpectedInstanceId,
+                DateTimeOffset.UtcNow),
+            PendingInstanceDeletionDirectory.MarkerJsonOptions,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private void MoveToStagedDirectory(StageContext context, string stagedDirectory)
+    {
+        if (!GameInstanceSettingsStore.HasIdentity(context.SourceDirectory, context.ExpectedInstanceId))
+            throw new GameInstanceMutationConflictException(context.ExpectedInstanceId, context.VersionName);
+
+        if (useIdentitySafeMove)
+        {
+            MoveOwnedDirectory(context, stagedDirectory);
+            return;
+        }
+
+        beforeMove?.Invoke(context.SourceDirectory, stagedDirectory);
+        moveDirectory(context.SourceDirectory, stagedDirectory);
+    }
+
+    private void MoveOwnedDirectory(StageContext context, string stagedDirectory)
+    {
+        try
+        {
+            WindowsDirectoryHandleMover.MoveOwnedDirectory(
+                context.SourceDirectory,
+                stagedDirectory,
+                () => GameInstanceSettingsStore.HasIdentity(
+                    context.SourceDirectory,
+                    context.ExpectedInstanceId),
+                beforeMove is null
+                    ? null
+                    : () => beforeMove(context.SourceDirectory, stagedDirectory));
+        }
+        catch (InvalidOperationException)
+        {
+            throw new GameInstanceMutationConflictException(
+                context.ExpectedInstanceId,
+                context.VersionName);
+        }
+    }
+
+    private void EnsureStagedIdentity(StageContext context, string stagedDirectory)
+    {
+        if (GameInstanceSettingsStore.HasIdentity(stagedDirectory, context.ExpectedInstanceId))
+            return;
+
+        QuarantineMarker(stagedDirectory);
+        throw new GameInstanceMutationConflictException(context.ExpectedInstanceId, context.VersionName);
+    }
+
+    private static string GetStagedDirectory(StageContext context, string transactionId)
+    {
+        var suffix = transactionId[..8].ToLowerInvariant();
+        var stagedDirectory = Path.GetFullPath(Path.Combine(
+            context.VersionsDirectory,
+            $"{PendingInstanceDeletionDirectory.Prefix}{context.VersionName}-{suffix}"));
+        EnsureDirectChild(context.VersionsDirectory, stagedDirectory);
+        return stagedDirectory;
     }
 
     public bool TryDelete(string minecraftDirectory, string stagedDirectory)
@@ -326,4 +389,11 @@ internal sealed class VersionDeletionManager
         if (!string.Equals(Path.GetDirectoryName(childDirectory), parentDirectory, StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Pending deletion directory must be a direct child of the versions directory.", nameof(childDirectory));
     }
+
+    private sealed record StageContext(
+        string SourceDirectory,
+        string VersionsDirectory,
+        string MarkerPath,
+        string VersionName,
+        string ExpectedInstanceId);
 }
