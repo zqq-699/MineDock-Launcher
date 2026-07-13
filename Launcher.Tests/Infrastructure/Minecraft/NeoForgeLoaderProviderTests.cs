@@ -88,6 +88,14 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
             "neoforge",
             "20.4.237",
             "neoforge-20.4.237-client.jar")));
+        Assert.True(File.Exists(Path.Combine(
+            minecraftDirectory,
+            "libraries",
+            "net",
+            "neoforged",
+            "neoforge",
+            "20.4.237",
+            "neoforge-20.4.237-universal.jar")));
         Assert.False(File.Exists(Path.Combine(minecraftDirectory, "launcher_profiles.json")));
         Assert.Equal("1.20.4-neoforge-20.4.237", finalInstaller.LastVersionName);
 
@@ -96,8 +104,9 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
         Assert.Equal("1.20.4-neoforge-20.4.237", json.RootElement.GetProperty("jar").GetString());
         Assert.False(json.RootElement.TryGetProperty("inheritsFrom", out _));
         Assert.Equal("1.20.4", json.RootElement.GetProperty("launcher").GetProperty("minecraftVersion").GetString());
-        Assert.Single(
-            json.RootElement.GetProperty("launcher").GetProperty("neoForgeProcessorArtifacts").GetProperty("artifacts").EnumerateArray());
+        Assert.Equal(
+            2,
+            json.RootElement.GetProperty("launcher").GetProperty("neoForgeProcessorArtifacts").GetProperty("artifacts").GetArrayLength());
     }
 
     [Fact]
@@ -119,6 +128,32 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
             progress: null));
 
         Assert.Contains("processor output", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(Directory.Exists(Path.Combine(
+            minecraftDirectory,
+            "versions",
+            "1.20.4-neoforge-20.4.237")));
+    }
+
+    [Fact]
+    public async Task NeoForgeLoaderProviderRejectsSuccessfulInstallerWithMissingExternalRuntimeLibrary()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        await CreateVanillaVersionAsync(minecraftDirectory, "1.20.4");
+        var provider = CreateProvider(new ScriptedForgeInstallerRunner(async (gameDirectory, _, _) =>
+        {
+            await CreateVanillaVersionAsync(gameDirectory, "1.20.4");
+            CreateNeoForgeDerivedVersion(gameDirectory, "neoforge-20.4.237", "1.20.4", "20.4.237");
+            CreateGeneratedNeoForgeLibrary(gameDirectory, "20.4.237", includeUniversal: false);
+        }));
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => provider.InstallAsync(
+            "1.20.4",
+            minecraftDirectory,
+            "1.20.4-neoforge-20.4.237",
+            "20.4.237",
+            progress: null));
+
+        Assert.Contains("universal.jar", exception.Message, StringComparison.OrdinalIgnoreCase);
         Assert.False(Directory.Exists(Path.Combine(
             minecraftDirectory,
             "versions",
@@ -222,7 +257,7 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
     {
         await CreateVanillaVersionAsync(minecraftDirectory, inheritsFrom);
         CreateNeoForgeDerivedVersion(minecraftDirectory, versionName, inheritsFrom, loaderVersion);
-        CreateGeneratedNeoForgeLibrary(minecraftDirectory, loaderVersion);
+        CreateGeneratedNeoForgeLibrary(minecraftDirectory, loaderVersion, includeUniversal: true);
     }
 
     private static async Task CreateVanillaVersionAsync(string minecraftDirectory, string versionName)
@@ -279,7 +314,10 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
             "--launchTarget neoforge_client");
     }
 
-    private static void CreateGeneratedNeoForgeLibrary(string minecraftDirectory, string loaderVersion)
+    private static void CreateGeneratedNeoForgeLibrary(
+        string minecraftDirectory,
+        string loaderVersion,
+        bool includeUniversal)
     {
         var libraryDirectory = Path.Combine(
             minecraftDirectory,
@@ -292,6 +330,12 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
         File.WriteAllText(
             Path.Combine(libraryDirectory, $"neoforge-{loaderVersion}-client.jar"),
             "patched neoforge client");
+        if (includeUniversal)
+        {
+            File.WriteAllText(
+                Path.Combine(libraryDirectory, $"neoforge-{loaderVersion}-universal.jar"),
+                "universal neoforge runtime");
+        }
     }
 
     private sealed class NoOpForgeInstallerRunner : IForgeInstallerRunner
@@ -414,6 +458,18 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
                   "data": {
                     "PATCHED": { "client": "[net.neoforged:neoforge:20.4.237:client]" }
                   },
+                  "libraries": [
+                    {
+                      "name": "net.neoforged:neoforge:20.4.237:universal",
+                      "downloads": {
+                        "artifact": {
+                          "path": "net/neoforged/neoforge/20.4.237/neoforge-20.4.237-universal.jar",
+                          "sha1": "bb0166e91991e502fc8d8daf77eedced1b734f6a",
+                          "size": 26
+                        }
+                      }
+                    }
+                  ],
                   "processors": [
                     { "args": ["--clean", "{MC_SRG}", "--output", "{PATCHED}"] }
                   ]

@@ -32,7 +32,8 @@ internal static class LoaderProcessorArtifactProfileReader
     public static async Task<IReadOnlyList<LoaderProcessorExpectedArtifact>> ReadAsync(
         string installerJarPath,
         string loaderName,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<string, bool>? includeExternalLibrary = null)
     {
         await using var installerStream = new FileStream(
             installerJarPath,
@@ -76,48 +77,43 @@ internal static class LoaderProcessorArtifactProfileReader
             }
         }
 
-        AddEmbeddedInstallerArtifacts(archive, profile, artifacts);
+        AddInstallerRuntimeArtifacts(archive, profile, artifacts, includeExternalLibrary);
 
         return artifacts.Values
             .OrderBy(artifact => artifact.RelativePath, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
-    private static void AddEmbeddedInstallerArtifacts(
+    private static void AddInstallerRuntimeArtifacts(
         ZipArchive archive,
         JsonObject profile,
-        IDictionary<string, LoaderProcessorExpectedArtifact> artifacts)
+        IDictionary<string, LoaderProcessorExpectedArtifact> artifacts,
+        Func<string, bool>? includeExternalLibrary)
     {
         if (profile["libraries"] is not JsonArray libraries)
             return;
 
-        var declaredArtifacts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var embeddedArtifacts = archive.Entries
+            .Where(entry => entry.Length > 0 && entry.FullName.StartsWith("maven/", StringComparison.OrdinalIgnoreCase))
+            .Select(entry => entry.FullName["maven/".Length..].Replace('\\', '/'))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var library in libraries.OfType<JsonObject>())
         {
             if (library["downloads"]?["artifact"] is not JsonObject artifact)
                 continue;
 
+            var coordinate = library["name"]?.GetValue<string>()?.Trim();
             var path = artifact["path"]?.GetValue<string>()?.Trim().Replace('\\', '/');
             var sha1 = artifact["sha1"]?.GetValue<string>()?.Trim();
             if (!string.IsNullOrWhiteSpace(path)
                 && IsSafeRelativePath(path)
-                && MinecraftFileIntegrity.IsSha1(sha1))
+                && MinecraftFileIntegrity.IsSha1(sha1)
+                && (embeddedArtifacts.Contains(path)
+                    || (!string.IsNullOrWhiteSpace(coordinate)
+                        && includeExternalLibrary?.Invoke(coordinate) == true)))
             {
-                declaredArtifacts[path] = sha1!;
+                artifacts[path] = new LoaderProcessorExpectedArtifact(path, sha1);
             }
-        }
-
-        foreach (var entry in archive.Entries)
-        {
-            const string prefix = "maven/";
-            if (entry.Length <= 0 || !entry.FullName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            var relativePath = entry.FullName[prefix.Length..].Replace('\\', '/');
-            if (!declaredArtifacts.TryGetValue(relativePath, out var sha1))
-                continue;
-
-            artifacts[relativePath] = new LoaderProcessorExpectedArtifact(relativePath, sha1);
         }
     }
 

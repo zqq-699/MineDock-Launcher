@@ -24,7 +24,7 @@ public sealed class NeoForgeProcessorArtifactServiceTests : TestTempDirectory
     private const string UniversalPath = "net/neoforged/neoforge/20.4.237/neoforge-20.4.237-universal.jar";
 
     [Fact]
-    public async Task ProfileReaderFindsNeoForgeOutputsAndEmbeddedRuntime()
+    public async Task ProfileReaderFindsNeoForgeOutputsAndExternalRuntime()
     {
         var installerPath = Path.Combine(TempRoot, "installer.jar");
         Directory.CreateDirectory(TempRoot);
@@ -51,6 +51,9 @@ public sealed class NeoForgeProcessorArtifactServiceTests : TestTempDirectory
                 Assert.Equal(MappingsPath, artifact.RelativePath);
                 Assert.Null(artifact.TrustedSha1);
             });
+        Assert.DoesNotContain(
+            artifacts,
+            artifact => artifact.RelativePath.Contains("binarypatcher", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -118,6 +121,39 @@ public sealed class NeoForgeProcessorArtifactServiceTests : TestTempDirectory
 
         Assert.Equal(2, runner.RunCount);
         Assert.Equal("patched", await File.ReadAllTextAsync(GetArtifactPath(minecraftDirectory, PatchedPath)));
+    }
+
+    [Fact]
+    public async Task ProcessorOnlyManifestIsMigratedToRuntimeCompleteManifest()
+    {
+        var (minecraftDirectory, versionJsonPath, versionJson) = await CreateVersionAsync();
+        var launcher = versionJson["launcher"]!.AsObject();
+        launcher["neoForgeProcessorArtifacts"] = new JsonObject
+        {
+            ["schemaVersion"] = 1,
+            ["minecraftVersion"] = "1.20.4",
+            ["neoForgeVersion"] = "20.4.237",
+            ["artifacts"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["path"] = PatchedPath,
+                    ["sha1"] = Sha1("patched")
+                }
+            }
+        };
+        await File.WriteAllTextAsync(versionJsonPath, versionJson.ToJsonString());
+        var runner = new RecordingRunner(CreateOutputs);
+        var service = CreateService(runner);
+
+        await service.EnsureLaunchArtifactsAsync(
+            minecraftDirectory, versionJsonPath, versionJson, true,
+            DownloadSourcePreference.Auto, 0, CancellationToken.None);
+
+        var saved = JsonNode.Parse(await File.ReadAllTextAsync(versionJsonPath))!.AsObject();
+        Assert.Equal(2, saved["launcher"]?["neoForgeProcessorArtifacts"]?["schemaVersion"]?.GetValue<int>());
+        Assert.Equal(3, NeoForgeProcessorArtifactService.ReadManifest(saved)?.Artifacts.Count);
+        Assert.True(File.Exists(GetArtifactPath(minecraftDirectory, UniversalPath)));
     }
 
     [Fact]
@@ -295,6 +331,16 @@ public sealed class NeoForgeProcessorArtifactServiceTests : TestTempDirectory
                               "size": 9
                             }
                           }
+                        },
+                        {
+                          "name": "net.neoforged.installertools:binarypatcher:2.1.2:fatjar",
+                          "downloads": {
+                            "artifact": {
+                              "path": "net/neoforged/installertools/binarypatcher/2.1.2/binarypatcher-2.1.2-fatjar.jar",
+                              "sha1": "{{Sha1("binarypatcher")}}",
+                              "size": 13
+                            }
+                          }
                         }
                       ],
                       "processors": [
@@ -305,10 +351,6 @@ public sealed class NeoForgeProcessorArtifactServiceTests : TestTempDirectory
                     }
                     """);
             }
-
-            var universalEntry = archive.CreateEntry($"maven/{UniversalPath}");
-            using var universalWriter = new StreamWriter(universalEntry.Open());
-            universalWriter.Write("universal");
         }
         return stream.ToArray();
     }

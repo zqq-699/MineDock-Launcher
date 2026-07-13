@@ -16,9 +16,22 @@ internal sealed partial class NeoForgeProcessorArtifactService
         var artifacts = await LoaderProcessorArtifactProfileReader.ReadAsync(
             installerJarPath,
             "NeoForge",
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            IsNeoForgeRuntimeLibrary).ConfigureAwait(false);
         return artifacts
             .Select(artifact => new NeoForgeProcessorExpectedArtifact(artifact.RelativePath, artifact.TrustedSha1))
             .ToList();
+    }
+
+    private static bool IsNeoForgeRuntimeLibrary(string coordinate)
+    {
+        var coordinateWithoutExtension = coordinate.Split('@', 2)[0];
+        var parts = coordinateWithoutExtension.Split(
+            ':',
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length == 4
+               && parts[0].Equals("net.neoforged", StringComparison.OrdinalIgnoreCase)
+               && parts[1].Equals("neoforge", StringComparison.OrdinalIgnoreCase)
+               && parts[3].Equals("universal", StringComparison.OrdinalIgnoreCase);
     }
 }

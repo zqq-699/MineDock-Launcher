@@ -29,11 +29,11 @@ internal sealed record NeoForgeProcessorArtifactManifest(
 internal sealed record NeoForgeProcessorExpectedArtifact(string RelativePath, string? TrustedSha1);
 
 /// <summary>
-/// Guards NeoForge client processor outputs and installer-embedded runtime libraries.
+/// Guards NeoForge client processor outputs and required installer runtime libraries.
 /// </summary>
 internal sealed partial class NeoForgeProcessorArtifactService
 {
-    private const int ManifestSchemaVersion = 1;
+    private const int ManifestSchemaVersion = 2;
     private const string InstallerBaseUrl = "https://maven.neoforged.net/releases/net/neoforged/neoforge";
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> RepairLocks = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Regex NeoForgeVersionArgumentRegex = new(
