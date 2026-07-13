@@ -12,6 +12,7 @@ using System.Text.Json;
 using Launcher.Application;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.FileSystem;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -20,7 +21,9 @@ namespace Launcher.Infrastructure.Persistence;
 internal static class PendingInstanceInstallDirectory
 {
     public const string Prefix = ".bhl-install-pending-";
-    public const string PreparationDirectoryName = ".bhl-install-preparing";
+    private const string TransactionDirectoryName = "transactions";
+    private const string InstallDirectoryName = "install";
+    private const string PreparationDirectoryName = "preparing";
     public const string MarkerFileName = ".bhl-install-pending.json";
     public const string PendingLockFileName = ".bhl-install-active.lock";
     private static readonly JsonSerializerOptions MarkerJsonOptions = new()
@@ -32,8 +35,48 @@ internal static class PendingInstanceInstallDirectory
         Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
             .StartsWith(Prefix, StringComparison.OrdinalIgnoreCase);
 
-    public static string GetPreparationRoot(string versionsDirectory) =>
-        Path.Combine(versionsDirectory, PreparationDirectoryName);
+    public static string GetPreparationRoot(string minecraftDirectory) =>
+        Path.Combine(
+            Path.GetFullPath(minecraftDirectory),
+            LauncherApplicationIdentity.StorageDirectoryName,
+            TransactionDirectoryName,
+            InstallDirectoryName,
+            PreparationDirectoryName);
+
+    public static bool TryReadValidPreparationMarker(
+        string preparationRoot,
+        string preparationDirectory,
+        out PendingInstanceInstallMarker marker)
+    {
+        marker = default!;
+        try
+        {
+            var normalizedRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(preparationRoot));
+            var normalizedDirectory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(preparationDirectory));
+            if (!string.Equals(
+                    Path.GetDirectoryName(normalizedDirectory),
+                    normalizedRoot,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if ((File.GetAttributes(normalizedDirectory) & FileAttributes.ReparsePoint) != 0)
+                return false;
+            var directoryTransactionId = Path.GetFileName(normalizedDirectory);
+            return Guid.TryParseExact(directoryTransactionId, "N", out _)
+                   && TryReadStructurallyValidMarker(normalizedDirectory, out marker, out _)
+                   && string.Equals(marker.TransactionId, directoryTransactionId, StringComparison.Ordinal);
+        }
+        catch (Exception exception) when (exception is IOException
+                                           or UnauthorizedAccessException
+                                           or ArgumentException
+                                           or NotSupportedException)
+        {
+            marker = default!;
+            return false;
+        }
+    }
 
     public static bool IsLogicalNameReserved(string versionsDirectory, string logicalVersionName)
     {
@@ -423,7 +466,7 @@ public sealed class InstanceInstallTransactionService : IInstanceInstallTransact
             var pendingDirectory = Path.Combine(
                 versionsDirectory,
                 $"{PendingInstanceInstallDirectory.Prefix}{logicalVersionName}-{transactionId[..8].ToLowerInvariant()}");
-            var preparationRoot = PendingInstanceInstallDirectory.GetPreparationRoot(versionsDirectory);
+            var preparationRoot = PendingInstanceInstallDirectory.GetPreparationRoot(minecraftDirectory);
             var preparationDirectory = Path.Combine(preparationRoot, transactionId);
             if (Directory.Exists(pendingDirectory)
                 || File.Exists(pendingDirectory)
@@ -447,11 +490,12 @@ public sealed class InstanceInstallTransactionService : IInstanceInstallTransact
                 // Build the recoverable metadata in a launcher-owned preparation area first.
                 // Publishing the directory into the pending namespace is then a same-volume atomic move,
                 // so a crash can never expose a markerless pending directory created by this service.
+                EnsureOrdinaryPathBelowRoot(minecraftDirectory, preparationRoot, "Install preparation root");
                 Directory.CreateDirectory(preparationRoot);
-                EnsureOrdinaryDirectory(preparationRoot, "Install preparation root");
+                EnsureOrdinaryPathBelowRoot(minecraftDirectory, preparationRoot, "Install preparation root");
                 preparationRootOwned = true;
                 Directory.CreateDirectory(preparationDirectory);
-                EnsureOrdinaryDirectory(preparationRoot, "Install preparation root");
+                EnsureOrdinaryPathBelowRoot(minecraftDirectory, preparationRoot, "Install preparation root");
                 EnsureOrdinaryDirectory(preparationDirectory, "Install preparation directory");
                 preparationDirectoryOwned = true;
                 await AtomicJsonFileWriter.WriteAsync(
@@ -460,7 +504,7 @@ public sealed class InstanceInstallTransactionService : IInstanceInstallTransact
                     JsonOptions,
                     cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
-                EnsureOrdinaryDirectory(preparationRoot, "Install preparation root");
+                EnsureOrdinaryPathBelowRoot(minecraftDirectory, preparationRoot, "Install preparation root");
                 EnsureOrdinaryDirectory(preparationDirectory, "Install preparation directory");
                 Directory.Move(preparationDirectory, pendingDirectory);
                 preparationDirectoryOwned = false;
@@ -478,6 +522,8 @@ public sealed class InstanceInstallTransactionService : IInstanceInstallTransact
                 return new Transaction(
                     minecraftDirectory,
                     logicalVersionName,
+                    transactionId,
+                    instanceId,
                     pendingDirectory,
                     finalDirectory,
                     pendingLock,
@@ -529,16 +575,45 @@ public sealed class InstanceInstallTransactionService : IInstanceInstallTransact
             throw new IOException($"{description} must not be a reparse point: {directory}");
     }
 
+    internal static void EnsureOrdinaryPathBelowRoot(
+        string rootDirectory,
+        string candidateDirectory,
+        string description)
+    {
+        var normalizedRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootDirectory));
+        var normalizedCandidate = Path.TrimEndingDirectorySeparator(Path.GetFullPath(candidateDirectory));
+        var comparisonRoot = normalizedRoot + Path.DirectorySeparatorChar;
+        if (!normalizedCandidate.StartsWith(comparisonRoot, StringComparison.OrdinalIgnoreCase))
+            throw new IOException($"{description} resolved outside its root: {candidateDirectory}");
+
+        var relativePath = Path.GetRelativePath(normalizedRoot, normalizedCandidate);
+        var current = normalizedRoot;
+        foreach (var segment in relativePath.Split(
+                     [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                     StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, segment);
+            if (!Directory.Exists(current))
+                continue;
+            if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                throw new IOException($"{description} contains a reparse point: {current}");
+        }
+    }
+
     private sealed class Transaction : IInstanceInstallTransaction
     {
         private FileStream? pendingLock;
         private readonly GameInstanceSettingsStore settingsStore;
         private readonly ILogger logger;
+        private readonly string transactionId;
+        private readonly string instanceId;
         private bool aborted;
 
         public Transaction(
             string minecraftDirectory,
             string logicalVersionName,
+            string transactionId,
+            string instanceId,
             string pendingDirectory,
             string finalDirectory,
             FileStream pendingLock,
@@ -547,6 +622,8 @@ public sealed class InstanceInstallTransactionService : IInstanceInstallTransact
         {
             MinecraftDirectory = minecraftDirectory;
             LogicalVersionName = logicalVersionName;
+            this.transactionId = transactionId;
+            this.instanceId = instanceId;
             PendingDirectory = pendingDirectory;
             FinalDirectory = finalDirectory;
             this.pendingLock = pendingLock;
@@ -566,6 +643,8 @@ public sealed class InstanceInstallTransactionService : IInstanceInstallTransact
                 return;
             if (aborted)
                 throw new InvalidOperationException("The installation transaction was already aborted.");
+            if (!string.Equals(instance.Id, instanceId, StringComparison.Ordinal))
+                throw new GameInstanceMutationConflictException(instanceId, LogicalVersionName);
 
             await ValidateAsync(cancellationToken).ConfigureAwait(false);
             await settingsStore.PrepareInstallAsync(
@@ -589,7 +668,20 @@ public sealed class InstanceInstallTransactionService : IInstanceInstallTransact
                 throw new InstanceInstallNameConflictException(LogicalVersionName);
 
             await ReleasePendingLockAsync().ConfigureAwait(false);
-            Directory.Move(PendingDirectory, FinalDirectory);
+            try
+            {
+                WindowsDirectoryHandleMover.MoveOwnedDirectory(
+                    PendingDirectory,
+                    FinalDirectory,
+                    () => PendingInstanceInstallDirectory.TryReadValidPendingMarker(PendingDirectory, out var marker)
+                          && string.Equals(marker.TransactionId, transactionId, StringComparison.Ordinal)
+                          && string.Equals(marker.InstanceId, instanceId, StringComparison.Ordinal)
+                          && GameInstanceSettingsStore.HasIdentity(PendingDirectory, instanceId));
+            }
+            catch (InvalidOperationException)
+            {
+                throw new GameInstanceMutationConflictException(instanceId, LogicalVersionName);
+            }
             IsCommitted = true;
             logger.LogInformation(
                 "Instance installation committed. InstanceId={InstanceId} LogicalVersionName={LogicalVersionName} FinalDirectory={FinalDirectory}",
@@ -729,7 +821,8 @@ public sealed class InstanceInstallCleanupService(
     {
         var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
         var versionsDirectory = Path.GetFullPath(Path.Combine(settings.MinecraftDirectory, "versions"));
-        if (!Directory.Exists(versionsDirectory))
+        var preparationRoot = PendingInstanceInstallDirectory.GetPreparationRoot(settings.MinecraftDirectory);
+        if (!Directory.Exists(versionsDirectory) && !Directory.Exists(preparationRoot))
             return;
 
         await using var coordinationLock = await CrossProcessVersionLock.AcquireAsync(
@@ -743,11 +836,9 @@ public sealed class InstanceInstallCleanupService(
         CrossProcessVersionLock.DeleteLegacyVersionDirectoryLocks(versionsDirectory);
         CrossProcessVersionLock.DeleteLegacyLauncherLocks(settings.MinecraftDirectory);
 
-        // This root is exclusively owned by the launcher and is never an install publication point.
-        // Any contents here were left before the atomic preparation -> pending move completed.
-        InstanceInstallTransactionService.TryDeleteTree(
-            PendingInstanceInstallDirectory.GetPreparationRoot(versionsDirectory),
-            logger);
+        CleanupInstallPreparationDirectories(settings.MinecraftDirectory, cancellationToken);
+        if (!Directory.Exists(versionsDirectory))
+            return;
 
         foreach (var directory in Directory.EnumerateDirectories(versionsDirectory).ToArray())
         {
@@ -795,11 +886,25 @@ public sealed class InstanceInstallCleanupService(
             {
                 if (marker.InitializeDefaultIfEmpty)
                 {
-                    var latestSettings = await settingsService.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-                    if (string.IsNullOrWhiteSpace(latestSettings.DefaultInstanceId))
+                    var rootMatches = false;
+                    await settingsService.UpdateAsync(
+                            latestSettings =>
+                            {
+                                rootMatches = PathsEqual(
+                                    latestSettings.MinecraftDirectory,
+                                    settings.MinecraftDirectory);
+                                if (rootMatches && string.IsNullOrWhiteSpace(latestSettings.DefaultInstanceId))
+                                    latestSettings.DefaultInstanceId = marker.InstanceId;
+                            },
+                            CancellationToken.None)
+                        .ConfigureAwait(false);
+                    if (!rootMatches)
                     {
-                        latestSettings.DefaultInstanceId = marker.InstanceId;
-                        await settingsService.SaveAsync(latestSettings, CancellationToken.None).ConfigureAwait(false);
+                        logger.LogWarning(
+                            "Committed install marker was retained because the active Minecraft directory changed. MarkerPath={MarkerPath} InstallMinecraftDirectory={InstallMinecraftDirectory}",
+                            markerPath,
+                            settings.MinecraftDirectory);
+                        continue;
                     }
                 }
                 File.Delete(Path.Combine(normalized, PendingInstanceInstallDirectory.PendingLockFileName));
@@ -810,5 +915,75 @@ public sealed class InstanceInstallCleanupService(
                 logger.LogWarning(exception, "Failed to delete committed install marker. MarkerPath={MarkerPath}", markerPath);
             }
         }
+    }
+
+    private void CleanupInstallPreparationDirectories(
+        string minecraftDirectory,
+        CancellationToken cancellationToken)
+    {
+        var preparationRoot = PendingInstanceInstallDirectory.GetPreparationRoot(minecraftDirectory);
+        try
+        {
+            InstanceInstallTransactionService.EnsureOrdinaryPathBelowRoot(
+                minecraftDirectory,
+                preparationRoot,
+                "Install preparation root");
+            if (!Directory.Exists(preparationRoot))
+                return;
+
+            foreach (var directory in Directory.EnumerateDirectories(preparationRoot).ToArray())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!PendingInstanceInstallDirectory.TryReadValidPreparationMarker(
+                        preparationRoot,
+                        directory,
+                        out var marker))
+                {
+                    logger.LogWarning(
+                        "Install preparation directory was preserved because ownership could not be proven. Directory={Directory}",
+                        directory);
+                    continue;
+                }
+
+                InstanceInstallTransactionService.TryDeleteTree(directory, logger);
+                logger.LogInformation(
+                    "Cleaned interrupted instance install preparation. TransactionId={TransactionId} Directory={Directory}",
+                    marker.TransactionId,
+                    directory);
+            }
+
+            try
+            {
+                Directory.Delete(preparationRoot, recursive: false);
+            }
+            catch (Exception exception) when (exception is IOException
+                                               or UnauthorizedAccessException
+                                               or DirectoryNotFoundException)
+            {
+                logger.LogDebug(
+                    exception,
+                    "Install preparation root was retained because it is not empty or could not be removed. Directory={Directory}",
+                    preparationRoot);
+            }
+        }
+        catch (Exception exception) when (exception is IOException
+                                           or UnauthorizedAccessException
+                                           or ArgumentException
+                                           or NotSupportedException)
+        {
+            logger.LogWarning(
+                exception,
+                "Install preparation cleanup was skipped because its path is unsafe. Directory={Directory}",
+                preparationRoot);
+        }
+    }
+
+    private static bool PathsEqual(string first, string second)
+    {
+        if (string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(second))
+            return false;
+        var normalizedFirst = Path.TrimEndingDirectorySeparator(Path.GetFullPath(first));
+        var normalizedSecond = Path.TrimEndingDirectorySeparator(Path.GetFullPath(second));
+        return string.Equals(normalizedFirst, normalizedSecond, StringComparison.OrdinalIgnoreCase);
     }
 }

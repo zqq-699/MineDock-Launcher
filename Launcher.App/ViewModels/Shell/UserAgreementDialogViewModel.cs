@@ -81,7 +81,7 @@ public sealed partial class UserAgreementDialogViewModel : ObservableObject
         settings.HasAcceptedUserAgreement = true;
         try
         {
-            await settingsService.SaveAsync(settings);
+            await settingsService.UpdateAsync(latest => latest.HasAcceptedUserAgreement = true);
             IsOpen = false;
             decision.TrySetResult(true);
             logger.LogInformation("User agreement accepted and persisted.");

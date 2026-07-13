@@ -50,6 +50,22 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task PrepareRejectsCaseInsensitiveDuplicateOverrideTargets()
+    {
+        var path = Path.Combine(TempRoot, "duplicates.mrpack");
+        CreateArchive(path, archive =>
+        {
+            AddEntry(archive, "modrinth.index.json", """{"name":"Duplicates","dependencies":{"minecraft":"1.20.1"},"files":[]}""");
+            AddEntry(archive, "overrides/config/Settings.txt", "first");
+            AddEntry(archive, "overrides/CONFIG/settings.txt", "second");
+        });
+
+        var exception = await Assert.ThrowsAsync<ModpackImportException>(() => CreateService().PrepareAsync(path));
+
+        Assert.Equal(ModpackImportFailureReason.InvalidManifest, exception.FailureReason);
+    }
+
+    [Fact]
     public void ExtractionBudgetRejectsOversizedContent()
     {
         var exception = Assert.Throws<ModpackImportException>(() => new ZipExtractionBudget(1).Reserve(2));
@@ -85,6 +101,48 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
 
         Assert.Equal(ModpackImportFailureReason.HashMismatch, exception.FailureReason);
         Assert.Empty(Directory.EnumerateFiles(instance.InstanceDirectory, "*.download", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public async Task InstallRejectsCaseInsensitiveDuplicateTargetsBeforeDownloading()
+    {
+        var handler = new FixedHandler("downloaded");
+        var service = CreateService(new HttpClient(handler));
+        var instance = new GameInstance { Name = "Pack", InstanceDirectory = Path.Combine(TempRoot, "instance") };
+        Directory.CreateDirectory(instance.InstanceDirectory);
+        var prepared = new PreparedModpack
+        {
+            PackageKind = ModpackPackageKind.Modrinth,
+            SourceArchivePath = Path.Combine(TempRoot, "pack.mrpack"),
+            WorkingDirectory = Path.Combine(TempRoot, "work"),
+            PackageName = "Pack",
+            MinecraftVersion = "1.20.1",
+            Loader = LoaderKind.Vanilla,
+            Files =
+            [
+                new PreparedModpackDownload
+                {
+                    FileName = "first.jar",
+                    RelativePath = "mods/Same.jar",
+                    SourceUrl = "https://download/first.jar"
+                },
+                new PreparedModpackDownload
+                {
+                    FileName = "second.jar",
+                    RelativePath = "MODS/same.jar",
+                    SourceUrl = "https://download/second.jar"
+                }
+            ]
+        };
+        Directory.CreateDirectory(prepared.WorkingDirectory);
+
+        var exception = await Assert.ThrowsAsync<ModpackImportException>(() =>
+            service.InstallContentAsync(prepared, instance, null));
+
+        Assert.Equal(ModpackImportFailureReason.InvalidManifest, exception.FailureReason);
+        Assert.Equal(0, handler.RequestCount);
+        Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "mods", "Same.jar")));
+        Assert.False(File.Exists(Path.Combine(instance.InstanceDirectory, "MODS", "same.jar")));
     }
 
     [Fact]
@@ -130,7 +188,17 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
 
     private sealed class FixedHandler(string content) : HttpMessageHandler
     {
+        private int requestCount;
+
+        public int RequestCount => Volatile.Read(ref requestCount);
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(content) });
+            Task.FromResult(CreateResponse());
+
+        private HttpResponseMessage CreateResponse()
+        {
+            Interlocked.Increment(ref requestCount);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(content) };
+        }
     }
 }

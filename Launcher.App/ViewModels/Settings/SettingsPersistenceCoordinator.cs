@@ -32,6 +32,8 @@ internal sealed class SettingsPersistenceCoordinator : IDisposable
     private readonly IStatusService statusService;
     private readonly ILogger logger;
     private readonly SemaphoreSlim saveLock = new(1, 1);
+    private readonly object pendingUpdatesLock = new();
+    private readonly List<Action<LauncherSettings>> pendingUpdates = [];
     private CancellationTokenSource? pendingSave;
 
     public SettingsPersistenceCoordinator(
@@ -52,6 +54,8 @@ internal sealed class SettingsPersistenceCoordinator : IDisposable
     {
         ArgumentNullException.ThrowIfNull(settings);
         CancelPendingSave();
+        lock (pendingUpdatesLock)
+            pendingUpdates.Clear();
         Settings = settings;
         IsPrimed = true;
     }
@@ -63,6 +67,8 @@ internal sealed class SettingsPersistenceCoordinator : IDisposable
             return;
 
         update(Settings);
+        lock (pendingUpdatesLock)
+            pendingUpdates.Add(update);
         ScheduleSave();
     }
 
@@ -76,6 +82,8 @@ internal sealed class SettingsPersistenceCoordinator : IDisposable
 
         CancelPendingSave();
         update(Settings);
+        lock (pendingUpdatesLock)
+            pendingUpdates.Add(update);
         await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -83,6 +91,12 @@ internal sealed class SettingsPersistenceCoordinator : IDisposable
     {
         CancelPendingSave();
         saveLock.Dispose();
+    }
+
+    public async Task FlushAsync(CancellationToken cancellationToken = default)
+    {
+        CancelPendingSave();
+        await SaveCoreAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private void ScheduleSave()
@@ -120,7 +134,31 @@ internal sealed class SettingsPersistenceCoordinator : IDisposable
         await saveLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await settingsService.SaveAsync(Settings, cancellationToken).ConfigureAwait(false);
+            Action<LauncherSettings>[] updates;
+            lock (pendingUpdatesLock)
+            {
+                if (pendingUpdates.Count == 0)
+                    return;
+                updates = pendingUpdates.ToArray();
+                pendingUpdates.Clear();
+            }
+            try
+            {
+                await settingsService.UpdateAsync(
+                        latest =>
+                        {
+                            foreach (var update in updates)
+                                update(latest);
+                        },
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch
+            {
+                lock (pendingUpdatesLock)
+                    pendingUpdates.InsertRange(0, updates);
+                throw;
+            }
         }
         finally
         {

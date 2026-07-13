@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Diagnostics;
 using System.Net;
 using System.IO.Compression;
 using System.Text.Json;
@@ -29,6 +30,94 @@ namespace Launcher.Tests.Infrastructure.Minecraft;
 
 public sealed class ForgeLoaderProviderTests : TestTempDirectory
 {
+    private static readonly TimeSpan ProcessTimeout = TimeSpan.FromSeconds(10);
+
+    [Fact]
+    public async Task ForgeInstallerRunnerCancellationTerminatesEntireProcessTree()
+    {
+        Directory.CreateDirectory(TempRoot);
+        var scriptPath = Path.Combine(TempRoot, "long-running-forge-installer.ps1");
+        var parentProcessIdPath = Path.Combine(TempRoot, "forge-parent.pid");
+        var childProcessIdPath = Path.Combine(TempRoot, "forge-child.pid");
+        await File.WriteAllTextAsync(
+            scriptPath,
+            $$"""
+            $PID | Set-Content -LiteralPath '{{parentProcessIdPath}}'
+            $child = Start-Process -FilePath $env:ComSpec -ArgumentList '/d', '/s', '/c', 'ping 127.0.0.1 -n 300 > nul' -PassThru
+            $child.Id | Set-Content -LiteralPath '{{childProcessIdPath}}'
+            Wait-Process -Id $child.Id
+            """);
+
+        Process? startedProcess = null;
+        int? childProcessId = null;
+        var runner = new ForgeInstallerRunner(_ =>
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            startInfo.ArgumentList.Add("-NoLogo");
+            startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-NonInteractive");
+            startInfo.ArgumentList.Add("-ExecutionPolicy");
+            startInfo.ArgumentList.Add("Bypass");
+            startInfo.ArgumentList.Add("-File");
+            startInfo.ArgumentList.Add(scriptPath);
+            startedProcess = Process.Start(startInfo);
+            return startedProcess;
+        });
+        using var cancellation = new CancellationTokenSource();
+
+        try
+        {
+            var runTask = runner.RunInstallerAsync(
+                "ignored-java",
+                Path.Combine(TempRoot, "ignored-installer.jar"),
+                TempRoot,
+                cancellation.Token);
+            var parentProcessId = await WaitForProcessIdAsync(parentProcessIdPath);
+            childProcessId = await WaitForProcessIdAsync(childProcessIdPath);
+
+            cancellation.Cancel();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runTask);
+            await WaitUntilAsync(
+                () => HasExited(parentProcessId) && HasExited(childProcessId.Value),
+                ProcessTimeout,
+                "The canceled Forge installer process tree did not exit.");
+        }
+        finally
+        {
+            TryKillProcessTree(startedProcess);
+            TryKillProcess(childProcessId);
+        }
+    }
+
+    [Fact]
+    public async Task ForgeInstallerRunnerDoesNotStartWhenAlreadyCanceled()
+    {
+        var started = false;
+        var runner = new ForgeInstallerRunner(_ =>
+        {
+            started = true;
+            return null;
+        });
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runner.RunInstallerAsync(
+            "ignored-java",
+            Path.Combine(TempRoot, "ignored-installer.jar"),
+            TempRoot,
+            cancellation.Token));
+
+        Assert.False(started);
+    }
+
     [Fact]
     public async Task ForgeLoaderProviderParsesVersionsFromOfficialCatalog()
     {
@@ -174,6 +263,90 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
         return arguments
             .Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Count(token => string.Equals(token, argument, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static async Task<int> WaitForProcessIdAsync(string path)
+    {
+        int? processId = null;
+        await WaitUntilAsync(
+            () => (processId = TryReadProcessId(path)) is not null,
+            ProcessTimeout,
+            $"The process ID file was not created: {path}");
+        return processId!.Value;
+    }
+
+    private static int? TryReadProcessId(string path)
+    {
+        try
+        {
+            return File.Exists(path) && int.TryParse(File.ReadAllText(path).Trim(), out var processId)
+                ? processId
+                : null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+    }
+
+    private static bool HasExited(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            return process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
+    }
+
+    private static void TryKillProcessTree(Process? process)
+    {
+        try
+        {
+            if (process is not null && !process.HasExited)
+                process.Kill(entireProcessTree: true);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    private static void TryKillProcess(int? processId)
+    {
+        if (processId is null)
+            return;
+
+        try
+        {
+            using var process = Process.GetProcessById(processId.Value);
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+        }
+        catch (ArgumentException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout, string timeoutMessage)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        while (!condition())
+        {
+            if (stopwatch.Elapsed >= timeout)
+                throw new TimeoutException(timeoutMessage);
+
+            await Task.Delay(25);
+        }
     }
 
     private ForgeLoaderProvider CreateProvider(

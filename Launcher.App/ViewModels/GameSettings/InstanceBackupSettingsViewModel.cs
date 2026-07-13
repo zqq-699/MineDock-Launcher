@@ -21,6 +21,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Download;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -36,6 +37,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
     // 服务负责持久化和文件操作；本类只编排对话框、命令可用性和列表投影。
     private readonly IGameInstanceService instanceService;
     private readonly IInstanceBackupService backupService;
+    private readonly DownloadTasksPageViewModel downloadTasksPage;
     private readonly IStatusService statusService;
     private readonly IInstanceFolderService instanceFolderService;
     private readonly IFilePickerService filePickerService;
@@ -109,6 +111,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
         GameSettingsDetailsViewModel parent,
         IGameInstanceService instanceService,
         IInstanceBackupService backupService,
+        DownloadTasksPageViewModel downloadTasksPage,
         IStatusService statusService,
         IInstanceFolderService instanceFolderService,
         IFilePickerService filePickerService,
@@ -118,6 +121,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
     {
         this.instanceService = instanceService;
         this.backupService = backupService;
+        this.downloadTasksPage = downloadTasksPage;
         this.statusService = statusService;
         this.instanceFolderService = instanceFolderService;
         this.filePickerService = filePickerService;
@@ -304,11 +308,20 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
     /// 创建备份并在成功后刷新清单；失败时保留友好错误和诊断摘要。
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanConfirmCreateBackupDialog))]
-    private async Task ConfirmCreateBackupDialogAsync()
+    private Task ConfirmCreateBackupDialogAsync()
+    {
+        var operation = ConfirmCreateBackupDialogCoreAsync();
+        downloadTasksPage.TrackBackgroundTask(operation);
+        return operation;
+    }
+
+    private async Task ConfirmCreateBackupDialogCoreAsync()
     {
         if (selectedInstance is null || string.IsNullOrWhiteSpace(BackupDirectory) || string.IsNullOrWhiteSpace(NewBackupName))
             return;
 
+        var instance = selectedInstance;
+        var backupDirectory = BackupDirectory;
         // 先关闭命名对话框并锁定创建命令，防止用户重复提交同一备份。
         var backupName = NewBackupName.Trim();
         IsCreateBackupDialogOpen = false;
@@ -318,7 +331,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
         try
         {
             // 只有归档和清单都提交成功后才刷新页面；服务内部会清理临时文件。
-            await backupService.CreateBackupAsync(selectedInstance, BackupDirectory, backupName);
+            await backupService.CreateBackupAsync(instance, backupDirectory, backupName);
             await RefreshBackupsAsync();
             floatingMessageService.Show(Strings.Status_BackupCreated);
         }
@@ -328,7 +341,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
             logger.LogError(
                 exception,
                 "Failed to create instance backup from backup settings page. InstanceId={InstanceId}",
-                selectedInstance.Id);
+                instance.Id);
             BackupFailureDialogMessage = string.Format(
                 Strings.Dialog_BackupCreateFailedMessageFormat,
                 GetFriendlyBackupFailureMessage(exception),
@@ -443,11 +456,20 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
     /// 恢复已确认的备份，并在操作期间锁定其他会改变备份或实例内容的命令。
     /// </summary>
     [RelayCommand]
-    private async Task ConfirmRestoreBackupAsync()
+    private Task ConfirmRestoreBackupAsync()
+    {
+        var operation = ConfirmRestoreBackupCoreAsync();
+        downloadTasksPage.TrackBackgroundTask(operation);
+        return operation;
+    }
+
+    private async Task ConfirmRestoreBackupCoreAsync()
     {
         if (selectedInstance is null || pendingRestoreBackup is null || string.IsNullOrWhiteSpace(BackupDirectory))
             return;
 
+        var instance = selectedInstance;
+        var backupDirectory = BackupDirectory;
         // 快照待恢复项并立即清空对话框状态，后续异步流程不再依赖可变字段。
         var backup = pendingRestoreBackup;
         pendingRestoreBackup = null;
@@ -462,8 +484,8 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
             var protectionBackupName = string.Format(
                 Strings.GameSettings_BackupPreRestoreNameFormat,
                 DateTimeOffset.Now.ToString("yyyy-MM-dd HH-mm"));
-            await backupService.CreateBackupAsync(selectedInstance, BackupDirectory, protectionBackupName);
-            await backupService.RestoreBackupAsync(selectedInstance, BackupDirectory, backup.FullPath);
+            await backupService.CreateBackupAsync(instance, backupDirectory, protectionBackupName);
+            await backupService.RestoreBackupAsync(instance, backupDirectory, backup.FullPath);
             await RefreshBackupsAsync();
             floatingMessageService.Show(Strings.Status_BackupRestored);
         }
@@ -472,7 +494,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
             logger.LogError(
                 exception,
                 "Failed to restore instance backup from backup settings page. InstanceId={InstanceId} BackupFile={BackupFile}",
-                selectedInstance.Id,
+                instance.Id,
                 backup.FullPath);
             statusService.Report(Strings.Status_BackupRestoreFailed);
         }
@@ -494,11 +516,20 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
     /// 删除单个或多选备份，允许部分失败并在结束后重建可见选择状态。
     /// </summary>
     [RelayCommand]
-    private async Task ConfirmDeleteBackupAsync()
+    private Task ConfirmDeleteBackupAsync()
+    {
+        var operation = ConfirmDeleteBackupCoreAsync();
+        downloadTasksPage.TrackBackgroundTask(operation);
+        return operation;
+    }
+
+    private async Task ConfirmDeleteBackupCoreAsync()
     {
         if (pendingDeleteBackups.Count == 0 || string.IsNullOrWhiteSpace(BackupDirectory))
             return;
 
+        var instanceId = selectedInstance?.Id ?? "<none>";
+        var backupDirectory = BackupDirectory;
         // 冻结本次删除集合；关闭对话框后新的选择不会混入正在执行的批次。
         var backups = pendingDeleteBackups;
         pendingDeleteBackups = Array.Empty<InstanceBackupItemViewModel>();
@@ -509,7 +540,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
         {
             // 清单与文件由服务逐项保持一致；全部完成后再重读目录作为最终事实来源。
             foreach (var backup in backups)
-                await backupService.DeleteBackupAsync(BackupDirectory, backup.FullPath);
+                await backupService.DeleteBackupAsync(backupDirectory, backup.FullPath);
 
             if (backups.Count > 1)
                 ExitMultiSelectMode();
@@ -524,7 +555,7 @@ public sealed partial class InstanceBackupSettingsViewModel : GameSettingsDetail
             logger.LogError(
                 exception,
                 "Failed to delete instance backup from backup settings page. InstanceId={InstanceId} BackupCount={BackupCount}",
-                selectedInstance?.Id ?? "<none>",
+                instanceId,
                 backups.Count);
             statusService.Report(Strings.Status_BackupDeleteFailed);
         }

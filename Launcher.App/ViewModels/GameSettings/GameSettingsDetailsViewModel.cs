@@ -20,6 +20,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.ViewModels.Download;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -54,6 +55,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
         ISystemMemoryService systemMemoryService,
         IModService modService,
         IInstanceBackupService backupService,
+        DownloadTasksPageViewModel downloadTasksPage,
         LocalModsViewModel localModsViewModel,
         LocalSavesViewModel localSavesViewModel,
         LocalResourcePacksViewModel localResourcePacksViewModel,
@@ -134,6 +136,7 @@ public sealed partial class GameSettingsDetailsViewModel : ObservableObject, IDi
             this,
             instanceService,
             backupService,
+            downloadTasksPage,
             statusService,
             instanceFolderService,
             filePickerService,

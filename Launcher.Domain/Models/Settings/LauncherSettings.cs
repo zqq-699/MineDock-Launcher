@@ -23,6 +23,8 @@ namespace Launcher.Domain.Models;
 
 public sealed class LauncherSettings
 {
+    public long Revision { get; set; }
+
     [JsonIgnore]
     public string OfflineUsername { get; set; } = LauncherDefaults.DefaultOfflineUsername;
     public bool IsMenuExpanded { get; set; }

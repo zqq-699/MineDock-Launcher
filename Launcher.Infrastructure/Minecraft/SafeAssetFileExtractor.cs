@@ -130,16 +130,16 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
 
     private sealed class AtomicAssetCopyTask(string destinationPath, string expectedSha1) : IUpdateTask
     {
-        public ValueTask Execute(GameFile file, CancellationToken cancellationToken)
+        public async ValueTask Execute(GameFile file, CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(file.Path))
                 throw new InvalidDataException("Asset object path is missing.");
 
-            return new ValueTask(AtomicSharedFilePublisher.PublishCopyAsync(
+            await AtomicSharedFilePublisher.PublishCopyAsync(
                 file.Path,
                 destinationPath,
                 expectedSha1,
-                cancellationToken));
+                cancellationToken).ConfigureAwait(false);
         }
     }
 }

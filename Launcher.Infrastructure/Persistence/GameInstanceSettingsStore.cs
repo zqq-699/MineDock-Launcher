@@ -104,6 +104,17 @@ internal sealed class GameInstanceSettingsStore(ILogger logger)
                         versionName);
                     continue;
                 }
+
+                if (current.UpdatedAt > instance.UpdatedAt)
+                {
+                    logger.LogWarning(
+                        "Skipped older game instance settings snapshot. InstanceId={InstanceId} VersionName={VersionName} SnapshotUpdatedAt={SnapshotUpdatedAt} CurrentUpdatedAt={CurrentUpdatedAt}",
+                        instance.Id,
+                        versionName,
+                        instance.UpdatedAt,
+                        current.UpdatedAt);
+                    continue;
+                }
             }
 
             var snapshot = CreateStorageSnapshot(instance, versionDirectory, versionName);

@@ -18,6 +18,7 @@
  */
 
 using System.Collections.ObjectModel;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Launcher.App.Resources;
 using Launcher.App.Services;
@@ -32,11 +33,13 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
 {
     private readonly ISettingsService settingsService;
     private readonly IGameInstanceService instanceService;
+    private readonly IInstanceBackupService? backupService;
     private readonly IStatusService statusService;
     private readonly ILogger<InstanceManagementViewModel> logger;
     private readonly object refreshInstancesSync = new();
     private LauncherSettings settings = new();
-    private Task? refreshInstancesTask;
+    private Task<string>? refreshInstancesTask;
+    private string? lastRefreshedMinecraftDirectory;
     private bool hasLoadedInstances;
 
     [ObservableProperty]
@@ -49,10 +52,12 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
         ISettingsService settingsService,
         IGameInstanceService instanceService,
         IStatusService statusService,
+        IInstanceBackupService? backupService = null,
         ILogger<InstanceManagementViewModel>? logger = null)
     {
         this.settingsService = settingsService;
         this.instanceService = instanceService;
+        this.backupService = backupService;
         this.statusService = statusService;
         this.logger = logger ?? NullLogger<InstanceManagementViewModel>.Instance;
     }
@@ -68,6 +73,7 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
         var previousSelectedId = SelectedInstance?.Id;
 
         Instances.ReplaceWith(loadedInstances);
+        lastRefreshedMinecraftDirectory = launcherSettings.MinecraftDirectory;
         SelectedInstance = ResolveSelectedInstance(launcherSettings.DefaultInstanceId, previousSelectedId);
         logger.LogInformation(
             "Game management instances primed. Count={InstanceCount} SelectedInstanceId={SelectedInstanceId}",
@@ -91,23 +97,38 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
 
     public async Task RefreshInstancesAsync()
     {
-        Task refreshTask;
-        lock (refreshInstancesSync)
+        var followingRootChange = false;
+        while (true)
         {
-            refreshTask = refreshInstancesTask ??= RefreshInstancesCoreAsync();
-        }
-
-        try
-        {
-            await refreshTask;
-        }
-        finally
-        {
+            Task<string> refreshTask;
             lock (refreshInstancesSync)
             {
-                if (ReferenceEquals(refreshInstancesTask, refreshTask))
-                    refreshInstancesTask = null;
+                if (followingRootChange
+                    && lastRefreshedMinecraftDirectory is not null
+                    && PathsEqual(lastRefreshedMinecraftDirectory, settings.MinecraftDirectory))
+                {
+                    return;
+                }
+                refreshTask = refreshInstancesTask ??= RefreshInstancesCoreAsync(settings.MinecraftDirectory);
             }
+
+            string refreshedDirectory;
+            try
+            {
+                refreshedDirectory = await refreshTask;
+            }
+            finally
+            {
+                lock (refreshInstancesSync)
+                {
+                    if (ReferenceEquals(refreshInstancesTask, refreshTask))
+                        refreshInstancesTask = null;
+                }
+            }
+
+            if (PathsEqual(refreshedDirectory, settings.MinecraftDirectory))
+                return;
+            followingRootChange = true;
         }
     }
 
@@ -150,7 +171,24 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
 
     public async Task SaveSettingsAsync()
     {
-        await settingsService.SaveAsync(settings);
+        var minecraftDirectory = settings.MinecraftDirectory;
+        if (lastRefreshedMinecraftDirectory is null
+            || !PathsEqual(lastRefreshedMinecraftDirectory, minecraftDirectory))
+        {
+            logger.LogWarning(
+                "Skipped saving instance defaults because the visible list belongs to a different Minecraft directory. CurrentDirectory={CurrentDirectory} RefreshedDirectory={RefreshedDirectory}",
+                minecraftDirectory,
+                lastRefreshedMinecraftDirectory);
+            return;
+        }
+
+        var defaultInstanceId = settings.DefaultInstanceId;
+        await settingsService.UpdateAsync(
+            latest =>
+            {
+                if (PathsEqual(latest.MinecraftDirectory, minecraftDirectory))
+                    latest.DefaultInstanceId = defaultInstanceId;
+            });
         ReportStatus(Strings.Status_SettingsSaved);
     }
 
@@ -229,12 +267,26 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
             SelectedInstance?.Id);
     }
 
-    private async Task RefreshInstancesCoreAsync()
+    private async Task<string> RefreshInstancesCoreAsync(string requestedMinecraftDirectory)
     {
+        if (backupService is not null)
+        {
+            await backupService.RecoverPendingRestoresAsync(requestedMinecraftDirectory);
+        }
+
         var loadedInstances = await instanceService.GetInstancesAsync();
+        if (!PathsEqual(requestedMinecraftDirectory, settings.MinecraftDirectory))
+        {
+            logger.LogInformation(
+                "Discarded instance refresh because the Minecraft directory changed. RequestedDirectory={RequestedDirectory} CurrentDirectory={CurrentDirectory}",
+                requestedMinecraftDirectory,
+                settings.MinecraftDirectory);
+            return requestedMinecraftDirectory;
+        }
         var previousSelectedId = SelectedInstance?.Id;
 
         Instances.ReplaceWith(loadedInstances);
+        lastRefreshedMinecraftDirectory = requestedMinecraftDirectory;
 
         SelectedInstance = ResolveSelectedInstance(settings.DefaultInstanceId, previousSelectedId);
         hasLoadedInstances = true;
@@ -242,7 +294,14 @@ public sealed partial class InstanceManagementViewModel : ObservableObject
             "Game management instances refreshed. Count={InstanceCount} SelectedInstanceId={SelectedInstanceId}",
             Instances.Count,
             SelectedInstance?.Id);
+        return requestedMinecraftDirectory;
     }
+
+    private static bool PathsEqual(string first, string second) =>
+        string.Equals(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(first)),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(second)),
+            StringComparison.OrdinalIgnoreCase);
 
     private GameInstance? ResolveSelectedInstance(string? defaultInstanceId, string? previousSelectedId)
     {

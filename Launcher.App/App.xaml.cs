@@ -149,7 +149,11 @@ public partial class App : System.Windows.Application
             base.OnStartup(e);
 
             await CleanupModpackWorkspacesOnStartupAsync();
+            await CleanupResourceProjectWorkspacesOnStartupAsync();
 
+            await RecoverPendingInstanceBackupsOnStartupAsync(
+                serviceProvider.GetRequiredService<IInstanceBackupService>(),
+                startupSettings.MinecraftDirectory);
             await RecoverPendingInstanceRenamesOnStartupAsync(
                 serviceProvider.GetRequiredService<IInstanceRenameRecoveryService>());
 
@@ -261,6 +265,20 @@ public partial class App : System.Windows.Application
         }
     }
 
+    private static async Task RecoverPendingInstanceBackupsOnStartupAsync(
+        IInstanceBackupService backupService,
+        string minecraftDirectory)
+    {
+        try
+        {
+            await backupService.RecoverPendingRestoresAsync(minecraftDirectory).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Pending instance backup recovery failed before instance scanning.");
+        }
+    }
+
     private static async Task CheckForLauncherUpdatesAfterAgreementAsync(MainViewModel mainViewModel)
     {
         try
@@ -324,6 +342,23 @@ public partial class App : System.Windows.Application
         catch (Exception exception)
         {
             Log.Warning(exception, "Failed to clean modpack workspace cache on startup.");
+        }
+    }
+
+    private async Task CleanupResourceProjectWorkspacesOnStartupAsync()
+    {
+        if (serviceProvider is null)
+            return;
+
+        try
+        {
+            await serviceProvider.GetRequiredService<IResourceProjectInstallationService>()
+                .CleanupStaleWorkspacesAsync()
+                .ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Failed to clean resource project installation workspaces on startup.");
         }
     }
 

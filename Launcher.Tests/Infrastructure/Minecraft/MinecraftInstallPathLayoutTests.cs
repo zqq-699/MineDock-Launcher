@@ -6,6 +6,7 @@
  */
 
 using System.IO.Compression;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using CmlLib.Core.Files;
@@ -187,6 +188,39 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task LoaderDeltaPublicationRejectsJunctionWithoutReadingExternalFile()
+    {
+        var workspace = Path.Combine(TempRoot, "installer", ".minecraft");
+        var libraries = Path.Combine(workspace, "libraries");
+        var external = Path.Combine(TempRoot, "external");
+        Directory.CreateDirectory(libraries);
+        Directory.CreateDirectory(external);
+        File.WriteAllText(Path.Combine(external, "outside.jar"), "outside");
+        var junction = Path.Combine(libraries, "linked");
+        CreateDirectoryJunction(junction, external);
+        var snapshot = new LoaderInstallerWorkspaceSnapshot(
+            workspace,
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+        var destination = Path.Combine(TempRoot, "published");
+
+        try
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() =>
+                new LoaderInstallerPrerequisiteSeeder().PublishDeltaAsync(
+                    snapshot,
+                    destination,
+                    CancellationToken.None));
+
+            Assert.False(File.Exists(Path.Combine(destination, "libraries", "linked", "outside.jar")));
+        }
+        finally
+        {
+            if (Directory.Exists(junction))
+                Directory.Delete(junction, recursive: false);
+        }
+    }
+
+    [Fact]
     public async Task ForgePrerequisitePathTraversalIsIgnored()
     {
         var shared = Path.Combine(TempRoot, "shared");
@@ -212,6 +246,20 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, content);
         return path;
+    }
+
+    private static void CreateDirectoryJunction(string linkPath, string targetPath)
+    {
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            ArgumentList = { "/c", "mklink", "/J", linkPath, targetPath }
+        }) ?? throw new InvalidOperationException("Failed to start junction creation process.");
+        process.WaitForExit();
+        Assert.Equal(0, process.ExitCode);
+        Assert.True((File.GetAttributes(linkPath) & FileAttributes.ReparsePoint) != 0);
     }
 
     private static void CreateInstallerArchive(string path, string libraryPath, string sha1)

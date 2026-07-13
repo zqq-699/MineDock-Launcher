@@ -19,6 +19,8 @@
 
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Runtime.CompilerServices;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure;
@@ -29,11 +31,14 @@ namespace Launcher.Infrastructure.Persistence;
 
 public sealed class JsonSettingsService : ISettingsService
 {
+    private static readonly TimeSpan BootstrapCrossProcessLockTimeout = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan CrossProcessLockRetryDelay = TimeSpan.FromMilliseconds(100);
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private readonly string settingsPath;
     private readonly LauncherPathProvider pathProvider;
     private readonly ILogger<JsonSettingsService> logger;
     private readonly SemaphoreSlim ioLock = new(1, 1);
+    private readonly ConditionalWeakTable<LauncherSettings, LauncherSettings> loadedBaselines = new();
 
     public JsonSettingsService(string? dataDirectory = null, ILogger<JsonSettingsService>? logger = null)
     {
@@ -50,6 +55,10 @@ public sealed class JsonSettingsService : ISettingsService
 
         try
         {
+            using var timeoutCancellation = new CancellationTokenSource(BootstrapCrossProcessLockTimeout);
+            using var crossProcessLock = AcquireCrossProcessLockAsync(timeoutCancellation.Token)
+                .GetAwaiter()
+                .GetResult();
             using var stream = File.OpenRead(settingsPath);
             using var document = JsonDocument.Parse(stream);
             return document.RootElement.TryGetProperty(
@@ -58,6 +67,14 @@ public sealed class JsonSettingsService : ISettingsService
                    && languageProperty.ValueKind is JsonValueKind.String
                 ? NormalizeLauncherLanguage(languageProperty.GetString())
                 : LauncherDefaults.DefaultLauncherLanguage;
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogWarning(
+                "Timed out waiting for the launcher settings lock during WPF resource bootstrap. SettingsPath={SettingsPath} TimeoutMilliseconds={TimeoutMilliseconds}",
+                settingsPath,
+                BootstrapCrossProcessLockTimeout.TotalMilliseconds);
+            return LauncherDefaults.DefaultLauncherLanguage;
         }
         catch (Exception exception) when (
             exception is JsonException
@@ -77,20 +94,9 @@ public sealed class JsonSettingsService : ISettingsService
         await ioLock.WaitAsync(cancellationToken);
         try
         {
-            if (!File.Exists(settingsPath))
-            {
-                var defaultSettings = Normalize(new LauncherSettings
-                {
-                    DataDirectory = Path.GetDirectoryName(settingsPath) ?? pathProvider.DefaultDataDirectory
-                });
-                await SaveCoreAsync(defaultSettings, cancellationToken);
-                logger.LogInformation("Default launcher settings created. SettingsPath={SettingsPath}", settingsPath);
-                return defaultSettings;
-            }
-
-            await using var stream = File.OpenRead(settingsPath);
-            var loaded = await JsonSerializer.DeserializeAsync<LauncherSettings>(stream, JsonOptions, cancellationToken);
-            var loadedSettings = Normalize(loaded ?? new LauncherSettings());
+            await using var crossProcessLock = await AcquireCrossProcessLockAsync(cancellationToken).ConfigureAwait(false);
+            var loadedSettings = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            TrackBaseline(loadedSettings, loadedSettings);
             logger.LogDebug("Launcher settings loaded. SettingsPath={SettingsPath}", settingsPath);
             return loadedSettings;
         }
@@ -106,7 +112,24 @@ public sealed class JsonSettingsService : ISettingsService
         await ioLock.WaitAsync(cancellationToken);
         try
         {
-            await SaveCoreAsync(normalized, cancellationToken);
+            await using var crossProcessLock = await AcquireCrossProcessLockAsync(cancellationToken).ConfigureAwait(false);
+            var current = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            LauncherSettings toSave;
+            if (loadedBaselines.TryGetValue(settings, out var baseline))
+            {
+                ApplyChangedPersistedProperties(baseline, normalized, current);
+                toSave = Normalize(current);
+            }
+            else
+            {
+                if (normalized.Revision != current.Revision)
+                    throw new SettingsConcurrencyException(normalized.Revision, current.Revision);
+                toSave = normalized;
+            }
+            toSave.Revision = checked(current.Revision + 1);
+            await SaveCoreAsync(toSave, cancellationToken);
+            CopyPersistedProperties(toSave, settings);
+            TrackBaseline(settings, toSave);
             logger.LogInformation("Launcher settings saved. SettingsPath={SettingsPath}", settingsPath);
         }
         finally
@@ -114,6 +137,120 @@ public sealed class JsonSettingsService : ISettingsService
             ioLock.Release();
         }
     }
+
+    public async Task<LauncherSettings> UpdateAsync(
+        Action<LauncherSettings> update,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        await ioLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await using var crossProcessLock = await AcquireCrossProcessLockAsync(cancellationToken).ConfigureAwait(false);
+            var latest = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            update(latest);
+            latest = Normalize(latest);
+            latest.Revision = checked(latest.Revision + 1);
+            await SaveCoreAsync(latest, cancellationToken).ConfigureAwait(false);
+            logger.LogInformation("Launcher settings updated atomically. SettingsPath={SettingsPath}", settingsPath);
+            return latest;
+        }
+        finally
+        {
+            ioLock.Release();
+        }
+    }
+
+    private async Task<LauncherSettings> LoadCoreAsync(CancellationToken cancellationToken)
+    {
+        if (!File.Exists(settingsPath))
+        {
+            var defaultSettings = Normalize(new LauncherSettings
+            {
+                DataDirectory = Path.GetDirectoryName(settingsPath) ?? pathProvider.DefaultDataDirectory
+            });
+            await SaveCoreAsync(defaultSettings, cancellationToken).ConfigureAwait(false);
+            logger.LogInformation("Default launcher settings created. SettingsPath={SettingsPath}", settingsPath);
+            return defaultSettings;
+        }
+
+        await using var stream = new FileStream(
+            settingsPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 16 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var loaded = await JsonSerializer.DeserializeAsync<LauncherSettings>(stream, JsonOptions, cancellationToken)
+            .ConfigureAwait(false);
+        return Normalize(loaded ?? new LauncherSettings());
+    }
+
+    private async Task<FileStream> AcquireCrossProcessLockAsync(CancellationToken cancellationToken)
+    {
+        var lockPath = settingsPath + ".lock";
+        Directory.CreateDirectory(Path.GetDirectoryName(lockPath)!);
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            }
+            catch (IOException exception) when (IsSharingViolation(exception))
+            {
+                await Task.Delay(CrossProcessLockRetryDelay, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private static bool IsSharingViolation(IOException exception)
+    {
+        var code = exception.HResult & 0xFFFF;
+        return code is 32 or 33;
+    }
+
+    private void TrackBaseline(LauncherSettings key, LauncherSettings value)
+    {
+        loadedBaselines.Remove(key);
+        loadedBaselines.Add(key, ClonePersistedSettings(value));
+    }
+
+    private static LauncherSettings ClonePersistedSettings(LauncherSettings settings)
+    {
+        var json = JsonSerializer.Serialize(settings, JsonOptions);
+        return JsonSerializer.Deserialize<LauncherSettings>(json, JsonOptions) ?? new LauncherSettings();
+    }
+
+    private static void ApplyChangedPersistedProperties(
+        LauncherSettings baseline,
+        LauncherSettings proposed,
+        LauncherSettings latest)
+    {
+        foreach (var property in GetPersistedProperties())
+        {
+            if (string.Equals(property.Name, nameof(LauncherSettings.Revision), StringComparison.Ordinal))
+                continue;
+            var baselineValue = property.GetValue(baseline);
+            var proposedValue = property.GetValue(proposed);
+            if (!Equals(baselineValue, proposedValue))
+                property.SetValue(latest, proposedValue);
+        }
+    }
+
+    private static void CopyPersistedProperties(LauncherSettings source, LauncherSettings destination)
+    {
+        foreach (var property in GetPersistedProperties())
+            property.SetValue(destination, property.GetValue(source));
+    }
+
+    private static IReadOnlyList<System.Reflection.PropertyInfo> GetPersistedProperties() =>
+        typeof(LauncherSettings)
+            .GetProperties(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)
+            .Where(property => property.CanRead
+                               && property.CanWrite
+                               && property.GetCustomAttributes(typeof(JsonIgnoreAttribute), inherit: true).Length == 0)
+            .ToArray();
 
     private async Task SaveCoreAsync(LauncherSettings settings, CancellationToken cancellationToken)
     {

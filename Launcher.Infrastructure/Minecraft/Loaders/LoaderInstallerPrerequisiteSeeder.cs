@@ -50,7 +50,7 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
             if (!Directory.Exists(sourceDirectory))
                 continue;
 
-            foreach (var sourcePath in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+            foreach (var sourcePath in EnumerateOrdinaryFiles(sourceDirectory))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var confinedSourcePath = MinecraftPathGuard.EnsureWithin(
@@ -66,15 +66,63 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
                     continue;
                 }
 
+                var destinationRoot = Path.Combine(destinationMinecraftDirectory, directoryName);
+                var destinationPath = MinecraftPathGuard.EnsureWithin(
+                    Path.Combine(destinationMinecraftDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar)),
+                    destinationRoot,
+                    "Loader installer shared destination");
+                EnsureOrdinaryExistingPath(destinationRoot, destinationPath);
                 await AtomicSharedFilePublisher.PublishCopyAsync(
                     confinedSourcePath,
-                    MinecraftPathGuard.EnsureWithin(
-                        Path.Combine(destinationMinecraftDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar)),
-                        Path.Combine(destinationMinecraftDirectory, directoryName),
-                        "Loader installer shared destination"),
+                    destinationPath,
                     expectedSha1: null,
                     cancellationToken: cancellationToken).ConfigureAwait(false);
             }
+        }
+    }
+
+    private static IEnumerable<string> EnumerateOrdinaryFiles(string directory)
+    {
+        if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+            throw new InvalidDataException($"Loader installer output root is a reparse point: {directory}");
+        foreach (var entry in Directory.EnumerateFileSystemEntries(directory))
+        {
+            var attributes = File.GetAttributes(entry);
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidDataException($"Loader installer output contains a reparse point: {entry}");
+            if ((attributes & FileAttributes.Directory) != 0)
+            {
+                foreach (var file in EnumerateOrdinaryFiles(entry))
+                    yield return file;
+            }
+            else
+            {
+                yield return entry;
+            }
+        }
+    }
+
+    private static void EnsureOrdinaryExistingPath(string rootDirectory, string targetPath)
+    {
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootDirectory));
+        var target = Path.GetFullPath(targetPath);
+        MinecraftPathGuard.EnsureWithin(target, root, "Loader installer shared destination");
+        var current = root;
+        if (Directory.Exists(current)
+            && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidDataException($"Shared destination root is a reparse point: {current}");
+        }
+        var relative = Path.GetRelativePath(root, target);
+        foreach (var segment in relative.Split(
+                     [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                     StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, segment);
+            if (!Directory.Exists(current) && !File.Exists(current))
+                continue;
+            if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidDataException($"Shared destination contains a reparse point: {current}");
         }
     }
 
@@ -285,18 +333,19 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
         if (expectedSize is > 0 && new FileInfo(sourcePath).Length != expectedSize.Value)
             return;
 
-        var actualSha1 = AtomicSharedFilePublisher.ComputeSha1(sourcePath);
-        if (!string.IsNullOrWhiteSpace(expectedSha1)
-            && !string.Equals(actualSha1, expectedSha1, StringComparison.OrdinalIgnoreCase))
+        string actualSha1;
+        try
+        {
+            actualSha1 = await AtomicSharedFilePublisher.PublishCopyAsync(
+                sourcePath,
+                destinationPath,
+                expectedSha1,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (InvalidDataException) when (!string.IsNullOrWhiteSpace(expectedSha1))
         {
             return;
         }
-
-        await AtomicSharedFilePublisher.PublishCopyAsync(
-            sourcePath,
-            destinationPath,
-            actualSha1,
-            cancellationToken).ConfigureAwait(false);
         seededFiles[NormalizeRelativePath(Path.GetRelativePath(destinationGameDirectory, destinationPath))] = actualSha1;
     }
 

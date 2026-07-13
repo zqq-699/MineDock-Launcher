@@ -37,6 +37,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
 {
     // 子 ViewModel 各自拥有业务状态，本类只维护页面步骤与跨子流程事件转发。
     private readonly IFloatingMessageService floatingMessageService;
+    private readonly DownloadTasksPageViewModel downloadTasksPage;
     private readonly ILogger<DownloadPageViewModel> logger;
     private CancellationTokenSource? optionsNavigationCancellation;
     private string lastLocalImportDropHintMessage = string.Empty;
@@ -103,6 +104,7 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
         ILogger<DownloadPageViewModel>? logger = null)
     {
         this.floatingMessageService = floatingMessageService;
+        this.downloadTasksPage = downloadTasksPage;
         this.logger = logger ?? NullLogger<DownloadPageViewModel>.Instance;
         var instanceNameTracker = new DownloadInstanceNameTracker();
         VersionList = new DownloadVersionListViewModel(gameVersionService, uiDispatcher);
@@ -267,7 +269,9 @@ public sealed partial class DownloadPageViewModel : ObservableObject, IDisposabl
 
         CurrentStep = DownloadPageStep.VersionList;
         ContentRefreshToken++;
-        await InstallState.InstallAsync(request);
+        var operation = InstallState.InstallAsync(request);
+        downloadTasksPage.TrackBackgroundTask(operation);
+        await operation;
     }
 
     partial void OnCurrentStepChanged(DownloadPageStep value)

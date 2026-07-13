@@ -83,6 +83,7 @@ internal static class ModpackOverrideExtractor
     {
         var foundAny = false;
         var extractionBudget = new ZipExtractionBudget(ModpackArchiveUtility.MaxOverrideTotalBytes);
+        var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in archive.Entries.Where(entry => !string.IsNullOrWhiteSpace(entry.Name)))
         {
             var relativePath = ResolveOverridePath(entry, includeClientOverrides);
@@ -97,7 +98,13 @@ internal static class ModpackOverrideExtractor
             }
 
             extractionBudget.Reserve(entry.Length);
-            _ = ModpackArchiveUtility.GetValidatedTargetPath(Path.GetTempPath(), relativePath);
+            var target = ModpackArchiveUtility.GetValidatedTargetPath(Path.GetTempPath(), relativePath);
+            if (!targets.Add(Path.GetFullPath(target)))
+            {
+                throw new ModpackImportException(
+                    ModpackImportFailureReason.InvalidManifest,
+                    $"Multiple override entries resolve to the same target path: {relativePath}");
+            }
             foundAny = true;
         }
 
@@ -111,11 +118,20 @@ internal static class ModpackOverrideExtractor
         CancellationToken cancellationToken)
     {
         var extractionBudget = new ZipExtractionBudget(ModpackArchiveUtility.MaxOverrideTotalBytes);
+        var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in archive.Entries.Where(entry => !string.IsNullOrWhiteSpace(entry.Name)))
         {
             var relativePath = ResolveOverridePath(entry, includeClientOverrides);
             if (string.IsNullOrWhiteSpace(relativePath))
                 continue;
+
+            var target = ModpackArchiveUtility.GetValidatedTargetPath(instanceDirectory, relativePath);
+            if (!targets.Add(Path.GetFullPath(target)))
+            {
+                throw new ModpackImportException(
+                    ModpackImportFailureReason.InvalidManifest,
+                    $"Multiple override entries resolve to the same target path: {relativePath}");
+            }
 
             await ModpackArchiveUtility.ExtractZipEntryAsync(
                 entry,

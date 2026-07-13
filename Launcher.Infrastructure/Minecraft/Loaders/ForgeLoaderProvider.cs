@@ -107,11 +107,24 @@ internal sealed class FinalVersionInstaller : IFinalVersionInstaller
 internal sealed class ForgeInstallerRunner : IForgeInstallerRunner
 {
     internal const string InstallClientUnrecognizedOptionMessage = "'installClient' is not a recognized option";
+    private static readonly TimeSpan ProcessTerminationTimeout = TimeSpan.FromSeconds(5);
+    private readonly Func<ProcessStartInfo, Process?> startProcess;
+
+    public ForgeInstallerRunner()
+        : this(Process.Start)
+    {
+    }
+
+    internal ForgeInstallerRunner(Func<ProcessStartInfo, Process?> startProcess)
+    {
+        this.startProcess = startProcess ?? throw new ArgumentNullException(nameof(startProcess));
+    }
 
     public async Task RunInstallerAsync(string javaCommand, string installerJarPath, string minecraftDirectory, CancellationToken cancellationToken)
     {
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var startInfo = new ProcessStartInfo
             {
                 FileName = string.IsNullOrWhiteSpace(javaCommand) ? "java" : javaCommand,
@@ -123,13 +136,21 @@ internal sealed class ForgeInstallerRunner : IForgeInstallerRunner
                 RedirectStandardError = true
             };
 
-            using var process = Process.Start(startInfo)
+            using var process = startProcess(startInfo)
                 ?? throw new InvalidOperationException("Forge installer could not be started.");
 
             var outputTask = process.StandardOutput.ReadToEndAsync();
             var errorTask = process.StandardError.ReadToEndAsync();
 
-            await process.WaitForExitAsync(cancellationToken);
+            try
+            {
+                await process.WaitForExitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                await TerminateProcessTreeAsync(process, outputTask, errorTask).ConfigureAwait(false);
+                throw;
+            }
 
             var output = await outputTask;
             var error = await errorTask;
@@ -149,6 +170,52 @@ internal sealed class ForgeInstallerRunner : IForgeInstallerRunner
         catch (FileNotFoundException exception)
         {
             throw new InvalidOperationException("No usable Java runtime was found for Forge installation.", exception);
+        }
+    }
+
+    private static async Task TerminateProcessTreeAsync(
+        Process process,
+        Task<string> outputTask,
+        Task<string> errorTask)
+    {
+        try
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+        }
+        catch (InvalidOperationException)
+        {
+            // The process exited between HasExited and Kill.
+        }
+        catch (Win32Exception exception)
+        {
+            throw new IOException("The canceled Forge installer process tree could not be terminated.", exception);
+        }
+
+        try
+        {
+            await process.WaitForExitAsync(CancellationToken.None)
+                .WaitAsync(ProcessTerminationTimeout)
+                .ConfigureAwait(false);
+        }
+        catch (InvalidOperationException)
+        {
+            // The process was already reaped by the operating system.
+        }
+        catch (TimeoutException exception)
+        {
+            throw new IOException("The canceled Forge installer process did not terminate in time.", exception);
+        }
+
+        try
+        {
+            await Task.WhenAll(outputTask, errorTask)
+                .WaitAsync(ProcessTerminationTimeout)
+                .ConfigureAwait(false);
+        }
+        catch (TimeoutException exception)
+        {
+            throw new IOException("The canceled Forge installer output streams did not close in time.", exception);
         }
     }
 }

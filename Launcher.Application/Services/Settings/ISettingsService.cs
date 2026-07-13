@@ -25,4 +25,15 @@ public interface ISettingsService
 {
     Task<LauncherSettings> LoadAsync(CancellationToken cancellationToken = default);
     Task SaveAsync(LauncherSettings settings, CancellationToken cancellationToken = default);
+
+    async Task<LauncherSettings> UpdateAsync(
+        Action<LauncherSettings> update,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        var settings = await LoadAsync(cancellationToken).ConfigureAwait(false);
+        update(settings);
+        await SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+        return settings;
+    }
 }

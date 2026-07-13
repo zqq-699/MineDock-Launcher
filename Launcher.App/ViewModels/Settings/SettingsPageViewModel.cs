@@ -152,6 +152,9 @@ public sealed partial class SettingsPageViewModel : ObservableObject, IDisposabl
         SelectSectionCore(Sections.FirstOrDefault(section => section.Section is SettingsPageSection.Java));
     }
 
+    public Task FlushPendingSettingsAsync(CancellationToken cancellationToken = default) =>
+        persistence.FlushAsync(cancellationToken);
+
     public void Dispose()
     {
         General.Dispose();

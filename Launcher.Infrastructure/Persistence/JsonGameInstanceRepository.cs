@@ -65,7 +65,9 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
         Action<string>? recycleStagedDirectory = null,
         Func<Guid>? renameGuidFactory = null,
         Action<string>? deleteRenameMarker = null,
-        Action<string, string>? quarantineRenameMarker = null)
+        Action<string, string>? quarantineRenameMarker = null,
+        Action<string, string>? beforeStageDeletionMove = null,
+        Action<string, string>? beforeOwnedRenameMove = null)
     {
         this.settingsService = settingsService;
         this.logger = logger ?? NullLogger<JsonGameInstanceRepository>.Instance;
@@ -78,14 +80,16 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
             moveDirectoryAsync,
             renameGuidFactory,
             deleteRenameMarker,
-            quarantineRenameMarker);
+            quarantineRenameMarker,
+            beforeOwnedRenameMove);
         deletionManager = new VersionDeletionManager(
             directoryManager,
             this.logger,
             deletionGuidFactory,
             stageDeletionMove,
             deleteStagedDirectory,
-            recycleStagedDirectory);
+            recycleStagedDirectory,
+            beforeStageDeletionMove);
         metadataReader = new InstalledVersionMetadataReader(this.logger);
     }
 
@@ -126,23 +130,31 @@ public sealed class JsonGameInstanceRepository : IGameInstanceRepository
     public async Task SaveAllAsync(IReadOnlyCollection<GameInstance> instances, CancellationToken cancellationToken = default)
     {
         var settings = await settingsService.LoadAsync(cancellationToken);
+        await SaveAllAsync(settings.MinecraftDirectory, instances, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task SaveAllAsync(
+        string minecraftDirectory,
+        IReadOnlyCollection<GameInstance> instances,
+        CancellationToken cancellationToken = default)
+    {
         await ioLock.WaitAsync(cancellationToken);
         try
         {
             await using var mutationLock = await AcquireVersionMutationLockAsync(
-                    settings.MinecraftDirectory,
+                    minecraftDirectory,
                     cancellationToken)
                 .ConfigureAwait(false);
             var persistedCount = await instanceSettingsStore.SaveAsync(
                     instances,
-                    settings.MinecraftDirectory,
+                    minecraftDirectory,
                     cancellationToken)
                 .ConfigureAwait(false);
             logger.LogDebug(
                 "Game instances saved. RequestedCount={RequestedCount} PersistedCount={PersistedCount} MinecraftDirectory={MinecraftDirectory}",
                 instances.Count,
                 persistedCount,
-                settings.MinecraftDirectory);
+                minecraftDirectory);
         }
         finally
         {

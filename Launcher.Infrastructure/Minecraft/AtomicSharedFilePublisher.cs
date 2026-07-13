@@ -15,7 +15,7 @@ internal static class AtomicSharedFilePublisher
 {
     private const int BufferSize = 128 * 1024;
 
-    public static async Task PublishCopyAsync(
+    public static async Task<string> PublishCopyAsync(
         string sourcePath,
         string destinationPath,
         string? expectedSha1,
@@ -28,7 +28,11 @@ internal static class AtomicSharedFilePublisher
         if (File.Exists(destinationPath))
         {
             if (await FilesMatchAsync(sourcePath, destinationPath, expectedSha1, cancellationToken).ConfigureAwait(false))
-                return;
+            {
+                return string.IsNullOrWhiteSpace(expectedSha1)
+                    ? await Task.Run(() => ComputeSha1(sourcePath), cancellationToken).ConfigureAwait(false)
+                    : expectedSha1;
+            }
 
             throw new IOException($"Shared runtime destination contains different content: {destinationPath}");
         }
@@ -58,6 +62,7 @@ internal static class AtomicSharedFilePublisher
                 if (!await FilesMatchAsync(temporaryPath, destinationPath, actualSha1, cancellationToken).ConfigureAwait(false))
                     throw new IOException($"Concurrent shared runtime publication produced different content: {destinationPath}");
             }
+            return actualSha1;
         }
         finally
         {

@@ -108,7 +108,7 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
             out var marker));
         Assert.Equal("instance", marker.InstanceId);
         Assert.False(Directory.Exists(PendingInstanceInstallDirectory.GetPreparationRoot(
-            Path.Combine(minecraftDirectory, "versions"))));
+            minecraftDirectory)));
     }
 
     [Fact]
@@ -505,7 +505,8 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task StartupCleanupDeletesInterruptedInstallPreparation(bool markerWasPublished)
+    public async Task StartupCleanupOnlyDeletesInterruptedInstallPreparationWithValidOwnershipMarker(
+        bool markerWasPublished)
     {
         var settings = new LauncherSettings
         {
@@ -513,7 +514,7 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
             MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
         };
         var versionsDirectory = Path.Combine(settings.MinecraftDirectory, "versions");
-        var preparationRoot = PendingInstanceInstallDirectory.GetPreparationRoot(versionsDirectory);
+        var preparationRoot = PendingInstanceInstallDirectory.GetPreparationRoot(settings.MinecraftDirectory);
         var preparationDirectory = Path.Combine(
             preparationRoot,
             "a83f21c4000000000000000000000000");
@@ -528,11 +529,34 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
 
         await new InstanceInstallCleanupService(new TestSettingsService(settings)).CleanupPendingAsync();
 
-        Assert.False(Directory.Exists(preparationDirectory));
-        Assert.False(Directory.Exists(preparationRoot));
+        Assert.Equal(markerWasPublished, !Directory.Exists(preparationDirectory));
+        Assert.Equal(markerWasPublished, !Directory.Exists(preparationRoot));
         Assert.False(Directory.Exists(Path.Combine(
             versionsDirectory,
             ".bhl-install-pending-Test-a83f21c4")));
+    }
+
+    [Fact]
+    public async Task StartupCleanupNeverDeletesLegacyFixedNameVersionDirectory()
+    {
+        var settings = new LauncherSettings
+        {
+            DataDirectory = TempRoot,
+            MinecraftDirectory = Path.Combine(TempRoot, ".minecraft")
+        };
+        var legacyDirectory = Path.Combine(
+            settings.MinecraftDirectory,
+            "versions",
+            ".bhl-install-preparing");
+        Directory.CreateDirectory(Path.Combine(legacyDirectory, "BHL"));
+        await File.WriteAllTextAsync(Path.Combine(legacyDirectory, "keep.txt"), "keep");
+        await File.WriteAllTextAsync(
+            Path.Combine(legacyDirectory, "BHL", "instance-settings.json"),
+            """{"id":"legitimate-instance","name":"Legitimate","versionName":".bhl-install-preparing"}""");
+
+        await new InstanceInstallCleanupService(new TestSettingsService(settings)).CleanupPendingAsync();
+
+        Assert.Equal("keep", await File.ReadAllTextAsync(Path.Combine(legacyDirectory, "keep.txt")));
     }
 
     [Fact]

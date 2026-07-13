@@ -18,6 +18,7 @@
  */
 
 using Launcher.App.ViewModels.Download;
+using Launcher.App.ViewModels.Settings;
 using Launcher.Application.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -28,6 +29,7 @@ public sealed class LauncherShutdownService
 {
     private readonly object shutdownLock = new();
     private readonly DownloadTasksPageViewModel downloadTasksPage;
+    private readonly SettingsPageViewModel? settingsPage;
     private readonly IInstanceInstallCleanupService installCleanupService;
     private readonly IModpackWorkspaceCleanupService workspaceCleanupService;
     private readonly IModpackSandboxCleanupService sandboxCleanupService;
@@ -39,9 +41,11 @@ public sealed class LauncherShutdownService
         IInstanceInstallCleanupService installCleanupService,
         IModpackWorkspaceCleanupService workspaceCleanupService,
         IModpackSandboxCleanupService sandboxCleanupService,
+        SettingsPageViewModel? settingsPage = null,
         ILogger<LauncherShutdownService>? logger = null)
     {
         this.downloadTasksPage = downloadTasksPage;
+        this.settingsPage = settingsPage;
         this.installCleanupService = installCleanupService;
         this.workspaceCleanupService = workspaceCleanupService;
         this.sandboxCleanupService = sandboxCleanupService;
@@ -60,6 +64,20 @@ public sealed class LauncherShutdownService
         timeoutCancellation.CancelAfter(timeout);
 
         downloadTasksPage.CancelAllRunningTasks();
+        try
+        {
+            if (settingsPage is not null)
+                await settingsPage.FlushPendingSettingsAsync(timeoutCancellation.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (timeoutCancellation.IsCancellationRequested)
+        {
+            logger.LogWarning("Timed out flushing pending launcher settings during exit.");
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Failed to flush pending launcher settings during exit.");
+        }
+
         try
         {
             var completed = await downloadTasksPage

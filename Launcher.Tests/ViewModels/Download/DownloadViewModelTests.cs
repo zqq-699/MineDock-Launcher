@@ -167,6 +167,30 @@ public sealed class DownloadViewModelTests
     }
 
     [Fact]
+    public async Task DownloadPageTracksActualInstallTaskUntilRollbackOrCompletionFinishes()
+    {
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var service = new FakeGameInstanceService { WaitBeforeCreate = release.Task };
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.Zero);
+        using var page = new DownloadPageViewModel(
+            new StubGameVersionService([new MinecraftVersionInfo("1.20.1", "release", false)]),
+            service,
+            tasks,
+            []);
+        await page.EnsureVersionsLoadedAsync();
+        page.VersionList.SelectMinecraftVersionCommand.Execute(Assert.Single(page.VersionList.VisibleVersions));
+        await WaitUntilAsync(() => page.CurrentStep is DownloadPageStep.InstanceOptions);
+
+        var installation = page.InstallCommand.ExecuteAsync(null);
+        await service.CreateStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(1, tasks.TrackedBackgroundTaskCount);
+        release.TrySetResult(true);
+        await installation;
+        await WaitUntilAsync(() => tasks.TrackedBackgroundTaskCount == 0);
+    }
+
+    [Fact]
     public void ActiveOperationStateFollowsRunningDownloadTasks()
     {
         var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));

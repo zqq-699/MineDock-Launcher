@@ -18,14 +18,20 @@
  */
 
 using System.IO;
+using System.Text.Json;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Persistence;
 using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Resources;
 
 public sealed class ResourceProjectInstallationService : IResourceProjectInstallationService
 {
+    private const string WorkspacePrefix = "launcher-modpack-install-";
+    private const string MarkerFileName = ".launcher-resource-install.json";
+    private const string ActiveLockFileName = ".launcher-resource-install.lock";
+    private static readonly JsonSerializerOptions MarkerJsonOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly IResourceCatalogService resourceCatalogService;
     private readonly ILocalModpackImportService localModpackImportService;
     private readonly ILogger<ResourceProjectInstallationService> logger;
@@ -60,6 +66,11 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
             _ => throw new ArgumentOutOfRangeException(nameof(request))
         };
         return new ResourceProjectInstallationPreparationResult(targetExists);
+    }
+
+    public Task CleanupStaleWorkspacesAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.Run(() => CleanupStaleWorkspaces(cancellationToken), cancellationToken);
     }
 
     public async Task<ResourceProjectInstallationResult> ExecuteAsync(
@@ -98,8 +109,20 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var tempDirectory = Path.Combine(Path.GetTempPath(), $"launcher-modpack-install-{Guid.NewGuid():N}");
+        var transactionId = Guid.NewGuid().ToString("N");
+        var tempDirectory = Path.Combine(Path.GetTempPath(), $"{WorkspacePrefix}{transactionId}");
         Directory.CreateDirectory(tempDirectory);
+        await using var activeLock = new FileStream(
+            Path.Combine(tempDirectory, ActiveLockFileName),
+            FileMode.CreateNew,
+            FileAccess.ReadWrite,
+            FileShare.None);
+        await AtomicJsonFileWriter.WriteAsync(
+                Path.Combine(tempDirectory, MarkerFileName),
+                new ResourceInstallWorkspaceMarker(1, transactionId),
+                MarkerJsonOptions,
+                cancellationToken)
+            .ConfigureAwait(false);
         try
         {
             var archivePath = await resourceCatalogService.DownloadProjectVersionAsync(
@@ -117,7 +140,10 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
             try
             {
                 if (Directory.Exists(tempDirectory))
-                    Directory.Delete(tempDirectory, recursive: true);
+                {
+                    await activeLock.DisposeAsync().ConfigureAwait(false);
+                    DeleteOwnedWorkspace(tempDirectory, transactionId);
+                }
             }
             catch (Exception exception)
             {
@@ -128,6 +154,114 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
             }
         }
     }
+
+    private void CleanupStaleWorkspaces(CancellationToken cancellationToken)
+    {
+        var tempRoot = Path.GetFullPath(Path.GetTempPath());
+        foreach (var directory in Directory.EnumerateDirectories(tempRoot, $"{WorkspacePrefix}*", SearchOption.TopDirectoryOnly))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var name = Path.GetFileName(directory);
+            var transactionId = name.StartsWith(WorkspacePrefix, StringComparison.OrdinalIgnoreCase)
+                ? name[WorkspacePrefix.Length..]
+                : string.Empty;
+            if (!Guid.TryParseExact(transactionId, "N", out _)
+                || !TryReadValidMarker(directory, transactionId))
+            {
+                continue;
+            }
+
+            FileStream? cleanupLock = null;
+            try
+            {
+                cleanupLock = new FileStream(
+                    Path.Combine(directory, ActiveLockFileName),
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None);
+                if (TryReadValidMarker(directory, transactionId))
+                    DeleteOwnedWorkspace(directory, transactionId, cleanupLock);
+            }
+            catch (IOException exception) when (IsSharingViolation(exception))
+            {
+                logger.LogDebug("Resource install workspace is active in another process. Workspace={Workspace}", directory);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+            {
+                logger.LogWarning(exception, "Failed to clean stale resource install workspace. Workspace={Workspace}", directory);
+            }
+            finally
+            {
+                cleanupLock?.Dispose();
+            }
+        }
+    }
+
+    private static bool TryReadValidMarker(string directory, string transactionId)
+    {
+        try
+        {
+            if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+                return false;
+            var marker = JsonSerializer.Deserialize<ResourceInstallWorkspaceMarker>(
+                File.ReadAllText(Path.Combine(directory, MarkerFileName)),
+                MarkerJsonOptions);
+            return marker is { SchemaVersion: 1 }
+                && string.Equals(marker.TransactionId, transactionId, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static void DeleteOwnedWorkspace(
+        string directory,
+        string transactionId,
+        FileStream? cleanupLock = null)
+    {
+        if (!TryReadValidMarker(directory, transactionId))
+            return;
+        foreach (var childDirectory in Directory.EnumerateDirectories(directory))
+            DeleteTreeWithoutFollowingReparsePoints(childDirectory);
+        foreach (var file in Directory.EnumerateFiles(directory))
+        {
+            if (cleanupLock is not null
+                && string.Equals(file, cleanupLock.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            File.Delete(file);
+        }
+        cleanupLock?.Dispose();
+        var lockPath = Path.Combine(directory, ActiveLockFileName);
+        if (File.Exists(lockPath))
+            File.Delete(lockPath);
+        Directory.Delete(directory, recursive: false);
+    }
+
+    private static void DeleteTreeWithoutFollowingReparsePoints(string path)
+    {
+        var attributes = File.GetAttributes(path);
+        if ((attributes & FileAttributes.ReparsePoint) != 0)
+        {
+            Directory.Delete(path, recursive: false);
+            return;
+        }
+        foreach (var child in Directory.EnumerateDirectories(path))
+            DeleteTreeWithoutFollowingReparsePoints(child);
+        foreach (var file in Directory.EnumerateFiles(path))
+            File.Delete(file);
+        Directory.Delete(path, recursive: false);
+    }
+
+    private static bool IsSharingViolation(IOException exception)
+    {
+        var code = exception.HResult & 0xFFFF;
+        return code is 32 or 33;
+    }
+
+    private sealed record ResourceInstallWorkspaceMarker(int SchemaVersion, string TransactionId);
 
     private static string RequireTargetDirectory(ResourceProjectInstallationRequest request)
     {

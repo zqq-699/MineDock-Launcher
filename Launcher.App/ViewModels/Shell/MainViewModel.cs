@@ -241,7 +241,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         IsMenuExpanded = !IsMenuExpanded;
         Settings.IsMenuExpanded = IsMenuExpanded;
-        await settingsService.SaveAsync(Settings);
+        await settingsService.UpdateAsync(latest => latest.IsMenuExpanded = IsMenuExpanded);
     }
 
     [RelayCommand]

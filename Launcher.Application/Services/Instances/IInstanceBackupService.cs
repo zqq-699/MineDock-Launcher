@@ -45,4 +45,8 @@ public interface IInstanceBackupService
         string backupDirectory,
         string backupFullPath,
         CancellationToken cancellationToken = default);
+
+    Task RecoverPendingRestoresAsync(
+        string minecraftDirectory,
+        CancellationToken cancellationToken = default);
 }

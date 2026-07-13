@@ -136,18 +136,29 @@ internal sealed class ModpackInstanceStagingService : IModpackInstanceStagingSer
         var logicalCommitCompleted = true;
         try
         {
-            var latestSettings = await settingsService.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-            if (!PathsEqual(latestSettings.MinecraftDirectory, stagedInstance.MinecraftDirectory))
+            var rootMatches = false;
+            var currentMinecraftDirectory = string.Empty;
+            await settingsService.UpdateAsync(
+                    latestSettings =>
+                    {
+                        currentMinecraftDirectory = latestSettings.MinecraftDirectory;
+                        rootMatches = PathsEqual(
+                            latestSettings.MinecraftDirectory,
+                            stagedInstance.MinecraftDirectory);
+                        if (rootMatches && string.IsNullOrWhiteSpace(latestSettings.DefaultInstanceId))
+                            latestSettings.DefaultInstanceId = instance.Id;
+                    },
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+            if (!rootMatches)
             {
                 logicalCommitCompleted = false;
                 logger.LogWarning(
                     "Modpack installation committed after the Minecraft directory changed; leaving recovery marker for the original directory. InstanceId={InstanceId} InstallMinecraftDirectory={InstallMinecraftDirectory} CurrentMinecraftDirectory={CurrentMinecraftDirectory}",
                     instance.Id,
                     stagedInstance.MinecraftDirectory,
-                    latestSettings.MinecraftDirectory);
+                    currentMinecraftDirectory);
             }
-            else if (string.IsNullOrWhiteSpace(latestSettings.DefaultInstanceId))
-                await instanceService.SetDefaultInstanceAsync(instance.Id, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception exception)
         {

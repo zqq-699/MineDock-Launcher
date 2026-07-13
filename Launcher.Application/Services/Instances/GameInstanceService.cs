@@ -98,7 +98,9 @@ public sealed class GameInstanceService : IGameInstanceService
         LauncherSettings settings,
         CancellationToken cancellationToken)
     {
-        var storedInstances = (await repository.GetAllAsync(cancellationToken).ConfigureAwait(false)).ToList();
+        var storedInstances = (await repository
+            .GetAllAsync(settings.MinecraftDirectory, cancellationToken)
+            .ConfigureAwait(false)).ToList();
         // 安装中的目录可能只包含半成品元数据，完成前不能被发现流程持久化为正式实例。
         var installedVersions = (await repository
             .DiscoverInstalledVersionsAsync(settings.MinecraftDirectory, cancellationToken)
@@ -112,6 +114,7 @@ public sealed class GameInstanceService : IGameInstanceService
             out var instancesChanged);
 
         var defaultChanged = false;
+        var previousDefaultInstanceId = settings.DefaultInstanceId;
         if (!string.IsNullOrWhiteSpace(settings.DefaultInstanceId)
             && syncedInstances.All(instance => instance.Id != settings.DefaultInstanceId))
         {
@@ -126,13 +129,29 @@ public sealed class GameInstanceService : IGameInstanceService
                 storedInstances.Count,
                 installedVersions.Count,
                 syncedInstances.Count);
-            await repository.SaveAllAsync(syncedInstances, cancellationToken).ConfigureAwait(false);
+            await repository
+                .SaveAllAsync(settings.MinecraftDirectory, syncedInstances, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         if (defaultChanged)
         {
             logger.LogDebug("Default game instance reset during synchronization. DefaultInstanceId={DefaultInstanceId}", settings.DefaultInstanceId);
-            await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
+            var replacementDefaultInstanceId = settings.DefaultInstanceId;
+            await settingsService.UpdateAsync(
+                    latest =>
+                    {
+                        if (PathsEqual(latest.MinecraftDirectory, settings.MinecraftDirectory)
+                            && string.Equals(
+                                latest.DefaultInstanceId,
+                                previousDefaultInstanceId,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            latest.DefaultInstanceId = replacementDefaultInstanceId;
+                        }
+                    },
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
 
         return syncedInstances;
@@ -292,7 +311,7 @@ public sealed class GameInstanceService : IGameInstanceService
             return false;
 
         var settings = await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
-        var instances = await repository.GetAllAsync(cancellationToken).ConfigureAwait(false);
+        var instances = await repository.GetAllAsync(settings.MinecraftDirectory, cancellationToken).ConfigureAwait(false);
         var instance = instances.FirstOrDefault(existing =>
             string.Equals(existing.Id, instanceId, StringComparison.OrdinalIgnoreCase));
 
@@ -302,8 +321,20 @@ public sealed class GameInstanceService : IGameInstanceService
         if (string.Equals(settings.DefaultInstanceId, instance.Id, StringComparison.Ordinal))
             return true;
 
+        var persisted = false;
+        await settingsService.UpdateAsync(
+                latest =>
+                {
+                    if (!PathsEqual(latest.MinecraftDirectory, settings.MinecraftDirectory))
+                        return;
+                    latest.DefaultInstanceId = instance.Id;
+                    persisted = true;
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (!persisted)
+            return false;
         settings.DefaultInstanceId = instance.Id;
-        await settingsService.SaveAsync(settings, cancellationToken).ConfigureAwait(false);
         logger.LogInformation("Default game instance changed. InstanceId={InstanceId}", instance.Id);
         return true;
     }
@@ -390,10 +421,29 @@ public sealed class GameInstanceService : IGameInstanceService
         if (!string.Equals(settings.DefaultInstanceId, deletedInstance.Id, StringComparison.OrdinalIgnoreCase))
             return;
 
-        settings.DefaultInstanceId = remainingInstances.FirstOrDefault()?.Id ?? string.Empty;
+        var replacementDefaultInstanceId = remainingInstances.FirstOrDefault()?.Id ?? string.Empty;
         try
         {
-            await settingsService.SaveAsync(settings, CancellationToken.None).ConfigureAwait(false);
+            var persisted = false;
+            await settingsService.UpdateAsync(
+                    latest =>
+                    {
+                        if (!PathsEqual(latest.MinecraftDirectory, settings.MinecraftDirectory)
+                            || !string.Equals(
+                                latest.DefaultInstanceId,
+                                deletedInstance.Id,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            return;
+                        }
+                        latest.DefaultInstanceId = replacementDefaultInstanceId;
+                        persisted = true;
+                    },
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+            if (!persisted)
+                return;
+            settings.DefaultInstanceId = replacementDefaultInstanceId;
             logger.LogInformation(
                 "Default game instance changed after deletion. DefaultInstanceId={DefaultInstanceId}",
                 settings.DefaultInstanceId);
@@ -406,6 +456,15 @@ public sealed class GameInstanceService : IGameInstanceService
                 deletedInstance.Id,
                 settings.DefaultInstanceId);
         }
+    }
+
+    private static bool PathsEqual(string first, string second)
+    {
+        if (string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(second))
+            return false;
+        var normalizedFirst = Path.TrimEndingDirectorySeparator(Path.GetFullPath(first));
+        var normalizedSecond = Path.TrimEndingDirectorySeparator(Path.GetFullPath(second));
+        return string.Equals(normalizedFirst, normalizedSecond, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsSameVersionIdentity(GameInstance instance, string versionName)

@@ -21,6 +21,7 @@ using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Resources;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
 
 namespace Launcher.Tests.Infrastructure.Resources;
 
@@ -61,6 +62,55 @@ public sealed class ResourceProjectInstallationServiceTests
 
         Assert.NotNull(catalog.LastTargetDirectory);
         Assert.False(Directory.Exists(catalog.LastTargetDirectory));
+    }
+
+    [Fact]
+    public async Task StartupCleanupDeletesOnlyOwnedInactiveResourceInstallWorkspaces()
+    {
+        var service = new ResourceProjectInstallationService(
+            new RecordingCatalogService(),
+            new StubModpackImportService(ModpackImportResult.Failure(ModpackImportFailureReason.UnexpectedError)),
+            NullLogger<ResourceProjectInstallationService>.Instance);
+        var staleId = Guid.NewGuid().ToString("N");
+        var activeId = Guid.NewGuid().ToString("N");
+        var invalidId = Guid.NewGuid().ToString("N");
+        var tempRoot = Path.GetTempPath();
+        var stale = Path.Combine(tempRoot, $"launcher-modpack-install-{staleId}");
+        var active = Path.Combine(tempRoot, $"launcher-modpack-install-{activeId}");
+        var invalid = Path.Combine(tempRoot, $"launcher-modpack-install-{invalidId}");
+        Directory.CreateDirectory(stale);
+        Directory.CreateDirectory(active);
+        Directory.CreateDirectory(invalid);
+        await File.WriteAllTextAsync(
+            Path.Combine(stale, ".launcher-resource-install.json"),
+            JsonSerializer.Serialize(new { schemaVersion = 1, transactionId = staleId }));
+        await File.WriteAllTextAsync(
+            Path.Combine(active, ".launcher-resource-install.json"),
+            JsonSerializer.Serialize(new { schemaVersion = 1, transactionId = activeId }));
+        await File.WriteAllTextAsync(Path.Combine(invalid, ".launcher-resource-install.json"), "{}");
+        await using var activeLock = new FileStream(
+            Path.Combine(active, ".launcher-resource-install.lock"),
+            FileMode.OpenOrCreate,
+            FileAccess.ReadWrite,
+            FileShare.None);
+        try
+        {
+            await service.CleanupStaleWorkspacesAsync();
+
+            Assert.False(Directory.Exists(stale));
+            Assert.True(Directory.Exists(active));
+            Assert.True(Directory.Exists(invalid));
+        }
+        finally
+        {
+            await activeLock.DisposeAsync();
+            if (Directory.Exists(active))
+                Directory.Delete(active, recursive: true);
+            if (Directory.Exists(invalid))
+                Directory.Delete(invalid, recursive: true);
+            if (Directory.Exists(stale))
+                Directory.Delete(stale, recursive: true);
+        }
     }
 
     [Fact]

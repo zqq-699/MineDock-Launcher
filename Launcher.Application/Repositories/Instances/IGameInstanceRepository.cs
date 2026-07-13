@@ -33,6 +33,16 @@ public interface IGameInstanceRepository
     /// </summary>
     Task SaveAllAsync(IReadOnlyCollection<GameInstance> instances, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Creates or updates settings under the explicitly captured Minecraft root. Callers that perform a
+    /// multi-stage scan must use this overload so a concurrent settings-root change cannot redirect writes.
+    /// </summary>
+    Task SaveAllAsync(
+        string minecraftDirectory,
+        IReadOnlyCollection<GameInstance> instances,
+        CancellationToken cancellationToken = default)
+        => SaveAllAsync(instances, cancellationToken);
+
     Task UpdateInstanceAsync(
         string minecraftDirectory,
         GameInstance instance,

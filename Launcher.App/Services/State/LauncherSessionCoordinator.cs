@@ -18,6 +18,7 @@
  */
 
 using System.ComponentModel;
+using System.IO;
 using Launcher.App.Models;
 using Launcher.App.Resources;
 using Launcher.App.ViewModels.Download;
@@ -184,7 +185,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
         settings.IsHomeLaunchMenuPinned = isPinned;
         try
         {
-            await settingsService.SaveAsync(settings);
+            await settingsService.UpdateAsync(latest => latest.IsHomeLaunchMenuPinned = isPinned);
             logger.LogInformation("Home launch menu pin preference saved. IsPinned={IsPinned}", isPinned);
             return true;
         }
@@ -388,6 +389,12 @@ public sealed class LauncherSessionCoordinator : IDisposable
         try
         {
             await gameManagement.RefreshInstancesAsync();
+            var latestSettings = await settingsService.LoadAsync();
+            if (settings is not null
+                && PathsEqual(settings.MinecraftDirectory, latestSettings.MinecraftDirectory))
+            {
+                settings.DefaultInstanceId = latestSettings.DefaultInstanceId;
+            }
             if (homePage is not null)
                 await homePage.EnsureVersionTypesLoadedAsync();
             SynchronizeHomeInstances();
@@ -399,6 +406,12 @@ public sealed class LauncherSessionCoordinator : IDisposable
             statusService.Report(Strings.Status_LoadInstancesFailed);
         }
     }
+
+    private static bool PathsEqual(string first, string second) =>
+        string.Equals(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(first)),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(second)),
+            StringComparison.OrdinalIgnoreCase);
 
     private void Observe(Task task, string operation)
     {

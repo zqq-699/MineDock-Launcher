@@ -10,6 +10,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Launcher.Application;
 using Launcher.Application.Services;
+using Launcher.Infrastructure.FileSystem;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 
@@ -209,6 +210,8 @@ internal sealed class VersionRenameTransaction
     private readonly VersionDirectoryManager directoryManager;
     private readonly GameInstanceSettingsStore instanceSettingsStore;
     private readonly Func<string, string, CancellationToken, Task> moveDirectoryAsync;
+    private readonly bool useIdentitySafeMove;
+    private readonly Action<string, string>? beforeOwnedDirectoryMove;
     private readonly Func<Guid> guidFactory;
     private readonly Action<string> deleteMarker;
     private readonly Action<string, string> quarantineMarker;
@@ -221,12 +224,15 @@ internal sealed class VersionRenameTransaction
         Func<string, string, CancellationToken, Task>? moveDirectoryAsync = null,
         Func<Guid>? guidFactory = null,
         Action<string>? deleteMarker = null,
-        Action<string, string>? quarantineMarker = null)
+        Action<string, string>? quarantineMarker = null,
+        Action<string, string>? beforeOwnedDirectoryMove = null)
     {
         this.directoryManager = directoryManager;
         this.instanceSettingsStore = instanceSettingsStore;
         this.logger = logger;
         this.moveDirectoryAsync = moveDirectoryAsync ?? MoveDirectoryAsync;
+        useIdentitySafeMove = moveDirectoryAsync is null;
+        this.beforeOwnedDirectoryMove = beforeOwnedDirectoryMove;
         this.guidFactory = guidFactory ?? Guid.NewGuid;
         this.deleteMarker = deleteMarker ?? File.Delete;
         this.quarantineMarker = quarantineMarker ?? ((source, destination) => File.Move(source, destination, overwrite: true));
@@ -429,7 +435,8 @@ internal sealed class VersionRenameTransaction
 
             try
             {
-                await MoveWithRetryAsync(sourceDirectory, stagedDirectory, cancellationToken).ConfigureAwait(false);
+                await MoveWithRetryAsync(sourceDirectory, stagedDirectory, marker.InstanceId, cancellationToken)
+                    .ConfigureAwait(false);
                 logger.LogInformation(
                     "Instance rename entered committed staging. OldName={OldName} NewName={NewName} StagedDirectory={StagedDirectory}",
                     marker.OldName,
@@ -488,7 +495,12 @@ internal sealed class VersionRenameTransaction
 
             try
             {
-                await moveDirectoryAsync(currentDirectory, destinationDirectory, cancellationToken).ConfigureAwait(false);
+                await MoveOwnedDirectoryAsync(
+                        currentDirectory,
+                        destinationDirectory,
+                        marker.InstanceId,
+                        cancellationToken)
+                    .ConfigureAwait(false);
                 currentDirectory = destinationDirectory;
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -576,7 +588,8 @@ internal sealed class VersionRenameTransaction
                 throw new IOException($"Rename rollback destination already exists: {originalDirectory}");
 
             await EnsureOwnedOrQuarantineAsync(currentDirectory, marker, cancellationToken).ConfigureAwait(false);
-            await MoveWithRetryAsync(currentDirectory, originalDirectory, cancellationToken).ConfigureAwait(false);
+            await MoveWithRetryAsync(currentDirectory, originalDirectory, marker.InstanceId, cancellationToken)
+                .ConfigureAwait(false);
             currentDirectory = originalDirectory;
         }
 
@@ -640,14 +653,19 @@ internal sealed class VersionRenameTransaction
             Directory.Move(oldPath, newPath);
     }
 
-    private async Task MoveWithRetryAsync(string source, string destination, CancellationToken cancellationToken)
+    private async Task MoveWithRetryAsync(
+        string source,
+        string destination,
+        string expectedInstanceId,
+        CancellationToken cancellationToken)
     {
         for (var attempt = 1; ; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                await moveDirectoryAsync(source, destination, cancellationToken).ConfigureAwait(false);
+                await MoveOwnedDirectoryAsync(source, destination, expectedInstanceId, cancellationToken)
+                    .ConfigureAwait(false);
                 return;
             }
             catch (Exception exception) when (
@@ -658,6 +676,37 @@ internal sealed class VersionRenameTransaction
                 logger.LogWarning(exception, "Version directory move will be retried. Attempt={Attempt} MaxAttempts={MaxAttempts}", attempt, MaxMoveAttempts);
                 await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
             }
+        }
+    }
+
+    private async Task MoveOwnedDirectoryAsync(
+        string source,
+        string destination,
+        string expectedInstanceId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!useIdentitySafeMove)
+        {
+            await moveDirectoryAsync(source, destination, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            WindowsDirectoryHandleMover.MoveOwnedDirectory(
+                source,
+                destination,
+                () => GameInstanceSettingsStore.HasIdentity(source, expectedInstanceId),
+                beforeOwnedDirectoryMove is null
+                    ? null
+                    : () => beforeOwnedDirectoryMove(source, destination));
+        }
+        catch (InvalidOperationException)
+        {
+            throw new GameInstanceMutationConflictException(
+                expectedInstanceId,
+                Path.GetFileName(Path.TrimEndingDirectorySeparator(source)));
         }
     }
 

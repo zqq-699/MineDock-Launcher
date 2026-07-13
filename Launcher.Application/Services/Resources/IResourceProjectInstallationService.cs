@@ -42,6 +42,8 @@ public sealed record ResourceProjectInstallationResult(
 
 public interface IResourceProjectInstallationService
 {
+    Task CleanupStaleWorkspacesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     Task<ResourceProjectInstallationPreparationResult> PrepareAsync(
         ResourceProjectInstallationRequest request,
         CancellationToken cancellationToken = default);

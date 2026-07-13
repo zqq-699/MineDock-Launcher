@@ -81,7 +81,16 @@ internal sealed class ModpackFileResolutionService
                 MaxDegreeOfParallelism = MaxProcessingConcurrency,
                 CancellationToken = cancellationToken
             },
-            (index, token) => ProcessPackFileAsync(context, index, token)).ConfigureAwait(false);
+            (index, token) => ResolvePackFileAtIndexAsync(context, index, token)).ConfigureAwait(false);
+        ValidateUniqueDownloadTargets(context);
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, context.TotalCount),
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = MaxProcessingConcurrency,
+                CancellationToken = cancellationToken
+            },
+            (index, token) => DownloadPackFileAtIndexAsync(context, index, token)).ConfigureAwait(false);
         return context.ManualDownloads
             .Where(download => download is not null)
             .Cast<ManualModpackDownload>()
@@ -91,20 +100,30 @@ internal sealed class ModpackFileResolutionService
     /// <summary>
     /// 处理清单中的单个文件槽位，并确保无论结果如何都会推进总体进度。
     /// </summary>
-    private async ValueTask ProcessPackFileAsync(
+    private async ValueTask ResolvePackFileAtIndexAsync(
         DownloadBatchContext context,
         int fileIndex,
         CancellationToken cancellationToken)
     {
         var file = context.Package.Files[fileIndex];
+        var resolution = await ResolvePackFileAsync(context, file, cancellationToken).ConfigureAwait(false);
+        context.Resolutions[fileIndex] = resolution;
+        if (resolution.ManualDownload is not null)
+            context.ManualDownloads[fileIndex] = resolution.ManualDownload;
+    }
+
+    private async ValueTask DownloadPackFileAtIndexAsync(
+        DownloadBatchContext context,
+        int fileIndex,
+        CancellationToken cancellationToken)
+    {
+        var file = context.Package.Files[fileIndex];
+        var resolution = context.Resolutions[fileIndex]
+            ?? throw new InvalidOperationException("Resolved modpack file was unexpectedly missing.");
         try
         {
-            var resolution = await ResolvePackFileAsync(context, file, cancellationToken).ConfigureAwait(false);
             if (resolution.ManualDownload is not null)
-            {
-                context.ManualDownloads[fileIndex] = resolution.ManualDownload;
                 return;
-            }
             if (resolution.Download is null)
                 throw new InvalidOperationException("Resolved modpack download was unexpectedly missing.");
             context.ReportDownload(resolution.Download.FileName, completed: false);
@@ -116,6 +135,25 @@ internal sealed class ModpackFileResolutionService
         finally
         {
             context.ReportDownload(file.FileName, completed: true);
+        }
+    }
+
+    private static void ValidateUniqueDownloadTargets(DownloadBatchContext context)
+    {
+        var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var resolution in context.Resolutions)
+        {
+            if (resolution?.Download is not { } download)
+                continue;
+            var targetPath = ModpackArchiveUtility.GetValidatedTargetPath(
+                context.Instance.InstanceDirectory,
+                download.RelativePath);
+            if (!targets.Add(Path.TrimEndingDirectorySeparator(Path.GetFullPath(targetPath))))
+            {
+                throw new ModpackImportException(
+                    ModpackImportFailureReason.InvalidManifest,
+                    $"Multiple modpack files resolve to the same target path: {download.RelativePath}");
+            }
         }
     }
 
@@ -382,6 +420,7 @@ internal sealed class ModpackFileResolutionService
         public string? CurseForgeApiKey { get; } = curseForgeApiKey;
         public int DownloadSpeedLimitMbPerSecond { get; } = downloadSpeedLimitMbPerSecond;
         public int TotalCount => Package.Files.Count;
+        public PackFileResolution?[] Resolutions { get; } = new PackFileResolution?[package.Files.Count];
         public ManualModpackDownload?[] ManualDownloads { get; } = new ManualModpackDownload?[package.Files.Count];
 
         public void ReportStarted()

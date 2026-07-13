@@ -159,20 +159,32 @@ internal sealed class GameInstanceCreationCoordinator
         var logicalCommitCompleted = true;
         try
         {
-            var latestSettings = await settingsService.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-            if (!PathsEqual(latestSettings.MinecraftDirectory, settings.MinecraftDirectory))
+            var rootMatches = false;
+            var defaultInitialized = false;
+            var currentMinecraftDirectory = string.Empty;
+            await settingsService.UpdateAsync(
+                    latestSettings =>
+                    {
+                        currentMinecraftDirectory = latestSettings.MinecraftDirectory;
+                        rootMatches = PathsEqual(latestSettings.MinecraftDirectory, settings.MinecraftDirectory);
+                        if (!rootMatches || !string.IsNullOrWhiteSpace(latestSettings.DefaultInstanceId))
+                            return;
+                        latestSettings.DefaultInstanceId = instance.Id;
+                        defaultInitialized = true;
+                    },
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+            if (!rootMatches)
             {
                 logicalCommitCompleted = false;
                 logger.LogWarning(
                     "Instance install committed after the Minecraft directory changed; leaving recovery marker for the original directory. InstanceId={InstanceId} InstallMinecraftDirectory={InstallMinecraftDirectory} CurrentMinecraftDirectory={CurrentMinecraftDirectory}",
                     instance.Id,
                     settings.MinecraftDirectory,
-                    latestSettings.MinecraftDirectory);
+                    currentMinecraftDirectory);
             }
-            else if (string.IsNullOrWhiteSpace(latestSettings.DefaultInstanceId))
+            else if (defaultInitialized)
             {
-                latestSettings.DefaultInstanceId = instance.Id;
-                await settingsService.SaveAsync(latestSettings, CancellationToken.None).ConfigureAwait(false);
                 logger.LogInformation("Default game instance initialized. InstanceId={InstanceId}", instance.Id);
             }
         }

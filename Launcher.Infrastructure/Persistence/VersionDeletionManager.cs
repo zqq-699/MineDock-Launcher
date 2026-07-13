@@ -9,6 +9,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Security;
 using Launcher.Application.Services;
+using Launcher.Infrastructure.FileSystem;
 using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Persistence;
@@ -20,6 +21,8 @@ internal sealed class VersionDeletionManager
     private readonly ILogger logger;
     private readonly Func<Guid> guidFactory;
     private readonly Action<string, string> moveDirectory;
+    private readonly Action<string, string>? beforeMove;
+    private readonly bool useIdentitySafeMove;
     private readonly Action<string> recycleDirectory;
     private readonly Action<string, bool> deleteDirectory;
 
@@ -29,12 +32,15 @@ internal sealed class VersionDeletionManager
         Func<Guid>? guidFactory = null,
         Action<string, string>? moveDirectory = null,
         Action<string, bool>? deleteDirectory = null,
-        Action<string>? recycleDirectory = null)
+        Action<string>? recycleDirectory = null,
+        Action<string, string>? beforeMove = null)
     {
         this.directoryManager = directoryManager;
         this.logger = logger;
         this.guidFactory = guidFactory ?? Guid.NewGuid;
         this.moveDirectory = moveDirectory ?? Directory.Move;
+        this.beforeMove = beforeMove;
+        useIdentitySafeMove = moveDirectory is null;
         this.recycleDirectory = recycleDirectory ?? WindowsRecycleBin.MoveDirectory;
         this.deleteDirectory = deleteDirectory ?? Directory.Delete;
     }
@@ -81,10 +87,28 @@ internal sealed class VersionDeletionManager
                     cancellationToken).ConfigureAwait(false);
                 if (!GameInstanceSettingsStore.HasIdentity(sourceDirectory, expectedInstanceId))
                 {
-                    QuarantineMarker(sourceDirectory);
                     throw new GameInstanceMutationConflictException(expectedInstanceId, versionName);
                 }
-                moveDirectory(sourceDirectory, stagedDirectory);
+                if (useIdentitySafeMove)
+                {
+                    try
+                    {
+                        WindowsDirectoryHandleMover.MoveOwnedDirectory(
+                            sourceDirectory,
+                            stagedDirectory,
+                            () => GameInstanceSettingsStore.HasIdentity(sourceDirectory, expectedInstanceId),
+                            beforeMove is null ? null : () => beforeMove(sourceDirectory, stagedDirectory));
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        throw new GameInstanceMutationConflictException(expectedInstanceId, versionName);
+                    }
+                }
+                else
+                {
+                    beforeMove?.Invoke(sourceDirectory, stagedDirectory);
+                    moveDirectory(sourceDirectory, stagedDirectory);
+                }
                 if (!GameInstanceSettingsStore.HasIdentity(stagedDirectory, expectedInstanceId))
                 {
                     QuarantineMarker(stagedDirectory);
@@ -99,16 +123,16 @@ internal sealed class VersionDeletionManager
             catch (IOException) when (Directory.Exists(sourceDirectory) && PathExists(stagedDirectory))
             {
                 LogCollision(versionName, stagedDirectory, attempt);
-                TryDeletePreparationMarker(markerPath);
+                TryDeleteOwnedPreparationMarker(sourceDirectory, markerPath, expectedInstanceId);
             }
             catch
             {
-                TryDeletePreparationMarker(markerPath);
+                TryDeleteOwnedPreparationMarker(sourceDirectory, markerPath, expectedInstanceId);
                 throw;
             }
         }
 
-        TryDeletePreparationMarker(markerPath);
+        TryDeleteOwnedPreparationMarker(sourceDirectory, markerPath, expectedInstanceId);
         throw new IOException(
             $"Unable to stage version directory for deletion after {MaxStageAttempts} destination collisions: {sourceDirectory}");
     }
@@ -239,6 +263,15 @@ internal sealed class VersionDeletionManager
                 "Failed to remove pending deletion preparation marker after staging failed. MarkerPath={MarkerPath}",
                 markerPath);
         }
+    }
+
+    private void TryDeleteOwnedPreparationMarker(
+        string sourceDirectory,
+        string markerPath,
+        string expectedInstanceId)
+    {
+        if (GameInstanceSettingsStore.HasIdentity(sourceDirectory, expectedInstanceId))
+            TryDeletePreparationMarker(markerPath);
     }
 
     private void QuarantineMarker(string directory)
