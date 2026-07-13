@@ -62,8 +62,16 @@ public sealed partial class LanguageSettingsViewModel : SettingsSectionViewModel
         });
     }
 
-    partial void OnSelectedLanguageOptionChanged(SettingsLanguageOption? value)
+    partial void OnSelectedLanguageOptionChanged(
+        SettingsLanguageOption? oldValue,
+        SettingsLanguageOption? newValue)
     {
+        if (newValue is null)
+        {
+            LoadState(() => SelectedLanguageOption = oldValue ?? LanguageOptions[0]);
+            return;
+        }
+
         OnPropertyChanged(nameof(SelectedLanguageId));
         OnPropertyChanged(nameof(IsLanguageRestartNoticeVisible));
         OnPropertyChanged(nameof(LanguageRestartNoticeText));
@@ -74,6 +82,9 @@ public sealed partial class LanguageSettingsViewModel : SettingsSectionViewModel
 
     private void PersistLanguage()
     {
+        if (SelectedLanguageOption is null)
+            return;
+
         Persist(settings =>
         {
             settings.LauncherLanguage = SelectedLanguageId;

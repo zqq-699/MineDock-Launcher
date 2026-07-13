@@ -38,11 +38,14 @@ private void ScheduleSaveUnlessSuppressed()
     private void ScheduleSave()
     {
         var instance = selectedInstance;
-        if (instance is null)
+        var selectedMode = SelectedLaunchSettingsModeOption;
+        if (instance is null || selectedMode is null)
             return;
 
         // 在调度前捕获完整快照，延迟执行时不读取可能已经切换到另一实例的 UI 属性。
-        var mode = SelectedLaunchSettingsModeOption?.Mode ?? LaunchSettingsMode.UseGlobal;
+        var mode = selectedMode.Mode;
+        if (mode is LaunchSettingsMode.PerInstance && SelectedMemoryModeOption is null)
+            return;
         var checkFilesBeforeLaunch = LaunchCheckFilesBeforeLaunchEnabled;
         var autoRepairMissingFiles = LaunchAutoRepairMissingFilesEnabled;
         var minimizeLauncherAfterLaunch = LaunchMinimizeLauncherAfterLaunchEnabled;
@@ -54,7 +57,7 @@ private void ScheduleSaveUnlessSuppressed()
         var gameArguments = NormalizeSettingText(LaunchGameArguments);
         var memorySettingsMode = mode is LaunchSettingsMode.UseGlobal
             ? globalSettings.DefaultMemorySettingsMode
-            : SelectedMemoryModeOption?.Mode ?? MemorySettingsMode.Manual;
+            : SelectedMemoryModeOption!.Mode;
         var memory = mode is LaunchSettingsMode.UseGlobal
             ? NormalizeMemoryValue(globalSettings.DefaultMemoryMb)
             : NormalizeMemoryValue(MemoryMb);

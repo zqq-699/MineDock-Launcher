@@ -117,8 +117,16 @@ public sealed partial class LaunchMemorySettingsViewModel : SettingsSectionViewM
         }
     }
 
-    partial void OnSelectedMemoryModeOptionChanged(SettingsMemoryModeOption? value)
+    partial void OnSelectedMemoryModeOptionChanged(
+        SettingsMemoryModeOption? oldValue,
+        SettingsMemoryModeOption? newValue)
     {
+        if (newValue is null)
+        {
+            LoadState(() => SelectedMemoryModeOption = oldValue ?? MemoryModeOptions[0]);
+            return;
+        }
+
         OnPropertyChanged(nameof(IsMemorySliderEnabled));
         OnPropertyChanged(nameof(IsMemorySliderVisible));
         OnPropertyChanged(nameof(IsAutomaticMemorySummaryVisible));
@@ -163,12 +171,12 @@ public sealed partial class LaunchMemorySettingsViewModel : SettingsSectionViewM
 
     private void PersistAndNotify()
     {
-        if (!CanPersist || synchronizingLaunchCheck)
+        if (!CanPersist || synchronizingLaunchCheck || SelectedMemoryModeOption is null)
             return;
 
         Persist(settings =>
         {
-            settings.DefaultMemorySettingsMode = SelectedMemoryModeOption?.Mode ?? MemorySettingsMode.Auto;
+            settings.DefaultMemorySettingsMode = SelectedMemoryModeOption.Mode;
             settings.DefaultMemoryMb = NormalizeMemoryValue(DefaultMemoryMb);
             settings.DefaultCheckFilesBeforeLaunch = DefaultCheckFilesBeforeLaunch;
             settings.DefaultAutoRepairMissingFiles = DefaultAutoRepairMissingFiles;

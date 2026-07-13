@@ -198,8 +198,27 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
         }
     }
 
-    partial void OnSelectedLaunchSettingsModeOptionChanged(GameSettingsLaunchSettingsModeOption? value)
+    partial void OnSelectedLaunchSettingsModeOptionChanged(
+        GameSettingsLaunchSettingsModeOption? oldValue,
+        GameSettingsLaunchSettingsModeOption? newValue)
     {
+        if (newValue is null)
+        {
+            if (selectedInstance is not null)
+            {
+                RestoreRequiredSelection(() =>
+                    SelectedLaunchSettingsModeOption = oldValue
+                        ?? ResolveLaunchSettingsModeOption(selectedInstance.LaunchSettingsMode));
+            }
+            else
+            {
+                OnPropertyChanged(nameof(AreLaunchSettingsOverridesEnabled));
+                OnPropertyChanged(nameof(CanEditAutoRepairMissingFiles));
+                OnPropertyChanged(nameof(IsMemorySliderEnabled));
+            }
+            return;
+        }
+
         OnPropertyChanged(nameof(AreLaunchSettingsOverridesEnabled));
         OnPropertyChanged(nameof(CanEditAutoRepairMissingFiles));
         OnPropertyChanged(nameof(IsMemorySliderEnabled));
@@ -207,7 +226,7 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
             return;
 
         // 切回全局模式时立即镜像全局值，避免禁用的控件仍展示过期实例覆盖值。
-        if (value?.Mode is LaunchSettingsMode.UseGlobal)
+        if (newValue.Mode is LaunchSettingsMode.UseGlobal)
             ApplyGlobalLaunchSettingsToEditor();
         ScheduleSave();
     }
@@ -236,8 +255,29 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
 
     partial void OnLaunchGameArgumentsChanged(string value) => ScheduleSaveUnlessSuppressed();
 
-    partial void OnSelectedMemoryModeOptionChanged(SettingsMemoryModeOption? value)
+    partial void OnSelectedMemoryModeOptionChanged(
+        SettingsMemoryModeOption? oldValue,
+        SettingsMemoryModeOption? newValue)
     {
+        if (newValue is null)
+        {
+            if (selectedInstance is not null)
+            {
+                RestoreRequiredSelection(() =>
+                    SelectedMemoryModeOption = oldValue ?? ResolveMemoryModeOption(
+                        SelectedLaunchSettingsModeOption?.Mode is LaunchSettingsMode.UseGlobal
+                            ? globalSettings.DefaultMemorySettingsMode
+                            : selectedInstance.MemorySettingsMode));
+            }
+            else
+            {
+                OnPropertyChanged(nameof(IsMemorySliderEnabled));
+                OnPropertyChanged(nameof(IsMemorySliderVisible));
+                OnPropertyChanged(nameof(IsAutomaticMemorySummaryVisible));
+            }
+            return;
+        }
+
         OnPropertyChanged(nameof(IsMemorySliderEnabled));
         OnPropertyChanged(nameof(IsMemorySliderVisible));
         OnPropertyChanged(nameof(IsAutomaticMemorySummaryVisible));
@@ -269,4 +309,18 @@ public sealed partial class InstanceLaunchSettingsViewModel : GameSettingsDetail
     partial void OnSystemAvailableMemoryTextChanged(string value) => OnPropertyChanged(nameof(SystemMemorySummaryText));
 
     partial void OnAutomaticMemoryMbChanged(int value) => OnPropertyChanged(nameof(AutomaticMemoryText));
+
+    private void RestoreRequiredSelection(Action restore)
+    {
+        var wasSuppressingAutoSave = suppressAutoSave;
+        suppressAutoSave = true;
+        try
+        {
+            restore();
+        }
+        finally
+        {
+            suppressAutoSave = wasSuppressingAutoSave;
+        }
+    }
 }

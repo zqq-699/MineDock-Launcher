@@ -91,21 +91,14 @@ public class AnimatedComboBox : ComboBox
     private TranslateTransform? translateTransform;
     private Window? popupWheelOwner;
     private bool opensAbove;
+    private bool isDropDownDescriptorAttached;
 
     public AnimatedComboBox()
     {
         dropDownDescriptor = DependencyPropertyDescriptor.FromProperty(IsDropDownOpenProperty, typeof(ComboBox));
-        dropDownDescriptor.AddValueChanged(this, OnDropDownOpenChanged);
-
-        Unloaded += (_, _) =>
-        {
-            closeTimer?.Stop();
-            DetachPopupListBox();
-            DetachPopupSurface();
-            DetachPopupWheelOwner();
-            DetachPopup();
-            dropDownDescriptor.RemoveValueChanged(this, OnDropDownOpenChanged);
-        };
+        AttachDropDownDescriptor();
+        Loaded += AnimatedComboBox_Loaded;
+        Unloaded += AnimatedComboBox_Unloaded;
     }
 
     public bool IsPopupOpen
@@ -354,6 +347,7 @@ public class AnimatedComboBox : ComboBox
         if (popupListBox is null)
             return;
 
+        popupListBox.SelectionChanged += PopupListBox_SelectionChanged;
         popupListBox.PreviewMouseLeftButtonUp += PopupListBox_PreviewMouseLeftButtonUp;
         popupListBox.PreviewKeyDown += PopupListBox_PreviewKeyDown;
         popupListBox.PreviewMouseWheel += PopupDropDown_PreviewMouseWheel;
@@ -372,10 +366,54 @@ public class AnimatedComboBox : ComboBox
         if (popupListBox is null)
             return;
 
+        popupListBox.SelectionChanged -= PopupListBox_SelectionChanged;
         popupListBox.PreviewMouseLeftButtonUp -= PopupListBox_PreviewMouseLeftButtonUp;
         popupListBox.PreviewKeyDown -= PopupListBox_PreviewKeyDown;
         popupListBox.PreviewMouseWheel -= PopupDropDown_PreviewMouseWheel;
         popupListBox = null;
+    }
+
+    private void PopupListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // 模板卸载或 ItemsSource 清理只会移除选择；这种瞬时 null 不能反向清空业务选择。
+        var selectedItem = e.AddedItems.Cast<object?>().FirstOrDefault(item => item is not null);
+        if (selectedItem is null)
+            return;
+
+        SetCurrentValue(SelectedItemProperty, selectedItem);
+    }
+
+    private void AnimatedComboBox_Loaded(object sender, RoutedEventArgs e)
+    {
+        AttachDropDownDescriptor();
+    }
+
+    private void AnimatedComboBox_Unloaded(object sender, RoutedEventArgs e)
+    {
+        closeTimer?.Stop();
+        DetachPopupListBox();
+        DetachPopupSurface();
+        DetachPopupWheelOwner();
+        DetachPopup();
+        DetachDropDownDescriptor();
+    }
+
+    private void AttachDropDownDescriptor()
+    {
+        if (isDropDownDescriptorAttached)
+            return;
+
+        dropDownDescriptor.AddValueChanged(this, OnDropDownOpenChanged);
+        isDropDownDescriptorAttached = true;
+    }
+
+    private void DetachDropDownDescriptor()
+    {
+        if (!isDropDownDescriptorAttached)
+            return;
+
+        dropDownDescriptor.RemoveValueChanged(this, OnDropDownOpenChanged);
+        isDropDownDescriptorAttached = false;
     }
 
     private void DetachPopupSurface()

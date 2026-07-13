@@ -233,6 +233,31 @@ public sealed class LayerDependencyContractTests
         Assert.Contains("GameSettingsDialogsViewModel Dialogs", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void AnimatedComboBoxPopupCannotClearOwnerSelectionDuringTemplateTeardown()
+    {
+        var root = FindRepositoryRoot();
+        var document = XDocument.Load(Path.Combine(
+            root.FullName,
+            "Launcher.App",
+            "Styles",
+            "ControlStyles.Inputs.xaml"));
+        var popupList = Assert.Single(document
+            .Descendants()
+            .Where(element => element.Name.LocalName == "ListBox")
+            .Where(element => element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Name" && attribute.Value == "PART_DropDownList")));
+
+        var selectedItemBinding = popupList.Attributes()
+            .Single(attribute => attribute.Name.LocalName == "SelectedItem")
+            .Value;
+
+        Assert.Contains("Mode=OneWay", selectedItemBinding, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            popupList.Attributes(),
+            attribute => attribute.Name.LocalName == "SelectedValue");
+    }
+
     private static void AssertProjectReferences(DirectoryInfo root, string project, params string[] expectedReferences)
     {
         var projectPath = Path.Combine(root.FullName, project, $"{project}.csproj");

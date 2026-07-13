@@ -120,6 +120,7 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
                 BackupDirectory = Path.Combine(TempRoot, "backups", "demo-pack"),
                 MemorySettingsMode = MemorySettingsMode.Auto,
                 MemoryMb = 5120,
+                LaunchSettingsMode = LaunchSettingsMode.PerInstance,
                 JavaSettingsMode = LaunchSettingsMode.PerInstance,
                 JavaSelectionMode = JavaSelectionMode.Manual,
                 SelectedJavaExecutablePath = @"C:\Java\jdk-21\bin\java.exe"
@@ -137,9 +138,14 @@ public sealed class JsonGameInstanceRepositoryTests : TestTempDirectory
         Assert.Equal(Path.Combine(TempRoot, "backups", "demo-pack"), document.RootElement.GetProperty("BackupDirectory").GetString());
         Assert.Equal((int)MemorySettingsMode.Auto, document.RootElement.GetProperty("MemorySettingsMode").GetInt32());
         Assert.Equal(5120, document.RootElement.GetProperty("MemoryMb").GetInt32());
+        Assert.Equal((int)LaunchSettingsMode.PerInstance, document.RootElement.GetProperty("LaunchSettingsMode").GetInt32());
         Assert.Equal((int)LaunchSettingsMode.PerInstance, document.RootElement.GetProperty("JavaSettingsMode").GetInt32());
         Assert.Equal((int)JavaSelectionMode.Manual, document.RootElement.GetProperty("JavaSelectionMode").GetInt32());
         Assert.Equal(@"C:\Java\jdk-21\bin\java.exe", document.RootElement.GetProperty("SelectedJavaExecutablePath").GetString());
+
+        var reloaded = Assert.Single(await repository.GetAllAsync());
+        Assert.Equal(LaunchSettingsMode.PerInstance, reloaded.LaunchSettingsMode);
+        Assert.Equal(LaunchSettingsMode.PerInstance, reloaded.JavaSettingsMode);
     }
 
     [Fact]

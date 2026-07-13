@@ -185,11 +185,19 @@ public sealed partial class GeneralSettingsViewModel : SettingsSectionViewModelB
         ChangeMinecraftDirectoryCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnSelectedDownloadSourceOptionChanged(SettingsDownloadSourceOption? value)
+    partial void OnSelectedDownloadSourceOptionChanged(
+        SettingsDownloadSourceOption? oldValue,
+        SettingsDownloadSourceOption? newValue)
     {
+        if (newValue is null)
+        {
+            LoadState(() => SelectedDownloadSourceOption = oldValue ?? DownloadSourceOptions[0]);
+            return;
+        }
+
         if (!CanPersist)
             return;
-        var preference = value?.Preference ?? DownloadSourcePreference.Auto;
+        var preference = newValue.Preference;
         Persist(settings => settings.DownloadSourcePreference = preference);
         DownloadSourceChanged?.Invoke(this, new SettingsDownloadSourceChangedEventArgs(preference));
     }

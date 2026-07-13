@@ -402,8 +402,7 @@
                                          SelectedValuePath="{TemplateBinding SelectedValuePath}"
                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                                         SelectedItem="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=SelectedItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         SelectedValue="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=SelectedValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         SelectedItem="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=SelectedItem, Mode=OneWay}"
                                          SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
                             </Grid>
                         </Popup>

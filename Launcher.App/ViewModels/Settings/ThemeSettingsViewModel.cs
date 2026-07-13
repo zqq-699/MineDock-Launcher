@@ -85,13 +85,30 @@ public sealed partial class ThemeSettingsViewModel : SettingsSectionViewModelBas
         ApplyPreferenceAndPersist();
     }
 
-    partial void OnSelectedThemeOptionChanged(SettingsThemeOption? value) => ApplyPreferenceAndPersist();
-
-    partial void OnSelectedAccentColorOptionChanged(SettingsAccentColorOption? value)
+    partial void OnSelectedThemeOptionChanged(SettingsThemeOption? oldValue, SettingsThemeOption? newValue)
     {
+        if (newValue is null)
+        {
+            LoadState(() => SelectedThemeOption = oldValue ?? ThemeOptions[0]);
+            return;
+        }
+
+        ApplyPreferenceAndPersist();
+    }
+
+    partial void OnSelectedAccentColorOptionChanged(
+        SettingsAccentColorOption? oldValue,
+        SettingsAccentColorOption? newValue)
+    {
+        if (newValue is null)
+        {
+            LoadState(() => SelectedAccentColorOption = oldValue ?? AccentColorOptions[0]);
+            return;
+        }
+
         if (!CanPersist)
             return;
-        var accent = value?.Id ?? LauncherDefaults.DefaultAccentColor;
+        var accent = newValue.Id;
         themeService.ApplyAccent(accent);
         Persist(settings => settings.AccentColor = accent);
     }
@@ -121,9 +138,9 @@ public sealed partial class ThemeSettingsViewModel : SettingsSectionViewModelBas
 
     private void ApplyPreferenceAndPersist()
     {
-        if (!CanPersist)
+        if (!CanPersist || SelectedThemeOption is null)
             return;
-        var theme = SelectedThemeOption?.Id ?? LauncherDefaults.DefaultTheme;
+        var theme = SelectedThemeOption.Id;
         themeService.ApplyPreference(theme, FollowSystemTheme, LauncherBackgroundOpacityPercent, DisableBackgroundBlur);
         Persist(settings =>
         {

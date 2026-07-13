@@ -126,8 +126,22 @@ public sealed partial class InstanceJavaSettingsViewModel : GameSettingsDetailsS
         InstanceJavaSettings.JavaSelectionChanged -= InstanceJavaSettings_JavaSelectionChanged;
     }
 
-    partial void OnSelectedInstanceJavaSettingsModeOptionChanged(GameSettingsLaunchSettingsModeOption? value)
+    partial void OnSelectedInstanceJavaSettingsModeOptionChanged(
+        GameSettingsLaunchSettingsModeOption? oldValue,
+        GameSettingsLaunchSettingsModeOption? newValue)
     {
+        if (newValue is null)
+        {
+            if (selectedInstance is not null)
+                RestoreRequiredModeSelection(oldValue);
+            else
+            {
+                OnPropertyChanged(nameof(AreInstanceJavaSettingsOverridesEnabled));
+                OnPropertyChanged(nameof(CanInteractWithInstanceJavaRuntimeList));
+            }
+            return;
+        }
+
         OnPropertyChanged(nameof(AreInstanceJavaSettingsOverridesEnabled));
         OnPropertyChanged(nameof(CanInteractWithInstanceJavaRuntimeList));
         if (suppressAutoSave)
@@ -174,10 +188,16 @@ public sealed partial class InstanceJavaSettingsViewModel : GameSettingsDetailsS
     private void ScheduleSave()
     {
         var instance = selectedInstance;
-        if (instance is null)
+        var selectedMode = SelectedInstanceJavaSettingsModeOption;
+        if (instance is null || selectedMode is null)
             return;
 
-        var javaSettingsMode = SelectedInstanceJavaSettingsModeOption?.Mode ?? LaunchSettingsMode.UseGlobal;
+        var javaSettingsMode = selectedMode.Mode;
+        if (javaSettingsMode is LaunchSettingsMode.PerInstance
+            && InstanceJavaSettings.SelectedJavaSelectionOption is null)
+        {
+            return;
+        }
         var javaSelectionMode = javaSettingsMode is LaunchSettingsMode.UseGlobal
             ? instance.JavaSelectionMode
             : InstanceJavaSettings.SelectedMode;
@@ -248,6 +268,21 @@ public sealed partial class InstanceJavaSettingsViewModel : GameSettingsDetailsS
     private GameSettingsLaunchSettingsModeOption ResolveLaunchSettingsModeOption(LaunchSettingsMode mode)
     {
         return LaunchSettingsModeOptions.FirstOrDefault(option => option.Mode == mode) ?? LaunchSettingsModeOptions[0];
+    }
+
+    private void RestoreRequiredModeSelection(GameSettingsLaunchSettingsModeOption? previousSelection)
+    {
+        var wasSuppressingAutoSave = suppressAutoSave;
+        suppressAutoSave = true;
+        try
+        {
+            SelectedInstanceJavaSettingsModeOption = previousSelection
+                ?? ResolveLaunchSettingsModeOption(selectedInstance?.JavaSettingsMode ?? LaunchSettingsMode.UseGlobal);
+        }
+        finally
+        {
+            suppressAutoSave = wasSuppressingAutoSave;
+        }
     }
 
     private static string? NormalizeExecutablePath(string? value)

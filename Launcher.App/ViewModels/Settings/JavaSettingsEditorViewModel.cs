@@ -210,8 +210,25 @@ public sealed partial class JavaSettingsEditorViewModel : ObservableObject
         }
     }
 
-    partial void OnSelectedJavaSelectionOptionChanged(SettingsJavaSelectionOption? value)
+    partial void OnSelectedJavaSelectionOptionChanged(
+        SettingsJavaSelectionOption? oldValue,
+        SettingsJavaSelectionOption? newValue)
     {
+        if (newValue is null)
+        {
+            var wasSuppressingSelectionChanged = suppressSelectionChanged;
+            suppressSelectionChanged = true;
+            try
+            {
+                SelectedJavaSelectionOption = oldValue ?? JavaSelectionOptions[0];
+            }
+            finally
+            {
+                suppressSelectionChanged = wasSuppressingSelectionChanged;
+            }
+            return;
+        }
+
         OnPropertyChanged(nameof(IsJavaManualSelection));
         OnPropertyChanged(nameof(SelectedMode));
 

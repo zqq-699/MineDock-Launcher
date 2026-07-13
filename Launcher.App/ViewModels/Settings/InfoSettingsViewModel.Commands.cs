@@ -156,8 +156,16 @@ public sealed partial class InfoSettingsViewModel
         ConfirmUpdateCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnSelectedUpdateChannelOptionChanged(SettingsUpdateChannelOption? value)
+    partial void OnSelectedUpdateChannelOptionChanged(
+        SettingsUpdateChannelOption? oldValue,
+        SettingsUpdateChannelOption? newValue)
     {
-        Persist(settings => settings.UpdateChannel = value?.Channel ?? LauncherDefaults.DefaultUpdateChannel);
+        if (newValue is null)
+        {
+            LoadState(() => SelectedUpdateChannelOption = oldValue ?? UpdateChannelOptions[0]);
+            return;
+        }
+
+        Persist(settings => settings.UpdateChannel = newValue.Channel);
     }
 }
