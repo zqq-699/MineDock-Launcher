@@ -74,6 +74,9 @@ public sealed partial class GameSettingsInstanceItem : ObservableObject
         if (ReferenceEquals(Instance, instance)
             && string.Equals(VersionType, normalizedVersionType, StringComparison.OrdinalIgnoreCase))
         {
+            // The mutable instance may have been saved in place. Refresh derived bindings without
+            // pretending that the selected instance context itself was replaced.
+            NotifyDisplayPropertiesChanged();
             return;
         }
 

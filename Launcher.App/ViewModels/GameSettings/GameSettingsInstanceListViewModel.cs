@@ -167,8 +167,9 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
         else
         {
             var wasSelected = ReferenceEquals(SelectedInstance, item);
+            var previousInstance = item.Instance;
             item.Update(instance, ResolveVersionType(instance));
-            if (wasSelected)
+            if (wasSelected && !ReferenceEquals(previousInstance, item.Instance))
                 SelectInstanceCore(item, forceNotification: true);
         }
         RefreshVisibleInstances();
@@ -209,8 +210,10 @@ public sealed partial class GameSettingsInstanceListViewModel : ObservableObject
         var selectedId = SelectedInstance?.Instance.Id;
         try
         {
-            var instances = await instanceService.GetInstancesAsync(cancellationToken);
+            // Resolve slow remote classification metadata before taking the mutable instance
+            // snapshot, so a click saved during that network wait cannot be overwritten by stale data.
             versionTypesByName = await LoadVersionTypesAsync(cancellationToken);
+            var instances = await instanceService.GetInstancesAsync(cancellationToken);
             Reconcile(instances);
             RestoreSelection(selectedId);
             hasLoadedInstances = true;

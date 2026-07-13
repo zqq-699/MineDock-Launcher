@@ -35,6 +35,7 @@ internal sealed class InstanceSettingsPersistenceCoordinator : IDisposable
     private readonly Dictionary<string, CancellationTokenSource> pendingSaves = new(StringComparer.Ordinal);
     private readonly object pendingSavesLock = new();
     private CancellationTokenSource instanceLifetime = new();
+    private GameInstance? selectedInstance;
     private string? selectedInstanceId;
     private int generation;
     private bool disposed;
@@ -56,6 +57,10 @@ internal sealed class InstanceSettingsPersistenceCoordinator : IDisposable
     public void SetInstance(GameInstance? instance)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+        if (ReferenceEquals(selectedInstance, instance))
+            return;
+
+        selectedInstance = instance;
         selectedInstanceId = instance?.Id;
         Interlocked.Increment(ref generation);
         CancelPendingSaves();

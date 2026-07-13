@@ -110,11 +110,24 @@ public sealed class LauncherStateMonitor : ILauncherStateMonitor
 
     private void WatcherStateChanged(object sender, FileSystemEventArgs e)
     {
+        if (!IsCurrentWatcher(sender))
+            return;
+
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void WatcherStateRenamed(object sender, RenamedEventArgs e)
     {
+        if (!IsCurrentWatcher(sender))
+            return;
+
         StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private bool IsCurrentWatcher(object sender)
+    {
+        return ReferenceEquals(sender, minecraftParentWatcher)
+            || ReferenceEquals(sender, minecraftVersionsWatcher)
+            || ReferenceEquals(sender, dataDirectoryWatcher);
     }
 }

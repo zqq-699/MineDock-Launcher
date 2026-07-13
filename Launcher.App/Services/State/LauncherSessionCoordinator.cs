@@ -47,6 +47,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
     private readonly ResourcesPageViewModel resourcesPage;
     private readonly SettingsPageViewModel settingsPage;
     private readonly GameManagementViewModel gameManagement;
+    private readonly LauncherStateSyncService stateSyncService;
     private readonly ILogger<LauncherSessionCoordinator> logger;
     // 页面激活可能由导航与窗口恢复同时触发。零等待锁会合并重叠刷新，而不是让刷新请求排队造成旧状态回写。
     private readonly SemaphoreSlim stateSynchronizationLock = new(1, 1);
@@ -64,6 +65,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
         ResourcesPageViewModel resourcesPage,
         SettingsPageViewModel settingsPage,
         GameManagementViewModel gameManagement,
+        LauncherStateSyncService stateSyncService,
         ILogger<LauncherSessionCoordinator>? logger = null)
     {
         this.downloadSpeedLimitState = downloadSpeedLimitState;
@@ -74,6 +76,7 @@ public sealed class LauncherSessionCoordinator : IDisposable
         this.resourcesPage = resourcesPage;
         this.settingsPage = settingsPage;
         this.gameManagement = gameManagement;
+        this.stateSyncService = stateSyncService;
         this.logger = logger ?? NullLogger<LauncherSessionCoordinator>.Instance;
     }
 
@@ -320,6 +323,10 @@ public sealed class LauncherSessionCoordinator : IDisposable
 
     private void GameSettingsPage_InstancesChanged(GameSettingsInstancesChangedEventArgs args)
     {
+        // Instance mutations are already propagated incrementally below. Rearm the filesystem
+        // monitor so the launcher's own metadata write cannot queue a stale full-page refresh.
+        stateSyncService.AcknowledgeLocalStateChange();
+
         // 单实例更新可以增量合并；新增/删除会改变排序和默认选择，必须从仓储重新同步整个集合。
         if (args.Kind is GameSettingsInstancesChangedKind.Updated && args.UpdatedInstance is not null)
         {

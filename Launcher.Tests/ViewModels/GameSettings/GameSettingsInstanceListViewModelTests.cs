@@ -73,6 +73,82 @@ public sealed class GameSettingsInstanceListViewModelTests
     }
 
     [Fact]
+    public async Task InPlaceUpdateRefreshesDisplayWithoutRefreshingSelectedInstanceContext()
+    {
+        var instance = CreateInstance("release", "1.21", LoaderKind.Vanilla);
+        var instances = new FakeGameInstanceService();
+        instances.CreatedInstances.Add(instance);
+        var viewModel = new GameSettingsInstanceListViewModel(
+            instances,
+            new StubGameVersionService([new MinecraftVersionInfo("1.21", "release", false)]));
+        await viewModel.EnsureLoadedAsync();
+        var selected = viewModel.SelectInstance(Assert.Single(viewModel.VisibleInstances));
+        var selectedInstanceNotifications = 0;
+        var displayNotifications = new List<string?>();
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GameSettingsInstanceListViewModel.SelectedInstance))
+                selectedInstanceNotifications++;
+        };
+        selected.PropertyChanged += (_, e) => displayNotifications.Add(e.PropertyName);
+
+        instance.Name = "updated";
+        viewModel.AddOrUpdate(instance);
+
+        Assert.Equal(0, selectedInstanceNotifications);
+        Assert.Equal("updated", selected.Name);
+        Assert.Contains(nameof(GameSettingsInstanceItem.Name), displayNotifications);
+    }
+
+    [Fact]
+    public async Task ReplacementUpdateRefreshesSelectedInstanceContext()
+    {
+        var original = CreateInstance("release", "1.21", LoaderKind.Vanilla);
+        var instances = new FakeGameInstanceService();
+        instances.CreatedInstances.Add(original);
+        var viewModel = new GameSettingsInstanceListViewModel(
+            instances,
+            new StubGameVersionService([new MinecraftVersionInfo("1.21", "release", false)]));
+        await viewModel.EnsureLoadedAsync();
+        var selected = viewModel.SelectInstance(Assert.Single(viewModel.VisibleInstances));
+        var selectedInstanceNotifications = 0;
+        viewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(GameSettingsInstanceListViewModel.SelectedInstance))
+                selectedInstanceNotifications++;
+        };
+        var replacement = CreateInstance("replacement", "1.21", LoaderKind.Vanilla);
+        replacement.Id = original.Id;
+
+        viewModel.AddOrUpdate(replacement);
+
+        Assert.Equal(1, selectedInstanceNotifications);
+        Assert.Same(selected, viewModel.SelectedInstance);
+        Assert.Same(replacement, selected.Instance);
+    }
+
+    [Fact]
+    public async Task RefreshTakesInstanceSnapshotAfterSlowVersionClassificationLoad()
+    {
+        var original = CreateInstance("original", "1.21", LoaderKind.Vanilla);
+        var latest = CreateInstance("latest", "1.21", LoaderKind.Vanilla);
+        latest.Id = original.Id;
+        var instances = new FakeGameInstanceService();
+        instances.CreatedInstances.Add(original);
+        var versions = new CoordinatedGameVersionService();
+        var viewModel = new GameSettingsInstanceListViewModel(instances, versions);
+
+        var refresh = viewModel.EnsureLoadedAsync();
+        await versions.LoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        instances.CreatedInstances.Clear();
+        instances.CreatedInstances.Add(latest);
+        versions.ReleaseLoad.TrySetResult(true);
+        await refresh;
+
+        Assert.Same(latest, Assert.Single(viewModel.AllInstances).Instance);
+    }
+
+    [Fact]
     public async Task ImportBatchDeduplicatesPathsAndStopsAtFirstFailure()
     {
         var visited = new List<string>();
@@ -110,5 +186,24 @@ public sealed class GameSettingsInstanceListViewModelTests
             DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
             CancellationToken cancellationToken = default,
             int downloadSpeedLimitMbPerSecond = 0) => Task.FromResult(versions);
+    }
+
+    private sealed class CoordinatedGameVersionService : IGameVersionService
+    {
+        public TaskCompletionSource<bool> LoadStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> ReleaseLoad { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<IReadOnlyList<MinecraftVersionInfo>> GetVersionsAsync(
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            CancellationToken cancellationToken = default,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            LoadStarted.TrySetResult(true);
+            await ReleaseLoad.Task.WaitAsync(cancellationToken);
+            return [new MinecraftVersionInfo("1.21", "release", false)];
+        }
     }
 }

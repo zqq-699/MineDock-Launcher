@@ -240,7 +240,9 @@ public sealed partial class GameSettingsPageViewModel : ObservableObject
         InstanceList.RefreshAsync(cancellationToken);
 
     public Task RefreshInstancesForPageActivationAsync(CancellationToken cancellationToken = default) =>
-        InstanceList.RefreshForActivationAsync(cancellationToken);
+        IsDetailsStep
+            ? Task.CompletedTask
+            : InstanceList.RefreshForActivationAsync(cancellationToken);
 
     public Task RefreshInstancesSilentlyAsync(CancellationToken cancellationToken = default) =>
         InstanceList.RefreshSilentlyAsync(cancellationToken);

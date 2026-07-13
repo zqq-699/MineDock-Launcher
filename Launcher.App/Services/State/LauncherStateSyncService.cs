@@ -36,6 +36,7 @@ public sealed class LauncherStateSyncService : IDisposable
     private Func<Task>? synchronize;
     private CancellationTokenSource? pendingCancellation;
     private Task pendingTask = Task.CompletedTask;
+    private DateTimeOffset ignoreMonitorChangesUntil;
     private bool isStarted;
     private bool isDisposed;
 
@@ -86,6 +87,26 @@ public sealed class LauncherStateSyncService : IDisposable
             return pendingTask;
     }
 
+    public void AcknowledgeLocalStateChange()
+    {
+        Func<LauncherSettings>? getSettings;
+        lock (syncLock)
+        {
+            if (!isStarted)
+                return;
+
+            // FileSystemWatcher also observes launcher-owned atomic writes. Cancel the refresh
+            // already queued for that write and ignore its duplicate notifications briefly.
+            ignoreMonitorChangesUntil = DateTimeOffset.UtcNow + debounceDelay;
+            pendingCancellation?.Cancel();
+            pendingCancellation = null;
+            getSettings = settingsProvider;
+        }
+
+        if (getSettings is not null)
+            stateMonitor.Watch(getSettings());
+    }
+
     public void Stop()
     {
         if (!isStarted)
@@ -116,6 +137,12 @@ public sealed class LauncherStateSyncService : IDisposable
 
     private void StateMonitor_StateChanged(object? sender, EventArgs e)
     {
+        lock (syncLock)
+        {
+            if (DateTimeOffset.UtcNow < ignoreMonitorChangesUntil)
+                return;
+        }
+
         RequestSync();
     }
 

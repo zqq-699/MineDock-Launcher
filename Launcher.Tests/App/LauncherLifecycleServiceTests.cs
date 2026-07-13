@@ -77,6 +77,36 @@ public sealed class LauncherLifecycleServiceTests
     }
 
     [Fact]
+    public async Task AcknowledgingLocalStateChangeCancelsSelfRefreshAndRearmsForExternalChanges()
+    {
+        var monitor = new TestLauncherStateMonitor();
+        using var service = new LauncherStateSyncService(
+            monitor,
+            ImmediateUiDispatcher.Instance,
+            debounceDelay: TimeSpan.FromMilliseconds(20));
+        var synchronizationCount = 0;
+        service.Start(() => new LauncherSettings(), () =>
+        {
+            synchronizationCount++;
+            return Task.CompletedTask;
+        });
+
+        monitor.RaiseStateChanged();
+        service.AcknowledgeLocalStateChange();
+        monitor.RaiseStateChanged();
+        await service.WaitForPendingSyncAsync();
+
+        Assert.Equal(0, synchronizationCount);
+        Assert.Equal(2, monitor.WatchCount);
+
+        await Task.Delay(30);
+        monitor.RaiseStateChanged();
+        await service.WaitForPendingSyncAsync();
+
+        Assert.Equal(1, synchronizationCount);
+    }
+
+    [Fact]
     public async Task ShutdownIsIdempotentAndBoundedWhenBackgroundTaskDoesNotFinish()
     {
         var downloadTasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));

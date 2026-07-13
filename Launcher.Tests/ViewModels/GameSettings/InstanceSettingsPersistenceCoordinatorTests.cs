@@ -87,6 +87,46 @@ public sealed class InstanceSettingsPersistenceCoordinatorTests
     }
 
     [Fact]
+    public async Task SaveNotificationForSameInstanceDoesNotCancelNewerPendingMutation()
+    {
+        var instance = CreateInstance("original");
+        var saveGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var instanceService = new FakeGameInstanceService
+        {
+            WaitBeforeSave = saveGate.Task
+        };
+        using var coordinator = CreateCoordinator(instanceService, new RecordingStatusService());
+        var twoSavesCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var savedCount = 0;
+        coordinator.InstanceSaved += savedInstance =>
+        {
+            coordinator.SetInstance(savedInstance);
+            if (Interlocked.Increment(ref savedCount) == 2)
+                twoSavesCompleted.TrySetResult(true);
+        };
+        coordinator.SetInstance(instance);
+        coordinator.Schedule(
+            "first-area",
+            instance,
+            target => ApplyDescription(target, "first"),
+            () => { });
+
+        await instanceService.SaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        coordinator.Schedule(
+            "second-area",
+            instance,
+            target => ApplyDescription(target, "latest"),
+            () => { },
+            TimeSpan.FromMilliseconds(50));
+        saveGate.TrySetResult(true);
+
+        await twoSavesCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(2, instanceService.SaveCallCount);
+        Assert.Equal("latest", instance.Description);
+    }
+
+    [Fact]
     public async Task SaveFailureRollsBackModelAndReportsFriendlyStatus()
     {
         var instance = CreateInstance("original");
