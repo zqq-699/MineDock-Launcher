@@ -31,6 +31,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
     private readonly IModpackPackageService modpackPackageService;
     private readonly IModpackGameInstaller modpackGameInstaller;
     private readonly IModpackInstanceStagingService stagingService;
+    private readonly IGameInstallCoordinator installCoordinator;
     private readonly ModpackImportCleanupCoordinator cleanupCoordinator;
     private readonly ILogger<LocalModpackImportService> logger;
 
@@ -40,10 +41,28 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         IModpackGameInstaller modpackGameInstaller,
         IModpackInstanceStagingService stagingService,
         ILogger<LocalModpackImportService>? logger = null)
+        : this(
+            instanceService,
+            modpackPackageService,
+            modpackGameInstaller,
+            stagingService,
+            new GameInstallCoordinator(),
+            logger)
+    {
+    }
+
+    public LocalModpackImportService(
+        IGameInstanceService instanceService,
+        IModpackPackageService modpackPackageService,
+        IModpackGameInstaller modpackGameInstaller,
+        IModpackInstanceStagingService stagingService,
+        IGameInstallCoordinator installCoordinator,
+        ILogger<LocalModpackImportService>? logger = null)
     {
         this.modpackPackageService = modpackPackageService;
         this.modpackGameInstaller = modpackGameInstaller;
         this.stagingService = stagingService;
+        this.installCoordinator = installCoordinator;
         this.logger = logger ?? NullLogger<LocalModpackImportService>.Instance;
         cleanupCoordinator = new ModpackImportCleanupCoordinator(
             instanceService,
@@ -262,6 +281,16 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         DownloadSourcePreference downloadSourcePreference,
         int downloadSpeedLimitMbPerSecond)
     {
+        var installProgress = CreateInstallStageProgress(progress, ImportProgressStages.InstallingLoader);
+        // 整合包文件下载已在并行分支中启动；租约只覆盖会写入共享 Minecraft 内容的 Loader 安装阶段。
+        await using var installLease = await installCoordinator
+            .AcquireInstallAsync(
+                stagedInstance.MinecraftDirectory,
+                stagedInstance.ResolvedInstanceName,
+                installProgress,
+                cancellationToken)
+            .ConfigureAwait(false);
+
         return await modpackGameInstaller.InstallLoaderAsync(
             preparedModpack.MinecraftVersion,
             preparedModpack.Loader,
@@ -270,7 +299,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 stagedInstance.MinecraftDirectory,
                 stagedInstance.ResolvedInstanceName,
                 stagedInstance.InstanceDirectory),
-            CreateInstallStageProgress(progress, ImportProgressStages.InstallingLoader),
+            installProgress,
             cancellationToken,
             downloadSourcePreference,
             downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
