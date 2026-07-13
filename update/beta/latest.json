@@ -3,29 +3,29 @@
   "appId": "BlockHelm-Launcher",
   "keyId": "40a44dfdb94667529e614671a7fe557d124980877e0b25e1811beff9dd7a7f46",
   "channel": "beta",
-  "versionName": "0.9.4-beta.1",
-  "versionCode": 90401,
-  "publishedAt": "2026-07-13T07:40:37Z",
+  "versionName": "0.9.5-beta.1",
+  "versionCode": 90501,
+  "publishedAt": "2026-07-13T11:36:36Z",
   "mandatory": false,
   "minSupportedVersionCode": 0,
-  "releaseNotes": "# Beta 0.9.4-beta.1\r\n\r\n- Harden instance installation, shared-content copying, and recovery against interrupted or concurrent operations.\r\n- Improve instance rename, deletion, backup, and settings persistence reliability.\r\n- Speed up resource browsing and refine list presentation and parallel modpack installation feedback.\r\n- Verify resource downloads and strengthen staging cleanup and collision handling.\r\n- Improve self-update cleanup and move redacted launcher diagnostics into the launcher-owned storage directory.\r\n- Add localized startup agreement and settings feedback dialogs.",
+  "releaseNotes": "# Beta 0.9.5-beta.1\r\n\r\n- Expand drag-and-drop modpack imports to all top-level launcher pages while preserving per-instance content imports.\r\n- Improve Forge and NeoForge installation reliability by handling processor artifacts and required runtime libraries correctly.\r\n- Serialize shared modpack loader installations and strengthen shared-file publishing, repair, and integrity checks.\r\n- Prevent stale game settings refreshes during local saves and preserve required combo box selections.\r\n- Remove obsolete launcher code and tighten remaining flows.",
   "assets": [
     {
       "platform": "windows",
       "arch": "x64",
       "packageType": "exe",
       "fileName": "BlockHelm_Launcher_x64.exe",
-      "size": 14646336,
-      "sha256": "d3ca4815ce002c2f6f39ffc42ebac2c669b51716e7c09de2b908e8c86ca23207",
+      "size": 14746688,
+      "sha256": "486eb5890e21743399b7a706967c99cdec6a051cf016cba23904f3acdbed233c",
       "urls": [
         {
           "name": "gitee",
-          "url": "https://gitee.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.4-beta.1/BlockHelm_Launcher_x64.exe",
+          "url": "https://gitee.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.5-beta.1/BlockHelm_Launcher_x64.exe",
           "priority": 1
         },
         {
           "name": "github",
-          "url": "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.4-beta.1/BlockHelm_Launcher_x64.exe",
+          "url": "https://github.com/zqq-699/BlockHelm-Launcher/releases/download/v0.9.5-beta.1/BlockHelm_Launcher_x64.exe",
           "priority": 2
         }
       ]
