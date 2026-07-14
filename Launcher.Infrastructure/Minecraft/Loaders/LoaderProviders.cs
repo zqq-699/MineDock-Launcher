@@ -85,13 +85,15 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             logger,
             cancellationToken);
 
+        using var downloadOperation = CreateDownloadOperationContext(new MinecraftPath(gameDirectory));
         var launcher = CreateLauncher(
             gameDirectory,
             progress,
             downloadSourcePreference,
             logger,
             downloadSpeedLimitMbPerSecond,
-            downloadSpeedLimitState);
+            downloadSpeedLimitState,
+            downloadOperation);
         AttachProgress(launcher, progress);
         await launcher.InstallAsync(finalVersionName, cancellationToken);
         return finalVersionName;
@@ -185,13 +187,18 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         }
     }
 
+    internal static MinecraftDownloadOperationContext CreateDownloadOperationContext(MinecraftPath path) =>
+        new(Path.GetDirectoryName(path.Assets)
+            ?? throw new InvalidOperationException("Minecraft assets path has no managed root."));
+
     internal static MinecraftLauncher CreateLauncher(
         string gameDirectory,
         IProgress<LauncherProgress>? progress,
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
         ILogger? logger = null,
         int downloadSpeedLimitMbPerSecond = 0,
-        IDownloadSpeedLimitState? downloadSpeedLimitState = null)
+        IDownloadSpeedLimitState? downloadSpeedLimitState = null,
+        MinecraftDownloadOperationContext? operationContext = null)
     {
         return CreateLauncher(
             new MinecraftPath(gameDirectory),
@@ -199,7 +206,8 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             downloadSourcePreference,
             logger,
             downloadSpeedLimitMbPerSecond,
-            downloadSpeedLimitState);
+            downloadSpeedLimitState,
+            operationContext);
     }
 
     internal static MinecraftLauncher CreateLauncher(
@@ -208,7 +216,8 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
         ILogger? logger = null,
         int downloadSpeedLimitMbPerSecond = 0,
-        IDownloadSpeedLimitState? downloadSpeedLimitState = null)
+        IDownloadSpeedLimitState? downloadSpeedLimitState = null,
+        MinecraftDownloadOperationContext? operationContext = null)
     {
         // 统一注入镜像路由、限速和运行库下载器，保证 Vanilla/Fabric 使用相同下载策略。
         var parameters = MinecraftLauncherParameters.CreateDefault(path);
@@ -238,7 +247,8 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             runtimeExecutor,
             downloadSourcePreference,
             progress,
-            path);
+            path,
+            operationContext);
         var defaultAssetExtractor = parameters.FileExtractors!
             .Select((extractor, index) => (extractor, index))
             .First(entry => entry.extractor is CmlLib.Core.FileExtractors.AssetFileExtractor);
@@ -247,7 +257,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             parameters.FileExtractors.RemoveAt(defaultAssetExtractor.index);
             parameters.FileExtractors.Insert(
                 defaultAssetExtractor.index,
-                new SafeAssetFileExtractor(assetIndexExecutor, downloadSourcePreference));
+                new SafeAssetFileExtractor(assetIndexExecutor, downloadSourcePreference, operationContext));
         }
         return new MinecraftLauncher(parameters);
     }

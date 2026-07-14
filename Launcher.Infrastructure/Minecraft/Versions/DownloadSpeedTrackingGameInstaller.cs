@@ -28,10 +28,11 @@ namespace Launcher.Infrastructure.Minecraft;
 
 internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
 {
-    private readonly DownloadSpeedAggregator speedAggregator;
+    private readonly SlidingWindowDownloadSpeedReporter speedReporter;
     private readonly MinecraftDownloadRequestExecutor downloadExecutor;
     private readonly DownloadSourcePreference downloadSourcePreference;
     private readonly MinecraftPath? minecraftPath;
+    private readonly MinecraftDownloadOperationContext? operationContext;
 
     private DownloadSpeedTrackingGameInstaller(
         int maxChecker,
@@ -41,13 +42,15 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         MinecraftDownloadRequestExecutor downloadExecutor,
         DownloadSourcePreference downloadSourcePreference,
         IProgress<LauncherProgress>? progress,
-        MinecraftPath? minecraftPath)
+        MinecraftPath? minecraftPath,
+        MinecraftDownloadOperationContext? operationContext)
         : base(maxChecker, maxDownloader, boundedCapacity, httpClient)
     {
         this.downloadExecutor = downloadExecutor;
         this.downloadSourcePreference = downloadSourcePreference;
         this.minecraftPath = minecraftPath;
-        speedAggregator = new DownloadSpeedAggregator(progress);
+        this.operationContext = operationContext;
+        speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
     }
 
     public static DownloadSpeedTrackingGameInstaller CreateAsCoreCount(
@@ -55,7 +58,8 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         MinecraftDownloadRequestExecutor downloadExecutor,
         DownloadSourcePreference downloadSourcePreference,
         IProgress<LauncherProgress>? progress,
-        MinecraftPath? minecraftPath = null)
+        MinecraftPath? minecraftPath = null,
+        MinecraftDownloadOperationContext? operationContext = null)
     {
         var maxChecker = Environment.ProcessorCount;
         maxChecker = Math.Max(1, maxChecker);
@@ -73,7 +77,8 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
             downloadExecutor,
             downloadSourcePreference,
             progress,
-            minecraftPath);
+            minecraftPath,
+            operationContext);
     }
 
     protected override Task Download(
@@ -84,41 +89,47 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         return DownloadGameFileAsync(file, progress, cancellationToken);
     }
 
-    internal Task DownloadGameFileAsync(
+    internal async Task DownloadGameFileAsync(
         GameFile file,
         IProgress<ByteProgress>? progress,
         CancellationToken cancellationToken)
     {
-        speedAggregator.ReportDownloadStarted();
+        using var speedSession = new DownloadActivitySpeedSession(speedReporter);
         var fileUrl = file.Url
-            ?? throw new InvalidDataException($"CmlLib game file URL is missing: {file.Name}");
+                ?? throw new InvalidDataException($"CmlLib game file URL is missing: {file.Name}");
         var filePath = file.Path
-            ?? throw new InvalidDataException($"CmlLib game file path is missing: {file.Name}");
+                ?? throw new InvalidDataException($"CmlLib game file path is missing: {file.Name}");
         if (minecraftPath is not null)
             filePath = MinecraftPathGuard.EnsureInstallFilePath(minecraftPath, filePath);
+        long? expectedSize = file.Size > 0 ? file.Size : null;
+        var options = operationContext?.TryGetAsset(filePath, file.Hash, expectedSize) is true
+            ? new DownloadFileOptions(DownloadPersistenceMode.LightweightAtomic, operationContext)
+            : null;
         NetworkDownloadProgress? attemptProgress = null;
         var currentAttempt = 0;
-        return downloadExecutor.DownloadFileAsync(
-            fileUrl,
-            downloadSourcePreference,
-            categoryHint: null,
-            filePath,
-            file.Hash,
-            file.Size > 0 ? file.Size : null,
-            reportDownloadedBytes: null,
-            cancellationToken,
-            (attempt, progressedBytes, totalBytes) =>
-            {
-                if (attempt != currentAttempt)
+        await downloadExecutor.DownloadFileAsync(
+                fileUrl,
+                downloadSourcePreference,
+                categoryHint: null,
+                filePath,
+                file.Hash,
+                expectedSize,
+                reportDownloadedBytes: null,
+                cancellationToken,
+                (attempt, progressedBytes, totalBytes) =>
                 {
-                    currentAttempt = attempt;
-                    attemptProgress = new NetworkDownloadProgress(progress, speedAggregator);
-                }
+                    if (attempt != currentAttempt)
+                    {
+                        currentAttempt = attempt;
+                        attemptProgress = new NetworkDownloadProgress(progress, speedReporter);
+                    }
 
-                attemptProgress!.Report(new ByteProgress(
-                    progressedBytes,
-                    totalBytes.GetValueOrDefault(file.Size)));
-            });
+                    attemptProgress!.Report(new ByteProgress(
+                        progressedBytes,
+                        totalBytes.GetValueOrDefault(file.Size)));
+                },
+            reportActivity: speedSession.Report,
+            options: options).ConfigureAwait(false);
     }
 
     private sealed class NetworkDownloadProgress : IProgress<ByteProgress>
@@ -126,17 +137,17 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         private static readonly TimeSpan InnerProgressInterval = TimeSpan.FromMilliseconds(100);
 
         private readonly IProgress<ByteProgress>? innerProgress;
-        private readonly DownloadSpeedAggregator speedAggregator;
+        private readonly SlidingWindowDownloadSpeedReporter speedReporter;
         private long lastProgressedBytes;
         private long lastReportedProgressedBytes;
         private DateTimeOffset lastInnerProgressReportedAt = DateTimeOffset.MinValue;
 
         public NetworkDownloadProgress(
             IProgress<ByteProgress>? innerProgress,
-            DownloadSpeedAggregator speedAggregator)
+            SlidingWindowDownloadSpeedReporter speedReporter)
         {
             this.innerProgress = innerProgress;
-            this.speedAggregator = speedAggregator;
+            this.speedReporter = speedReporter;
         }
 
         public void Report(ByteProgress value)
@@ -147,7 +158,7 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
             var bytesDelta = value.ProgressedBytes - lastProgressedBytes;
             lastProgressedBytes = value.ProgressedBytes;
             if (bytesDelta > 0)
-                speedAggregator.ReportDownloadedBytes(bytesDelta);
+                speedReporter.ReportNetworkBytes(bytesDelta);
         }
 
         private bool ShouldReportInnerProgress(ByteProgress value)
@@ -177,73 +188,4 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         }
     }
 
-    private sealed class DownloadSpeedAggregator
-    {
-        private static readonly TimeSpan SampleWindow = TimeSpan.FromSeconds(0.75);
-
-        private readonly object syncRoot = new();
-        private readonly IProgress<LauncherProgress>? progress;
-        private long windowBytes;
-        private bool hasReportedDownloadStarted;
-        private DateTimeOffset windowStartedAt = DateTimeOffset.UtcNow;
-
-        public DownloadSpeedAggregator(IProgress<LauncherProgress>? progress)
-        {
-            this.progress = progress;
-        }
-
-        public void ReportDownloadStarted()
-        {
-            if (progress is null)
-                return;
-
-            lock (syncRoot)
-            {
-                if (hasReportedDownloadStarted)
-                    return;
-
-                hasReportedDownloadStarted = true;
-                windowBytes = 0;
-                windowStartedAt = DateTimeOffset.UtcNow;
-                progress.Report(new LauncherProgress(
-                    LaunchProgressStages.DownloadSpeed,
-                    string.Empty,
-                    DownloadSpeedText: "0 B/s"));
-            }
-        }
-
-        public void ReportDownloadedBytes(long bytesDelta)
-        {
-            if (progress is null)
-                return;
-
-            lock (syncRoot)
-            {
-                windowBytes += bytesDelta;
-                var now = DateTimeOffset.UtcNow;
-                var elapsed = now - windowStartedAt;
-                if (elapsed < SampleWindow)
-                    return;
-
-                var speedText = FormatSpeed(windowBytes / elapsed.TotalSeconds);
-                windowBytes = 0;
-                windowStartedAt = now;
-                progress.Report(new LauncherProgress(
-                    LaunchProgressStages.DownloadSpeed,
-                    string.Empty,
-                    DownloadSpeedText: speedText));
-            }
-        }
-
-        private static string FormatSpeed(double bytesPerSecond)
-        {
-            if (bytesPerSecond >= 1024 * 1024)
-                return $"{bytesPerSecond / 1024 / 1024:0.0} MB/s";
-
-            if (bytesPerSecond >= 1024)
-                return $"{bytesPerSecond / 1024:0.0} KB/s";
-
-            return $"{bytesPerSecond:0} B/s";
-        }
-    }
 }

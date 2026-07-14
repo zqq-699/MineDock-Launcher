@@ -20,6 +20,7 @@
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
+using CmlLib.Core;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -155,13 +156,15 @@ public sealed class QuiltLoaderProvider : ILoaderProvider
                 logger,
                 cancellationToken);
 
+            using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(new MinecraftPath(gameDirectory));
             var launcher = VanillaLoaderProvider.CreateLauncher(
                 gameDirectory,
                 progress,
                 downloadSourcePreference,
                 logger,
                 downloadSpeedLimitMbPerSecond,
-                downloadSpeedLimitState);
+                downloadSpeedLimitState,
+                downloadOperation);
             VanillaLoaderProvider.AttachProgress(launcher, progress);
             await launcher.InstallAsync(finalVersionName, cancellationToken);
 

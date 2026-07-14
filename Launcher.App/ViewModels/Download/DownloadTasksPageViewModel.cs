@@ -24,6 +24,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.Utilities;
 using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.Download;
@@ -334,13 +335,16 @@ public sealed partial class DownloadTaskItem : ObservableObject
 
     public void Report(LauncherProgress progress)
     {
-        // 只更新进度提供的字段，缺失百分比或速度时保留已有值，避免 UI 闪烁。
+        // 非网络阶段绝不能保留上一段下载速度；否则哈希、复制或安装器运行
+        // 会显示已经过期的网络吞吐。
         if (State is DownloadTaskState.Completed or DownloadTaskState.Failed)
             return;
 
         State = DownloadTaskState.Running;
         StatusMessage = progress.Message;
-        if (progress.DownloadSpeedText is not null)
+        if (!LauncherProgressDisplayPolicy.IsNetworkTransfer(progress))
+            DownloadSpeedText = string.Empty;
+        else if (progress.DownloadSpeedText is not null)
             DownloadSpeedText = progress.DownloadSpeedText;
 
         if (progress.Percent is { } percent)

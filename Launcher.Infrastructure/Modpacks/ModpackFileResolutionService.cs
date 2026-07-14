@@ -23,6 +23,7 @@ using System.Security.Cryptography;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.CurseForge;
+using Launcher.Infrastructure.Minecraft;
 using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Modpacks;
@@ -64,7 +65,7 @@ internal sealed class ModpackFileResolutionService
         var apiKey = preparedModpack.PackageKind is ModpackPackageKind.CurseForge
             ? await GetCurseForgeApiKeyAsync(cancellationToken).ConfigureAwait(false)
             : null;
-        var context = new DownloadBatchContext(
+        using var context = new DownloadBatchContext(
             preparedModpack,
             instance,
             apiKey,
@@ -315,6 +316,7 @@ internal sealed class ModpackFileResolutionService
             file.Sha1,
             file.Sha512,
             context.DownloadSpeedLimitMbPerSecond,
+            context.SpeedReporter,
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -394,25 +396,45 @@ internal sealed class ModpackFileResolutionService
         return exception.GetType().Name;
     }
 
-    private sealed class DownloadBatchContext(
-        PreparedModpack package,
-        GameInstance instance,
-        string? curseForgeApiKey,
-        DownloadSourcePreference downloadSourcePreference,
-        int downloadSpeedLimitMbPerSecond,
-        IProgress<LauncherProgress>? progress)
+    private sealed class DownloadBatchContext : IDisposable
     {
         private int resolvedCount;
         private int downloadedCount;
+        private string? activeDownloadFileName;
+        private readonly IProgress<LauncherProgress>? progress;
 
-        public PreparedModpack Package { get; } = package;
-        public GameInstance Instance { get; } = instance;
-        public string? CurseForgeApiKey { get; } = curseForgeApiKey;
-        public DownloadSourcePreference DownloadSourcePreference { get; } = downloadSourcePreference;
-        public int DownloadSpeedLimitMbPerSecond { get; } = downloadSpeedLimitMbPerSecond;
+        public DownloadBatchContext(
+            PreparedModpack package,
+            GameInstance instance,
+            string? curseForgeApiKey,
+            DownloadSourcePreference downloadSourcePreference,
+            int downloadSpeedLimitMbPerSecond,
+            IProgress<LauncherProgress>? progress)
+        {
+            Package = package;
+            Instance = instance;
+            CurseForgeApiKey = curseForgeApiKey;
+            DownloadSourcePreference = downloadSourcePreference;
+            DownloadSpeedLimitMbPerSecond = downloadSpeedLimitMbPerSecond;
+            this.progress = progress;
+            SpeedReporter = new SlidingWindowDownloadSpeedReporter(
+                progress,
+                speedStage: ImportProgressStages.DownloadingPackFiles,
+                inactiveStage: ImportProgressStages.DownloadingPackFiles,
+                messageProvider: () => Volatile.Read(ref activeDownloadFileName) ?? string.Empty);
+            Resolutions = new PackFileResolution?[package.Files.Count];
+            ManualDownloads = new ManualModpackDownload?[package.Files.Count];
+        }
+
+        public PreparedModpack Package { get; }
+        public GameInstance Instance { get; }
+        public string? CurseForgeApiKey { get; }
+        public DownloadSourcePreference DownloadSourcePreference { get; }
+        public int DownloadSpeedLimitMbPerSecond { get; }
         public int TotalCount => Package.Files.Count;
-        public PackFileResolution?[] Resolutions { get; } = new PackFileResolution?[package.Files.Count];
-        public ManualModpackDownload?[] ManualDownloads { get; } = new ManualModpackDownload?[package.Files.Count];
+        public PackFileResolution?[] Resolutions { get; }
+        public ManualModpackDownload?[] ManualDownloads { get; }
+        public SlidingWindowDownloadSpeedReporter SpeedReporter { get; }
 
         public void ReportStarted()
         {
@@ -431,6 +453,8 @@ internal sealed class ModpackFileResolutionService
 
         public void ReportDownload(string fileName, bool completed)
         {
+            if (!completed)
+                Volatile.Write(ref activeDownloadFileName, fileName);
             var count = completed
                 ? Interlocked.Increment(ref downloadedCount)
                 : Volatile.Read(ref downloadedCount);
@@ -439,6 +463,8 @@ internal sealed class ModpackFileResolutionService
                 fileName,
                 count * 100d / TotalCount));
         }
+
+        public void Dispose() => SpeedReporter.Dispose();
     }
 
     private sealed record PackFileResolution(ResolvedPackDownload? Download, ManualModpackDownload? ManualDownload);

@@ -24,6 +24,7 @@ using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Models;
 using Launcher.App.Resources;
 using Launcher.App.Services;
+using Launcher.App.Utilities;
 using Launcher.Application.Accounts;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
@@ -67,7 +68,9 @@ public sealed partial class HomePageViewModel
 
             var message = FormatLaunchProgress(progress);
             LaunchStatusMessage = message;
-            if (progress.DownloadSpeedText is not null)
+            if (!LauncherProgressDisplayPolicy.IsNetworkTransfer(progress))
+                LaunchDownloadSpeedText = string.Empty;
+            else if (progress.DownloadSpeedText is not null)
                 LaunchDownloadSpeedText = progress.DownloadSpeedText;
 
             if (progress.Percent is double percent)

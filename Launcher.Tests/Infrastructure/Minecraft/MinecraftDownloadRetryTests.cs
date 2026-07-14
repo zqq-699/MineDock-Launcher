@@ -613,6 +613,149 @@ public sealed class MinecraftDownloadRetryTests
     }
 
     [Fact]
+    public async Task LightweightAssetReusesPreviouslyVerifiedTargetWithoutNetwork()
+    {
+        var handler = new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(CreateResponse(HttpStatusCode.OK, "unexpected", request)));
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client);
+        var directory = CreateTempDirectory();
+        var destination = Path.Combine(directory, "assets", "objects", "aa", "asset");
+        var payload = "asset-data"u8.ToArray();
+        var sha1 = Convert.ToHexString(SHA1.HashData(payload));
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        await File.WriteAllBytesAsync(destination, payload);
+
+        try
+        {
+            using var operation = new MinecraftDownloadOperationContext(directory);
+            operation.RegisterAsset(destination, sha1, payload.Length);
+            await executor.DownloadFileAsync(
+                ManifestUrl,
+                DownloadSourcePreference.Official,
+                "Mojang",
+                destination,
+                sha1,
+                payload.Length,
+                reportDownloadedBytes: null,
+                CancellationToken.None,
+                options: new DownloadFileOptions(DownloadPersistenceMode.LightweightAtomic, operation));
+
+            Assert.Empty(handler.RequestUris);
+            Assert.Equal(payload, await File.ReadAllBytesAsync(destination));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task LightweightAssetRedownloadsSameSizedCorruptTargetAndPublishesAtomically()
+    {
+        var payload = "asset-data"u8.ToArray();
+        var handler = new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new ByteArrayContent(payload)
+            }));
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client);
+        var directory = CreateTempDirectory();
+        var destination = Path.Combine(directory, "assets", "objects", "aa", "asset");
+        var sha1 = Convert.ToHexString(SHA1.HashData(payload));
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        await File.WriteAllBytesAsync(destination, "bad-data!!"u8.ToArray());
+
+        try
+        {
+            using var operation = new MinecraftDownloadOperationContext(directory);
+            operation.RegisterAsset(destination, sha1, payload.Length);
+            await executor.DownloadFileAsync(
+                ManifestUrl,
+                DownloadSourcePreference.Official,
+                "Mojang",
+                destination,
+                sha1,
+                payload.Length,
+                reportDownloadedBytes: null,
+                CancellationToken.None,
+                options: new DownloadFileOptions(DownloadPersistenceMode.LightweightAtomic, operation));
+
+            Assert.Single(handler.RequestUris);
+            Assert.Equal(payload, await File.ReadAllBytesAsync(destination));
+            Assert.False(File.Exists(destination + ".part"));
+            Assert.False(File.Exists(destination + ".part.meta"));
+            Assert.Empty(Directory.EnumerateFiles(Path.Combine(directory, ".bhl-download-work"), "*.tmp", SearchOption.AllDirectories));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task LightweightAssetSingleFlightDownloadsSameTargetOnce()
+    {
+        var payload = "asset-data"u8.ToArray();
+        var handler = new CallbackRequestHandler(async (_, request, token) =>
+        {
+            await Task.Delay(50, token);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new ByteArrayContent(payload)
+            };
+        });
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client);
+        var directory = CreateTempDirectory();
+        var destination = Path.Combine(directory, "assets", "objects", "aa", "asset");
+        var sha1 = Convert.ToHexString(SHA1.HashData(payload));
+
+        try
+        {
+            using var operation = new MinecraftDownloadOperationContext(directory);
+            operation.RegisterAsset(destination, sha1, payload.Length);
+            var options = new DownloadFileOptions(DownloadPersistenceMode.LightweightAtomic, operation);
+            var first = executor.DownloadFileAsync(ManifestUrl, DownloadSourcePreference.Official, "Mojang", destination, sha1, payload.Length, null, CancellationToken.None, options: options);
+            var second = executor.DownloadFileAsync(ManifestUrl, DownloadSourcePreference.Official, "Mojang", destination, sha1, payload.Length, null, CancellationToken.None, options: options);
+
+            await Task.WhenAll(first, second);
+
+            Assert.Single(handler.RequestUris);
+            Assert.Equal(payload, await File.ReadAllBytesAsync(destination));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ConcurrentWorkspaceCreationDoesNotRaceOwnerLocks()
+    {
+        var directory = CreateTempDirectory();
+        MinecraftDownloadOperationContext[] contexts = [];
+        try
+        {
+            contexts = await Task.WhenAll(
+                Enumerable.Range(0, 16)
+                    .Select(_ => Task.Run(() => new MinecraftDownloadOperationContext(directory))));
+
+            Assert.Equal(contexts.Length, contexts.Select(context => context.WorkspaceDirectory).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+            Assert.All(contexts, context => Assert.True(Directory.Exists(context.WorkspaceDirectory)));
+        }
+        finally
+        {
+            foreach (var context in contexts)
+                context.Dispose();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task CmlLibMetadataHandlerFailsClosedForBinaryRequest()
     {
         using var client = new HttpClient(new DownloadSourceRoutingHttpMessageHandler(

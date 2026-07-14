@@ -4,126 +4,125 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-using System.Collections.Concurrent;
 using System.IO;
 
 namespace Launcher.Infrastructure.Minecraft;
 
 /// <summary>
-/// Bounded, non-CAS accounting for resumable files.  It intentionally only
-/// manages directories that have hosted a BlockHelm part file in this process;
-/// no instance-directory crawl is introduced.
+/// Process-local capacity accounting for task-scoped work files. Its lock only
+/// protects counters; it never enumerates user download directories.
 /// </summary>
 internal static class PartFileCapacityManager
 {
     internal const long DefaultCapacityBytes = 2L * 1024 * 1024 * 1024;
-    private static readonly TimeSpan StaleAge = TimeSpan.FromDays(7);
-    private static readonly ConcurrentDictionary<string, byte> Directories = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly SemaphoreSlim Gate = new(1, 1);
+    private const long InitialUnknownReservation = 64L * 1024 * 1024;
+    private const long UnknownGrowthBytes = 16L * 1024 * 1024;
+    private static readonly object SyncRoot = new();
+    private static long retainedBytes;
+    private static long reservedBytes;
 
-    public static async Task EnsureCapacityAsync(
-        string destinationPath,
-        long? expectedSize,
-        CancellationToken cancellationToken)
+    public static CapacityLease Reserve(long? expectedSize)
     {
-        if (!expectedSize.HasValue)
-            return;
-        if (expectedSize.Value > DefaultCapacityBytes)
-            throw LocalFailure("The expected download size exceeds the resumable-download capacity budget.");
-
-        var directory = Path.GetDirectoryName(destinationPath)
-            ?? throw LocalFailure("The download destination has no parent directory.");
-        Directories.TryAdd(Path.GetFullPath(directory), 0);
-
-        await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
+        var reservation = expectedSize is > 0 ? expectedSize.Value : InitialUnknownReservation;
+        lock (SyncRoot)
         {
-            foreach (var candidateDirectory in Directories.Keys)
-                CleanupStaleParts(candidateDirectory);
-
-            var retained = Directories.Keys.Sum(GetPartBytes);
-            var ownPart = destinationPath + ".part";
-            var ownLength = File.Exists(ownPart) ? new FileInfo(ownPart).Length : 0;
-            var requiredAdditional = Math.Max(0, expectedSize.Value - ownLength);
-            if (retained + requiredAdditional > DefaultCapacityBytes)
-                throw LocalFailure("The resumable-download capacity budget is exhausted.");
+            EnsureFits(reservation);
+            reservedBytes += reservation;
         }
-        finally
-        {
-            Gate.Release();
-        }
+        return new CapacityLease(reservation);
     }
 
-    private static long GetPartBytes(string directory)
+    private static void EnsureFits(long additional)
     {
-        try
-        {
-            return Directory.EnumerateFiles(directory, "*.part", SearchOption.TopDirectoryOnly)
-                .Sum(path => new FileInfo(path).Length);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            return 0;
-        }
-    }
-
-    private static void CleanupStaleParts(string directory)
-    {
-        try
-        {
-            foreach (var partPath in Directory.EnumerateFiles(directory, "*.part", SearchOption.TopDirectoryOnly))
-            {
-                var updatedAt = File.GetLastWriteTimeUtc(partPath);
-                if (DateTime.UtcNow - updatedAt < StaleAge)
-                    continue;
-                var lockPath = partPath + ".lock";
-                FileStream? orphanLock = null;
-                try
-                {
-                    orphanLock = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-                    TryDelete(partPath);
-                    TryDelete(partPath + ".meta");
-                }
-                catch (IOException)
-                {
-                    continue;
-                }
-                finally
-                {
-                    orphanLock?.Dispose();
-                }
-                TryDelete(lockPath);
-            }
-            foreach (var lockPath in Directory.EnumerateFiles(directory, "*.part.lock", SearchOption.TopDirectoryOnly))
-            {
-                var partPath = lockPath[..^".lock".Length];
-                if (File.Exists(partPath) || DateTime.UtcNow - File.GetLastWriteTimeUtc(lockPath) < StaleAge)
-                    continue;
-                try
-                {
-                    using var orphanLock = new FileStream(lockPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-                    TryDelete(partPath + ".meta");
-                }
-                catch (IOException)
-                {
-                    continue;
-                }
-                TryDelete(lockPath);
-            }
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            // Capacity will fail explicitly if inaccessible parts cannot be reclaimed.
-        }
-    }
-
-    private static void TryDelete(string path)
-    {
-        try { if (File.Exists(path)) File.Delete(path); }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
+        if (additional < 0 || retainedBytes + reservedBytes + additional > DefaultCapacityBytes)
+            throw LocalFailure("The task-scoped download capacity budget is exhausted.");
     }
 
     private static DownloadLocalFileException LocalFailure(string message) =>
         new(message, new IOException(message));
+
+    internal sealed class CapacityLease : IDisposable
+    {
+        private long remainingReservation;
+        private long retained;
+        private bool disposed;
+
+        internal CapacityLease(long reservation) => remainingReservation = reservation;
+
+        public void SetExpectedSize(long? expectedSize)
+        {
+            if (!expectedSize.HasValue || expectedSize.Value <= 0)
+                return;
+            lock (SyncRoot)
+            {
+                ThrowIfDisposed();
+                var desiredRemaining = Math.Max(0, expectedSize.Value - retained);
+                var delta = desiredRemaining - remainingReservation;
+                if (delta > 0)
+                    EnsureFits(delta);
+                reservedBytes += delta;
+                remainingReservation = desiredRemaining;
+            }
+        }
+
+        public void BeforeWrite(int bytes)
+        {
+            if (bytes <= 0)
+                return;
+            lock (SyncRoot)
+            {
+                ThrowIfDisposed();
+                while (remainingReservation < bytes)
+                {
+                    var growth = Math.Max(UnknownGrowthBytes, bytes - remainingReservation);
+                    EnsureFits(growth);
+                    reservedBytes += growth;
+                    remainingReservation += growth;
+                }
+                remainingReservation -= bytes;
+                reservedBytes -= bytes;
+                retained += bytes;
+                retainedBytes += bytes;
+            }
+        }
+
+        public void DiscardRetainedBytes()
+        {
+            lock (SyncRoot)
+            {
+                ThrowIfDisposed();
+                if (retained == 0)
+                    return;
+
+                // A 200 response after a Range request (or an invalid partial
+                // response) replaces this task's temporary file. Convert the
+                // discarded physical bytes back into this same lease's future
+                // reservation without changing the global total.
+                retainedBytes -= retained;
+                reservedBytes += retained;
+                remainingReservation += retained;
+                retained = 0;
+            }
+        }
+
+        public void Dispose()
+        {
+            lock (SyncRoot)
+            {
+                if (disposed)
+                    return;
+                disposed = true;
+                reservedBytes -= remainingReservation;
+                retainedBytes -= retained;
+                remainingReservation = 0;
+                retained = 0;
+            }
+        }
+
+        private void ThrowIfDisposed()
+        {
+            if (disposed)
+                throw new ObjectDisposedException(nameof(CapacityLease));
+        }
+    }
 }

@@ -137,13 +137,15 @@ public sealed class FabricLoaderProvider : ILoaderProvider
             logger,
             cancellationToken);
 
+        using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(path);
         var launcher = VanillaLoaderProvider.CreateLauncher(
             path,
             progress,
             downloadSourcePreference,
             logger,
             downloadSpeedLimitMbPerSecond,
-            downloadSpeedLimitState);
+            downloadSpeedLimitState,
+            downloadOperation);
         VanillaLoaderProvider.AttachProgress(launcher, progress);
         await launcher.InstallAsync(finalVersionName, cancellationToken);
         return finalVersionName;

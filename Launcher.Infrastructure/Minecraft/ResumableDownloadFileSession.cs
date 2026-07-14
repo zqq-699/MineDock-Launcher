@@ -10,95 +10,140 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
-using System.Text.Json;
 
 namespace Launcher.Infrastructure.Minecraft;
 
 /// <summary>
-/// Owns one file target for the entire download budget.  The lock, part file and
-/// metadata deliberately live beside the final file so another launcher process
-/// cannot start a second writer for the same Windows-normalized target.
+/// A resumable session whose state only exists for one top-level download. No
+/// part metadata or lock file survives the task that owns it.
 /// </summary>
 internal sealed class ResumableDownloadFileSession : IAsyncDisposable
 {
     private const int BufferSize = 81920;
-    private static readonly TimeSpan LockPollInterval = TimeSpan.FromMilliseconds(100);
-    private static readonly TimeSpan MetaWriteInterval = TimeSpan.FromSeconds(2);
-    private const long MetaWriteBytesInterval = 1024 * 1024;
-
     private readonly string destinationPath;
-    private readonly string partPath;
-    private readonly string metaPath;
+    private readonly string temporaryPath;
     private readonly DownloadIntegrityExpectation integrity;
-    private readonly string logicalResourceIdentity;
-    private readonly FileStream lockStream;
-    private PartMetadata? metadata;
-    private long lastMetaLength;
-    private DateTimeOffset lastMetaWriteAt;
+    private readonly DownloadPersistenceMode persistenceMode;
+    private readonly MinecraftDownloadOperationContext? operationContext;
+    private readonly bool ownsWorkspace;
+    private readonly DownloadWorkspaceLease? ownedWorkspace;
+    private readonly PartFileCapacityManager.CapacityLease? capacityLease;
+    private readonly IDisposable? assetLock;
+    private string? sourceCandidateKey;
+    private string? strongETag;
+    private string? lastModified;
+    private long? knownTotalLength;
+    private bool disposed;
 
     private ResumableDownloadFileSession(
         string destinationPath,
+        string temporaryPath,
         DownloadIntegrityExpectation integrity,
-        string logicalResourceIdentity,
-        FileStream lockStream)
+        DownloadPersistenceMode persistenceMode,
+        MinecraftDownloadOperationContext? operationContext,
+        bool ownsWorkspace,
+        DownloadWorkspaceLease? ownedWorkspace,
+        PartFileCapacityManager.CapacityLease? capacityLease,
+        IDisposable? assetLock)
     {
         this.destinationPath = destinationPath;
-        partPath = destinationPath + ".part";
-        metaPath = destinationPath + ".part.meta";
+        this.temporaryPath = temporaryPath;
         this.integrity = integrity;
-        this.logicalResourceIdentity = logicalResourceIdentity;
-        this.lockStream = lockStream;
+        this.persistenceMode = persistenceMode;
+        this.operationContext = operationContext;
+        this.ownsWorkspace = ownsWorkspace;
+        this.ownedWorkspace = ownedWorkspace;
+        this.capacityLease = capacityLease;
+        this.assetLock = assetLock;
     }
 
     public bool IsComplete { get; private set; }
-
     public bool IsResumeRequested { get; private set; }
 
-    public static async Task<ResumableDownloadFileSession> AcquireAsync(
+    public static Task<ResumableDownloadFileSession> AcquireAsync(
         string destinationPath,
         string? expectedSha1,
         long? expectedSize,
         string logicalResourceIdentity,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        DownloadFileOptions? options = null)
     {
-        if (string.IsNullOrWhiteSpace(expectedSha1) || expectedSha1.Length != 40 || expectedSha1.Any(value => !Uri.IsHexDigit(value)))
+        if (string.IsNullOrWhiteSpace(expectedSha1) || !MinecraftFileIntegrity.IsSha1(expectedSha1))
             throw new InvalidDataException("A resumable game download requires a valid SHA-1 value.");
-        return await AcquireAsync(
-            destinationPath,
-            DownloadIntegrityExpectation.Sha1(expectedSha1, expectedSize),
-            logicalResourceIdentity,
-            cancellationToken).ConfigureAwait(false);
+        return AcquireAsync(destinationPath, DownloadIntegrityExpectation.Sha1(expectedSha1, expectedSize),
+            logicalResourceIdentity, cancellationToken, options);
     }
 
     public static async Task<ResumableDownloadFileSession> AcquireAsync(
         string destinationPath,
         DownloadIntegrityExpectation integrity,
         string logicalResourceIdentity,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        DownloadFileOptions? options = null)
     {
-
+        ArgumentNullException.ThrowIfNull(integrity);
+        _ = logicalResourceIdentity;
+        options ??= new DownloadFileOptions();
         var normalizedDestination = Path.GetFullPath(destinationPath);
-        var directory = Path.GetDirectoryName(normalizedDestination)
+        var destinationDirectory = Path.GetDirectoryName(normalizedDestination)
             ?? throw new InvalidOperationException("Download destination has no parent directory.");
-        Directory.CreateDirectory(directory);
-        var lockStream = await AcquireLockAsync(normalizedDestination + ".part.lock", cancellationToken).ConfigureAwait(false);
+        Directory.CreateDirectory(destinationDirectory);
+
+        IDisposable? assetLock = null;
+        DownloadWorkspaceLease? ownedWorkspace = null;
+        string? workspace = null;
+        var ownsWorkspace = false;
+        PartFileCapacityManager.CapacityLease? capacityLease = null;
         try
         {
-            await PartFileCapacityManager.EnsureCapacityAsync(
-                normalizedDestination,
-                integrity.ExpectedSize,
-                cancellationToken).ConfigureAwait(false);
-            var session = new ResumableDownloadFileSession(
-                normalizedDestination,
-                integrity,
-                logicalResourceIdentity,
-                lockStream);
-            await session.InitializeAsync(cancellationToken).ConfigureAwait(false);
-            return session;
+            if (options.PersistenceMode is DownloadPersistenceMode.LightweightAtomic)
+            {
+                assetLock = options.OperationContext is null
+                    ? null
+                    : await options.OperationContext.AcquireAssetLockAsync(normalizedDestination, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (File.Exists(normalizedDestination))
+            {
+                var trusted = options.PersistenceMode is DownloadPersistenceMode.LightweightAtomic
+                    && options.OperationContext?.IsVerified(normalizedDestination, integrity) is true;
+                if (trusted || await integrity.VerifyFileAsync(normalizedDestination, cancellationToken).ConfigureAwait(false))
+                {
+                    options.OperationContext?.MarkVerified(normalizedDestination, integrity);
+                    return new ResumableDownloadFileSession(
+                        normalizedDestination, string.Empty, integrity, options.PersistenceMode,
+                        options.OperationContext, false, null, null, assetLock) { IsComplete = true };
+                }
+            }
+
+            if (options.OperationContext is not null)
+            {
+                workspace = Path.Combine(
+                    options.OperationContext.WorkspaceDirectory,
+                    options.PersistenceMode is DownloadPersistenceMode.LightweightAtomic ? "assets" : "resumable");
+            }
+            else
+            {
+                ownedWorkspace = DownloadWorkspace.CreateFallbackOperation(normalizedDestination);
+                workspace = ownedWorkspace.Directory;
+                ownsWorkspace = true;
+            }
+            Directory.CreateDirectory(workspace);
+            var temporaryPath = Path.Combine(workspace, $"{Guid.NewGuid():N}.tmp");
+            if (options.PersistenceMode is DownloadPersistenceMode.TaskScopedResumable)
+                capacityLease = PartFileCapacityManager.Reserve(integrity.ExpectedSize);
+
+            return new ResumableDownloadFileSession(
+                normalizedDestination, temporaryPath, integrity, options.PersistenceMode,
+                options.OperationContext, ownsWorkspace, ownedWorkspace, capacityLease, assetLock);
         }
         catch
         {
-            lockStream.Dispose();
+            capacityLease?.Dispose();
+            assetLock?.Dispose();
+            if (ownsWorkspace && workspace is not null)
+                TryDeleteDirectory(workspace);
+            ownedWorkspace?.Dispose();
             throw;
         }
     }
@@ -106,13 +151,18 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
     public void ConfigureRequest(HttpRequestMessage request, ResolvedDownloadRequest resolution)
     {
         IsResumeRequested = false;
-        var partLength = GetPartLength();
-        var sourceKey = CreateSourceCandidateKey(resolution);
-        if (partLength <= 0 || metadata is null || !CanResume(metadata, sourceKey, partLength))
+        if (persistenceMode is not DownloadPersistenceMode.TaskScopedResumable)
             return;
 
-        request.Headers.Range = new RangeHeaderValue(partLength, null);
-        request.Headers.TryAddWithoutValidation("If-Range", metadata.StrongETag ?? metadata.LastModified);
+        var existingLength = GetTemporaryLength();
+        var candidateKey = CreateSourceCandidateKey(resolution);
+        if (existingLength <= 0 || knownTotalLength is null || existingLength >= knownTotalLength
+            || sourceCandidateKey != candidateKey
+            || string.IsNullOrWhiteSpace(strongETag) && string.IsNullOrWhiteSpace(lastModified))
+            return;
+
+        request.Headers.Range = new RangeHeaderValue(existingLength, null);
+        request.Headers.TryAddWithoutValidation("If-Range", strongETag ?? lastModified);
         request.Headers.AcceptEncoding.Clear();
         request.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
         IsResumeRequested = true;
@@ -124,98 +174,87 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         int attemptNumber,
         Action<long>? reportDownloadedBytes,
         Action<int, long, long?>? reportAttemptProgress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<DownloadFileActivity>? reportActivity = null)
     {
         if (IsComplete)
             return;
 
         if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
         {
-            if (await VerifyPartAsCompletedAsync(cancellationToken).ConfigureAwait(false))
+            reportActivity?.Invoke(DownloadFileActivity.Verifying);
+            if (await VerifyTemporaryAsync(cancellationToken).ConfigureAwait(false))
+            {
+                Publish(cancellationToken);
                 return;
-            InvalidatePart();
-            throw new DownloadContentValidationException("The server rejected the range request and the partial file is not complete.");
+            }
+            DeleteTemporary();
+            throw new DownloadContentValidationException("The server rejected the range request and the task-scoped file is not complete.");
         }
 
-        var sourceKey = CreateSourceCandidateKey(resolution);
+        var candidateKey = CreateSourceCandidateKey(resolution);
         var resumed = IsResumeRequested && response.StatusCode == HttpStatusCode.PartialContent;
-        if (resumed && !ValidatePartialResponse(response, sourceKey))
+        if (resumed && !ValidatePartialResponse(response, candidateKey))
         {
-            InvalidatePart();
-            throw new DownloadContentValidationException("The partial response did not match the persisted download identity.");
+            DeleteTemporary();
+            throw new DownloadContentValidationException("The partial response did not match this task-scoped download session.");
         }
-
         if (!resumed)
-        {
-            // A 200 after Range is explicitly a safe full restart, not a splice.
-            InvalidatePart();
-        }
+            DeleteTemporary();
 
-        var existingLength = resumed ? GetPartLength() : 0;
+        var existingLength = resumed ? GetTemporaryLength() : 0;
         var totalLength = ResolveTotalLength(response, existingLength, resumed);
-        if (totalLength is null)
-        {
-            // Persistent resume is intentionally disabled when the total cannot be proven.
-            InvalidatePart();
-            existingLength = 0;
-        }
-
-        metadata = new PartMetadata(
-            logicalResourceIdentity,
-            sourceKey,
-            integrity.ExpectedSize ?? totalLength,
-            integrity.Fingerprint,
-            GetStrongETag(response),
-            GetLastModified(response),
-            existingLength,
-            DateTimeOffset.UtcNow);
-        await WriteMetadataAsync(force: true, cancellationToken).ConfigureAwait(false);
+        knownTotalLength = totalLength;
+        capacityLease?.SetExpectedSize(totalLength);
+        sourceCandidateKey = candidateKey;
+        strongETag = GetStrongETag(response);
+        lastModified = GetLastModified(response);
 
         var hashers = integrity.CreateHashers();
-        if (existingLength > 0)
-            await AppendExistingPartToHashAsync(hashers.Values, cancellationToken).ConfigureAwait(false);
-
-        await using var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        await using var destination = new FileStream(
-            partPath,
-            resumed ? FileMode.Append : FileMode.Create,
-            FileAccess.Write,
-            FileShare.None,
-            BufferSize,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-
-        var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
-        var persisted = existingLength;
         try
         {
-            while (true)
+            if (existingLength > 0)
+                await AppendExistingTemporaryToHashAsync(hashers.Values, cancellationToken).ConfigureAwait(false);
+
+            await using var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            await using var destination = new FileStream(
+                temporaryPath,
+                resumed ? FileMode.Append : FileMode.Create,
+                FileAccess.Write,
+                FileShare.None,
+                BufferSize,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
+            var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+            var persisted = existingLength;
+            try
             {
-                var read = await source.ReadAsync(buffer.AsMemory(0, BufferSize), cancellationToken).ConfigureAwait(false);
-                if (read == 0)
-                    break;
-                await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-                foreach (var hasher in hashers.Values)
-                    hasher.AppendData(buffer, 0, read);
-                persisted += read;
-                reportDownloadedBytes?.Invoke(read);
-                reportAttemptProgress?.Invoke(attemptNumber, persisted, integrity.ExpectedSize ?? totalLength);
-                await WriteMetadataAsync(force: false, cancellationToken).ConfigureAwait(false);
+                while (true)
+                {
+                    var read = await ReadNetworkAsync(source, buffer, cancellationToken).ConfigureAwait(false);
+                    if (read == 0)
+                        break;
+                    capacityLease?.BeforeWrite(read);
+                    await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+                    foreach (var hasher in hashers.Values)
+                        hasher.AppendData(buffer, 0, read);
+                    persisted += read;
+                    reportDownloadedBytes?.Invoke(read);
+                    reportAttemptProgress?.Invoke(attemptNumber, persisted, integrity.ExpectedSize ?? totalLength);
+                }
             }
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
-        }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
 
-        await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
-        destination.Flush(flushToDisk: true);
-        await destination.DisposeAsync().ConfigureAwait(false);
-        ValidateCompletedLength(response, persisted, totalLength);
-        try
-        {
+            reportActivity?.Invoke(DownloadFileActivity.Verifying);
+            await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+            destination.Flush(flushToDisk: true);
+            await destination.DisposeAsync().ConfigureAwait(false);
+            ValidateCompletedLength(persisted, totalLength);
             if (!integrity.Verify(hashers))
             {
-                InvalidatePart();
+                DeleteTemporary();
                 throw new DownloadHashMismatchException("The downloaded file did not match its expected hash.");
             }
         }
@@ -225,113 +264,71 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                 hasher.Dispose();
         }
 
-        try
-        {
-            File.Move(partPath, destinationPath, overwrite: true);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            throw new DownloadLocalFileException("Failed to atomically publish the completed download.", exception);
-        }
-        TryDelete(metaPath);
-        IsComplete = true;
+        reportActivity?.Invoke(DownloadFileActivity.Publishing);
+        Publish(cancellationToken);
     }
 
-    private async Task InitializeAsync(CancellationToken cancellationToken)
+    public async ValueTask DisposeAsync()
     {
-        if (File.Exists(destinationPath) && await VerifyFileAsync(destinationPath, cancellationToken).ConfigureAwait(false))
-        {
-            IsComplete = true;
+        if (disposed)
             return;
-        }
-
-        metadata = await ReadMetadataAsync(cancellationToken).ConfigureAwait(false);
-        var partLength = GetPartLength();
-        if (partLength == 0 || metadata is null || metadata.LogicalResourceIdentity != logicalResourceIdentity
-            || !string.Equals(metadata.ExpectedIntegrity, integrity.Fingerprint, StringComparison.Ordinal)
-            || metadata.ExpectedSize != integrity.ExpectedSize)
+        disposed = true;
+        DeleteTemporary();
+        capacityLease?.Dispose();
+        assetLock?.Dispose();
+        if (ownsWorkspace && ownedWorkspace is not null)
         {
-            InvalidatePart();
-            metadata = null;
+            var directory = ownedWorkspace.Directory;
+            ownedWorkspace.Dispose();
+            TryDeleteDirectory(directory);
         }
+        await Task.CompletedTask;
     }
 
-    private bool CanResume(PartMetadata value, string sourceKey, long partLength)
+    private bool ValidatePartialResponse(HttpResponseMessage response, string candidateKey)
     {
-        if (value.LogicalResourceIdentity != logicalResourceIdentity
-            || !string.Equals(value.SourceCandidateKey, sourceKey, StringComparison.Ordinal)
-            || !string.Equals(value.ExpectedIntegrity, integrity.Fingerprint, StringComparison.Ordinal)
-            || value.ExpectedSize != integrity.ExpectedSize
-            || partLength <= 0
-            || value.ExpectedSize is null
-            || partLength >= value.ExpectedSize)
-            return false;
-        return !string.IsNullOrWhiteSpace(value.StrongETag)
-            || !string.IsNullOrWhiteSpace(value.LastModified);
-    }
-
-    private bool ValidatePartialResponse(HttpResponseMessage response, string sourceKey)
-    {
-        if (metadata is null || metadata.SourceCandidateKey != sourceKey || response.Content.Headers.ContentEncoding.Count != 0)
-            return false;
         var range = response.Content.Headers.ContentRange;
-        var length = GetPartLength();
-        if (range is null || range.Unit != "bytes" || range.From != length || range.To is null || range.Length is null)
+        var length = GetTemporaryLength();
+        if (sourceCandidateKey != candidateKey || response.Content.Headers.ContentEncoding.Count != 0
+            || range is null || range.Unit != "bytes" || range.From != length || range.To is null || range.Length is null
+            || knownTotalLength != range.Length || response.Content.Headers.ContentLength != range.To - range.From + 1)
             return false;
-        if (metadata.ExpectedSize != range.Length || response.Content.Headers.ContentLength != range.To - range.From + 1)
-            return false;
-        var etag = GetStrongETag(response);
-        return metadata.StrongETag is not null
-            ? string.Equals(metadata.StrongETag, etag, StringComparison.Ordinal)
-            : string.Equals(metadata.LastModified, GetLastModified(response), StringComparison.Ordinal);
+        return strongETag is not null
+            ? string.Equals(strongETag, GetStrongETag(response), StringComparison.Ordinal)
+            : string.Equals(lastModified, GetLastModified(response), StringComparison.Ordinal);
     }
 
     private long? ResolveTotalLength(HttpResponseMessage response, long existingLength, bool resumed)
     {
-        var responseLength = resumed ? response.Content.Headers.ContentRange?.Length : response.Content.Headers.ContentLength;
-        if (responseLength is null)
-            return null;
-        if (integrity.ExpectedSize.HasValue && integrity.ExpectedSize.Value != responseLength.Value)
+        var total = resumed ? response.Content.Headers.ContentRange?.Length : response.Content.Headers.ContentLength;
+        if (total is null)
+            return integrity.ExpectedSize;
+        if (integrity.ExpectedSize.HasValue && integrity.ExpectedSize.Value != total.Value)
             throw new DownloadContentValidationException("The response total length did not match the expected file size.");
-        return responseLength;
+        return total;
     }
 
-    private void ValidateCompletedLength(HttpResponseMessage response, long persisted, long? totalLength)
+    private void ValidateCompletedLength(long persisted, long? totalLength)
     {
         var required = integrity.ExpectedSize ?? totalLength;
         if (required.HasValue && persisted != required.Value)
             throw new DownloadBodyInterruptedException("The response body length did not match the expected file size.");
     }
 
-    private async Task<bool> VerifyPartAsCompletedAsync(CancellationToken cancellationToken)
-    {
-        if (integrity.ExpectedSize is null || GetPartLength() != integrity.ExpectedSize.Value)
-            return false;
-        if (!await VerifyFileAsync(partPath, cancellationToken).ConfigureAwait(false))
-            return false;
-        File.Move(partPath, destinationPath, overwrite: true);
-        TryDelete(metaPath);
-        IsComplete = true;
-        return true;
-    }
+    private async Task<bool> VerifyTemporaryAsync(CancellationToken cancellationToken) =>
+        File.Exists(temporaryPath) && await integrity.VerifyFileAsync(temporaryPath, cancellationToken).ConfigureAwait(false);
 
-    private async Task<bool> VerifyFileAsync(string filePath, CancellationToken cancellationToken)
+    private async Task AppendExistingTemporaryToHashAsync(IEnumerable<IncrementalHash> hashers, CancellationToken cancellationToken)
     {
-        if (!File.Exists(filePath))
-            return false;
-        return await integrity.VerifyFileAsync(filePath, cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task AppendExistingPartToHashAsync(IEnumerable<IncrementalHash> hashers, CancellationToken cancellationToken)
-    {
-        await using var source = new FileStream(partPath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await using var stream = new FileStream(temporaryPath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
         var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
         try
         {
             while (true)
             {
-                var read = await source.ReadAsync(buffer.AsMemory(0, BufferSize), cancellationToken).ConfigureAwait(false);
-                if (read == 0) break;
+                var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false);
+                if (read == 0)
+                    break;
                 foreach (var hasher in hashers)
                     hasher.AppendData(buffer, 0, read);
             }
@@ -339,81 +336,85 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         finally { ArrayPool<byte>.Shared.Return(buffer); }
     }
 
-    private async Task<PartMetadata?> ReadMetadataAsync(CancellationToken cancellationToken)
+    private void Publish(CancellationToken cancellationToken)
     {
         try
         {
-            await using var stream = File.OpenRead(metaPath);
-            return await JsonSerializer.DeserializeAsync<PartMetadata>(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
+            using var publishLock = AcquireFinalPublishLock(destinationPath, cancellationToken);
+            File.Move(temporaryPath, destinationPath, overwrite: true);
+            operationContext?.MarkVerified(destinationPath, integrity);
+            IsComplete = true;
         }
-        catch (Exception exception) when (exception is IOException or JsonException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            return null;
+            throw new DownloadLocalFileException("Failed to atomically publish the completed download.", exception);
         }
     }
 
-    private async Task WriteMetadataAsync(bool force, CancellationToken cancellationToken)
+    private long GetTemporaryLength() => File.Exists(temporaryPath) ? new FileInfo(temporaryPath).Length : 0;
+    private void DeleteTemporary()
     {
-        if (metadata is null) return;
-        var actualLength = GetPartLength();
-        var now = DateTimeOffset.UtcNow;
-        if (!force && actualLength - lastMetaLength < MetaWriteBytesInterval && now - lastMetaWriteAt < MetaWriteInterval)
-            return;
-        metadata = metadata with { DiagnosticLength = actualLength, UpdatedAt = now };
-        var temporary = metaPath + ".tmp";
-        await using (var stream = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize, FileOptions.Asynchronous | FileOptions.WriteThrough))
+        try
         {
-            await JsonSerializer.SerializeAsync(stream, metadata, cancellationToken: cancellationToken).ConfigureAwait(false);
-            await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
-            stream.Flush(flushToDisk: true);
+            if (string.IsNullOrEmpty(temporaryPath) || !File.Exists(temporaryPath))
+                return;
+            File.Delete(temporaryPath);
+            capacityLease?.DiscardRetainedBytes();
         }
-        File.Move(temporary, metaPath, overwrite: true);
-        lastMetaLength = actualLength;
-        lastMetaWriteAt = now;
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
-
-    private void InvalidatePart()
-    {
-        TryDelete(partPath);
-        TryDelete(metaPath);
-    }
-
-    private long GetPartLength() => File.Exists(partPath) ? new FileInfo(partPath).Length : 0;
-    private static string CreateSourceCandidateKey(ResolvedDownloadRequest resolution)
-    {
-        var uri = new Uri(resolution.ActualUrl, UriKind.Absolute);
-        return $"{resolution.ResolvedSourceKind}:{uri.Host.ToLowerInvariant()}:{uri.AbsolutePath}";
-    }
-    private static string? GetStrongETag(HttpResponseMessage response)
-    {
-        var tag = response.Headers.ETag?.Tag;
-        return tag is not null && !response.Headers.ETag!.IsWeak ? tag : null;
-    }
+    private static void TryDeleteDirectory(string path) { try { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
+    private static string CreateSourceCandidateKey(ResolvedDownloadRequest resolution) { var uri = new Uri(resolution.ActualUrl, UriKind.Absolute); return $"{resolution.ResolvedSourceKind}:{uri.Host.ToLowerInvariant()}:{uri.AbsolutePath}"; }
+    private static string? GetStrongETag(HttpResponseMessage response) { var tag = response.Headers.ETag?.Tag; return tag is not null && !response.Headers.ETag!.IsWeak ? tag : null; }
     private static string? GetLastModified(HttpResponseMessage response) => response.Content.Headers.LastModified?.ToString("R");
-    private static void TryDelete(string path) { try { if (File.Exists(path)) File.Delete(path); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
-    private static async Task<FileStream> AcquireLockAsync(string lockPath, CancellationToken cancellationToken)
+
+    private static async Task<int> ReadNetworkAsync(Stream source, byte[] buffer, CancellationToken cancellationToken)
     {
-        while (true)
+        try { return await source.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception exception) when (exception is IOException or HttpRequestException or OperationCanceledException)
+        { throw new DownloadBodyInterruptedException("The response body was interrupted while downloading a file.", exception); }
+    }
+
+    private static IDisposable AcquireFinalPublishLock(string path, CancellationToken cancellationToken)
+    {
+        var hash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Path.GetFullPath(path))));
+        var mutex = new Mutex(false, $"Local\\BlockHelm.Download.Publish.{hash}");
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            try { return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.Asynchronous); }
-            catch (IOException) { await Task.Delay(LockPollInterval, cancellationToken).ConfigureAwait(false); }
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    if (mutex.WaitOne(TimeSpan.FromMilliseconds(50)))
+                        return new PublishMutexLease(mutex);
+                }
+                catch (AbandonedMutexException)
+                {
+                    return new PublishMutexLease(mutex);
+                }
+            }
+        }
+        catch
+        {
+            mutex.Dispose();
+            throw;
         }
     }
 
-    public ValueTask DisposeAsync()
+    private sealed class PublishMutexLease(Mutex mutex) : IDisposable
     {
-        lockStream.Dispose();
-        return ValueTask.CompletedTask;
-    }
+        private Mutex? mutex = mutex;
 
-    private sealed record PartMetadata(
-        string LogicalResourceIdentity,
-        string SourceCandidateKey,
-        long? ExpectedSize,
-        string ExpectedIntegrity,
-        string? StrongETag,
-        string? LastModified,
-        long DiagnosticLength,
-        DateTimeOffset UpdatedAt);
+        public void Dispose()
+        {
+            var ownedMutex = Interlocked.Exchange(ref mutex, null);
+            if (ownedMutex is null)
+                return;
+            ownedMutex.ReleaseMutex();
+            ownedMutex.Dispose();
+        }
+    }
 }

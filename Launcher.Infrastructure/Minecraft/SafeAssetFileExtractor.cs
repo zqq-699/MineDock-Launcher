@@ -21,13 +21,16 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
 {
     private readonly MinecraftDownloadRequestExecutor downloadExecutor;
     private readonly DownloadSourcePreference downloadSourcePreference;
+    private readonly MinecraftDownloadOperationContext? operationContext;
 
     public SafeAssetFileExtractor(
         MinecraftDownloadRequestExecutor downloadExecutor,
-        DownloadSourcePreference downloadSourcePreference)
+        DownloadSourcePreference downloadSourcePreference,
+        MinecraftDownloadOperationContext? operationContext)
     {
         this.downloadExecutor = downloadExecutor;
         this.downloadSourcePreference = downloadSourcePreference;
+        this.operationContext = operationContext;
     }
 
     public async ValueTask<IEnumerable<GameFile>> Extract(
@@ -71,7 +74,7 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
         return CreateFiles(assetIndex, path);
     }
 
-    private static IEnumerable<GameFile> CreateFiles(IAssetIndex assetIndex, MinecraftPath path)
+    private IEnumerable<GameFile> CreateFiles(IAssetIndex assetIndex, MinecraftPath path)
     {
         try
         {
@@ -82,6 +85,7 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
                     Path.Combine(path.GetAssetObjectPath(assetIndex.Id), relativeObjectPath),
                     path.Assets,
                     "Asset object");
+                operationContext?.RegisterAsset(objectPath, item.Hash, item.Size > 0 ? item.Size : null);
                 var updateTasks = new List<IUpdateTask>(2);
                 if (assetIndex.IsVirtual)
                 {

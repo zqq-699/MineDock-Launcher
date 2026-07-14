@@ -50,6 +50,7 @@ internal sealed class ModpackFileDownloader
         string? expectedSha1,
         string? expectedSha512,
         int downloadSpeedLimitMbPerSecond,
+        SlidingWindowDownloadSpeedReporter? speedReporter,
         CancellationToken cancellationToken)
     {
         var unifiedBandwidthLimiter = DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
@@ -58,6 +59,15 @@ internal sealed class ModpackFileDownloader
             bandwidthLimiter: unifiedBandwidthLimiter,
             limiter: limiter,
             category: DownloadConcurrencyCategory.Modpack);
+        using var speedSession = speedReporter is null
+            ? null
+            : new DownloadActivitySpeedSession(speedReporter);
+        Action<long>? reportDownloadedBytes = speedReporter is null
+            ? null
+            : speedReporter.ReportNetworkBytes;
+        Action<DownloadFileActivity>? reportActivity = speedSession is null
+            ? null
+            : speedSession.Report;
         var sensitiveHeaders = !string.IsNullOrWhiteSpace(curseForgeApiKey)
             && Uri.TryCreate(sourceUrl, UriKind.Absolute, out var sourceUri)
             && string.Equals(sourceUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
@@ -76,15 +86,21 @@ internal sealed class ModpackFileDownloader
             {
                 await executor.DownloadFileAsync(
                     sourceUrl, downloadSourcePreference, "ThirdParty", tempFilePath,
-                    expectedSha1: null, expectedSize: null, reportDownloadedBytes: null,
-                    cancellationToken, sensitiveHeaders: sensitiveHeaders).ConfigureAwait(false);
+                    expectedSha1: null, expectedSize: null,
+                    reportDownloadedBytes: reportDownloadedBytes,
+                    cancellationToken: cancellationToken,
+                    sensitiveHeaders: sensitiveHeaders,
+                    reportActivity: reportActivity).ConfigureAwait(false);
             }
             else
             {
                 await executor.DownloadFileAsync(
                     sourceUrl, downloadSourcePreference, "ThirdParty", tempFilePath,
-                    new DownloadIntegrityExpectation(expectedSize: null, hashes), reportDownloadedBytes: null,
-                    cancellationToken, sensitiveHeaders).ConfigureAwait(false);
+                    new DownloadIntegrityExpectation(expectedSize: null, hashes),
+                    reportDownloadedBytes: reportDownloadedBytes,
+                    cancellationToken: cancellationToken,
+                    sensitiveHeaders: sensitiveHeaders,
+                    reportActivity: reportActivity).ConfigureAwait(false);
             }
         }
         catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)

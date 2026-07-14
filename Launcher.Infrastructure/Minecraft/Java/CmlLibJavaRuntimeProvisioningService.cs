@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using CmlLib.Core;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -69,13 +70,16 @@ public sealed class CmlLibJavaRuntimeProvisioningService : IJavaRuntimeProvision
 
         try
         {
+            using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(
+                new MinecraftPath(settings.MinecraftDirectory));
             var launcher = VanillaLoaderProvider.CreateLauncher(
                 settings.MinecraftDirectory,
                 provisioningProgress,
                 settings.DownloadSourcePreference,
                 logger,
                 settings.DownloadSpeedLimitMbPerSecond,
-                downloadSpeedLimitState);
+                downloadSpeedLimitState,
+                downloadOperation);
             VanillaLoaderProvider.AttachProgress(launcher, provisioningProgress);
             await launcher.InstallAsync(versionName, cancellationToken).ConfigureAwait(false);
             progress?.Report(new LauncherProgress(LaunchProgressStages.CheckingJava, string.Empty, ProgressEndPercent));

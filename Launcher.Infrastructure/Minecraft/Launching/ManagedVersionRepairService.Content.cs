@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net.Http;
 using System.Text.Json;
@@ -215,47 +216,50 @@ private async Task EnsureVersionJarAsync(
         if (indexNode["objects"] is not JsonObject objects)
             return;
 
-        var downloads = new List<RepairDownloadRequest>();
-        foreach (var asset in objects)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (asset.Value is not JsonObject assetObject)
-                continue;
-
-            var hash = GetStringProperty(assetObject, "hash");
-            if (!MinecraftFileIntegrity.IsSha1(hash))
-                continue;
-
-            var assetObjectsRoot = Path.Combine(minecraftDirectory, "assets", "objects");
-            var objectPath = MinecraftPathGuard.EnsureWithin(
-                Path.Combine(assetObjectsRoot, hash[..2], hash),
-                assetObjectsRoot,
-                "Asset object");
-            var objectStatus = MinecraftFileIntegrity.Evaluate(
-                objectPath,
-                expectedSha1: hash,
-                expectedSize: GetLongProperty(assetObject, "size"),
-                MinecraftFileVerification.SizeOnly);
-            if (objectStatus == MinecraftFileIntegrityStatus.Valid)
-                continue;
-
-            if (!allowRepair)
+        var requirements = objects
+            .Where(asset => asset.Value is JsonObject)
+            .Select(asset => (Asset: (JsonObject)asset.Value!, Hash: GetStringProperty((JsonObject)asset.Value!, "hash")))
+            .Where(requirement => MinecraftFileIntegrity.IsSha1(requirement.Hash))
+            .ToArray();
+        var downloads = new ConcurrentBag<RepairDownloadRequest>();
+        var assetObjectsRoot = Path.Combine(minecraftDirectory, "assets", "objects");
+        await Parallel.ForEachAsync(
+            requirements,
+            new ParallelOptions { MaxDegreeOfParallelism = 2, CancellationToken = cancellationToken },
+            async (requirement, token) =>
             {
-                throw new InstanceRepairException(
-                    $"Required asset {hash} is missing or has an invalid size and automatic repair is disabled.");
-            }
+                var objectPath = MinecraftPathGuard.EnsureWithin(
+                    Path.Combine(assetObjectsRoot, requirement.Hash[..2], requirement.Hash),
+                    assetObjectsRoot,
+                    "Asset object");
+                var expectedSize = GetLongProperty(requirement.Asset, "size");
+                var objectStatus = await MinecraftFileIntegrity.EvaluateAsync(
+                    objectPath,
+                    expectedSha1: requirement.Hash,
+                    expectedSize,
+                    MinecraftFileVerification.Full,
+                    token).ConfigureAwait(false);
+                if (objectStatus == MinecraftFileIntegrityStatus.Valid)
+                    return;
 
-            LogInvalidFile($"assets/objects/{hash[..2]}/{hash}", objectStatus);
-            var assetUrl = $"https://resources.download.minecraft.net/{hash[..2]}/{hash}";
-            downloads.Add(new RepairDownloadRequest(
-                OriginalUrl: assetUrl,
-                objectPath,
-                ResourceCategory: "Mojang",
-                LibraryName: null,
-                ArtifactPath: $"assets/objects/{hash[..2]}/{hash}",
-                ExpectedSha1: hash,
-                ExpectedSize: GetLongProperty(assetObject, "size")));
-        }
+                if (!allowRepair)
+                {
+                    throw new InstanceRepairException(
+                        $"Required asset {requirement.Hash} is missing or failed integrity validation and automatic repair is disabled.");
+                }
+
+                LogInvalidFile($"assets/objects/{requirement.Hash[..2]}/{requirement.Hash}", objectStatus);
+                downloads.Add(new RepairDownloadRequest(
+                    OriginalUrl: $"https://resources.download.minecraft.net/{requirement.Hash[..2]}/{requirement.Hash}",
+                    objectPath,
+                    ResourceCategory: "Mojang",
+                    LibraryName: null,
+                    ArtifactPath: $"assets/objects/{requirement.Hash[..2]}/{requirement.Hash}",
+                    ExpectedSha1: requirement.Hash,
+                    ExpectedSize: expectedSize,
+                    PersistenceMode: DownloadPersistenceMode.LightweightAtomic,
+                    ManagedRoot: minecraftDirectory));
+            }).ConfigureAwait(false);
 
         await downloadBatch.DownloadAllAsync(downloads, cancellationToken).ConfigureAwait(false);
     }

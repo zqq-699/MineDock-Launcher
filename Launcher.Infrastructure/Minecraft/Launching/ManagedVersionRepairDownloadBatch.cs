@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -39,7 +40,7 @@ internal sealed class ManagedVersionRepairDownloadBatch
     private readonly DownloadSourcePreference sourcePreference;
     private readonly int speedLimitMbPerSecond;
     private readonly DownloadBandwidthLimiter? bandwidthLimiter;
-    private readonly DownloadSpeedReporter speedReporter;
+    private readonly SlidingWindowDownloadSpeedReporter speedReporter;
 
     public ManagedVersionRepairDownloadBatch(
         HttpClient httpClient,
@@ -55,7 +56,7 @@ internal sealed class ManagedVersionRepairDownloadBatch
         this.sourcePreference = sourcePreference;
         this.speedLimitMbPerSecond = speedLimitMbPerSecond;
         bandwidthLimiter = DownloadBandwidthLimiter.Create(speedLimitMbPerSecond, downloadSpeedLimitState);
-        speedReporter = new DownloadSpeedReporter(progress);
+        speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
     }
 
     public async Task DownloadAllAsync(
@@ -66,34 +67,61 @@ internal sealed class ManagedVersionRepairDownloadBatch
             .Where(download => !string.IsNullOrWhiteSpace(download.OriginalUrl)
                 && !string.IsNullOrWhiteSpace(download.DestinationPath))
             .GroupBy(download => Path.GetFullPath(download.DestinationPath), PathComparer)
-            .Select(group => group.First())
+            .Select(EnsureCompatibleDuplicate)
             .ToArray();
         if (uniqueDownloads.Length == 0)
             return;
 
-        await Parallel.ForEachAsync(
-            uniqueDownloads,
-            new ParallelOptions
-            {
-                MaxDegreeOfParallelism = MaxConcurrency,
-                CancellationToken = cancellationToken
-            },
-            (download, token) => new ValueTask(DownloadAsync(download, token))).ConfigureAwait(false);
+        var operationContexts = new ConcurrentDictionary<string, MinecraftDownloadOperationContext>(PathComparer);
+        try
+        {
+            await Parallel.ForEachAsync(
+                uniqueDownloads,
+                new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = MaxConcurrency,
+                    CancellationToken = cancellationToken
+                },
+                (download, token) => new ValueTask(DownloadAsync(download, operationContexts, token))).ConfigureAwait(false);
+        }
+        finally
+        {
+            foreach (var context in operationContexts.Values)
+                context.Dispose();
+        }
     }
 
     public async Task DownloadAsync(
         RepairDownloadRequest download,
         CancellationToken cancellationToken)
     {
+        var operationContexts = new ConcurrentDictionary<string, MinecraftDownloadOperationContext>(PathComparer);
+        try
+        {
+            await DownloadAsync(download, operationContexts, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            foreach (var context in operationContexts.Values)
+                context.Dispose();
+        }
+    }
+
+    private async Task DownloadAsync(
+        RepairDownloadRequest download,
+        ConcurrentDictionary<string, MinecraftDownloadOperationContext> operationContexts,
+        CancellationToken cancellationToken)
+    {
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(download.DestinationPath)!);
-            speedReporter.ReportDownloadStarted();
             var executor = new MinecraftDownloadRequestExecutor(
                 httpClient,
                 logger,
                 bandwidthLimiter ?? DownloadBandwidthLimiter.Create(speedLimitMbPerSecond, downloadSpeedLimitState),
                 category: DownloadConcurrencyCategory.Runtime);
+            using var speedSession = new DownloadActivitySpeedSession(speedReporter);
+            var options = CreateDownloadOptions(download, operationContexts);
             await executor.DownloadFileAsync(
                 download.OriginalUrl,
                 sourcePreference,
@@ -101,8 +129,10 @@ internal sealed class ManagedVersionRepairDownloadBatch
                 download.DestinationPath,
                 download.ExpectedSha1,
                 download.ExpectedSize,
-                speedReporter.ReportDownloadedBytes,
-                cancellationToken).ConfigureAwait(false);
+                speedReporter.ReportNetworkBytes,
+                cancellationToken,
+                reportActivity: speedSession.Report,
+                options: options).ConfigureAwait(false);
         }
         catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)
         {
@@ -119,6 +149,35 @@ internal sealed class ManagedVersionRepairDownloadBatch
                 .First();
             throw CreateDownloadException(download, resolution, statusCode: null, exception);
         }
+    }
+
+    private static RepairDownloadRequest EnsureCompatibleDuplicate(IGrouping<string, RepairDownloadRequest> group)
+    {
+        var first = group.First();
+        if (group.Any(download => !string.Equals(download.ExpectedSha1, first.ExpectedSha1, StringComparison.OrdinalIgnoreCase)
+            || download.ExpectedSize != first.ExpectedSize
+            || download.PersistenceMode != first.PersistenceMode))
+        {
+            throw new InvalidDataException("Conflicting download identities resolved to the same destination path.");
+        }
+        return first;
+    }
+
+    private static DownloadFileOptions? CreateDownloadOptions(
+        RepairDownloadRequest download,
+        ConcurrentDictionary<string, MinecraftDownloadOperationContext> operationContexts)
+    {
+        if (download.PersistenceMode is not DownloadPersistenceMode.LightweightAtomic)
+            return null;
+        if (!MinecraftFileIntegrity.IsSha1(download.ExpectedSha1))
+            throw new InvalidDataException("A lightweight asset download requires a SHA-1 value.");
+
+        var managedRoot = Path.GetFullPath(download.ManagedRoot
+            ?? Path.GetDirectoryName(download.DestinationPath)
+            ?? throw new InvalidOperationException("Download destination has no managed root."));
+        var context = operationContexts.GetOrAdd(managedRoot, static root => new MinecraftDownloadOperationContext(root));
+        context.RegisterAsset(download.DestinationPath, download.ExpectedSha1!, download.ExpectedSize);
+        return new DownloadFileOptions(DownloadPersistenceMode.LightweightAtomic, context);
     }
 
     private static InstanceRepairException CreateDownloadException(
@@ -146,74 +205,6 @@ internal sealed class ManagedVersionRepairDownloadBatch
             : new InstanceRepairException(message, innerException, diagnostic);
     }
 
-    private sealed class DownloadSpeedReporter
-    {
-        private static readonly TimeSpan SampleWindow = TimeSpan.FromSeconds(0.75);
-        private readonly object syncRoot = new();
-        private readonly IProgress<LauncherProgress>? progress;
-        private long windowBytes;
-        private bool hasReportedDownloadStarted;
-        private DateTimeOffset windowStartedAt = DateTimeOffset.UtcNow;
-
-        public DownloadSpeedReporter(IProgress<LauncherProgress>? progress)
-        {
-            this.progress = progress;
-        }
-
-        public void ReportDownloadStarted()
-        {
-            if (progress is null)
-                return;
-
-            lock (syncRoot)
-            {
-                if (hasReportedDownloadStarted)
-                    return;
-
-                hasReportedDownloadStarted = true;
-                windowBytes = 0;
-                windowStartedAt = DateTimeOffset.UtcNow;
-                progress.Report(new LauncherProgress(
-                    LaunchProgressStages.DownloadSpeed,
-                    string.Empty,
-                    DownloadSpeedText: "0 B/s"));
-            }
-        }
-
-        public void ReportDownloadedBytes(long bytesDelta)
-        {
-            if (progress is null || bytesDelta <= 0)
-                return;
-
-            lock (syncRoot)
-            {
-                windowBytes += bytesDelta;
-                var now = DateTimeOffset.UtcNow;
-                var elapsed = now - windowStartedAt;
-                if (elapsed < SampleWindow)
-                    return;
-
-                var speedText = FormatSpeed(windowBytes / elapsed.TotalSeconds);
-                windowBytes = 0;
-                windowStartedAt = now;
-                progress.Report(new LauncherProgress(
-                    LaunchProgressStages.DownloadSpeed,
-                    string.Empty,
-                    DownloadSpeedText: speedText));
-            }
-        }
-
-        private static string FormatSpeed(double bytesPerSecond)
-        {
-            if (bytesPerSecond >= 1024 * 1024)
-                return $"{bytesPerSecond / 1024 / 1024:0.0} MB/s";
-
-            if (bytesPerSecond >= 1024)
-                return $"{bytesPerSecond / 1024:0.0} KB/s";
-
-            return $"{bytesPerSecond:0} B/s";
-        }
-    }
 }
 
 internal sealed record RepairDownloadRequest(
@@ -223,4 +214,6 @@ internal sealed record RepairDownloadRequest(
     string? LibraryName,
     string? ArtifactPath,
     string? ExpectedSha1 = null,
-    long? ExpectedSize = null);
+    long? ExpectedSize = null,
+    DownloadPersistenceMode PersistenceMode = DownloadPersistenceMode.TaskScopedResumable,
+    string? ManagedRoot = null);

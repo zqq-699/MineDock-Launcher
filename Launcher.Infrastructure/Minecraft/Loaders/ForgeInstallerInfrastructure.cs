@@ -94,11 +94,13 @@ internal sealed class FinalVersionInstaller : IFinalVersionInstaller
         CancellationToken cancellationToken,
         int downloadSpeedLimitMbPerSecond = 0)
     {
+        using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(path);
         var launcher = VanillaLoaderProvider.CreateLauncher(
             path,
             progress,
             downloadSourcePreference,
-            downloadSpeedLimitMbPerSecond: downloadSpeedLimitMbPerSecond);
+            downloadSpeedLimitMbPerSecond: downloadSpeedLimitMbPerSecond,
+            operationContext: downloadOperation);
         VanillaLoaderProvider.AttachProgress(launcher, progress);
         await launcher.InstallAsync(versionName, cancellationToken);
     }
