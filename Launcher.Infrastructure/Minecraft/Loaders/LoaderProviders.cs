@@ -76,19 +76,6 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         using var downloadOperation = CreateDownloadOperationContext(new MinecraftPath(gameDirectory));
         using var speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
 
-        var finalVersionName = await VanillaVersionComposer.CreateFinalVersionAsync(
-            httpClient,
-            minecraftVersion,
-            isolatedVersionName,
-            gameDirectory,
-            downloadSourcePreference,
-            downloadSpeedLimitMbPerSecond,
-            downloadSpeedLimitState,
-            logger,
-            cancellationToken,
-            downloadOperation,
-            speedReporter);
-
         var launcher = CreateLauncher(
             gameDirectory,
             progress,
@@ -99,7 +86,21 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             downloadOperation,
             speedReporter);
         AttachProgress(launcher, progress);
-        await launcher.InstallAsync(finalVersionName, cancellationToken);
+        var finalVersionName = await ComposedVersionInstallRunner.RunAsync(
+            token => VanillaVersionComposer.PrepareFinalVersionAsync(
+                httpClient,
+                minecraftVersion,
+                isolatedVersionName,
+                gameDirectory,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond,
+                downloadSpeedLimitState,
+                logger,
+                token,
+                downloadOperation,
+                speedReporter),
+            async (versionName, token) => await launcher.InstallAsync(versionName, token).ConfigureAwait(false),
+            cancellationToken).ConfigureAwait(false);
         await EnsureInstalledVersionIsValidAsync(
             finalVersionName,
             gameDirectory,

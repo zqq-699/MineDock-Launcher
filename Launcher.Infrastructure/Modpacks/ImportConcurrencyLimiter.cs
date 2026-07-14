@@ -13,33 +13,29 @@ internal sealed class ImportConcurrencyLimiter : IImportConcurrencyLimiter
 {
     public static ImportConcurrencyLimiter Shared { get; } = new();
 
-    private readonly SemaphoreSlim metadataSemaphore = new(2, 2);
     private readonly SemaphoreSlim hashSemaphore = new(2, 2);
-    private readonly AdaptiveDownloadScheduler modpackScheduler = new(minimum: 2, initial: 4, maximum: 8);
-    private readonly AdaptiveDownloadScheduler runtimeScheduler = new(minimum: 4, initial: 8, maximum: 16);
+    private readonly AdaptiveDownloadScheduler downloadScheduler = new(minimum: 4, initial: 12, maximum: 16);
 
     public ValueTask<IImportConcurrencyLease> AcquireMetadataSlotAsync(CancellationToken cancellationToken = default) =>
-        AcquireFixedAsync(metadataSemaphore, cancellationToken);
+        downloadScheduler.AcquireAsync(cancellationToken);
 
     public ValueTask<IImportConcurrencyLease> AcquireModpackDownloadSlotAsync(CancellationToken cancellationToken = default) =>
-        modpackScheduler.AcquireAsync(cancellationToken);
+        downloadScheduler.AcquireAsync(cancellationToken);
 
     public ValueTask<IImportConcurrencyLease> AcquireRuntimeDownloadSlotAsync(CancellationToken cancellationToken = default) =>
-        runtimeScheduler.AcquireAsync(cancellationToken);
+        downloadScheduler.AcquireAsync(cancellationToken);
 
     public ValueTask<IImportConcurrencyLease> AcquireHashSlotAsync(CancellationToken cancellationToken = default) =>
         AcquireFixedAsync(hashSemaphore, cancellationToken);
 
     internal void RecordDownloadResult(DownloadConcurrencyCategory category, DownloadFailureReason? failureReason)
     {
-        var scheduler = category switch
-        {
-            DownloadConcurrencyCategory.Modpack => modpackScheduler,
-            DownloadConcurrencyCategory.Runtime => runtimeScheduler,
-            _ => null
-        };
-        scheduler?.RecordResult(failureReason);
+        _ = category;
+        downloadScheduler.RecordResult(failureReason);
     }
+
+    internal (int ActiveCount, int WaitingCount, int CurrentTarget, int ConfiguredMaximum) DownloadSnapshot =>
+        downloadScheduler.Snapshot;
 
     private static async ValueTask<IImportConcurrencyLease> AcquireFixedAsync(SemaphoreSlim semaphore, CancellationToken cancellationToken)
     {
@@ -123,7 +119,8 @@ internal sealed class AdaptiveDownloadScheduler
                 successes++;
             else if (failureReason is DownloadFailureReason.Network or DownloadFailureReason.Dns
                 or DownloadFailureReason.ResponseHeadersTimeout or DownloadFailureReason.FirstByteTimeout
-                or DownloadFailureReason.BodyIdleTimeout or DownloadFailureReason.BodyInterrupted
+                or DownloadFailureReason.BodyIdleTimeout or DownloadFailureReason.SustainedLowSpeed
+                or DownloadFailureReason.BodyInterrupted
                 or DownloadFailureReason.HttpStatus)
                 failures++;
 

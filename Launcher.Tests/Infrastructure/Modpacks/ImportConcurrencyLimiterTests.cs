@@ -25,7 +25,7 @@ namespace Launcher.Tests.Infrastructure.Modpacks;
 public sealed class ImportConcurrencyLimiterTests
 {
     [Fact]
-    public async Task MetadataSlotsLimitConcurrencyToTwo()
+    public async Task MetadataSlotsUseTheSharedGlobalBudget()
     {
         var limiter = new ImportConcurrencyLimiter();
 
@@ -33,11 +33,11 @@ public sealed class ImportConcurrencyLimiterTests
             limiter.AcquireMetadataSlotAsync,
             requestCount: 5);
 
-        Assert.Equal(2, maxConcurrency);
+        Assert.Equal(5, maxConcurrency);
     }
 
     [Fact]
-    public async Task ModpackDownloadSlotsLimitConcurrencyToFour()
+    public async Task ModpackDownloadSlotsUseTheSharedGlobalBudget()
     {
         var limiter = new ImportConcurrencyLimiter();
 
@@ -45,11 +45,11 @@ public sealed class ImportConcurrencyLimiterTests
             limiter.AcquireModpackDownloadSlotAsync,
             requestCount: 7);
 
-        Assert.Equal(4, maxConcurrency);
+        Assert.Equal(7, maxConcurrency);
     }
 
     [Fact]
-    public async Task RuntimeDownloadSlotsLimitConcurrencyToEight()
+    public async Task RuntimeDownloadSlotsUseTheSharedGlobalBudget()
     {
         var limiter = new ImportConcurrencyLimiter();
 
@@ -57,7 +57,7 @@ public sealed class ImportConcurrencyLimiterTests
             limiter.AcquireRuntimeDownloadSlotAsync,
             requestCount: 12);
 
-        Assert.Equal(8, maxConcurrency);
+        Assert.Equal(12, maxConcurrency);
     }
 
     [Fact]

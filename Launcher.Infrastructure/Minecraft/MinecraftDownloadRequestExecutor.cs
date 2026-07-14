@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -42,6 +43,7 @@ internal sealed class MinecraftDownloadRequestExecutor
     private readonly DownloadConcurrencyCategory category;
     private readonly DownloadRetryOptions retryOptions;
     private readonly DownloadHostHealthTracker hostHealthTracker;
+    private readonly DownloadHostConcurrencyLimiter hostConcurrencyLimiter;
 
     public MinecraftDownloadRequestExecutor(
         HttpClient httpClient,
@@ -51,7 +53,8 @@ internal sealed class MinecraftDownloadRequestExecutor
         DownloadConcurrencyCategory category = DownloadConcurrencyCategory.Metadata,
         DownloadRetryOptions? retryOptions = null,
         DownloadAddressPolicy? addressPolicy = null,
-        DownloadHostHealthTracker? hostHealthTracker = null)
+        DownloadHostHealthTracker? hostHealthTracker = null,
+        DownloadHostConcurrencyLimiter? hostConcurrencyLimiter = null)
     {
         this.logger = logger ?? NullLogger.Instance;
         this.bandwidthLimiter = bandwidthLimiter;
@@ -61,6 +64,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         // A batch may provide a shared tracker; the default remains executor
         // scoped so unrelated operations never inherit a stale cooldown.
         this.hostHealthTracker = hostHealthTracker ?? new DownloadHostHealthTracker();
+        this.hostConcurrencyLimiter = hostConcurrencyLimiter ?? DownloadHostConcurrencyLimiter.Shared;
         transport = new MinecraftDownloadTransport(httpClient, this.retryOptions, addressPolicy);
     }
 
@@ -344,6 +348,11 @@ internal sealed class MinecraftDownloadRequestExecutor
                 catch (Exception exception)
                 {
                     var failure = ClassifyException(exception);
+                    if (failure.Reason is DownloadFailureReason.SustainedLowSpeed
+                        && preference is DownloadSourcePreference.Auto)
+                    {
+                        failure.WithDisposition(DownloadFailureDisposition.SwitchSource);
+                    }
                     RecordAdaptiveResult(failure.Reason);
                     hostHealthTracker.RecordFailure(
                         resolution.ResolvedSourceKind,
@@ -396,6 +405,7 @@ internal sealed class MinecraftDownloadRequestExecutor
     {
         // 租约覆盖响应处理，而不只是发送请求，防止大量响应体同时占用网络与磁盘。
         await using var lease = await AcquireLeaseAsync(cancellationToken).ConfigureAwait(false);
+        var globalConcurrency = GetGlobalConcurrencySnapshot();
         var transportResult = await transport.SendAsync(
             resolution.ActualUrl,
             cancellationToken,
@@ -403,6 +413,18 @@ internal sealed class MinecraftDownloadRequestExecutor
             sensitiveHeaders,
             isThirdParty: string.Equals(resolution.ResourceCategory, "ThirdParty", StringComparison.OrdinalIgnoreCase)).ConfigureAwait(false);
         using var response = transportResult.Response;
+        await using var hostLease = await hostConcurrencyLimiter
+            .AcquireAsync(transportResult.FinalHost, cancellationToken).ConfigureAwait(false);
+
+        if (resolution.RequestedSourcePreference is DownloadSourcePreference.Auto
+            && hostHealthTracker.ShouldAvoid(resolution.ResolvedSourceKind, transportResult.FinalHost))
+        {
+            throw new DownloadAttemptException(
+                DownloadFailureDisposition.SwitchSource,
+                DownloadFailureReason.Network,
+                "The redirected download host is temporarily avoided after a degraded transfer.")
+                .WithFinalHost(transportResult.FinalHost);
+        }
 
         if (noResultStatus?.Invoke(response.StatusCode) is true)
         {
@@ -413,6 +435,10 @@ internal sealed class MinecraftDownloadRequestExecutor
         if (!response.IsSuccessStatusCode && allowResponseStatus?.Invoke(response.StatusCode) is not true)
             throw CreateStatusFailure(response).WithFinalHost(transportResult.FinalHost);
 
+        var telemetry = new DownloadAttemptTelemetry();
+        try
+        {
+        telemetry.StartBody();
         await DownloadResponseThrottler.ApplyAsync(
             response,
             bandwidthLimiter,
@@ -422,15 +448,16 @@ internal sealed class MinecraftDownloadRequestExecutor
             sustainedLowSpeedWindow: retryOptions.SustainedLowSpeedWindow,
             sustainedLowSpeedBytesPerSecond: retryOptions.SustainedLowSpeedBytesPerSecond,
             lowSpeedMinimumFileBytes: retryOptions.LowSpeedMinimumFileBytes,
-            reportBodyBytes: reportBodyBytes).ConfigureAwait(false);
-
-        try
-        {
+            reportBodyBytes: bytes =>
+            {
+                telemetry.ReportBodyBytes(bytes);
+                reportBodyBytes?.Invoke(bytes);
+            }).ConfigureAwait(false);
             var value = await operation(
                 new DownloadAttemptContext(resolution, response, transportResult, attempt),
                 cancellationToken).ConfigureAwait(false);
             logger.LogInformation(
-                "Download transport completed. RequestedSourcePreference={RequestedSourcePreference} ResolvedSourceKind={ResolvedSourceKind} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} FinalHost={FinalHost} RedirectCount={RedirectCount} Attempt={Attempt} StatusCode={StatusCode} ResponseHeadersDuration={ResponseHeadersDuration}",
+                "Download transport completed. RequestedSourcePreference={RequestedSourcePreference} ResolvedSourceKind={ResolvedSourceKind} OriginalUrl={OriginalUrl} ActualUrl={ActualUrl} FinalHost={FinalHost} RedirectCount={RedirectCount} Attempt={Attempt} StatusCode={StatusCode} ResponseHeadersDuration={ResponseHeadersDuration} ResponseBodyDuration={ResponseBodyDuration} ContentLength={ContentLength} DownloadedBytes={DownloadedBytes} AverageBytesPerSecond={AverageBytesPerSecond} GlobalActive={GlobalActive} GlobalWaiting={GlobalWaiting} GlobalTarget={GlobalTarget} HostActive={HostActive}",
                 resolution.RequestedSourcePreference,
                 resolution.ResolvedSourceKind,
                 RedactUri(transportResult.OriginalUri),
@@ -439,7 +466,15 @@ internal sealed class MinecraftDownloadRequestExecutor
                 transportResult.RedirectCount,
                 attempt,
                 (int)response.StatusCode,
-                transportResult.ResponseHeadersDuration);
+                transportResult.ResponseHeadersDuration,
+                telemetry.BodyDuration,
+                response.Content.Headers.ContentLength,
+                telemetry.BodyBytes,
+                telemetry.AverageBytesPerSecond,
+                globalConcurrency.ActiveCount,
+                globalConcurrency.WaitingCount,
+                globalConcurrency.CurrentTarget,
+                hostLease.ActiveCount);
             hostHealthTracker.RecordSuccess(resolution.ResolvedSourceKind, transportResult.FinalHost);
             return value;
         }
@@ -449,6 +484,20 @@ internal sealed class MinecraftDownloadRequestExecutor
         }
         catch (DownloadAttemptException exception)
         {
+            logger.LogWarning(
+                exception,
+                "Download transport failed after response headers. FinalHost={FinalHost} Attempt={Attempt} FailureReason={FailureReason} ResponseHeadersDuration={ResponseHeadersDuration} ResponseBodyDuration={ResponseBodyDuration} DownloadedBytes={DownloadedBytes} AverageBytesPerSecond={AverageBytesPerSecond} GlobalActive={GlobalActive} GlobalWaiting={GlobalWaiting} GlobalTarget={GlobalTarget} HostActive={HostActive}",
+                transportResult.FinalHost,
+                attempt,
+                exception.Reason,
+                transportResult.ResponseHeadersDuration,
+                telemetry.BodyDuration,
+                telemetry.BodyBytes,
+                telemetry.AverageBytesPerSecond,
+                globalConcurrency.ActiveCount,
+                globalConcurrency.WaitingCount,
+                globalConcurrency.CurrentTarget,
+                hostLease.ActiveCount);
             throw exception.WithFinalHost(transportResult.FinalHost);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -573,6 +622,32 @@ internal sealed class MinecraftDownloadRequestExecutor
     {
         if (limiter is ImportConcurrencyLimiter importLimiter)
             importLimiter.RecordDownloadResult(category, failureReason);
+    }
+
+    private (int ActiveCount, int WaitingCount, int CurrentTarget) GetGlobalConcurrencySnapshot()
+    {
+        if (limiter is ImportConcurrencyLimiter importLimiter)
+        {
+            var snapshot = importLimiter.DownloadSnapshot;
+            return (snapshot.ActiveCount, snapshot.WaitingCount, snapshot.CurrentTarget);
+        }
+
+        return (0, 0, 0);
+    }
+
+    private sealed class DownloadAttemptTelemetry
+    {
+        private readonly Stopwatch bodyStopwatch = new();
+        private long bodyBytes;
+
+        public long BodyBytes => Interlocked.Read(ref bodyBytes);
+        public TimeSpan BodyDuration => bodyStopwatch.Elapsed;
+        public double AverageBytesPerSecond => BodyDuration.TotalSeconds <= 0
+            ? 0
+            : BodyBytes / BodyDuration.TotalSeconds;
+
+        public void StartBody() => bodyStopwatch.Start();
+        public void ReportBodyBytes(long bytes) => Interlocked.Add(ref bodyBytes, bytes);
     }
 
     private static string GetCandidateHost(ResolvedDownloadRequest resolution) =>

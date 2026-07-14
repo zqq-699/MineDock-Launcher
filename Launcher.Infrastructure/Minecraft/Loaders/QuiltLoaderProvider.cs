@@ -148,20 +148,6 @@ public sealed class QuiltLoaderProvider : ILoaderProvider
             var path = new MinecraftPath(gameDirectory);
             using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(path);
             using var speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
-            var finalVersionName = await QuiltVersionComposer.CreateFinalVersionAsync(
-                httpClient,
-                minecraftVersion,
-                selectedLoaderVersion,
-                isolatedVersionName,
-                gameDirectory,
-                downloadSourcePreference,
-                downloadSpeedLimitMbPerSecond,
-                downloadSpeedLimitState,
-                logger,
-                cancellationToken,
-                downloadOperation,
-                speedReporter);
-
             var launcher = VanillaLoaderProvider.CreateLauncher(
                 path,
                 progress,
@@ -172,7 +158,22 @@ public sealed class QuiltLoaderProvider : ILoaderProvider
                 downloadOperation,
                 speedReporter);
             VanillaLoaderProvider.AttachProgress(launcher, progress);
-            await launcher.InstallAsync(finalVersionName, cancellationToken);
+            var finalVersionName = await ComposedVersionInstallRunner.RunAsync(
+                token => QuiltVersionComposer.PrepareFinalVersionAsync(
+                    httpClient,
+                    minecraftVersion,
+                    selectedLoaderVersion,
+                    isolatedVersionName,
+                    gameDirectory,
+                    downloadSourcePreference,
+                    downloadSpeedLimitMbPerSecond,
+                    downloadSpeedLimitState,
+                    logger,
+                    token,
+                    downloadOperation,
+                    speedReporter),
+                async (versionName, token) => await launcher.InstallAsync(versionName, token).ConfigureAwait(false),
+                cancellationToken).ConfigureAwait(false);
             var validation = await new GameFileIntegrityService(httpClient, downloadSpeedLimitState, logger)
                 .ValidateAndRepairAsync(
                     new GameFileIntegrityRequest(

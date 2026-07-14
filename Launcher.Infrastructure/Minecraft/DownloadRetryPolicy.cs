@@ -32,8 +32,8 @@ internal sealed record DownloadRetryOptions
     public TimeSpan FirstByteTimeout { get; init; } = TimeSpan.FromSeconds(10);
     public TimeSpan BodyIdleTimeout { get; init; } = TimeSpan.FromSeconds(12);
     public TimeSpan SustainedLowSpeedWindow { get; init; } = TimeSpan.FromSeconds(10);
-    public long SustainedLowSpeedBytesPerSecond { get; init; } = 16 * 1024;
-    public long LowSpeedMinimumFileBytes { get; init; } = 1024 * 1024;
+    public long SustainedLowSpeedBytesPerSecond { get; init; } = 512 * 1024;
+    public long LowSpeedMinimumFileBytes { get; init; } = 4 * 1024 * 1024;
     public TimeSpan MaximumRetryAfter { get; init; } = TimeSpan.FromSeconds(60);
     public TimeSpan MaximumRetryDelay { get; init; } = TimeSpan.FromSeconds(30);
     public int MaxRedirects { get; init; } = 10;
@@ -81,7 +81,7 @@ internal class DownloadAttemptException : Exception
         RetryAfter = retryAfter;
     }
 
-    public DownloadFailureDisposition Disposition { get; }
+    public DownloadFailureDisposition Disposition { get; private set; }
     public DownloadFailureReason Reason { get; }
     public HttpStatusCode? StatusCode { get; }
     public TimeSpan? RetryAfter { get; }
@@ -90,6 +90,12 @@ internal class DownloadAttemptException : Exception
     public DownloadAttemptException WithFinalHost(string? finalHost)
     {
         FinalHost = finalHost;
+        return this;
+    }
+
+    public DownloadAttemptException WithDisposition(DownloadFailureDisposition disposition)
+    {
+        Disposition = disposition;
         return this;
     }
 }

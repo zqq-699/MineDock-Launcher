@@ -105,6 +105,46 @@ public sealed class MinecraftDownloadRetryTests
     }
 
     [Fact]
+    public async Task AutoSourceSwitchesImmediatelyAfterSustainedLowBodySpeed()
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+        {
+            HttpContent content = requestNumber == 1
+                ? new StreamContent(new SustainedLowSpeedStream())
+                : new StringContent("{}");
+            if (requestNumber == 1)
+                content.Headers.ContentLength = 4 * 1024 * 1024;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = content
+            });
+        });
+        using var httpClient = CreateClient(handler);
+        var executor = CreateExecutor(httpClient, new DownloadRetryOptions
+        {
+            MaxAttemptsPerSource = 4,
+            RetryDelay = TimeSpan.Zero,
+            ResponseHeadersTimeout = TimeSpan.FromSeconds(1),
+            BodyIdleTimeout = TimeSpan.FromSeconds(1),
+            SustainedLowSpeedWindow = TimeSpan.FromMilliseconds(10),
+            SustainedLowSpeedBytesPerSecond = 1024,
+            LowSpeedMinimumFileBytes = 1
+        });
+
+        var result = await executor.ExecuteAsync(
+            ManifestUrl,
+            DownloadSourcePreference.Auto,
+            categoryHint: "Mojang",
+            async (context, token) => await context.Response.Content.ReadAsStringAsync(token),
+            CancellationToken.None);
+
+        Assert.Equal("{}", result);
+        Assert.Equal(2, handler.RequestUris.Count);
+        Assert.NotEqual(handler.RequestUris[0], handler.RequestUris[1]);
+    }
+
+    [Fact]
     public async Task PermanentStatusSwitchesSourceWithoutRetry()
     {
         var handler = new CallbackRequestHandler((requestNumber, request, _) =>
@@ -977,6 +1017,16 @@ public sealed class MinecraftDownloadRetryTests
         Assert.False(tracker.ShouldAvoid("BmclApiMojang", "node.example"));
     }
 
+    [Fact]
+    public void HostHealthAvoidsSustainedLowSpeedImmediately()
+    {
+        var tracker = new DownloadHostHealthTracker();
+
+        tracker.RecordFailure("BmclApiMojang", "slow.example", DownloadFailureReason.SustainedLowSpeed);
+
+        Assert.True(tracker.ShouldAvoid("BmclApiMojang", "slow.example"));
+    }
+
     private static MinecraftDownloadRequestExecutor CreateExecutor(
         HttpClient httpClient,
         DownloadRetryOptions? options = null)
@@ -1087,6 +1137,43 @@ public sealed class MinecraftDownloadRetryTests
             CancellationToken cancellationToken = default)
         {
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    private sealed class SustainedLowSpeedStream : Stream
+    {
+        private int reads;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            if (reads++ == 0)
+            {
+                buffer.Span[0] = (byte)'x';
+                return 1;
+            }
+
+            if (reads == 2)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
+                buffer.Span[0] = (byte)'x';
+                return 1;
+            }
+
             return 0;
         }
 

@@ -37,21 +37,26 @@ internal sealed class DownloadHostHealthTracker
             return;
         states.AddOrUpdate(
             (resolvedSourceKind, host),
-            _ => new HostState(1, DateTimeOffset.MinValue),
+            _ => CreateFailureState(reason, 1, DateTimeOffset.MinValue),
             (_, current) =>
             {
                 var failures = current.Failures + 1;
-                return failures >= 3
-                    ? new HostState(failures, DateTimeOffset.UtcNow + cooldown)
-                    : new HostState(failures, current.AvoidUntil);
+                return CreateFailureState(reason, failures, current.AvoidUntil);
             });
     }
 
     internal static bool AffectsHealth(DownloadFailureReason reason, System.Net.HttpStatusCode? statusCode = null) => reason is
         DownloadFailureReason.Dns or DownloadFailureReason.Network or DownloadFailureReason.ResponseHeadersTimeout
         or DownloadFailureReason.FirstByteTimeout or DownloadFailureReason.BodyIdleTimeout
-        or DownloadFailureReason.BodyInterrupted
+        or DownloadFailureReason.SustainedLowSpeed or DownloadFailureReason.BodyInterrupted
         || (reason is DownloadFailureReason.HttpStatus && statusCode is { } code && (int)code is >= 500 and <= 599);
+
+    private HostState CreateFailureState(DownloadFailureReason reason, int failures, DateTimeOffset avoidUntil)
+    {
+        if (reason is DownloadFailureReason.SustainedLowSpeed || failures >= 3)
+            avoidUntil = DateTimeOffset.UtcNow + cooldown;
+        return new HostState(failures, avoidUntil);
+    }
 
     private sealed record HostState(int Failures, DateTimeOffset AvoidUntil);
 }

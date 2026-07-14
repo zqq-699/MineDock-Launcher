@@ -26,12 +26,14 @@ namespace Launcher.App.ViewModels.Resources;
 
 internal sealed class ResourceInstallTaskSession
 {
+    private const double ModpackArchiveWeight = 5;
     private readonly DownloadTasksPageViewModel? owner;
     private readonly string initialMessage;
     private int dependencyCount;
     private int startedDependencyCount;
     private double primaryDownloadStart = 2;
     private bool primaryDownloadActive;
+    private bool modpackImportActive;
 
     private ResourceInstallTaskSession(DownloadTasksPageViewModel? owner, DownloadTaskItem? task, string initialMessage)
     {
@@ -98,9 +100,19 @@ internal sealed class ResourceInstallTaskSession
         ReportToTask(new LauncherProgress(ModProgressStages.DownloadingFile, initialMessage, primaryDownloadStart));
     }
 
+    public void BeginModpackImport()
+    {
+        modpackImportActive = true;
+        ReportToTask(new LauncherProgress(ModProgressStages.DownloadingFile, initialMessage, 0));
+    }
+
     public void Report(LauncherProgress progress)
     {
-        if (primaryDownloadActive && progress.Stage is ModProgressStages.DownloadingFile)
+        if (modpackImportActive)
+        {
+            progress = MapModpackImportProgress(progress);
+        }
+        else if (primaryDownloadActive && progress.Stage is ModProgressStages.DownloadingFile)
         {
             var percent = progress.Percent is { } rawPercent
                 ? primaryDownloadStart + ((96 - primaryDownloadStart) * Math.Clamp(rawPercent, 0, 100) / 100d)
@@ -113,6 +125,23 @@ internal sealed class ResourceInstallTaskSession
         }
 
         ReportToTask(progress);
+    }
+
+    private static LauncherProgress MapModpackImportProgress(LauncherProgress progress)
+    {
+        if (progress.Stage is ModProgressStages.DownloadingFile)
+        {
+            var archivePercent = Math.Clamp(progress.Percent ?? 0, 0, 100);
+            return progress with { Percent = ModpackArchiveWeight * archivePercent / 100d };
+        }
+
+        if (progress.Percent is not { } importPercent)
+            return progress;
+
+        var normalizedImportPercent = Math.Clamp(importPercent, 0, 99);
+        var percent = ModpackArchiveWeight
+            + ((99 - ModpackArchiveWeight) * normalizedImportPercent / 99d);
+        return progress with { Percent = percent };
     }
 
     private void ReportToTask(LauncherProgress progress) =>

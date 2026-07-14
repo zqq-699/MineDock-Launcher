@@ -45,6 +45,36 @@ internal static class FabricVersionComposer
         MinecraftDownloadOperationContext? operationContext = null,
         SlidingWindowDownloadSpeedReporter? speedReporter = null)
     {
+        var prepared = await PrepareFinalVersionAsync(
+            httpClient, minecraftVersion, loaderVersion, finalVersionName, minecraftDirectory,
+            downloadSourcePreference, downloadSpeedLimitMbPerSecond, downloadSpeedLimitState,
+            logger, cancellationToken, operationContext, speedReporter).ConfigureAwait(false);
+        try
+        {
+            await prepared.ClientJarDownload.ConfigureAwait(false);
+            return prepared.VersionName;
+        }
+        catch
+        {
+            await prepared.CleanupAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    public static async Task<PreparedVersionInstall> PrepareFinalVersionAsync(
+        HttpClient httpClient,
+        string minecraftVersion,
+        string loaderVersion,
+        string finalVersionName,
+        string minecraftDirectory,
+        DownloadSourcePreference downloadSourcePreference,
+        int downloadSpeedLimitMbPerSecond = 0,
+        IDownloadSpeedLimitState? downloadSpeedLimitState = null,
+        ILogger? logger = null,
+        CancellationToken cancellationToken = default,
+        MinecraftDownloadOperationContext? operationContext = null,
+        SlidingWindowDownloadSpeedReporter? speedReporter = null)
+    {
         var finalVersionDirectory = Path.Combine(minecraftDirectory, "versions", finalVersionName);
         var finalVersionJsonPath = Path.Combine(finalVersionDirectory, $"{finalVersionName}.json");
         var finalVersionJarPath = Path.Combine(finalVersionDirectory, $"{finalVersionName}.jar");
@@ -52,7 +82,7 @@ internal static class FabricVersionComposer
         if (Directory.Exists(finalVersionDirectory))
             throw new IOException($"Version directory already exists: {finalVersionName}");
 
-        var baseVersionJson = await DownloadBaseVersionJsonAsync(
+        var baseVersionJsonTask = DownloadBaseVersionJsonAsync(
             httpClient,
             minecraftVersion,
             downloadSourcePreference,
@@ -60,7 +90,7 @@ internal static class FabricVersionComposer
             downloadSpeedLimitState,
             logger,
             cancellationToken);
-        var fabricProfileJson = await DownloadFabricProfileJsonAsync(
+        var fabricProfileJsonTask = DownloadFabricProfileJsonAsync(
             httpClient,
             minecraftVersion,
             loaderVersion,
@@ -69,6 +99,9 @@ internal static class FabricVersionComposer
             downloadSpeedLimitState,
             logger,
             cancellationToken);
+        await Task.WhenAll(baseVersionJsonTask, fabricProfileJsonTask).ConfigureAwait(false);
+        var baseVersionJson = await baseVersionJsonTask.ConfigureAwait(false);
+        var fabricProfileJson = await fabricProfileJsonTask.ConfigureAwait(false);
         var finalVersionJson = BuildFinalVersionJson(baseVersionJson, fabricProfileJson, finalVersionName, minecraftVersion);
 
         Directory.CreateDirectory(finalVersionDirectory);
@@ -80,7 +113,7 @@ internal static class FabricVersionComposer
                 finalVersionJson.ToJsonString(JsonOptions),
                 cancellationToken);
 
-            await DownloadClientJarAsync(
+            var clientJarDownload = DownloadClientJarAsync(
                 httpClient,
                 baseVersionJson,
                 finalVersionJarPath,
@@ -91,6 +124,7 @@ internal static class FabricVersionComposer
                 cancellationToken,
                 operationContext,
                 speedReporter);
+            return new PreparedVersionInstall(finalVersionName, finalVersionDirectory, clientJarDownload);
         }
         catch
         {
@@ -99,8 +133,6 @@ internal static class FabricVersionComposer
 
             throw;
         }
-
-        return finalVersionName;
     }
 
     internal static JsonObject BuildFinalVersionJson(

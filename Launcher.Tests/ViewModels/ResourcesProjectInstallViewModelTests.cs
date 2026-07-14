@@ -138,6 +138,32 @@ public sealed class ResourcesProjectInstallViewModelTests
     }
 
     [Fact]
+    public async Task NewModpackArchiveDownloadReservesProgressForImportedFiles()
+    {
+        var installation = new ProgressReportingInstallationService();
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var viewModel = CreateViewModel(installation, tasks, _ => { });
+        var operation = viewModel.InstallAsync(
+            CreateVersionItem(ResourceProjectKind.Modpack),
+            ResourcesModInstallTargetItemViewModel.CreateNewInstanceInstall("new instance"),
+            null);
+        await installation.ExecuteStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        installation.Report(new LauncherProgress(ModProgressStages.DownloadingFile, "pack.mrpack", 100));
+        var task = Assert.Single(tasks.Tasks);
+        await WaitUntilAsync(() => task.ProgressPercent == 5);
+
+        installation.Report(new LauncherProgress(ImportProgressStages.DownloadingPackFiles, "mod.jar", 50));
+        await WaitUntilAsync(() => task.ProgressPercent > 50);
+
+        Assert.InRange(task.ProgressPercent, 52, 53);
+        Assert.True(task.ProgressPercent < 99);
+
+        installation.Complete(CreateSuccessfulModpackResult("instance"));
+        await operation;
+    }
+
+    [Fact]
     public async Task CancelingOneConcurrentModpackInstallDoesNotCancelTheOther()
     {
         var installation = new ControllableInstallationService();
@@ -369,6 +395,35 @@ public sealed class ResourcesProjectInstallViewModelTests
 
         private static TaskCompletionSource<bool> CreateSignal() =>
             new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    private sealed class ProgressReportingInstallationService : IResourceProjectInstallationService
+    {
+        private readonly TaskCompletionSource<ResourceProjectInstallationResult> completion = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> ExecuteStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public IProgress<LauncherProgress>? Progress { get; private set; }
+
+        public Task<ResourceProjectInstallationPreparationResult> PrepareAsync(
+            ResourceProjectInstallationRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ResourceProjectInstallationPreparationResult(false));
+
+        public Task<ResourceProjectInstallationResult> ExecuteAsync(
+            ResourceProjectInstallationRequest request,
+            IProgress<LauncherProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            Progress = progress;
+            ExecuteStarted.TrySetResult(true);
+            return completion.Task.WaitAsync(cancellationToken);
+        }
+
+        public void Report(LauncherProgress progress) => Progress!.Report(progress);
+
+        public void Complete(ResourceProjectInstallationResult result) => completion.TrySetResult(result);
     }
 
     private sealed class RecordingFloatingMessageService : IFloatingMessageService

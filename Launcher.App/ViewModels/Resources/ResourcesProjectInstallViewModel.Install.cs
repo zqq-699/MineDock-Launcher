@@ -150,6 +150,7 @@ internal async Task InstallAsync(
         // 整合包导入拥有独立的安装、清理和手动下载结果，本层只映射页面事件与反馈。
         BeginSession(context, context.Target.Title);
         BeginUserFeedback(context.Item);
+        context.Session!.BeginModpackImport();
         var result = (await installationService!.ExecuteAsync(
             new ResourceProjectInstallationRequest(
                 context.Item.Version,

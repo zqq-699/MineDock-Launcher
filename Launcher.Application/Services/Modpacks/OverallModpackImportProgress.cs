@@ -44,10 +44,32 @@ internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> i
     private double downloadProgress;
     private double overridesProgress;
     private double cleanupProgress;
+    private string? activeDownloadSpeedStage;
 
     public void Report(LauncherProgress value)
     {
+        if (!ShouldForwardDownloadSpeed(value))
+            return;
+
         innerProgress.Report(MapProgress(value));
+    }
+
+    private bool ShouldForwardDownloadSpeed(LauncherProgress value)
+    {
+        if (value.DownloadSpeedText is null)
+            return true;
+
+        if (!string.IsNullOrEmpty(value.DownloadSpeedText))
+        {
+            activeDownloadSpeedStage = value.Stage;
+            return true;
+        }
+
+        if (!string.Equals(activeDownloadSpeedStage, value.Stage, StringComparison.Ordinal))
+            return false;
+
+        activeDownloadSpeedStage = null;
+        return true;
     }
 
     /// <summary>
