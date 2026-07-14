@@ -28,13 +28,6 @@ namespace Launcher.Infrastructure.Modpacks;
 
 internal sealed class ModpackFileDownloader
 {
-    private static readonly HashSet<string> CurseForgeDownloadHosts =
-    [
-        "api.curseforge.com",
-        "edge.forgecdn.net",
-        "mediafilez.forgecdn.net"
-    ];
-
     private readonly HttpClient httpClient;
     private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
     private readonly IImportConcurrencyLimiter limiter;
@@ -55,60 +48,50 @@ internal sealed class ModpackFileDownloader
         string? curseForgeApiKey,
         DownloadSourcePreference downloadSourcePreference,
         string? expectedSha1,
+        string? expectedSha512,
         int downloadSpeedLimitMbPerSecond,
         CancellationToken cancellationToken)
     {
-        // Public provider URLs use the common controller. Third-party candidates
-        // are intentionally not mirror-rewritten by MinecraftDownloadSourceResolver.
-        if (string.IsNullOrWhiteSpace(curseForgeApiKey)
-            || !Uri.TryCreate(sourceUrl, UriKind.Absolute, out var candidateUri)
-            || !CurseForgeDownloadHosts.Contains(candidateUri.Host))
+        var unifiedBandwidthLimiter = DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
+        var executor = new MinecraftDownloadRequestExecutor(
+            httpClient,
+            bandwidthLimiter: unifiedBandwidthLimiter,
+            limiter: limiter,
+            category: DownloadConcurrencyCategory.Modpack);
+        var sensitiveHeaders = !string.IsNullOrWhiteSpace(curseForgeApiKey)
+            && Uri.TryCreate(sourceUrl, UriKind.Absolute, out var sourceUri)
+            && string.Equals(sourceUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(sourceUri.Host, "api.curseforge.com", StringComparison.OrdinalIgnoreCase)
+            ? DownloadRequestHeaders.CurseForgeApiKey(curseForgeApiKey)
+            : null;
+        try
         {
-            var unifiedBandwidthLimiter = DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
-            var executor = new MinecraftDownloadRequestExecutor(
-                httpClient,
-                bandwidthLimiter: unifiedBandwidthLimiter,
-                limiter: limiter,
-                category: DownloadConcurrencyCategory.Modpack);
-            try
+            var hashes = new List<(HashAlgorithmName Algorithm, string Value)>();
+            if (!string.IsNullOrWhiteSpace(expectedSha1))
+                hashes.Add((HashAlgorithmName.SHA1, expectedSha1));
+            if (!string.IsNullOrWhiteSpace(expectedSha512))
+                hashes.Add((HashAlgorithmName.SHA512, expectedSha512));
+
+            if (hashes.Count == 0)
             {
                 await executor.DownloadFileAsync(
-                    sourceUrl,
-                    downloadSourcePreference,
-                    categoryHint: "ThirdParty",
-                    tempFilePath,
-                    expectedSha1,
-                    expectedSize: null,
-                    reportDownloadedBytes: null,
-                    cancellationToken).ConfigureAwait(false);
+                    sourceUrl, downloadSourcePreference, "ThirdParty", tempFilePath,
+                    expectedSha1: null, expectedSize: null, reportDownloadedBytes: null,
+                    cancellationToken, sensitiveHeaders: sensitiveHeaders).ConfigureAwait(false);
             }
-            catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)
-                when (exception.InnerException is DownloadHashMismatchException)
+            else
             {
-                throw new ModpackImportException(ModpackImportFailureReason.HashMismatch, "Downloaded modpack file did not match its SHA-1.");
+                await executor.DownloadFileAsync(
+                    sourceUrl, downloadSourcePreference, "ThirdParty", tempFilePath,
+                    new DownloadIntegrityExpectation(expectedSize: null, hashes), reportDownloadedBytes: null,
+                    cancellationToken, sensitiveHeaders).ConfigureAwait(false);
             }
-            return;
         }
-
-        using var request = new HttpRequestMessage(HttpMethod.Get, sourceUrl);
-        if (!string.IsNullOrWhiteSpace(curseForgeApiKey)
-            && Uri.TryCreate(sourceUrl, UriKind.Absolute, out var sourceUri)
-            && CurseForgeDownloadHosts.Contains(sourceUri.Host))
+        catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)
+            when (exception.InnerException is DownloadHashMismatchException)
         {
-            request.Headers.TryAddWithoutValidation("x-api-key", curseForgeApiKey);
+            throw new ModpackImportException(ModpackImportFailureReason.HashMismatch, "Downloaded modpack file did not match its expected hash.");
         }
-
-        await using var lease = await limiter.AcquireModpackDownloadSlotAsync(cancellationToken).ConfigureAwait(false);
-        using var response = await httpClient.SendAsync(
-            request,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-
-        var bandwidthLimiter = DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
-        await using var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        await using var destination = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
-        await CopyWithThrottleAsync(source, destination, bandwidthLimiter, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task VerifyHashAsync(
@@ -150,23 +133,4 @@ internal sealed class ModpackFileDownloader
         }
     }
 
-    private static async Task CopyWithThrottleAsync(
-        Stream source,
-        Stream destination,
-        DownloadBandwidthLimiter? bandwidthLimiter,
-        CancellationToken cancellationToken)
-    {
-        var buffer = new byte[81920];
-        while (true)
-        {
-            var read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken).ConfigureAwait(false);
-            if (read <= 0)
-                break;
-
-            if (bandwidthLimiter is not null)
-                await bandwidthLimiter.ThrottleAsync(read, cancellationToken).ConfigureAwait(false);
-
-            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-        }
-    }
 }

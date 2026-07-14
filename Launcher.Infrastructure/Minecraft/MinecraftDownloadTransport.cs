@@ -19,6 +19,7 @@
 
 using System.Net;
 using System.Net.Http;
+using System.Diagnostics;
 
 namespace Launcher.Infrastructure.Minecraft;
 
@@ -26,22 +27,32 @@ internal sealed class MinecraftDownloadTransport
 {
     private readonly HttpClient httpClient;
     private readonly DownloadRetryOptions retryOptions;
+    private readonly DownloadAddressPolicy addressPolicy;
 
-    public MinecraftDownloadTransport(HttpClient httpClient, DownloadRetryOptions retryOptions)
+    public MinecraftDownloadTransport(
+        HttpClient httpClient,
+        DownloadRetryOptions retryOptions,
+        DownloadAddressPolicy? addressPolicy = null)
     {
         this.httpClient = httpClient;
         this.retryOptions = retryOptions;
+        this.addressPolicy = addressPolicy ?? new DownloadAddressPolicy();
     }
 
-    public async Task<HttpResponseMessage> SendAsync(
+    public async Task<DownloadTransportResult> SendAsync(
         string actualUrl,
         CancellationToken cancellationToken,
-        Action<HttpRequestMessage>? configureRequest = null)
+        Action<HttpRequestMessage>? configureRequest = null,
+        DownloadRequestHeaders? sensitiveHeaders = null,
+        bool isThirdParty = false)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(retryOptions.ResponseHeadersTimeout);
 
-        var currentUri = new Uri(actualUrl, UriKind.Absolute);
+        var originalUri = new Uri(actualUrl, UriKind.Absolute);
+        var currentUri = originalUri;
+        var stopwatch = Stopwatch.StartNew();
+        var redirects = new List<Uri>();
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             currentUri.AbsoluteUri
@@ -49,10 +60,16 @@ internal sealed class MinecraftDownloadTransport
 
         for (var redirectCount = 0; ; redirectCount++)
         {
-            var response = await SendSingleAsync(currentUri, timeout.Token, cancellationToken, configureRequest)
+            await addressPolicy.ValidateAsync(currentUri, isThirdParty, cancellationToken).ConfigureAwait(false);
+            var response = await SendSingleAsync(
+                currentUri,
+                timeout.Token,
+                cancellationToken,
+                configureRequest,
+                sensitiveHeaders)
                 .ConfigureAwait(false);
             if (!IsRedirect(response.StatusCode))
-                return response;
+                return new DownloadTransportResult(response, originalUri, currentUri, currentUri.Host, redirects, stopwatch.Elapsed);
 
             if (redirectCount >= retryOptions.MaxRedirects)
             {
@@ -86,6 +103,7 @@ internal sealed class MinecraftDownloadTransport
             }
 
             response.Dispose();
+            redirects.Add(nextUri);
             currentUri = nextUri;
         }
     }
@@ -94,12 +112,14 @@ internal sealed class MinecraftDownloadTransport
         Uri uri,
         CancellationToken timeoutToken,
         CancellationToken callerToken,
-        Action<HttpRequestMessage>? configureRequest)
+        Action<HttpRequestMessage>? configureRequest,
+        DownloadRequestHeaders? sensitiveHeaders)
     {
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, uri);
             configureRequest?.Invoke(request);
+            sensitiveHeaders?.ApplyIfAllowed(request);
             return await httpClient.SendAsync(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,

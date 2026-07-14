@@ -313,24 +313,9 @@ internal sealed class ModpackFileResolutionService
             context.CurseForgeApiKey,
             context.DownloadSourcePreference,
             file.Sha1,
+            file.Sha512,
             context.DownloadSpeedLimitMbPerSecond,
             cancellationToken).ConfigureAwait(false);
-        if (!string.IsNullOrWhiteSpace(file.Sha512))
-        {
-            await fileDownloader.VerifyHashAsync(
-                tempPath,
-                file.Sha512,
-                HashAlgorithmName.SHA512,
-                cancellationToken).ConfigureAwait(false);
-        }
-        else if (!string.IsNullOrWhiteSpace(file.Sha1))
-        {
-            await fileDownloader.VerifyHashAsync(
-                tempPath,
-                file.Sha1,
-                HashAlgorithmName.SHA1,
-                cancellationToken).ConfigureAwait(false);
-        }
     }
 
     private void LogDownloaded(ModpackPackageKind packageKind, ResolvedPackDownload file, string sourceUrl)

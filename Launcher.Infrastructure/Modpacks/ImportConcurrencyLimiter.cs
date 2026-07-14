@@ -1,24 +1,11 @@
 /*
  * BlockHelm Launcher
  * Copyright (C) 2026 Quan Zhou
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 3.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- *
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-using System.Threading;
 using Launcher.Application.Services;
+using Launcher.Infrastructure.Minecraft;
 
 namespace Launcher.Infrastructure.Modpacks;
 
@@ -27,33 +14,34 @@ internal sealed class ImportConcurrencyLimiter : IImportConcurrencyLimiter
     public static ImportConcurrencyLimiter Shared { get; } = new();
 
     private readonly SemaphoreSlim metadataSemaphore = new(2, 2);
-    private readonly SemaphoreSlim modpackDownloadSemaphore = new(4, 4);
-    private readonly SemaphoreSlim runtimeDownloadSemaphore = new(8, 8);
     private readonly SemaphoreSlim hashSemaphore = new(2, 2);
+    private readonly AdaptiveDownloadScheduler modpackScheduler = new(minimum: 2, initial: 4, maximum: 8);
+    private readonly AdaptiveDownloadScheduler runtimeScheduler = new(minimum: 4, initial: 8, maximum: 16);
 
-    public ValueTask<IImportConcurrencyLease> AcquireMetadataSlotAsync(CancellationToken cancellationToken = default)
+    public ValueTask<IImportConcurrencyLease> AcquireMetadataSlotAsync(CancellationToken cancellationToken = default) =>
+        AcquireFixedAsync(metadataSemaphore, cancellationToken);
+
+    public ValueTask<IImportConcurrencyLease> AcquireModpackDownloadSlotAsync(CancellationToken cancellationToken = default) =>
+        modpackScheduler.AcquireAsync(cancellationToken);
+
+    public ValueTask<IImportConcurrencyLease> AcquireRuntimeDownloadSlotAsync(CancellationToken cancellationToken = default) =>
+        runtimeScheduler.AcquireAsync(cancellationToken);
+
+    public ValueTask<IImportConcurrencyLease> AcquireHashSlotAsync(CancellationToken cancellationToken = default) =>
+        AcquireFixedAsync(hashSemaphore, cancellationToken);
+
+    internal void RecordDownloadResult(DownloadConcurrencyCategory category, DownloadFailureReason? failureReason)
     {
-        return AcquireAsync(metadataSemaphore, cancellationToken);
+        var scheduler = category switch
+        {
+            DownloadConcurrencyCategory.Modpack => modpackScheduler,
+            DownloadConcurrencyCategory.Runtime => runtimeScheduler,
+            _ => null
+        };
+        scheduler?.RecordResult(failureReason);
     }
 
-    public ValueTask<IImportConcurrencyLease> AcquireModpackDownloadSlotAsync(CancellationToken cancellationToken = default)
-    {
-        return AcquireAsync(modpackDownloadSemaphore, cancellationToken);
-    }
-
-    public ValueTask<IImportConcurrencyLease> AcquireRuntimeDownloadSlotAsync(CancellationToken cancellationToken = default)
-    {
-        return AcquireAsync(runtimeDownloadSemaphore, cancellationToken);
-    }
-
-    public ValueTask<IImportConcurrencyLease> AcquireHashSlotAsync(CancellationToken cancellationToken = default)
-    {
-        return AcquireAsync(hashSemaphore, cancellationToken);
-    }
-
-    private static async ValueTask<IImportConcurrencyLease> AcquireAsync(
-        SemaphoreSlim semaphore,
-        CancellationToken cancellationToken)
+    private static async ValueTask<IImportConcurrencyLease> AcquireFixedAsync(SemaphoreSlim semaphore, CancellationToken cancellationToken)
     {
         await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
         return new SemaphoreLease(semaphore);
@@ -62,16 +50,117 @@ internal sealed class ImportConcurrencyLimiter : IImportConcurrencyLimiter
     private sealed class SemaphoreLease(SemaphoreSlim semaphore) : IImportConcurrencyLease
     {
         private SemaphoreSlim? semaphore = semaphore;
+        public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
+        public void Dispose() => Interlocked.Exchange(ref semaphore, null)?.Release();
+    }
+}
 
-        public ValueTask DisposeAsync()
-        {
-            Dispose();
-            return ValueTask.CompletedTask;
-        }
+/// <summary>
+/// A lease scheduler instead of a replaceable semaphore. Lowering the target
+/// simply stops issuing new leases; already useful requests finish normally.
+/// </summary>
+internal sealed class AdaptiveDownloadScheduler
+{
+    private static readonly TimeSpan AdjustmentCooldown = TimeSpan.FromSeconds(20);
+    private readonly object syncRoot = new();
+    private readonly SemaphoreSlim signal = new(0);
+    private readonly int minimum;
+    private readonly int maximum;
+    private int activeCount;
+    private int waitingCount;
+    private int currentTarget;
+    private int successes;
+    private int failures;
+    private DateTimeOffset lastAdjustmentAt = DateTimeOffset.UtcNow;
 
-        public void Dispose()
+    public AdaptiveDownloadScheduler(int minimum, int initial, int maximum)
+    {
+        this.minimum = minimum;
+        this.maximum = maximum;
+        currentTarget = initial;
+    }
+
+    internal (int ActiveCount, int WaitingCount, int CurrentTarget, int ConfiguredMaximum) Snapshot
+    {
+        get { lock (syncRoot) return (activeCount, waitingCount, currentTarget, maximum); }
+    }
+
+    public async ValueTask<IImportConcurrencyLease> AcquireAsync(CancellationToken cancellationToken)
+    {
+        lock (syncRoot)
         {
-            Interlocked.Exchange(ref semaphore, null)?.Release();
+            waitingCount++;
         }
+        try
+        {
+            while (true)
+            {
+                lock (syncRoot)
+                {
+                    if (activeCount < currentTarget)
+                    {
+                        activeCount++;
+                        return new Lease(this);
+                    }
+                }
+                await signal.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            lock (syncRoot)
+            {
+                waitingCount--;
+            }
+        }
+    }
+
+    public void RecordResult(DownloadFailureReason? failureReason)
+    {
+        lock (syncRoot)
+        {
+            if (failureReason is null)
+                successes++;
+            else if (failureReason is DownloadFailureReason.Network or DownloadFailureReason.Dns
+                or DownloadFailureReason.ResponseHeadersTimeout or DownloadFailureReason.FirstByteTimeout
+                or DownloadFailureReason.BodyIdleTimeout or DownloadFailureReason.BodyInterrupted
+                or DownloadFailureReason.HttpStatus)
+                failures++;
+
+            var now = DateTimeOffset.UtcNow;
+            if (now - lastAdjustmentAt < AdjustmentCooldown)
+                return;
+            if (failures > 0)
+                currentTarget = Math.Max(minimum, (currentTarget + 1) / 2);
+            else if (successes >= currentTarget && waitingCount > 0)
+                currentTarget = Math.Min(maximum, currentTarget + 1);
+            successes = 0;
+            failures = 0;
+            lastAdjustmentAt = now;
+            SignalWaiters();
+        }
+    }
+
+    private void Release()
+    {
+        lock (syncRoot)
+        {
+            activeCount--;
+            SignalWaiters();
+        }
+    }
+
+    private void SignalWaiters()
+    {
+        var available = Math.Max(0, currentTarget - activeCount);
+        while (available-- > 0 && signal.CurrentCount < waitingCount)
+            signal.Release();
+    }
+
+    private sealed class Lease(AdaptiveDownloadScheduler owner) : IImportConcurrencyLease
+    {
+        private AdaptiveDownloadScheduler? owner = owner;
+        public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
+        public void Dispose() => Interlocked.Exchange(ref owner, null)?.Release();
     }
 }

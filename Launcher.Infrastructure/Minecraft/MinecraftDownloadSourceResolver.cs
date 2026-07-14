@@ -94,6 +94,9 @@ internal static class MinecraftDownloadSourceResolver
             MinecraftDownloadResourceCategory.Fabric => useBmclApi
                 ? BuildBmclFabricUrl(originalUri)
                 : BuildOfficialFabricUrl(originalUri),
+            MinecraftDownloadResourceCategory.NeoForge => useBmclApi
+                ? BuildBmclNeoForgeUrl(originalUri)
+                : BuildOfficialNeoForgeUrl(originalUri),
             _ => originalUrl
         };
 
@@ -251,6 +254,23 @@ internal static class MinecraftDownloadSourceResolver
         if (uri.Host.Equals("meta.fabricmc.net", StringComparison.OrdinalIgnoreCase))
             return $"https://{BmclApiHost}/fabric-meta{uri.AbsolutePath}{uri.Query}";
 
+        return $"https://{BmclApiHost}/maven{uri.AbsolutePath}{uri.Query}";
+    }
+
+    private static string BuildOfficialNeoForgeUrl(Uri uri)
+    {
+        if (uri.Host.Equals(BmclApiHost, StringComparison.OrdinalIgnoreCase)
+            && uri.AbsolutePath.StartsWith("/maven/", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"https://maven.neoforged.net{uri.AbsolutePath["/maven".Length..]}{uri.Query}";
+        }
+        return uri.AbsoluteUri;
+    }
+
+    private static string BuildBmclNeoForgeUrl(Uri uri)
+    {
+        if (uri.Host.Equals(BmclApiHost, StringComparison.OrdinalIgnoreCase))
+            return uri.AbsoluteUri;
         return $"https://{BmclApiHost}/maven{uri.AbsolutePath}{uri.Query}";
     }
 

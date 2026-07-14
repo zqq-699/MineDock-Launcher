@@ -29,8 +29,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
     private readonly string destinationPath;
     private readonly string partPath;
     private readonly string metaPath;
-    private readonly string expectedSha1;
-    private readonly long? expectedSize;
+    private readonly DownloadIntegrityExpectation integrity;
     private readonly string logicalResourceIdentity;
     private readonly FileStream lockStream;
     private PartMetadata? metadata;
@@ -39,16 +38,14 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
 
     private ResumableDownloadFileSession(
         string destinationPath,
-        string expectedSha1,
-        long? expectedSize,
+        DownloadIntegrityExpectation integrity,
         string logicalResourceIdentity,
         FileStream lockStream)
     {
         this.destinationPath = destinationPath;
         partPath = destinationPath + ".part";
         metaPath = destinationPath + ".part.meta";
-        this.expectedSha1 = expectedSha1;
-        this.expectedSize = expectedSize;
+        this.integrity = integrity;
         this.logicalResourceIdentity = logicalResourceIdentity;
         this.lockStream = lockStream;
     }
@@ -66,20 +63,44 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
     {
         if (string.IsNullOrWhiteSpace(expectedSha1) || expectedSha1.Length != 40 || expectedSha1.Any(value => !Uri.IsHexDigit(value)))
             throw new InvalidDataException("A resumable game download requires a valid SHA-1 value.");
+        return await AcquireAsync(
+            destinationPath,
+            DownloadIntegrityExpectation.Sha1(expectedSha1, expectedSize),
+            logicalResourceIdentity,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public static async Task<ResumableDownloadFileSession> AcquireAsync(
+        string destinationPath,
+        DownloadIntegrityExpectation integrity,
+        string logicalResourceIdentity,
+        CancellationToken cancellationToken)
+    {
 
         var normalizedDestination = Path.GetFullPath(destinationPath);
         var directory = Path.GetDirectoryName(normalizedDestination)
             ?? throw new InvalidOperationException("Download destination has no parent directory.");
         Directory.CreateDirectory(directory);
         var lockStream = await AcquireLockAsync(normalizedDestination + ".part.lock", cancellationToken).ConfigureAwait(false);
-        var session = new ResumableDownloadFileSession(
-            normalizedDestination,
-            expectedSha1,
-            expectedSize,
-            logicalResourceIdentity,
-            lockStream);
-        await session.InitializeAsync(cancellationToken).ConfigureAwait(false);
-        return session;
+        try
+        {
+            await PartFileCapacityManager.EnsureCapacityAsync(
+                normalizedDestination,
+                integrity.ExpectedSize,
+                cancellationToken).ConfigureAwait(false);
+            var session = new ResumableDownloadFileSession(
+                normalizedDestination,
+                integrity,
+                logicalResourceIdentity,
+                lockStream);
+            await session.InitializeAsync(cancellationToken).ConfigureAwait(false);
+            return session;
+        }
+        catch
+        {
+            lockStream.Dispose();
+            throw;
+        }
     }
 
     public void ConfigureRequest(HttpRequestMessage request, ResolvedDownloadRequest resolution)
@@ -142,17 +163,17 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         metadata = new PartMetadata(
             logicalResourceIdentity,
             sourceKey,
-            expectedSize ?? totalLength,
-            expectedSha1,
+            integrity.ExpectedSize ?? totalLength,
+            integrity.Fingerprint,
             GetStrongETag(response),
             GetLastModified(response),
             existingLength,
             DateTimeOffset.UtcNow);
         await WriteMetadataAsync(force: true, cancellationToken).ConfigureAwait(false);
 
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
+        var hashers = integrity.CreateHashers();
         if (existingLength > 0)
-            await AppendExistingPartToHashAsync(hash, cancellationToken).ConfigureAwait(false);
+            await AppendExistingPartToHashAsync(hashers.Values, cancellationToken).ConfigureAwait(false);
 
         await using var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         await using var destination = new FileStream(
@@ -173,10 +194,11 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                 if (read == 0)
                     break;
                 await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-                hash.AppendData(buffer, 0, read);
+                foreach (var hasher in hashers.Values)
+                    hasher.AppendData(buffer, 0, read);
                 persisted += read;
                 reportDownloadedBytes?.Invoke(read);
-                reportAttemptProgress?.Invoke(attemptNumber, persisted, expectedSize ?? totalLength);
+                reportAttemptProgress?.Invoke(attemptNumber, persisted, integrity.ExpectedSize ?? totalLength);
                 await WriteMetadataAsync(force: false, cancellationToken).ConfigureAwait(false);
             }
         }
@@ -189,10 +211,18 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         destination.Flush(flushToDisk: true);
         await destination.DisposeAsync().ConfigureAwait(false);
         ValidateCompletedLength(response, persisted, totalLength);
-        if (!CryptographicOperations.FixedTimeEquals(hash.GetHashAndReset(), Convert.FromHexString(expectedSha1)))
+        try
         {
-            InvalidatePart();
-            throw new DownloadHashMismatchException("The downloaded file SHA-1 did not match the expected value.");
+            if (!integrity.Verify(hashers))
+            {
+                InvalidatePart();
+                throw new DownloadHashMismatchException("The downloaded file did not match its expected hash.");
+            }
+        }
+        finally
+        {
+            foreach (var hasher in hashers.Values)
+                hasher.Dispose();
         }
 
         try
@@ -218,8 +248,8 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         metadata = await ReadMetadataAsync(cancellationToken).ConfigureAwait(false);
         var partLength = GetPartLength();
         if (partLength == 0 || metadata is null || metadata.LogicalResourceIdentity != logicalResourceIdentity
-            || !string.Equals(metadata.ExpectedSha1, expectedSha1, StringComparison.OrdinalIgnoreCase)
-            || metadata.ExpectedSize != expectedSize)
+            || !string.Equals(metadata.ExpectedIntegrity, integrity.Fingerprint, StringComparison.Ordinal)
+            || metadata.ExpectedSize != integrity.ExpectedSize)
         {
             InvalidatePart();
             metadata = null;
@@ -230,8 +260,8 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
     {
         if (value.LogicalResourceIdentity != logicalResourceIdentity
             || !string.Equals(value.SourceCandidateKey, sourceKey, StringComparison.Ordinal)
-            || !string.Equals(value.ExpectedSha1, expectedSha1, StringComparison.OrdinalIgnoreCase)
-            || value.ExpectedSize != expectedSize
+            || !string.Equals(value.ExpectedIntegrity, integrity.Fingerprint, StringComparison.Ordinal)
+            || value.ExpectedSize != integrity.ExpectedSize
             || partLength <= 0
             || value.ExpectedSize is null
             || partLength >= value.ExpectedSize)
@@ -261,21 +291,21 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         var responseLength = resumed ? response.Content.Headers.ContentRange?.Length : response.Content.Headers.ContentLength;
         if (responseLength is null)
             return null;
-        if (expectedSize.HasValue && expectedSize.Value != responseLength.Value)
+        if (integrity.ExpectedSize.HasValue && integrity.ExpectedSize.Value != responseLength.Value)
             throw new DownloadContentValidationException("The response total length did not match the expected file size.");
         return responseLength;
     }
 
     private void ValidateCompletedLength(HttpResponseMessage response, long persisted, long? totalLength)
     {
-        var required = expectedSize ?? totalLength;
+        var required = integrity.ExpectedSize ?? totalLength;
         if (required.HasValue && persisted != required.Value)
             throw new DownloadBodyInterruptedException("The response body length did not match the expected file size.");
     }
 
     private async Task<bool> VerifyPartAsCompletedAsync(CancellationToken cancellationToken)
     {
-        if (expectedSize is null || GetPartLength() != expectedSize.Value)
+        if (integrity.ExpectedSize is null || GetPartLength() != integrity.ExpectedSize.Value)
             return false;
         if (!await VerifyFileAsync(partPath, cancellationToken).ConfigureAwait(false))
             return false;
@@ -287,14 +317,12 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
 
     private async Task<bool> VerifyFileAsync(string filePath, CancellationToken cancellationToken)
     {
-        if (!File.Exists(filePath) || (expectedSize.HasValue && new FileInfo(filePath).Length != expectedSize.Value))
+        if (!File.Exists(filePath))
             return false;
-        await using var file = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        var actual = await SHA1.HashDataAsync(file, cancellationToken).ConfigureAwait(false);
-        return CryptographicOperations.FixedTimeEquals(actual, Convert.FromHexString(expectedSha1));
+        return await integrity.VerifyFileAsync(filePath, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task AppendExistingPartToHashAsync(IncrementalHash hash, CancellationToken cancellationToken)
+    private async Task AppendExistingPartToHashAsync(IEnumerable<IncrementalHash> hashers, CancellationToken cancellationToken)
     {
         await using var source = new FileStream(partPath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
         var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
@@ -304,7 +332,8 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
             {
                 var read = await source.ReadAsync(buffer.AsMemory(0, BufferSize), cancellationToken).ConfigureAwait(false);
                 if (read == 0) break;
-                hash.AppendData(buffer, 0, read);
+                foreach (var hasher in hashers)
+                    hasher.AppendData(buffer, 0, read);
             }
         }
         finally { ArrayPool<byte>.Shared.Return(buffer); }
@@ -382,7 +411,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         string LogicalResourceIdentity,
         string SourceCandidateKey,
         long? ExpectedSize,
-        string ExpectedSha1,
+        string ExpectedIntegrity,
         string? StrongETag,
         string? LastModified,
         long DiagnosticLength,

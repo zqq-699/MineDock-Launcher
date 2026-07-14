@@ -686,6 +686,96 @@ public sealed class MinecraftDownloadRetryTests
         }
     }
 
+    [Fact]
+    public async Task SensitiveCurseForgeHeaderIsNotForwardedToRedirectedCdn()
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+        {
+            if (requestNumber == 1)
+            {
+                var redirect = CreateResponse(HttpStatusCode.Found, string.Empty, request);
+                redirect.Headers.Location = new Uri("https://edge.forgecdn.net/files/mod.jar");
+                return Task.FromResult(redirect);
+            }
+            return Task.FromResult(CreateResponse(HttpStatusCode.OK, "payload", request));
+        });
+        using var client = CreateClient(handler);
+        var policy = new DownloadAddressPolicy((_, _) => Task.FromResult(new[] { IPAddress.Parse("8.8.8.8") }));
+        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions(), policy);
+
+        var result = await transport.SendAsync(
+            "https://api.curseforge.com/v1/mods/1/files/2/download-url",
+            CancellationToken.None,
+            sensitiveHeaders: DownloadRequestHeaders.CurseForgeApiKey("secret"),
+            isThirdParty: true);
+
+        Assert.Equal(2, handler.RequestHeaders.Count);
+        Assert.Equal("secret", handler.RequestHeaders[0]["x-api-key"]);
+        Assert.False(handler.RequestHeaders[1].ContainsKey("x-api-key"));
+        result.Response.Dispose();
+    }
+
+    [Fact]
+    public async Task ThirdPartyPrivateAddressIsRejectedBeforeAnyRequest()
+    {
+        var handler = new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(CreateResponse(HttpStatusCode.OK, "payload", request)));
+        using var client = CreateClient(handler);
+        var policy = new DownloadAddressPolicy((_, _) => Task.FromResult(new[] { IPAddress.Parse("10.0.0.1") }));
+        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions(), policy);
+
+        var exception = await Assert.ThrowsAsync<DownloadAttemptException>(() => transport.SendAsync(
+            "https://example.invalid/file.jar", CancellationToken.None, isThirdParty: true));
+
+        Assert.Equal(DownloadFailureReason.UnsafeAddress, exception.Reason);
+        Assert.Empty(handler.RequestUris);
+    }
+
+    [Fact]
+    public async Task RedirectTargetIsResolvedAndValidatedAgain()
+    {
+        var handler = new CallbackRequestHandler((_, request, _) =>
+        {
+            var redirect = CreateResponse(HttpStatusCode.Found, string.Empty, request);
+            redirect.Headers.Location = new Uri("https://private.example.invalid/file.jar");
+            return Task.FromResult(redirect);
+        });
+        using var client = CreateClient(handler);
+        var resolutions = 0;
+        var policy = new DownloadAddressPolicy((host, _) =>
+        {
+            resolutions++;
+            return Task.FromResult(new[]
+            {
+                IPAddress.Parse(host.StartsWith("private", StringComparison.Ordinal) ? "192.168.1.10" : "8.8.8.8")
+            });
+        });
+        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions(), policy);
+
+        await Assert.ThrowsAsync<DownloadAttemptException>(() => transport.SendAsync(
+            "https://public.example.invalid/file.jar", CancellationToken.None, isThirdParty: true));
+
+        Assert.Equal(2, resolutions);
+        Assert.Single(handler.RequestUris);
+    }
+
+    [Fact]
+    public void HostHealthAvoidsOnlyRepeatedTransientFailures()
+    {
+        var tracker = new DownloadHostHealthTracker();
+        tracker.RecordFailure("BmclApiMojang", "node.example", DownloadFailureReason.Network);
+        tracker.RecordFailure("BmclApiMojang", "node.example", DownloadFailureReason.BodyIdleTimeout);
+        Assert.False(tracker.ShouldAvoid("BmclApiMojang", "node.example"));
+
+        tracker.RecordFailure("BmclApiMojang", "node.example", DownloadFailureReason.ResponseHeadersTimeout);
+        Assert.True(tracker.ShouldAvoid("BmclApiMojang", "node.example"));
+
+        tracker.RecordSuccess("BmclApiMojang", "node.example");
+        Assert.False(tracker.ShouldAvoid("BmclApiMojang", "node.example"));
+        tracker.RecordFailure("BmclApiMojang", "node.example", DownloadFailureReason.HashMismatch);
+        Assert.False(tracker.ShouldAvoid("BmclApiMojang", "node.example"));
+    }
+
     private static MinecraftDownloadRequestExecutor CreateExecutor(
         HttpClient httpClient,
         DownloadRetryOptions? options = null)
@@ -737,12 +827,17 @@ public sealed class MinecraftDownloadRetryTests
         private int requestCount;
 
         public List<Uri> RequestUris { get; } = [];
+        public List<Dictionary<string, string>> RequestHeaders { get; } = [];
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             RequestUris.Add(request.RequestUri!);
+            RequestHeaders.Add(request.Headers.ToDictionary(
+                header => header.Key,
+                header => string.Join(",", header.Value),
+                StringComparer.OrdinalIgnoreCase));
             return callback(Interlocked.Increment(ref requestCount), request, cancellationToken);
         }
     }

@@ -224,9 +224,6 @@ internal sealed class ResourceProjectStorage
         var settings = settingsService is null
             ? null
             : await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
-        var sha1 = expectation.Hash?.Algorithm is ResourceFileHashAlgorithm.Sha1
-            ? Convert.ToHexString(expectation.Hash.Value)
-            : null;
         var executor = new MinecraftDownloadRequestExecutor(
             httpClient,
             logger,
@@ -236,15 +233,31 @@ internal sealed class ResourceProjectStorage
             new DownloadRetryOptions { MaxAttemptsPerSource = 1 });
         try
         {
-            await executor.DownloadFileAsync(
-                url,
-                settings?.DownloadSourcePreference ?? DownloadSourcePreference.Auto,
-                "ThirdParty",
-                tempPath,
-                sha1,
-                expectation.FileSize,
-                reportDownloadedBytes: null,
-                cancellationToken).ConfigureAwait(false);
+            if (expectation.Hash is { Algorithm: not ResourceFileHashAlgorithm.Md5 } hash)
+            {
+                await executor.DownloadFileAsync(
+                    url,
+                    settings?.DownloadSourcePreference ?? DownloadSourcePreference.Auto,
+                    "ThirdParty",
+                    tempPath,
+                    new DownloadIntegrityExpectation(
+                        expectation.FileSize,
+                        [(ToHashAlgorithmName(hash.Algorithm), Convert.ToHexString(hash.Value))]),
+                    reportDownloadedBytes: null,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await executor.DownloadFileAsync(
+                    url,
+                    settings?.DownloadSourcePreference ?? DownloadSourcePreference.Auto,
+                    "ThirdParty",
+                    tempPath,
+                    expectedSha1: null,
+                    expectedSize: expectation.FileSize,
+                    reportDownloadedBytes: null,
+                    cancellationToken).ConfigureAwait(false);
+            }
         }
         catch (DownloadLocalFileException exception)
         {
@@ -270,7 +283,7 @@ internal sealed class ResourceProjectStorage
             throw new HttpRequestException("Resource project download candidate failed.", exception, exception.InnerException is DownloadAttemptException { StatusCode: { } status } ? status : null);
         }
 
-        if (expectation.Hash is null || expectation.Hash.Algorithm is ResourceFileHashAlgorithm.Sha1)
+        if (expectation.Hash is null || expectation.Hash.Algorithm is not ResourceFileHashAlgorithm.Md5)
             return;
         await using var source = File.OpenRead(tempPath);
         var actual = expectation.Hash.Algorithm switch
