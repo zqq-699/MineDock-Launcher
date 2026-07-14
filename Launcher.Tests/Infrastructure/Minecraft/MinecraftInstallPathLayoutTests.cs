@@ -7,9 +7,12 @@
 
 using System.IO.Compression;
 using System.Diagnostics;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using CmlLib.Core;
 using CmlLib.Core.Files;
+using CmlLib.Core.Installers;
 using CmlLib.Core.FileExtractors;
 using CmlLib.Core.Rules;
 using CmlLib.Core.Version;
@@ -103,6 +106,29 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
         Assert.Equal(Math.Min(4, Math.Max(1, Environment.ProcessorCount)), installer.ConfiguredMaxChecker);
         Assert.Equal(ImportConcurrencyLimiter.MaximumDownloadConcurrency, installer.ConfiguredMaxDownloader);
         Assert.Equal(16, installer.ConfiguredMaxDownloader);
+    }
+
+    [Fact]
+    public void CmlFileChecksRemainCheckingWhileAnotherFileDownloads()
+    {
+        var reports = new List<LauncherProgress>();
+        var launcher = VanillaLoaderProvider.CreateLauncher(
+            new MinecraftPath(Path.Combine(TempRoot, ".minecraft")),
+            new InlineProgress(reports));
+        VanillaLoaderProvider.AttachProgress(launcher, new InlineProgress(reports));
+        var installer = Assert.IsType<DownloadSpeedTrackingGameInstaller>(launcher.GameInstaller);
+        var speedReporter = Assert.IsType<SlidingWindowDownloadSpeedReporter>(GetPrivateField(installer, "speedReporter"));
+        speedReporter.BeginTransfer();
+
+        RaisePrivateEvent(
+            launcher,
+            "FileProgressChanged",
+            new InstallerProgressChangedEventArgs(2, 1, "library.jar", InstallerEventType.Done));
+        RaisePrivateEvent(launcher, "ByteProgressChanged", new ByteProgress(50, 100));
+
+        Assert.Collection(reports,
+            progress => Assert.Equal(LaunchProgressStages.CheckingFiles, progress.Stage),
+            progress => Assert.Equal(LaunchProgressStages.DownloadingFiles, progress.Stage));
     }
 
     [Fact]
@@ -692,5 +718,22 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
     private static string ComputeSha1(string content)
     {
         return Convert.ToHexString(SHA1.HashData(Encoding.UTF8.GetBytes(content)));
+    }
+
+    private static object GetPrivateField(object instance, string fieldName) =>
+        instance.GetType()
+            .GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)
+            ?.GetValue(instance)
+        ?? throw new InvalidOperationException($"Expected private field '{fieldName}'.");
+
+    private static void RaisePrivateEvent<T>(object instance, string fieldName, T args)
+    {
+        var handler = Assert.IsType<EventHandler<T>>(GetPrivateField(instance, fieldName));
+        handler.Invoke(instance, args);
+    }
+
+    private sealed class InlineProgress(List<LauncherProgress> reports) : IProgress<LauncherProgress>
+    {
+        public void Report(LauncherProgress value) => reports.Add(value);
     }
 }

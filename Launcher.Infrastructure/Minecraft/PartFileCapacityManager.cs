@@ -15,15 +15,16 @@ namespace Launcher.Infrastructure.Minecraft;
 internal static class PartFileCapacityManager
 {
     internal const long DefaultCapacityBytes = 2L * 1024 * 1024 * 1024;
-    private const long InitialUnknownReservation = 64L * 1024 * 1024;
-    private const long UnknownGrowthBytes = 16L * 1024 * 1024;
     private static readonly object SyncRoot = new();
     private static long retainedBytes;
     private static long reservedBytes;
 
     public static CapacityLease Reserve(long? expectedSize)
     {
-        var reservation = expectedSize is > 0 ? expectedSize.Value : InitialUnknownReservation;
+        // Unknown-size responses must not consume a speculative fixed budget.
+        // Their capacity is charged as bytes are actually written; a response
+        // with a declared length is still reserved against that real length.
+        var reservation = expectedSize is > 0 ? expectedSize.Value : 0;
         lock (SyncRoot)
         {
             EnsureFits(reservation);
@@ -72,12 +73,12 @@ internal static class PartFileCapacityManager
             lock (SyncRoot)
             {
                 ThrowIfDisposed();
-                while (remainingReservation < bytes)
+                if (remainingReservation < bytes)
                 {
-                    var growth = Math.Max(UnknownGrowthBytes, bytes - remainingReservation);
-                    EnsureFits(growth);
-                    reservedBytes += growth;
-                    remainingReservation += growth;
+                    var additional = bytes - remainingReservation;
+                    EnsureFits(additional);
+                    reservedBytes += additional;
+                    remainingReservation += additional;
                 }
                 remainingReservation -= bytes;
                 reservedBytes -= bytes;

@@ -19,6 +19,7 @@
 
 using Launcher.App.Services;
 using Launcher.App.Resources;
+using Launcher.App.Utilities;
 using Launcher.App.ViewModels.Download;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
@@ -246,6 +247,16 @@ public sealed class DownloadViewModelTests
         Assert.Equal("installer", task.StatusMessage);
         Assert.Equal(42, task.ProgressPercent);
         Assert.Equal(string.Empty, task.DownloadSpeedText);
+    }
+
+    [Fact]
+    public void CheckingGameFilesUsesCheckingStatusText()
+    {
+        var status = LauncherProgressTextFormatter.Format(new LauncherProgress(
+            LaunchProgressStages.CheckingFiles,
+            string.Empty));
+
+        Assert.Equal(Strings.Status_InstallCheckingFiles, status);
     }
 
     [Fact]

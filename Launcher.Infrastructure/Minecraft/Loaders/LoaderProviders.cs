@@ -201,8 +201,6 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
         var lastReportedPercent = 0d;
         var lastReportedAt = DateTimeOffset.MinValue;
         var lastReportedMessage = string.Empty;
-        var speedTrackingInstaller = launcher.GameInstaller as DownloadSpeedTrackingGameInstaller;
-
         launcher.FileProgressChanged += (_, args) =>
         {
             lock (syncRoot)
@@ -215,13 +213,15 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
                     : Math.Clamp(args.ProgressedTasks, 0, totalTasks);
                 currentTaskFraction = 0;
 
-                // CML only distinguishes queued/done file events.  Treat the
-                // non-body part as verification, but do not clear a live speed
-                // sample while another parallel file is still reading a body.
-                var stage = speedTrackingInstaller?.HasActiveNetworkTransfers == true
-                    ? LaunchProgressStages.DownloadingFiles
-                    : LaunchProgressStages.CheckingFiles;
-                ReportProgress(stage, $"{args.EventType}: {args.Name}", CalculateTotalPercent());
+                // CML only distinguishes queued/done file events. They describe
+                // this file's verification or completion, even while another
+                // parallel file is reading a response body. Keep that stage
+                // truthful; ByteProgressChanged remains the download signal and
+                // the separate speed telemetry is not cleared here.
+                ReportProgress(
+                    LaunchProgressStages.CheckingFiles,
+                    $"{args.EventType}: {args.Name}",
+                    CalculateTotalPercent());
             }
         };
 
