@@ -120,6 +120,69 @@ internal sealed class GameFileIntegrityService : IGameFileIntegrityService
         }
     }
 
+    /// <summary>
+    /// Validates a version immediately after it was installed by the current
+    /// download operation. Files whose exact expected SHA-1 and size were
+    /// already verified and atomically published by that operation are not
+    /// hashed again; all other files retain the normal full verification and
+    /// repair behavior.
+    /// </summary>
+    internal async Task<GameFileRepairResult> ValidateInstalledVersionAsync(
+        GameFileIntegrityRequest request,
+        MinecraftDownloadOperationContext operationContext,
+        IProgress<LauncherProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(operationContext);
+        try
+        {
+            var before = await ValidateAsync(request, operationContext, cancellationToken).ConfigureAwait(false);
+            LogReport("Game file post-install validation completed.", request, before, repairedCount: 0);
+            if (before.LaunchAllowed)
+                return before;
+
+            await repairService.RepairWithOperationAsync(
+                    request.MinecraftDirectory,
+                    request.VersionName,
+                    request.InstanceDirectory,
+                    progress,
+                    allowRepair: true,
+                    operationContext,
+                    cancellationToken,
+                    request.DownloadSourcePreference,
+                    request.DownloadSpeedLimitMbPerSecond)
+                .ConfigureAwait(false);
+
+            var after = await ValidateAsync(request, operationContext, cancellationToken).ConfigureAwait(false);
+            var repairedCount = Math.Max(0, before.FailedCount - after.FailedCount);
+            LogReport("Game file post-install repair validation completed.", request, after, repairedCount);
+            return after with { RepairedCount = repairedCount };
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return FailureResult(request, GameFileRepairFailureReason.Canceled, "Canceled", "None", null);
+        }
+        catch (InstanceRepairException exception)
+        {
+            return FailureResult(
+                request,
+                ClassifyFailure(exception),
+                "Repair",
+                "PlannedRecovery",
+                exception.Message);
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or JsonException)
+        {
+            logger.LogWarning(exception, "Game file post-install validation planning failed. VersionName={VersionName}", request.VersionName);
+            return FailureResult(
+                request,
+                GameFileRepairFailureReason.MetadataIncomplete,
+                "Metadata",
+                "None",
+                exception.Message);
+        }
+    }
+
     public async Task<GameFileRepairResult> ValidateFinalLaunchCommandAsync(
         GameFileIntegrityRequest request,
         ProcessStartInfo startInfo,
@@ -196,6 +259,30 @@ internal sealed class GameFileIntegrityService : IGameFileIntegrityService
     {
         var plan = await manifestBuilder.ResolveAsync(request, cancellationToken).ConfigureAwait(false);
         var report = await GameFileManifestValidator.ValidateAsync(plan.Manifest, cancellationToken).ConfigureAwait(false);
+        return new GameFileRepairResult(
+            report.Failures.Count == 0,
+            plan.Manifest.Files.Count,
+            report.MissingCount,
+            report.CorruptedCount,
+            report.UnverifiableCount,
+            report.RepairableCount,
+            RepairedCount: 0,
+            report.Failures.Count,
+            report.Failures);
+    }
+
+    private async Task<GameFileRepairResult> ValidateAsync(
+        GameFileIntegrityRequest request,
+        MinecraftDownloadOperationContext operationContext,
+        CancellationToken cancellationToken)
+    {
+        var plan = await manifestBuilder.ResolveAsync(request, cancellationToken).ConfigureAwait(false);
+        var report = await GameFileManifestValidator.ValidateAsync(plan.Manifest, operationContext, cancellationToken).ConfigureAwait(false);
+        logger.LogInformation(
+            "Game file manifest verification completed. VersionName={VersionName} FullVerificationCount={FullVerificationCount} CurrentOperationVerificationReuseCount={CurrentOperationVerificationReuseCount}",
+            request.VersionName,
+            report.FullVerificationCount,
+            report.CurrentOperationVerificationReuseCount);
         return new GameFileRepairResult(
             report.Failures.Count == 0,
             plan.Manifest.Files.Count,
@@ -290,7 +377,9 @@ internal sealed record GameFileValidationReport(
     int CorruptedCount,
     int UnverifiableCount,
     int RepairableCount,
-    IReadOnlyList<GameFileRepairFailure> Failures);
+    IReadOnlyList<GameFileRepairFailure> Failures,
+    int FullVerificationCount,
+    int CurrentOperationVerificationReuseCount);
 
 internal sealed record GameFileRepairPlan(IReadOnlyList<RequiredGameFile> FilesToRepair);
 
@@ -305,14 +394,14 @@ internal sealed class RequiredGameFileManifestBuilder
 
     public async Task<ResolvedLaunchPlan> ResolveAsync(GameFileIntegrityRequest request, CancellationToken cancellationToken)
     {
-        var versionDirectory = Path.Combine(request.MinecraftDirectory, "versions", request.VersionName);
+        var versionDirectory = Path.GetFullPath(request.InstanceDirectory);
         var versionJson = await ReadResolvedVersionJsonAsync(request.MinecraftDirectory, request.VersionName, versionDirectory, cancellationToken)
             .ConfigureAwait(false);
         var files = new Dictionary<string, RequiredGameFile>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         Add(files, new RequiredGameFile(
             Path.Combine(versionDirectory, $"{request.VersionName}.json"),
             "VersionMetadata", null, null, null, true, "Unavailable", "Resolved version metadata"));
-        AddClientJar(files, request.MinecraftDirectory, request.VersionName, versionJson);
+        AddClientJar(files, versionDirectory, request.VersionName, versionJson);
         AddLibraries(files, request.MinecraftDirectory, versionJson);
         await AddAssetsAsync(files, request.MinecraftDirectory, versionJson, cancellationToken).ConfigureAwait(false);
         AddLogging(files, request.MinecraftDirectory, versionJson);
@@ -355,11 +444,11 @@ internal sealed class RequiredGameFileManifestBuilder
             ?? throw new InvalidDataException($"Version metadata is empty: {path}");
     }
 
-    private static void AddClientJar(IDictionary<string, RequiredGameFile> files, string minecraftDirectory, string versionName, JsonObject versionJson)
+    private static void AddClientJar(IDictionary<string, RequiredGameFile> files, string versionDirectory, string versionName, JsonObject versionJson)
     {
         var client = versionJson["downloads"]?["client"] as JsonObject;
         Add(files, new RequiredGameFile(
-            Path.Combine(minecraftDirectory, "versions", versionName, $"{versionName}.jar"),
+            Path.Combine(versionDirectory, $"{versionName}.jar"),
             "ClientJar",
             GetString(client?["url"]),
             GetString(client?["sha1"]),
@@ -488,15 +577,31 @@ internal static class GameFileManifestValidator
 {
     public static async Task<GameFileValidationReport> ValidateAsync(RequiredGameFileManifest manifest, CancellationToken cancellationToken)
     {
+        return await ValidateAsync(manifest, operationContext: null, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    public static async Task<GameFileValidationReport> ValidateAsync(
+        RequiredGameFileManifest manifest,
+        MinecraftDownloadOperationContext? operationContext,
+        CancellationToken cancellationToken)
+    {
         var failures = new List<GameFileRepairFailure>();
         var missing = 0;
         var corrupted = 0;
         var unverifiable = 0;
         var repairable = 0;
+        var fullVerificationCount = 0;
+        var currentOperationVerificationReuseCount = 0;
         foreach (var file in manifest.Files.Where(file => file.Required))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var status = await MinecraftFileIntegrity.EvaluateAsync(file.TargetPath, file.Sha1, file.Size, MinecraftFileVerification.Full, cancellationToken).ConfigureAwait(false);
+            var verifiedByCurrentOperation = IsVerifiedByCurrentOperation(file, operationContext);
+            var verification = verifiedByCurrentOperation ? MinecraftFileVerification.SizeOnly : MinecraftFileVerification.Full;
+            if (verifiedByCurrentOperation)
+                currentOperationVerificationReuseCount++;
+            else
+                fullVerificationCount++;
+            var status = await MinecraftFileIntegrity.EvaluateAsync(file.TargetPath, file.Sha1, file.Size, verification, cancellationToken).ConfigureAwait(false);
             if (status == MinecraftFileIntegrityStatus.Valid && IsOrdinaryFile(file.TargetPath))
             {
                 if (string.IsNullOrWhiteSpace(file.Sha1) && file.Size is null)
@@ -515,7 +620,25 @@ internal static class GameFileManifestValidator
                 repairable++;
             failures.Add(new GameFileRepairFailure(file.TargetPath, file.Category, reason, file.RecoveryMethod, file.Source));
         }
-        return new GameFileValidationReport(missing, corrupted, unverifiable, repairable, failures);
+        return new GameFileValidationReport(
+            missing,
+            corrupted,
+            unverifiable,
+            repairable,
+            failures,
+            fullVerificationCount,
+            currentOperationVerificationReuseCount);
+    }
+
+    private static bool IsVerifiedByCurrentOperation(
+        RequiredGameFile file,
+        MinecraftDownloadOperationContext? operationContext)
+    {
+        return operationContext is not null
+            && MinecraftFileIntegrity.IsSha1(file.Sha1)
+            && operationContext.IsVerified(
+                file.TargetPath,
+                DownloadIntegrityExpectation.Sha1(file.Sha1!, file.Size));
     }
 
     private static bool IsOrdinaryFile(string path)

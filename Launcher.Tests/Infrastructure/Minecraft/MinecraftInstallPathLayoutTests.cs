@@ -14,6 +14,7 @@ using CmlLib.Core.FileExtractors;
 using CmlLib.Core.Rules;
 using CmlLib.Core.Version;
 using Launcher.Infrastructure.Minecraft;
+using Launcher.Infrastructure.Modpacks;
 
 namespace Launcher.Tests.Infrastructure.Minecraft;
 
@@ -87,6 +88,21 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
             extractor => extractor.GetType() == typeof(CmlLib.Core.FileExtractors.AssetFileExtractor));
         Assert.Equal(Path.Combine(sandbox, "versions"), launcher.MinecraftPath.Versions);
         Assert.Equal(Path.Combine(realMinecraft, "libraries"), launcher.MinecraftPath.Library);
+    }
+
+    [Fact]
+    public void GameInstallerUsesGlobalDownloadMaximumWhileKeepingCheckerLimit()
+    {
+        var sandbox = Path.Combine(TempRoot, "sandbox", ".minecraft");
+        var realMinecraft = Path.Combine(TempRoot, "real", ".minecraft");
+        var layout = MinecraftInstallPathLayout.Create(sandbox, realMinecraft);
+
+        var launcher = VanillaLoaderProvider.CreateLauncher(layout.Path, progress: null);
+        var installer = Assert.IsType<DownloadSpeedTrackingGameInstaller>(launcher.GameInstaller);
+
+        Assert.Equal(Math.Min(4, Math.Max(1, Environment.ProcessorCount)), installer.ConfiguredMaxChecker);
+        Assert.Equal(ImportConcurrencyLimiter.MaximumDownloadConcurrency, installer.ConfiguredMaxDownloader);
+        Assert.Equal(16, installer.ConfiguredMaxDownloader);
     }
 
     [Fact]
@@ -205,6 +221,35 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task ForgeSandboxSeedingDoesNotMirrorTheBaseVersionLibraryGraph()
+    {
+        var shared = Path.Combine(TempRoot, "shared");
+        var workspace = Path.Combine(TempRoot, "installer", ".minecraft");
+        var baseLibrary = Path.Combine("com", "example", "base", "1.0", "base-1.0.jar");
+        var clientSha1 = ComputeSha1("jar");
+        CreateFile(Path.Combine("shared", "versions", "1.20.1", "1.20.1.json"), $$"""
+            {
+              "id": "1.20.1",
+              "downloads": { "client": { "sha1": "{{clientSha1}}", "size": 3 } },
+              "libraries": [{ "name": "com.example:base:1.0" }]
+            }
+            """);
+        CreateFile(Path.Combine("shared", "versions", "1.20.1", "1.20.1.jar"), "jar");
+        CreateFile(Path.Combine("shared", "libraries", baseLibrary), "base");
+
+        await new LoaderInstallerPrerequisiteSeeder().SeedAsync(
+            shared,
+            workspace,
+            "1.20.1",
+            Path.Combine(TempRoot, "missing-installer.jar"),
+            CancellationToken.None);
+
+        Assert.True(File.Exists(Path.Combine(workspace, "versions", "1.20.1", "1.20.1.json")));
+        Assert.True(File.Exists(Path.Combine(workspace, "versions", "1.20.1", "1.20.1.jar")));
+        Assert.False(File.Exists(Path.Combine(workspace, "libraries", baseLibrary)));
+    }
+
+    [Fact]
     public async Task ForgePrerequisiteModificationStopsPublication()
     {
         var shared = Path.Combine(TempRoot, "shared");
@@ -221,6 +266,34 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
             snapshot,
             Path.Combine(TempRoot, "published"),
             CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task TrustedSharedPublicationRecordsTheVerifiedFormalFileForTheCurrentOperation()
+    {
+        var workspace = Path.Combine(TempRoot, "installer", ".minecraft");
+        var relativePath = "libraries/com/example/needed/1.0/needed-1.0.jar";
+        var source = CreateFile(Path.Combine("installer", ".minecraft", relativePath.Replace('/', Path.DirectorySeparatorChar)), "needed");
+        var expectation = new VerifiedSharedFileExpectation(
+            AtomicSharedFilePublisher.ComputeSha1(source),
+            new FileInfo(source).Length);
+        var destination = Path.Combine(TempRoot, "shared");
+        using var operation = new MinecraftDownloadOperationContext(destination);
+
+        await new LoaderInstallerPrerequisiteSeeder().PublishDeltaAsync(
+            EmptySnapshot(workspace),
+            destination,
+            CancellationToken.None,
+            new Dictionary<string, VerifiedSharedFileExpectation>(StringComparer.OrdinalIgnoreCase)
+            {
+                [relativePath] = expectation
+            },
+            operation);
+
+        var publishedPath = Path.Combine(destination, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        Assert.True(operation.IsVerified(
+            publishedPath,
+            DownloadIntegrityExpectation.Sha1(expectation.Sha1, expectation.Size)));
     }
 
     [Fact]

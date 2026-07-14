@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Diagnostics;
 using Launcher.Domain.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -214,16 +215,13 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         using var importCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var importCancellationToken = importCancellation.Token;
 
-        var downloadModsTask = CompleteWithProgressAsync(
-            modpackPackageService.DownloadFilesAsync(
-                preparedModpack,
-                stagedInstance.Instance,
-                session.Progress,
-                importCancellationToken,
-                downloadSourcePreference,
-                downloadSpeedLimitMbPerSecond),
+        var downloadModsTask = DownloadModpackFilesWithTimingAsync(
+            preparedModpack,
+            stagedInstance,
             session.Progress,
-            new LauncherProgress(ImportProgressStages.DownloadingPackFiles, string.Empty, 100));
+            importCancellationToken,
+            downloadSourcePreference,
+            downloadSpeedLimitMbPerSecond);
         _ = CancelImportOnBranchFailureAsync(downloadModsTask, importCancellation);
 
         var loaderInstallTask = InstallLoaderIntoStagingAsync(
@@ -239,6 +237,39 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
             .ConfigureAwait(false);
         session.FinalVersionName = await loaderInstallTask.ConfigureAwait(false);
         return await downloadModsTask.ConfigureAwait(false);
+    }
+
+    private async Task<IReadOnlyList<ManualModpackDownload>> DownloadModpackFilesWithTimingAsync(
+        PreparedModpack preparedModpack,
+        StagedModpackInstance stagedInstance,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken,
+        DownloadSourcePreference downloadSourcePreference,
+        int downloadSpeedLimitMbPerSecond)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        logger.LogInformation(
+            "Modpack content download started. InstanceName={InstanceName} DeclaredFileCount={DeclaredFileCount}",
+            stagedInstance.ResolvedInstanceName,
+            preparedModpack.Files.Count);
+        var manualDownloads = await CompleteWithProgressAsync(
+                modpackPackageService.DownloadFilesAsync(
+                    preparedModpack,
+                    stagedInstance.Instance,
+                    progress,
+                    cancellationToken,
+                    downloadSourcePreference,
+                    downloadSpeedLimitMbPerSecond),
+                progress,
+                new LauncherProgress(ImportProgressStages.DownloadingPackFiles, string.Empty, 100))
+            .ConfigureAwait(false);
+        logger.LogInformation(
+            "Modpack content download completed. InstanceName={InstanceName} DeclaredFileCount={DeclaredFileCount} ManualDownloadCount={ManualDownloadCount} DurationMs={DurationMs}",
+            stagedInstance.ResolvedInstanceName,
+            preparedModpack.Files.Count,
+            manualDownloads.Count,
+            stopwatch.ElapsedMilliseconds);
+        return manualDownloads;
     }
 
     /// <summary>
@@ -286,6 +317,11 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
             ? null
             : new InstallCardProgressMapper(installStageProgress, preparedModpack.Loader, hasOptionalContent: false);
         // 整合包文件下载已在并行分支中启动；租约只覆盖会写入共享 Minecraft 内容的 Loader 安装阶段。
+        var coordinatorWait = Stopwatch.StartNew();
+        logger.LogInformation(
+            "Modpack loader installation waiting for shared install coordinator. InstanceName={InstanceName} Loader={Loader}",
+            stagedInstance.ResolvedInstanceName,
+            preparedModpack.Loader);
         await using var installLease = await installCoordinator
             .AcquireInstallAsync(
                 stagedInstance.MinecraftDirectory,
@@ -293,7 +329,19 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 installProgress,
                 cancellationToken)
             .ConfigureAwait(false);
+        logger.LogInformation(
+            "Modpack loader installation acquired shared install coordinator. InstanceName={InstanceName} Loader={Loader} WaitDurationMs={WaitDurationMs}",
+            stagedInstance.ResolvedInstanceName,
+            preparedModpack.Loader,
+            coordinatorWait.ElapsedMilliseconds);
 
+        var installerStopwatch = Stopwatch.StartNew();
+        logger.LogInformation(
+            "Modpack loader installation started. InstanceName={InstanceName} Loader={Loader} MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion}",
+            stagedInstance.ResolvedInstanceName,
+            preparedModpack.Loader,
+            preparedModpack.MinecraftVersion,
+            preparedModpack.LoaderVersion);
         var versionName = await modpackGameInstaller.InstallLoaderAsync(
             preparedModpack.MinecraftVersion,
             preparedModpack.Loader,
@@ -307,6 +355,12 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
             downloadSourcePreference,
             downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
         installProgress?.ReportBaseInstallCompleted();
+        logger.LogInformation(
+            "Modpack loader installation completed. InstanceName={InstanceName} Loader={Loader} VersionName={VersionName} DurationMs={DurationMs}",
+            stagedInstance.ResolvedInstanceName,
+            preparedModpack.Loader,
+            versionName,
+            installerStopwatch.ElapsedMilliseconds);
         return versionName;
     }
 

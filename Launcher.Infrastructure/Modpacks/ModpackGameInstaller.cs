@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using Launcher.Application.Services;
@@ -320,11 +321,30 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                 (versionName, token) => finalVersionInstaller.InstallAsync(
                     installLayout.Path,
                     versionName,
+                    composeDownloadOperation,
                     downloadSourcePreference,
                     progress,
                     token,
                     downloadSpeedLimitMbPerSecond),
                 cancellationToken).ConfigureAwait(false);
+
+            progress?.Report(new LauncherProgress(InstallProgressStages.FinalizingVersion, string.Empty));
+            var validation = await new GameFileIntegrityService(httpClient, downloadSpeedLimitState, logger)
+                .ValidateInstalledVersionAsync(
+                    new GameFileIntegrityRequest(
+                        target.MinecraftDirectory,
+                        finalVersionName,
+                        Path.Combine(sandboxMinecraftDirectory, "versions", finalVersionName),
+                        downloadSourcePreference,
+                        downloadSpeedLimitMbPerSecond),
+                    composeDownloadOperation,
+                    progress,
+                    cancellationToken).ConfigureAwait(false);
+            if (!validation.LaunchAllowed)
+            {
+                throw new InstanceRepairException(
+                    $"Installed {loaderName} version {finalVersionName} failed required-file validation.");
+            }
 
             MinecraftVersionDirectoryCopier.CopyVersionDirectoryTo(
                 sandboxMinecraftDirectory,
@@ -379,9 +399,11 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         var sessionDirectory = sandboxSession.DirectoryPath;
         var sandboxMinecraftDirectory = Path.Combine(sessionDirectory, ".minecraft");
         var wasCanceled = false;
+        var finalVersionName = string.Empty;
         try
         {
-            var finalVersionName = provider is IStagedLoaderProvider stagedProvider
+            var separatedPathProvider = provider as ISeparatedInstallPathLoaderProvider;
+            finalVersionName = provider is IStagedLoaderProvider stagedProvider
                 ? await stagedProvider.InstallStagedAsync(
                     minecraftVersion,
                     sandboxMinecraftDirectory,
@@ -392,29 +414,65 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
                     downloadSourcePreference,
                     cancellationToken,
                     downloadSpeedLimitMbPerSecond).ConfigureAwait(false)
-                : await provider.InstallAsync(
-                    minecraftVersion,
-                    sandboxMinecraftDirectory,
-                    target.LogicalVersionName,
-                    loaderVersion,
-                    progress,
-                    downloadSourcePreference,
-                    cancellationToken,
-                    downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
+                : separatedPathProvider is not null
+                    ? await separatedPathProvider.InstallWithSeparatedPathsAsync(
+                        minecraftVersion,
+                        MinecraftInstallPathLayout.Create(sandboxMinecraftDirectory, target.MinecraftDirectory),
+                        target.LogicalVersionName,
+                        loaderVersion,
+                        progress,
+                        downloadSourcePreference,
+                        cancellationToken,
+                        downloadSpeedLimitMbPerSecond).ConfigureAwait(false)
+                    : await provider.InstallAsync(
+                        minecraftVersion,
+                        sandboxMinecraftDirectory,
+                        target.LogicalVersionName,
+                        loaderVersion,
+                        progress,
+                        downloadSourcePreference,
+                        cancellationToken,
+                        downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
             if (!string.Equals(finalVersionName, target.LogicalVersionName, StringComparison.Ordinal))
                 throw new InvalidDataException("Loader returned a version identity different from the logical install name.");
+
+            logger.LogInformation(
+                "Instance loader sandbox publication started. Loader={Loader} VersionName={VersionName} SessionDirectory={SessionDirectory}",
+                provider.Kind,
+                finalVersionName,
+                sessionDirectory);
+            var publicationStopwatch = Stopwatch.StartNew();
+            var versionCopyStopwatch = Stopwatch.StartNew();
             MinecraftVersionDirectoryCopier.CopyVersionDirectoryTo(
                 sandboxMinecraftDirectory,
                 finalVersionName,
                 target.PhysicalOutputDirectory,
                 allowExistingDestination: true,
                 cancellationToken);
-            await new LoaderInstallerPrerequisiteSeeder(logger).PublishDeltaAsync(
-                new LoaderInstallerWorkspaceSnapshot(
-                    sandboxMinecraftDirectory,
-                    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)),
-                target.MinecraftDirectory,
-                cancellationToken).ConfigureAwait(false);
+            versionCopyStopwatch.Stop();
+
+            var sharedFilePublishDuration = 0L;
+            if (separatedPathProvider is null
+                && provider is not IDirectSharedContentStagedLoaderProvider)
+            {
+                var sharedFilePublishStopwatch = Stopwatch.StartNew();
+                await new LoaderInstallerPrerequisiteSeeder(logger).PublishDeltaAsync(
+                    new LoaderInstallerWorkspaceSnapshot(
+                        sandboxMinecraftDirectory,
+                        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)),
+                    target.MinecraftDirectory,
+                    cancellationToken).ConfigureAwait(false);
+                sharedFilePublishStopwatch.Stop();
+                sharedFilePublishDuration = sharedFilePublishStopwatch.ElapsedMilliseconds;
+            }
+            publicationStopwatch.Stop();
+            logger.LogInformation(
+                "Instance loader sandbox publication completed. Loader={Loader} VersionName={VersionName} TotalDurationMs={TotalDurationMs} VersionCopyDurationMs={VersionCopyDurationMs} SharedFilePublishDurationMs={SharedFilePublishDurationMs}",
+                provider.Kind,
+                finalVersionName,
+                publicationStopwatch.ElapsedMilliseconds,
+                versionCopyStopwatch.ElapsedMilliseconds,
+                sharedFilePublishDuration);
             return finalVersionName;
         }
         catch (OperationCanceledException)
@@ -424,9 +482,22 @@ internal sealed class ModpackGameInstaller : IModpackGameInstaller
         }
         finally
         {
+            logger.LogInformation(
+                "Instance loader sandbox cleanup started. Loader={Loader} VersionName={VersionName} SessionDirectory={SessionDirectory}",
+                provider.Kind,
+                finalVersionName,
+                sessionDirectory);
+            var cleanupStopwatch = Stopwatch.StartNew();
             await sandboxSession
                 .CleanupAsync(wasCanceled || cancellationToken.IsCancellationRequested)
                 .ConfigureAwait(false);
+            cleanupStopwatch.Stop();
+            logger.LogInformation(
+                "Instance loader sandbox cleanup completed. Loader={Loader} VersionName={VersionName} DurationMs={DurationMs} SessionDirectory={SessionDirectory}",
+                provider.Kind,
+                finalVersionName,
+                cleanupStopwatch.ElapsedMilliseconds,
+                sessionDirectory);
         }
     }
 

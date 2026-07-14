@@ -597,7 +597,7 @@ public sealed class MinecraftDownloadRetryTests
     }
 
     [Fact]
-    public async Task CmlHashedLibraryUsesOperationScopedResumableWorkspaceAndCleansItUp()
+    public async Task CmlHashedLibraryPublishesFromTheDestinationDirectoryWithoutCreatingAWorkspace()
     {
         var payload = "library-data"u8.ToArray();
         var handler = new CallbackRequestHandler((_, request, _) =>
@@ -614,7 +614,10 @@ public sealed class MinecraftDownloadRetryTests
         var path = new CmlLib.Core.MinecraftPath(directory);
         var destination = Path.Combine(path.Library, "com", "example", "library", "1.0", "library-1.0.jar");
         var operation = new MinecraftDownloadOperationContext(directory);
-        var workspace = operation.WorkspaceDirectory;
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        await File.WriteAllTextAsync(
+            Path.Combine(Path.GetDirectoryName(destination)!, ".library-1.0.jar.bhl-pending-stale.tmp"),
+            "interrupted");
 
         try
         {
@@ -637,11 +640,13 @@ public sealed class MinecraftDownloadRetryTests
                 CancellationToken.None);
 
             Assert.Equal(payload, await File.ReadAllBytesAsync(destination));
-            Assert.True(Directory.Exists(Path.Combine(workspace, "resumable")));
             Assert.False(Directory.Exists(Path.Combine(Path.GetDirectoryName(destination)!, ".bhl-download-work")));
+            Assert.Empty(Directory.EnumerateFiles(
+                Path.GetDirectoryName(destination)!,
+                ".library-1.0.jar.bhl-pending-*.tmp",
+                SearchOption.TopDirectoryOnly));
 
             operation.Dispose();
-            Assert.False(Directory.Exists(workspace));
         }
         finally
         {
@@ -785,7 +790,10 @@ public sealed class MinecraftDownloadRetryTests
             Assert.Equal(payload, await File.ReadAllBytesAsync(destination));
             Assert.False(File.Exists(destination + ".part"));
             Assert.False(File.Exists(destination + ".part.meta"));
-            Assert.Empty(Directory.EnumerateFiles(Path.Combine(directory, ".bhl-download-work"), "*.tmp", SearchOption.AllDirectories));
+            Assert.Empty(Directory.EnumerateFiles(
+                Path.GetDirectoryName(destination)!,
+                ".asset.bhl-pending-*.tmp",
+                SearchOption.TopDirectoryOnly));
         }
         finally
         {
@@ -832,7 +840,7 @@ public sealed class MinecraftDownloadRetryTests
     }
 
     [Fact]
-    public async Task ConcurrentWorkspaceCreationDoesNotRaceOwnerLocks()
+    public async Task ConcurrentOperationContextsDoNotCreateDownloadWorkspaces()
     {
         var directory = CreateTempDirectory();
         MinecraftDownloadOperationContext[] contexts = [];
@@ -842,8 +850,8 @@ public sealed class MinecraftDownloadRetryTests
                 Enumerable.Range(0, 16)
                     .Select(_ => Task.Run(() => new MinecraftDownloadOperationContext(directory))));
 
-            Assert.Equal(contexts.Length, contexts.Select(context => context.WorkspaceDirectory).Distinct(StringComparer.OrdinalIgnoreCase).Count());
-            Assert.All(contexts, context => Assert.True(Directory.Exists(context.WorkspaceDirectory)));
+            Assert.All(contexts, context => Assert.Equal(Path.GetFullPath(directory), context.ManagedRoot));
+            Assert.False(Directory.Exists(Path.Combine(directory, ".bhl-download-work")));
         }
         finally
         {

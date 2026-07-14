@@ -18,12 +18,82 @@
  */
 
 using Launcher.Application.Services;
+using Launcher.Infrastructure.Minecraft;
 using Launcher.Infrastructure.Modpacks;
 
 namespace Launcher.Tests.Infrastructure.Modpacks;
 
 public sealed class ImportConcurrencyLimiterTests
 {
+    [Fact]
+    public async Task AdaptiveSchedulerStartsAtTwelveDropsAfterFailureAndRampsToMaximum()
+    {
+        var clock = new TestTimeProvider();
+        var scheduler = new AdaptiveDownloadScheduler(
+            ImportConcurrencyLimiter.MinimumDownloadConcurrency,
+            ImportConcurrencyLimiter.InitialDownloadConcurrency,
+            ImportConcurrencyLimiter.MaximumDownloadConcurrency,
+            timeProvider: clock,
+            adjustmentCooldown: TimeSpan.FromSeconds(1));
+        var leases = new List<IImportConcurrencyLease>();
+
+        try
+        {
+            for (var index = 0; index < ImportConcurrencyLimiter.InitialDownloadConcurrency; index++)
+                leases.Add(await scheduler.AcquireAsync(CancellationToken.None));
+
+            Assert.Equal(ImportConcurrencyLimiter.InitialDownloadConcurrency, scheduler.Snapshot.CurrentTarget);
+            Assert.Equal(ImportConcurrencyLimiter.MaximumDownloadConcurrency, scheduler.Snapshot.ConfiguredMaximum);
+
+            clock.Advance(TimeSpan.FromSeconds(1));
+            scheduler.RecordResult(DownloadFailureReason.Network);
+            Assert.Equal(6, scheduler.Snapshot.CurrentTarget);
+        }
+        finally
+        {
+            foreach (var lease in leases)
+                lease.Dispose();
+        }
+
+        var rampingClock = new TestTimeProvider();
+        var rampingScheduler = new AdaptiveDownloadScheduler(
+            ImportConcurrencyLimiter.MinimumDownloadConcurrency,
+            ImportConcurrencyLimiter.InitialDownloadConcurrency,
+            ImportConcurrencyLimiter.MaximumDownloadConcurrency,
+            timeProvider: rampingClock,
+            adjustmentCooldown: TimeSpan.FromSeconds(1));
+        var rampingLeases = new List<IImportConcurrencyLease>();
+
+        try
+        {
+            for (var index = 0; index < ImportConcurrencyLimiter.InitialDownloadConcurrency; index++)
+                rampingLeases.Add(await rampingScheduler.AcquireAsync(CancellationToken.None));
+
+            for (var target = ImportConcurrencyLimiter.InitialDownloadConcurrency;
+                 target < ImportConcurrencyLimiter.MaximumDownloadConcurrency;
+                 target++)
+            {
+                var queued = rampingScheduler.AcquireAsync(CancellationToken.None).AsTask();
+                Assert.True(SpinWait.SpinUntil(
+                    () => rampingScheduler.Snapshot.WaitingCount == 1,
+                    TimeSpan.FromSeconds(1)));
+
+                for (var index = 0; index < target; index++)
+                    rampingScheduler.RecordResult(failureReason: null);
+
+                rampingClock.Advance(TimeSpan.FromSeconds(1));
+                rampingScheduler.RecordResult(failureReason: null);
+                rampingLeases.Add(await queued.WaitAsync(TimeSpan.FromSeconds(1)));
+                Assert.Equal(target + 1, rampingScheduler.Snapshot.CurrentTarget);
+            }
+        }
+        finally
+        {
+            foreach (var lease in rampingLeases)
+                lease.Dispose();
+        }
+    }
+
     [Fact]
     public async Task MetadataSlotsUseTheSharedGlobalBudget()
     {
@@ -141,5 +211,14 @@ public sealed class ImportConcurrencyLimiterTests
             if (Interlocked.CompareExchange(ref maxConcurrency, current, snapshot) == snapshot)
                 return;
         }
+    }
+
+    private sealed class TestTimeProvider : TimeProvider
+    {
+        private DateTimeOffset utcNow = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        public override DateTimeOffset GetUtcNow() => utcNow;
+
+        public void Advance(TimeSpan duration) => utcNow += duration;
     }
 }

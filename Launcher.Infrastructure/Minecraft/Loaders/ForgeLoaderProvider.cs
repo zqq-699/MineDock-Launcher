@@ -37,7 +37,7 @@ namespace Launcher.Infrastructure.Minecraft;
 /// <summary>
 /// 在隔离沙箱中安装 Forge，兼容现代与旧版安装器，并只把自包含的最终版本提交到用户目录。
 /// </summary>
-public sealed partial class ForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvider
+public sealed partial class ForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvider, IDirectSharedContentStagedLoaderProvider
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private static readonly Regex InstallerUrlRegex = new(

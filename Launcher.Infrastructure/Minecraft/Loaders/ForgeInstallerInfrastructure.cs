@@ -65,6 +65,24 @@ internal interface IFinalVersionInstaller
             cancellationToken,
             downloadSpeedLimitMbPerSecond);
     }
+
+    Task InstallAsync(
+        MinecraftPath path,
+        string versionName,
+        MinecraftDownloadOperationContext operationContext,
+        DownloadSourcePreference downloadSourcePreference,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond = 0)
+    {
+        return InstallAsync(
+            path,
+            versionName,
+            downloadSourcePreference,
+            progress,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
+    }
 }
 
 internal sealed class FinalVersionInstaller : IFinalVersionInstaller
@@ -95,12 +113,32 @@ internal sealed class FinalVersionInstaller : IFinalVersionInstaller
         int downloadSpeedLimitMbPerSecond = 0)
     {
         using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(path);
+        await InstallAsync(
+            path,
+            versionName,
+            downloadOperation,
+            downloadSourcePreference,
+            progress,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
+    }
+
+    public async Task InstallAsync(
+        MinecraftPath path,
+        string versionName,
+        MinecraftDownloadOperationContext operationContext,
+        DownloadSourcePreference downloadSourcePreference,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond = 0)
+    {
+        ArgumentNullException.ThrowIfNull(operationContext);
         var launcher = VanillaLoaderProvider.CreateLauncher(
             path,
             progress,
             downloadSourcePreference,
             downloadSpeedLimitMbPerSecond: downloadSpeedLimitMbPerSecond,
-            operationContext: downloadOperation);
+            operationContext: operationContext);
         VanillaLoaderProvider.AttachProgress(launcher, progress);
         await launcher.InstallAsync(versionName, cancellationToken);
     }

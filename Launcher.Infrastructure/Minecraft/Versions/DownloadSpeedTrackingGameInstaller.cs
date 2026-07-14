@@ -23,16 +23,23 @@ using CmlLib.Core;
 using CmlLib.Core.Files;
 using CmlLib.Core.Installers;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Modpacks;
 
 namespace Launcher.Infrastructure.Minecraft;
 
 internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
 {
+    private const int MaximumCheckerConcurrency = 4;
+    private const int DownloadQueueCapacity = 2048;
+
     private readonly SlidingWindowDownloadSpeedReporter speedReporter;
     private readonly MinecraftDownloadRequestExecutor downloadExecutor;
     private readonly DownloadSourcePreference downloadSourcePreference;
     private readonly MinecraftPath? minecraftPath;
     private readonly MinecraftDownloadOperationContext? operationContext;
+
+    internal int ConfiguredMaxChecker { get; }
+    internal int ConfiguredMaxDownloader { get; }
 
     private DownloadSpeedTrackingGameInstaller(
         int maxChecker,
@@ -47,6 +54,8 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         SlidingWindowDownloadSpeedReporter? sharedSpeedReporter)
         : base(maxChecker, maxDownloader, boundedCapacity, httpClient)
     {
+        ConfiguredMaxChecker = maxChecker;
+        ConfiguredMaxDownloader = maxDownloader;
         this.downloadExecutor = downloadExecutor;
         this.downloadSourcePreference = downloadSourcePreference;
         this.minecraftPath = minecraftPath;
@@ -65,16 +74,12 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
     {
         var maxChecker = Environment.ProcessorCount;
         maxChecker = Math.Max(1, maxChecker);
-        maxChecker = Math.Min(4, maxChecker);
-
-        var maxDownloader = Environment.ProcessorCount;
-        maxDownloader = Math.Max(4, maxDownloader);
-        maxDownloader = Math.Min(8, maxDownloader);
+        maxChecker = Math.Min(MaximumCheckerConcurrency, maxChecker);
 
         return new DownloadSpeedTrackingGameInstaller(
             maxChecker,
-            maxDownloader,
-            2048,
+            ImportConcurrencyLimiter.MaximumDownloadConcurrency,
+            DownloadQueueCapacity,
             httpClient,
             downloadExecutor,
             downloadSourcePreference,

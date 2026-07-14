@@ -41,6 +41,7 @@ internal sealed class ManagedVersionRepairDownloadBatch
     private readonly int speedLimitMbPerSecond;
     private readonly DownloadBandwidthLimiter? bandwidthLimiter;
     private readonly SlidingWindowDownloadSpeedReporter speedReporter;
+    private readonly MinecraftDownloadOperationContext? operationContext;
 
     public ManagedVersionRepairDownloadBatch(
         HttpClient httpClient,
@@ -48,7 +49,8 @@ internal sealed class ManagedVersionRepairDownloadBatch
         ILogger logger,
         DownloadSourcePreference sourcePreference,
         int speedLimitMbPerSecond,
-        IProgress<LauncherProgress>? progress)
+        IProgress<LauncherProgress>? progress,
+        MinecraftDownloadOperationContext? operationContext = null)
     {
         this.httpClient = httpClient;
         this.downloadSpeedLimitState = downloadSpeedLimitState;
@@ -57,6 +59,7 @@ internal sealed class ManagedVersionRepairDownloadBatch
         this.speedLimitMbPerSecond = speedLimitMbPerSecond;
         bandwidthLimiter = DownloadBandwidthLimiter.Create(speedLimitMbPerSecond, downloadSpeedLimitState);
         speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
+        this.operationContext = operationContext;
     }
 
     public async Task DownloadAllAsync(
@@ -121,7 +124,7 @@ internal sealed class ManagedVersionRepairDownloadBatch
                 bandwidthLimiter ?? DownloadBandwidthLimiter.Create(speedLimitMbPerSecond, downloadSpeedLimitState),
                 category: DownloadConcurrencyCategory.Runtime);
             using var speedSession = new DownloadActivitySpeedSession(speedReporter);
-            var options = CreateDownloadOptions(download, operationContexts);
+            var options = CreateDownloadOptions(download, operationContexts, operationContext);
             await executor.DownloadFileAsync(
                 download.OriginalUrl,
                 sourcePreference,
@@ -165,19 +168,27 @@ internal sealed class ManagedVersionRepairDownloadBatch
 
     private static DownloadFileOptions? CreateDownloadOptions(
         RepairDownloadRequest download,
-        ConcurrentDictionary<string, MinecraftDownloadOperationContext> operationContexts)
+        ConcurrentDictionary<string, MinecraftDownloadOperationContext> operationContexts,
+        MinecraftDownloadOperationContext? sharedOperationContext)
     {
-        if (download.PersistenceMode is not DownloadPersistenceMode.LightweightAtomic)
-            return null;
         if (!MinecraftFileIntegrity.IsSha1(download.ExpectedSha1))
-            throw new InvalidDataException("A lightweight asset download requires a SHA-1 value.");
+            return null;
 
-        var managedRoot = Path.GetFullPath(download.ManagedRoot
-            ?? Path.GetDirectoryName(download.DestinationPath)
-            ?? throw new InvalidOperationException("Download destination has no managed root."));
-        var context = operationContexts.GetOrAdd(managedRoot, static root => new MinecraftDownloadOperationContext(root));
-        context.RegisterAsset(download.DestinationPath, download.ExpectedSha1!, download.ExpectedSize);
-        return new DownloadFileOptions(DownloadPersistenceMode.LightweightAtomic, context);
+        var context = sharedOperationContext;
+        if (context is null && download.PersistenceMode is DownloadPersistenceMode.LightweightAtomic)
+        {
+            var managedRoot = Path.GetFullPath(download.ManagedRoot
+                ?? Path.GetDirectoryName(download.DestinationPath)
+                ?? throw new InvalidOperationException("Download destination has no managed root."));
+            context = operationContexts.GetOrAdd(managedRoot, static root => new MinecraftDownloadOperationContext(root));
+        }
+
+        if (context is null)
+            return null;
+
+        if (download.PersistenceMode is DownloadPersistenceMode.LightweightAtomic)
+            context.RegisterAsset(download.DestinationPath, download.ExpectedSha1!, download.ExpectedSize);
+        return new DownloadFileOptions(download.PersistenceMode, context);
     }
 
     private static InstanceRepairException CreateDownloadException(

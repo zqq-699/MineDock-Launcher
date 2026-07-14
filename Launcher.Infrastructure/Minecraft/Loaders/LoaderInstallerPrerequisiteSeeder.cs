@@ -50,7 +50,9 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
     public async Task PublishDeltaAsync(
         LoaderInstallerWorkspaceSnapshot snapshot,
         string destinationMinecraftDirectory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, VerifiedSharedFileExpectation>? trustedFileExpectations = null,
+        MinecraftDownloadOperationContext? operationContext = null)
     {
         var verifiedSharedFiles = await ReadVerifiedSharedFileExpectationsAsync(
             snapshot.WorkspaceMinecraftDirectory,
@@ -78,15 +80,37 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
                 EnsureOrdinaryExistingPath(destinationRoot, destinationPath);
                 if (snapshot.SeededFiles.TryGetValue(relativePath, out var seededSha1))
                 {
+                    VerifiedSharedFileExpectation? trustedExpectation = null;
+                    var hasTrustedExpectation = trustedFileExpectations is not null
+                        && trustedFileExpectations.TryGetValue(relativePath, out trustedExpectation);
                     var sourceSha1 = AtomicSharedFilePublisher.ComputeSha1(confinedSourcePath);
                     if (!string.Equals(sourceSha1, seededSha1, StringComparison.OrdinalIgnoreCase))
                         throw new InvalidDataException($"Loader installer modified a seeded prerequisite: {relativePath}");
 
+                    if (hasTrustedExpectation
+                        && !string.Equals(sourceSha1, trustedExpectation!.Sha1, StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidDataException(
+                            $"Loader installer seeded prerequisite did not match the trusted installation plan: {relativePath}");
+                    }
+
                     await AtomicSharedFilePublisher.PublishCopyAsync(
                         confinedSourcePath,
                         destinationPath,
-                        seededSha1,
+                        trustedExpectation?.Sha1 ?? seededSha1,
                         cancellationToken).ConfigureAwait(false);
+                    MarkVerified(destinationPath, trustedExpectation, operationContext);
+                    continue;
+                }
+
+                if (trustedFileExpectations?.TryGetValue(relativePath, out var plannedExpectation) is true)
+                {
+                    await AtomicSharedFilePublisher.PublishCopyAsync(
+                        confinedSourcePath,
+                        destinationPath,
+                        plannedExpectation.Sha1,
+                        cancellationToken).ConfigureAwait(false);
+                    MarkVerified(destinationPath, plannedExpectation, operationContext);
                     continue;
                 }
 
@@ -110,6 +134,7 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
                             relativePath,
                             expectation.Sha1);
                     }
+                    MarkVerified(destinationPath, expectation, operationContext);
                 }
                 else
                 {
@@ -120,6 +145,19 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
                         cancellationToken: cancellationToken).ConfigureAwait(false);
                 }
             }
+        }
+    }
+
+    private static void MarkVerified(
+        string destinationPath,
+        VerifiedSharedFileExpectation? expectation,
+        MinecraftDownloadOperationContext? operationContext)
+    {
+        if (expectation is not null && MinecraftFileIntegrity.IsSha1(expectation.Sha1))
+        {
+            operationContext?.MarkVerified(
+                destinationPath,
+                DownloadIntegrityExpectation.Sha1(expectation.Sha1, expectation.Size));
         }
     }
 
@@ -443,12 +481,10 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
             seededFiles,
             cancellationToken).ConfigureAwait(false);
 
-        await SeedLibrariesFromJsonAsync(
-            root,
-            sourceGameDirectory,
-            destinationGameDirectory,
-            seededFiles,
-            cancellationToken).ConfigureAwait(false);
+        // The Java installer only needs the base metadata/client plus the
+        // installer-declared prerequisites below. Do not mirror the complete
+        // vanilla library graph into its private sandbox: final content is
+        // resolved directly against the shared Minecraft directory.
     }
 
     private static async Task SeedInstallerLibrariesAsync(

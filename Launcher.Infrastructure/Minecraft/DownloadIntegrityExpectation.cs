@@ -68,5 +68,32 @@ internal sealed class DownloadIntegrityExpectation
         }
     }
 
+    public bool VerifyFile(string path, CancellationToken cancellationToken)
+    {
+        if (ExpectedSize.HasValue && new FileInfo(path).Length != ExpectedSize.Value)
+            return false;
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.SequentialScan);
+        var hashers = CreateHashers();
+        var buffer = new byte[81920];
+        try
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var read = stream.Read(buffer, 0, buffer.Length);
+                if (read == 0)
+                    break;
+                foreach (var hasher in hashers.Values)
+                    hasher.AppendData(buffer, 0, read);
+            }
+            return Verify(hashers);
+        }
+        finally
+        {
+            foreach (var hasher in hashers.Values)
+                hasher.Dispose();
+        }
+    }
+
     private static bool IsStrong(HashAlgorithmName algorithm) => algorithm.Name is "SHA1" or "SHA256" or "SHA512";
 }

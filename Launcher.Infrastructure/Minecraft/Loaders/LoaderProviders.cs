@@ -24,6 +24,7 @@ using System.Text.Json;
 using CmlLib.Core;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Modpacks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -32,7 +33,7 @@ namespace Launcher.Infrastructure.Minecraft;
 /// <summary>
 /// 安装原版 Minecraft，并提供各 Loader 共用的 CmlLib 下载进度与启动器配置。
 /// </summary>
-public sealed class VanillaLoaderProvider : ILoaderProvider
+public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPathLoaderProvider
 {
     private readonly HttpClient httpClient;
     private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
@@ -61,7 +62,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         return Task.FromResult(versions);
     }
 
-    public async Task<string> InstallAsync(
+    public Task<string> InstallAsync(
         string minecraftVersion,
         string gameDirectory,
         string isolatedVersionName,
@@ -72,12 +73,59 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         int downloadSpeedLimitMbPerSecond = 0)
     {
         // 先生成隔离版本元数据，再交给 CmlLib 补齐文件；返回值必须是实际可启动版本名。
+        _ = loaderVersion;
+        return InstallCoreAsync(
+            minecraftVersion,
+            new MinecraftPath(gameDirectory),
+            gameDirectory,
+            gameDirectory,
+            isolatedVersionName,
+            progress,
+            downloadSourcePreference,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
+    }
+
+    Task<string> ISeparatedInstallPathLoaderProvider.InstallWithSeparatedPathsAsync(
+        string minecraftVersion,
+        MinecraftInstallPathLayout installPathLayout,
+        string isolatedVersionName,
+        string? loaderVersion,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond)
+    {
+        _ = loaderVersion;
+        return InstallCoreAsync(
+            minecraftVersion,
+            installPathLayout.Path,
+            installPathLayout.WorkspaceMinecraftDirectory,
+            installPathLayout.SharedMinecraftDirectory,
+            isolatedVersionName,
+            progress,
+            downloadSourcePreference,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
+    }
+
+    private async Task<string> InstallCoreAsync(
+        string minecraftVersion,
+        MinecraftPath minecraftPath,
+        string versionWorkspaceDirectory,
+        string sharedMinecraftDirectory,
+        string isolatedVersionName,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond)
+    {
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
-        using var downloadOperation = CreateDownloadOperationContext(new MinecraftPath(gameDirectory));
+        using var downloadOperation = CreateDownloadOperationContext(minecraftPath);
         using var speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
 
         var launcher = CreateLauncher(
-            gameDirectory,
+            minecraftPath,
             progress,
             downloadSourcePreference,
             logger,
@@ -91,7 +139,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
                 httpClient,
                 minecraftVersion,
                 isolatedVersionName,
-                gameDirectory,
+                versionWorkspaceDirectory,
                 downloadSourcePreference,
                 downloadSpeedLimitMbPerSecond,
                 downloadSpeedLimitState,
@@ -103,31 +151,35 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             cancellationToken).ConfigureAwait(false);
         await EnsureInstalledVersionIsValidAsync(
             finalVersionName,
-            gameDirectory,
+            sharedMinecraftDirectory,
+            versionWorkspaceDirectory,
             downloadSourcePreference,
             downloadSpeedLimitMbPerSecond,
             progress,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            downloadOperation).ConfigureAwait(false);
         return finalVersionName;
     }
 
     private async Task EnsureInstalledVersionIsValidAsync(
         string versionName,
-        string gameDirectory,
+        string sharedMinecraftDirectory,
+        string versionWorkspaceDirectory,
         DownloadSourcePreference downloadSourcePreference,
         int downloadSpeedLimitMbPerSecond,
         IProgress<LauncherProgress>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        MinecraftDownloadOperationContext downloadOperation)
     {
         var result = await new GameFileIntegrityService(httpClient, downloadSpeedLimitState, logger)
-            .ValidateAndRepairAsync(
+            .ValidateInstalledVersionAsync(
                 new GameFileIntegrityRequest(
-                    gameDirectory,
+                    sharedMinecraftDirectory,
                     versionName,
-                    Path.Combine(gameDirectory, "versions", versionName),
+                    Path.Combine(versionWorkspaceDirectory, "versions", versionName),
                     downloadSourcePreference,
                     downloadSpeedLimitMbPerSecond),
-                new GameFileRepairOptions(AllowRepair: true),
+                downloadOperation,
                 progress,
                 cancellationToken).ConfigureAwait(false);
         if (!result.LaunchAllowed)
@@ -290,7 +342,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             logger,
             bandwidthLimiter,
             category: DownloadConcurrencyCategory.Metadata);
-        parameters.GameInstaller = DownloadSpeedTrackingGameInstaller.CreateAsCoreCount(
+        var gameInstaller = DownloadSpeedTrackingGameInstaller.CreateAsCoreCount(
             parameters.HttpClient,
             runtimeExecutor,
             downloadSourcePreference,
@@ -298,6 +350,12 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             path,
             operationContext,
             sharedSpeedReporter);
+        parameters.GameInstaller = gameInstaller;
+        logger?.LogInformation(
+            "Minecraft game installer concurrency configured. CheckerConcurrency={CheckerConcurrency} DownloaderConcurrency={DownloaderConcurrency} GlobalMaximumConcurrency={GlobalMaximumConcurrency}",
+            gameInstaller.ConfiguredMaxChecker,
+            gameInstaller.ConfiguredMaxDownloader,
+            ImportConcurrencyLimiter.MaximumDownloadConcurrency);
         var defaultAssetExtractor = parameters.FileExtractors!
             .Select((extractor, index) => (extractor, index))
             .First(entry => entry.extractor is CmlLib.Core.FileExtractors.AssetFileExtractor);

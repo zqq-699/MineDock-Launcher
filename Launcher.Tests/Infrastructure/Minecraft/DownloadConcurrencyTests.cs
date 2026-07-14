@@ -39,30 +39,4 @@ public sealed class DownloadConcurrencyTests
                 lease.Dispose();
         }
     }
-
-    [Fact]
-    public async Task LimitsOneResolvedHostToSixConcurrentBodies()
-    {
-        var limiter = new DownloadHostConcurrencyLimiter();
-        var leases = new List<DownloadHostConcurrencyLimiter.DownloadHostLease>();
-        for (var index = 0; index < 6; index++)
-            leases.Add(await limiter.AcquireAsync("mirror.example", CancellationToken.None));
-
-        try
-        {
-            var queued = limiter.AcquireAsync("mirror.example", CancellationToken.None).AsTask();
-            Assert.False(queued.IsCompleted);
-
-            var firstLease = leases[0];
-            leases.RemoveAt(0);
-            firstLease.Dispose();
-            var releasedLease = await queued.WaitAsync(TimeSpan.FromSeconds(2));
-            releasedLease.Dispose();
-        }
-        finally
-        {
-            foreach (var lease in leases)
-                lease.Dispose();
-        }
-    }
 }

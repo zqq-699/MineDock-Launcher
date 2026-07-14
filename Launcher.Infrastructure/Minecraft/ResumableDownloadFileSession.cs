@@ -25,8 +25,6 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
     private readonly DownloadIntegrityExpectation integrity;
     private readonly DownloadPersistenceMode persistenceMode;
     private readonly MinecraftDownloadOperationContext? operationContext;
-    private readonly bool ownsWorkspace;
-    private readonly DownloadWorkspaceLease? ownedWorkspace;
     private readonly PartFileCapacityManager.CapacityLease? capacityLease;
     private readonly IDisposable? assetLock;
     private string? sourceCandidateKey;
@@ -41,8 +39,6 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         DownloadIntegrityExpectation integrity,
         DownloadPersistenceMode persistenceMode,
         MinecraftDownloadOperationContext? operationContext,
-        bool ownsWorkspace,
-        DownloadWorkspaceLease? ownedWorkspace,
         PartFileCapacityManager.CapacityLease? capacityLease,
         IDisposable? assetLock)
     {
@@ -51,8 +47,6 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         this.integrity = integrity;
         this.persistenceMode = persistenceMode;
         this.operationContext = operationContext;
-        this.ownsWorkspace = ownsWorkspace;
-        this.ownedWorkspace = ownedWorkspace;
         this.capacityLease = capacityLease;
         this.assetLock = assetLock;
     }
@@ -90,9 +84,6 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         Directory.CreateDirectory(destinationDirectory);
 
         IDisposable? assetLock = null;
-        DownloadWorkspaceLease? ownedWorkspace = null;
-        string? workspace = null;
-        var ownsWorkspace = false;
         PartFileCapacityManager.CapacityLease? capacityLease = null;
         try
         {
@@ -112,38 +103,25 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                     options.OperationContext?.MarkVerified(normalizedDestination, integrity);
                     return new ResumableDownloadFileSession(
                         normalizedDestination, string.Empty, integrity, options.PersistenceMode,
-                        options.OperationContext, false, null, null, assetLock) { IsComplete = true };
+                        options.OperationContext, null, assetLock) { IsComplete = true };
                 }
             }
 
-            if (options.OperationContext is not null)
-            {
-                workspace = Path.Combine(
-                    options.OperationContext.WorkspaceDirectory,
-                    options.PersistenceMode is DownloadPersistenceMode.LightweightAtomic ? "assets" : "resumable");
-            }
-            else
-            {
-                ownedWorkspace = DownloadWorkspace.CreateFallbackOperation(normalizedDestination);
-                workspace = ownedWorkspace.Directory;
-                ownsWorkspace = true;
-            }
-            Directory.CreateDirectory(workspace);
-            var temporaryPath = Path.Combine(workspace, $"{Guid.NewGuid():N}.tmp");
+            DeleteAbandonedTemporaryFiles(destinationDirectory, Path.GetFileName(normalizedDestination));
+            var temporaryPath = Path.Combine(
+                destinationDirectory,
+                $".{Path.GetFileName(normalizedDestination)}.bhl-pending-{Guid.NewGuid():N}.tmp");
             if (options.PersistenceMode is DownloadPersistenceMode.TaskScopedResumable)
                 capacityLease = PartFileCapacityManager.Reserve(integrity.ExpectedSize);
 
             return new ResumableDownloadFileSession(
                 normalizedDestination, temporaryPath, integrity, options.PersistenceMode,
-                options.OperationContext, ownsWorkspace, ownedWorkspace, capacityLease, assetLock);
+                options.OperationContext, capacityLease, assetLock);
         }
         catch
         {
             capacityLease?.Dispose();
             assetLock?.Dispose();
-            if (ownsWorkspace && workspace is not null)
-                TryDeleteDirectory(workspace);
-            ownedWorkspace?.Dispose();
             throw;
         }
     }
@@ -224,6 +202,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                 FileShare.None,
                 BufferSize,
                 FileOptions.Asynchronous | FileOptions.SequentialScan);
+            TryMarkTemporaryHidden(temporaryPath);
             var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
             var persisted = existingLength;
             try
@@ -275,12 +254,6 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         DeleteTemporary();
         capacityLease?.Dispose();
         assetLock?.Dispose();
-        if (ownsWorkspace && ownedWorkspace is not null)
-        {
-            var directory = ownedWorkspace.Directory;
-            ownedWorkspace.Dispose();
-            TryDeleteDirectory(directory);
-        }
         await Task.CompletedTask;
     }
 
@@ -340,6 +313,15 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         try
         {
             using var publishLock = AcquireFinalPublishLock(destinationPath, cancellationToken);
+            if (File.Exists(destinationPath)
+                && integrity.VerifyFile(destinationPath, cancellationToken))
+            {
+                DeleteTemporary();
+                operationContext?.MarkVerified(destinationPath, integrity);
+                IsComplete = true;
+                return;
+            }
+            ClearTemporaryHiddenAttribute();
             File.Move(temporaryPath, destinationPath, overwrite: true);
             operationContext?.MarkVerified(destinationPath, integrity);
             IsComplete = true;
@@ -363,7 +345,41 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
     }
-    private static void TryDeleteDirectory(string path) { try { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
+    private static void DeleteAbandonedTemporaryFiles(string directory, string destinationFileName)
+    {
+        var pattern = $".{destinationFileName}.bhl-pending-*.tmp";
+        foreach (var candidate in Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly))
+        {
+            try
+            {
+                using var lease = new FileStream(candidate, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                lease.Close();
+                File.Delete(candidate);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    private static void TryMarkTemporaryHidden(string path)
+    {
+        try
+        {
+            File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
+
+    private void ClearTemporaryHiddenAttribute()
+    {
+        try
+        {
+            File.SetAttributes(temporaryPath, File.GetAttributes(temporaryPath) & ~FileAttributes.Hidden);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+    }
     private static string CreateSourceCandidateKey(ResolvedDownloadRequest resolution) { var uri = new Uri(resolution.ActualUrl, UriKind.Absolute); return $"{resolution.ResolvedSourceKind}:{uri.Host.ToLowerInvariant()}:{uri.AbsolutePath}"; }
     private static string? GetStrongETag(HttpResponseMessage response) { var tag = response.Headers.ETag?.Tag; return tag is not null && !response.Headers.ETag!.IsWeak ? tag : null; }
     private static string? GetLastModified(HttpResponseMessage response) => response.Content.Headers.LastModified?.ToString("R");

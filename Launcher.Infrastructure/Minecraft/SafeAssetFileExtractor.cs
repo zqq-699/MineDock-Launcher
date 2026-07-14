@@ -50,12 +50,24 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
             path.GetIndexFilePath(metadata.Id),
             path.Assets,
             "Asset index");
-        if (!await MinecraftFileIntegrity.IsValidAsync(
+        var indexIsValid = await MinecraftFileIntegrity.IsValidAsync(
                 indexPath,
                 metadata.GetSha1(),
                 metadata.Size,
                 MinecraftFileVerification.Full,
-                cancellationToken).ConfigureAwait(false))
+                cancellationToken).ConfigureAwait(false);
+        if (indexIsValid)
+        {
+            if (operationContext is not null && MinecraftFileIntegrity.IsSha1(metadata.GetSha1()))
+            {
+                operationContext.MarkVerified(
+                    indexPath,
+                    DownloadIntegrityExpectation.Sha1(
+                        metadata.GetSha1()!,
+                        metadata.Size > 0 ? metadata.Size : null));
+            }
+        }
+        else
         {
             if (string.IsNullOrWhiteSpace(metadata.Url))
                 throw new InvalidDataException($"Asset index URL is missing: {metadata.Id}");

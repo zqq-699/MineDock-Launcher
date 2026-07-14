@@ -158,6 +158,58 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
     }
 
     [Fact]
+    public async Task StandardSeparatedProviderPublishesSharedFilesDirectlyAndOnlyCopiesPrivateVersionDirectory()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var transactionService = new InstanceInstallTransactionService();
+        await using var transaction = await transactionService.BeginAsync(
+            minecraftDirectory, "Test", "instance", "game", false);
+        var provider = new SeparatedPathLoaderProvider();
+        var cleanupService = new RecordingSandboxCleanupService(TempRoot);
+        var installer = new ModpackGameInstaller([provider], sandboxCleanupService: cleanupService);
+
+        await installer.InstallInstanceAsync(
+            "1.20.1",
+            LoaderKind.Vanilla,
+            null,
+            new LoaderInstallTarget(minecraftDirectory, "Test", transaction.PendingDirectory),
+            progress: null);
+
+        Assert.NotNull(provider.Layout);
+        Assert.True(File.Exists(Path.Combine(minecraftDirectory, "libraries", "example.jar")));
+        Assert.True(File.Exists(Path.Combine(minecraftDirectory, "assets", "objects", "aa", "asset")));
+        Assert.True(File.Exists(Path.Combine(minecraftDirectory, "runtime", "java", "runtime.txt")));
+        Assert.False(Directory.Exists(Path.Combine(cleanupService.Session.DirectoryPath, ".minecraft", "libraries")));
+        Assert.False(Directory.Exists(Path.Combine(cleanupService.Session.DirectoryPath, ".minecraft", "assets")));
+        Assert.True(File.Exists(Path.Combine(transaction.PendingDirectory, "Test.json")));
+        Assert.True(File.Exists(Path.Combine(transaction.PendingDirectory, "Test.jar")));
+        Assert.False(File.Exists(Path.Combine(minecraftDirectory, "versions", "Test", "Test.json")));
+    }
+
+    [Fact]
+    public async Task DirectSharedStagedProviderOnlyCommitsItsPrivateVersionDirectory()
+    {
+        var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
+        var transactionService = new InstanceInstallTransactionService();
+        await using var transaction = await transactionService.BeginAsync(
+            minecraftDirectory, "Test", "instance", "game", false);
+        var provider = new DirectSharedStagedLoaderProvider();
+        var installer = new ModpackGameInstaller([provider]);
+
+        await installer.InstallInstanceAsync(
+            "1.20.1",
+            LoaderKind.Forge,
+            null,
+            new LoaderInstallTarget(minecraftDirectory, "Test", transaction.PendingDirectory),
+            progress: null);
+
+        Assert.True(File.Exists(Path.Combine(minecraftDirectory, "libraries", "direct.jar")));
+        Assert.False(File.Exists(Path.Combine(minecraftDirectory, "libraries", "must-not-be-published.jar")));
+        Assert.True(File.Exists(Path.Combine(transaction.PendingDirectory, "Test.json")));
+        Assert.True(File.Exists(Path.Combine(transaction.PendingDirectory, "Test.jar")));
+    }
+
+    [Fact]
     public async Task LoaderSandboxIsNotSeededWithExistingSharedRuntimeTrees()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
@@ -897,5 +949,107 @@ public sealed class InstanceInstallTransactionTests : TestTempDirectory
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class SeparatedPathLoaderProvider : ILoaderProvider, ISeparatedInstallPathLoaderProvider
+    {
+        public LoaderKind Kind => LoaderKind.Vanilla;
+        public bool IsImplemented => true;
+        public MinecraftInstallPathLayout? Layout { get; private set; }
+
+        public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
+            string minecraftVersion,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            CancellationToken cancellationToken = default,
+            int downloadSpeedLimitMbPerSecond = 0) =>
+            Task.FromResult<IReadOnlyList<LoaderVersionInfo>>([new LoaderVersionInfo("fake")]);
+
+        public Task<string> InstallAsync(
+            string minecraftVersion,
+            string gameDirectory,
+            string isolatedVersionName,
+            string? loaderVersion,
+            IProgress<LauncherProgress>? progress,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            CancellationToken cancellationToken = default,
+            int downloadSpeedLimitMbPerSecond = 0) =>
+            throw new InvalidOperationException("The separated install path was not selected.");
+
+        public async Task<string> InstallWithSeparatedPathsAsync(
+            string minecraftVersion,
+            MinecraftInstallPathLayout installPathLayout,
+            string isolatedVersionName,
+            string? loaderVersion,
+            IProgress<LauncherProgress>? progress,
+            DownloadSourcePreference downloadSourcePreference,
+            CancellationToken cancellationToken,
+            int downloadSpeedLimitMbPerSecond)
+        {
+            Layout = installPathLayout;
+            var versionDirectory = Path.Combine(installPathLayout.Path.Versions, isolatedVersionName);
+            Directory.CreateDirectory(versionDirectory);
+            await File.WriteAllTextAsync(Path.Combine(versionDirectory, $"{isolatedVersionName}.json"), "{}");
+            await File.WriteAllTextAsync(Path.Combine(versionDirectory, $"{isolatedVersionName}.jar"), "jar");
+            var library = Path.Combine(installPathLayout.Path.Library, "example.jar");
+            var asset = Path.Combine(installPathLayout.Path.Assets, "objects", "aa", "asset");
+            var runtime = Path.Combine(installPathLayout.Path.Runtime, "java", "runtime.txt");
+            Directory.CreateDirectory(Path.GetDirectoryName(library)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(asset)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(runtime)!);
+            await File.WriteAllTextAsync(library, "library");
+            await File.WriteAllTextAsync(asset, "asset");
+            await File.WriteAllTextAsync(runtime, "runtime");
+            return isolatedVersionName;
+        }
+    }
+
+    private sealed class DirectSharedStagedLoaderProvider : ILoaderProvider, IStagedLoaderProvider, IDirectSharedContentStagedLoaderProvider
+    {
+        public LoaderKind Kind => LoaderKind.Forge;
+        public bool IsImplemented => true;
+
+        public Task<IReadOnlyList<LoaderVersionInfo>> GetLoaderVersionsAsync(
+            string minecraftVersion,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            CancellationToken cancellationToken = default,
+            int downloadSpeedLimitMbPerSecond = 0) =>
+            Task.FromResult<IReadOnlyList<LoaderVersionInfo>>([new LoaderVersionInfo("fake")]);
+
+        public Task<string> InstallAsync(
+            string minecraftVersion,
+            string gameDirectory,
+            string isolatedVersionName,
+            string? loaderVersion,
+            IProgress<LauncherProgress>? progress,
+            DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+            CancellationToken cancellationToken = default,
+            int downloadSpeedLimitMbPerSecond = 0) =>
+            throw new InvalidOperationException("The staged install path was not selected.");
+
+        public async Task<string> InstallStagedAsync(
+            string minecraftVersion,
+            string outputGameDirectory,
+            string sharedMinecraftDirectory,
+            string isolatedVersionName,
+            string? loaderVersion,
+            IProgress<LauncherProgress>? progress,
+            DownloadSourcePreference downloadSourcePreference,
+            CancellationToken cancellationToken,
+            int downloadSpeedLimitMbPerSecond)
+        {
+            var versionDirectory = Path.Combine(outputGameDirectory, "versions", isolatedVersionName);
+            Directory.CreateDirectory(versionDirectory);
+            await File.WriteAllTextAsync(Path.Combine(versionDirectory, $"{isolatedVersionName}.json"), "{}");
+            await File.WriteAllTextAsync(Path.Combine(versionDirectory, $"{isolatedVersionName}.jar"), "jar");
+
+            var directLibrary = Path.Combine(sharedMinecraftDirectory, "libraries", "direct.jar");
+            Directory.CreateDirectory(Path.GetDirectoryName(directLibrary)!);
+            await File.WriteAllTextAsync(directLibrary, "direct");
+
+            var sandboxLibrary = Path.Combine(outputGameDirectory, "libraries", "must-not-be-published.jar");
+            Directory.CreateDirectory(Path.GetDirectoryName(sandboxLibrary)!);
+            await File.WriteAllTextAsync(sandboxLibrary, "sandbox");
+            return isolatedVersionName;
+        }
     }
 }

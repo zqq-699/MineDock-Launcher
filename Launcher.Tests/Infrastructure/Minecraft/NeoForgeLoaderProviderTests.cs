@@ -21,6 +21,7 @@ using System.IO.Compression;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CmlLib.Core;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
 using Launcher.Tests.Helpers;
@@ -98,6 +99,12 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
             "neoforge-20.4.237-universal.jar")));
         Assert.False(File.Exists(Path.Combine(minecraftDirectory, "launcher_profiles.json")));
         Assert.Equal("1.20.4-neoforge-20.4.237", finalInstaller.LastVersionName);
+        Assert.NotNull(finalInstaller.LastPath);
+        Assert.StartsWith(Path.Combine(TempRoot, "launcher-neoforge"), finalInstaller.LastPath!.Versions, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(Path.Combine(minecraftDirectory, "libraries"), finalInstaller.LastPath.Library);
+        Assert.Equal(Path.Combine(minecraftDirectory, "assets"), finalInstaller.LastPath.Assets);
+        Assert.Equal(Path.Combine(minecraftDirectory, "resources"), finalInstaller.LastPath.Resource);
+        Assert.Equal(Path.Combine(minecraftDirectory, "runtime"), finalInstaller.LastPath.Runtime);
 
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(versionsDirectory, "1.20.4-neoforge-20.4.237", "1.20.4-neoforge-20.4.237.json")));
         Assert.Equal("1.20.4-neoforge-20.4.237", json.RootElement.GetProperty("id").GetString());
@@ -108,7 +115,7 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task NeoForgeLoaderProviderStagedInstallPublishesSeededRuntimeToOutputSandbox()
+    public async Task NeoForgeLoaderProviderStagedInstallPublishesSharedRuntimeDirectly()
     {
         var sharedMinecraftDirectory = Path.Combine(TempRoot, "shared", ".minecraft");
         var outputMinecraftDirectory = Path.Combine(TempRoot, "output", ".minecraft");
@@ -130,6 +137,14 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
 
         Assert.Equal("Imported NeoForge Pack", finalVersionName);
         Assert.True(File.Exists(Path.Combine(
+            sharedMinecraftDirectory,
+            "libraries",
+            "net",
+            "neoforged",
+            "neoforge",
+            "20.4.237",
+            "neoforge-20.4.237-universal.jar")));
+        Assert.False(File.Exists(Path.Combine(
             outputMinecraftDirectory,
             "libraries",
             "net",
@@ -396,6 +411,7 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
     private sealed class RecordingFinalVersionInstaller : IFinalVersionInstaller
     {
         public string? LastVersionName { get; private set; }
+        public MinecraftPath? LastPath { get; private set; }
 
         public Task InstallAsync(
             string gameDirectory,
@@ -405,6 +421,20 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
             CancellationToken cancellationToken,
             int downloadSpeedLimitMbPerSecond = 0)
         {
+            LastVersionName = versionName;
+            return Task.CompletedTask;
+        }
+
+        public Task InstallAsync(
+            MinecraftPath path,
+            string versionName,
+            MinecraftDownloadOperationContext operationContext,
+            DownloadSourcePreference downloadSourcePreference,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken,
+            int downloadSpeedLimitMbPerSecond = 0)
+        {
+            LastPath = path;
             LastVersionName = versionName;
             return Task.CompletedTask;
         }

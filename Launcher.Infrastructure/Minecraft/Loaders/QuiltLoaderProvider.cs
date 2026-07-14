@@ -29,7 +29,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Minecraft;
 
-public sealed class QuiltLoaderProvider : ILoaderProvider
+public sealed class QuiltLoaderProvider : ILoaderProvider, ISeparatedInstallPathLoaderProvider
 {
     private readonly HttpClient httpClient;
     private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
@@ -111,7 +111,7 @@ public sealed class QuiltLoaderProvider : ILoaderProvider
         return resolvedVersions;
     }
 
-    public async Task<string> InstallAsync(
+    public Task<string> InstallAsync(
         string minecraftVersion,
         string gameDirectory,
         string isolatedVersionName,
@@ -120,6 +120,52 @@ public sealed class QuiltLoaderProvider : ILoaderProvider
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
         CancellationToken cancellationToken = default,
         int downloadSpeedLimitMbPerSecond = 0)
+    {
+        return InstallCoreAsync(
+            minecraftVersion,
+            new MinecraftPath(gameDirectory),
+            gameDirectory,
+            gameDirectory,
+            isolatedVersionName,
+            loaderVersion,
+            progress,
+            downloadSourcePreference,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
+    }
+
+    Task<string> ISeparatedInstallPathLoaderProvider.InstallWithSeparatedPathsAsync(
+        string minecraftVersion,
+        MinecraftInstallPathLayout installPathLayout,
+        string isolatedVersionName,
+        string? loaderVersion,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond) =>
+        InstallCoreAsync(
+            minecraftVersion,
+            installPathLayout.Path,
+            installPathLayout.WorkspaceMinecraftDirectory,
+            installPathLayout.SharedMinecraftDirectory,
+            isolatedVersionName,
+            loaderVersion,
+            progress,
+            downloadSourcePreference,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
+
+    private async Task<string> InstallCoreAsync(
+        string minecraftVersion,
+        MinecraftPath path,
+        string versionWorkspaceDirectory,
+        string sharedMinecraftDirectory,
+        string isolatedVersionName,
+        string? loaderVersion,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond)
     {
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
         var selectedLoaderVersion = loaderVersion;
@@ -145,7 +191,6 @@ public sealed class QuiltLoaderProvider : ILoaderProvider
 
         try
         {
-            var path = new MinecraftPath(gameDirectory);
             using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(path);
             using var speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
             var launcher = VanillaLoaderProvider.CreateLauncher(
@@ -164,7 +209,7 @@ public sealed class QuiltLoaderProvider : ILoaderProvider
                     minecraftVersion,
                     selectedLoaderVersion,
                     isolatedVersionName,
-                    gameDirectory,
+                    versionWorkspaceDirectory,
                     downloadSourcePreference,
                     downloadSpeedLimitMbPerSecond,
                     downloadSpeedLimitState,
@@ -175,14 +220,14 @@ public sealed class QuiltLoaderProvider : ILoaderProvider
                 async (versionName, token) => await launcher.InstallAsync(versionName, token).ConfigureAwait(false),
                 cancellationToken).ConfigureAwait(false);
             var validation = await new GameFileIntegrityService(httpClient, downloadSpeedLimitState, logger)
-                .ValidateAndRepairAsync(
+                .ValidateInstalledVersionAsync(
                     new GameFileIntegrityRequest(
-                        gameDirectory,
+                        sharedMinecraftDirectory,
                         finalVersionName,
-                        Path.Combine(gameDirectory, "versions", finalVersionName),
+                        Path.Combine(versionWorkspaceDirectory, "versions", finalVersionName),
                         downloadSourcePreference,
                         downloadSpeedLimitMbPerSecond),
-                    new GameFileRepairOptions(AllowRepair: true),
+                    downloadOperation,
                     progress,
                     cancellationToken).ConfigureAwait(false);
             if (!validation.LaunchAllowed)

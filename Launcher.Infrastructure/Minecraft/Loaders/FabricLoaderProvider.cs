@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -29,7 +30,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Minecraft;
 
-public sealed class FabricLoaderProvider : ILoaderProvider
+public sealed class FabricLoaderProvider : ILoaderProvider, ISeparatedInstallPathLoaderProvider
 {
     private const string NoLoaderMessagePrefix = "Cannot find any loader for";
     private readonly HttpClient httpClient;
@@ -97,7 +98,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider
         return result.Found ? result.Value! : [];
     }
 
-    public async Task<string> InstallAsync(
+    public Task<string> InstallAsync(
         string minecraftVersion,
         string gameDirectory,
         string isolatedVersionName,
@@ -108,65 +109,149 @@ public sealed class FabricLoaderProvider : ILoaderProvider
         int downloadSpeedLimitMbPerSecond = 0)
     {
         // 未指定 Loader 时选择目录首项；确定版本后再组合隔离 profile 并安装依赖。
-        progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
-        var path = new MinecraftPath(gameDirectory);
-        using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(path);
-        using var speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
-        var selectedLoaderVersion = loaderVersion;
-
-        if (string.IsNullOrWhiteSpace(selectedLoaderVersion))
-        {
-            var availableLoaders = await GetLoaderVersionsAsync(
-                minecraftVersion,
-                downloadSourcePreference,
-                cancellationToken,
-                downloadSpeedLimitMbPerSecond);
-            selectedLoaderVersion = availableLoaders.FirstOrDefault()?.Version;
-        }
-
-        if (string.IsNullOrWhiteSpace(selectedLoaderVersion))
-            throw new InvalidOperationException($"No Fabric loader version available for {minecraftVersion}.");
-
-        var launcher = VanillaLoaderProvider.CreateLauncher(
-            path,
+        return InstallCoreAsync(
+            minecraftVersion,
+            new MinecraftPath(gameDirectory),
+            gameDirectory,
+            gameDirectory,
+            isolatedVersionName,
+            loaderVersion,
             progress,
             downloadSourcePreference,
-            logger,
-            downloadSpeedLimitMbPerSecond,
-            downloadSpeedLimitState,
-            downloadOperation,
-            speedReporter);
-        VanillaLoaderProvider.AttachProgress(launcher, progress);
-        var finalVersionName = await ComposedVersionInstallRunner.RunAsync(
-            token => FabricVersionComposer.PrepareFinalVersionAsync(
-                httpClient,
-                minecraftVersion,
-                selectedLoaderVersion,
-                isolatedVersionName,
-                gameDirectory,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
+    }
+
+    Task<string> ISeparatedInstallPathLoaderProvider.InstallWithSeparatedPathsAsync(
+        string minecraftVersion,
+        MinecraftInstallPathLayout installPathLayout,
+        string isolatedVersionName,
+        string? loaderVersion,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond) =>
+        InstallCoreAsync(
+            minecraftVersion,
+            installPathLayout.Path,
+            installPathLayout.WorkspaceMinecraftDirectory,
+            installPathLayout.SharedMinecraftDirectory,
+            isolatedVersionName,
+            loaderVersion,
+            progress,
+            downloadSourcePreference,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
+
+    private async Task<string> InstallCoreAsync(
+        string minecraftVersion,
+        MinecraftPath path,
+        string versionWorkspaceDirectory,
+        string sharedMinecraftDirectory,
+        string isolatedVersionName,
+        string? loaderVersion,
+        IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond)
+    {
+        progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
+        var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(path);
+        var speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
+        var operationResourcesDisposed = false;
+        try
+        {
+            var selectedLoaderVersion = loaderVersion;
+
+            if (string.IsNullOrWhiteSpace(selectedLoaderVersion))
+            {
+                var availableLoaders = await GetLoaderVersionsAsync(
+                    minecraftVersion,
+                    downloadSourcePreference,
+                    cancellationToken,
+                    downloadSpeedLimitMbPerSecond);
+                selectedLoaderVersion = availableLoaders.FirstOrDefault()?.Version;
+            }
+
+            if (string.IsNullOrWhiteSpace(selectedLoaderVersion))
+                throw new InvalidOperationException($"No Fabric loader version available for {minecraftVersion}.");
+
+            var launcher = VanillaLoaderProvider.CreateLauncher(
+                path,
+                progress,
                 downloadSourcePreference,
+                logger,
                 downloadSpeedLimitMbPerSecond,
                 downloadSpeedLimitState,
-                logger,
-                token,
                 downloadOperation,
-                speedReporter),
-            async (versionName, token) => await launcher.InstallAsync(versionName, token).ConfigureAwait(false),
-            cancellationToken).ConfigureAwait(false);
-        var validation = await new GameFileIntegrityService(httpClient, downloadSpeedLimitState, logger)
-            .ValidateAndRepairAsync(
-                new GameFileIntegrityRequest(
-                    gameDirectory,
-                    finalVersionName,
-                    Path.Combine(gameDirectory, "versions", finalVersionName),
+                speedReporter);
+            VanillaLoaderProvider.AttachProgress(launcher, progress);
+            var finalVersionName = await ComposedVersionInstallRunner.RunAsync(
+                token => FabricVersionComposer.PrepareFinalVersionAsync(
+                    httpClient,
+                    minecraftVersion,
+                    selectedLoaderVersion,
+                    isolatedVersionName,
+                    versionWorkspaceDirectory,
                     downloadSourcePreference,
-                    downloadSpeedLimitMbPerSecond),
-                new GameFileRepairOptions(AllowRepair: true),
-                progress,
+                    downloadSpeedLimitMbPerSecond,
+                    downloadSpeedLimitState,
+                    logger,
+                    token,
+                    downloadOperation,
+                    speedReporter),
+                async (versionName, token) => await launcher.InstallAsync(versionName, token).ConfigureAwait(false),
                 cancellationToken).ConfigureAwait(false);
-        if (!validation.LaunchAllowed)
-            throw new InstanceRepairException($"Installed Fabric version {finalVersionName} failed required-file validation.");
-        return finalVersionName;
+            progress?.Report(new LauncherProgress(InstallProgressStages.FinalizingVersion, string.Empty));
+            var validationStopwatch = Stopwatch.StartNew();
+            var validation = await new GameFileIntegrityService(httpClient, downloadSpeedLimitState, logger)
+                .ValidateInstalledVersionAsync(
+                    new GameFileIntegrityRequest(
+                        sharedMinecraftDirectory,
+                        finalVersionName,
+                        Path.Combine(versionWorkspaceDirectory, "versions", finalVersionName),
+                        downloadSourcePreference,
+                        downloadSpeedLimitMbPerSecond),
+                    downloadOperation,
+                    progress,
+                    cancellationToken).ConfigureAwait(false);
+            validationStopwatch.Stop();
+            logger.LogInformation(
+                "Fabric post-install validation completed. VersionName={VersionName} DurationMs={DurationMs}",
+                finalVersionName,
+                validationStopwatch.ElapsedMilliseconds);
+            if (!validation.LaunchAllowed)
+                throw new InstanceRepairException($"Installed Fabric version {finalVersionName} failed required-file validation.");
+
+            logger.LogInformation("Fabric installation cleanup started. VersionName={VersionName}", finalVersionName);
+            var cleanupStopwatch = Stopwatch.StartNew();
+            speedReporter.Dispose();
+            var speedReporterCleanupDuration = cleanupStopwatch.ElapsedMilliseconds;
+            downloadOperation.Dispose();
+            cleanupStopwatch.Stop();
+            operationResourcesDisposed = true;
+            logger.LogInformation(
+                "Fabric installation cleanup completed. VersionName={VersionName} TotalDurationMs={TotalDurationMs} SpeedReporterDisposeDurationMs={SpeedReporterDisposeDurationMs} DownloadOperationDisposeDurationMs={DownloadOperationDisposeDurationMs}",
+                finalVersionName,
+                cleanupStopwatch.ElapsedMilliseconds,
+                speedReporterCleanupDuration,
+                cleanupStopwatch.ElapsedMilliseconds - speedReporterCleanupDuration);
+            return finalVersionName;
+        }
+        finally
+        {
+            if (!operationResourcesDisposed)
+            {
+                try
+                {
+                    speedReporter.Dispose();
+                }
+                finally
+                {
+                    downloadOperation.Dispose();
+                }
+            }
+        }
     }
 
     internal static bool IsNoAvailableVersionException(Exception exception, string minecraftVersion)

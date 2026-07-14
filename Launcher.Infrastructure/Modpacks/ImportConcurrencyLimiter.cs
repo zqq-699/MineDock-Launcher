@@ -11,10 +11,17 @@ namespace Launcher.Infrastructure.Modpacks;
 
 internal sealed class ImportConcurrencyLimiter : IImportConcurrencyLimiter
 {
+    internal const int MinimumDownloadConcurrency = 4;
+    internal const int InitialDownloadConcurrency = 12;
+    internal const int MaximumDownloadConcurrency = 16;
+
     public static ImportConcurrencyLimiter Shared { get; } = new();
 
     private readonly SemaphoreSlim hashSemaphore = new(2, 2);
-    private readonly AdaptiveDownloadScheduler downloadScheduler = new(minimum: 4, initial: 12, maximum: 16);
+    private readonly AdaptiveDownloadScheduler downloadScheduler = new(
+        minimum: MinimumDownloadConcurrency,
+        initial: InitialDownloadConcurrency,
+        maximum: MaximumDownloadConcurrency);
 
     public ValueTask<IImportConcurrencyLease> AcquireMetadataSlotAsync(CancellationToken cancellationToken = default) =>
         downloadScheduler.AcquireAsync(cancellationToken);
@@ -62,18 +69,28 @@ internal sealed class AdaptiveDownloadScheduler
     private readonly SemaphoreSlim signal = new(0);
     private readonly int minimum;
     private readonly int maximum;
+    private readonly TimeProvider timeProvider;
+    private readonly TimeSpan adjustmentCooldown;
     private int activeCount;
     private int waitingCount;
     private int currentTarget;
     private int successes;
     private int failures;
-    private DateTimeOffset lastAdjustmentAt = DateTimeOffset.UtcNow;
+    private DateTimeOffset lastAdjustmentAt;
 
-    public AdaptiveDownloadScheduler(int minimum, int initial, int maximum)
+    public AdaptiveDownloadScheduler(
+        int minimum,
+        int initial,
+        int maximum,
+        TimeProvider? timeProvider = null,
+        TimeSpan? adjustmentCooldown = null)
     {
         this.minimum = minimum;
         this.maximum = maximum;
+        this.timeProvider = timeProvider ?? TimeProvider.System;
+        this.adjustmentCooldown = adjustmentCooldown ?? AdjustmentCooldown;
         currentTarget = initial;
+        lastAdjustmentAt = this.timeProvider.GetUtcNow();
     }
 
     internal (int ActiveCount, int WaitingCount, int CurrentTarget, int ConfiguredMaximum) Snapshot
@@ -124,8 +141,8 @@ internal sealed class AdaptiveDownloadScheduler
                 or DownloadFailureReason.HttpStatus)
                 failures++;
 
-            var now = DateTimeOffset.UtcNow;
-            if (now - lastAdjustmentAt < AdjustmentCooldown)
+            var now = timeProvider.GetUtcNow();
+            if (now - lastAdjustmentAt < adjustmentCooldown)
                 return;
             if (failures > 0)
                 currentTarget = Math.Max(minimum, (currentTarget + 1) / 2);

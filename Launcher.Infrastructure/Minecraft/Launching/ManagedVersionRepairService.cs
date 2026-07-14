@@ -78,12 +78,35 @@ internal sealed partial class ManagedVersionRepairService : IManagedVersionRepai
     /// <summary>
     /// 按元数据、JAR、库、资源和日志配置的顺序检查或修复启动所需文件。
     /// </summary>
-    public async Task RepairAsync(
+    public Task RepairAsync(
         string minecraftDirectory,
         string versionName,
         string instanceDirectory,
         IProgress<LauncherProgress>? progress,
         bool allowRepair,
+        CancellationToken cancellationToken = default,
+        DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
+        int downloadSpeedLimitMbPerSecond = 0)
+    {
+        return RepairWithOperationAsync(
+            minecraftDirectory,
+            versionName,
+            instanceDirectory,
+            progress,
+            allowRepair,
+            operationContext: null,
+            cancellationToken: cancellationToken,
+            downloadSourcePreference: downloadSourcePreference,
+            downloadSpeedLimitMbPerSecond: downloadSpeedLimitMbPerSecond);
+    }
+
+    public async Task RepairWithOperationAsync(
+        string minecraftDirectory,
+        string versionName,
+        string instanceDirectory,
+        IProgress<LauncherProgress>? progress,
+        bool allowRepair,
+        MinecraftDownloadOperationContext? operationContext,
         CancellationToken cancellationToken = default,
         DownloadSourcePreference downloadSourcePreference = DownloadSourcePreference.Auto,
         int downloadSpeedLimitMbPerSecond = 0)
@@ -98,7 +121,8 @@ internal sealed partial class ManagedVersionRepairService : IManagedVersionRepai
             logger,
             downloadSourcePreference,
             downloadSpeedLimitMbPerSecond,
-            progress);
+            progress,
+            operationContext);
         ReportProgress(progress, LaunchProgressStages.CheckingInstance, "Checking instance files", 6);
         ReportProgress(
             progress,

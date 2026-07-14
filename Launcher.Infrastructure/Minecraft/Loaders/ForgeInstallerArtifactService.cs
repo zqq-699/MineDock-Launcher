@@ -114,10 +114,11 @@ internal sealed partial class LoaderInstallerArtifactService
         string minecraftDirectory,
         DownloadSourcePreference downloadSourcePreference,
         int downloadSpeedLimitMbPerSecond,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        MinecraftDownloadOperationContext? operationContext = null)
     {
         await MaterializeLibrariesAsync(installerJarPath, plan.PrerequisiteLibraries, minecraftDirectory,
-            downloadSourcePreference, downloadSpeedLimitMbPerSecond, cancellationToken).ConfigureAwait(false);
+            downloadSourcePreference, downloadSpeedLimitMbPerSecond, cancellationToken, operationContext).ConfigureAwait(false);
     }
 
     public async Task MaterializeRuntimeLibrariesAsync(
@@ -126,22 +127,34 @@ internal sealed partial class LoaderInstallerArtifactService
         string minecraftDirectory,
         DownloadSourcePreference downloadSourcePreference,
         int downloadSpeedLimitMbPerSecond,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        MinecraftDownloadOperationContext? operationContext = null)
     {
         await MaterializeLibrariesAsync(installerJarPath, plan.RuntimeLibraries, minecraftDirectory,
-            downloadSourcePreference, downloadSpeedLimitMbPerSecond, cancellationToken).ConfigureAwait(false);
+            downloadSourcePreference, downloadSpeedLimitMbPerSecond, cancellationToken, operationContext).ConfigureAwait(false);
     }
 
     public async Task ValidatePublishedArtifactsAsync(
         string minecraftDirectory,
         ForgeInstallerPlan plan,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        MinecraftDownloadOperationContext? operationContext = null)
     {
+        var fullHashVerificationCount = 0;
+        var currentOperationVerificationReuseCount = 0;
         foreach (var library in plan.AllLibraries)
         {
             var path = ResolveLibraryPath(minecraftDirectory, library.Artifact.RelativePath);
-            await EnsureValidAsync(path, library.Artifact.Sha1, library.Artifact.Size, "Forge library", cancellationToken)
+            var verifiedByCurrentOperation = IsVerifiedByCurrentOperation(path, library.Artifact, operationContext);
+            var verification = verifiedByCurrentOperation
+                ? MinecraftFileVerification.SizeOnly
+                : MinecraftFileVerification.Full;
+            await EnsureValidAsync(path, library.Artifact.Sha1, library.Artifact.Size, "Forge library", cancellationToken, verification)
                 .ConfigureAwait(false);
+            if (verifiedByCurrentOperation)
+                currentOperationVerificationReuseCount++;
+            else if (MinecraftFileIntegrity.IsSha1(library.Artifact.Sha1))
+                fullHashVerificationCount++;
         }
 
         foreach (var output in plan.ProcessorOutputs)
@@ -149,7 +162,37 @@ internal sealed partial class LoaderInstallerArtifactService
             var path = ResolveLibraryPath(minecraftDirectory, output.RelativePath);
             await EnsureValidAsync(path, output.TrustedSha1, expectedSize: null, "Forge processor output", cancellationToken)
                 .ConfigureAwait(false);
+            if (MinecraftFileIntegrity.IsSha1(output.TrustedSha1))
+                fullHashVerificationCount++;
         }
+
+        logger.LogInformation(
+            "Loader installer artifact validation completed. FullHashVerificationCount={FullHashVerificationCount} CurrentOperationVerificationReuseCount={CurrentOperationVerificationReuseCount}",
+            fullHashVerificationCount,
+            currentOperationVerificationReuseCount);
+    }
+
+    public static IReadOnlyDictionary<string, VerifiedSharedFileExpectation> CreateTrustedSharedLibraryExpectations(
+        ForgeInstallerPlan plan)
+    {
+        var expectations = new Dictionary<string, VerifiedSharedFileExpectation>(StringComparer.OrdinalIgnoreCase);
+        foreach (var library in plan.AllLibraries
+            .Where(library => MinecraftFileIntegrity.IsSha1(library.Artifact.Sha1))
+            .OrderBy(library => library.Artifact.RelativePath, StringComparer.OrdinalIgnoreCase))
+        {
+            var relativePath = $"libraries/{library.Artifact.RelativePath.Replace('\\', '/')}";
+            var expectation = new VerifiedSharedFileExpectation(library.Artifact.Sha1!, library.Artifact.Size);
+            if (expectations.TryGetValue(relativePath, out var existing)
+                && (!string.Equals(existing.Sha1, expectation.Sha1, StringComparison.OrdinalIgnoreCase)
+                    || existing.Size != expectation.Size))
+            {
+                throw new InvalidDataException($"Forge installer plan contains conflicting expectations for {relativePath}.");
+            }
+
+            expectations[relativePath] = expectation;
+        }
+
+        return expectations;
     }
 
     public static async Task ApplyRuntimeLibrariesAsync(
@@ -336,7 +379,8 @@ internal sealed partial class LoaderInstallerArtifactService
         string minecraftDirectory,
         DownloadSourcePreference downloadSourcePreference,
         int downloadSpeedLimitMbPerSecond,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        MinecraftDownloadOperationContext? operationContext)
     {
         var archiveEntries = new Dictionary<string, ZipArchiveEntry>(StringComparer.OrdinalIgnoreCase);
         await using (var stream = new FileStream(installerJarPath, FileMode.Open, FileAccess.Read, FileShare.Read, 128 * 1024,
@@ -355,14 +399,17 @@ internal sealed partial class LoaderInstallerArtifactService
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var destinationPath = ResolveLibraryPath(minecraftDirectory, library.Artifact.RelativePath);
+                var verification = IsVerifiedByCurrentOperation(destinationPath, library.Artifact, operationContext)
+                    ? MinecraftFileVerification.SizeOnly
+                    : MinecraftFileVerification.Full;
                 var status = await MinecraftFileIntegrity.EvaluateAsync(destinationPath, library.Artifact.Sha1, library.Artifact.Size,
-                    MinecraftFileVerification.Full, cancellationToken).ConfigureAwait(false);
+                    verification, cancellationToken).ConfigureAwait(false);
                 if (status == MinecraftFileIntegrityStatus.Valid)
                     continue;
 
                 if (archiveEntries.TryGetValue(library.Artifact.RelativePath, out var entry))
                 {
-                    await CopyEmbeddedLibraryAsync(entry, destinationPath, library.Artifact, cancellationToken).ConfigureAwait(false);
+                    await CopyEmbeddedLibraryAsync(entry, destinationPath, library.Artifact, cancellationToken, operationContext).ConfigureAwait(false);
                     continue;
                 }
 
@@ -370,7 +417,8 @@ internal sealed partial class LoaderInstallerArtifactService
                     DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
                     category: DownloadConcurrencyCategory.Runtime);
                 await executor.DownloadFileAsync(library.Artifact.Url, downloadSourcePreference, library.Artifact.ResourceCategory,
-                    destinationPath, library.Artifact.Sha1, library.Artifact.Size, reportDownloadedBytes: null, cancellationToken)
+                    destinationPath, library.Artifact.Sha1, library.Artifact.Size, reportDownloadedBytes: null, cancellationToken,
+                    options: CreateDownloadOptions(library.Artifact, operationContext))
                     .ConfigureAwait(false);
             }
         }
@@ -380,7 +428,8 @@ internal sealed partial class LoaderInstallerArtifactService
         ZipArchiveEntry entry,
         string destinationPath,
         ManagedLibraryArtifact artifact,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        MinecraftDownloadOperationContext? operationContext)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
         var temporaryPath = $"{destinationPath}.{Guid.NewGuid():N}.download";
@@ -395,6 +444,7 @@ internal sealed partial class LoaderInstallerArtifactService
             await EnsureValidAsync(temporaryPath, artifact.Sha1, artifact.Size, "Embedded Forge library", cancellationToken)
                 .ConfigureAwait(false);
             File.Move(temporaryPath, destinationPath, overwrite: true);
+            MarkVerified(destinationPath, artifact, operationContext);
         }
         finally
         {
@@ -403,12 +453,51 @@ internal sealed partial class LoaderInstallerArtifactService
     }
 
     private static async Task EnsureValidAsync(
-        string path, string? expectedSha1, long? expectedSize, string kind, CancellationToken cancellationToken)
+        string path,
+        string? expectedSha1,
+        long? expectedSize,
+        string kind,
+        CancellationToken cancellationToken,
+        MinecraftFileVerification verification = MinecraftFileVerification.Full)
     {
-        var status = await MinecraftFileIntegrity.EvaluateAsync(path, expectedSha1, expectedSize, MinecraftFileVerification.Full, cancellationToken)
+        var status = await MinecraftFileIntegrity.EvaluateAsync(path, expectedSha1, expectedSize, verification, cancellationToken)
             .ConfigureAwait(false);
         if (status != MinecraftFileIntegrityStatus.Valid)
             throw new InvalidDataException($"{kind} is missing or invalid ({status}): {path}");
+    }
+
+    private static DownloadFileOptions? CreateDownloadOptions(
+        ManagedLibraryArtifact artifact,
+        MinecraftDownloadOperationContext? operationContext)
+    {
+        return operationContext is not null && MinecraftFileIntegrity.IsSha1(artifact.Sha1)
+            ? new DownloadFileOptions(DownloadPersistenceMode.TaskScopedResumable, operationContext)
+            : null;
+    }
+
+    private static bool IsVerifiedByCurrentOperation(
+        string destinationPath,
+        ManagedLibraryArtifact artifact,
+        MinecraftDownloadOperationContext? operationContext)
+    {
+        return operationContext is not null
+            && MinecraftFileIntegrity.IsSha1(artifact.Sha1)
+            && operationContext.IsVerified(
+                destinationPath,
+                DownloadIntegrityExpectation.Sha1(artifact.Sha1!, artifact.Size));
+    }
+
+    private static void MarkVerified(
+        string destinationPath,
+        ManagedLibraryArtifact artifact,
+        MinecraftDownloadOperationContext? operationContext)
+    {
+        if (operationContext is not null && MinecraftFileIntegrity.IsSha1(artifact.Sha1))
+        {
+            operationContext.MarkVerified(
+                destinationPath,
+                DownloadIntegrityExpectation.Sha1(artifact.Sha1!, artifact.Size));
+        }
     }
 
     private static async Task<JsonObject> ReadObjectAsync(ZipArchive archive, string entryName, bool required, CancellationToken cancellationToken)
