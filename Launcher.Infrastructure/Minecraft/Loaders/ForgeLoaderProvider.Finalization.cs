@@ -41,13 +41,15 @@ private async Task DownloadInstallerAsync(
         string destinationPath,
         DownloadSourcePreference downloadSourcePreference,
         CancellationToken cancellationToken,
-        int downloadSpeedLimitMbPerSecond = 0)
+        int downloadSpeedLimitMbPerSecond = 0,
+        SlidingWindowDownloadSpeedReporter? speedReporter = null)
     {
         var executor = new MinecraftDownloadRequestExecutor(
             httpClient,
             logger,
             DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
             category: DownloadConcurrencyCategory.Runtime);
+        using var speedSession = speedReporter is null ? null : new DownloadActivitySpeedSession(speedReporter);
         await executor.DownloadFileAsync(
             installerUrl.AbsoluteUri,
             downloadSourcePreference,
@@ -55,8 +57,9 @@ private async Task DownloadInstallerAsync(
             destinationPath,
             expectedSha1: null,
             expectedSize: null,
-            reportDownloadedBytes: null,
-            cancellationToken);
+            reportDownloadedBytes: speedReporter is null ? null : bytes => speedReporter.ReportNetworkBytes(bytes),
+            cancellationToken,
+            reportActivity: speedSession is null ? null : activity => speedSession.Report(activity));
     }
 
     /// <summary>

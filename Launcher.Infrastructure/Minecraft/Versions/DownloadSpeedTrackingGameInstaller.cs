@@ -43,14 +43,15 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         DownloadSourcePreference downloadSourcePreference,
         IProgress<LauncherProgress>? progress,
         MinecraftPath? minecraftPath,
-        MinecraftDownloadOperationContext? operationContext)
+        MinecraftDownloadOperationContext? operationContext,
+        SlidingWindowDownloadSpeedReporter? sharedSpeedReporter)
         : base(maxChecker, maxDownloader, boundedCapacity, httpClient)
     {
         this.downloadExecutor = downloadExecutor;
         this.downloadSourcePreference = downloadSourcePreference;
         this.minecraftPath = minecraftPath;
         this.operationContext = operationContext;
-        speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
+        speedReporter = sharedSpeedReporter ?? new SlidingWindowDownloadSpeedReporter(progress);
     }
 
     public static DownloadSpeedTrackingGameInstaller CreateAsCoreCount(
@@ -59,7 +60,8 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         DownloadSourcePreference downloadSourcePreference,
         IProgress<LauncherProgress>? progress,
         MinecraftPath? minecraftPath = null,
-        MinecraftDownloadOperationContext? operationContext = null)
+        MinecraftDownloadOperationContext? operationContext = null,
+        SlidingWindowDownloadSpeedReporter? sharedSpeedReporter = null)
     {
         var maxChecker = Environment.ProcessorCount;
         maxChecker = Math.Max(1, maxChecker);
@@ -78,7 +80,8 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
             downloadSourcePreference,
             progress,
             minecraftPath,
-            operationContext);
+            operationContext,
+            sharedSpeedReporter);
     }
 
     internal bool HasActiveNetworkTransfers => speedReporter.HasActiveTransfers;
@@ -118,14 +121,14 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
                 filePath,
                 file.Hash,
                 expectedSize,
-                reportDownloadedBytes: null,
+                reportDownloadedBytes: speedReporter.ReportNetworkBytes,
                 cancellationToken,
                 (attempt, progressedBytes, totalBytes) =>
                 {
                     if (attempt != currentAttempt)
                     {
                         currentAttempt = attempt;
-                        attemptProgress = new NetworkDownloadProgress(progress, speedReporter);
+                        attemptProgress = new NetworkDownloadProgress(progress);
                     }
 
                     attemptProgress!.Report(new ByteProgress(
@@ -141,17 +144,13 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         private static readonly TimeSpan InnerProgressInterval = TimeSpan.FromMilliseconds(100);
 
         private readonly IProgress<ByteProgress>? innerProgress;
-        private readonly SlidingWindowDownloadSpeedReporter speedReporter;
-        private long lastProgressedBytes;
         private long lastReportedProgressedBytes;
         private DateTimeOffset lastInnerProgressReportedAt = DateTimeOffset.MinValue;
 
         public NetworkDownloadProgress(
-            IProgress<ByteProgress>? innerProgress,
-            SlidingWindowDownloadSpeedReporter speedReporter)
+            IProgress<ByteProgress>? innerProgress)
         {
             this.innerProgress = innerProgress;
-            this.speedReporter = speedReporter;
         }
 
         public void Report(ByteProgress value)
@@ -159,10 +158,6 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
             if (ShouldReportInnerProgress(value))
                 innerProgress?.Report(value);
 
-            var bytesDelta = value.ProgressedBytes - lastProgressedBytes;
-            lastProgressedBytes = value.ProgressedBytes;
-            if (bytesDelta > 0)
-                speedReporter.ReportNetworkBytes(bytesDelta);
         }
 
         private bool ShouldReportInnerProgress(ByteProgress value)

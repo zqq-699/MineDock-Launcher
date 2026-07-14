@@ -79,7 +79,6 @@ internal static class MinecraftDownloadFileWriter
                     await WriteLocalAsync(destination, tempPath, buffer, read, cancellationToken).ConfigureAwait(false);
                     sha1?.AppendData(buffer, 0, read);
                     totalRead += read;
-                    reportDownloadedBytes?.Invoke(read);
                     reportAttemptProgress?.Invoke(attemptNumber, totalRead, expectedSize);
                 }
             }

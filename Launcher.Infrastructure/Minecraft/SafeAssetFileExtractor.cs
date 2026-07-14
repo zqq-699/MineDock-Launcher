@@ -22,15 +22,18 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
     private readonly MinecraftDownloadRequestExecutor downloadExecutor;
     private readonly DownloadSourcePreference downloadSourcePreference;
     private readonly MinecraftDownloadOperationContext? operationContext;
+    private readonly SlidingWindowDownloadSpeedReporter? speedReporter;
 
     public SafeAssetFileExtractor(
         MinecraftDownloadRequestExecutor downloadExecutor,
         DownloadSourcePreference downloadSourcePreference,
-        MinecraftDownloadOperationContext? operationContext)
+        MinecraftDownloadOperationContext? operationContext,
+        SlidingWindowDownloadSpeedReporter? speedReporter = null)
     {
         this.downloadExecutor = downloadExecutor;
         this.downloadSourcePreference = downloadSourcePreference;
         this.operationContext = operationContext;
+        this.speedReporter = speedReporter;
     }
 
     public async ValueTask<IEnumerable<GameFile>> Extract(
@@ -57,6 +60,7 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
             if (string.IsNullOrWhiteSpace(metadata.Url))
                 throw new InvalidDataException($"Asset index URL is missing: {metadata.Id}");
 
+            using var speedSession = speedReporter is null ? null : new DownloadActivitySpeedSession(speedReporter);
             await downloadExecutor.DownloadFileAsync(
                 metadata.Url,
                 downloadSourcePreference,
@@ -64,8 +68,9 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
                 indexPath,
                 metadata.GetSha1(),
                 metadata.Size > 0 ? metadata.Size : null,
-                reportDownloadedBytes: null,
+                reportDownloadedBytes: speedReporter is null ? null : bytes => speedReporter.ReportNetworkBytes(bytes),
                 cancellationToken,
+                reportActivity: speedSession is null ? null : activity => speedSession.Report(activity),
                 options: operationContext is not null && MinecraftFileIntegrity.IsSha1(metadata.GetSha1())
                     ? new DownloadFileOptions(DownloadPersistenceMode.TaskScopedResumable, operationContext)
                     : null).ConfigureAwait(false);

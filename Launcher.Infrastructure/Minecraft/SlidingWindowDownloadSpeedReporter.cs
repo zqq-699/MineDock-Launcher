@@ -16,6 +16,7 @@ namespace Launcher.Infrastructure.Minecraft;
 internal sealed class SlidingWindowDownloadSpeedReporter : IDisposable
 {
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan ClearDelay = TimeSpan.FromMilliseconds(750);
     private readonly object syncRoot = new();
     private readonly IProgress<LauncherProgress>? progress;
     private readonly SlidingWindowDownloadSpeedMeter meter;
@@ -23,8 +24,10 @@ internal sealed class SlidingWindowDownloadSpeedReporter : IDisposable
     private readonly string speedStage;
     private readonly string inactiveStage;
     private readonly Func<string?>? messageProvider;
+    private readonly Func<DateTimeOffset> clock;
     private int activeTransfers;
     private string? lastReportedSpeed;
+    private DateTimeOffset? lastTransferEndedAt;
     private bool disposed;
 
     public SlidingWindowDownloadSpeedReporter(
@@ -32,13 +35,15 @@ internal sealed class SlidingWindowDownloadSpeedReporter : IDisposable
         SlidingWindowDownloadSpeedMeter? meter = null,
         string speedStage = LaunchProgressStages.DownloadSpeed,
         string inactiveStage = LaunchProgressStages.CheckingFiles,
-        Func<string?>? messageProvider = null)
+        Func<string?>? messageProvider = null,
+        Func<DateTimeOffset>? clock = null)
     {
         this.progress = progress;
         this.meter = meter ?? new SlidingWindowDownloadSpeedMeter();
         this.speedStage = speedStage;
         this.inactiveStage = inactiveStage;
         this.messageProvider = messageProvider;
+        this.clock = clock ?? (() => DateTimeOffset.UtcNow);
         timer = new Timer(static state => ((SlidingWindowDownloadSpeedReporter)state!).Refresh(), this,
             Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
@@ -59,6 +64,7 @@ internal sealed class SlidingWindowDownloadSpeedReporter : IDisposable
             if (disposed)
                 return;
             activeTransfers++;
+            lastTransferEndedAt = null;
             timer.Change(RefreshInterval, RefreshInterval);
         }
     }
@@ -76,7 +82,6 @@ internal sealed class SlidingWindowDownloadSpeedReporter : IDisposable
 
     public void EndTransfer()
     {
-        var shouldClear = false;
         lock (syncRoot)
         {
             if (disposed || activeTransfers <= 0)
@@ -84,19 +89,12 @@ internal sealed class SlidingWindowDownloadSpeedReporter : IDisposable
             activeTransfers--;
             if (activeTransfers == 0)
             {
-                timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
                 // Do not discard the recent body-read samples here. A batch often
                 // advances from one small file to the next before two seconds pass;
                 // those adjacent network reads form one valid sliding window.
-                shouldClear = lastReportedSpeed is not null;
-                lastReportedSpeed = null;
+                lastTransferEndedAt = clock();
             }
         }
-        if (shouldClear)
-            progress?.Report(new LauncherProgress(
-                inactiveStage,
-                GetMessage(),
-                DownloadSpeedText: string.Empty));
     }
 
     public void Dispose()
@@ -105,26 +103,52 @@ internal sealed class SlidingWindowDownloadSpeedReporter : IDisposable
         {
             if (disposed)
                 return;
-            disposed = true;
-            timer.Dispose();
-            meter.Clear();
-            activeTransfers = 0;
+            // A reporter is normally disposed by its operation scope immediately
+            // after the last file. Keep its timer alive through the short grace
+            // period so a completed short download can still publish and then
+            // explicitly clear its last speed.
+            if (activeTransfers == 0 && lastTransferEndedAt is null)
+            {
+                disposed = true;
+                timer.Dispose();
+                meter.Clear();
+            }
         }
     }
 
     internal void Refresh()
     {
-        string? speed;
+        string? speed = null;
+        var shouldClear = false;
         lock (syncRoot)
         {
-            if (disposed || activeTransfers == 0)
+            if (disposed)
                 return;
-            speed = meter.GetSpeedText();
-            if (string.Equals(speed, lastReportedSpeed, StringComparison.Ordinal))
-                return;
-            lastReportedSpeed = speed;
+            if (activeTransfers == 0 && lastTransferEndedAt is { } endedAt
+                && clock() - endedAt >= ClearDelay)
+            {
+                shouldClear = lastReportedSpeed is not null;
+                lastReportedSpeed = null;
+                lastTransferEndedAt = null;
+                meter.Clear();
+                disposed = true;
+                timer.Dispose();
+            }
+            else
+            {
+                // Once a completed transfer has published its final value, hold
+                // that value through the grace period instead of decaying it
+                // while no response body is being read.
+                if (activeTransfers == 0 && lastReportedSpeed is not null)
+                    return;
+                speed = meter.GetSpeedText();
+                if (speed is null || string.Equals(speed, lastReportedSpeed, StringComparison.Ordinal))
+                    return;
+                lastReportedSpeed = speed;
+                shouldClear = false;
+            }
         }
-        ReportSpeed(speed ?? string.Empty);
+        ReportSpeed(shouldClear ? string.Empty : speed!);
     }
 
     private void ReportSpeed(string speed) => progress?.Report(new LauncherProgress(
@@ -205,9 +229,15 @@ internal sealed class SlidingWindowDownloadSpeedMeter
             // Trimming removes the oldest sample as soon as the clock moves past
             // the window boundary. Keep the sampling start separately so a live
             // transfer remains measurable after that boundary has passed.
-            if (samplingStartedAt is not { } startedAt || now - startedAt < Window)
+            if (samplingStartedAt is not { } startedAt)
                 return null;
-            var bytesPerSecond = samples.Sum(sample => sample.Bytes) / Window.TotalSeconds;
+
+            var elapsed = now - startedAt;
+            var denominator = elapsed < Window ? elapsed : Window;
+            if (denominator < TimeSpan.FromMilliseconds(500))
+                return null;
+
+            var bytesPerSecond = samples.Sum(sample => sample.Bytes) / denominator.TotalSeconds;
             return FormatSpeed(bytesPerSecond);
         }
     }

@@ -340,12 +340,14 @@ public sealed partial class DownloadTaskItem : ObservableObject
         if (State is DownloadTaskState.Completed or DownloadTaskState.Failed)
             return;
 
+        if (progress.DownloadSpeedText is not null)
+        {
+            DownloadSpeedText = progress.DownloadSpeedText;
+            return;
+        }
+
         State = DownloadTaskState.Running;
         StatusMessage = progress.Message;
-        if (!LauncherProgressDisplayPolicy.IsNetworkTransfer(progress))
-            DownloadSpeedText = string.Empty;
-        else if (progress.DownloadSpeedText is not null)
-            DownloadSpeedText = progress.DownloadSpeedText;
 
         if (progress.Percent is { } percent)
             // A progress report describes ongoing work. Only Complete() may
@@ -359,7 +361,6 @@ public sealed partial class DownloadTaskItem : ObservableObject
         // 终态方法同时冻结取消语义并触发页面计划移除。
         State = DownloadTaskState.Completed;
         StatusMessage = message;
-        DownloadSpeedText = string.Empty;
         ProgressPercent = 100;
     }
 

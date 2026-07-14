@@ -238,7 +238,6 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                     foreach (var hasher in hashers.Values)
                         hasher.AppendData(buffer, 0, read);
                     persisted += read;
-                    reportDownloadedBytes?.Invoke(read);
                     reportAttemptProgress?.Invoke(attemptNumber, persisted, integrity.ExpectedSize ?? totalLength);
                 }
             }

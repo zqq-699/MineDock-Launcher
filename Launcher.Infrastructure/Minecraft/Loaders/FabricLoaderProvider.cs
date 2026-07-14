@@ -111,6 +111,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
         var path = new MinecraftPath(gameDirectory);
         using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(path);
+        using var speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
         var selectedLoaderVersion = loaderVersion;
 
         if (string.IsNullOrWhiteSpace(selectedLoaderVersion))
@@ -137,7 +138,8 @@ public sealed class FabricLoaderProvider : ILoaderProvider
             downloadSpeedLimitState,
             logger,
             cancellationToken,
-            downloadOperation);
+            downloadOperation,
+            speedReporter);
 
         var launcher = VanillaLoaderProvider.CreateLauncher(
             path,
@@ -146,7 +148,8 @@ public sealed class FabricLoaderProvider : ILoaderProvider
             logger,
             downloadSpeedLimitMbPerSecond,
             downloadSpeedLimitState,
-            downloadOperation);
+            downloadOperation,
+            speedReporter);
         VanillaLoaderProvider.AttachProgress(launcher, progress);
         await launcher.InstallAsync(finalVersionName, cancellationToken);
         return finalVersionName;

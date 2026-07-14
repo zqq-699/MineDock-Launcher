@@ -643,6 +643,7 @@ public sealed class MinecraftDownloadRetryTests
         var executor = CreateExecutor(client);
         var directory = CreateTempDirectory();
         var destination = Path.Combine(directory, "client.jar");
+        var bodyReadBytes = new List<long>();
 
         try
         {
@@ -653,10 +654,11 @@ public sealed class MinecraftDownloadRetryTests
                 destination,
                 Convert.ToHexString(SHA1.HashData("partdata"u8.ToArray())),
                 8,
-                reportDownloadedBytes: null,
+                reportDownloadedBytes: bodyReadBytes.Add,
                 CancellationToken.None);
 
             Assert.Equal("partdata", await File.ReadAllTextAsync(destination));
+            Assert.Equal(8, bodyReadBytes.Sum());
             Assert.False(File.Exists(destination + ".part"));
             Assert.False(File.Exists(destination + ".part.meta"));
         }
@@ -677,6 +679,7 @@ public sealed class MinecraftDownloadRetryTests
         var destination = Path.Combine(directory, "assets", "objects", "aa", "asset");
         var payload = "asset-data"u8.ToArray();
         var sha1 = Convert.ToHexString(SHA1.HashData(payload));
+        var bodyReadBytes = new List<long>();
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         await File.WriteAllBytesAsync(destination, payload);
 
@@ -691,11 +694,12 @@ public sealed class MinecraftDownloadRetryTests
                 destination,
                 sha1,
                 payload.Length,
-                reportDownloadedBytes: null,
+                reportDownloadedBytes: bodyReadBytes.Add,
                 CancellationToken.None,
                 options: new DownloadFileOptions(DownloadPersistenceMode.LightweightAtomic, operation));
 
             Assert.Empty(handler.RequestUris);
+            Assert.Empty(bodyReadBytes);
             Assert.Equal(payload, await File.ReadAllBytesAsync(destination));
         }
         finally

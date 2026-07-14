@@ -11,18 +11,14 @@ namespace Launcher.Tests.Infrastructure.Minecraft;
 public sealed class SlidingWindowDownloadSpeedMeterTests
 {
     [Fact]
-    public void UsesTwoSecondWindowInsteadOfShortBurstRate()
+    public void DisplaysAfterFiveHundredMillisecondsUsingElapsedSamplingTime()
     {
         var now = DateTimeOffset.UnixEpoch;
         var meter = new SlidingWindowDownloadSpeedMeter(() => now);
 
         meter.RecordNetworkBytes(2 * 1024);
-        now += TimeSpan.FromSeconds(1);
-        meter.RecordNetworkBytes(2 * 1024);
-        Assert.Null(meter.GetSpeedText());
-
-        now += TimeSpan.FromSeconds(1);
-        Assert.Equal("2.0 KB/s", meter.GetSpeedText());
+        now += TimeSpan.FromMilliseconds(500);
+        Assert.Equal("4.0 KB/s", meter.GetSpeedText());
     }
 
     [Fact]
@@ -67,7 +63,7 @@ public sealed class SlidingWindowDownloadSpeedMeterTests
         meter.RecordNetworkBytes(4 * 1024);
         now += TimeSpan.FromSeconds(1);
 
-        Assert.Null(meter.GetSpeedText());
+        Assert.Equal("4.0 KB/s", meter.GetSpeedText());
     }
 
     [Fact]
@@ -104,6 +100,49 @@ public sealed class SlidingWindowDownloadSpeedMeterTests
         reporter.Refresh();
 
         Assert.Equal("3.0 KB/s", Assert.Single(reports).DownloadSpeedText);
+    }
+
+    [Fact]
+    public void ShortTransferRetainsSpeedUntilGracePeriodThenExplicitlyClears()
+    {
+        var now = DateTimeOffset.UnixEpoch;
+        var reports = new List<LauncherProgress>();
+        var meter = new SlidingWindowDownloadSpeedMeter(() => now);
+        using var reporter = new SlidingWindowDownloadSpeedReporter(
+            new InlineProgress(reports), meter, clock: () => now);
+
+        reporter.BeginTransfer();
+        reporter.ReportNetworkBytes(1024);
+        reporter.EndTransfer();
+
+        now += TimeSpan.FromMilliseconds(500);
+        reporter.Refresh();
+        now += TimeSpan.FromMilliseconds(249);
+        reporter.Refresh();
+        now += TimeSpan.FromMilliseconds(1);
+        reporter.Refresh();
+
+        Assert.Collection(reports,
+            progress => Assert.Equal("2.0 KB/s", progress.DownloadSpeedText),
+            progress => Assert.Equal(string.Empty, progress.DownloadSpeedText));
+    }
+
+    [Fact]
+    public void DoesNotRepeatAnUnchangedFormattedSpeed()
+    {
+        var now = DateTimeOffset.UnixEpoch;
+        var reports = new List<LauncherProgress>();
+        var meter = new SlidingWindowDownloadSpeedMeter(() => now);
+        using var reporter = new SlidingWindowDownloadSpeedReporter(
+            new InlineProgress(reports), meter, clock: () => now);
+
+        reporter.BeginTransfer();
+        reporter.ReportNetworkBytes(1024);
+        now += TimeSpan.FromMilliseconds(500);
+        reporter.Refresh();
+        reporter.Refresh();
+
+        Assert.Single(reports);
     }
 
     private sealed class InlineProgress(List<LauncherProgress> reports) : IProgress<LauncherProgress>

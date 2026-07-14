@@ -158,7 +158,8 @@ internal static class DownloadResponseThrottler
         TimeSpan? firstByteTimeout = null,
         TimeSpan? sustainedLowSpeedWindow = null,
         long sustainedLowSpeedBytesPerSecond = 0,
-        long lowSpeedMinimumFileBytes = long.MaxValue)
+        long lowSpeedMinimumFileBytes = long.MaxValue,
+        Action<long>? reportBodyBytes = null)
     {
         if (response.Content is null)
         {
@@ -167,7 +168,7 @@ internal static class DownloadResponseThrottler
             return;
         }
 
-        if (bandwidthLimiter is null && completionLease is null && bodyIdleTimeout is null)
+        if (bandwidthLimiter is null && completionLease is null && bodyIdleTimeout is null && reportBodyBytes is null)
             return;
 
         var originalContent = response.Content;
@@ -185,12 +186,82 @@ internal static class DownloadResponseThrottler
                 sustainedLowSpeedBytesPerSecond,
                 cancellationToken)
             : originalStream;
+        if (reportBodyBytes is not null)
+            networkStream = new ObservedReadStream(networkStream, reportBodyBytes);
         var throttledContent = new StreamContent(
             new ThrottledReadStream(networkStream, originalContent, bandwidthLimiter, completionLease));
         foreach (var header in originalContent.Headers)
             throttledContent.Headers.TryAddWithoutValidation(header.Key, header.Value);
 
         response.Content = throttledContent;
+    }
+
+    /// <summary>
+    /// Observes bytes as soon as the transport stream returns them. This sits
+    /// inside the throttling wrapper so UI telemetry excludes limiter waits and
+    /// all later disk, hash and publish work.
+    /// </summary>
+    private sealed class ObservedReadStream : Stream
+    {
+        private readonly Stream innerStream;
+        private readonly Action<long> reportBodyBytes;
+
+        public ObservedReadStream(Stream innerStream, Action<long> reportBodyBytes)
+        {
+            this.innerStream = innerStream;
+            this.reportBodyBytes = reportBodyBytes;
+        }
+
+        public override bool CanRead => innerStream.CanRead;
+        public override bool CanSeek => innerStream.CanSeek;
+        public override bool CanWrite => false;
+        public override long Length => innerStream.Length;
+        public override long Position { get => innerStream.Position; set => innerStream.Position = value; }
+        public override void Flush() => innerStream.Flush();
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var read = innerStream.Read(buffer, offset, count);
+            Report(read);
+            return read;
+        }
+        public override int Read(Span<byte> buffer)
+        {
+            var read = innerStream.Read(buffer);
+            Report(read);
+            return read;
+        }
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            var read = await innerStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            Report(read);
+            return read;
+        }
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            var read = await innerStream.ReadAsync(buffer.AsMemory(offset, count), cancellationToken).ConfigureAwait(false);
+            Report(read);
+            return read;
+        }
+        public override long Seek(long offset, SeekOrigin origin) => innerStream.Seek(offset, origin);
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override void Write(ReadOnlySpan<byte> buffer) => throw new NotSupportedException();
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                innerStream.Dispose();
+            base.Dispose(disposing);
+        }
+        public override async ValueTask DisposeAsync()
+        {
+            await innerStream.DisposeAsync().ConfigureAwait(false);
+            await base.DisposeAsync().ConfigureAwait(false);
+        }
+        private void Report(int read)
+        {
+            if (read > 0)
+                reportBodyBytes(read);
+        }
     }
 
     private sealed class IdleTimeoutReadStream : Stream

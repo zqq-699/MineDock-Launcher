@@ -74,6 +74,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         // 先生成隔离版本元数据，再交给 CmlLib 补齐文件；返回值必须是实际可启动版本名。
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
         using var downloadOperation = CreateDownloadOperationContext(new MinecraftPath(gameDirectory));
+        using var speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
 
         var finalVersionName = await VanillaVersionComposer.CreateFinalVersionAsync(
             httpClient,
@@ -85,7 +86,8 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             downloadSpeedLimitState,
             logger,
             cancellationToken,
-            downloadOperation);
+            downloadOperation,
+            speedReporter);
 
         var launcher = CreateLauncher(
             gameDirectory,
@@ -94,7 +96,8 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             logger,
             downloadSpeedLimitMbPerSecond,
             downloadSpeedLimitState,
-            downloadOperation);
+            downloadOperation,
+            speedReporter);
         AttachProgress(launcher, progress);
         await launcher.InstallAsync(finalVersionName, cancellationToken);
         return finalVersionName;
@@ -209,7 +212,8 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         ILogger? logger = null,
         int downloadSpeedLimitMbPerSecond = 0,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
-        MinecraftDownloadOperationContext? operationContext = null)
+        MinecraftDownloadOperationContext? operationContext = null,
+        SlidingWindowDownloadSpeedReporter? sharedSpeedReporter = null)
     {
         return CreateLauncher(
             new MinecraftPath(gameDirectory),
@@ -218,7 +222,8 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             logger,
             downloadSpeedLimitMbPerSecond,
             downloadSpeedLimitState,
-            operationContext);
+            operationContext,
+            sharedSpeedReporter);
     }
 
     internal static MinecraftLauncher CreateLauncher(
@@ -228,7 +233,8 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         ILogger? logger = null,
         int downloadSpeedLimitMbPerSecond = 0,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
-        MinecraftDownloadOperationContext? operationContext = null)
+        MinecraftDownloadOperationContext? operationContext = null,
+        SlidingWindowDownloadSpeedReporter? sharedSpeedReporter = null)
     {
         // 统一注入镜像路由、限速和运行库下载器，保证 Vanilla/Fabric 使用相同下载策略。
         var parameters = MinecraftLauncherParameters.CreateDefault(path);
@@ -259,7 +265,8 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             downloadSourcePreference,
             progress,
             path,
-            operationContext);
+            operationContext,
+            sharedSpeedReporter);
         var defaultAssetExtractor = parameters.FileExtractors!
             .Select((extractor, index) => (extractor, index))
             .First(entry => entry.extractor is CmlLib.Core.FileExtractors.AssetFileExtractor);
@@ -268,7 +275,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             parameters.FileExtractors.RemoveAt(defaultAssetExtractor.index);
             parameters.FileExtractors.Insert(
                 defaultAssetExtractor.index,
-                new SafeAssetFileExtractor(assetIndexExecutor, downloadSourcePreference, operationContext));
+                new SafeAssetFileExtractor(assetIndexExecutor, downloadSourcePreference, operationContext, sharedSpeedReporter));
         }
         return new MinecraftLauncher(parameters);
     }

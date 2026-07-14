@@ -206,7 +206,7 @@ public sealed class DownloadViewModelTests
     }
 
     [Fact]
-    public void NonNetworkProgressClearsPreviouslyDisplayedDownloadSpeed()
+    public void NonNetworkProgressDoesNotClearPreviouslyDisplayedDownloadSpeed()
     {
         var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
         var task = tasks.BeginTask("install", "instance");
@@ -214,7 +214,7 @@ public sealed class DownloadViewModelTests
         task.Report(new LauncherProgress(LaunchProgressStages.DownloadSpeed, string.Empty, DownloadSpeedText: "2.0 MB/s"));
         task.Report(new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty));
 
-        Assert.Equal(string.Empty, task.DownloadSpeedText);
+        Assert.Equal("2.0 MB/s", task.DownloadSpeedText);
     }
 
     [Fact]
@@ -227,6 +227,35 @@ public sealed class DownloadViewModelTests
             ImportProgressStages.DownloadingPackFiles,
             "example.jar",
             DownloadSpeedText: "2.0 MB/s"));
+
+        Assert.Equal("2.0 MB/s", task.DownloadSpeedText);
+    }
+
+    [Fact]
+    public void ExplicitSpeedClearDoesNotOverwriteTaskStatusOrPercent()
+    {
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var task = tasks.BeginTask("install", "instance");
+        task.Report(new LauncherProgress(InstallProgressStages.DownloadingLoaderInstaller, "installer", 42));
+
+        task.Report(new LauncherProgress(
+            LaunchProgressStages.DownloadSpeed,
+            string.Empty,
+            DownloadSpeedText: string.Empty));
+
+        Assert.Equal("installer", task.StatusMessage);
+        Assert.Equal(42, task.ProgressPercent);
+        Assert.Equal(string.Empty, task.DownloadSpeedText);
+    }
+
+    [Fact]
+    public void CompletionDoesNotClearPendingSpeedTelemetry()
+    {
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var task = tasks.BeginTask("install", "instance");
+        task.Report(new LauncherProgress(LaunchProgressStages.DownloadSpeed, string.Empty, DownloadSpeedText: "2.0 MB/s"));
+
+        task.Complete("done");
 
         Assert.Equal("2.0 MB/s", task.DownloadSpeedText);
     }

@@ -81,7 +81,8 @@ internal sealed class MinecraftDownloadRequestExecutor
             configureRequest: null,
             allowResponseStatus: null,
             sensitiveHeaders: null,
-            cancellationToken).ConfigureAwait(false);
+            reportBodyBytes: null,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
         return result.Value!;
     }
 
@@ -103,7 +104,8 @@ internal sealed class MinecraftDownloadRequestExecutor
             configureRequest: null,
             allowResponseStatus: null,
             sensitiveHeaders: null,
-            cancellationToken);
+            reportBodyBytes: null,
+            cancellationToken: cancellationToken);
     }
 
     public Task<ResolvedDownloadRequest> DownloadFileAsync(
@@ -153,7 +155,8 @@ internal sealed class MinecraftDownloadRequestExecutor
                     configureRequest: (_, _) => reportActivity?.Invoke(DownloadFileActivity.ResolvingAddress),
                     allowResponseStatus: null,
                     sensitiveHeaders,
-                    cancellationToken).ConfigureAwait(false);
+                    reportBodyBytes: reportDownloadedBytes,
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
                 return result.Value!;
             }
         }
@@ -199,7 +202,8 @@ internal sealed class MinecraftDownloadRequestExecutor
                 },
                 allowResponseStatus: status => status == HttpStatusCode.RequestedRangeNotSatisfiable,
                 sensitiveHeaders: sensitiveHeaders,
-                cancellationToken).ConfigureAwait(false);
+                reportBodyBytes: reportDownloadedBytes,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
             return result.Value!;
         }
     }
@@ -250,7 +254,8 @@ internal sealed class MinecraftDownloadRequestExecutor
                 },
                 allowResponseStatus: status => status == HttpStatusCode.RequestedRangeNotSatisfiable,
                 sensitiveHeaders,
-                cancellationToken).ConfigureAwait(false);
+                reportBodyBytes: reportDownloadedBytes,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
             return result.Value!;
         }
     }
@@ -268,6 +273,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         Action<HttpRequestMessage, ResolvedDownloadRequest>? configureRequest,
         Func<HttpStatusCode, bool>? allowResponseStatus,
         DownloadRequestHeaders? sensitiveHeaders,
+        Action<long>? reportBodyBytes,
         CancellationToken cancellationToken)
     {
         // 候选顺序已经包含用户偏好和镜像回退策略；每个源内部重试耗尽后才切换下一源。
@@ -310,7 +316,8 @@ internal sealed class MinecraftDownloadRequestExecutor
                         cancellationToken,
                         configureRequest,
                         allowResponseStatus,
-                        sensitiveHeaders).ConfigureAwait(false);
+                        sensitiveHeaders,
+                        reportBodyBytes).ConfigureAwait(false);
                     RecordAdaptiveResult(failureReason: null);
                     hostHealthTracker.RecordSuccess(resolution.ResolvedSourceKind, GetCandidateHost(resolution));
                     LogResolvedRequest(resolution, attempt);
@@ -384,7 +391,8 @@ internal sealed class MinecraftDownloadRequestExecutor
         CancellationToken cancellationToken,
         Action<HttpRequestMessage, ResolvedDownloadRequest>? configureRequest,
         Func<HttpStatusCode, bool>? allowResponseStatus,
-        DownloadRequestHeaders? sensitiveHeaders)
+        DownloadRequestHeaders? sensitiveHeaders,
+        Action<long>? reportBodyBytes)
     {
         // 租约覆盖响应处理，而不只是发送请求，防止大量响应体同时占用网络与磁盘。
         await using var lease = await AcquireLeaseAsync(cancellationToken).ConfigureAwait(false);
@@ -413,7 +421,8 @@ internal sealed class MinecraftDownloadRequestExecutor
             firstByteTimeout: retryOptions.FirstByteTimeout,
             sustainedLowSpeedWindow: retryOptions.SustainedLowSpeedWindow,
             sustainedLowSpeedBytesPerSecond: retryOptions.SustainedLowSpeedBytesPerSecond,
-            lowSpeedMinimumFileBytes: retryOptions.LowSpeedMinimumFileBytes).ConfigureAwait(false);
+            lowSpeedMinimumFileBytes: retryOptions.LowSpeedMinimumFileBytes,
+            reportBodyBytes: reportBodyBytes).ConfigureAwait(false);
 
         try
         {

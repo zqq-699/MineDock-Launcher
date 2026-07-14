@@ -48,6 +48,7 @@ private async Task<string> InstallCoreAsync(
         int downloadSpeedLimitMbPerSecond)
     {
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
+        using var speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
         var (selectedLoaderVersion, catalogEntry) = await ResolveCatalogEntryAsync(
             minecraftVersion,
             loaderVersion,
@@ -72,7 +73,8 @@ private async Task<string> InstallCoreAsync(
                 installerJarPath,
                 downloadSourcePreference,
                 cancellationToken,
-                downloadSpeedLimitMbPerSecond);
+                downloadSpeedLimitMbPerSecond,
+                speedReporter);
 
             var prerequisiteSeeder = new LoaderInstallerPrerequisiteSeeder(logger);
             var workspaceSnapshot = await prerequisiteSeeder.SeedAsync(

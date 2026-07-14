@@ -147,9 +147,10 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
             .ConfigureAwait(false);
         try
         {
-            var archivePath = await resourceCatalogService.DownloadProjectVersionAsync(
+            var archivePath = await DownloadProjectVersionAsync(
                 version,
                 tempDirectory,
+                progress,
                 cancellationToken).ConfigureAwait(false);
             var result = await localModpackImportService.ImportFromArchiveAsync(
                 archivePath,

@@ -41,7 +41,8 @@ internal static class VanillaVersionComposer
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ILogger? logger = null,
         CancellationToken cancellationToken = default,
-        MinecraftDownloadOperationContext? operationContext = null)
+        MinecraftDownloadOperationContext? operationContext = null,
+        SlidingWindowDownloadSpeedReporter? speedReporter = null)
     {
         var finalVersionDirectory = Path.Combine(minecraftDirectory, "versions", finalVersionName);
         var finalVersionJsonPath = Path.Combine(finalVersionDirectory, $"{finalVersionName}.json");
@@ -78,7 +79,8 @@ internal static class VanillaVersionComposer
                 downloadSpeedLimitState,
                 logger,
                 cancellationToken,
-                operationContext);
+                operationContext,
+                speedReporter);
         }
         catch
         {
@@ -132,7 +134,8 @@ internal static class VanillaVersionComposer
         IDownloadSpeedLimitState? downloadSpeedLimitState,
         ILogger? logger,
         CancellationToken cancellationToken,
-        MinecraftDownloadOperationContext? operationContext)
+        MinecraftDownloadOperationContext? operationContext,
+        SlidingWindowDownloadSpeedReporter? speedReporter)
     {
         var clientUrl = VanillaVersionMetadataClient.GetClientJarUrl(baseVersionJson);
         if (string.IsNullOrWhiteSpace(clientUrl))
@@ -144,6 +147,7 @@ internal static class VanillaVersionComposer
             DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
             category: DownloadConcurrencyCategory.Runtime);
         var sha1 = VanillaVersionMetadataClient.GetClientJarSha1(baseVersionJson);
+        using var speedSession = speedReporter is null ? null : new DownloadActivitySpeedSession(speedReporter);
         await executor.DownloadFileAsync(
             clientUrl,
             downloadSourcePreference,
@@ -151,8 +155,9 @@ internal static class VanillaVersionComposer
             destinationJarPath,
             sha1,
             VanillaVersionMetadataClient.GetClientJarSize(baseVersionJson),
-            reportDownloadedBytes: null,
+            reportDownloadedBytes: speedReporter is null ? null : bytes => speedReporter.ReportNetworkBytes(bytes),
             cancellationToken,
+            reportActivity: speedSession is null ? null : activity => speedSession.Report(activity),
             options: operationContext is not null && MinecraftFileIntegrity.IsSha1(sha1)
                 ? new DownloadFileOptions(DownloadPersistenceMode.TaskScopedResumable, operationContext)
                 : null);

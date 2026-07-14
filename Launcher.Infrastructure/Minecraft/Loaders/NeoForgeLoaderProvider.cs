@@ -233,6 +233,7 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
             minecraftVersion,
             selectedLoaderVersion,
             isolatedVersionName);
+        using var speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
 
         // 记录目标目录原有版本，清理阶段只移除本次安装引入的中间目录。
         var existingVersionNames = LoaderVersionDirectoryTransaction.CaptureExistingVersions(gameDirectory);
@@ -251,7 +252,8 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
                 installerJarPath,
                 downloadSourcePreference,
                 cancellationToken,
-                downloadSpeedLimitMbPerSecond);
+                downloadSpeedLimitMbPerSecond,
+                speedReporter);
 
             var prerequisiteSeeder = new LoaderInstallerPrerequisiteSeeder(logger);
             var workspaceSnapshot = await prerequisiteSeeder.SeedAsync(
@@ -351,13 +353,15 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
         string destinationPath,
         DownloadSourcePreference downloadSourcePreference,
         CancellationToken cancellationToken,
-        int downloadSpeedLimitMbPerSecond)
+        int downloadSpeedLimitMbPerSecond,
+        SlidingWindowDownloadSpeedReporter? speedReporter = null)
     {
         var executor = new MinecraftDownloadRequestExecutor(
             httpClient,
             logger,
             DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
             category: DownloadConcurrencyCategory.Runtime);
+        using var speedSession = speedReporter is null ? null : new DownloadActivitySpeedSession(speedReporter);
         await executor.DownloadFileAsync(
             $"{ArtifactBaseUrl}/{loaderVersion}/neoforge-{loaderVersion}-installer.jar",
             downloadSourcePreference,
@@ -365,8 +369,9 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
             destinationPath,
             expectedSha1: null,
             expectedSize: null,
-            reportDownloadedBytes: null,
-            cancellationToken);
+            reportDownloadedBytes: speedReporter is null ? null : bytes => speedReporter.ReportNetworkBytes(bytes),
+            cancellationToken,
+            reportActivity: speedSession is null ? null : activity => speedSession.Report(activity));
     }
 
     private async Task EnsureFinalVersionIsSelfContainedAsync(

@@ -66,12 +66,14 @@ public sealed partial class HomePageViewModel
             if (!IsLaunching)
                 return;
 
+            if (progress.DownloadSpeedText is not null)
+            {
+                LaunchDownloadSpeedText = progress.DownloadSpeedText;
+                return;
+            }
+
             var message = FormatLaunchProgress(progress);
             LaunchStatusMessage = message;
-            if (!LauncherProgressDisplayPolicy.IsNetworkTransfer(progress))
-                LaunchDownloadSpeedText = string.Empty;
-            else if (progress.DownloadSpeedText is not null)
-                LaunchDownloadSpeedText = progress.DownloadSpeedText;
 
             if (progress.Percent is double percent)
                 LaunchProgressPercent = Math.Clamp(percent, 0, 100);
