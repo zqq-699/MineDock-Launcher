@@ -1516,6 +1516,12 @@ Longer content wraps automatically.</value>
   <data name="Status_LaunchRepairingMetadata" xml:space="preserve">
     <value>Preparing version metadata...</value>
   </data>
+  <data name="Status_LaunchRepairingLoaderInstaller" xml:space="preserve">
+    <value>Downloading Loader installer...</value>
+  </data>
+  <data name="Status_LaunchRunningLoaderInstaller" xml:space="preserve">
+    <value>Rebuilding Loader runtime files...</value>
+  </data>
   <data name="Status_LaunchRepairingJar" xml:space="preserve">
     <value>Repairing current instance jar...</value>
   </data>

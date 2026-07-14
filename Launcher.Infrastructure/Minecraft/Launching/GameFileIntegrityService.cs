@@ -316,7 +316,6 @@ internal sealed class RequiredGameFileManifestBuilder
         AddLibraries(files, request.MinecraftDirectory, versionJson);
         await AddAssetsAsync(files, request.MinecraftDirectory, versionJson, cancellationToken).ConfigureAwait(false);
         AddLogging(files, request.MinecraftDirectory, versionJson);
-        AddProcessorArtifacts(files, request.MinecraftDirectory, versionJson);
         return new ResolvedLaunchPlan(request.VersionName, versionJson, new RequiredGameFileManifest(files.Values.ToList()));
     }
 
@@ -460,21 +459,6 @@ internal sealed class RequiredGameFileManifestBuilder
             true,
             "DirectDownload",
             "Client logging configuration"));
-    }
-
-    private static void AddProcessorArtifacts(IDictionary<string, RequiredGameFile> files, string minecraftDirectory, JsonObject versionJson)
-    {
-        var root = Path.Combine(minecraftDirectory, "libraries");
-        foreach (var artifact in ForgeProcessorArtifactService.ReadManifest(versionJson)?.Artifacts ?? [])
-        {
-            var target = MinecraftPathGuard.EnsureWithin(Path.Combine(root, artifact.RelativePath.Replace('/', Path.DirectorySeparatorChar)), root, "Loader processor artifact");
-            Add(files, new RequiredGameFile(target, "ProcessorOutput", null, artifact.Sha1, null, true, "ProcessorRegeneration", "Forge processor output"));
-        }
-        foreach (var artifact in NeoForgeProcessorArtifactService.ReadManifest(versionJson)?.Artifacts ?? [])
-        {
-            var target = MinecraftPathGuard.EnsureWithin(Path.Combine(root, artifact.RelativePath.Replace('/', Path.DirectorySeparatorChar)), root, "Loader processor artifact");
-            Add(files, new RequiredGameFile(target, "ProcessorOutput", null, artifact.Sha1, null, true, "ProcessorRegeneration", "NeoForge processor output"));
-        }
     }
 
     private static void Add(IDictionary<string, RequiredGameFile> files, RequiredGameFile file)

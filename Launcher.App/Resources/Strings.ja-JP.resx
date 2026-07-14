@@ -1516,6 +1516,12 @@
   <data name="Status_LaunchRepairingMetadata" xml:space="preserve">
     <value>現在のバージョン情報を整理中...</value>
   </data>
+  <data name="Status_LaunchRepairingLoaderInstaller" xml:space="preserve">
+    <value>Loader インストーラーをダウンロードしています...</value>
+  </data>
+  <data name="Status_LaunchRunningLoaderInstaller" xml:space="preserve">
+    <value>Loader ランタイムファイルを再構築しています...</value>
+  </data>
   <data name="Status_LaunchRepairingJar" xml:space="preserve">
     <value>現在のインスタンスの jar ファイルを補完中...</value>
   </data>

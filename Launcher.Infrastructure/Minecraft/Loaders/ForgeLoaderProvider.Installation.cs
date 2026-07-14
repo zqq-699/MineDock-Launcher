@@ -76,12 +76,29 @@ private async Task<string> InstallCoreAsync(
                 downloadSpeedLimitMbPerSecond,
                 speedReporter);
 
+            var installerArtifactService = new LoaderInstallerArtifactService(
+                httpClient,
+                installerRunner,
+                finalVersionInstaller,
+                downloadSpeedLimitState,
+                logger,
+                tempRootDirectory);
+            var installerPlan = await installerArtifactService.ReadPlanAsync(installerJarPath, cancellationToken)
+                .ConfigureAwait(false);
+
             var prerequisiteSeeder = new LoaderInstallerPrerequisiteSeeder(logger);
             var workspaceSnapshot = await prerequisiteSeeder.SeedAsync(
                 sharedMinecraftDirectory,
                 installerMinecraftDirectory,
                 minecraftVersion,
                 installerJarPath,
+                cancellationToken).ConfigureAwait(false);
+            await installerArtifactService.MaterializePrerequisitesAsync(
+                installerJarPath,
+                installerPlan,
+                installerMinecraftDirectory,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond,
                 cancellationToken).ConfigureAwait(false);
 
             progress?.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
@@ -95,18 +112,9 @@ private async Task<string> InstallCoreAsync(
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
 
-            var processorArtifactService = new ForgeProcessorArtifactService(
-                httpClient,
-                installerRunner,
-                finalVersionInstaller,
-                downloadSpeedLimitState,
-                logger,
-                tempRootDirectory);
-            var processorManifest = await processorArtifactService.ValidateInstallerOutputsAsync(
-                installerJarPath,
+            await installerArtifactService.ValidatePublishedArtifactsAsync(
                 installerMinecraftDirectory,
-                minecraftVersion,
-                selectedLoaderVersion,
+                installerPlan,
                 cancellationToken).ConfigureAwait(false);
 
             var sourceVersionName = FindInstalledSourceVersionName(
@@ -129,6 +137,11 @@ private async Task<string> InstallCoreAsync(
                 downloadSourcePreference,
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
+            await LoaderInstallerArtifactService.ApplyRuntimeLibrariesAsync(
+                Path.Combine(installerMinecraftDirectory, "versions", finalVersionName, $"{finalVersionName}.json"),
+                installerPlan,
+                "forgeProcessorArtifacts",
+                cancellationToken).ConfigureAwait(false);
 
             progress?.Report(new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty));
             await finalVersionInstaller.InstallAsync(
@@ -138,11 +151,16 @@ private async Task<string> InstallCoreAsync(
                 progress,
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
-
-            await LoaderVersionDirectoryTransaction.WriteForgeProcessorMetadataAsync(
+            await installerArtifactService.MaterializeRuntimeLibrariesAsync(
+                installerJarPath,
+                installerPlan,
                 installerMinecraftDirectory,
-                finalVersionName,
-                processorManifest,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond,
+                cancellationToken).ConfigureAwait(false);
+            await installerArtifactService.ValidatePublishedArtifactsAsync(
+                installerMinecraftDirectory,
+                installerPlan,
                 cancellationToken).ConfigureAwait(false);
 
             // 最终版本完成扁平化、修复和文件补齐后才提交，用户目录不会看到依赖沙箱的半成品。
@@ -155,9 +173,9 @@ private async Task<string> InstallCoreAsync(
                 workspaceSnapshot,
                 gameDirectory,
                 cancellationToken).ConfigureAwait(false);
-            await processorArtifactService.ValidateManifestAsync(
+            await installerArtifactService.ValidatePublishedArtifactsAsync(
                 gameDirectory,
-                processorManifest,
+                installerPlan,
                 cancellationToken).ConfigureAwait(false);
 
             LoaderVersionDirectoryTransaction.CleanupCreatedVersionDirectories(gameDirectory, existingVersionNames, finalVersionName);

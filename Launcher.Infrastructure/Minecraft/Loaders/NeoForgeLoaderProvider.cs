@@ -255,6 +255,16 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
                 downloadSpeedLimitMbPerSecond,
                 speedReporter);
 
+            var installerArtifactService = new LoaderInstallerArtifactService(
+                httpClient,
+                installerRunner,
+                finalVersionInstaller,
+                downloadSpeedLimitState,
+                logger,
+                tempRootDirectory);
+            var installerPlan = await installerArtifactService.ReadPlanAsync(installerJarPath, cancellationToken)
+                .ConfigureAwait(false);
+
             var prerequisiteSeeder = new LoaderInstallerPrerequisiteSeeder(logger);
             var workspaceSnapshot = await prerequisiteSeeder.SeedAsync(
                 sharedMinecraftDirectory,
@@ -262,22 +272,20 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
                 minecraftVersion,
                 installerJarPath,
                 cancellationToken).ConfigureAwait(false);
+            await installerArtifactService.MaterializePrerequisitesAsync(
+                installerJarPath,
+                installerPlan,
+                installerMinecraftDirectory,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond,
+                cancellationToken).ConfigureAwait(false);
 
             progress?.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
             await installerRunner.RunInstallerAsync("java", installerJarPath, installerMinecraftDirectory, cancellationToken);
 
-            var processorArtifactService = new NeoForgeProcessorArtifactService(
-                httpClient,
-                installerRunner,
-                finalVersionInstaller,
-                downloadSpeedLimitState,
-                logger,
-                tempRootDirectory);
-            var processorManifest = await processorArtifactService.ValidateInstallerOutputsAsync(
-                installerJarPath,
+            await installerArtifactService.ValidatePublishedArtifactsAsync(
                 installerMinecraftDirectory,
-                minecraftVersion,
-                selectedLoaderVersion,
+                installerPlan,
                 cancellationToken).ConfigureAwait(false);
 
             var sourceVersionName = FindInstalledSourceVersionName(
@@ -299,6 +307,11 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
                 downloadSourcePreference,
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
+            await LoaderInstallerArtifactService.ApplyRuntimeLibrariesAsync(
+                Path.Combine(installerMinecraftDirectory, "versions", finalVersionName, $"{finalVersionName}.json"),
+                installerPlan,
+                "neoForgeProcessorArtifacts",
+                cancellationToken).ConfigureAwait(false);
 
             progress?.Report(new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty));
             await finalVersionInstaller.InstallAsync(
@@ -308,11 +321,16 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
                 progress,
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond);
-
-            await LoaderVersionDirectoryTransaction.WriteNeoForgeProcessorMetadataAsync(
+            await installerArtifactService.MaterializeRuntimeLibrariesAsync(
+                installerJarPath,
+                installerPlan,
                 installerMinecraftDirectory,
-                finalVersionName,
-                processorManifest,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond,
+                cancellationToken).ConfigureAwait(false);
+            await installerArtifactService.ValidatePublishedArtifactsAsync(
+                installerMinecraftDirectory,
+                installerPlan,
                 cancellationToken).ConfigureAwait(false);
 
             LoaderVersionDirectoryTransaction.CopyFinalVersionDirectory(
@@ -324,9 +342,9 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
                 workspaceSnapshot,
                 gameDirectory,
                 cancellationToken).ConfigureAwait(false);
-            await processorArtifactService.ValidateManifestAsync(
+            await installerArtifactService.ValidatePublishedArtifactsAsync(
                 gameDirectory,
-                processorManifest,
+                installerPlan,
                 cancellationToken).ConfigureAwait(false);
 
             LoaderVersionDirectoryTransaction.CleanupCreatedVersionDirectories(gameDirectory, existingVersionNames, finalVersionName);

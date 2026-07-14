@@ -104,9 +104,7 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
         Assert.Equal("1.20.4-neoforge-20.4.237", json.RootElement.GetProperty("jar").GetString());
         Assert.False(json.RootElement.TryGetProperty("inheritsFrom", out _));
         Assert.Equal("1.20.4", json.RootElement.GetProperty("launcher").GetProperty("minecraftVersion").GetString());
-        Assert.Equal(
-            2,
-            json.RootElement.GetProperty("launcher").GetProperty("neoForgeProcessorArtifacts").GetProperty("artifacts").GetArrayLength());
+        Assert.False(json.RootElement.GetProperty("launcher").TryGetProperty("neoForgeProcessorArtifacts", out _));
     }
 
     [Fact]
@@ -167,7 +165,7 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task NeoForgeLoaderProviderRejectsSuccessfulInstallerWithMissingExternalRuntimeLibrary()
+    public async Task NeoForgeLoaderProviderDownloadsDeclaredExternalRuntimeLibrary()
     {
         var minecraftDirectory = Path.Combine(TempRoot, ".minecraft");
         await CreateVanillaVersionAsync(minecraftDirectory, "1.20.4");
@@ -178,18 +176,21 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
             CreateGeneratedNeoForgeLibrary(gameDirectory, "20.4.237", includeUniversal: false);
         }));
 
-        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => provider.InstallAsync(
+        await provider.InstallAsync(
             "1.20.4",
             minecraftDirectory,
             "1.20.4-neoforge-20.4.237",
             "20.4.237",
-            progress: null));
+            progress: null);
 
-        Assert.Contains("universal.jar", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.False(Directory.Exists(Path.Combine(
+        Assert.True(File.Exists(Path.Combine(
             minecraftDirectory,
-            "versions",
-            "1.20.4-neoforge-20.4.237")));
+            "libraries",
+            "net",
+            "neoforged",
+            "neoforge",
+            "20.4.237",
+            "neoforge-20.4.237-universal.jar")));
     }
 
     [Fact]
@@ -431,7 +432,8 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             RequestUris.Add(request.RequestUri!);
-            var uri = request.RequestUri!.AbsoluteUri;
+            var uri = request.RequestUri!.AbsoluteUri
+                .Replace("https://bmclapi2.bangbang93.com/maven/releases/", "https://maven.neoforged.net/releases/", StringComparison.OrdinalIgnoreCase);
             if (uri == "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml")
             {
                 return Task.FromResult(CreateTextResponse(request, """
@@ -454,6 +456,8 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
 
             if (uri == "https://maven.neoforged.net/releases/net/neoforged/neoforge/20.4.237/neoforge-20.4.237-installer.jar")
                 return Task.FromResult(CreateBinaryResponse(request, CreateInstallerBytes()));
+            if (uri == "https://maven.neoforged.net/releases/net/neoforged/neoforge/20.4.237/neoforge-20.4.237-universal.jar")
+                return Task.FromResult(CreateTextResponse(request, "universal neoforge runtime"));
 
             throw new InvalidOperationException($"Unexpected request: {uri}");
         }
@@ -483,8 +487,9 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
         {
             var entry = archive.CreateEntry("install_profile.json");
-            using var writer = new StreamWriter(entry.Open());
-            writer.Write(
+            using (var writer = new StreamWriter(entry.Open()))
+            {
+                writer.Write(
                 """
                 {
                   "data": {
@@ -504,6 +509,26 @@ public sealed class NeoForgeLoaderProviderTests : TestTempDirectory
                   ],
                   "processors": [
                     { "args": ["--clean", "{MC_SRG}", "--output", "{PATCHED}"] }
+                  ]
+                }
+                """);
+            }
+            var versionEntry = archive.CreateEntry("version.json");
+            using var versionWriter = new StreamWriter(versionEntry.Open());
+            versionWriter.Write(
+                """
+                {
+                  "libraries": [
+                    {
+                      "name": "net.neoforged:neoforge:20.4.237:universal",
+                      "downloads": {
+                        "artifact": {
+                          "path": "net/neoforged/neoforge/20.4.237/neoforge-20.4.237-universal.jar",
+                          "sha1": "bb0166e91991e502fc8d8daf77eedced1b734f6a",
+                          "size": 26
+                        }
+                      }
+                    }
                   ]
                 }
                 """);

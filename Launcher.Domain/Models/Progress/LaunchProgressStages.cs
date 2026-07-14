@@ -23,6 +23,8 @@ public static class LaunchProgressStages
 {
     public const string CheckingInstance = "Launch.CheckingInstance";
     public const string RepairingMetadata = "Launch.RepairingMetadata";
+    public const string RepairingLoaderInstaller = "Launch.RepairingLoaderInstaller";
+    public const string RunningLoaderInstaller = "Launch.RunningLoaderInstaller";
     public const string RepairingJar = "Launch.RepairingJar";
     public const string RepairingLibraries = "Launch.RepairingLibraries";
     public const string RepairingAssets = "Launch.RepairingAssets";

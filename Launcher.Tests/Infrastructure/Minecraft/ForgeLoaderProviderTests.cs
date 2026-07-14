@@ -212,9 +212,7 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
         Assert.Equal("1.20.1-forge-47.4.20", json.RootElement.GetProperty("jar").GetString());
         Assert.False(json.RootElement.TryGetProperty("inheritsFrom", out _));
         Assert.Equal("1.20.1", json.RootElement.GetProperty("launcher").GetProperty("minecraftVersion").GetString());
-        Assert.Equal(
-            4,
-            json.RootElement.GetProperty("launcher").GetProperty("forgeProcessorArtifacts").GetProperty("artifacts").GetArrayLength());
+        Assert.False(json.RootElement.GetProperty("launcher").TryGetProperty("forgeProcessorArtifacts", out _));
     }
 
     [Fact]
@@ -560,8 +558,29 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
             }
             var runtimeEntry = archive.CreateEntry(
                 "maven/net/minecraftforge/fmlcore/1.20.1-47.4.20/fmlcore-1.20.1-47.4.20.jar");
-            using var runtimeWriter = new StreamWriter(runtimeEntry.Open());
-            runtimeWriter.Write("forge runtime");
+            using (var runtimeWriter = new StreamWriter(runtimeEntry.Open()))
+            {
+                runtimeWriter.Write("forge runtime");
+            }
+            var versionEntry = archive.CreateEntry("version.json");
+            using var versionWriter = new StreamWriter(versionEntry.Open());
+            versionWriter.Write(
+                """
+                {
+                  "libraries": [
+                    {
+                      "name": "net.minecraftforge:fmlcore:1.20.1-47.4.20",
+                      "downloads": {
+                        "artifact": {
+                          "path": "net/minecraftforge/fmlcore/1.20.1-47.4.20/fmlcore-1.20.1-47.4.20.jar",
+                          "sha1": "9de99c8b24ff448def492a91d4aa09e29511b66c",
+                          "size": 13
+                        }
+                      }
+                    }
+                  ]
+                }
+                """);
         }
         return stream.ToArray();
     }
@@ -712,7 +731,8 @@ public sealed class ForgeLoaderProviderTests : TestTempDirectory
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             RequestUris.Add(request.RequestUri!);
-            var uri = request.RequestUri!.AbsoluteUri;
+            var uri = request.RequestUri!.AbsoluteUri
+                .Replace("https://bmclapi2.bangbang93.com/maven/", "https://maven.minecraftforge.net/", StringComparison.OrdinalIgnoreCase);
             if (uri == "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json")
             {
                 return Task.FromResult(CreateJsonResponse(request, promotionsJson));

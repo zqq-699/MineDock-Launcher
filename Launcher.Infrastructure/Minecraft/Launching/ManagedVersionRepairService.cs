@@ -53,8 +53,7 @@ internal sealed partial class ManagedVersionRepairService : IManagedVersionRepai
     private readonly HttpClient httpClient;
     private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
     private readonly ILogger logger;
-    private readonly ForgeProcessorArtifactService forgeProcessorArtifactService;
-    private readonly NeoForgeProcessorArtifactService neoForgeProcessorArtifactService;
+    private readonly LoaderInstallerArtifactService loaderInstallerArtifactService;
 
     public ManagedVersionRepairService(
         HttpClient? httpClient = null,
@@ -67,14 +66,7 @@ internal sealed partial class ManagedVersionRepairService : IManagedVersionRepai
         this.httpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.downloadSpeedLimitState = downloadSpeedLimitState;
         this.logger = logger ?? NullLogger.Instance;
-        forgeProcessorArtifactService = new ForgeProcessorArtifactService(
-            this.httpClient,
-            forgeInstallerRunner,
-            finalVersionInstaller,
-            downloadSpeedLimitState,
-            this.logger,
-            tempRootDirectory);
-        neoForgeProcessorArtifactService = new NeoForgeProcessorArtifactService(
+        loaderInstallerArtifactService = new LoaderInstallerArtifactService(
             this.httpClient,
             forgeInstallerRunner,
             finalVersionInstaller,
@@ -122,6 +114,48 @@ internal sealed partial class ManagedVersionRepairService : IManagedVersionRepai
             allowRepair,
             downloadSpeedLimitMbPerSecond);
 
+        var versionJsonPath = Path.Combine(versionDirectory, $"{versionName}.json");
+        if (LoaderInstallerArtifactService.HasLegacyManifest(resolvedVersion.VersionJson, "forgeProcessorArtifacts"))
+        {
+            if (!LoaderInstallerArtifactService.TryResolveForgeIdentity(resolvedVersion.VersionJson, out var minecraftVersion, out var forgeVersion))
+                throw new InstanceRepairException("Forge version metadata is incomplete and cannot be migrated.");
+            var migrated = await loaderInstallerArtifactService.RepairLegacyVersionAsync(
+                minecraftDirectory,
+                versionJsonPath,
+                resolvedVersion.VersionJson,
+                minecraftVersion,
+                forgeVersion,
+                "forgeProcessorArtifacts",
+                "Forge",
+                $"https://maven.minecraftforge.net/net/minecraftforge/forge/{minecraftVersion}-{forgeVersion}/forge-{minecraftVersion}-{forgeVersion}-installer.jar",
+                progress,
+                allowRepair,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond,
+                cancellationToken).ConfigureAwait(false);
+            resolvedVersion = resolvedVersion with { VersionJson = migrated, WasModified = true };
+        }
+        if (LoaderInstallerArtifactService.HasLegacyManifest(resolvedVersion.VersionJson, "neoForgeProcessorArtifacts"))
+        {
+            if (!LoaderInstallerArtifactService.TryResolveNeoForgeIdentity(resolvedVersion.VersionJson, out var minecraftVersion, out var neoForgeVersion))
+                throw new InstanceRepairException("NeoForge version metadata is incomplete and cannot be migrated.");
+            var migrated = await loaderInstallerArtifactService.RepairLegacyVersionAsync(
+                minecraftDirectory,
+                versionJsonPath,
+                resolvedVersion.VersionJson,
+                minecraftVersion,
+                neoForgeVersion,
+                "neoForgeProcessorArtifacts",
+                "NeoForge",
+                $"https://maven.neoforged.net/releases/net/neoforged/neoforge/{neoForgeVersion}/neoforge-{neoForgeVersion}-installer.jar",
+                progress,
+                allowRepair,
+                downloadSourcePreference,
+                downloadSpeedLimitMbPerSecond,
+                cancellationToken).ConfigureAwait(false);
+            resolvedVersion = resolvedVersion with { VersionJson = migrated, WasModified = true };
+        }
+
         ReportProgress(
             progress,
             allowRepair ? LaunchProgressStages.RepairingJar : LaunchProgressStages.CheckingFiles,
@@ -146,24 +180,6 @@ internal sealed partial class ManagedVersionRepairService : IManagedVersionRepai
             allowRepair,
             downloadBatch,
             cancellationToken);
-
-        await forgeProcessorArtifactService.EnsureLaunchArtifactsAsync(
-            minecraftDirectory,
-            Path.Combine(versionDirectory, $"{versionName}.json"),
-            resolvedVersion.VersionJson,
-            allowRepair,
-            downloadSourcePreference,
-            downloadSpeedLimitMbPerSecond,
-            cancellationToken).ConfigureAwait(false);
-
-        await neoForgeProcessorArtifactService.EnsureLaunchArtifactsAsync(
-            minecraftDirectory,
-            Path.Combine(versionDirectory, $"{versionName}.json"),
-            resolvedVersion.VersionJson,
-            allowRepair,
-            downloadSourcePreference,
-            downloadSpeedLimitMbPerSecond,
-            cancellationToken).ConfigureAwait(false);
 
         ReportProgress(
             progress,

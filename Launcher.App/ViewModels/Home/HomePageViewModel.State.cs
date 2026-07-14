@@ -118,6 +118,8 @@ private void LaunchGames_PropertyChanged(object? sender, PropertyChangedEventArg
         {
             LaunchProgressStages.CheckingInstance => Strings.Status_LaunchCheckingInstance,
             LaunchProgressStages.RepairingMetadata => Strings.Status_LaunchRepairingMetadata,
+            LaunchProgressStages.RepairingLoaderInstaller => Strings.Status_LaunchRepairingLoaderInstaller,
+            LaunchProgressStages.RunningLoaderInstaller => Strings.Status_LaunchRunningLoaderInstaller,
             LaunchProgressStages.RepairingJar => Strings.Status_LaunchRepairingJar,
             LaunchProgressStages.RepairingLibraries => Strings.Status_LaunchRepairingLibraries,
             LaunchProgressStages.RepairingAssets => Strings.Status_LaunchRepairingAssets,
