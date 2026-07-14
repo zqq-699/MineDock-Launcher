@@ -72,6 +72,8 @@ internal sealed class MinecraftDownloadRequestExecutor
             operation,
             noResultStatus: null,
             lookupMode: false,
+            configureRequest: null,
+            allowResponseStatus: null,
             cancellationToken).ConfigureAwait(false);
         return result.Value!;
     }
@@ -91,6 +93,8 @@ internal sealed class MinecraftDownloadRequestExecutor
             operation,
             noResultStatus,
             lookupMode: true,
+            configureRequest: null,
+            allowResponseStatus: null,
             cancellationToken);
     }
 
@@ -105,26 +109,66 @@ internal sealed class MinecraftDownloadRequestExecutor
         CancellationToken cancellationToken,
         Action<int, long, long?>? reportAttemptProgress = null)
     {
-        MinecraftDownloadFileWriter.PrepareDestination(destinationPath, expectedSha1);
+        // Some legacy installer metadata has no trusted hash. Preserve its existing
+        // atomic one-shot behavior, but never persist it as a resumable part.
+        if (string.IsNullOrWhiteSpace(expectedSha1))
+        {
+            MinecraftDownloadFileWriter.PrepareDestination(destinationPath, expectedSha1);
+            return ExecuteAsync(
+                originalUrl,
+                preference,
+                categoryHint,
+                async (context, token) =>
+                {
+                    await MinecraftDownloadFileWriter.WriteAsync(
+                        context.Response,
+                        destinationPath,
+                        expectedSha1,
+                        expectedSize,
+                        reportDownloadedBytes,
+                        context.AttemptNumber,
+                        reportAttemptProgress,
+                        token).ConfigureAwait(false);
+                    return context.Resolution;
+                },
+                cancellationToken);
+        }
 
-        return ExecuteAsync(
-            originalUrl,
-            preference,
-            categoryHint,
-            async (context, token) =>
-            {
-                await MinecraftDownloadFileWriter.WriteAsync(
-                    context.Response,
-                    destinationPath,
-                    expectedSha1,
-                    expectedSize,
-                    reportDownloadedBytes,
-                    context.AttemptNumber,
-                    reportAttemptProgress,
-                    token).ConfigureAwait(false);
-                return context.Resolution;
-            },
-            cancellationToken);
+        return DownloadFileCoreAsync();
+
+        async Task<ResolvedDownloadRequest> DownloadFileCoreAsync()
+        {
+            await using var session = await ResumableDownloadFileSession.AcquireAsync(
+                destinationPath,
+                expectedSha1,
+                expectedSize,
+                logicalResourceIdentity: originalUrl,
+                cancellationToken).ConfigureAwait(false);
+            if (session.IsComplete)
+                return MinecraftDownloadSourceResolver.EnumerateRequests(originalUrl, preference, categoryHint).First();
+
+            var result = await ExecuteCoreAsync(
+                originalUrl,
+                preference,
+                categoryHint,
+                async (context, token) =>
+                {
+                    await session.WriteAsync(
+                        context.Response,
+                        context.Resolution,
+                        context.AttemptNumber,
+                        reportDownloadedBytes,
+                        reportAttemptProgress,
+                        token).ConfigureAwait(false);
+                    return context.Resolution;
+                },
+                noResultStatus: null,
+                lookupMode: false,
+                configureRequest: (request, resolution) => session.ConfigureRequest(request, resolution),
+                allowResponseStatus: status => status == HttpStatusCode.RequestedRangeNotSatisfiable,
+                cancellationToken).ConfigureAwait(false);
+            return result.Value!;
+        }
     }
 
     /// <summary>
@@ -137,6 +181,8 @@ internal sealed class MinecraftDownloadRequestExecutor
         Func<DownloadAttemptContext, CancellationToken, Task<T>> operation,
         Func<HttpStatusCode, bool>? noResultStatus,
         bool lookupMode,
+        Action<HttpRequestMessage, ResolvedDownloadRequest>? configureRequest,
+        Func<HttpStatusCode, bool>? allowResponseStatus,
         CancellationToken cancellationToken)
     {
         // 候选顺序已经包含用户偏好和镜像回退策略；每个源内部重试耗尽后才切换下一源。
@@ -163,7 +209,9 @@ internal sealed class MinecraftDownloadRequestExecutor
                         attempt,
                         operation,
                         noResultStatus,
-                        cancellationToken).ConfigureAwait(false);
+                        cancellationToken,
+                        configureRequest,
+                        allowResponseStatus).ConfigureAwait(false);
                     LogResolvedRequest(resolution, attempt);
                     return DownloadLookupResult<T>.Success(value);
                 }
@@ -226,11 +274,16 @@ internal sealed class MinecraftDownloadRequestExecutor
         int attempt,
         Func<DownloadAttemptContext, CancellationToken, Task<T>> operation,
         Func<HttpStatusCode, bool>? noResultStatus,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<HttpRequestMessage, ResolvedDownloadRequest>? configureRequest,
+        Func<HttpStatusCode, bool>? allowResponseStatus)
     {
         // 租约覆盖响应处理，而不只是发送请求，防止大量响应体同时占用网络与磁盘。
         await using var lease = await AcquireLeaseAsync(cancellationToken).ConfigureAwait(false);
-        using var response = await transport.SendAsync(resolution.ActualUrl, cancellationToken).ConfigureAwait(false);
+        using var response = await transport.SendAsync(
+            resolution.ActualUrl,
+            cancellationToken,
+            configureRequest is null ? null : request => configureRequest(request, resolution)).ConfigureAwait(false);
 
         if (noResultStatus?.Invoke(response.StatusCode) is true)
         {
@@ -238,7 +291,7 @@ internal sealed class MinecraftDownloadRequestExecutor
                 $"The source returned HTTP {(int)response.StatusCode} for a lookup request.");
         }
 
-        if (!response.IsSuccessStatusCode)
+        if (!response.IsSuccessStatusCode && allowResponseStatus?.Invoke(response.StatusCode) is not true)
             throw CreateStatusFailure(response.StatusCode);
 
         await DownloadResponseThrottler.ApplyAsync(

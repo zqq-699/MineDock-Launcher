@@ -131,6 +131,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
             preparedModpack,
             instance,
             progress,
+            downloadSourcePreference,
             downloadSpeedLimitMbPerSecond,
             cancellationToken);
     }

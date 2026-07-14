@@ -40,7 +40,9 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         ISettingsService? settingsService = null,
         ILogger<ResourceCatalogService>? logger = null,
         ICurseForgeApiKeyResolver? curseForgeApiKeyResolver = null,
-        ILocalSaveService? localSaveService = null)
+        ILocalSaveService? localSaveService = null,
+        IDownloadSpeedLimitState? downloadSpeedLimitState = null,
+        IImportConcurrencyLimiter? limiter = null)
     {
         var resolvedPathProvider = pathProvider ?? new LauncherPathProvider();
         var resolvedHttpClient = httpClient ?? new HttpClient();
@@ -58,7 +60,13 @@ public sealed class ResourceCatalogService : IResourceCatalogService
             new CurseForgeResourceClient(resolvedHttpClient, keyResolver, this.logger)
         };
         providers = clients.ToDictionary(client => client.Source);
-        storage = new ResourceProjectStorage(resolvedHttpClient, resolvedLocalSaveService, this.logger);
+        storage = new ResourceProjectStorage(
+            resolvedHttpClient,
+            resolvedLocalSaveService,
+            this.logger,
+            settingsService,
+            downloadSpeedLimitState,
+            limiter);
     }
 
     public Task<ResourceCatalogSearchResult> SearchModsAsync(

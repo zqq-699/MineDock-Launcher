@@ -129,7 +129,23 @@ internal static class MinecraftDownloadSourceResolver
             return MinecraftDownloadResourceCategory.Forge;
         }
 
-        return MinecraftDownloadResourceCategory.Mojang;
+        if (host.Equals("maven.neoforged.net", StringComparison.OrdinalIgnoreCase)
+            || host.Equals("maven.neoforged.net", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/releases/net/neoforged/", StringComparison.OrdinalIgnoreCase))
+        {
+            return MinecraftDownloadResourceCategory.NeoForge;
+        }
+
+        if (host.Equals("piston-meta.mojang.com", StringComparison.OrdinalIgnoreCase)
+            || host.Equals("piston-data.mojang.com", StringComparison.OrdinalIgnoreCase)
+            || host.Equals("launchermeta.mojang.com", StringComparison.OrdinalIgnoreCase)
+            || host.Equals("libraries.minecraft.net", StringComparison.OrdinalIgnoreCase)
+            || host.Equals("resources.download.minecraft.net", StringComparison.OrdinalIgnoreCase))
+        {
+            return MinecraftDownloadResourceCategory.Mojang;
+        }
+
+        return MinecraftDownloadResourceCategory.ThirdParty;
     }
 
     private static string GetResolvedSourceKind(MinecraftDownloadResourceCategory resourceCategory, bool useBmclApi)
@@ -142,6 +158,9 @@ internal static class MinecraftDownloadSourceResolver
             (MinecraftDownloadResourceCategory.Forge, true) => "BmclApiForge",
             (MinecraftDownloadResourceCategory.Fabric, false) => "FabricOfficial",
             (MinecraftDownloadResourceCategory.Fabric, true) => "BmclApiFabric",
+            (MinecraftDownloadResourceCategory.NeoForge, false) => "NeoForgeOfficial",
+            (MinecraftDownloadResourceCategory.NeoForge, true) => "BmclApiNeoForge",
+            (MinecraftDownloadResourceCategory.ThirdParty, _) => "ThirdParty",
             _ => "UnknownSource"
         };
     }
@@ -252,6 +271,8 @@ internal static class MinecraftDownloadSourceResolver
     {
         Mojang,
         Forge,
-        Fabric
+        Fabric,
+        NeoForge,
+        ThirdParty
     }
 }

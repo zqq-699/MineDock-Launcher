@@ -57,6 +57,7 @@ internal sealed class ModpackFileResolutionService
         PreparedModpack preparedModpack,
         GameInstance instance,
         IProgress<LauncherProgress>? progress,
+        DownloadSourcePreference downloadSourcePreference,
         int downloadSpeedLimitMbPerSecond,
         CancellationToken cancellationToken)
     {
@@ -67,6 +68,7 @@ internal sealed class ModpackFileResolutionService
             preparedModpack,
             instance,
             apiKey,
+            downloadSourcePreference,
             downloadSpeedLimitMbPerSecond,
             progress);
         if (context.TotalCount == 0)
@@ -309,6 +311,8 @@ internal sealed class ModpackFileResolutionService
             sourceUrl,
             tempPath,
             context.CurseForgeApiKey,
+            context.DownloadSourcePreference,
+            file.Sha1,
             context.DownloadSpeedLimitMbPerSecond,
             cancellationToken).ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(file.Sha512))
@@ -409,6 +413,7 @@ internal sealed class ModpackFileResolutionService
         PreparedModpack package,
         GameInstance instance,
         string? curseForgeApiKey,
+        DownloadSourcePreference downloadSourcePreference,
         int downloadSpeedLimitMbPerSecond,
         IProgress<LauncherProgress>? progress)
     {
@@ -418,6 +423,7 @@ internal sealed class ModpackFileResolutionService
         public PreparedModpack Package { get; } = package;
         public GameInstance Instance { get; } = instance;
         public string? CurseForgeApiKey { get; } = curseForgeApiKey;
+        public DownloadSourcePreference DownloadSourcePreference { get; } = downloadSourcePreference;
         public int DownloadSpeedLimitMbPerSecond { get; } = downloadSpeedLimitMbPerSecond;
         public int TotalCount => Package.Files.Count;
         public PackFileResolution?[] Resolutions { get; } = new PackFileResolution?[package.Files.Count];

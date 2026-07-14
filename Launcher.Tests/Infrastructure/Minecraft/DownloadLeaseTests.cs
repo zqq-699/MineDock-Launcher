@@ -84,7 +84,7 @@ public sealed class DownloadSourceRoutingLeaseTests
         using var cancellation = new CancellationTokenSource();
 
         var requests = Enumerable.Range(0, 8)
-            .Select(index => httpClient.GetAsync($"https://example.test/runtime/{index}.jar", cancellation.Token))
+            .Select(index => httpClient.GetAsync($"https://example.test/runtime/{index}.json", cancellation.Token))
             .ToArray();
 
         await handler.WaitForExpectedRequestsAsync();
@@ -116,7 +116,7 @@ public sealed class DownloadSourceRoutingLeaseTests
         foreach (var index in Enumerable.Range(0, 8))
         {
             await Assert.ThrowsAsync<DownloadAttemptException>(
-                () => httpClient.GetAsync($"https://example.test/runtime/{index}.jar"));
+                () => httpClient.GetAsync($"https://example.test/runtime/{index}.json"));
         }
 
         await using var leases = await SlotLeaseSet.AcquireAsync(

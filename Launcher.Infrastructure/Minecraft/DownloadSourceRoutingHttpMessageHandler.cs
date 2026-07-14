@@ -19,6 +19,7 @@
 
 using System.Net;
 using System.Net.Http;
+using System.IO;
 using System.Text.Json;
 using System.Xml.Linq;
 using Launcher.Application.Services;
@@ -31,9 +32,11 @@ namespace Launcher.Infrastructure.Minecraft;
 
 internal sealed class DownloadSourceRoutingHttpMessageHandler : DelegatingHandler
 {
+    private const int MaximumMetadataBytes = 2 * 1024 * 1024;
     private readonly HttpClient transportClient;
     private readonly MinecraftDownloadRequestExecutor executor;
     private readonly DownloadSourcePreference preference;
+    private readonly ILogger logger;
 
     public DownloadSourceRoutingHttpMessageHandler(
         DownloadSourcePreference preference,
@@ -46,6 +49,7 @@ internal sealed class DownloadSourceRoutingHttpMessageHandler : DelegatingHandle
         : base(innerHandler)
     {
         this.preference = preference;
+        this.logger = logger ?? NullLogger.Instance;
         transportClient = new HttpClient(innerHandler, disposeHandler: false)
         {
             Timeout = Timeout.InfiniteTimeSpan
@@ -68,19 +72,57 @@ internal sealed class DownloadSourceRoutingHttpMessageHandler : DelegatingHandle
 
         var originalUrl = request.RequestUri?.AbsoluteUri
             ?? throw new InvalidOperationException("Download request URL is missing.");
+        if (!IsAllowedMetadataRequest(request.RequestUri!))
+        {
+            logger.LogError(
+                "CmlLib binary request was rejected because it bypasses the unified file downloader. Path={Path}",
+                request.RequestUri!.GetLeftPart(UriPartial.Path));
+            throw new InvalidDataException(
+                $"CmlLib attempted an unmanaged binary download through the metadata handler: {request.RequestUri!.GetLeftPart(UriPartial.Path)}");
+        }
         var buffered = await executor.ExecuteAsync(
             originalUrl,
             preference,
             categoryHint: null,
             async (context, token) =>
             {
-                var bytes = await context.Response.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false);
+                if (context.Response.Content.Headers.ContentLength is > MaximumMetadataBytes)
+                    throw new DownloadContentValidationException("CmlLib metadata response exceeded the permitted size.");
+                var bytes = await ReadBoundedMetadataAsync(context.Response.Content, token).ConfigureAwait(false);
                 ValidateBufferedMetadata(originalUrl, bytes);
                 return BufferedResponse.Capture(context.Response, bytes);
             },
             cancellationToken).ConfigureAwait(false);
 
         return buffered.CreateResponse(request);
+    }
+
+    private static bool IsAllowedMetadataRequest(Uri uri)
+    {
+        var path = uri.AbsolutePath;
+        return path.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".pom", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.Equals("meta.fabricmc.net", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.Equals("files.minecraftforge.net", StringComparison.OrdinalIgnoreCase)
+            || path.Contains("version_manifest", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task<byte[]> ReadBoundedMetadataAsync(HttpContent content, CancellationToken cancellationToken)
+    {
+        await using var stream = await content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        await using var memory = new MemoryStream();
+        var buffer = new byte[81920];
+        while (true)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(), cancellationToken).ConfigureAwait(false);
+            if (read == 0)
+                break;
+            if (memory.Length + read > MaximumMetadataBytes)
+                throw new DownloadContentValidationException("CmlLib metadata response exceeded the permitted size.");
+            await memory.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+        }
+        return memory.ToArray();
     }
 
     protected override void Dispose(bool disposing)

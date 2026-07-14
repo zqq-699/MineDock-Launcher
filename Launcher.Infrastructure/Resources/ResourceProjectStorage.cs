@@ -22,6 +22,8 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Minecraft;
+using Launcher.Infrastructure.Modpacks;
 using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.Resources;
@@ -31,15 +33,24 @@ internal sealed class ResourceProjectStorage
     private readonly HttpClient httpClient;
     private readonly ILocalSaveService localSaveService;
     private readonly ILogger logger;
+    private readonly ISettingsService? settingsService;
+    private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
+    private readonly IImportConcurrencyLimiter limiter;
 
     public ResourceProjectStorage(
         HttpClient httpClient,
         ILocalSaveService localSaveService,
-        ILogger logger)
+        ILogger logger,
+        ISettingsService? settingsService = null,
+        IDownloadSpeedLimitState? downloadSpeedLimitState = null,
+        IImportConcurrencyLimiter? limiter = null)
     {
         this.httpClient = httpClient;
         this.localSaveService = localSaveService;
         this.logger = logger;
+        this.settingsService = settingsService;
+        this.downloadSpeedLimitState = downloadSpeedLimitState;
+        this.limiter = limiter ?? ImportConcurrencyLimiter.Shared;
     }
 
     public async Task<string> InstallAsync(
@@ -210,44 +221,66 @@ internal sealed class ResourceProjectStorage
         IntegrityExpectation expectation,
         CancellationToken cancellationToken)
     {
-        using var response = await httpClient.GetAsync(
-            url,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        await using var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        await using var destination = new FileStream(
-            tempPath,
-            FileMode.CreateNew,
-            FileAccess.Write,
-            FileShare.None,
-            81920,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-        using var hasher = expectation.Hash is null
+        var settings = settingsService is null
             ? null
-            : IncrementalHash.CreateHash(ToHashAlgorithmName(expectation.Hash.Algorithm));
-        var buffer = new byte[81920];
-        long totalBytes = 0;
-        while (true)
+            : await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var sha1 = expectation.Hash?.Algorithm is ResourceFileHashAlgorithm.Sha1
+            ? Convert.ToHexString(expectation.Hash.Value)
+            : null;
+        var executor = new MinecraftDownloadRequestExecutor(
+            httpClient,
+            logger,
+            DownloadBandwidthLimiter.Create(settings?.DownloadSpeedLimitMbPerSecond ?? 0, downloadSpeedLimitState),
+            limiter,
+            DownloadConcurrencyCategory.Modpack,
+            new DownloadRetryOptions { MaxAttemptsPerSource = 1 });
+        try
         {
-            var read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-            if (read == 0)
-                break;
-            totalBytes += read;
-            if (expectation.FileSize.HasValue && totalBytes > expectation.FileSize.Value)
-                throw CreateIntegrityException(version, ResourceProjectIntegrityFailureReason.LengthMismatch, expectation.Hash?.Algorithm);
-            hasher?.AppendData(buffer.AsSpan(0, read));
-            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+            await executor.DownloadFileAsync(
+                url,
+                settings?.DownloadSourcePreference ?? DownloadSourcePreference.Auto,
+                "ThirdParty",
+                tempPath,
+                sha1,
+                expectation.FileSize,
+                reportDownloadedBytes: null,
+                cancellationToken).ConfigureAwait(false);
         }
-        await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
-
-        if (expectation.FileSize.HasValue && totalBytes != expectation.FileSize.Value)
+        catch (DownloadLocalFileException exception)
+        {
+            throw new InvalidOperationException("Failed to create the resource project temporary file.", exception);
+        }
+        catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)
+            when (exception.InnerException is DownloadHashMismatchException)
+        {
+            throw CreateIntegrityException(version, ResourceProjectIntegrityFailureReason.HashMismatch, expectation.Hash?.Algorithm);
+        }
+        catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)
+            when (exception.InnerException is DownloadBodyInterruptedException && expectation.FileSize.HasValue)
+        {
             throw CreateIntegrityException(version, ResourceProjectIntegrityFailureReason.LengthMismatch, expectation.Hash?.Algorithm);
-        if (expectation.Hash is not null
-            && !CryptographicOperations.FixedTimeEquals(hasher!.GetHashAndReset(), expectation.Hash.Value))
-        {
-            throw CreateIntegrityException(version, ResourceProjectIntegrityFailureReason.HashMismatch, expectation.Hash.Algorithm);
         }
+        catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)
+            when (exception.InnerException is DownloadLocalFileException)
+        {
+            throw new InvalidOperationException("Failed to create the resource project temporary file.", exception);
+        }
+        catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)
+        {
+            throw new HttpRequestException("Resource project download candidate failed.", exception, exception.InnerException is DownloadAttemptException { StatusCode: { } status } ? status : null);
+        }
+
+        if (expectation.Hash is null || expectation.Hash.Algorithm is ResourceFileHashAlgorithm.Sha1)
+            return;
+        await using var source = File.OpenRead(tempPath);
+        var actual = expectation.Hash.Algorithm switch
+        {
+            ResourceFileHashAlgorithm.Sha512 => await SHA512.HashDataAsync(source, cancellationToken).ConfigureAwait(false),
+            ResourceFileHashAlgorithm.Md5 => await MD5.HashDataAsync(source, cancellationToken).ConfigureAwait(false),
+            _ => throw new ArgumentOutOfRangeException()
+        };
+        if (!CryptographicOperations.FixedTimeEquals(actual, expectation.Hash.Value))
+            throw CreateIntegrityException(version, ResourceProjectIntegrityFailureReason.HashMismatch, expectation.Hash.Algorithm);
     }
 
     private static IntegrityExpectation ResolveIntegrityExpectation(ResourceProjectVersion version)

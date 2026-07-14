@@ -53,9 +53,43 @@ internal sealed class ModpackFileDownloader
         string sourceUrl,
         string tempFilePath,
         string? curseForgeApiKey,
+        DownloadSourcePreference downloadSourcePreference,
+        string? expectedSha1,
         int downloadSpeedLimitMbPerSecond,
         CancellationToken cancellationToken)
     {
+        // Public provider URLs use the common controller. Third-party candidates
+        // are intentionally not mirror-rewritten by MinecraftDownloadSourceResolver.
+        if (string.IsNullOrWhiteSpace(curseForgeApiKey)
+            || !Uri.TryCreate(sourceUrl, UriKind.Absolute, out var candidateUri)
+            || !CurseForgeDownloadHosts.Contains(candidateUri.Host))
+        {
+            var unifiedBandwidthLimiter = DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState);
+            var executor = new MinecraftDownloadRequestExecutor(
+                httpClient,
+                bandwidthLimiter: unifiedBandwidthLimiter,
+                limiter: limiter,
+                category: DownloadConcurrencyCategory.Modpack);
+            try
+            {
+                await executor.DownloadFileAsync(
+                    sourceUrl,
+                    downloadSourcePreference,
+                    categoryHint: "ThirdParty",
+                    tempFilePath,
+                    expectedSha1,
+                    expectedSize: null,
+                    reportDownloadedBytes: null,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)
+                when (exception.InnerException is DownloadHashMismatchException)
+            {
+                throw new ModpackImportException(ModpackImportFailureReason.HashMismatch, "Downloaded modpack file did not match its SHA-1.");
+            }
+            return;
+        }
+
         using var request = new HttpRequestMessage(HttpMethod.Get, sourceUrl);
         if (!string.IsNullOrWhiteSpace(curseForgeApiKey)
             && Uri.TryCreate(sourceUrl, UriKind.Absolute, out var sourceUri)

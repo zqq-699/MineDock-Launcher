@@ -35,7 +35,8 @@ internal sealed class MinecraftDownloadTransport
 
     public async Task<HttpResponseMessage> SendAsync(
         string actualUrl,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<HttpRequestMessage>? configureRequest = null)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(retryOptions.ResponseHeadersTimeout);
@@ -48,7 +49,7 @@ internal sealed class MinecraftDownloadTransport
 
         for (var redirectCount = 0; ; redirectCount++)
         {
-            var response = await SendSingleAsync(currentUri, timeout.Token, cancellationToken)
+            var response = await SendSingleAsync(currentUri, timeout.Token, cancellationToken, configureRequest)
                 .ConfigureAwait(false);
             if (!IsRedirect(response.StatusCode))
                 return response;
@@ -92,12 +93,15 @@ internal sealed class MinecraftDownloadTransport
     private async Task<HttpResponseMessage> SendSingleAsync(
         Uri uri,
         CancellationToken timeoutToken,
-        CancellationToken callerToken)
+        CancellationToken callerToken,
+        Action<HttpRequestMessage>? configureRequest)
     {
         try
         {
-            return await httpClient.GetAsync(
-                uri,
+            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            configureRequest?.Invoke(request);
+            return await httpClient.SendAsync(
+                request,
                 HttpCompletionOption.ResponseHeadersRead,
                 timeoutToken).ConfigureAwait(false);
         }

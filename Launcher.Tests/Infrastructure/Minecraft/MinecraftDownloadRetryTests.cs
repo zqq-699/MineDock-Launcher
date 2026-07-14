@@ -557,6 +557,73 @@ public sealed class MinecraftDownloadRetryTests
     }
 
     [Fact]
+    public async Task FileDownloadResumesOnlyAfterMatchingPartialResponse()
+    {
+        var handler = new CallbackRequestHandler((requestNumber, request, _) =>
+        {
+            if (requestNumber == 1)
+            {
+                var first = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    RequestMessage = request,
+                    Content = new StreamContent(new FaultingReadStream("part"u8.ToArray()))
+                };
+                first.Headers.ETag = new EntityTagHeaderValue("\"stable\"");
+                first.Content.Headers.ContentLength = 8;
+                return Task.FromResult(first);
+            }
+
+            Assert.Equal("bytes=4-", request.Headers.Range?.ToString());
+            Assert.Equal("\"stable\"", request.Headers.GetValues("If-Range").Single());
+            var resumed = new HttpResponseMessage(HttpStatusCode.PartialContent)
+            {
+                RequestMessage = request,
+                Content = new ByteArrayContent("data"u8.ToArray())
+            };
+            resumed.Headers.ETag = new EntityTagHeaderValue("\"stable\"");
+            resumed.Content.Headers.ContentLength = 4;
+            resumed.Content.Headers.ContentRange = new ContentRangeHeaderValue(4, 7, 8);
+            return Task.FromResult(resumed);
+        });
+        using var client = CreateClient(handler);
+        var executor = CreateExecutor(client);
+        var directory = CreateTempDirectory();
+        var destination = Path.Combine(directory, "client.jar");
+
+        try
+        {
+            await executor.DownloadFileAsync(
+                ManifestUrl,
+                DownloadSourcePreference.Official,
+                "Mojang",
+                destination,
+                Convert.ToHexString(SHA1.HashData("partdata"u8.ToArray())),
+                8,
+                reportDownloadedBytes: null,
+                CancellationToken.None);
+
+            Assert.Equal("partdata", await File.ReadAllTextAsync(destination));
+            Assert.False(File.Exists(destination + ".part"));
+            Assert.False(File.Exists(destination + ".part.meta"));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task CmlLibMetadataHandlerFailsClosedForBinaryRequest()
+    {
+        using var client = new HttpClient(new DownloadSourceRoutingHttpMessageHandler(
+            DownloadSourcePreference.Official,
+            DownloadConcurrencyCategory.Metadata,
+            new CallbackRequestHandler((_, request, _) => Task.FromResult(CreateResponse(HttpStatusCode.OK, "binary", request)))));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.GetAsync("https://example.test/library.jar"));
+    }
+
+    [Fact]
     public async Task CmlLibMetadataHandlerSwitchesSourceAfterInvalidJson()
     {
         var transport = new CallbackRequestHandler((requestNumber, request, _) =>
