@@ -26,7 +26,7 @@ namespace Launcher.Tests.Infrastructure.Modpacks;
 public sealed class ImportConcurrencyLimiterTests
 {
     [Fact]
-    public async Task AdaptiveSchedulerStartsAtTwelveDropsAfterFailureAndRampsToMaximum()
+    public async Task AdaptiveSchedulerStartsAtSixtyFourAndDropsAfterFailure()
     {
         var clock = new TestTimeProvider();
         var scheduler = new AdaptiveDownloadScheduler(
@@ -47,30 +47,34 @@ public sealed class ImportConcurrencyLimiterTests
 
             clock.Advance(TimeSpan.FromSeconds(1));
             scheduler.RecordResult(DownloadFailureReason.Network);
-            Assert.Equal(6, scheduler.Snapshot.CurrentTarget);
+            Assert.Equal(32, scheduler.Snapshot.CurrentTarget);
         }
         finally
         {
             foreach (var lease in leases)
                 lease.Dispose();
         }
+    }
 
+    [Fact]
+    public async Task AdaptiveSchedulerRampsToMaximumWhenSuccessfulRequestsAreWaiting()
+    {
         var rampingClock = new TestTimeProvider();
         var rampingScheduler = new AdaptiveDownloadScheduler(
-            ImportConcurrencyLimiter.MinimumDownloadConcurrency,
-            ImportConcurrencyLimiter.InitialDownloadConcurrency,
-            ImportConcurrencyLimiter.MaximumDownloadConcurrency,
+            minimum: 4,
+            initial: 4,
+            maximum: 6,
             timeProvider: rampingClock,
             adjustmentCooldown: TimeSpan.FromSeconds(1));
         var rampingLeases = new List<IImportConcurrencyLease>();
 
         try
         {
-            for (var index = 0; index < ImportConcurrencyLimiter.InitialDownloadConcurrency; index++)
+            for (var index = 0; index < 4; index++)
                 rampingLeases.Add(await rampingScheduler.AcquireAsync(CancellationToken.None));
 
-            for (var target = ImportConcurrencyLimiter.InitialDownloadConcurrency;
-                 target < ImportConcurrencyLimiter.MaximumDownloadConcurrency;
+            for (var target = 4;
+                 target < 6;
                  target++)
             {
                 var queued = rampingScheduler.AcquireAsync(CancellationToken.None).AsTask();

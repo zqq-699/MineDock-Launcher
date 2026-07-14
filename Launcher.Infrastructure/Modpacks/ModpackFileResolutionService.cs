@@ -34,7 +34,10 @@ namespace Launcher.Infrastructure.Modpacks;
 /// </summary>
 internal sealed class ModpackFileResolutionService
 {
-    private const int MaxProcessingConcurrency = 16;
+    // Resolution may call provider APIs, so retain a conservative cap there.
+    // Downloading already resolved artifacts is governed by the shared global budget.
+    private const int MaxResolutionConcurrency = 16;
+    private const int MaxDownloadConcurrency = ImportConcurrencyLimiter.MaximumDownloadConcurrency;
     private readonly CurseForgeApiClient curseForgeApiClient;
     private readonly ICurseForgeApiKeyResolver curseForgeApiKeyResolver;
     private readonly ModpackFileDownloader fileDownloader;
@@ -100,7 +103,7 @@ internal sealed class ModpackFileResolutionService
         DownloadBatchContext context,
         CancellationToken cancellationToken)
     {
-        var channel = Channel.CreateBounded<ResolvedPackFileWorkItem>(new BoundedChannelOptions(MaxProcessingConcurrency)
+        var channel = Channel.CreateBounded<ResolvedPackFileWorkItem>(new BoundedChannelOptions(MaxDownloadConcurrency)
         {
             FullMode = BoundedChannelFullMode.Wait,
             SingleReader = false,
@@ -147,7 +150,7 @@ internal sealed class ModpackFileResolutionService
                 Enumerable.Range(0, context.TotalCount),
                 new ParallelOptions
                 {
-                    MaxDegreeOfParallelism = MaxProcessingConcurrency,
+                    MaxDegreeOfParallelism = MaxResolutionConcurrency,
                     CancellationToken = cancellationToken
                 },
                 async (index, token) =>
@@ -192,7 +195,7 @@ internal sealed class ModpackFileResolutionService
                 reader.ReadAllAsync(cancellationToken),
                 new ParallelOptions
                 {
-                    MaxDegreeOfParallelism = MaxProcessingConcurrency,
+                    MaxDegreeOfParallelism = MaxDownloadConcurrency,
                     CancellationToken = cancellationToken
                 },
                 (workItem, token) => DownloadPackFileAsync(context, workItem, token)).ConfigureAwait(false);

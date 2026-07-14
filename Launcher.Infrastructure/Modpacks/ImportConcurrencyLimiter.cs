@@ -12,8 +12,8 @@ namespace Launcher.Infrastructure.Modpacks;
 internal sealed class ImportConcurrencyLimiter : IImportConcurrencyLimiter
 {
     internal const int MinimumDownloadConcurrency = 4;
-    internal const int InitialDownloadConcurrency = 12;
-    internal const int MaximumDownloadConcurrency = 16;
+    internal const int InitialDownloadConcurrency = 64;
+    internal const int MaximumDownloadConcurrency = 64;
 
     public static ImportConcurrencyLimiter Shared { get; } = new();
 
