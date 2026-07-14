@@ -110,6 +110,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider
         // 未指定 Loader 时选择目录首项；确定版本后再组合隔离 profile 并安装依赖。
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
         var path = new MinecraftPath(gameDirectory);
+        using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(path);
         var selectedLoaderVersion = loaderVersion;
 
         if (string.IsNullOrWhiteSpace(selectedLoaderVersion))
@@ -135,9 +136,9 @@ public sealed class FabricLoaderProvider : ILoaderProvider
             downloadSpeedLimitMbPerSecond,
             downloadSpeedLimitState,
             logger,
-            cancellationToken);
+            cancellationToken,
+            downloadOperation);
 
-        using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(path);
         var launcher = VanillaLoaderProvider.CreateLauncher(
             path,
             progress,

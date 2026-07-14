@@ -65,7 +65,10 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
                 metadata.GetSha1(),
                 metadata.Size > 0 ? metadata.Size : null,
                 reportDownloadedBytes: null,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken,
+                options: operationContext is not null && MinecraftFileIntegrity.IsSha1(metadata.GetSha1())
+                    ? new DownloadFileOptions(DownloadPersistenceMode.TaskScopedResumable, operationContext)
+                    : null).ConfigureAwait(false);
         }
 
         await using var stream = new FileStream(indexPath, FileMode.Open, FileAccess.Read, FileShare.Read);

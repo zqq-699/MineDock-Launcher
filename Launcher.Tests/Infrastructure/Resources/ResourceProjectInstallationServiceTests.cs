@@ -132,6 +132,28 @@ public sealed class ResourceProjectInstallationServiceTests
         Assert.Same(instance, catalog.LastInstallExistsInstance);
     }
 
+    [Fact]
+    public async Task DirectInstallForwardsObservableDownloadProgressAndReservesFinalization()
+    {
+        var catalog = new RecordingCatalogService();
+        var service = new ResourceProjectInstallationService(
+            catalog,
+            new StubModpackImportService(ModpackImportResult.Failure(ModpackImportFailureReason.UnexpectedError)),
+            NullLogger<ResourceProjectInstallationService>.Instance);
+        var reports = new List<LauncherProgress>();
+
+        await service.ExecuteAsync(
+            new ResourceProjectInstallationRequest(
+                CreateVersion(ResourceProjectKind.Mod),
+                ResourceProjectInstallationTargetKind.ExistingInstance,
+                Instance: new GameInstance { Id = "target", InstanceDirectory = "instance" }),
+            new InlineProgress(reports));
+
+        Assert.Contains(reports, report => report.Stage is ModProgressStages.DownloadingFile && report.Percent == 50);
+        Assert.Equal(InstallProgressStages.CompletingFiles, reports[^1].Stage);
+        Assert.Equal(99, reports[^1].Percent);
+    }
+
     private static ResourceProjectVersion CreateVersion(ResourceProjectKind kind)
     {
         return new ResourceProjectVersion
@@ -142,7 +164,7 @@ public sealed class ResourceProjectInstallationServiceTests
         };
     }
 
-    private sealed class RecordingCatalogService : IResourceCatalogService
+    private sealed class RecordingCatalogService : IResourceCatalogService, IResourceCatalogProgressReporter
     {
         public string? LastTargetDirectory { get; private set; }
         public GameInstance? LastInstallExistsInstance { get; private set; }
@@ -166,6 +188,26 @@ public sealed class ResourceProjectInstallationServiceTests
             return Task.FromResult(archive);
         }
 
+        public Task<string> InstallProjectVersionWithProgressAsync(
+            ResourceProjectVersion version,
+            GameInstance instance,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken)
+        {
+            progress?.Report(new LauncherProgress(ModProgressStages.DownloadingFile, version.FileName, 50));
+            return Task.FromResult("installed");
+        }
+
+        public Task<string> DownloadProjectVersionWithProgressAsync(
+            ResourceProjectVersion version,
+            string targetDirectory,
+            IProgress<LauncherProgress>? progress,
+            CancellationToken cancellationToken)
+        {
+            progress?.Report(new LauncherProgress(ModProgressStages.DownloadingFile, version.FileName, 50));
+            return DownloadProjectVersionAsync(version, targetDirectory, cancellationToken);
+        }
+
         public Task<bool> ProjectVersionDownloadExistsAsync(ResourceProjectVersion version, string targetDirectory, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
 
@@ -174,6 +216,11 @@ public sealed class ResourceProjectInstallationServiceTests
             LastInstallExistsInstance = instance;
             return Task.FromResult(InstallExists);
         }
+    }
+
+    private sealed class InlineProgress(List<LauncherProgress> reports) : IProgress<LauncherProgress>
+    {
+        public void Report(LauncherProgress value) => reports.Add(value);
     }
 
     private sealed class StubModpackImportService : ILocalModpackImportService

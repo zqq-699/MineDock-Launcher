@@ -281,7 +281,10 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         DownloadSourcePreference downloadSourcePreference,
         int downloadSpeedLimitMbPerSecond)
     {
-        var installProgress = CreateInstallStageProgress(progress, ImportProgressStages.InstallingLoader);
+        var installStageProgress = CreateInstallStageProgress(progress, ImportProgressStages.InstallingLoader);
+        var installProgress = installStageProgress is null
+            ? null
+            : new InstallCardProgressMapper(installStageProgress, preparedModpack.Loader, hasOptionalContent: false);
         // 整合包文件下载已在并行分支中启动；租约只覆盖会写入共享 Minecraft 内容的 Loader 安装阶段。
         await using var installLease = await installCoordinator
             .AcquireInstallAsync(
@@ -291,7 +294,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
                 cancellationToken)
             .ConfigureAwait(false);
 
-        return await modpackGameInstaller.InstallLoaderAsync(
+        var versionName = await modpackGameInstaller.InstallLoaderAsync(
             preparedModpack.MinecraftVersion,
             preparedModpack.Loader,
             preparedModpack.LoaderVersion,
@@ -303,6 +306,8 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
             cancellationToken,
             downloadSourcePreference,
             downloadSpeedLimitMbPerSecond).ConfigureAwait(false);
+        installProgress?.ReportBaseInstallCompleted();
+        return versionName;
     }
 
     private static IProgress<LauncherProgress>? CreateInstallStageProgress(

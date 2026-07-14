@@ -27,11 +27,17 @@ namespace Launcher.App.ViewModels.Resources;
 internal sealed class ResourceInstallTaskSession
 {
     private readonly DownloadTasksPageViewModel? owner;
+    private readonly string initialMessage;
+    private int dependencyCount;
+    private int startedDependencyCount;
+    private double primaryDownloadStart = 2;
+    private bool primaryDownloadActive;
 
-    private ResourceInstallTaskSession(DownloadTasksPageViewModel? owner, DownloadTaskItem? task)
+    private ResourceInstallTaskSession(DownloadTasksPageViewModel? owner, DownloadTaskItem? task, string initialMessage)
     {
         this.owner = owner;
         Task = task;
+        this.initialMessage = initialMessage;
     }
 
     public DownloadTaskItem? Task { get; }
@@ -51,15 +57,66 @@ internal sealed class ResourceInstallTaskSession
         string initialMessage)
     {
         var task = owner?.BeginTask(title, subtitle);
-        var session = new ResourceInstallTaskSession(owner, task);
+        var session = new ResourceInstallTaskSession(owner, task, initialMessage);
         session.Report(new LauncherProgress(ModProgressStages.DownloadingFile, initialMessage));
         return session;
     }
 
+    public void BeginDependencies(int count)
+    {
+        dependencyCount = Math.Max(0, count);
+        startedDependencyCount = 0;
+        primaryDownloadActive = false;
+        if (dependencyCount > 0)
+            Report(new LauncherProgress(ModProgressStages.DownloadingFile, initialMessage, 2));
+    }
+
+    public void ReportDependencyStarted(LauncherProgress progress)
+    {
+        if (dependencyCount <= 0)
+        {
+            Report(progress);
+            return;
+        }
+
+        startedDependencyCount = Math.Min(startedDependencyCount + 1, dependencyCount);
+        var completedBeforeCurrent = Math.Max(0, startedDependencyCount - 1);
+        var percent = 2 + (28d * completedBeforeCurrent / dependencyCount);
+        Report(progress with { Percent = percent });
+    }
+
+    public void CompleteDependencies()
+    {
+        if (dependencyCount > 0)
+            Report(new LauncherProgress(ModProgressStages.DownloadingFile, initialMessage, 30));
+    }
+
+    public void BeginPrimaryDownload(bool hasDependencies)
+    {
+        primaryDownloadStart = hasDependencies ? 30 : 2;
+        primaryDownloadActive = true;
+        ReportToTask(new LauncherProgress(ModProgressStages.DownloadingFile, initialMessage, primaryDownloadStart));
+    }
+
     public void Report(LauncherProgress progress)
     {
-        Task?.Report(progress with { Message = LauncherProgressTextFormatter.Format(progress) });
+        if (primaryDownloadActive && progress.Stage is ModProgressStages.DownloadingFile)
+        {
+            var percent = progress.Percent is { } rawPercent
+                ? primaryDownloadStart + ((96 - primaryDownloadStart) * Math.Clamp(rawPercent, 0, 100) / 100d)
+                : primaryDownloadStart;
+            progress = progress with { Percent = percent };
+        }
+        else if (primaryDownloadActive && progress.Stage is InstallProgressStages.CompletingFiles)
+        {
+            progress = progress with { Percent = 99 };
+        }
+
+        ReportToTask(progress);
     }
+
+    private void ReportToTask(LauncherProgress progress) =>
+        Task?.Report(progress with { Message = LauncherProgressTextFormatter.Format(progress) });
 
     public void Complete(string message) => Task?.Complete(message);
 

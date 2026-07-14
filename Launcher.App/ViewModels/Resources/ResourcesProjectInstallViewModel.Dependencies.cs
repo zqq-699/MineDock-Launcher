@@ -40,12 +40,14 @@ private async Task<bool> InstallDependenciesAsync(
         // 按规划顺序逐个安装，让失败时的已完成集合和进度顺序保持可解释。
         try
         {
+            context.Session!.BeginDependencies(dependencyPlan.MissingDependencies.Count);
             await dependencyPlanner.InstallRequiredDependenciesAsync(
                 dependencyPlan.MissingDependencies,
                 instance,
                 context.Project?.Project.ProjectId,
-                progress => context.Session!.Report(progress),
+                progress => context.Session!.ReportDependencyStarted(progress),
                 context.Session!.CancellationToken).ConfigureAwait(false);
+            context.Session.CompleteDependencies();
             return true;
         }
         catch (ResourceDependencyInstallException exception)

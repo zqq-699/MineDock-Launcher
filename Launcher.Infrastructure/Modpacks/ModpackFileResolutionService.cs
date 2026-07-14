@@ -20,6 +20,7 @@
 using System.IO;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Threading.Channels;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.CurseForge;
@@ -75,65 +76,152 @@ internal sealed class ModpackFileResolutionService
         if (context.TotalCount == 0)
             return [];
 
+        PrevalidateKnownDownloadTargets(context);
         context.ReportStarted();
-        // 结果按原文件索引写入预分配槽位，限制并发的同时保持手动下载清单顺序稳定。
-        await Parallel.ForEachAsync(
-            Enumerable.Range(0, context.TotalCount),
-            new ParallelOptions
-            {
-                MaxDegreeOfParallelism = MaxProcessingConcurrency,
-                CancellationToken = cancellationToken
-            },
-            (index, token) => ResolvePackFileAtIndexAsync(context, index, token)).ConfigureAwait(false);
-        ValidateUniqueDownloadTargets(context);
-        await Parallel.ForEachAsync(
-            Enumerable.Range(0, context.TotalCount),
-            new ParallelOptions
-            {
-                MaxDegreeOfParallelism = MaxProcessingConcurrency,
-                CancellationToken = cancellationToken
-            },
-            (index, token) => DownloadPackFileAtIndexAsync(context, index, token)).ConfigureAwait(false);
-        return context.ManualDownloads
-            .Where(download => download is not null)
-            .Cast<ManualModpackDownload>()
-            .ToArray();
+        try
+        {
+            await RunDownloadPipelineAsync(context, cancellationToken).ConfigureAwait(false);
+            PublishPendingDownloads(context, cancellationToken);
+            return context.ManualDownloads
+                .Where(download => download is not null)
+                .Cast<ManualModpackDownload>()
+                .ToArray();
+        }
+        finally
+        {
+            context.CleanupPendingDownloads();
+        }
     }
 
     /// <summary>
-    /// 处理清单中的单个文件槽位，并确保无论结果如何都会推进总体进度。
+    /// 让解析生产者与下载消费者通过有界通道并行工作；任一分支失败都会取消另一分支。
     /// </summary>
-    private async ValueTask ResolvePackFileAtIndexAsync(
+    private async Task RunDownloadPipelineAsync(
         DownloadBatchContext context,
-        int fileIndex,
         CancellationToken cancellationToken)
     {
-        var file = context.Package.Files[fileIndex];
-        var resolution = await ResolvePackFileAsync(context, file, cancellationToken).ConfigureAwait(false);
-        context.Resolutions[fileIndex] = resolution;
-        if (resolution.ManualDownload is not null)
-            context.ManualDownloads[fileIndex] = resolution.ManualDownload;
-    }
+        var channel = Channel.CreateBounded<ResolvedPackFileWorkItem>(new BoundedChannelOptions(MaxProcessingConcurrency)
+        {
+            FullMode = BoundedChannelFullMode.Wait,
+            SingleReader = false,
+            SingleWriter = false
+        });
+        using var pipelineCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var pipelineToken = pipelineCancellation.Token;
+        var producerTask = ProduceResolvedPackFilesAsync(
+            context,
+            channel.Writer,
+            pipelineCancellation,
+            pipelineToken);
+        var consumerTask = ConsumeResolvedPackFilesAsync(
+            context,
+            channel.Reader,
+            pipelineCancellation,
+            pipelineToken);
 
-    private async ValueTask DownloadPackFileAtIndexAsync(
-        DownloadBatchContext context,
-        int fileIndex,
-        CancellationToken cancellationToken)
-    {
-        var file = context.Package.Files[fileIndex];
-        var resolution = context.Resolutions[fileIndex]
-            ?? throw new InvalidOperationException("Resolved modpack file was unexpectedly missing.");
         try
         {
-            if (resolution.ManualDownload is not null)
-                return;
-            if (resolution.Download is null)
-                throw new InvalidOperationException("Resolved modpack download was unexpectedly missing.");
-            context.ReportDownload(resolution.Download.FileName, completed: false);
-            context.ManualDownloads[fileIndex] = await DownloadResolvedPackFileAsync(
+            await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);
+        }
+        catch
+        {
+            SafeCancel(pipelineCancellation);
+            if (producerTask.IsFaulted)
+                await producerTask.ConfigureAwait(false);
+            if (consumerTask.IsFaulted)
+                await consumerTask.ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            throw;
+        }
+    }
+
+    private async Task ProduceResolvedPackFilesAsync(
+        DownloadBatchContext context,
+        ChannelWriter<ResolvedPackFileWorkItem> writer,
+        CancellationTokenSource pipelineCancellation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Parallel.ForEachAsync(
+                Enumerable.Range(0, context.TotalCount),
+                new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = MaxProcessingConcurrency,
+                    CancellationToken = cancellationToken
+                },
+                async (index, token) =>
+                {
+                    var file = context.Package.Files[index];
+                    var resolution = await ResolvePackFileAsync(context, file, token).ConfigureAwait(false);
+                    if (resolution.ManualDownload is not null)
+                    {
+                        context.ManualDownloads[index] = resolution.ManualDownload;
+                        context.ReportDownload(file.FileName, completed: true);
+                        return;
+                    }
+                    if (resolution.Download is null)
+                        throw new InvalidOperationException("Resolved modpack download was unexpectedly missing.");
+
+                    context.ReserveDownloadTarget(index, resolution.Download.RelativePath);
+                    await writer.WriteAsync(
+                        new ResolvedPackFileWorkItem(index, resolution.Download),
+                        token).ConfigureAwait(false);
+                }).ConfigureAwait(false);
+        }
+        catch
+        {
+            SafeCancel(pipelineCancellation);
+            throw;
+        }
+        finally
+        {
+            writer.TryComplete();
+        }
+    }
+
+    private async Task ConsumeResolvedPackFilesAsync(
+        DownloadBatchContext context,
+        ChannelReader<ResolvedPackFileWorkItem> reader,
+        CancellationTokenSource pipelineCancellation,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Parallel.ForEachAsync(
+                reader.ReadAllAsync(cancellationToken),
+                new ParallelOptions
+                {
+                    MaxDegreeOfParallelism = MaxProcessingConcurrency,
+                    CancellationToken = cancellationToken
+                },
+                (workItem, token) => DownloadPackFileAsync(context, workItem, token)).ConfigureAwait(false);
+        }
+        catch
+        {
+            SafeCancel(pipelineCancellation);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 下载单个已解析文件到临时路径，并确保无论结果如何都会推进下载进度。
+    /// </summary>
+    private async ValueTask DownloadPackFileAsync(
+        DownloadBatchContext context,
+        ResolvedPackFileWorkItem workItem,
+        CancellationToken cancellationToken)
+    {
+        var file = context.Package.Files[workItem.FileIndex];
+        try
+        {
+            context.ReportDownload(workItem.Download.FileName, completed: false);
+            var result = await DownloadResolvedPackFileToTemporaryAsync(
                 context,
-                resolution.Download,
+                workItem.Download,
                 cancellationToken).ConfigureAwait(false);
+            context.ManualDownloads[workItem.FileIndex] = result.ManualDownload;
+            context.PendingDownloads[workItem.FileIndex] = result.PendingDownload;
         }
         finally
         {
@@ -141,22 +229,30 @@ internal sealed class ModpackFileResolutionService
         }
     }
 
-    private static void ValidateUniqueDownloadTargets(DownloadBatchContext context)
+    private static void PrevalidateKnownDownloadTargets(DownloadBatchContext context)
     {
-        var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var resolution in context.Resolutions)
+        for (var index = 0; index < context.TotalCount; index++)
         {
-            if (resolution?.Download is not { } download)
-                continue;
-            var targetPath = ModpackArchiveUtility.GetValidatedTargetPath(
-                context.Instance.InstanceDirectory,
-                download.RelativePath);
-            if (!targets.Add(Path.TrimEndingDirectorySeparator(Path.GetFullPath(targetPath))))
+            var file = context.Package.Files[index];
+            if (context.Package.PackageKind is ModpackPackageKind.CurseForge
+                && string.IsNullOrWhiteSpace(file.RelativePath))
             {
-                throw new ModpackImportException(
-                    ModpackImportFailureReason.InvalidManifest,
-                    $"Multiple modpack files resolve to the same target path: {download.RelativePath}");
+                continue;
             }
+
+            context.ReserveDownloadTarget(index, file.RelativePath);
+        }
+    }
+
+    private void PublishPendingDownloads(DownloadBatchContext context, CancellationToken cancellationToken)
+    {
+        foreach (var pendingDownload in context.PendingDownloads)
+        {
+            if (pendingDownload is null)
+                continue;
+            cancellationToken.ThrowIfCancellationRequested();
+            File.Move(pendingDownload.TemporaryPath, pendingDownload.TargetPath, overwrite: true);
+            LogDownloaded(context.Package.PackageKind, pendingDownload.Download, pendingDownload.SourceUrl);
         }
     }
 
@@ -231,7 +327,7 @@ internal sealed class ModpackFileResolutionService
     /// <summary>
     /// 依次尝试主地址和回退地址，验证临时文件后提交，全部失败时按包类型决定降级或抛出。
     /// </summary>
-    private async Task<ManualModpackDownload?> DownloadResolvedPackFileAsync(
+    private async Task<PackFileDownloadResult> DownloadResolvedPackFileToTemporaryAsync(
         DownloadBatchContext context,
         ResolvedPackDownload file,
         CancellationToken cancellationToken)
@@ -249,6 +345,7 @@ internal sealed class ModpackFileResolutionService
         var sourceUrls = BuildSourceUrls(file);
         Exception? lastException = null;
         string? lastFailureSummary = null;
+        var retainTemporaryFile = false;
         try
         {
             foreach (var sourceUrl in sourceUrls)
@@ -259,9 +356,10 @@ internal sealed class ModpackFileResolutionService
                 {
                     await DownloadAndVerifyAsync(context, file, sourceUrl, tempPath, cancellationToken)
                         .ConfigureAwait(false);
-                    File.Move(tempPath, targetPath, overwrite: true);
-                    LogDownloaded(context.Package.PackageKind, file, sourceUrl);
-                    return null;
+                    retainTemporaryFile = true;
+                    return new PackFileDownloadResult(
+                        new PendingPackFileDownload(file, sourceUrl, tempPath, targetPath),
+                        null);
                 }
                 catch (OperationCanceledException)
                 {
@@ -282,19 +380,22 @@ internal sealed class ModpackFileResolutionService
             }
             if (context.Package.PackageKind is not ModpackPackageKind.CurseForge)
                 throw lastException ?? new InvalidOperationException($"Failed to download modpack file: {file.FileName}");
-            return new ManualModpackDownload
-            {
-                ProjectId = file.ProjectId,
-                FileId = file.FileId,
-                FileName = file.FileName,
-                DisplayName = string.IsNullOrWhiteSpace(file.DisplayName) ? file.FileName : file.DisplayName,
-                SuggestedUrl = sourceUrls.FirstOrDefault() ?? string.Empty,
-                FailureSummary = lastFailureSummary ?? "download_failed"
-            };
+            return new PackFileDownloadResult(
+                null,
+                new ManualModpackDownload
+                {
+                    ProjectId = file.ProjectId,
+                    FileId = file.FileId,
+                    FileName = file.FileName,
+                    DisplayName = string.IsNullOrWhiteSpace(file.DisplayName) ? file.FileName : file.DisplayName,
+                    SuggestedUrl = sourceUrls.FirstOrDefault() ?? string.Empty,
+                    FailureSummary = lastFailureSummary ?? "download_failed"
+                });
         }
         finally
         {
-            ModpackFileDownloader.DeleteFileIfExists(tempPath);
+            if (!retainTemporaryFile)
+                ModpackFileDownloader.DeleteFileIfExists(tempPath);
         }
     }
 
@@ -398,6 +499,8 @@ internal sealed class ModpackFileResolutionService
 
     private sealed class DownloadBatchContext : IDisposable
     {
+        private readonly object targetSyncRoot = new();
+        private readonly Dictionary<string, int> reservedTargets = new(StringComparer.OrdinalIgnoreCase);
         private int resolvedCount;
         private int downloadedCount;
         private string? activeDownloadFileName;
@@ -422,8 +525,8 @@ internal sealed class ModpackFileResolutionService
                 speedStage: ImportProgressStages.DownloadingPackFiles,
                 inactiveStage: ImportProgressStages.DownloadingPackFiles,
                 messageProvider: () => Volatile.Read(ref activeDownloadFileName) ?? string.Empty);
-            Resolutions = new PackFileResolution?[package.Files.Count];
             ManualDownloads = new ManualModpackDownload?[package.Files.Count];
+            PendingDownloads = new PendingPackFileDownload?[package.Files.Count];
         }
 
         public PreparedModpack Package { get; }
@@ -432,9 +535,29 @@ internal sealed class ModpackFileResolutionService
         public DownloadSourcePreference DownloadSourcePreference { get; }
         public int DownloadSpeedLimitMbPerSecond { get; }
         public int TotalCount => Package.Files.Count;
-        public PackFileResolution?[] Resolutions { get; }
         public ManualModpackDownload?[] ManualDownloads { get; }
+        public PendingPackFileDownload?[] PendingDownloads { get; }
         public SlidingWindowDownloadSpeedReporter SpeedReporter { get; }
+
+        public void ReserveDownloadTarget(int fileIndex, string relativePath)
+        {
+            var targetPath = ModpackArchiveUtility.GetValidatedTargetPath(
+                Instance.InstanceDirectory,
+                relativePath);
+            var normalizedTarget = Path.TrimEndingDirectorySeparator(Path.GetFullPath(targetPath));
+            lock (targetSyncRoot)
+            {
+                if (reservedTargets.TryGetValue(normalizedTarget, out var existingIndex)
+                    && existingIndex != fileIndex)
+                {
+                    throw new ModpackImportException(
+                        ModpackImportFailureReason.InvalidManifest,
+                        $"Multiple modpack files resolve to the same target path: {relativePath}");
+                }
+
+                reservedTargets[normalizedTarget] = fileIndex;
+            }
+        }
 
         public void ReportStarted()
         {
@@ -464,10 +587,42 @@ internal sealed class ModpackFileResolutionService
                 count * 100d / TotalCount));
         }
 
+        public void CleanupPendingDownloads()
+        {
+            foreach (var pendingDownload in PendingDownloads)
+            {
+                if (pendingDownload is not null)
+                    ModpackFileDownloader.DeleteFileIfExists(pendingDownload.TemporaryPath);
+            }
+        }
+
         public void Dispose() => SpeedReporter.Dispose();
     }
 
+    private static void SafeCancel(CancellationTokenSource cancellation)
+    {
+        try
+        {
+            cancellation.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
     private sealed record PackFileResolution(ResolvedPackDownload? Download, ManualModpackDownload? ManualDownload);
+
+    private sealed record ResolvedPackFileWorkItem(int FileIndex, ResolvedPackDownload Download);
+
+    private sealed record PackFileDownloadResult(
+        PendingPackFileDownload? PendingDownload,
+        ManualModpackDownload? ManualDownload);
+
+    private sealed record PendingPackFileDownload(
+        ResolvedPackDownload Download,
+        string SourceUrl,
+        string TemporaryPath,
+        string TargetPath);
 
     private sealed record ResolvedPackDownload(
         string FileName,

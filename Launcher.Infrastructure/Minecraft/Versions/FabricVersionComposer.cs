@@ -41,7 +41,8 @@ internal static class FabricVersionComposer
         int downloadSpeedLimitMbPerSecond = 0,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         ILogger? logger = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        MinecraftDownloadOperationContext? operationContext = null)
     {
         var finalVersionDirectory = Path.Combine(minecraftDirectory, "versions", finalVersionName);
         var finalVersionJsonPath = Path.Combine(finalVersionDirectory, $"{finalVersionName}.json");
@@ -86,7 +87,8 @@ internal static class FabricVersionComposer
                 downloadSpeedLimitMbPerSecond,
                 downloadSpeedLimitState,
                 logger,
-                cancellationToken);
+                cancellationToken,
+                operationContext);
         }
         catch
         {
@@ -174,7 +176,8 @@ internal static class FabricVersionComposer
         int downloadSpeedLimitMbPerSecond,
         IDownloadSpeedLimitState? downloadSpeedLimitState,
         ILogger? logger,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        MinecraftDownloadOperationContext? operationContext)
     {
         var clientUrl = VanillaVersionMetadataClient.GetClientJarUrl(baseVersionJson);
         if (string.IsNullOrWhiteSpace(clientUrl))
@@ -185,15 +188,19 @@ internal static class FabricVersionComposer
             logger,
             DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
             category: DownloadConcurrencyCategory.Runtime);
+        var sha1 = VanillaVersionMetadataClient.GetClientJarSha1(baseVersionJson);
         await executor.DownloadFileAsync(
             clientUrl,
             downloadSourcePreference,
             categoryHint: "Mojang",
             destinationJarPath,
-            VanillaVersionMetadataClient.GetClientJarSha1(baseVersionJson),
+            sha1,
             VanillaVersionMetadataClient.GetClientJarSize(baseVersionJson),
             reportDownloadedBytes: null,
-            cancellationToken);
+            cancellationToken,
+            options: operationContext is not null && MinecraftFileIntegrity.IsSha1(sha1)
+                ? new DownloadFileOptions(DownloadPersistenceMode.TaskScopedResumable, operationContext)
+                : null);
     }
 
 }

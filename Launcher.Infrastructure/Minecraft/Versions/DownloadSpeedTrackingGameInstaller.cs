@@ -81,6 +81,8 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
             operationContext);
     }
 
+    internal bool HasActiveNetworkTransfers => speedReporter.HasActiveTransfers;
+
     protected override Task Download(
         GameFile file,
         IProgress<ByteProgress>? progress,
@@ -104,7 +106,9 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         long? expectedSize = file.Size > 0 ? file.Size : null;
         var options = operationContext?.TryGetAsset(filePath, file.Hash, expectedSize) is true
             ? new DownloadFileOptions(DownloadPersistenceMode.LightweightAtomic, operationContext)
-            : null;
+            : operationContext is not null && MinecraftFileIntegrity.IsSha1(file.Hash)
+                ? new DownloadFileOptions(DownloadPersistenceMode.TaskScopedResumable, operationContext)
+                : null;
         NetworkDownloadProgress? attemptProgress = null;
         var currentAttempt = 0;
         await downloadExecutor.DownloadFileAsync(

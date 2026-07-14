@@ -30,10 +30,11 @@ internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> i
     private const double ArchiveWeight = 2;
     private const double ManifestWeight = 3;
     private const double InstanceWeight = 5;
-    private const double ResolveWeight = 15;
-    private const double InstallWeight = 44;
-    private const double DownloadWeight = 26;
+    private const double ResolveWeight = 10;
+    private const double InstallWeight = 34;
+    private const double DownloadWeight = 40;
     private const double OverridesWeight = 4;
+    private const double CleanupWeight = 1;
     private double lastPercent;
     private double archiveProgress;
     private double manifestProgress;
@@ -42,6 +43,7 @@ internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> i
     private double installProgress;
     private double downloadProgress;
     private double overridesProgress;
+    private double cleanupProgress;
 
     public void Report(LauncherProgress value)
     {
@@ -97,8 +99,8 @@ internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> i
                 overridesProgress = Math.Max(overridesProgress, normalizedPercent);
                 break;
             case ImportProgressStages.CleaningUp:
-                mappedPercent = 99;
-                return true;
+                cleanupProgress = Math.Max(cleanupProgress, normalizedPercent);
+                break;
             case InstallProgressStages.Queue:
             case InstallProgressStages.Preparing:
             case InstallProgressStages.DownloadingLoaderInstaller:
@@ -127,7 +129,8 @@ internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> i
             (resolveProgress * ResolveWeight) +
             (installProgress * InstallWeight) +
             (downloadProgress * DownloadWeight) +
-            (overridesProgress * OverridesWeight);
+            (overridesProgress * OverridesWeight) +
+            (cleanupProgress * CleanupWeight);
         return true;
     }
 
@@ -136,7 +139,8 @@ internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> i
         return stage is ImportProgressStages.PreparingArchive
             or ImportProgressStages.ParsingManifest
             or ImportProgressStages.CreatingInstance
-            or ImportProgressStages.CopyingOverrides;
+            or ImportProgressStages.CopyingOverrides
+            or ImportProgressStages.CleaningUp;
     }
 
     private static double NormalizePercent(double? percent, bool treatMissingAsComplete)

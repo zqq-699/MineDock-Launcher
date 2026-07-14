@@ -232,6 +232,35 @@ public sealed class DownloadViewModelTests
     }
 
     [Fact]
+    public void RunningTaskProgressNeverShowsCompleteBeforeCompletion()
+    {
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var task = tasks.BeginTask("install", "instance");
+
+        task.Report(new LauncherProgress(LaunchProgressStages.CheckingFiles, "Checking files", 100));
+
+        Assert.Equal(99, task.ProgressPercent);
+        Assert.Equal(DownloadTaskState.Running, task.State);
+
+        task.Complete("done");
+
+        Assert.Equal(100, task.ProgressPercent);
+        Assert.Equal(DownloadTaskState.Completed, task.State);
+    }
+
+    [Fact]
+    public void RunningTaskProgressDoesNotRegressWhenRetryReportsAnEarlierPercent()
+    {
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var task = tasks.BeginTask("install", "instance");
+
+        task.Report(new LauncherProgress(LaunchProgressStages.DownloadingFiles, string.Empty, 72));
+        task.Report(new LauncherProgress(LaunchProgressStages.CheckingFiles, string.Empty, 24));
+
+        Assert.Equal(72, task.ProgressPercent);
+    }
+
+    [Fact]
     public async Task BackgroundCleanupKeepsOperationActiveAfterTaskEntryIsRemoved()
     {
         var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));

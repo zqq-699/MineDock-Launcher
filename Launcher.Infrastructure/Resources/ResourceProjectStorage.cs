@@ -56,28 +56,42 @@ internal sealed class ResourceProjectStorage
     public async Task<string> InstallAsync(
         ResourceProjectVersion version,
         GameInstance instance,
+        IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(instance.InstanceDirectory))
             throw new InvalidOperationException("The target instance directory is empty.");
         if (version.Kind is ResourceProjectKind.World)
-            return await InstallWorldAsync(version, instance, cancellationToken).ConfigureAwait(false);
+            return await InstallWorldAsync(version, instance, progress, cancellationToken).ConfigureAwait(false);
 
         var installDirectory = ResolveInstallDirectory(instance, version.Kind);
         Directory.CreateDirectory(installDirectory);
-        return await DownloadCoreAsync(version, installDirectory, cancellationToken).ConfigureAwait(false);
+        return await DownloadCoreAsync(version, installDirectory, progress, cancellationToken).ConfigureAwait(false);
     }
+
+    public Task<string> InstallAsync(
+        ResourceProjectVersion version,
+        GameInstance instance,
+        CancellationToken cancellationToken) =>
+        InstallAsync(version, instance, progress: null, cancellationToken);
 
     public async Task<string> DownloadAsync(
         ResourceProjectVersion version,
         string targetDirectory,
+        IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(targetDirectory))
             throw new InvalidOperationException("The target download directory is empty.");
         Directory.CreateDirectory(targetDirectory);
-        return await DownloadCoreAsync(version, targetDirectory, cancellationToken).ConfigureAwait(false);
+        return await DownloadCoreAsync(version, targetDirectory, progress, cancellationToken).ConfigureAwait(false);
     }
+
+    public Task<string> DownloadAsync(
+        ResourceProjectVersion version,
+        string targetDirectory,
+        CancellationToken cancellationToken) =>
+        DownloadAsync(version, targetDirectory, progress: null, cancellationToken);
 
     public Task<bool> DownloadExistsAsync(
         ResourceProjectVersion version,
@@ -111,6 +125,7 @@ internal sealed class ResourceProjectStorage
     private async Task<string> DownloadCoreAsync(
         ResourceProjectVersion version,
         string targetDirectory,
+        IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken)
     {
         var target = Path.Combine(targetDirectory, ResolveFileName(version));
@@ -134,6 +149,7 @@ internal sealed class ResourceProjectStorage
                     urls[candidateIndex],
                     tempPath,
                     expectation,
+                    progress,
                     cancellationToken).ConfigureAwait(false);
                 File.Move(tempPath, target, overwrite: true);
                 return target;
@@ -219,6 +235,7 @@ internal sealed class ResourceProjectStorage
         string url,
         string tempPath,
         IntegrityExpectation expectation,
+        IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken)
     {
         var settings = settingsService is null
@@ -244,7 +261,8 @@ internal sealed class ResourceProjectStorage
                         expectation.FileSize,
                         [(ToHashAlgorithmName(hash.Algorithm), Convert.ToHexString(hash.Value))]),
                     reportDownloadedBytes: null,
-                    cancellationToken).ConfigureAwait(false);
+                    cancellationToken,
+                    reportAttemptProgress: CreateProgressReporter(version, progress)).ConfigureAwait(false);
             }
             else
             {
@@ -256,7 +274,8 @@ internal sealed class ResourceProjectStorage
                     expectedSha1: null,
                     expectedSize: expectation.FileSize,
                     reportDownloadedBytes: null,
-                    cancellationToken).ConfigureAwait(false);
+                    cancellationToken,
+                    reportAttemptProgress: CreateProgressReporter(version, progress)).ConfigureAwait(false);
             }
         }
         catch (DownloadLocalFileException exception)
@@ -294,6 +313,22 @@ internal sealed class ResourceProjectStorage
         };
         if (!CryptographicOperations.FixedTimeEquals(actual, expectation.Hash.Value))
             throw CreateIntegrityException(version, ResourceProjectIntegrityFailureReason.HashMismatch, expectation.Hash.Algorithm);
+    }
+
+    private static Action<int, long, long?>? CreateProgressReporter(
+        ResourceProjectVersion version,
+        IProgress<LauncherProgress>? progress)
+    {
+        if (progress is null)
+            return null;
+
+        var fileName = ResolveFileName(version);
+        return (_, transferredBytes, totalBytes) => progress.Report(new LauncherProgress(
+            ModProgressStages.DownloadingFile,
+            fileName,
+            totalBytes is > 0
+                ? Math.Clamp(transferredBytes * 100d / totalBytes.Value, 0, 100)
+                : null));
     }
 
     private static IntegrityExpectation ResolveIntegrityExpectation(ResourceProjectVersion version)
@@ -403,13 +438,14 @@ internal sealed class ResourceProjectStorage
     private async Task<string> InstallWorldAsync(
         ResourceProjectVersion version,
         GameInstance instance,
+        IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken)
     {
         var tempDirectory = Path.Combine(Path.GetTempPath(), $"launcher-world-install-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDirectory);
         try
         {
-            var archivePath = await DownloadCoreAsync(version, tempDirectory, cancellationToken).ConfigureAwait(false);
+            var archivePath = await DownloadCoreAsync(version, tempDirectory, progress, cancellationToken).ConfigureAwait(false);
             var result = await localSaveService.ImportFromArchiveAsync(instance, archivePath, cancellationToken)
                 .ConfigureAwait(false);
             if (!result.IsSuccess || result.ImportedSave is null)

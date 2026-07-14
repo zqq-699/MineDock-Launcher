@@ -348,7 +348,10 @@ public sealed partial class DownloadTaskItem : ObservableObject
             DownloadSpeedText = progress.DownloadSpeedText;
 
         if (progress.Percent is { } percent)
-            ProgressPercent = Math.Clamp(percent, 0, 100);
+            // A progress report describes ongoing work. Only Complete() may
+            // publish 100%, otherwise later installation stages can appear to
+            // run after the card has already claimed completion.
+            ProgressPercent = Math.Clamp(Math.Max(ProgressPercent, percent), 0, 99);
     }
 
     public void Complete(string message)

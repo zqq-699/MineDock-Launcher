@@ -557,6 +557,60 @@ public sealed class MinecraftDownloadRetryTests
     }
 
     [Fact]
+    public async Task CmlHashedLibraryUsesOperationScopedResumableWorkspaceAndCleansItUp()
+    {
+        var payload = "library-data"u8.ToArray();
+        var handler = new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new ByteArrayContent(payload)
+            }));
+        using var runtimeClient = CreateClient(handler);
+        using var metadataClient = CreateClient(new CallbackRequestHandler((_, request, _) =>
+            Task.FromResult(CreateResponse(HttpStatusCode.OK, "{}", request))));
+        var executor = CreateExecutor(runtimeClient);
+        var directory = CreateTempDirectory();
+        var path = new CmlLib.Core.MinecraftPath(directory);
+        var destination = Path.Combine(path.Library, "com", "example", "library", "1.0", "library-1.0.jar");
+        var operation = new MinecraftDownloadOperationContext(directory);
+        var workspace = operation.WorkspaceDirectory;
+
+        try
+        {
+            var installer = DownloadSpeedTrackingGameInstaller.CreateAsCoreCount(
+                metadataClient,
+                executor,
+                DownloadSourcePreference.Official,
+                progress: null,
+                minecraftPath: path,
+                operationContext: operation);
+            await installer.DownloadGameFileAsync(
+                new GameFile("library-1.0.jar")
+                {
+                    Url = ManifestUrl,
+                    Path = destination,
+                    Size = payload.Length,
+                    Hash = Convert.ToHexString(SHA1.HashData(payload))
+                },
+                progress: null,
+                CancellationToken.None);
+
+            Assert.Equal(payload, await File.ReadAllBytesAsync(destination));
+            Assert.True(Directory.Exists(Path.Combine(workspace, "resumable")));
+            Assert.False(Directory.Exists(Path.Combine(Path.GetDirectoryName(destination)!, ".bhl-download-work")));
+
+            operation.Dispose();
+            Assert.False(Directory.Exists(workspace));
+        }
+        finally
+        {
+            operation.Dispose();
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task FileDownloadResumesOnlyAfterMatchingPartialResponse()
     {
         var handler = new CallbackRequestHandler((requestNumber, request, _) =>

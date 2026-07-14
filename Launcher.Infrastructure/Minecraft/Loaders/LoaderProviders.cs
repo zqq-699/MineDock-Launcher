@@ -73,6 +73,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
     {
         // 先生成隔离版本元数据，再交给 CmlLib 补齐文件；返回值必须是实际可启动版本名。
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
+        using var downloadOperation = CreateDownloadOperationContext(new MinecraftPath(gameDirectory));
 
         var finalVersionName = await VanillaVersionComposer.CreateFinalVersionAsync(
             httpClient,
@@ -83,9 +84,9 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             downloadSpeedLimitMbPerSecond,
             downloadSpeedLimitState,
             logger,
-            cancellationToken);
+            cancellationToken,
+            downloadOperation);
 
-        using var downloadOperation = CreateDownloadOperationContext(new MinecraftPath(gameDirectory));
         var launcher = CreateLauncher(
             gameDirectory,
             progress,
@@ -114,6 +115,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
         var lastReportedPercent = 0d;
         var lastReportedAt = DateTimeOffset.MinValue;
         var lastReportedMessage = string.Empty;
+        var speedTrackingInstaller = launcher.GameInstaller as DownloadSpeedTrackingGameInstaller;
 
         launcher.FileProgressChanged += (_, args) =>
         {
@@ -127,7 +129,13 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
                     : Math.Clamp(args.ProgressedTasks, 0, totalTasks);
                 currentTaskFraction = 0;
 
-                ReportProgress("Files", $"{args.EventType}: {args.Name}", CalculateTotalPercent());
+                // CML only distinguishes queued/done file events.  Treat the
+                // non-body part as verification, but do not clear a live speed
+                // sample while another parallel file is still reading a body.
+                var stage = speedTrackingInstaller?.HasActiveNetworkTransfers == true
+                    ? LaunchProgressStages.DownloadingFiles
+                    : LaunchProgressStages.CheckingFiles;
+                ReportProgress(stage, $"{args.EventType}: {args.Name}", CalculateTotalPercent());
             }
         };
 
@@ -168,7 +176,10 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
                 return;
             }
 
-            var nextPercent = Math.Clamp(percent.Value, 0, 100);
+            // CML may finish its file-check pass before the remaining download,
+            // publishing and installer work. Keep 100% exclusively for the
+            // caller's successful completion signal.
+            var nextPercent = Math.Clamp(percent.Value, 0, 99);
             if (nextPercent < lastPercent)
                 nextPercent = lastPercent;
 

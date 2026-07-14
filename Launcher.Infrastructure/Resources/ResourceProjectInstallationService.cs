@@ -82,18 +82,22 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
         {
             case ResourceProjectInstallationTargetKind.LocalDirectory:
             {
-                var path = await resourceCatalogService.DownloadProjectVersionAsync(
+                var path = await DownloadProjectVersionAsync(
                     request.Version,
                     RequireTargetDirectory(request),
+                    progress,
                     cancellationToken).ConfigureAwait(false);
+                progress?.Report(new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty, 99));
                 return new ResourceProjectInstallationResult(InstalledPath: path);
             }
             case ResourceProjectInstallationTargetKind.ExistingInstance:
             {
-                var path = await resourceCatalogService.InstallProjectVersionAsync(
+                var path = await InstallProjectVersionAsync(
                     request.Version,
                     RequireInstance(request),
+                    progress,
                     cancellationToken).ConfigureAwait(false);
+                progress?.Report(new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty, 99));
                 return new ResourceProjectInstallationResult(InstalledPath: path);
             }
             case ResourceProjectInstallationTargetKind.NewModpackInstance:
@@ -103,6 +107,24 @@ public sealed class ResourceProjectInstallationService : IResourceProjectInstall
                 throw new ArgumentOutOfRangeException(nameof(request));
         }
     }
+
+    private Task<string> DownloadProjectVersionAsync(
+        ResourceProjectVersion version,
+        string targetDirectory,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken) =>
+        resourceCatalogService is IResourceCatalogProgressReporter progressReporter
+            ? progressReporter.DownloadProjectVersionWithProgressAsync(version, targetDirectory, progress, cancellationToken)
+            : resourceCatalogService.DownloadProjectVersionAsync(version, targetDirectory, cancellationToken);
+
+    private Task<string> InstallProjectVersionAsync(
+        ResourceProjectVersion version,
+        GameInstance instance,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken) =>
+        resourceCatalogService is IResourceCatalogProgressReporter progressReporter
+            ? progressReporter.InstallProjectVersionWithProgressAsync(version, instance, progress, cancellationToken)
+            : resourceCatalogService.InstallProjectVersionAsync(version, instance, cancellationToken);
 
     private async Task<ResourceProjectInstallationResult> ImportModpackAsNewInstanceAsync(
         ResourceProjectVersion version,

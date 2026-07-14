@@ -28,7 +28,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Launcher.Infrastructure.Resources;
 
-public sealed class ResourceCatalogService : IResourceCatalogService
+public sealed class ResourceCatalogService : IResourceCatalogService, IResourceCatalogProgressReporter
 {
     private readonly IReadOnlyDictionary<ResourceProjectSource, IResourceProviderClient> providers;
     private readonly ResourceProjectStorage storage;
@@ -219,6 +219,42 @@ public sealed class ResourceCatalogService : IResourceCatalogService
         CancellationToken cancellationToken = default)
     {
         var target = await storage.DownloadAsync(version, targetDirectory, cancellationToken).ConfigureAwait(false);
+        logger.LogInformation("Resource project version downloaded. VersionId={VersionId} Target={Target}", version.VersionId, target);
+        return target;
+    }
+
+    Task<string> IResourceCatalogProgressReporter.InstallProjectVersionWithProgressAsync(
+        ResourceProjectVersion version,
+        GameInstance instance,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken) =>
+        InstallProjectVersionWithProgressAsync(version, instance, progress, cancellationToken);
+
+    Task<string> IResourceCatalogProgressReporter.DownloadProjectVersionWithProgressAsync(
+        ResourceProjectVersion version,
+        string targetDirectory,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken) =>
+        DownloadProjectVersionWithProgressAsync(version, targetDirectory, progress, cancellationToken);
+
+    private async Task<string> InstallProjectVersionWithProgressAsync(
+        ResourceProjectVersion version,
+        GameInstance instance,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var target = await storage.InstallAsync(version, instance, progress, cancellationToken).ConfigureAwait(false);
+        logger.LogInformation("Resource project version installed. VersionId={VersionId} Target={Target}", version.VersionId, target);
+        return target;
+    }
+
+    private async Task<string> DownloadProjectVersionWithProgressAsync(
+        ResourceProjectVersion version,
+        string targetDirectory,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var target = await storage.DownloadAsync(version, targetDirectory, progress, cancellationToken).ConfigureAwait(false);
         logger.LogInformation("Resource project version downloaded. VersionId={VersionId} Target={Target}", version.VersionId, target);
         return target;
     }

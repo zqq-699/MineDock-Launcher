@@ -43,6 +43,15 @@ internal sealed class SlidingWindowDownloadSpeedReporter : IDisposable
             Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 
+    internal bool HasActiveTransfers
+    {
+        get
+        {
+            lock (syncRoot)
+                return !disposed && activeTransfers > 0;
+        }
+    }
+
     public void BeginTransfer()
     {
         lock (syncRoot)
@@ -160,6 +169,7 @@ internal sealed class SlidingWindowDownloadSpeedMeter
     private readonly object syncRoot = new();
     private readonly Queue<Sample> samples = new();
     private readonly Func<DateTimeOffset> clock;
+    private DateTimeOffset? samplingStartedAt;
 
     public SlidingWindowDownloadSpeedMeter(Func<DateTimeOffset>? clock = null)
     {
@@ -173,8 +183,10 @@ internal sealed class SlidingWindowDownloadSpeedMeter
         lock (syncRoot)
         {
             var now = clock();
-            samples.Enqueue(new Sample(now, bytesDelta));
             Trim(now);
+            if (samples.Count == 0)
+                samplingStartedAt = now;
+            samples.Enqueue(new Sample(now, bytesDelta));
         }
     }
 
@@ -184,7 +196,16 @@ internal sealed class SlidingWindowDownloadSpeedMeter
         {
             var now = clock();
             Trim(now);
-            if (samples.Count == 0 || now - samples.Peek().Timestamp < Window)
+            if (samples.Count == 0)
+            {
+                samplingStartedAt = null;
+                return null;
+            }
+
+            // Trimming removes the oldest sample as soon as the clock moves past
+            // the window boundary. Keep the sampling start separately so a live
+            // transfer remains measurable after that boundary has passed.
+            if (samplingStartedAt is not { } startedAt || now - startedAt < Window)
                 return null;
             var bytesPerSecond = samples.Sum(sample => sample.Bytes) / Window.TotalSeconds;
             return FormatSpeed(bytesPerSecond);
@@ -196,6 +217,7 @@ internal sealed class SlidingWindowDownloadSpeedMeter
         lock (syncRoot)
         {
             samples.Clear();
+            samplingStartedAt = null;
         }
     }
 

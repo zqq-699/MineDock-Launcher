@@ -144,6 +144,8 @@ public sealed class QuiltLoaderProvider : ILoaderProvider
 
         try
         {
+            var path = new MinecraftPath(gameDirectory);
+            using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(path);
             var finalVersionName = await QuiltVersionComposer.CreateFinalVersionAsync(
                 httpClient,
                 minecraftVersion,
@@ -154,11 +156,11 @@ public sealed class QuiltLoaderProvider : ILoaderProvider
                 downloadSpeedLimitMbPerSecond,
                 downloadSpeedLimitState,
                 logger,
-                cancellationToken);
+                cancellationToken,
+                downloadOperation);
 
-            using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(new MinecraftPath(gameDirectory));
             var launcher = VanillaLoaderProvider.CreateLauncher(
-                gameDirectory,
+                path,
                 progress,
                 downloadSourcePreference,
                 logger,

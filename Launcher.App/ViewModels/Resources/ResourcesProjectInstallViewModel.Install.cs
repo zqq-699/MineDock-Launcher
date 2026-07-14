@@ -135,7 +135,8 @@ internal async Task InstallAsync(
         }
         BeginSession(context, targetDirectory);
         BeginUserFeedback(context.Item);
-        await installationService.ExecuteAsync(request, cancellationToken: context.Session!.CancellationToken)
+        context.Session!.BeginPrimaryDownload(hasDependencies: false);
+        await installationService.ExecuteAsync(request, context.Session.Progress, context.Session.CancellationToken)
             .ConfigureAwait(false);
         if (context.Session.CompleteCancellation())
             return;
@@ -199,7 +200,10 @@ internal async Task InstallAsync(
         }
 
         BeginUserFeedback(context.Item);
-        await installationService.ExecuteAsync(request, cancellationToken: context.Session!.CancellationToken)
+        context.Session!.BeginPrimaryDownload(
+            dependencyPlan.Choice is RequiredDependenciesDialogChoice.AutoInstallDependencies
+                && dependencyPlan.MissingDependencies.Count > 0);
+        await installationService.ExecuteAsync(request, context.Session.Progress, context.Session.CancellationToken)
             .ConfigureAwait(false);
         if (context.Session.CompleteCancellation())
             return;

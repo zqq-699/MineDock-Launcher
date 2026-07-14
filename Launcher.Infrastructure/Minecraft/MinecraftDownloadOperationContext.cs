@@ -173,6 +173,9 @@ internal static class DownloadWorkspace
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
     }
+
+    internal static void DeleteOperationDirectory(string operationDirectory) =>
+        TryDeleteOperationDirectory(operationDirectory);
 }
 
 internal sealed class DownloadWorkspaceLease(string directory, FileStream ownerLock) : IDisposable
@@ -181,5 +184,13 @@ internal sealed class DownloadWorkspaceLease(string directory, FileStream ownerL
 
     public string Directory { get; } = directory;
 
-    public void Dispose() => Interlocked.Exchange(ref ownerLock, null)?.Dispose();
+    public void Dispose()
+    {
+        var lockHandle = Interlocked.Exchange(ref ownerLock, null);
+        if (lockHandle is null)
+            return;
+
+        lockHandle.Dispose();
+        DownloadWorkspace.DeleteOperationDirectory(Directory);
+    }
 }

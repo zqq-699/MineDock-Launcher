@@ -200,7 +200,7 @@ public sealed partial class DownloadInstallViewModel : ObservableObject
             InstallError = string.Empty;
             InstallStatusMessage = displayProgress.Message;
             if (displayProgress.Percent is { } percent)
-                InstallProgressPercent = percent;
+                InstallProgressPercent = Math.Clamp(Math.Max(InstallProgressPercent, percent), 0, 99);
         }
         installTask.Report(displayProgress);
     }
