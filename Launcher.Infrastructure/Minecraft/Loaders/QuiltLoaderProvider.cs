@@ -17,6 +17,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
@@ -172,6 +173,19 @@ public sealed class QuiltLoaderProvider : ILoaderProvider
                 speedReporter);
             VanillaLoaderProvider.AttachProgress(launcher, progress);
             await launcher.InstallAsync(finalVersionName, cancellationToken);
+            var validation = await new GameFileIntegrityService(httpClient, downloadSpeedLimitState, logger)
+                .ValidateAndRepairAsync(
+                    new GameFileIntegrityRequest(
+                        gameDirectory,
+                        finalVersionName,
+                        Path.Combine(gameDirectory, "versions", finalVersionName),
+                        downloadSourcePreference,
+                        downloadSpeedLimitMbPerSecond),
+                    new GameFileRepairOptions(AllowRepair: true),
+                    progress,
+                    cancellationToken).ConfigureAwait(false);
+            if (!validation.LaunchAllowed)
+                throw new InstanceRepairException($"Installed Quilt version {finalVersionName} failed required-file validation.");
 
             logger.LogInformation(
                 "Quilt installation completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} FinalVersionName={FinalVersionName}",

@@ -36,7 +36,7 @@ namespace Launcher.Infrastructure.Minecraft;
 public sealed partial class LaunchService : ILaunchService
 {
     private readonly ILaunchAccountSessionService accountSessionService;
-    private readonly IManagedVersionRepairService versionRepairService;
+    private readonly IGameFileIntegrityService gameFileIntegrityService;
     private readonly ILaunchGameLauncherFactory launcherFactory;
     private readonly ILaunchCrashMonitor crashMonitor;
     private readonly ILaunchCommandRunner commandRunner;
@@ -59,7 +59,34 @@ public sealed partial class LaunchService : ILaunchService
         IAuthlibInjectorProvisioningService? authlibInjectorProvisioningService = null)
         : this(
             accountSessionService,
-            new ManagedVersionRepairService(downloadSpeedLimitState: downloadSpeedLimitState),
+            new GameFileIntegrityService(downloadSpeedLimitState),
+            new LaunchGameLauncherFactory(downloadSpeedLimitState),
+            new LaunchCrashMonitor(),
+            new LaunchCommandRunner(),
+            javaRuntimeSelectionService,
+            javaRuntimeProvisioningService,
+            systemMemoryService,
+            modService,
+            gameLanguageService,
+            logger,
+            authlibInjectorProvisioningService)
+    {
+    }
+
+    public LaunchService(
+        ILaunchAccountSessionService accountSessionService,
+        IGameFileIntegrityService gameFileIntegrityService,
+        IJavaRuntimeSelectionService javaRuntimeSelectionService,
+        IJavaRuntimeProvisioningService? javaRuntimeProvisioningService = null,
+        IDownloadSpeedLimitState? downloadSpeedLimitState = null,
+        ISystemMemoryService? systemMemoryService = null,
+        IModService? modService = null,
+        IGameLanguageService? gameLanguageService = null,
+        ILogger<LaunchService>? logger = null,
+        IAuthlibInjectorProvisioningService? authlibInjectorProvisioningService = null)
+        : this(
+            accountSessionService,
+            gameFileIntegrityService,
             new LaunchGameLauncherFactory(downloadSpeedLimitState),
             new LaunchCrashMonitor(),
             new LaunchCommandRunner(),
@@ -86,9 +113,38 @@ public sealed partial class LaunchService : ILaunchService
         IGameLanguageService? gameLanguageService = null,
         ILogger<LaunchService>? logger = null,
         IAuthlibInjectorProvisioningService? authlibInjectorProvisioningService = null)
+        : this(
+            accountSessionService,
+            new LegacyManagedVersionRepairAdapter(versionRepairService),
+            launcherFactory,
+            crashMonitor,
+            commandRunner,
+            javaRuntimeSelectionService,
+            javaRuntimeProvisioningService,
+            systemMemoryService,
+            modService,
+            gameLanguageService,
+            logger,
+            authlibInjectorProvisioningService)
+    {
+    }
+
+    internal LaunchService(
+        ILaunchAccountSessionService accountSessionService,
+        IGameFileIntegrityService gameFileIntegrityService,
+        ILaunchGameLauncherFactory launcherFactory,
+        ILaunchCrashMonitor crashMonitor,
+        ILaunchCommandRunner? commandRunner = null,
+        IJavaRuntimeSelectionService? javaRuntimeSelectionService = null,
+        IJavaRuntimeProvisioningService? javaRuntimeProvisioningService = null,
+        ISystemMemoryService? systemMemoryService = null,
+        IModService? modService = null,
+        IGameLanguageService? gameLanguageService = null,
+        ILogger<LaunchService>? logger = null,
+        IAuthlibInjectorProvisioningService? authlibInjectorProvisioningService = null)
     {
         this.accountSessionService = accountSessionService;
-        this.versionRepairService = versionRepairService;
+        this.gameFileIntegrityService = gameFileIntegrityService;
         this.launcherFactory = launcherFactory;
         this.crashMonitor = crashMonitor;
         this.commandRunner = commandRunner ?? new LaunchCommandRunner();
@@ -98,6 +154,32 @@ public sealed partial class LaunchService : ILaunchService
         this.authlibInjectorProvisioningService = authlibInjectorProvisioningService;
         this.logger = logger ?? NullLogger<LaunchService>.Instance;
         launchSettingsResolver = new LaunchSettingsResolver(systemMemoryService, modService, this.logger);
+    }
+
+    private sealed class LegacyManagedVersionRepairAdapter(IManagedVersionRepairService repairService) : IGameFileIntegrityService
+    {
+        public async Task<GameFileRepairResult> ValidateAndRepairAsync(
+            GameFileIntegrityRequest request,
+            GameFileRepairOptions options,
+            IProgress<LauncherProgress>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            await repairService.RepairAsync(
+                request.MinecraftDirectory,
+                request.VersionName,
+                request.InstanceDirectory,
+                progress,
+                options.AllowRepair,
+                cancellationToken,
+                request.DownloadSourcePreference,
+                request.DownloadSpeedLimitMbPerSecond).ConfigureAwait(false);
+            return GameFileRepairResult.Empty;
+        }
+
+        public Task<GameFileRepairResult> ValidateFinalLaunchCommandAsync(
+            GameFileIntegrityRequest request,
+            System.Diagnostics.ProcessStartInfo startInfo,
+            CancellationToken cancellationToken = default) => Task.FromResult(GameFileRepairResult.Empty);
     }
 
     /// <summary>

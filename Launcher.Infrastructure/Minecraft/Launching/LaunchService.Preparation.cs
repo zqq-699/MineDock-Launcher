@@ -69,16 +69,19 @@ public sealed partial class LaunchService
                 "Checking game files before launch. VersionName={VersionName} AutoRepair={AutoRepair}",
                 resolvedSettings.VersionName,
                 resolvedSettings.AutoRepairMissingFiles);
-            await versionRepairService.RepairAsync(
-                    settings.MinecraftDirectory,
-                    resolvedSettings.VersionName,
-                    instance.InstanceDirectory,
+            var repairResult = await gameFileIntegrityService.ValidateAndRepairAsync(
+                    new GameFileIntegrityRequest(
+                        settings.MinecraftDirectory,
+                        resolvedSettings.VersionName,
+                        instance.InstanceDirectory,
+                        settings.DownloadSourcePreference,
+                        settings.DownloadSpeedLimitMbPerSecond),
+                    new GameFileRepairOptions(resolvedSettings.AutoRepairMissingFiles),
                     progress,
-                    resolvedSettings.AutoRepairMissingFiles,
-                    cancellationToken,
-                    downloadSourcePreference: settings.DownloadSourcePreference,
-                    downloadSpeedLimitMbPerSecond: settings.DownloadSpeedLimitMbPerSecond)
+                    cancellationToken)
                 .ConfigureAwait(false);
+            if (!repairResult.LaunchAllowed)
+                throw new InstanceRepairException(CreateIntegrityFailureMessage(repairResult));
         }
 
         var accountSession = await accountSessionService.CreateSessionAsync(account, cancellationToken)
@@ -178,6 +181,21 @@ public sealed partial class LaunchService
                 launchOption,
                 cancellationToken)
             .ConfigureAwait(false);
+        var finalValidation = await gameFileIntegrityService.ValidateFinalLaunchCommandAsync(
+                new GameFileIntegrityRequest(
+                    settings.MinecraftDirectory,
+                    resolvedSettings.VersionName,
+                    instance.InstanceDirectory,
+                    settings.DownloadSourcePreference,
+                    settings.DownloadSpeedLimitMbPerSecond),
+                process.StartInfo,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (!finalValidation.LaunchAllowed)
+        {
+            process.Dispose();
+            throw new InstanceRepairException(CreateIntegrityFailureMessage(finalValidation));
+        }
         var crashMonitorSession = crashMonitor.CreateSession(
             settings.MinecraftDirectory,
             instance.InstanceDirectory,
@@ -193,5 +211,13 @@ public sealed partial class LaunchService
             resolvedSettings.VersionName,
             process.Id);
         return new StartedLaunchProcess(process, crashMonitorSession);
+    }
+
+    private static string CreateIntegrityFailureMessage(GameFileRepairResult result)
+    {
+        var first = result.Failures.FirstOrDefault();
+        return first is null
+            ? "Required game files are missing or damaged."
+            : $"Required game file validation failed ({first.Reason}): {first.TargetPath}";
     }
 }

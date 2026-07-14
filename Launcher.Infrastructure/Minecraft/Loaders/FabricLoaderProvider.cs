@@ -152,6 +152,19 @@ public sealed class FabricLoaderProvider : ILoaderProvider
             speedReporter);
         VanillaLoaderProvider.AttachProgress(launcher, progress);
         await launcher.InstallAsync(finalVersionName, cancellationToken);
+        var validation = await new GameFileIntegrityService(httpClient, downloadSpeedLimitState, logger)
+            .ValidateAndRepairAsync(
+                new GameFileIntegrityRequest(
+                    gameDirectory,
+                    finalVersionName,
+                    Path.Combine(gameDirectory, "versions", finalVersionName),
+                    downloadSourcePreference,
+                    downloadSpeedLimitMbPerSecond),
+                new GameFileRepairOptions(AllowRepair: true),
+                progress,
+                cancellationToken).ConfigureAwait(false);
+        if (!validation.LaunchAllowed)
+            throw new InstanceRepairException($"Installed Fabric version {finalVersionName} failed required-file validation.");
         return finalVersionName;
     }
 

@@ -100,7 +100,37 @@ public sealed class VanillaLoaderProvider : ILoaderProvider
             speedReporter);
         AttachProgress(launcher, progress);
         await launcher.InstallAsync(finalVersionName, cancellationToken);
+        await EnsureInstalledVersionIsValidAsync(
+            finalVersionName,
+            gameDirectory,
+            downloadSourcePreference,
+            downloadSpeedLimitMbPerSecond,
+            progress,
+            cancellationToken).ConfigureAwait(false);
         return finalVersionName;
+    }
+
+    private async Task EnsureInstalledVersionIsValidAsync(
+        string versionName,
+        string gameDirectory,
+        DownloadSourcePreference downloadSourcePreference,
+        int downloadSpeedLimitMbPerSecond,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        var result = await new GameFileIntegrityService(httpClient, downloadSpeedLimitState, logger)
+            .ValidateAndRepairAsync(
+                new GameFileIntegrityRequest(
+                    gameDirectory,
+                    versionName,
+                    Path.Combine(gameDirectory, "versions", versionName),
+                    downloadSourcePreference,
+                    downloadSpeedLimitMbPerSecond),
+                new GameFileRepairOptions(AllowRepair: true),
+                progress,
+                cancellationToken).ConfigureAwait(false);
+        if (!result.LaunchAllowed)
+            throw new InstanceRepairException($"Installed vanilla version {versionName} failed required-file validation.");
     }
 
     internal static void AttachProgress(MinecraftLauncher launcher, IProgress<LauncherProgress>? progress)

@@ -55,6 +55,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ILoaderProvider, ForgeLoaderProvider>();
         services.AddSingleton<ILoaderProvider, NeoForgeLoaderProvider>();
         services.AddSingleton<ILoaderProvider, QuiltLoaderProvider>();
+        services.AddSingleton<IGameFileIntegrityService, GameFileIntegrityService>();
         services.AddSingleton<ILaunchService, LaunchService>();
         services.AddSingleton<ILaunchDiagnosticExportService, LaunchDiagnosticExportService>();
         services.AddSingleton<IGameLanguageService, GameLanguageService>();
