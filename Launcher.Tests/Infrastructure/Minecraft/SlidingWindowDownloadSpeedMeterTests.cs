@@ -145,6 +145,34 @@ public sealed class SlidingWindowDownloadSpeedMeterTests
         Assert.Single(reports);
     }
 
+    [Fact]
+    public void ActiveTransferClearsExpiredSpeedOnceAndCanReportAgainAfterNewBytes()
+    {
+        var now = DateTimeOffset.UnixEpoch;
+        var reports = new List<LauncherProgress>();
+        var meter = new SlidingWindowDownloadSpeedMeter(() => now);
+        using var reporter = new SlidingWindowDownloadSpeedReporter(
+            new InlineProgress(reports), meter, clock: () => now);
+
+        reporter.BeginTransfer();
+        reporter.ReportNetworkBytes(1024);
+        now += TimeSpan.FromMilliseconds(500);
+        reporter.Refresh();
+
+        now += SlidingWindowDownloadSpeedMeter.Window + TimeSpan.FromMilliseconds(1);
+        reporter.Refresh();
+        reporter.Refresh();
+
+        reporter.ReportNetworkBytes(1024);
+        now += TimeSpan.FromMilliseconds(500);
+        reporter.Refresh();
+
+        Assert.Collection(reports,
+            progress => Assert.Equal("2.0 KB/s", progress.DownloadSpeedText),
+            progress => Assert.Equal(string.Empty, progress.DownloadSpeedText),
+            progress => Assert.Equal("2.0 KB/s", progress.DownloadSpeedText));
+    }
+
     private sealed class InlineProgress(List<LauncherProgress> reports) : IProgress<LauncherProgress>
     {
         public void Report(LauncherProgress value) => reports.Add(value);

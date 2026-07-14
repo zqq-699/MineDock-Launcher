@@ -142,10 +142,20 @@ internal sealed class SlidingWindowDownloadSpeedReporter : IDisposable
                 if (activeTransfers == 0 && lastReportedSpeed is not null)
                     return;
                 speed = meter.GetSpeedText();
-                if (speed is null || string.Equals(speed, lastReportedSpeed, StringComparison.Ordinal))
+                if (speed is null)
+                {
+                    if (lastReportedSpeed is null)
+                        return;
+
+                    lastReportedSpeed = null;
+                    shouldClear = true;
+                }
+                else if (string.Equals(speed, lastReportedSpeed, StringComparison.Ordinal))
                     return;
-                lastReportedSpeed = speed;
-                shouldClear = false;
+                else
+                {
+                    lastReportedSpeed = speed;
+                }
             }
         }
         ReportSpeed(shouldClear ? string.Empty : speed!);
