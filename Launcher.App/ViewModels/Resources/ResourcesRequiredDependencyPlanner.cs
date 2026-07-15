@@ -85,13 +85,14 @@ internal sealed class ResourcesRequiredDependencyPlanner
         IReadOnlyList<ResourceDependencyInstallCandidate> missingDependencies,
         GameInstance instance,
         string? projectId,
+        IProgress<LauncherProgress>? taskProgress,
         Action<LauncherProgress>? reportProgress,
         CancellationToken cancellationToken)
     {
         if (planningService is null || missingDependencies.Count == 0)
             return Task.CompletedTask;
 
-        var progress = new Progress<ResourceDependencyInstallProgress>(value =>
+        IProgress<ResourceDependencyInstallProgress> progress = new Progress<ResourceDependencyInstallProgress>(value =>
         {
             var message = string.Format(
                 Strings.Status_ModRequiredDependencyInstallingFormat,
@@ -99,6 +100,8 @@ internal sealed class ResourcesRequiredDependencyPlanner
             reportStatus(message);
             reportProgress?.Invoke(new LauncherProgress(ModProgressStages.DownloadingFile, message));
         });
+        if (taskProgress is not null)
+            progress = DownloadSpeedTaskProgress.Carry(taskProgress, progress);
         logger?.LogInformation(
             "Installing required resource dependencies. ProjectId={ProjectId} MissingCount={MissingCount} InstanceId={InstanceId}",
             projectId,

@@ -18,7 +18,7 @@ namespace Launcher.Application.Services;
 /// download card.  The projection is deliberately local to one logical install
 /// operation so retries and parallel callbacks cannot make the card regress.
 /// </summary>
-internal sealed class InstallCardProgressMapper : IProgress<LauncherProgress>
+internal sealed class InstallCardProgressMapper : IProgress<LauncherProgress>, ISpeedMeterProgress
 {
     private readonly IProgress<LauncherProgress> innerProgress;
     private readonly bool hasExternalLoaderInstaller;
@@ -34,6 +34,8 @@ internal sealed class InstallCardProgressMapper : IProgress<LauncherProgress>
         hasExternalLoaderInstaller = loader is LoaderKind.Forge or LoaderKind.NeoForge;
         this.hasOptionalContent = hasOptionalContent;
     }
+
+    public SpeedMeter? SpeedMeter => SpeedMeterProgress.TryGet(innerProgress);
 
     public void Report(LauncherProgress value)
     {

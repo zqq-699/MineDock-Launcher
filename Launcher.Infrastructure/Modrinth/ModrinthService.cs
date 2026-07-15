@@ -23,6 +23,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Minecraft;
 using Launcher.Infrastructure.Modrinth.Dto;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -283,7 +284,17 @@ public sealed class ModrinthService : IModrinthService
         var target = Path.Combine(modsDirectory, file.FileName);
 
         progress?.Report(new LauncherProgress(ModProgressStages.DownloadingFile, $"{projectTitle} {version.VersionNumber}"));
-        await using var stream = await httpClient.GetStreamAsync(file.Url, cancellationToken);
+        using var response = await httpClient.GetAsync(
+            file.Url,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        await DownloadResponseThrottler.ApplyAsync(
+            response,
+            bandwidthLimiter: null,
+            cancellationToken,
+            speedMeter: SpeedMeterProgress.TryGet(progress)).ConfigureAwait(false);
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         await using var destination = File.Create(target);
         await stream.CopyToAsync(destination, cancellationToken);
         logger.LogInformation(

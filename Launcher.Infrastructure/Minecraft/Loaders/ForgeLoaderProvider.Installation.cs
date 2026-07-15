@@ -48,7 +48,7 @@ private async Task<string> InstallCoreAsync(
         int downloadSpeedLimitMbPerSecond)
     {
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
-        using var speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
+        var speedMeter = SpeedMeterProgress.TryGet(progress);
         var catalogStopwatch = Stopwatch.StartNew();
         logger.LogInformation(
             "Forge installation catalog resolution started. MinecraftVersion={MinecraftVersion} RequestedLoaderVersion={RequestedLoaderVersion}",
@@ -93,7 +93,7 @@ private async Task<string> InstallCoreAsync(
                 downloadSourcePreference,
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond,
-                speedReporter);
+                speedMeter);
             logger.LogInformation(
                 "Forge installer download completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} DurationMs={DurationMs}",
                 minecraftVersion,
@@ -135,7 +135,8 @@ private async Task<string> InstallCoreAsync(
                 downloadSourcePreference,
                 downloadSpeedLimitMbPerSecond,
                 cancellationToken,
-                downloadOperation).ConfigureAwait(false);
+                downloadOperation,
+                speedMeter).ConfigureAwait(false);
             logger.LogInformation(
                 "Forge installer prerequisites preparation completed. MinecraftVersion={MinecraftVersion} LoaderVersion={LoaderVersion} DurationMs={DurationMs}",
                 minecraftVersion,
@@ -238,7 +239,8 @@ private async Task<string> InstallCoreAsync(
                 downloadSourcePreference,
                 progress,
                 cancellationToken,
-                downloadSpeedLimitMbPerSecond);
+                downloadSpeedLimitMbPerSecond,
+                speedMeter);
             await installerArtifactService.MaterializeRuntimeLibrariesAsync(
                 installerJarPath,
                 installerPlan,
@@ -246,7 +248,8 @@ private async Task<string> InstallCoreAsync(
                 downloadSourcePreference,
                 downloadSpeedLimitMbPerSecond,
                 cancellationToken,
-                downloadOperation).ConfigureAwait(false);
+                downloadOperation,
+                speedMeter).ConfigureAwait(false);
             await installerArtifactService.ValidatePublishedArtifactsAsync(
                 sharedMinecraftDirectory,
                 installerPlan,

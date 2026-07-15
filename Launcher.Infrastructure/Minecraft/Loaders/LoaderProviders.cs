@@ -122,7 +122,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
     {
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
         using var downloadOperation = CreateDownloadOperationContext(minecraftPath);
-        using var speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
+        var speedMeter = SpeedMeterProgress.TryGet(progress);
 
         var launcher = CreateLauncher(
             minecraftPath,
@@ -132,7 +132,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
             downloadSpeedLimitMbPerSecond,
             downloadSpeedLimitState,
             downloadOperation,
-            speedReporter);
+            speedMeter);
         AttachProgress(launcher, progress);
         var finalVersionName = await ComposedVersionInstallRunner.RunAsync(
             token => VanillaVersionComposer.PrepareFinalVersionAsync(
@@ -146,7 +146,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
                 logger,
                 token,
                 downloadOperation,
-                speedReporter),
+                speedMeter),
             async (versionName, token) => await launcher.InstallAsync(versionName, token).ConfigureAwait(false),
             cancellationToken).ConfigureAwait(false);
         await EnsureInstalledVersionIsValidAsync(
@@ -245,7 +245,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
             return (progressedTasks + currentTaskFraction) * 100d / totalTasks;
         }
 
-        void ReportProgress(string stage, string message, double? percent, string? downloadSpeedText = null)
+        void ReportProgress(string stage, string message, double? percent)
         {
             var now = DateTimeOffset.UtcNow;
             if (percent is null)
@@ -258,7 +258,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
 
                 lastReportedAt = now;
                 lastReportedMessage = message;
-                progress.Report(new LauncherProgress(stage, message, DownloadSpeedText: downloadSpeedText));
+                progress.Report(new LauncherProgress(stage, message));
                 return;
             }
 
@@ -280,7 +280,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
             lastReportedPercent = nextPercent;
             lastReportedAt = now;
             lastReportedMessage = message;
-            progress.Report(new LauncherProgress(stage, message, nextPercent, downloadSpeedText));
+            progress.Report(new LauncherProgress(stage, message, nextPercent));
         }
     }
 
@@ -296,7 +296,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
         int downloadSpeedLimitMbPerSecond = 0,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         MinecraftDownloadOperationContext? operationContext = null,
-        SlidingWindowDownloadSpeedReporter? sharedSpeedReporter = null)
+        SpeedMeter? sharedSpeedMeter = null)
     {
         return CreateLauncher(
             new MinecraftPath(gameDirectory),
@@ -306,7 +306,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
             downloadSpeedLimitMbPerSecond,
             downloadSpeedLimitState,
             operationContext,
-            sharedSpeedReporter);
+            sharedSpeedMeter);
     }
 
     internal static MinecraftLauncher CreateLauncher(
@@ -317,7 +317,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
         int downloadSpeedLimitMbPerSecond = 0,
         IDownloadSpeedLimitState? downloadSpeedLimitState = null,
         MinecraftDownloadOperationContext? operationContext = null,
-        SlidingWindowDownloadSpeedReporter? sharedSpeedReporter = null)
+        SpeedMeter? sharedSpeedMeter = null)
     {
         // 统一注入镜像路由、限速和运行库下载器，保证 Vanilla/Fabric 使用相同下载策略。
         var parameters = MinecraftLauncherParameters.CreateDefault(path);
@@ -349,7 +349,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
             progress,
             path,
             operationContext,
-            sharedSpeedReporter);
+            sharedSpeedMeter);
         parameters.GameInstaller = gameInstaller;
         logger?.LogInformation(
             "Minecraft game installer concurrency configured. CheckerConcurrency={CheckerConcurrency} DownloaderConcurrency={DownloaderConcurrency} GlobalMaximumConcurrency={GlobalMaximumConcurrency}",
@@ -364,7 +364,7 @@ public sealed class VanillaLoaderProvider : ILoaderProvider, ISeparatedInstallPa
             parameters.FileExtractors.RemoveAt(defaultAssetExtractor.index);
             parameters.FileExtractors.Insert(
                 defaultAssetExtractor.index,
-                new SafeAssetFileExtractor(assetIndexExecutor, downloadSourcePreference, operationContext, sharedSpeedReporter));
+                new SafeAssetFileExtractor(assetIndexExecutor, downloadSourcePreference, operationContext, sharedSpeedMeter));
         }
         return new MinecraftLauncher(parameters);
     }

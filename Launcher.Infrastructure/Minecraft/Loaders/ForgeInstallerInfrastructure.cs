@@ -69,6 +69,24 @@ internal interface IFinalVersionInstaller
     Task InstallAsync(
         MinecraftPath path,
         string versionName,
+        DownloadSourcePreference downloadSourcePreference,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond,
+        SpeedMeter? speedMeter)
+    {
+        return InstallAsync(
+            path,
+            versionName,
+            downloadSourcePreference,
+            progress,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
+    }
+
+    Task InstallAsync(
+        MinecraftPath path,
+        string versionName,
         MinecraftDownloadOperationContext operationContext,
         DownloadSourcePreference downloadSourcePreference,
         IProgress<LauncherProgress>? progress,
@@ -78,6 +96,26 @@ internal interface IFinalVersionInstaller
         return InstallAsync(
             path,
             versionName,
+            downloadSourcePreference,
+            progress,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond);
+    }
+
+    Task InstallAsync(
+        MinecraftPath path,
+        string versionName,
+        MinecraftDownloadOperationContext operationContext,
+        DownloadSourcePreference downloadSourcePreference,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond,
+        SpeedMeter? speedMeter)
+    {
+        return InstallAsync(
+            path,
+            versionName,
+            operationContext,
             downloadSourcePreference,
             progress,
             cancellationToken,
@@ -126,11 +164,53 @@ internal sealed class FinalVersionInstaller : IFinalVersionInstaller
     public async Task InstallAsync(
         MinecraftPath path,
         string versionName,
+        DownloadSourcePreference downloadSourcePreference,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond,
+        SpeedMeter? speedMeter)
+    {
+        using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(path);
+        await InstallAsync(
+            path,
+            versionName,
+            downloadOperation,
+            downloadSourcePreference,
+            progress,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond,
+            speedMeter).ConfigureAwait(false);
+    }
+
+    public async Task InstallAsync(
+        MinecraftPath path,
+        string versionName,
         MinecraftDownloadOperationContext operationContext,
         DownloadSourcePreference downloadSourcePreference,
         IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken,
         int downloadSpeedLimitMbPerSecond = 0)
+    {
+        await InstallAsync(
+            path,
+            versionName,
+            operationContext,
+            downloadSourcePreference,
+            progress,
+            cancellationToken,
+            downloadSpeedLimitMbPerSecond,
+            speedMeter: SpeedMeterProgress.TryGet(progress)).ConfigureAwait(false);
+    }
+
+    public async Task InstallAsync(
+        MinecraftPath path,
+        string versionName,
+        MinecraftDownloadOperationContext operationContext,
+        DownloadSourcePreference downloadSourcePreference,
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken,
+        int downloadSpeedLimitMbPerSecond,
+        SpeedMeter? speedMeter)
     {
         ArgumentNullException.ThrowIfNull(operationContext);
         var launcher = VanillaLoaderProvider.CreateLauncher(
@@ -138,7 +218,8 @@ internal sealed class FinalVersionInstaller : IFinalVersionInstaller
             progress,
             downloadSourcePreference,
             downloadSpeedLimitMbPerSecond: downloadSpeedLimitMbPerSecond,
-            operationContext: operationContext);
+            operationContext: operationContext,
+            sharedSpeedMeter: speedMeter);
         VanillaLoaderProvider.AttachProgress(launcher, progress);
         await launcher.InstallAsync(versionName, cancellationToken);
     }

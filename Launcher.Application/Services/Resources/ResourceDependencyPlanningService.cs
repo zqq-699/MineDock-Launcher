@@ -179,11 +179,15 @@ public sealed class ResourceDependencyPlanningService : IResourceDependencyPlann
             if (ResolveRequirementState(candidate, installedDependencies) is ResourceDependencyRequirementState.Installed)
                 return;
             progress?.Report(new ResourceDependencyInstallProgress(project.Title));
+            var downloadProgress = SpeedMeterProgress.TryGet(progress) is { } speedMeter
+                ? new SpeedMeterProgress(speedMeter, static _ => { })
+                : null;
             await installationService.ExecuteAsync(
                 new ResourceProjectInstallationRequest(
                     version,
                     ResourceProjectInstallationTargetKind.ExistingInstance,
                     Instance: instance),
+                downloadProgress,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             // 立即更新内存目录，使同一计划中的后续分支能看到刚安装的依赖而无需重新扫描磁盘。
             AddIdentifiers(installedDependencies, candidate.Dependency, version);

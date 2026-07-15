@@ -291,7 +291,6 @@ public sealed class MinecraftDownloadRetryTests
                 destination,
                 expectedSha1: null,
                 expectedSize: 8,
-                reportDownloadedBytes: null,
                 CancellationToken.None);
 
             Assert.Equal("complete", await File.ReadAllTextAsync(destination));
@@ -328,7 +327,6 @@ public sealed class MinecraftDownloadRetryTests
                 destination,
                 expectedSha1,
                 expectedSize: 4,
-                reportDownloadedBytes: null,
                 CancellationToken.None);
 
             Assert.Equal("good", await File.ReadAllTextAsync(destination));
@@ -688,7 +686,6 @@ public sealed class MinecraftDownloadRetryTests
         var executor = CreateExecutor(client);
         var directory = CreateTempDirectory();
         var destination = Path.Combine(directory, "client.jar");
-        var bodyReadBytes = new List<long>();
 
         try
         {
@@ -699,11 +696,9 @@ public sealed class MinecraftDownloadRetryTests
                 destination,
                 Convert.ToHexString(SHA1.HashData("partdata"u8.ToArray())),
                 8,
-                reportDownloadedBytes: bodyReadBytes.Add,
                 CancellationToken.None);
 
             Assert.Equal("partdata", await File.ReadAllTextAsync(destination));
-            Assert.Equal(8, bodyReadBytes.Sum());
             Assert.False(File.Exists(destination + ".part"));
             Assert.False(File.Exists(destination + ".part.meta"));
         }
@@ -724,7 +719,6 @@ public sealed class MinecraftDownloadRetryTests
         var destination = Path.Combine(directory, "assets", "objects", "aa", "asset");
         var payload = "asset-data"u8.ToArray();
         var sha1 = Convert.ToHexString(SHA1.HashData(payload));
-        var bodyReadBytes = new List<long>();
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         await File.WriteAllBytesAsync(destination, payload);
 
@@ -739,12 +733,10 @@ public sealed class MinecraftDownloadRetryTests
                 destination,
                 sha1,
                 payload.Length,
-                reportDownloadedBytes: bodyReadBytes.Add,
                 CancellationToken.None,
                 options: new DownloadFileOptions(DownloadPersistenceMode.LightweightAtomic, operation));
 
             Assert.Empty(handler.RequestUris);
-            Assert.Empty(bodyReadBytes);
             Assert.Equal(payload, await File.ReadAllBytesAsync(destination));
         }
         finally
@@ -782,7 +774,6 @@ public sealed class MinecraftDownloadRetryTests
                 destination,
                 sha1,
                 payload.Length,
-                reportDownloadedBytes: null,
                 CancellationToken.None,
                 options: new DownloadFileOptions(DownloadPersistenceMode.LightweightAtomic, operation));
 
@@ -825,8 +816,8 @@ public sealed class MinecraftDownloadRetryTests
             using var operation = new MinecraftDownloadOperationContext(directory);
             operation.RegisterAsset(destination, sha1, payload.Length);
             var options = new DownloadFileOptions(DownloadPersistenceMode.LightweightAtomic, operation);
-            var first = executor.DownloadFileAsync(ManifestUrl, DownloadSourcePreference.Official, "Mojang", destination, sha1, payload.Length, null, CancellationToken.None, options: options);
-            var second = executor.DownloadFileAsync(ManifestUrl, DownloadSourcePreference.Official, "Mojang", destination, sha1, payload.Length, null, CancellationToken.None, options: options);
+            var first = executor.DownloadFileAsync(ManifestUrl, DownloadSourcePreference.Official, "Mojang", destination, sha1, payload.Length, CancellationToken.None, options: options);
+            var second = executor.DownloadFileAsync(ManifestUrl, DownloadSourcePreference.Official, "Mojang", destination, sha1, payload.Length, CancellationToken.None, options: options);
 
             await Task.WhenAll(first, second);
 
@@ -924,7 +915,6 @@ public sealed class MinecraftDownloadRetryTests
                     Path.Combine(fileAsDirectory, "client.jar"),
                     expectedSha1: null,
                     expectedSize: null,
-                    reportDownloadedBytes: null,
                     CancellationToken.None));
 
             Assert.Empty(handler.RequestUris);

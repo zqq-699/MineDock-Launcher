@@ -233,7 +233,7 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
             minecraftVersion,
             selectedLoaderVersion,
             isolatedVersionName);
-        using var speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
+        var speedMeter = SpeedMeterProgress.TryGet(progress);
 
         // 记录目标目录原有版本，清理阶段只移除本次安装引入的中间目录。
         var existingVersionNames = LoaderVersionDirectoryTransaction.CaptureExistingVersions(gameDirectory);
@@ -257,7 +257,7 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
                 downloadSourcePreference,
                 cancellationToken,
                 downloadSpeedLimitMbPerSecond,
-                speedReporter);
+                speedMeter);
 
             var installerArtifactService = new LoaderInstallerArtifactService(
                 httpClient,
@@ -283,7 +283,8 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
                 downloadSourcePreference,
                 downloadSpeedLimitMbPerSecond,
                 cancellationToken,
-                downloadOperation).ConfigureAwait(false);
+                downloadOperation,
+                speedMeter).ConfigureAwait(false);
 
             progress?.Report(new LauncherProgress(InstallProgressStages.RunningLoaderInstaller, string.Empty));
             await installerRunner.RunInstallerAsync("java", installerJarPath, installerMinecraftDirectory, cancellationToken);
@@ -333,7 +334,8 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
                 downloadSourcePreference,
                 progress,
                 cancellationToken,
-                downloadSpeedLimitMbPerSecond);
+                downloadSpeedLimitMbPerSecond,
+                speedMeter);
             await installerArtifactService.MaterializeRuntimeLibrariesAsync(
                 installerJarPath,
                 installerPlan,
@@ -341,7 +343,8 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
                 downloadSourcePreference,
                 downloadSpeedLimitMbPerSecond,
                 cancellationToken,
-                downloadOperation).ConfigureAwait(false);
+                downloadOperation,
+                speedMeter).ConfigureAwait(false);
             await installerArtifactService.ValidatePublishedArtifactsAsync(
                 sharedMinecraftDirectory,
                 installerPlan,
@@ -384,14 +387,13 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
         DownloadSourcePreference downloadSourcePreference,
         CancellationToken cancellationToken,
         int downloadSpeedLimitMbPerSecond,
-        SlidingWindowDownloadSpeedReporter? speedReporter = null)
+        SpeedMeter? speedMeter = null)
     {
         var executor = new MinecraftDownloadRequestExecutor(
             httpClient,
             logger,
             DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
             category: DownloadConcurrencyCategory.Runtime);
-        using var speedSession = speedReporter is null ? null : new DownloadActivitySpeedSession(speedReporter);
         await executor.DownloadFileAsync(
             $"{ArtifactBaseUrl}/{loaderVersion}/neoforge-{loaderVersion}-installer.jar",
             downloadSourcePreference,
@@ -399,9 +401,8 @@ public sealed class NeoForgeLoaderProvider : ILoaderProvider, IStagedLoaderProvi
             destinationPath,
             expectedSha1: null,
             expectedSize: null,
-            reportDownloadedBytes: speedReporter is null ? null : bytes => speedReporter.ReportNetworkBytes(bytes),
             cancellationToken,
-            reportActivity: speedSession is null ? null : activity => speedSession.Report(activity));
+            speedMeter: speedMeter);
     }
 
     private async Task EnsureFinalVersionIsSelfContainedAsync(

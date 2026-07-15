@@ -3306,4 +3306,7 @@
   <data name="Dialog_UserAgreementAgreeButton" xml:space="preserve"><value>同意</value></data>
   <data name="Status_UserAgreementSaveFailed" xml:space="preserve"><value>無法儲存使用者協議接受狀態，請重試。</value></data>
   <data name="Status_OpenUserAgreementFailed" xml:space="preserve"><value>無法開啟使用者協議，請檢查系統瀏覽器設定後重試。</value></data>
+  <data name="DownloadSpeed_BytesPerSecondFormat" xml:space="preserve"><value>{0:0} B/s</value></data>
+  <data name="DownloadSpeed_KilobytesPerSecondFormat" xml:space="preserve"><value>{0:0.0} KB/s</value></data>
+  <data name="DownloadSpeed_MegabytesPerSecondFormat" xml:space="preserve"><value>{0:0.0} MB/s</value></data>
 </root>

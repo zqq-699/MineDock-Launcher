@@ -25,6 +25,7 @@ using Launcher.Application;
 using Launcher.Application.Accounts;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
+using Launcher.Infrastructure.Accounts.ThirdParty;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -91,9 +92,9 @@ public sealed partial class LaunchService
         {
             if (authlibInjectorProvisioningService is null)
                 throw new InvalidOperationException("The authlib-injector provisioning service is unavailable.");
-            authlibInjector = await authlibInjectorProvisioningService
-                .EnsureAvailableAsync(cancellationToken)
-                .ConfigureAwait(false);
+            authlibInjector = authlibInjectorProvisioningService is AuthlibInjectorProvisioningService concreteProvisioner
+                ? await concreteProvisioner.EnsureAvailableAsync(progress, cancellationToken).ConfigureAwait(false)
+                : await authlibInjectorProvisioningService.EnsureAvailableAsync(cancellationToken).ConfigureAwait(false);
         }
         await ApplyGameLanguageAsync(instance, settings, cancellationToken).ConfigureAwait(false);
         var javaRuntime = await ResolveJavaRuntimeForLaunchAsync(

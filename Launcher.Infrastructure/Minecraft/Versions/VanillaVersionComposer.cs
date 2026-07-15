@@ -42,7 +42,7 @@ internal static class VanillaVersionComposer
         ILogger? logger = null,
         CancellationToken cancellationToken = default,
         MinecraftDownloadOperationContext? operationContext = null,
-        SlidingWindowDownloadSpeedReporter? speedReporter = null)
+        SpeedMeter? speedMeter = null)
     {
         var prepared = await PrepareFinalVersionAsync(
             httpClient,
@@ -55,7 +55,7 @@ internal static class VanillaVersionComposer
             logger,
             cancellationToken,
             operationContext,
-            speedReporter).ConfigureAwait(false);
+            speedMeter).ConfigureAwait(false);
         try
         {
             await prepared.ClientJarDownload.ConfigureAwait(false);
@@ -79,7 +79,7 @@ internal static class VanillaVersionComposer
         ILogger? logger = null,
         CancellationToken cancellationToken = default,
         MinecraftDownloadOperationContext? operationContext = null,
-        SlidingWindowDownloadSpeedReporter? speedReporter = null)
+        SpeedMeter? speedMeter = null)
     {
         var finalVersionDirectory = Path.Combine(minecraftDirectory, "versions", finalVersionName);
         var finalVersionJsonPath = Path.Combine(finalVersionDirectory, $"{finalVersionName}.json");
@@ -116,7 +116,7 @@ internal static class VanillaVersionComposer
                 logger,
                 cancellationToken,
                 operationContext,
-                speedReporter);
+                speedMeter);
             return new PreparedVersionInstall(finalVersionName, finalVersionDirectory, clientJarDownload);
         }
         catch
@@ -169,7 +169,7 @@ internal static class VanillaVersionComposer
         ILogger? logger,
         CancellationToken cancellationToken,
         MinecraftDownloadOperationContext? operationContext,
-        SlidingWindowDownloadSpeedReporter? speedReporter)
+        SpeedMeter? speedMeter)
     {
         var clientUrl = VanillaVersionMetadataClient.GetClientJarUrl(baseVersionJson);
         if (string.IsNullOrWhiteSpace(clientUrl))
@@ -181,7 +181,6 @@ internal static class VanillaVersionComposer
             DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
             category: DownloadConcurrencyCategory.Runtime);
         var sha1 = VanillaVersionMetadataClient.GetClientJarSha1(baseVersionJson);
-        using var speedSession = speedReporter is null ? null : new DownloadActivitySpeedSession(speedReporter);
         await executor.DownloadFileAsync(
             clientUrl,
             downloadSourcePreference,
@@ -189,11 +188,10 @@ internal static class VanillaVersionComposer
             destinationJarPath,
             sha1,
             VanillaVersionMetadataClient.GetClientJarSize(baseVersionJson),
-            reportDownloadedBytes: speedReporter is null ? null : bytes => speedReporter.ReportNetworkBytes(bytes),
             cancellationToken,
-            reportActivity: speedSession is null ? null : activity => speedSession.Report(activity),
             options: operationContext is not null && MinecraftFileIntegrity.IsSha1(sha1)
                 ? new DownloadFileOptions(DownloadPersistenceMode.TaskScopedResumable, operationContext)
-                : null);
+                : null,
+            speedMeter: speedMeter);
     }
 }

@@ -102,7 +102,7 @@ public sealed class CmlLibJavaRuntimeProvisioningService : IJavaRuntimeProvision
         }
     }
 
-    private sealed class JavaRuntimeProvisioningProgress : IProgress<LauncherProgress>
+    private sealed class JavaRuntimeProvisioningProgress : IProgress<LauncherProgress>, ISpeedMeterProgress
     {
         private readonly IProgress<LauncherProgress> inner;
 
@@ -110,6 +110,8 @@ public sealed class CmlLibJavaRuntimeProvisioningService : IJavaRuntimeProvision
         {
             this.inner = inner;
         }
+
+        public SpeedMeter? SpeedMeter => SpeedMeterProgress.TryGet(inner);
 
         public void Report(LauncherProgress value)
         {

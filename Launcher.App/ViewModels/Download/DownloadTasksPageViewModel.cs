@@ -25,6 +25,7 @@ using CommunityToolkit.Mvvm.Input;
 using Launcher.App.Resources;
 using Launcher.App.Services;
 using Launcher.App.Utilities;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.Download;
@@ -289,11 +290,29 @@ public sealed partial class DownloadTasksPageViewModel : ObservableObject
 public sealed partial class DownloadTaskItem : ObservableObject
 {
     private readonly CancellationTokenSource cancellation = new();
+    private readonly IDisposable speedMeterLifetime;
+    private readonly IProgress<LauncherProgress> speedMeterProgress;
 
     public DownloadTaskItem(string title, string subtitle)
     {
         Title = title;
         Subtitle = subtitle;
+        var synchronizationContext = SynchronizationContext.Current;
+        void ReportOnCapturedContext(LauncherProgress value)
+        {
+            if (synchronizationContext is null || ReferenceEquals(SynchronizationContext.Current, synchronizationContext))
+                Report(value);
+            else
+                synchronizationContext.Post(static state =>
+                {
+                    var (task, progress) = ((DownloadTaskItem, LauncherProgress))state!;
+                    task.Report(progress);
+                }, (this, value));
+        }
+        speedMeterProgress = DownloadSpeedTaskProgress.Create(
+            report: Report,
+            reportTelemetry: ReportOnCapturedContext,
+            out speedMeterLifetime);
     }
 
     public string Id { get; } = Guid.NewGuid().ToString("N");
@@ -333,16 +352,17 @@ public sealed partial class DownloadTaskItem : ObservableObject
 
     public bool HasDownloadSpeedText => !string.IsNullOrWhiteSpace(DownloadSpeedText);
 
+    internal IProgress<LauncherProgress> CreateProgress(Action<LauncherProgress> report) =>
+        DownloadSpeedTaskProgress.Forward(speedMeterProgress, report);
+
     public void Report(LauncherProgress progress)
     {
-        // 非网络阶段绝不能保留上一段下载速度；否则哈希、复制或安装器运行
-        // 会显示已经过期的网络吞吐。
         if (State is DownloadTaskState.Completed or DownloadTaskState.Failed)
             return;
 
-        if (progress.DownloadSpeedText is not null)
+        if (progress.DownloadSpeedTelemetry is not null)
         {
-            DownloadSpeedText = progress.DownloadSpeedText;
+            DownloadSpeedText = LauncherProgressTextFormatter.FormatDownloadSpeed(progress.DownloadSpeedTelemetry);
             return;
         }
 
@@ -358,14 +378,17 @@ public sealed partial class DownloadTaskItem : ObservableObject
 
     public void Complete(string message)
     {
+        speedMeterLifetime.Dispose();
         // 终态方法同时冻结取消语义并触发页面计划移除。
         State = DownloadTaskState.Completed;
         StatusMessage = message;
         ProgressPercent = 100;
+        DownloadSpeedText = string.Empty;
     }
 
     public void Fail(string message)
     {
+        speedMeterLifetime.Dispose();
         State = DownloadTaskState.Failed;
         StatusMessage = message;
         DownloadSpeedText = string.Empty;
@@ -373,6 +396,7 @@ public sealed partial class DownloadTaskItem : ObservableObject
 
     public void Cancel()
     {
+        speedMeterLifetime.Dispose();
         if (!cancellation.IsCancellationRequested)
             cancellation.Cancel();
 
@@ -395,6 +419,7 @@ public sealed partial class DownloadTaskItem : ObservableObject
     {
         OnPropertyChanged(nameof(HasDownloadSpeedText));
     }
+
 }
 
 public enum DownloadTaskState

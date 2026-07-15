@@ -83,7 +83,14 @@ private void LaunchGames_PropertyChanged(object? sender, PropertyChangedEventArg
     {
         // 上一次会话理论上已结束，仍先释放旧 CTS，避免异常路径遗留句柄。
         launchCancellationTokenSource?.Dispose();
+        launchSpeedMeterLifetime?.Dispose();
         launchCancellationTokenSource = new CancellationTokenSource();
+        IProgress<LauncherProgress> uiProgress = new Progress<LauncherProgress>(ReportLaunchProgress);
+        launchProgress = DownloadSpeedTaskProgress.Create(
+            report: uiProgress.Report,
+            reportTelemetry: uiProgress.Report,
+            out var speedMeterLifetime);
+        launchSpeedMeterLifetime = speedMeterLifetime;
         IsLaunching = true;
         LaunchProgressPercent = 0;
         LaunchDownloadSpeedText = string.Empty;
@@ -95,6 +102,9 @@ private void LaunchGames_PropertyChanged(object? sender, PropertyChangedEventArg
 
     private void ResetLaunchProgress()
     {
+        launchSpeedMeterLifetime?.Dispose();
+        launchSpeedMeterLifetime = null;
+        launchProgress = null;
         launchCancellationTokenSource?.Dispose();
         launchCancellationTokenSource = null;
         LaunchProgressPercent = 0;
@@ -129,7 +139,7 @@ private void LaunchGames_PropertyChanged(object? sender, PropertyChangedEventArg
             LaunchProgressStages.PreparingProcess => Strings.Status_LaunchPreparingProcess,
             LaunchProgressStages.StartingProcess => Strings.Status_LaunchStartingProcess,
             LaunchProgressStages.CheckingFiles => Strings.Status_LaunchCheckingFiles,
-            LaunchProgressStages.DownloadingFiles or LaunchProgressStages.DownloadSpeed => Strings.Status_LaunchDownloadingFiles,
+            LaunchProgressStages.DownloadingFiles => Strings.Status_LaunchDownloadingFiles,
             _ when !string.IsNullOrWhiteSpace(progress.Message) => progress.Message,
             _ => Strings.Status_LaunchPreparing
         };

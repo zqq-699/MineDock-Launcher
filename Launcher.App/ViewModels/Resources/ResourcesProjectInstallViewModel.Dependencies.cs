@@ -45,6 +45,7 @@ private async Task<bool> InstallDependenciesAsync(
                 dependencyPlan.MissingDependencies,
                 instance,
                 context.Project?.Project.ProjectId,
+                context.Session.Progress,
                 progress => context.Session!.ReportDependencyStarted(progress),
                 context.Session!.CancellationToken).ConfigureAwait(false);
             context.Session.CompleteDependencies();

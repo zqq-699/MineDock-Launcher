@@ -82,7 +82,7 @@ internal sealed class MinecraftDownloadRequestExecutor
             configureRequest: null,
             allowResponseStatus: null,
             sensitiveHeaders: null,
-            reportBodyBytes: null,
+            speedMeter: null,
             cancellationToken: cancellationToken).ConfigureAwait(false);
         return result.Value!;
     }
@@ -105,7 +105,7 @@ internal sealed class MinecraftDownloadRequestExecutor
             configureRequest: null,
             allowResponseStatus: null,
             sensitiveHeaders: null,
-            reportBodyBytes: null,
+            speedMeter: null,
             cancellationToken: cancellationToken);
     }
 
@@ -116,12 +116,11 @@ internal sealed class MinecraftDownloadRequestExecutor
         string destinationPath,
         string? expectedSha1,
         long? expectedSize,
-        Action<long>? reportDownloadedBytes,
         CancellationToken cancellationToken,
         Action<int, long, long?>? reportAttemptProgress = null,
         DownloadRequestHeaders? sensitiveHeaders = null,
-        Action<DownloadFileActivity>? reportActivity = null,
-        DownloadFileOptions? options = null)
+        DownloadFileOptions? options = null,
+        SpeedMeter? speedMeter = null)
     {
         // Some legacy installer metadata has no trusted hash. Preserve its existing
         // atomic one-shot behavior, but never persist it as a resumable part.
@@ -138,25 +137,22 @@ internal sealed class MinecraftDownloadRequestExecutor
                     categoryHint,
                     async (context, token) =>
                     {
-                        reportActivity?.Invoke(DownloadFileActivity.Downloading);
                         await MinecraftDownloadFileWriter.WriteAsync(
                             context.Response,
                             destinationPath,
                             expectedSha1,
                             expectedSize,
-                            reportDownloadedBytes,
                             context.AttemptNumber,
                             reportAttemptProgress,
-                            token,
-                            reportActivity).ConfigureAwait(false);
+                            token).ConfigureAwait(false);
                         return context.Resolution;
                     },
                     noResultStatus: null,
                     lookupMode: false,
-                    configureRequest: (_, _) => reportActivity?.Invoke(DownloadFileActivity.ResolvingAddress),
+                    configureRequest: null,
                     allowResponseStatus: null,
                     sensitiveHeaders,
-                    reportBodyBytes: reportDownloadedBytes,
+                    speedMeter: speedMeter,
                     cancellationToken: cancellationToken).ConfigureAwait(false);
                 return result.Value!;
             }
@@ -166,7 +162,6 @@ internal sealed class MinecraftDownloadRequestExecutor
 
         async Task<ResolvedDownloadRequest> DownloadFileCoreAsync()
         {
-            reportActivity?.Invoke(DownloadFileActivity.Verifying);
             await using var session = await ResumableDownloadFileSession.AcquireAsync(
                 destinationPath,
                 expectedSha1,
@@ -183,27 +178,20 @@ internal sealed class MinecraftDownloadRequestExecutor
                 categoryHint,
                 async (context, token) =>
                 {
-                    reportActivity?.Invoke(DownloadFileActivity.Downloading);
                     await session.WriteAsync(
                         context.Response,
                         context.Resolution,
                         context.AttemptNumber,
-                        reportDownloadedBytes,
                         reportAttemptProgress,
-                        token,
-                        reportActivity).ConfigureAwait(false);
+                        token).ConfigureAwait(false);
                     return context.Resolution;
                 },
                 noResultStatus: null,
                 lookupMode: false,
-                configureRequest: (request, resolution) =>
-                {
-                    reportActivity?.Invoke(DownloadFileActivity.ResolvingAddress);
-                    session.ConfigureRequest(request, resolution);
-                },
+                configureRequest: (request, resolution) => session.ConfigureRequest(request, resolution),
                 allowResponseStatus: status => status == HttpStatusCode.RequestedRangeNotSatisfiable,
                 sensitiveHeaders: sensitiveHeaders,
-                reportBodyBytes: reportDownloadedBytes,
+                speedMeter: speedMeter,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             return result.Value!;
         }
@@ -215,18 +203,16 @@ internal sealed class MinecraftDownloadRequestExecutor
         string? categoryHint,
         string destinationPath,
         DownloadIntegrityExpectation integrity,
-        Action<long>? reportDownloadedBytes,
         CancellationToken cancellationToken,
         DownloadRequestHeaders? sensitiveHeaders = null,
         Action<int, long, long?>? reportAttemptProgress = null,
-        Action<DownloadFileActivity>? reportActivity = null,
-        DownloadFileOptions? options = null)
+        DownloadFileOptions? options = null,
+        SpeedMeter? speedMeter = null)
     {
         return DownloadCoreAsync();
 
         async Task<ResolvedDownloadRequest> DownloadCoreAsync()
         {
-            reportActivity?.Invoke(DownloadFileActivity.Verifying);
             await using var session = await ResumableDownloadFileSession.AcquireAsync(
                 destinationPath,
                 integrity,
@@ -242,20 +228,15 @@ internal sealed class MinecraftDownloadRequestExecutor
                 categoryHint,
                 async (context, token) =>
                 {
-                    reportActivity?.Invoke(DownloadFileActivity.Downloading);
-                    await session.WriteAsync(context.Response, context.Resolution, context.AttemptNumber, reportDownloadedBytes, reportAttemptProgress, token, reportActivity).ConfigureAwait(false);
+                    await session.WriteAsync(context.Response, context.Resolution, context.AttemptNumber, reportAttemptProgress, token).ConfigureAwait(false);
                     return context.Resolution;
                 },
                 noResultStatus: null,
                 lookupMode: false,
-                configureRequest: (request, resolution) =>
-                {
-                    reportActivity?.Invoke(DownloadFileActivity.ResolvingAddress);
-                    session.ConfigureRequest(request, resolution);
-                },
+                configureRequest: (request, resolution) => session.ConfigureRequest(request, resolution),
                 allowResponseStatus: status => status == HttpStatusCode.RequestedRangeNotSatisfiable,
                 sensitiveHeaders,
-                reportBodyBytes: reportDownloadedBytes,
+                speedMeter: speedMeter,
                 cancellationToken: cancellationToken).ConfigureAwait(false);
             return result.Value!;
         }
@@ -274,7 +255,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         Action<HttpRequestMessage, ResolvedDownloadRequest>? configureRequest,
         Func<HttpStatusCode, bool>? allowResponseStatus,
         DownloadRequestHeaders? sensitiveHeaders,
-        Action<long>? reportBodyBytes,
+        SpeedMeter? speedMeter,
         CancellationToken cancellationToken)
     {
         // 候选顺序已经包含用户偏好和镜像回退策略；每个源内部重试耗尽后才切换下一源。
@@ -318,7 +299,7 @@ internal sealed class MinecraftDownloadRequestExecutor
                         configureRequest,
                         allowResponseStatus,
                         sensitiveHeaders,
-                        reportBodyBytes).ConfigureAwait(false);
+                        speedMeter).ConfigureAwait(false);
                     RecordAdaptiveResult(failureReason: null);
                     hostHealthTracker.RecordSuccess(resolution.ResolvedSourceKind, GetCandidateHost(resolution));
                     LogResolvedRequest(resolution, attempt);
@@ -398,7 +379,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         Action<HttpRequestMessage, ResolvedDownloadRequest>? configureRequest,
         Func<HttpStatusCode, bool>? allowResponseStatus,
         DownloadRequestHeaders? sensitiveHeaders,
-        Action<long>? reportBodyBytes)
+        SpeedMeter? speedMeter)
     {
         // 租约覆盖响应处理，而不只是发送请求，防止大量响应体同时占用网络与磁盘。
         await using var lease = await AcquireLeaseAsync(cancellationToken).ConfigureAwait(false);
@@ -446,8 +427,8 @@ internal sealed class MinecraftDownloadRequestExecutor
             reportBodyBytes: bytes =>
             {
                 telemetry.ReportBodyBytes(bytes);
-                reportBodyBytes?.Invoke(bytes);
-            }).ConfigureAwait(false);
+            },
+            speedMeter: speedMeter).ConfigureAwait(false);
             var value = await operation(
                 new DownloadAttemptContext(resolution, response, transportResult, attempt),
                 cancellationToken).ConfigureAwait(false);

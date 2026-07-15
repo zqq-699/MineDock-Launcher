@@ -157,7 +157,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider, ISeparatedInstallPat
     {
         progress?.Report(new LauncherProgress(InstallProgressStages.Preparing, string.Empty));
         var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(path);
-        var speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
+        var speedMeter = SpeedMeterProgress.TryGet(progress);
         var operationResourcesDisposed = false;
         try
         {
@@ -184,7 +184,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider, ISeparatedInstallPat
                 downloadSpeedLimitMbPerSecond,
                 downloadSpeedLimitState,
                 downloadOperation,
-                speedReporter);
+                speedMeter);
             VanillaLoaderProvider.AttachProgress(launcher, progress);
             var finalVersionName = await ComposedVersionInstallRunner.RunAsync(
                 token => FabricVersionComposer.PrepareFinalVersionAsync(
@@ -199,7 +199,7 @@ public sealed class FabricLoaderProvider : ILoaderProvider, ISeparatedInstallPat
                     logger,
                     token,
                     downloadOperation,
-                    speedReporter),
+                    speedMeter),
                 async (versionName, token) => await launcher.InstallAsync(versionName, token).ConfigureAwait(false),
                 cancellationToken).ConfigureAwait(false);
             progress?.Report(new LauncherProgress(InstallProgressStages.FinalizingVersion, string.Empty));
@@ -225,32 +225,19 @@ public sealed class FabricLoaderProvider : ILoaderProvider, ISeparatedInstallPat
 
             logger.LogInformation("Fabric installation cleanup started. VersionName={VersionName}", finalVersionName);
             var cleanupStopwatch = Stopwatch.StartNew();
-            speedReporter.Dispose();
-            var speedReporterCleanupDuration = cleanupStopwatch.ElapsedMilliseconds;
             downloadOperation.Dispose();
             cleanupStopwatch.Stop();
             operationResourcesDisposed = true;
             logger.LogInformation(
-                "Fabric installation cleanup completed. VersionName={VersionName} TotalDurationMs={TotalDurationMs} SpeedReporterDisposeDurationMs={SpeedReporterDisposeDurationMs} DownloadOperationDisposeDurationMs={DownloadOperationDisposeDurationMs}",
+                "Fabric installation cleanup completed. VersionName={VersionName} TotalDurationMs={TotalDurationMs}",
                 finalVersionName,
-                cleanupStopwatch.ElapsedMilliseconds,
-                speedReporterCleanupDuration,
-                cleanupStopwatch.ElapsedMilliseconds - speedReporterCleanupDuration);
+                cleanupStopwatch.ElapsedMilliseconds);
             return finalVersionName;
         }
         finally
         {
             if (!operationResourcesDisposed)
-            {
-                try
-                {
-                    speedReporter.Dispose();
-                }
-                finally
-                {
-                    downloadOperation.Dispose();
-                }
-            }
+                downloadOperation.Dispose();
         }
     }
 

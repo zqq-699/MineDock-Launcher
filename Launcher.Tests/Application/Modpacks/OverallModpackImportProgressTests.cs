@@ -19,89 +19,23 @@ public sealed class OverallModpackImportProgressTests
         progress.Report(new LauncherProgress(ImportProgressStages.DownloadingPackFiles, string.Empty, 100));
 
         Assert.Equal(94, reports[^1].Percent);
-
-        progress.Report(new LauncherProgress(ImportProgressStages.CopyingOverrides, string.Empty, 100));
-        progress.Report(new LauncherProgress(ImportProgressStages.CleaningUp, string.Empty));
-
-        Assert.Equal(98, reports[^2].Percent);
-        Assert.Equal(99, reports[^1].Percent);
     }
 
     [Fact]
-    public void StalePackDownloadClearDoesNotHideActiveGameDownloadSpeed()
+    public void TelemetryPassesThroughWithoutChangingWeightedImportProgress()
     {
         var reports = new List<LauncherProgress>();
         var progress = new OverallModpackImportProgress(new InlineProgress(reports));
-
-        progress.Report(new LauncherProgress(
-            ImportProgressStages.DownloadingPackFiles,
-            string.Empty,
-            DownloadSpeedText: "2.0 MB/s"));
-        progress.Report(new LauncherProgress(
-            LaunchProgressStages.DownloadSpeed,
-            string.Empty,
-            DownloadSpeedText: "3.0 MB/s"));
-        progress.Report(new LauncherProgress(
-            ImportProgressStages.DownloadingPackFiles,
-            string.Empty,
-            DownloadSpeedText: string.Empty));
-
-        Assert.Equal(2, reports.Count);
-        Assert.Equal("3.0 MB/s", reports[^1].DownloadSpeedText);
-
-        progress.Report(new LauncherProgress(
-            LaunchProgressStages.DownloadSpeed,
-            string.Empty,
-            DownloadSpeedText: string.Empty));
-
-        Assert.Equal(string.Empty, reports[^1].DownloadSpeedText);
-    }
-
-    [Fact]
-    public void StaleGameDownloadClearDoesNotHideActivePackDownloadSpeed()
-    {
-        var reports = new List<LauncherProgress>();
-        var progress = new OverallModpackImportProgress(new InlineProgress(reports));
-
-        progress.Report(new LauncherProgress(
-            LaunchProgressStages.DownloadSpeed,
-            string.Empty,
-            DownloadSpeedText: "3.0 MB/s"));
-        progress.Report(new LauncherProgress(
-            ImportProgressStages.DownloadingPackFiles,
-            string.Empty,
-            DownloadSpeedText: "2.0 MB/s"));
-        progress.Report(new LauncherProgress(
-            LaunchProgressStages.DownloadSpeed,
-            string.Empty,
-            DownloadSpeedText: string.Empty));
-
-        Assert.Equal(2, reports.Count);
-        Assert.Equal("2.0 MB/s", reports[^1].DownloadSpeedText);
-
-        progress.Report(new LauncherProgress(
-            ImportProgressStages.DownloadingPackFiles,
-            string.Empty,
-            DownloadSpeedText: string.Empty));
-
-        Assert.Equal(string.Empty, reports[^1].DownloadSpeedText);
-    }
-
-    [Fact]
-    public void SpeedEventsDoNotChangeWeightedImportProgress()
-    {
-        var reports = new List<LauncherProgress>();
-        var progress = new OverallModpackImportProgress(new InlineProgress(reports));
-
         progress.Report(new LauncherProgress(ImportProgressStages.InstallingLoader, string.Empty, 50));
-        var percentBeforeSpeed = reports[^1].Percent;
+        var percentBeforeTelemetry = reports[^1].Percent;
 
         progress.Report(new LauncherProgress(
-            ImportProgressStages.DownloadingPackFiles,
             string.Empty,
-            DownloadSpeedText: "2.0 MB/s"));
+            string.Empty,
+            DownloadSpeedTelemetry: new DownloadSpeedTelemetry(2 * 1024 * 1024)));
 
-        Assert.Equal(percentBeforeSpeed, reports[^1].Percent);
+        Assert.Equal(percentBeforeTelemetry, reports[^2].Percent);
+        Assert.Equal(2 * 1024 * 1024, reports[^1].DownloadSpeedTelemetry!.BytesPerSecond);
     }
 
     private sealed class InlineProgress(List<LauncherProgress> reports) : IProgress<LauncherProgress>

@@ -105,7 +105,6 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
 
         Assert.Equal(Math.Min(4, Math.Max(1, Environment.ProcessorCount)), installer.ConfiguredMaxChecker);
         Assert.Equal(ImportConcurrencyLimiter.MaximumDownloadConcurrency, installer.ConfiguredMaxDownloader);
-        Assert.Equal(16, installer.ConfiguredMaxDownloader);
     }
 
     [Fact]
@@ -117,9 +116,6 @@ public sealed class MinecraftInstallPathLayoutTests : TestTempDirectory
             new InlineProgress(reports));
         VanillaLoaderProvider.AttachProgress(launcher, new InlineProgress(reports));
         var installer = Assert.IsType<DownloadSpeedTrackingGameInstaller>(launcher.GameInstaller);
-        var speedReporter = Assert.IsType<SlidingWindowDownloadSpeedReporter>(GetPrivateField(installer, "speedReporter"));
-        speedReporter.BeginTransfer();
-
         RaisePrivateEvent(
             launcher,
             "FileProgressChanged",

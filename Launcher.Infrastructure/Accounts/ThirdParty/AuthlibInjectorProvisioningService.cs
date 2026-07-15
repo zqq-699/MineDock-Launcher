@@ -11,6 +11,9 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Launcher.Application.Accounts;
+using Launcher.Application.Services;
+using Launcher.Domain.Models;
+using Launcher.Infrastructure.Minecraft;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -45,7 +48,12 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
         this.logger = logger ?? NullLogger<AuthlibInjectorProvisioningService>.Instance;
     }
 
-    public async Task<AuthlibInjectorArtifact> EnsureAvailableAsync(CancellationToken cancellationToken = default)
+    public Task<AuthlibInjectorArtifact> EnsureAvailableAsync(CancellationToken cancellationToken = default) =>
+        EnsureAvailableAsync(progress: null, cancellationToken);
+
+    internal async Task<AuthlibInjectorArtifact> EnsureAvailableAsync(
+        IProgress<LauncherProgress>? progress,
+        CancellationToken cancellationToken = default)
     {
         await provisioningLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -57,7 +65,7 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
                 var cached = await TryUseArtifactAsync(latest, cancellationToken).ConfigureAwait(false);
                 if (cached is not null)
                     return cached;
-                return await DownloadArtifactAsync(latest, cancellationToken).ConfigureAwait(false);
+                return await DownloadArtifactAsync(latest, progress, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -109,6 +117,7 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
 
     private async Task<AuthlibInjectorArtifact> DownloadArtifactAsync(
         ArtifactMetadata metadata,
+        IProgress<LauncherProgress>? progress,
         CancellationToken cancellationToken)
     {
         var destination = GetArtifactPath(metadata);
@@ -123,6 +132,12 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
             response.EnsureSuccessStatusCode();
             if (response.Content.Headers.ContentLength is > MaximumArtifactBytes)
                 throw new InvalidDataException("The authlib-injector artifact is too large.");
+
+            await DownloadResponseThrottler.ApplyAsync(
+                response,
+                bandwidthLimiter: null,
+                cancellationToken,
+                speedMeter: SpeedMeterProgress.TryGet(progress)).ConfigureAwait(false);
 
             await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
             await using (var target = new FileStream(

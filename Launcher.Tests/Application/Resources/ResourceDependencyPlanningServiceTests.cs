@@ -73,6 +73,38 @@ public sealed class ResourceDependencyPlanningServiceTests
         Assert.Same(instance, installation.Requests[0].Instance);
     }
 
+    [Fact]
+    public async Task DependencyDownloadPreservesTheParentTaskSpeedMeter()
+    {
+        var dependency = CreateDependency();
+        var installation = new RecordingInstallationService();
+        var service = new ResourceDependencyPlanningService(
+            new DependencyCatalogService(CreateDependencyVersions()),
+            installation,
+            new StubModService([]),
+            NullLogger<ResourceDependencyPlanningService>.Instance);
+        var instance = CreateInstance();
+        var plan = await service.CreatePlanAsync(
+            new ResourceProjectVersion { RequiredDependencies = [dependency] },
+            instance);
+        var rootProgress = DownloadSpeedTaskProgress.Create(_ => { }, _ => { }, out var lifetime);
+        using (lifetime)
+        {
+            var dependencyProgress = DownloadSpeedTaskProgress.Carry(
+                rootProgress,
+                new Progress<ResourceDependencyInstallProgress>());
+
+            await service.InstallRequiredDependenciesAsync(
+                plan.MissingDependencies,
+                instance,
+                dependencyProgress);
+
+            Assert.Same(
+                SpeedMeterProgress.TryGet(rootProgress),
+                SpeedMeterProgress.TryGet(Assert.Single(installation.Progresses)));
+        }
+    }
+
     private static ResourceProjectDependency CreateDependency()
     {
         return new ResourceProjectDependency
@@ -158,6 +190,7 @@ public sealed class ResourceDependencyPlanningServiceTests
     private sealed class RecordingInstallationService : IResourceProjectInstallationService
     {
         public List<ResourceProjectInstallationRequest> Requests { get; } = [];
+        public List<IProgress<LauncherProgress>?> Progresses { get; } = [];
 
         public Task<ResourceProjectInstallationPreparationResult> PrepareAsync(ResourceProjectInstallationRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new ResourceProjectInstallationPreparationResult(false));
@@ -168,6 +201,7 @@ public sealed class ResourceDependencyPlanningServiceTests
             CancellationToken cancellationToken = default)
         {
             Requests.Add(request);
+            Progresses.Add(progress);
             return Task.FromResult(new ResourceProjectInstallationResult());
         }
     }

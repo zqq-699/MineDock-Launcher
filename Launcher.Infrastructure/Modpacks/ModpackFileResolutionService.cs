@@ -69,7 +69,7 @@ internal sealed class ModpackFileResolutionService
         var apiKey = preparedModpack.PackageKind is ModpackPackageKind.CurseForge
             ? await GetCurseForgeApiKeyAsync(cancellationToken).ConfigureAwait(false)
             : null;
-        using var context = new DownloadBatchContext(
+        var context = new DownloadBatchContext(
             preparedModpack,
             instance,
             apiKey,
@@ -420,7 +420,7 @@ internal sealed class ModpackFileResolutionService
             file.Sha1,
             file.Sha512,
             context.DownloadSpeedLimitMbPerSecond,
-            context.SpeedReporter,
+            context.SpeedMeter,
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -500,13 +500,12 @@ internal sealed class ModpackFileResolutionService
         return exception.GetType().Name;
     }
 
-    private sealed class DownloadBatchContext : IDisposable
+    private sealed class DownloadBatchContext
     {
         private readonly object targetSyncRoot = new();
         private readonly Dictionary<string, int> reservedTargets = new(StringComparer.OrdinalIgnoreCase);
         private int resolvedCount;
         private int downloadedCount;
-        private string? activeDownloadFileName;
         private readonly IProgress<LauncherProgress>? progress;
 
         public DownloadBatchContext(
@@ -523,11 +522,7 @@ internal sealed class ModpackFileResolutionService
             DownloadSourcePreference = downloadSourcePreference;
             DownloadSpeedLimitMbPerSecond = downloadSpeedLimitMbPerSecond;
             this.progress = progress;
-            SpeedReporter = new SlidingWindowDownloadSpeedReporter(
-                progress,
-                speedStage: ImportProgressStages.DownloadingPackFiles,
-                inactiveStage: ImportProgressStages.DownloadingPackFiles,
-                messageProvider: () => Volatile.Read(ref activeDownloadFileName) ?? string.Empty);
+            SpeedMeter = SpeedMeterProgress.TryGet(progress);
             ManualDownloads = new ManualModpackDownload?[package.Files.Count];
             PendingDownloads = new PendingPackFileDownload?[package.Files.Count];
         }
@@ -540,7 +535,7 @@ internal sealed class ModpackFileResolutionService
         public int TotalCount => Package.Files.Count;
         public ManualModpackDownload?[] ManualDownloads { get; }
         public PendingPackFileDownload?[] PendingDownloads { get; }
-        public SlidingWindowDownloadSpeedReporter SpeedReporter { get; }
+        public SpeedMeter? SpeedMeter { get; }
 
         public void ReserveDownloadTarget(int fileIndex, string relativePath)
         {
@@ -579,8 +574,6 @@ internal sealed class ModpackFileResolutionService
 
         public void ReportDownload(string fileName, bool completed)
         {
-            if (!completed)
-                Volatile.Write(ref activeDownloadFileName, fileName);
             var count = completed
                 ? Interlocked.Increment(ref downloadedCount)
                 : Volatile.Read(ref downloadedCount);
@@ -599,7 +592,6 @@ internal sealed class ModpackFileResolutionService
             }
         }
 
-        public void Dispose() => SpeedReporter.Dispose();
     }
 
     private static void SafeCancel(CancellationTokenSource cancellation)

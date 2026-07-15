@@ -60,27 +60,30 @@ public sealed partial class HomePageViewModel
 
     private IProgress<LauncherProgress> CreateProgress()
     {
-        return new Progress<LauncherProgress>(progress =>
+        return launchProgress
+            ?? throw new InvalidOperationException("Launch progress has not been initialized.");
+    }
+
+    private void ReportLaunchProgress(LauncherProgress progress)
+    {
+        // Progress<T> 回到创建它的 UI 上下文；结束后的迟到进度必须丢弃，不能重新点亮进度条。
+        if (!IsLaunching)
+            return;
+
+        if (progress.DownloadSpeedTelemetry is not null)
         {
-            // Progress<T> 回到创建它的 UI 上下文；结束后的迟到进度必须丢弃，不能重新点亮进度条。
-            if (!IsLaunching)
-                return;
+            LaunchDownloadSpeedText = LauncherProgressTextFormatter.FormatDownloadSpeed(progress.DownloadSpeedTelemetry);
+            return;
+        }
 
-            if (progress.DownloadSpeedText is not null)
-            {
-                LaunchDownloadSpeedText = progress.DownloadSpeedText;
-                return;
-            }
+        var message = FormatLaunchProgress(progress);
+        LaunchStatusMessage = message;
 
-            var message = FormatLaunchProgress(progress);
-            LaunchStatusMessage = message;
+        if (progress.Percent is double percent)
+            LaunchProgressPercent = Math.Clamp(percent, 0, 100);
 
-            if (progress.Percent is double percent)
-                LaunchProgressPercent = Math.Clamp(percent, 0, 100);
-
-            statusService.Report(message);
-            reportProgressPercent(LaunchProgressPercent);
-        });
+        statusService.Report(message);
+        reportProgressPercent(LaunchProgressPercent);
     }
 
     partial void OnIsLaunchingChanged(bool value)

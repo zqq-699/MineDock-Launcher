@@ -3306,4 +3306,7 @@
   <data name="Dialog_UserAgreementAgreeButton" xml:space="preserve"><value>同意する</value></data>
   <data name="Status_UserAgreementSaveFailed" xml:space="preserve"><value>利用規約への同意状態を保存できませんでした。もう一度お試しください。</value></data>
   <data name="Status_OpenUserAgreementFailed" xml:space="preserve"><value>利用規約を開けませんでした。既定のブラウザー設定を確認して、もう一度お試しください。</value></data>
+  <data name="DownloadSpeed_BytesPerSecondFormat" xml:space="preserve"><value>{0:0} B/s</value></data>
+  <data name="DownloadSpeed_KilobytesPerSecondFormat" xml:space="preserve"><value>{0:0.0} KB/s</value></data>
+  <data name="DownloadSpeed_MegabytesPerSecondFormat" xml:space="preserve"><value>{0:0.0} MB/s</value></data>
 </root>

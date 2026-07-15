@@ -40,7 +40,7 @@ internal sealed class ManagedVersionRepairDownloadBatch
     private readonly DownloadSourcePreference sourcePreference;
     private readonly int speedLimitMbPerSecond;
     private readonly DownloadBandwidthLimiter? bandwidthLimiter;
-    private readonly SlidingWindowDownloadSpeedReporter speedReporter;
+    private readonly SpeedMeter? speedMeter;
     private readonly MinecraftDownloadOperationContext? operationContext;
 
     public ManagedVersionRepairDownloadBatch(
@@ -58,7 +58,7 @@ internal sealed class ManagedVersionRepairDownloadBatch
         this.sourcePreference = sourcePreference;
         this.speedLimitMbPerSecond = speedLimitMbPerSecond;
         bandwidthLimiter = DownloadBandwidthLimiter.Create(speedLimitMbPerSecond, downloadSpeedLimitState);
-        speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
+        speedMeter = SpeedMeterProgress.TryGet(progress);
         this.operationContext = operationContext;
     }
 
@@ -123,7 +123,6 @@ internal sealed class ManagedVersionRepairDownloadBatch
                 logger,
                 bandwidthLimiter ?? DownloadBandwidthLimiter.Create(speedLimitMbPerSecond, downloadSpeedLimitState),
                 category: DownloadConcurrencyCategory.Runtime);
-            using var speedSession = new DownloadActivitySpeedSession(speedReporter);
             var options = CreateDownloadOptions(download, operationContexts, operationContext);
             await executor.DownloadFileAsync(
                 download.OriginalUrl,
@@ -132,10 +131,9 @@ internal sealed class ManagedVersionRepairDownloadBatch
                 download.DestinationPath,
                 download.ExpectedSha1,
                 download.ExpectedSize,
-                speedReporter.ReportNetworkBytes,
                 cancellationToken,
-                reportActivity: speedSession.Report,
-                options: options).ConfigureAwait(false);
+                options: options,
+                speedMeter: speedMeter).ConfigureAwait(false);
         }
         catch (MinecraftDownloadRequestExecutor.DownloadSourceRequestException exception)
         {

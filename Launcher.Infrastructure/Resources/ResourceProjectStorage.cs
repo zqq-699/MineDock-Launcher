@@ -138,11 +138,7 @@ internal sealed class ResourceProjectStorage
         if (urls.Length == 0)
             throw new InvalidOperationException($"Resource project version has no download URL: {version.VersionId}");
 
-        using var speedReporter = new SlidingWindowDownloadSpeedReporter(
-            progress,
-            speedStage: ModProgressStages.DownloadingFile,
-            inactiveStage: ModProgressStages.DownloadingFile,
-            messageProvider: () => ResolveFileName(version));
+        var speedMeter = SpeedMeterProgress.TryGet(progress);
 
         Exception? lastException = null;
         for (var candidateIndex = 0; candidateIndex < urls.Length; candidateIndex++)
@@ -156,7 +152,7 @@ internal sealed class ResourceProjectStorage
                     tempPath,
                     expectation,
                     progress,
-                    speedReporter,
+                    speedMeter,
                     cancellationToken).ConfigureAwait(false);
                 File.Move(tempPath, target, overwrite: true);
                 return target;
@@ -243,7 +239,7 @@ internal sealed class ResourceProjectStorage
         string tempPath,
         IntegrityExpectation expectation,
         IProgress<LauncherProgress>? progress,
-        SlidingWindowDownloadSpeedReporter speedReporter,
+        SpeedMeter? speedMeter,
         CancellationToken cancellationToken)
     {
         var settings = settingsService is null
@@ -258,7 +254,6 @@ internal sealed class ResourceProjectStorage
             new DownloadRetryOptions { MaxAttemptsPerSource = 1 });
         try
         {
-            using var speedSession = new DownloadActivitySpeedSession(speedReporter);
             if (expectation.Hash is { Algorithm: not ResourceFileHashAlgorithm.Md5 } hash)
             {
                 await executor.DownloadFileAsync(
@@ -269,10 +264,9 @@ internal sealed class ResourceProjectStorage
                     new DownloadIntegrityExpectation(
                         expectation.FileSize,
                         [(ToHashAlgorithmName(hash.Algorithm), Convert.ToHexString(hash.Value))]),
-                    reportDownloadedBytes: speedReporter.ReportNetworkBytes,
                     cancellationToken,
                     reportAttemptProgress: CreateProgressReporter(version, progress),
-                    reportActivity: speedSession.Report).ConfigureAwait(false);
+                    speedMeter: speedMeter).ConfigureAwait(false);
             }
             else
             {
@@ -283,10 +277,9 @@ internal sealed class ResourceProjectStorage
                     tempPath,
                     expectedSha1: null,
                     expectedSize: expectation.FileSize,
-                    reportDownloadedBytes: speedReporter.ReportNetworkBytes,
                     cancellationToken,
                     reportAttemptProgress: CreateProgressReporter(version, progress),
-                    reportActivity: speedSession.Report).ConfigureAwait(false);
+                    speedMeter: speedMeter).ConfigureAwait(false);
             }
         }
         catch (DownloadLocalFileException exception)

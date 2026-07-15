@@ -150,17 +150,14 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         HttpResponseMessage response,
         ResolvedDownloadRequest resolution,
         int attemptNumber,
-        Action<long>? reportDownloadedBytes,
         Action<int, long, long?>? reportAttemptProgress,
-        CancellationToken cancellationToken,
-        Action<DownloadFileActivity>? reportActivity = null)
+        CancellationToken cancellationToken)
     {
         if (IsComplete)
             return;
 
         if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
         {
-            reportActivity?.Invoke(DownloadFileActivity.Verifying);
             if (await VerifyTemporaryAsync(cancellationToken).ConfigureAwait(false))
             {
                 Publish(cancellationToken);
@@ -225,7 +222,6 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                 ArrayPool<byte>.Shared.Return(buffer);
             }
 
-            reportActivity?.Invoke(DownloadFileActivity.Verifying);
             await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
             destination.Flush(flushToDisk: true);
             await destination.DisposeAsync().ConfigureAwait(false);
@@ -242,7 +238,6 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                 hasher.Dispose();
         }
 
-        reportActivity?.Invoke(DownloadFileActivity.Publishing);
         Publish(cancellationToken);
     }
 

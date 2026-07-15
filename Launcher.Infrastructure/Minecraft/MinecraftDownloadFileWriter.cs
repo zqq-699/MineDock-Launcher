@@ -46,11 +46,9 @@ internal static class MinecraftDownloadFileWriter
         string destinationPath,
         string? expectedSha1,
         long? expectedSize,
-        Action<long>? reportDownloadedBytes,
         int attemptNumber,
         Action<int, long, long?>? reportAttemptProgress,
-        CancellationToken cancellationToken,
-        Action<DownloadFileActivity>? reportActivity = null)
+        CancellationToken cancellationToken)
     {
         // 临时文件与目标位于同一目录，最终 Move 不跨卷且失败前不会破坏已有文件。
         var tempPath = Path.Combine(
@@ -88,11 +86,9 @@ internal static class MinecraftDownloadFileWriter
             }
 
             // 必须在提交前完成落盘、长度和哈希验证；任何失败都只清理临时文件。
-            reportActivity?.Invoke(DownloadFileActivity.Verifying);
             await FlushAndCloseAsync(destination, tempPath, cancellationToken).ConfigureAwait(false);
             ValidateLength(response, expectedSize, totalRead);
             ValidateHash(destinationPath, expectedSha1, sha1);
-            reportActivity?.Invoke(DownloadFileActivity.Publishing);
             Commit(tempPath, destinationPath);
             committed = true;
         }

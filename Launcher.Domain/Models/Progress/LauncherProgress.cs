@@ -23,4 +23,4 @@ public sealed record LauncherProgress(
     string Stage,
     string Message,
     double? Percent = null,
-    string? DownloadSpeedText = null);
+    DownloadSpeedTelemetry? DownloadSpeedTelemetry = null);

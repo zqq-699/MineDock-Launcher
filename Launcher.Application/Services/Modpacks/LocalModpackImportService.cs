@@ -371,7 +371,7 @@ public sealed class LocalModpackImportService : ILocalModpackImportService
         if (innerProgress is null)
             return null;
 
-        return new Progress<LauncherProgress>(progress =>
+        return SpeedMeterProgress.Forward(innerProgress, progress =>
         {
             if (progress.Stage is InstallProgressStages.Preparing)
             {

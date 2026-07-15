@@ -11,7 +11,7 @@ public sealed class DownloadConcurrencyTests
     {
         var limiter = new ImportConcurrencyLimiter();
         var leases = new List<IImportConcurrencyLease>();
-        for (var index = 0; index < 12; index++)
+        for (var index = 0; index < ImportConcurrencyLimiter.MaximumDownloadConcurrency; index++)
         {
             leases.Add((index % 3) switch
             {
@@ -23,7 +23,7 @@ public sealed class DownloadConcurrencyTests
 
         try
         {
-            Assert.Equal(12, limiter.DownloadSnapshot.ActiveCount);
+            Assert.Equal(ImportConcurrencyLimiter.MaximumDownloadConcurrency, limiter.DownloadSnapshot.ActiveCount);
             var queued = limiter.AcquireRuntimeDownloadSlotAsync().AsTask();
             Assert.False(queued.IsCompleted);
 

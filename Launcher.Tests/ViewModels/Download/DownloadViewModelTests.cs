@@ -212,10 +212,24 @@ public sealed class DownloadViewModelTests
         var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
         var task = tasks.BeginTask("install", "instance");
 
-        task.Report(new LauncherProgress(LaunchProgressStages.DownloadSpeed, string.Empty, DownloadSpeedText: "2.0 MB/s"));
+        task.Report(new LauncherProgress(string.Empty, string.Empty, DownloadSpeedTelemetry: new DownloadSpeedTelemetry(2 * 1024 * 1024)));
         task.Report(new LauncherProgress(InstallProgressStages.CompletingFiles, string.Empty));
 
         Assert.Equal("2.0 MB/s", task.DownloadSpeedText);
+    }
+
+    [Fact]
+    public void FiveHundredMegabitsFormatsAsMegabytesInsteadOfKilobytes()
+    {
+        var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
+        var task = tasks.BeginTask("install", "instance");
+
+        task.Report(new LauncherProgress(
+            string.Empty,
+            string.Empty,
+            DownloadSpeedTelemetry: new DownloadSpeedTelemetry(62_500_000)));
+
+        Assert.Equal("59.6 MB/s", task.DownloadSpeedText);
     }
 
     [Fact]
@@ -227,7 +241,7 @@ public sealed class DownloadViewModelTests
         task.Report(new LauncherProgress(
             ImportProgressStages.DownloadingPackFiles,
             "example.jar",
-            DownloadSpeedText: "2.0 MB/s"));
+            DownloadSpeedTelemetry: new DownloadSpeedTelemetry(2 * 1024 * 1024)));
 
         Assert.Equal("2.0 MB/s", task.DownloadSpeedText);
     }
@@ -240,9 +254,9 @@ public sealed class DownloadViewModelTests
         task.Report(new LauncherProgress(InstallProgressStages.DownloadingLoaderInstaller, "installer", 42));
 
         task.Report(new LauncherProgress(
-            LaunchProgressStages.DownloadSpeed,
             string.Empty,
-            DownloadSpeedText: string.Empty));
+            string.Empty,
+            DownloadSpeedTelemetry: DownloadSpeedTelemetry.Clear));
 
         Assert.Equal("installer", task.StatusMessage);
         Assert.Equal(42, task.ProgressPercent);
@@ -260,15 +274,15 @@ public sealed class DownloadViewModelTests
     }
 
     [Fact]
-    public void CompletionDoesNotClearPendingSpeedTelemetry()
+    public void CompletionClearsPendingSpeedTelemetry()
     {
         var tasks = new DownloadTasksPageViewModel(TimeSpan.FromMinutes(1));
         var task = tasks.BeginTask("install", "instance");
-        task.Report(new LauncherProgress(LaunchProgressStages.DownloadSpeed, string.Empty, DownloadSpeedText: "2.0 MB/s"));
+        task.Report(new LauncherProgress(string.Empty, string.Empty, DownloadSpeedTelemetry: new DownloadSpeedTelemetry(2 * 1024 * 1024)));
 
         task.Complete("done");
 
-        Assert.Equal("2.0 MB/s", task.DownloadSpeedText);
+        Assert.Equal(string.Empty, task.DownloadSpeedText);
     }
 
     [Fact]

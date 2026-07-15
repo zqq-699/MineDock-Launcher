@@ -283,6 +283,9 @@ public static class Strings
     public static string Settings_DownloadSourceLabel => Get(nameof(Settings_DownloadSourceLabel));
     public static string Settings_DownloadSpeedLimitLabel => Get(nameof(Settings_DownloadSpeedLimitLabel));
     public static string Settings_DownloadSpeedLimitUnit => Get(nameof(Settings_DownloadSpeedLimitUnit));
+    public static string DownloadSpeed_BytesPerSecondFormat => Get(nameof(DownloadSpeed_BytesPerSecondFormat));
+    public static string DownloadSpeed_KilobytesPerSecondFormat => Get(nameof(DownloadSpeed_KilobytesPerSecondFormat));
+    public static string DownloadSpeed_MegabytesPerSecondFormat => Get(nameof(DownloadSpeed_MegabytesPerSecondFormat));
     public static string Settings_DownloadSourceAuto => Get(nameof(Settings_DownloadSourceAuto));
     public static string Settings_DownloadSourceOfficial => Get(nameof(Settings_DownloadSourceOfficial));
     public static string Settings_DownloadSourceBmclApi => Get(nameof(Settings_DownloadSourceBmclApi));

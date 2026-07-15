@@ -20,6 +20,7 @@
 using Launcher.App.Services;
 using Launcher.App.Utilities;
 using Launcher.App.ViewModels.Download;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 
 namespace Launcher.App.ViewModels.Resources;
@@ -34,12 +35,14 @@ internal sealed class ResourceInstallTaskSession
     private double primaryDownloadStart = 2;
     private bool primaryDownloadActive;
     private bool modpackImportActive;
+    private readonly IProgress<LauncherProgress>? progress;
 
     private ResourceInstallTaskSession(DownloadTasksPageViewModel? owner, DownloadTaskItem? task, string initialMessage)
     {
         this.owner = owner;
         Task = task;
         this.initialMessage = initialMessage;
+        progress = task?.CreateProgress(Report);
     }
 
     public DownloadTaskItem? Task { get; }
@@ -48,9 +51,7 @@ internal sealed class ResourceInstallTaskSession
 
     public bool IsCancellationRequested => Task?.IsCancellationRequested == true;
 
-    public IProgress<LauncherProgress>? Progress => Task is null
-        ? null
-        : new Progress<LauncherProgress>(Report);
+    public IProgress<LauncherProgress>? Progress => progress;
 
     public static ResourceInstallTaskSession Begin(
         DownloadTasksPageViewModel? owner,

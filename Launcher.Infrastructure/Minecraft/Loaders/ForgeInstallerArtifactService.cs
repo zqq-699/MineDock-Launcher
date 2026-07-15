@@ -13,6 +13,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using CmlLib.Core;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Modpacks;
@@ -115,10 +116,11 @@ internal sealed partial class LoaderInstallerArtifactService
         DownloadSourcePreference downloadSourcePreference,
         int downloadSpeedLimitMbPerSecond,
         CancellationToken cancellationToken,
-        MinecraftDownloadOperationContext? operationContext = null)
+        MinecraftDownloadOperationContext? operationContext = null,
+        SpeedMeter? speedMeter = null)
     {
         await MaterializeLibrariesAsync(installerJarPath, plan.PrerequisiteLibraries, minecraftDirectory,
-            downloadSourcePreference, downloadSpeedLimitMbPerSecond, cancellationToken, operationContext).ConfigureAwait(false);
+            downloadSourcePreference, downloadSpeedLimitMbPerSecond, cancellationToken, operationContext, speedMeter).ConfigureAwait(false);
     }
 
     public async Task MaterializeRuntimeLibrariesAsync(
@@ -128,10 +130,11 @@ internal sealed partial class LoaderInstallerArtifactService
         DownloadSourcePreference downloadSourcePreference,
         int downloadSpeedLimitMbPerSecond,
         CancellationToken cancellationToken,
-        MinecraftDownloadOperationContext? operationContext = null)
+        MinecraftDownloadOperationContext? operationContext = null,
+        SpeedMeter? speedMeter = null)
     {
         await MaterializeLibrariesAsync(installerJarPath, plan.RuntimeLibraries, minecraftDirectory,
-            downloadSourcePreference, downloadSpeedLimitMbPerSecond, cancellationToken, operationContext).ConfigureAwait(false);
+            downloadSourcePreference, downloadSpeedLimitMbPerSecond, cancellationToken, operationContext, speedMeter).ConfigureAwait(false);
     }
 
     public async Task ValidatePublishedArtifactsAsync(
@@ -253,12 +256,9 @@ internal sealed partial class LoaderInstallerArtifactService
             try
             {
                 progress?.Report(new LauncherProgress(LaunchProgressStages.RepairingLoaderInstaller, string.Empty, 21));
-                using var speedReporter = new SlidingWindowDownloadSpeedReporter(
-                    progress,
-                    speedStage: LaunchProgressStages.RepairingLoaderInstaller,
-                    inactiveStage: LaunchProgressStages.RepairingLoaderInstaller);
+                var speedMeter = SpeedMeterProgress.TryGet(progress);
                 await DownloadInstallerAsync(installerJarPath, installerUrl, loaderName, downloadSourcePreference,
-                    downloadSpeedLimitMbPerSecond, cancellationToken, speedReporter).ConfigureAwait(false);
+                    downloadSpeedLimitMbPerSecond, cancellationToken, speedMeter).ConfigureAwait(false);
                 var plan = await ReadPlanAsync(installerJarPath, cancellationToken).ConfigureAwait(false);
 
                 progress?.Report(new LauncherProgress(LaunchProgressStages.RepairingLibraries, string.Empty, 24));
@@ -268,15 +268,15 @@ internal sealed partial class LoaderInstallerArtifactService
                 var snapshot = await prerequisiteSeeder.SeedAsync(minecraftDirectory, installerMinecraftDirectory, minecraftVersion,
                     installerJarPath, cancellationToken).ConfigureAwait(false);
                 await MaterializePrerequisitesAsync(installerJarPath, plan, installerMinecraftDirectory, downloadSourcePreference,
-                    downloadSpeedLimitMbPerSecond, cancellationToken).ConfigureAwait(false);
+                    downloadSpeedLimitMbPerSecond, cancellationToken, speedMeter: speedMeter).ConfigureAwait(false);
                 await EnsureVanillaVersionAsync(installerMinecraftDirectory, minecraftVersion, downloadSourcePreference,
-                    downloadSpeedLimitMbPerSecond, cancellationToken).ConfigureAwait(false);
+                    progress, downloadSpeedLimitMbPerSecond, cancellationToken, speedMeter).ConfigureAwait(false);
                 progress?.Report(new LauncherProgress(LaunchProgressStages.RunningLoaderInstaller, string.Empty, 27));
                 await installerRunner.RunInstallerAsync("java", installerJarPath, installerMinecraftDirectory, cancellationToken)
                     .ConfigureAwait(false);
                 progress?.Report(new LauncherProgress(LaunchProgressStages.RepairingLibraries, string.Empty, 29));
                 await MaterializeRuntimeLibrariesAsync(installerJarPath, plan, installerMinecraftDirectory, downloadSourcePreference,
-                    downloadSpeedLimitMbPerSecond, cancellationToken).ConfigureAwait(false);
+                    downloadSpeedLimitMbPerSecond, cancellationToken, speedMeter: speedMeter).ConfigureAwait(false);
                 await ValidatePublishedArtifactsAsync(installerMinecraftDirectory, plan, cancellationToken).ConfigureAwait(false);
 
                 await prerequisiteSeeder.PublishDeltaAsync(snapshot, minecraftDirectory, cancellationToken).ConfigureAwait(false);
@@ -380,7 +380,8 @@ internal sealed partial class LoaderInstallerArtifactService
         DownloadSourcePreference downloadSourcePreference,
         int downloadSpeedLimitMbPerSecond,
         CancellationToken cancellationToken,
-        MinecraftDownloadOperationContext? operationContext)
+        MinecraftDownloadOperationContext? operationContext,
+        SpeedMeter? speedMeter)
     {
         var archiveEntries = new Dictionary<string, ZipArchiveEntry>(StringComparer.OrdinalIgnoreCase);
         await using (var stream = new FileStream(installerJarPath, FileMode.Open, FileAccess.Read, FileShare.Read, 128 * 1024,
@@ -417,8 +418,9 @@ internal sealed partial class LoaderInstallerArtifactService
                     DownloadBandwidthLimiter.Create(downloadSpeedLimitMbPerSecond, downloadSpeedLimitState),
                     category: DownloadConcurrencyCategory.Runtime);
                 await executor.DownloadFileAsync(library.Artifact.Url, downloadSourcePreference, library.Artifact.ResourceCategory,
-                    destinationPath, library.Artifact.Sha1, library.Artifact.Size, reportDownloadedBytes: null, cancellationToken,
-                    options: CreateDownloadOptions(library.Artifact, operationContext))
+                    destinationPath, library.Artifact.Sha1, library.Artifact.Size, cancellationToken,
+                    options: CreateDownloadOptions(library.Artifact, operationContext),
+                    speedMeter: speedMeter)
                     .ConfigureAwait(false);
             }
         }
@@ -647,27 +649,26 @@ internal sealed partial class LoaderInstallerArtifactService
 
     private async Task DownloadInstallerAsync(string installerJarPath, string installerUrl, string loaderName,
         DownloadSourcePreference preference, int speedLimit, CancellationToken cancellationToken,
-        SlidingWindowDownloadSpeedReporter? speedReporter = null)
+        SpeedMeter? speedMeter = null)
     {
         var executor = new MinecraftDownloadRequestExecutor(httpClient, logger,
             DownloadBandwidthLimiter.Create(speedLimit, downloadSpeedLimitState), category: DownloadConcurrencyCategory.Runtime);
-        using var speedSession = speedReporter is null ? null : new DownloadActivitySpeedSession(speedReporter);
         await executor.DownloadFileAsync(installerUrl, preference, loaderName, installerJarPath,
             expectedSha1: null,
             expectedSize: null,
-            reportDownloadedBytes: speedReporter is null ? null : bytes => speedReporter.ReportNetworkBytes(bytes),
             cancellationToken,
-            reportActivity: speedSession is null ? null : activity => speedSession.Report(activity)).ConfigureAwait(false);
+            speedMeter: speedMeter).ConfigureAwait(false);
     }
 
     private async Task EnsureVanillaVersionAsync(string installerMinecraftDirectory, string minecraftVersion,
-        DownloadSourcePreference preference, int speedLimit, CancellationToken cancellationToken)
+        DownloadSourcePreference preference, IProgress<LauncherProgress>? progress, int speedLimit,
+        CancellationToken cancellationToken, SpeedMeter? speedMeter)
     {
         var directory = Path.Combine(installerMinecraftDirectory, "versions", minecraftVersion);
         if (File.Exists(Path.Combine(directory, $"{minecraftVersion}.json")) && File.Exists(Path.Combine(directory, $"{minecraftVersion}.jar")))
             return;
-        await finalVersionInstaller.InstallAsync(installerMinecraftDirectory, minecraftVersion, preference, progress: null,
-            cancellationToken, speedLimit).ConfigureAwait(false);
+        await finalVersionInstaller.InstallAsync(new MinecraftPath(installerMinecraftDirectory), minecraftVersion, preference,
+            progress, cancellationToken, speedLimit, speedMeter).ConfigureAwait(false);
     }
 
     private static void RemoveLegacyManifest(JsonObject versionJson, string metadataKey)

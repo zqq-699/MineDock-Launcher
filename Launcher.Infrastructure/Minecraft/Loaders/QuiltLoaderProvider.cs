@@ -192,7 +192,7 @@ public sealed class QuiltLoaderProvider : ILoaderProvider, ISeparatedInstallPath
         try
         {
             using var downloadOperation = VanillaLoaderProvider.CreateDownloadOperationContext(path);
-            using var speedReporter = new SlidingWindowDownloadSpeedReporter(progress);
+            var speedMeter = SpeedMeterProgress.TryGet(progress);
             var launcher = VanillaLoaderProvider.CreateLauncher(
                 path,
                 progress,
@@ -201,7 +201,7 @@ public sealed class QuiltLoaderProvider : ILoaderProvider, ISeparatedInstallPath
                 downloadSpeedLimitMbPerSecond,
                 downloadSpeedLimitState,
                 downloadOperation,
-                speedReporter);
+                speedMeter);
             VanillaLoaderProvider.AttachProgress(launcher, progress);
             var finalVersionName = await ComposedVersionInstallRunner.RunAsync(
                 token => QuiltVersionComposer.PrepareFinalVersionAsync(
@@ -216,7 +216,7 @@ public sealed class QuiltLoaderProvider : ILoaderProvider, ISeparatedInstallPath
                     logger,
                     token,
                     downloadOperation,
-                    speedReporter),
+                    speedMeter),
                 async (versionName, token) => await launcher.InstallAsync(versionName, token).ConfigureAwait(false),
                 cancellationToken).ConfigureAwait(false);
             var validation = await new GameFileIntegrityService(httpClient, downloadSpeedLimitState, logger)

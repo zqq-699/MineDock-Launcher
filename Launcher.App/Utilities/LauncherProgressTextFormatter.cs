@@ -24,6 +24,21 @@ namespace Launcher.App.Utilities;
 
 internal static class LauncherProgressTextFormatter
 {
+    public static string FormatDownloadSpeed(DownloadSpeedTelemetry telemetry)
+    {
+        if (telemetry.BytesPerSecond is not { } bytesPerSecond || bytesPerSecond <= 0)
+            return string.Empty;
+
+        return bytesPerSecond switch
+        {
+            >= 1024 * 1024 => string.Format(Strings.DownloadSpeed_MegabytesPerSecondFormat,
+                bytesPerSecond / 1024d / 1024d),
+            >= 1024 => string.Format(Strings.DownloadSpeed_KilobytesPerSecondFormat,
+                bytesPerSecond / 1024d),
+            _ => string.Format(Strings.DownloadSpeed_BytesPerSecondFormat, bytesPerSecond)
+        };
+    }
+
     public static string Format(LauncherProgress progress)
     {
         return progress.Stage switch
@@ -49,7 +64,7 @@ internal static class LauncherProgressTextFormatter
             ImportProgressStages.CleaningUp => Strings.Status_ModpackCleaningUp,
             LaunchProgressStages.CheckingJava => Strings.Status_LaunchCheckingJava,
             LaunchProgressStages.CheckingFiles => Strings.Status_InstallCheckingFiles,
-            LaunchProgressStages.DownloadingFiles or LaunchProgressStages.DownloadSpeed => Strings.Status_InstallDownloadingFiles,
+            LaunchProgressStages.DownloadingFiles => Strings.Status_InstallDownloadingFiles,
             ModProgressStages.DownloadingFile when !string.IsNullOrWhiteSpace(progress.Message)
                 => string.Format(Strings.Status_ModDownloadingFormat, progress.Message),
             ModProgressStages.DownloadingFile => Strings.Status_ModDownloading,

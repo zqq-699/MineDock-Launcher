@@ -107,7 +107,7 @@ public sealed partial class DownloadInstallViewModel : ObservableObject
                 request.Loader,
                 request.LoaderVersion,
                 request.InstanceName,
-                installProgress,
+                installTask.CreateProgress(installProgress.Report),
                 installTask.CancellationToken,
                 request.DownloadSourcePreference,
                 request.DownloadSpeedLimitMbPerSecond,

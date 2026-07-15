@@ -51,6 +51,8 @@ public sealed partial class HomePageViewModel : ObservableObject
     private LauncherSettings settings = new();
     // 一个首页只允许一个活动启动会话；CTS 的存在也作为取消按钮所需的会话身份。
     private CancellationTokenSource? launchCancellationTokenSource;
+    private IDisposable? launchSpeedMeterLifetime;
+    private IProgress<LauncherProgress>? launchProgress;
 
     [ObservableProperty]
     private bool isLaunching;

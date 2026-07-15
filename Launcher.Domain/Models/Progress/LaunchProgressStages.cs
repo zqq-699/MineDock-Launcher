@@ -35,5 +35,4 @@ public static class LaunchProgressStages
     public const string StartingProcess = "Launch.StartingProcess";
     public const string CheckingFiles = "Files";
     public const string DownloadingFiles = "Bytes";
-    public const string DownloadSpeed = "DownloadSpeed";
 }

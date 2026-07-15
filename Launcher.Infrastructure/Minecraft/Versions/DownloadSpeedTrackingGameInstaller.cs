@@ -22,6 +22,7 @@ using System.IO;
 using CmlLib.Core;
 using CmlLib.Core.Files;
 using CmlLib.Core.Installers;
+using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Modpacks;
 
@@ -32,7 +33,7 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
     private const int MaximumCheckerConcurrency = 4;
     private const int DownloadQueueCapacity = 2048;
 
-    private readonly SlidingWindowDownloadSpeedReporter speedReporter;
+    private readonly SpeedMeter? speedMeter;
     private readonly MinecraftDownloadRequestExecutor downloadExecutor;
     private readonly DownloadSourcePreference downloadSourcePreference;
     private readonly MinecraftPath? minecraftPath;
@@ -51,7 +52,7 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         IProgress<LauncherProgress>? progress,
         MinecraftPath? minecraftPath,
         MinecraftDownloadOperationContext? operationContext,
-        SlidingWindowDownloadSpeedReporter? sharedSpeedReporter)
+        SpeedMeter? sharedSpeedMeter)
         : base(maxChecker, maxDownloader, boundedCapacity, httpClient)
     {
         ConfiguredMaxChecker = maxChecker;
@@ -60,7 +61,7 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         this.downloadSourcePreference = downloadSourcePreference;
         this.minecraftPath = minecraftPath;
         this.operationContext = operationContext;
-        speedReporter = sharedSpeedReporter ?? new SlidingWindowDownloadSpeedReporter(progress);
+        speedMeter = sharedSpeedMeter ?? SpeedMeterProgress.TryGet(progress);
     }
 
     public static DownloadSpeedTrackingGameInstaller CreateAsCoreCount(
@@ -70,7 +71,7 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         IProgress<LauncherProgress>? progress,
         MinecraftPath? minecraftPath = null,
         MinecraftDownloadOperationContext? operationContext = null,
-        SlidingWindowDownloadSpeedReporter? sharedSpeedReporter = null)
+        SpeedMeter? sharedSpeedMeter = null)
     {
         var maxChecker = Environment.ProcessorCount;
         maxChecker = Math.Max(1, maxChecker);
@@ -86,10 +87,8 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
             progress,
             minecraftPath,
             operationContext,
-            sharedSpeedReporter);
+            sharedSpeedMeter);
     }
-
-    internal bool HasActiveNetworkTransfers => speedReporter.HasActiveTransfers;
 
     protected override Task Download(
         GameFile file,
@@ -104,7 +103,6 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
         IProgress<ByteProgress>? progress,
         CancellationToken cancellationToken)
     {
-        using var speedSession = new DownloadActivitySpeedSession(speedReporter);
         var fileUrl = file.Url
                 ?? throw new InvalidDataException($"CmlLib game file URL is missing: {file.Name}");
         var filePath = file.Path
@@ -126,7 +124,6 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
                 filePath,
                 file.Hash,
                 expectedSize,
-                reportDownloadedBytes: speedReporter.ReportNetworkBytes,
                 cancellationToken,
                 (attempt, progressedBytes, totalBytes) =>
                 {
@@ -140,8 +137,8 @@ internal sealed class DownloadSpeedTrackingGameInstaller : ParallelGameInstaller
                         progressedBytes,
                         totalBytes.GetValueOrDefault(file.Size)));
                 },
-            reportActivity: speedSession.Report,
-            options: options).ConfigureAwait(false);
+            options: options,
+            speedMeter: speedMeter).ConfigureAwait(false);
     }
 
     private sealed class NetworkDownloadProgress : IProgress<ByteProgress>

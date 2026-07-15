@@ -25,7 +25,7 @@ namespace Launcher.Application.Services;
 /// 将多个可并行、量纲不同的导入阶段映射为单调递增的总体百分比。
 /// </summary>
 internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> innerProgress)
-    : IProgress<LauncherProgress>
+    : IProgress<LauncherProgress>, ISpeedMeterProgress
 {
     private const double ArchiveWeight = 2;
     private const double ManifestWeight = 3;
@@ -44,32 +44,17 @@ internal sealed class OverallModpackImportProgress(IProgress<LauncherProgress> i
     private double downloadProgress;
     private double overridesProgress;
     private double cleanupProgress;
-    private string? activeDownloadSpeedStage;
+    public SpeedMeter? SpeedMeter => SpeedMeterProgress.TryGet(innerProgress);
 
     public void Report(LauncherProgress value)
     {
-        if (!ShouldForwardDownloadSpeed(value))
-            return;
-
-        innerProgress.Report(MapProgress(value));
-    }
-
-    private bool ShouldForwardDownloadSpeed(LauncherProgress value)
-    {
-        if (value.DownloadSpeedText is null)
-            return true;
-
-        if (!string.IsNullOrEmpty(value.DownloadSpeedText))
+        if (value.DownloadSpeedTelemetry is not null)
         {
-            activeDownloadSpeedStage = value.Stage;
-            return true;
+            innerProgress.Report(value);
+            return;
         }
 
-        if (!string.Equals(activeDownloadSpeedStage, value.Stage, StringComparison.Ordinal))
-            return false;
-
-        activeDownloadSpeedStage = null;
-        return true;
+        innerProgress.Report(MapProgress(value));
     }
 
     /// <summary>

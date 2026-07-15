@@ -159,7 +159,8 @@ internal static class DownloadResponseThrottler
         TimeSpan? sustainedLowSpeedWindow = null,
         long sustainedLowSpeedBytesPerSecond = 0,
         long lowSpeedMinimumFileBytes = long.MaxValue,
-        Action<long>? reportBodyBytes = null)
+        Action<long>? reportBodyBytes = null,
+        SpeedMeter? speedMeter = null)
     {
         if (response.Content is null)
         {
@@ -168,7 +169,8 @@ internal static class DownloadResponseThrottler
             return;
         }
 
-        if (bandwidthLimiter is null && completionLease is null && bodyIdleTimeout is null && reportBodyBytes is null)
+        if (bandwidthLimiter is null && completionLease is null && bodyIdleTimeout is null
+            && reportBodyBytes is null && speedMeter is null)
             return;
 
         var originalContent = response.Content;
@@ -186,10 +188,22 @@ internal static class DownloadResponseThrottler
                 sustainedLowSpeedBytesPerSecond,
                 cancellationToken)
             : originalStream;
-        if (reportBodyBytes is not null)
-            networkStream = new ObservedReadStream(networkStream, reportBodyBytes);
-        var throttledContent = new StreamContent(
-            new ThrottledReadStream(networkStream, originalContent, bandwidthLimiter, completionLease));
+        if (speedMeter is not null || reportBodyBytes is not null)
+        {
+            networkStream = new ObservedReadStream(
+                networkStream,
+                read =>
+                {
+                    speedMeter?.ReportBytes(read);
+                    reportBodyBytes?.Invoke(read);
+                });
+        }
+        Stream consumedStream = new ThrottledReadStream(
+            networkStream,
+            originalContent,
+            bandwidthLimiter,
+            completionLease);
+        var throttledContent = new StreamContent(consumedStream);
         foreach (var header in originalContent.Headers)
             throttledContent.Headers.TryAddWithoutValidation(header.Key, header.Value);
 
@@ -197,9 +211,8 @@ internal static class DownloadResponseThrottler
     }
 
     /// <summary>
-    /// Observes bytes as soon as the transport stream returns them. This sits
-    /// inside the throttling wrapper so UI telemetry excludes limiter waits and
-    /// all later disk, hash and publish work.
+    /// Observes each successful network read exactly once, before any file
+    /// writer, progress adapter, hash verifier, or throttling delay can report it.
     /// </summary>
     private sealed class ObservedReadStream : Stream
     {

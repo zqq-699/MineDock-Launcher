@@ -43,7 +43,7 @@ private bool TryResolveSingleFile(IReadOnlyList<string> paths, out string resolv
 
     private static IProgress<LauncherProgress> CreateProgressReporter(DownloadTaskItem importTask)
     {
-        return new Progress<LauncherProgress>(progress =>
+        return importTask.CreateProgress(progress =>
         {
             importTask.Report(progress with { Message = LauncherProgressTextFormatter.Format(progress) });
         });
