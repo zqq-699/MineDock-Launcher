@@ -39,6 +39,7 @@ public sealed partial class LaunchService : ILaunchService
     private readonly IGameFileIntegrityService gameFileIntegrityService;
     private readonly ILaunchGameLauncherFactory launcherFactory;
     private readonly ILaunchCrashMonitor crashMonitor;
+    private readonly IGameWindowReadinessWaiter gameWindowReadinessWaiter;
     private readonly ILaunchCommandRunner commandRunner;
     private readonly IJavaRuntimeSelectionService? javaRuntimeSelectionService;
     private readonly IJavaRuntimeProvisioningService? javaRuntimeProvisioningService;
@@ -112,7 +113,8 @@ public sealed partial class LaunchService : ILaunchService
         IModService? modService = null,
         IGameLanguageService? gameLanguageService = null,
         ILogger<LaunchService>? logger = null,
-        IAuthlibInjectorProvisioningService? authlibInjectorProvisioningService = null)
+        IAuthlibInjectorProvisioningService? authlibInjectorProvisioningService = null,
+        IGameWindowReadinessWaiter? gameWindowReadinessWaiter = null)
         : this(
             accountSessionService,
             new LegacyManagedVersionRepairAdapter(versionRepairService),
@@ -125,7 +127,8 @@ public sealed partial class LaunchService : ILaunchService
             modService,
             gameLanguageService,
             logger,
-            authlibInjectorProvisioningService)
+            authlibInjectorProvisioningService,
+            gameWindowReadinessWaiter)
     {
     }
 
@@ -141,12 +144,14 @@ public sealed partial class LaunchService : ILaunchService
         IModService? modService = null,
         IGameLanguageService? gameLanguageService = null,
         ILogger<LaunchService>? logger = null,
-        IAuthlibInjectorProvisioningService? authlibInjectorProvisioningService = null)
+        IAuthlibInjectorProvisioningService? authlibInjectorProvisioningService = null,
+        IGameWindowReadinessWaiter? gameWindowReadinessWaiter = null)
     {
         this.accountSessionService = accountSessionService;
         this.gameFileIntegrityService = gameFileIntegrityService;
         this.launcherFactory = launcherFactory;
         this.crashMonitor = crashMonitor;
+        this.gameWindowReadinessWaiter = gameWindowReadinessWaiter ?? new GameWindowReadinessWaiter();
         this.commandRunner = commandRunner ?? new LaunchCommandRunner();
         this.javaRuntimeSelectionService = javaRuntimeSelectionService;
         this.javaRuntimeProvisioningService = javaRuntimeProvisioningService;
@@ -252,19 +257,30 @@ public sealed partial class LaunchService : ILaunchService
                 .ConfigureAwait(false);
             process = startedProcess.Process;
 
-            var quickExitResult = await startedProcess.CrashMonitorSession.WaitForQuickExitAsync(
-                process,
-                diagnosticContext,
-                cancellationToken);
-            if (quickExitResult is not null)
+            var readiness = await gameWindowReadinessWaiter
+                .WaitAsync(process, cancellationToken)
+                .ConfigureAwait(false);
+            if (readiness == GameWindowReadinessResult.ProcessExited)
             {
+                var startupExitResult = await startedProcess.CrashMonitorSession
+                    .CreateStartupExitResultAsync(process, diagnosticContext, cancellationToken)
+                    .ConfigureAwait(false);
                 LogLaunchFailureReport(
                     LogLevel.Warning,
-                    "Minecraft process exited during startup.",
-                    quickExitResult.Report,
+                    "Minecraft process exited before a visible game window appeared.",
+                    startupExitResult.Report,
                     diagnosticContext);
-                throw new LaunchProcessExitedException(quickExitResult.Report);
+                throw new LaunchProcessExitedException(startupExitResult.Report);
             }
+
+            progress?.Report(new LauncherProgress(
+                LaunchProgressStages.StartingProcess,
+                "Game window appeared",
+                100));
+            logger.LogInformation(
+                "Visible Minecraft window detected. VersionName={VersionName} ProcessId={ProcessId}",
+                versionName,
+                process.Id);
             var session = startedProcess.CrashMonitorSession.CreateGameLaunchSession(process, diagnosticContext);
             return new GameLaunchSession(
                 session.InstanceId,

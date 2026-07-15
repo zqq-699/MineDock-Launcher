@@ -34,7 +34,7 @@ public sealed class LaunchServiceTests : TestTempDirectory
     }
 
     [Fact]
-    public async Task DisabledFileCheckSkipsFileStagesAndReportsHundredOnlyAfterProcessStarts()
+    public async Task DisabledFileCheckSkipsFileStagesAndReportsHundredOnlyAfterWindowAppears()
     {
         var repair = new FakeRepairService();
         var launcher = new FakeLauncherFactory();
@@ -59,6 +59,88 @@ public sealed class LaunchServiceTests : TestTempDirectory
             reports
                 .Where(report => report.Stage == LaunchProgressStages.StartingProcess)
                 .Select(report => report.Percent!.Value));
+    }
+
+    [Fact]
+    public async Task LaunchRemainsAtNinetyNineUntilVisibleWindowIsReported()
+    {
+        var waiter = new ControlledWindowReadinessWaiter();
+        Process? launchedProcess = null;
+        var launcher = new FakeLauncherFactory
+        {
+            BuildProcess = (_, _) => launchedProcess = CreateCommandProcess("/c ping 127.0.0.1 -n 30 >nul")
+        };
+        var service = CreateService(launcher: launcher, windowReadinessWaiter: waiter);
+        var settings = CreateSettings();
+        settings.DefaultCheckFilesBeforeLaunch = false;
+        var reports = new List<LauncherProgress>();
+
+        try
+        {
+            var launchTask = service.LaunchAsync(
+                CreateInstance(settings.MinecraftDirectory, "Window Wait"),
+                CreateAccount(),
+                settings,
+                new InlineProgress(reports));
+
+            await waiter.WaitUntilCalledAsync();
+            Assert.False(launchTask.IsCompleted);
+            Assert.Equal(
+                [99d],
+                reports
+                    .Where(report => report.Stage == LaunchProgressStages.StartingProcess)
+                    .Select(report => report.Percent!.Value));
+
+            waiter.Complete(GameWindowReadinessResult.WindowVisible);
+            await launchTask;
+
+            Assert.Equal(
+                [99d, 100d],
+                reports
+                    .Where(report => report.Stage == LaunchProgressStages.StartingProcess)
+                    .Select(report => report.Percent!.Value));
+        }
+        finally
+        {
+            if (launchedProcess is { HasExited: false })
+                launchedProcess.Kill(entireProcessTree: true);
+        }
+    }
+
+    [Fact]
+    public async Task CancelingWindowWaitDoesNotReportCompletion()
+    {
+        var waiter = new ControlledWindowReadinessWaiter();
+        Process? launchedProcess = null;
+        var launcher = new FakeLauncherFactory
+        {
+            BuildProcess = (_, _) => launchedProcess = CreateCommandProcess("/c ping 127.0.0.1 -n 30 >nul")
+        };
+        var service = CreateService(launcher: launcher, windowReadinessWaiter: waiter);
+        var settings = CreateSettings();
+        settings.DefaultCheckFilesBeforeLaunch = false;
+        var reports = new List<LauncherProgress>();
+        using var cancellation = new CancellationTokenSource();
+
+        try
+        {
+            var launchTask = service.LaunchAsync(
+                CreateInstance(settings.MinecraftDirectory, "Canceled Window Wait"),
+                CreateAccount(),
+                settings,
+                new InlineProgress(reports),
+                cancellationToken: cancellation.Token);
+
+            await waiter.WaitUntilCalledAsync();
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => launchTask);
+            Assert.DoesNotContain(reports, report => report.Percent == 100);
+        }
+        finally
+        {
+            if (launchedProcess is { HasExited: false })
+                launchedProcess.Kill(entireProcessTree: true);
+        }
     }
 
     [Fact]
@@ -119,12 +201,17 @@ public sealed class LaunchServiceTests : TestTempDirectory
             BuildProcess = (_, _) => CreateCommandProcess(
                 "/c echo ERROR Missing launch target --accessToken super-secret-access-token 1>&2 & exit 1")
         };
-        var service = CreateService(launcher: launcher, crashMonitor: new LaunchCrashMonitor(TimeSpan.FromSeconds(2)));
+        var service = CreateService(
+            launcher: launcher,
+            crashMonitor: new LaunchCrashMonitor(),
+            windowReadinessWaiter: new GameWindowReadinessWaiter());
+        var reports = new List<LauncherProgress>();
 
         var exception = await Assert.ThrowsAsync<LaunchProcessExitedException>(() =>
-            service.LaunchAsync(instance, CreateAccount(), settings, null));
+            service.LaunchAsync(instance, CreateAccount(), settings, new InlineProgress(reports)));
 
         Assert.Equal(LaunchFailureKind.StartupAbnormalExit, exception.Report.Kind);
+        Assert.DoesNotContain(reports, report => report.Percent == 100);
         Assert.Contains("super-secret-access-token", exception.Report.ExportSensitiveValues);
         Assert.True(File.Exists(exception.DiagnosticPath));
         var expectedDiagnosticDirectory = Path.Combine(
@@ -226,11 +313,13 @@ public sealed class LaunchServiceTests : TestTempDirectory
         IJavaRuntimeSelectionService? javaSelection = null,
         IJavaRuntimeProvisioningService? javaProvisioning = null,
         ILaunchAccountSessionService? accountSession = null,
-        IAuthlibInjectorProvisioningService? authlibInjector = null) =>
+        IAuthlibInjectorProvisioningService? authlibInjector = null,
+        IGameWindowReadinessWaiter? windowReadinessWaiter = null) =>
         new(accountSession ?? new FakeAccountSession(), repair ?? new FakeRepairService(), launcher ?? new FakeLauncherFactory(),
             crashMonitor ?? new NoOpCrashMonitor(), javaRuntimeSelectionService: javaSelection,
             javaRuntimeProvisioningService: javaProvisioning,
-            authlibInjectorProvisioningService: authlibInjector);
+            authlibInjectorProvisioningService: authlibInjector,
+            gameWindowReadinessWaiter: windowReadinessWaiter ?? new ImmediateWindowReadinessWaiter());
 
     private LauncherSettings CreateSettings() => new()
     {
@@ -366,10 +455,36 @@ public sealed class LaunchServiceTests : TestTempDirectory
         private sealed class Session : ILaunchCrashMonitorSession
         {
             public void Configure(Process process) { }
-            public Task<LaunchCrashMonitorResult?> WaitForQuickExitAsync(Process process, LaunchDiagnosticContext context,
-                CancellationToken cancellationToken) => Task.FromResult<LaunchCrashMonitorResult?>(null);
+            public void BeginMonitoring(Process process, LaunchDiagnosticContext context) { }
+            public Task<LaunchCrashMonitorResult> CreateStartupExitResultAsync(
+                Process process,
+                LaunchDiagnosticContext context,
+                CancellationToken cancellationToken) => throw new InvalidOperationException("The fake process did not exit during startup.");
             public GameLaunchSession CreateGameLaunchSession(Process process, LaunchDiagnosticContext context) =>
                 new(context.InstanceId, context.InstanceName, Task.FromResult(LaunchExitResult.Success));
         }
+    }
+
+    private sealed class ImmediateWindowReadinessWaiter : IGameWindowReadinessWaiter
+    {
+        public Task<GameWindowReadinessResult> WaitAsync(Process process, CancellationToken cancellationToken) =>
+            Task.FromResult(GameWindowReadinessResult.WindowVisible);
+    }
+
+    private sealed class ControlledWindowReadinessWaiter : IGameWindowReadinessWaiter
+    {
+        private readonly TaskCompletionSource called = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<GameWindowReadinessResult> completion =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<GameWindowReadinessResult> WaitAsync(Process process, CancellationToken cancellationToken)
+        {
+            called.TrySetResult();
+            return await completion.Task.WaitAsync(cancellationToken);
+        }
+
+        public Task WaitUntilCalledAsync() => called.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        public void Complete(GameWindowReadinessResult result) => completion.TrySetResult(result);
     }
 }

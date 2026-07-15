@@ -218,10 +218,10 @@ public sealed partial class LaunchService
         progress?.Report(new LauncherProgress(LaunchProgressStages.StartingProcess, "Starting game process", 99));
         if (!process.Start())
             throw new InvalidOperationException("Minecraft process did not start.");
-        progress?.Report(new LauncherProgress(LaunchProgressStages.StartingProcess, "Game process started", 100));
+        crashMonitorSession.BeginMonitoring(process, preparedRuntime.DiagnosticContext);
 
         logger.LogInformation(
-            "Minecraft process started. VersionName={VersionName} ProcessId={ProcessId}",
+            "Minecraft process started; waiting for a visible game window. VersionName={VersionName} ProcessId={ProcessId}",
             resolvedSettings.VersionName,
             process.Id);
         return new StartedLaunchProcess(process, crashMonitorSession);

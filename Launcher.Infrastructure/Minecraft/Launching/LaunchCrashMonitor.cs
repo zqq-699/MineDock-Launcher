@@ -33,7 +33,9 @@ internal interface ILaunchCrashMonitorSession
 {
     void Configure(Process process);
 
-    Task<LaunchCrashMonitorResult?> WaitForQuickExitAsync(
+    void BeginMonitoring(Process process, LaunchDiagnosticContext context);
+
+    Task<LaunchCrashMonitorResult> CreateStartupExitResultAsync(
         Process process,
         LaunchDiagnosticContext context,
         CancellationToken cancellationToken);
@@ -45,23 +47,14 @@ internal sealed record LaunchCrashMonitorResult(LaunchFailureReport Report);
 
 internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
 {
-    private static readonly TimeSpan DefaultQuickExitThreshold = TimeSpan.FromSeconds(8);
-    private readonly TimeSpan quickExitThreshold;
-
-    public LaunchCrashMonitor(TimeSpan? quickExitThreshold = null)
-    {
-        this.quickExitThreshold = quickExitThreshold ?? DefaultQuickExitThreshold;
-    }
-
     public ILaunchCrashMonitorSession CreateSession(string minecraftDirectory, string instanceDirectory, string versionName)
     {
-        return new Session(minecraftDirectory, instanceDirectory, versionName, quickExitThreshold);
+        return new Session(minecraftDirectory, instanceDirectory, versionName);
     }
 
     private sealed class Session : ILaunchCrashMonitorSession
     {
         private readonly string instanceDirectory;
-        private readonly TimeSpan quickExitThreshold;
         private readonly DateTimeOffset createdAt = DateTimeOffset.UtcNow;
         private readonly LaunchSessionDiagnosticCollector diagnosticCollector;
         private LaunchOutputCapture? outputCapture;
@@ -69,11 +62,9 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
         public Session(
             string minecraftDirectory,
             string instanceDirectory,
-            string versionName,
-            TimeSpan quickExitThreshold)
+            string versionName)
         {
             this.instanceDirectory = instanceDirectory;
-            this.quickExitThreshold = quickExitThreshold;
             diagnosticCollector = new LaunchSessionDiagnosticCollector(minecraftDirectory, instanceDirectory);
         }
 
@@ -86,20 +77,18 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
             process.StartInfo.RedirectStandardError = true;
         }
 
-        public async Task<LaunchCrashMonitorResult?> WaitForQuickExitAsync(
+        public void BeginMonitoring(Process process, LaunchDiagnosticContext context)
+        {
+            EnsureOutputCaptureStarted(process, context);
+        }
+
+        public async Task<LaunchCrashMonitorResult> CreateStartupExitResultAsync(
             Process process,
             LaunchDiagnosticContext context,
             CancellationToken cancellationToken)
         {
-            var stopwatch = Stopwatch.StartNew();
             EnsureOutputCaptureStarted(process, context);
-            var exitTask = process.WaitForExitAsync(cancellationToken);
-            var delayTask = Task.Delay(quickExitThreshold, cancellationToken);
-
-            if (await Task.WhenAny(exitTask, delayTask) != exitTask)
-                return null;
-
-            await exitTask;
+            await process.WaitForExitAsync(cancellationToken);
             var capturedOutput = await outputCapture!.CompleteAsync();
             var diagnosticCandidates = await diagnosticCollector.CollectAsync(
                 GetProcessStartedAt(process),
@@ -113,7 +102,7 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
                 context,
                 GetFailureKindText(failureKind),
                 process.ExitCode,
-                stopwatch.Elapsed,
+                DateTimeOffset.UtcNow - createdAt,
                 createdAt,
                 process.StartInfo,
                 diagnosticCandidates,
