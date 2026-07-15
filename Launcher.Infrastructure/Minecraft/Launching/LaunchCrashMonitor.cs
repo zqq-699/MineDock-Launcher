@@ -40,6 +40,8 @@ internal interface ILaunchCrashMonitorSession
         LaunchDiagnosticContext context,
         CancellationToken cancellationToken);
 
+    Task CompleteCanceledStartupAsync(Process process);
+
     GameLaunchSession CreateGameLaunchSession(Process process, LaunchDiagnosticContext context);
 }
 
@@ -126,6 +128,16 @@ internal sealed class LaunchCrashMonitor : ILaunchCrashMonitor
             EnsureOutputCaptureStarted(process, context);
             var exitTask = MonitorProcessExitAsync(process, context);
             return new GameLaunchSession(context.InstanceId, context.InstanceName, exitTask);
+        }
+
+        public async Task CompleteCanceledStartupAsync(Process process)
+        {
+            await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+            if (outputCapture is null)
+                return;
+
+            var capturedOutput = await outputCapture.CompleteAsync().ConfigureAwait(false);
+            TryDeleteCapturedOutput(capturedOutput.FilePath);
         }
 
         private async Task<LaunchExitResult> MonitorProcessExitAsync(Process process, LaunchDiagnosticContext context)

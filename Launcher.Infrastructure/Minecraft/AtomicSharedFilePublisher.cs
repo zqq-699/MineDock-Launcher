@@ -19,14 +19,16 @@ internal static class AtomicSharedFilePublisher
         string sourcePath,
         string destinationPath,
         string? expectedSha1,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? managedRoot = null)
     {
         var result = await PublishCoreAsync(
             sourcePath,
             destinationPath,
             expectedSha1,
             replaceExisting: false,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            managedRoot).ConfigureAwait(false);
         return result.Sha1;
     }
 
@@ -34,7 +36,8 @@ internal static class AtomicSharedFilePublisher
         string sourcePath,
         string destinationPath,
         string expectedSha1,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? managedRoot = null)
     {
         if (!MinecraftFileIntegrity.IsSha1(expectedSha1))
             throw new ArgumentException("A valid trusted SHA-1 is required when replacing shared content.", nameof(expectedSha1));
@@ -44,7 +47,8 @@ internal static class AtomicSharedFilePublisher
             destinationPath,
             expectedSha1,
             replaceExisting: true,
-            cancellationToken);
+            cancellationToken,
+            managedRoot);
     }
 
     private static async Task<SharedFilePublishResult> PublishCoreAsync(
@@ -52,15 +56,20 @@ internal static class AtomicSharedFilePublisher
         string destinationPath,
         string? expectedSha1,
         bool replaceExisting,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? managedRoot)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!File.Exists(sourcePath))
             throw new FileNotFoundException("The shared runtime source file is missing.", sourcePath);
+        if (!string.IsNullOrWhiteSpace(managedRoot))
+            MinecraftPathGuard.EnsureSafeFileDestination(destinationPath, managedRoot, "Shared runtime destination");
 
         var destinationExisted = File.Exists(destinationPath);
         if (destinationExisted)
         {
+            if (!string.IsNullOrWhiteSpace(managedRoot))
+                MinecraftPathGuard.EnsureSafeFileDestination(destinationPath, managedRoot, "Shared runtime destination");
             if (!replaceExisting
                 && await FilesMatchAsync(sourcePath, destinationPath, expectedSha1, cancellationToken).ConfigureAwait(false))
             {
@@ -76,12 +85,30 @@ internal static class AtomicSharedFilePublisher
 
         var parent = Path.GetDirectoryName(destinationPath)
             ?? throw new IOException($"Shared runtime destination has no parent directory: {destinationPath}");
-        Directory.CreateDirectory(parent);
+        if (string.IsNullOrWhiteSpace(managedRoot))
+        {
+            Directory.CreateDirectory(parent);
+        }
+        else
+        {
+            MinecraftPathGuard.EnsureSafeFileDestination(destinationPath, managedRoot, "Shared runtime destination");
+            MinecraftPathGuard.EnsureSafeDirectory(parent, managedRoot, "Shared runtime directory");
+            MinecraftPathGuard.EnsureSafeFileDestination(destinationPath, managedRoot, "Shared runtime destination");
+        }
         var temporaryPath = Path.Combine(parent, $".{Path.GetFileName(destinationPath)}.{Guid.NewGuid():N}.tmp");
         var published = false;
 
+        void EnsureSafe()
+        {
+            if (string.IsNullOrWhiteSpace(managedRoot))
+                return;
+            MinecraftPathGuard.EnsureSafeFileDestination(destinationPath, managedRoot, "Shared runtime destination");
+            MinecraftPathGuard.EnsureNoReparsePoints(managedRoot, temporaryPath, "Shared runtime temporary file");
+        }
+
         try
         {
+            EnsureSafe();
             var actualSha1 = await CopyAndFlushAsync(sourcePath, temporaryPath, cancellationToken).ConfigureAwait(false);
             if (!string.IsNullOrWhiteSpace(expectedSha1)
                 && !string.Equals(actualSha1, expectedSha1, StringComparison.OrdinalIgnoreCase))
@@ -91,6 +118,7 @@ internal static class AtomicSharedFilePublisher
 
             if (replaceExisting)
             {
+                EnsureSafe();
                 if (File.Exists(destinationPath)
                     && await FilesMatchAsync(temporaryPath, destinationPath, actualSha1, cancellationToken).ConfigureAwait(false))
                 {
@@ -114,6 +142,7 @@ internal static class AtomicSharedFilePublisher
             }
             else
             {
+                EnsureSafe();
                 try
                 {
                     File.Move(temporaryPath, destinationPath, overwrite: false);
@@ -128,10 +157,11 @@ internal static class AtomicSharedFilePublisher
                 }
             }
         }
+
         finally
         {
             if (!published)
-                TryDelete(temporaryPath);
+                TryDelete(temporaryPath, managedRoot);
         }
     }
 
@@ -195,12 +225,17 @@ internal static class AtomicSharedFilePublisher
         return string.Equals(firstSha1, secondSha1, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void TryDelete(string path)
+    private static void TryDelete(string path, string? managedRoot)
     {
         try
         {
+            if (!string.IsNullOrWhiteSpace(managedRoot))
+                MinecraftPathGuard.EnsureNoReparsePoints(managedRoot, path, "Shared runtime cleanup");
             if (File.Exists(path))
                 File.Delete(path);
+        }
+        catch (InvalidDataException)
+        {
         }
         catch (IOException)
         {

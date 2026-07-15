@@ -62,7 +62,11 @@ internal sealed class MinecraftDownloadRequestExecutor
         // A batch may provide a shared tracker; the default remains executor
         // scoped so unrelated operations never inherit a stale cooldown.
         this.hostHealthTracker = hostHealthTracker ?? new DownloadHostHealthTracker();
-        transport = new MinecraftDownloadTransport(httpClient, this.retryOptions, addressPolicy);
+        var resolvedAddressPolicy = addressPolicy
+            ?? (MinecraftHttpClientFactory.IsTransportClient(httpClient)
+                ? new DownloadAddressPolicy()
+                : DownloadAddressPolicy.CreateForInjectedTransport());
+        transport = new MinecraftDownloadTransport(httpClient, this.retryOptions, resolvedAddressPolicy);
     }
 
     public async Task<T> ExecuteAsync<T>(
@@ -126,7 +130,7 @@ internal sealed class MinecraftDownloadRequestExecutor
         // atomic one-shot behavior, but never persist it as a resumable part.
         if (string.IsNullOrWhiteSpace(expectedSha1))
         {
-            MinecraftDownloadFileWriter.PrepareDestination(destinationPath, expectedSha1);
+            MinecraftDownloadFileWriter.PrepareDestination(destinationPath, expectedSha1, options?.ManagedRoot);
             return DownloadUnverifiedAsync();
 
             async Task<ResolvedDownloadRequest> DownloadUnverifiedAsync()
@@ -144,7 +148,8 @@ internal sealed class MinecraftDownloadRequestExecutor
                             expectedSize,
                             context.AttemptNumber,
                             reportAttemptProgress,
-                            token).ConfigureAwait(false);
+                            token,
+                            options?.ManagedRoot).ConfigureAwait(false);
                         return context.Resolution;
                     },
                     noResultStatus: null,
@@ -324,11 +329,6 @@ internal sealed class MinecraftDownloadRequestExecutor
                 catch (Exception exception)
                 {
                     var failure = ClassifyException(exception);
-                    if (failure.Reason is DownloadFailureReason.SustainedLowSpeed
-                        && preference is DownloadSourcePreference.Auto)
-                    {
-                        failure.WithDisposition(DownloadFailureDisposition.SwitchSource);
-                    }
                     RecordAdaptiveResult(failure.Reason);
                     hostHealthTracker.RecordFailure(
                         resolution.ResolvedSourceKind,
@@ -419,9 +419,6 @@ internal sealed class MinecraftDownloadRequestExecutor
             cancellationToken,
             bodyIdleTimeout: retryOptions.BodyIdleTimeout,
             firstByteTimeout: retryOptions.FirstByteTimeout,
-            sustainedLowSpeedWindow: retryOptions.SustainedLowSpeedWindow,
-            sustainedLowSpeedBytesPerSecond: retryOptions.SustainedLowSpeedBytesPerSecond,
-            lowSpeedMinimumFileBytes: retryOptions.LowSpeedMinimumFileBytes,
             reportBodyBytes: bytes =>
             {
                 telemetry.ReportBodyBytes(bytes);

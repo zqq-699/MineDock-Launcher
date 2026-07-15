@@ -23,6 +23,7 @@ using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.CurseForge;
 using Launcher.Infrastructure.FileSystem;
+using Launcher.Infrastructure.Minecraft;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -45,7 +46,7 @@ public sealed class ResourceCatalogService : IResourceCatalogService, IResourceC
         IImportConcurrencyLimiter? limiter = null)
     {
         var resolvedPathProvider = pathProvider ?? new LauncherPathProvider();
-        var resolvedHttpClient = httpClient ?? new HttpClient();
+        var resolvedHttpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.logger = logger ?? NullLogger<ResourceCatalogService>.Instance;
         var keyResolver = curseForgeApiKeyResolver
             ?? new CurseForgeApiKeyResolver(resolvedPathProvider, settingsService);

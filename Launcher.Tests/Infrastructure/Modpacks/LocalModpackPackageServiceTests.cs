@@ -90,7 +90,7 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
             {
                 FileName = "mod.jar",
                 RelativePath = "mods/mod.jar",
-                SourceUrl = "https://download/mod.jar",
+                SourceUrl = "https://download.test/mod.jar",
                 Sha1 = new string('0', 40)
             }]
         };
@@ -124,13 +124,13 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
                 {
                     FileName = "first.jar",
                     RelativePath = "mods/Same.jar",
-                    SourceUrl = "https://download/first.jar"
+                    SourceUrl = "https://download.test/first.jar"
                 },
                 new PreparedModpackDownload
                 {
                     FileName = "second.jar",
                     RelativePath = "MODS/same.jar",
-                    SourceUrl = "https://download/second.jar"
+                    SourceUrl = "https://download.test/second.jar"
                 }
             ]
         };
@@ -224,7 +224,7 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
                 {
                     FileName = "mod.jar",
                     RelativePath = "mods/mod.jar",
-                    SourceUrl = "https://download/mod.jar"
+                    SourceUrl = "https://download.test/mod.jar"
                 }
             ]
         };
@@ -359,10 +359,10 @@ public sealed class LocalModpackPackageServiceTests : TestTempDirectory
                     ? "same.jar"
                     : isSecondFile ? "second.jar" : "first.jar";
                 if (uri.AbsolutePath.EndsWith("/download-url", StringComparison.Ordinal))
-                    return JsonResponse($"{{\"data\":\"https://download/{fileName}\"}}");
+                    return JsonResponse($"{{\"data\":\"https://download.test/{fileName}\"}}");
 
                 return JsonResponse(
-                    $"{{\"data\":{{\"displayName\":\"{fileName}\",\"fileName\":\"{fileName}\",\"downloadUrl\":\"https://download/{fileName}\",\"hashes\":[]}}}}");
+                    $"{{\"data\":{{\"displayName\":\"{fileName}\",\"fileName\":\"{fileName}\",\"downloadUrl\":\"https://download.test/{fileName}\",\"hashes\":[]}}}}");
             }
 
             Interlocked.Increment(ref downloadRequestCount);

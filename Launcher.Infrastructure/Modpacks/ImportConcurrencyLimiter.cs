@@ -136,7 +136,7 @@ internal sealed class AdaptiveDownloadScheduler
                 successes++;
             else if (failureReason is DownloadFailureReason.Network or DownloadFailureReason.Dns
                 or DownloadFailureReason.ResponseHeadersTimeout or DownloadFailureReason.FirstByteTimeout
-                or DownloadFailureReason.BodyIdleTimeout or DownloadFailureReason.SustainedLowSpeed
+                or DownloadFailureReason.BodyIdleTimeout
                 or DownloadFailureReason.BodyInterrupted
                 or DownloadFailureReason.HttpStatus)
                 failures++;

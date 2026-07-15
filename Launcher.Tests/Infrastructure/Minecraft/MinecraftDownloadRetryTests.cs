@@ -19,6 +19,7 @@
 
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text.Json;
 using CmlLib.Core.Files;
@@ -106,12 +107,12 @@ public sealed class MinecraftDownloadRetryTests
     }
 
     [Fact]
-    public async Task AutoSourceSwitchesImmediatelyAfterSustainedLowBodySpeed()
+    public async Task StableLowBodySpeedDoesNotSwitchSource()
     {
         var handler = new CallbackRequestHandler((requestNumber, request, _) =>
         {
             HttpContent content = requestNumber == 1
-                ? new StreamContent(new SustainedLowSpeedStream())
+                ? new StreamContent(new StableLowSpeedStream())
                 : new StringContent("{}");
             if (requestNumber == 1)
                 content.Headers.ContentLength = 4 * 1024 * 1024;
@@ -128,9 +129,6 @@ public sealed class MinecraftDownloadRetryTests
             RetryDelay = TimeSpan.Zero,
             ResponseHeadersTimeout = TimeSpan.FromSeconds(1),
             BodyIdleTimeout = TimeSpan.FromSeconds(1),
-            SustainedLowSpeedWindow = TimeSpan.FromMilliseconds(10),
-            SustainedLowSpeedBytesPerSecond = 1024,
-            LowSpeedMinimumFileBytes = 1
         });
 
         var result = await executor.ExecuteAsync(
@@ -141,8 +139,7 @@ public sealed class MinecraftDownloadRetryTests
             CancellationToken.None);
 
         Assert.Equal("{}", result);
-        Assert.Equal(2, handler.RequestUris.Count);
-        Assert.NotEqual(handler.RequestUris[0], handler.RequestUris[1]);
+        Assert.Single(handler.RequestUris);
     }
 
     [Fact]
@@ -971,6 +968,123 @@ public sealed class MinecraftDownloadRetryTests
         Assert.Empty(handler.RequestUris);
     }
 
+    [Theory]
+    [InlineData("http://downloads.example.com/file.jar")]
+    [InlineData("https://downloads/file.jar")]
+    [InlineData("https://user:password@downloads.example.com/file.jar")]
+    [InlineData("https://127.0.0.1/file.jar")]
+    [InlineData("https://[::ffff:10.0.0.1]/file.jar")]
+    public async Task UnsafeThirdPartyEndpointFormsAreRejected(string url)
+    {
+        var policy = new DownloadAddressPolicy((_, _) =>
+            Task.FromResult(new[] { IPAddress.Parse("8.8.8.8") }));
+
+        var exception = await Assert.ThrowsAsync<DownloadAttemptException>(() =>
+            policy.ValidateAsync(new Uri(url), isThirdParty: true, CancellationToken.None));
+
+        Assert.Equal(DownloadFailureReason.UnsafeAddress, exception.Reason);
+    }
+
+    [Fact]
+    public async Task MixedPublicAndPrivateDnsResultIsRejected()
+    {
+        var policy = new DownloadAddressPolicy((_, _) => Task.FromResult(new[]
+        {
+            IPAddress.Parse("8.8.8.8"),
+            IPAddress.Parse("192.168.1.10")
+        }));
+
+        var exception = await Assert.ThrowsAsync<DownloadAttemptException>(() =>
+            policy.ValidateAsync(
+                new Uri("https://downloads.example.com/file.jar"),
+                isThirdParty: true,
+                CancellationToken.None));
+
+        Assert.Equal(DownloadFailureReason.UnsafeAddress, exception.Reason);
+    }
+
+    [Fact]
+    public async Task DnsFailureIsRejectedInsteadOfFailingOpen()
+    {
+        var policy = new DownloadAddressPolicy((_, _) =>
+            Task.FromException<IPAddress[]>(new SocketException((int)SocketError.HostNotFound)));
+
+        var exception = await Assert.ThrowsAsync<DownloadAttemptException>(() =>
+            policy.ValidateAsync(
+                new Uri("https://downloads.example.com/file.jar"),
+                isThirdParty: true,
+                CancellationToken.None));
+
+        Assert.Equal(DownloadFailureReason.UnsafeAddress, exception.Reason);
+    }
+
+    [Fact]
+    public async Task TrustedBuiltInEndpointKeepsNormalSystemRoute()
+    {
+        var resolverCalled = false;
+        var policy = new DownloadAddressPolicy((_, _) =>
+        {
+            resolverCalled = true;
+            return Task.FromResult(new[] { IPAddress.Loopback });
+        });
+
+        var endpoint = await policy.ValidateAsync(
+            new Uri("https://libraries.minecraft.net/library.jar"),
+            isThirdParty: false,
+            CancellationToken.None);
+
+        Assert.False(endpoint.RequiresDirectConnection);
+        Assert.Empty(endpoint.Addresses);
+        Assert.False(resolverCalled);
+    }
+
+    [Fact]
+    public async Task StrictTransportConnectsOnlyToValidatedDnsResult()
+    {
+        IReadOnlyList<IPAddress>? connectedAddresses = null;
+        var connectedPort = 0;
+        using var client = MinecraftHttpClientFactory.CreateTransportClient((addresses, port, _) =>
+        {
+            connectedAddresses = addresses.ToArray();
+            connectedPort = port;
+            return ValueTask.FromException<Stream>(new IOException("Stop after recording the strict route."));
+        });
+        var policy = new DownloadAddressPolicy((_, _) =>
+            Task.FromResult(new[] { IPAddress.Parse("8.8.4.4") }));
+        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions(), policy);
+
+        await Assert.ThrowsAsync<DownloadAttemptException>(() => transport.SendAsync(
+            "https://downloads.example.com/file.jar",
+            CancellationToken.None,
+            isThirdParty: true));
+
+        Assert.Equal([IPAddress.Parse("8.8.4.4")], connectedAddresses);
+        Assert.Equal(443, connectedPort);
+    }
+
+    [Fact]
+    public async Task HttpsRedirectToHttpIsRejectedBeforeSecondRequest()
+    {
+        var handler = new CallbackRequestHandler((_, request, _) =>
+        {
+            var redirect = CreateResponse(HttpStatusCode.Found, string.Empty, request);
+            redirect.Headers.Location = new Uri("http://downloads.example.com/file.jar");
+            return Task.FromResult(redirect);
+        });
+        using var client = CreateClient(handler);
+        var policy = new DownloadAddressPolicy((_, _) =>
+            Task.FromResult(new[] { IPAddress.Parse("8.8.8.8") }));
+        var transport = new MinecraftDownloadTransport(client, new DownloadRetryOptions(), policy);
+
+        var exception = await Assert.ThrowsAsync<DownloadAttemptException>(() => transport.SendAsync(
+            "https://downloads.example.com/file.jar",
+            CancellationToken.None,
+            isThirdParty: true));
+
+        Assert.Equal(DownloadFailureReason.InvalidRedirect, exception.Reason);
+        Assert.Single(handler.RequestUris);
+    }
+
     [Fact]
     public async Task RedirectTargetIsResolvedAndValidatedAgain()
     {
@@ -1014,16 +1128,6 @@ public sealed class MinecraftDownloadRetryTests
         Assert.False(tracker.ShouldAvoid("BmclApiMojang", "node.example"));
         tracker.RecordFailure("BmclApiMojang", "node.example", DownloadFailureReason.HashMismatch);
         Assert.False(tracker.ShouldAvoid("BmclApiMojang", "node.example"));
-    }
-
-    [Fact]
-    public void HostHealthAvoidsSustainedLowSpeedImmediately()
-    {
-        var tracker = new DownloadHostHealthTracker();
-
-        tracker.RecordFailure("BmclApiMojang", "slow.example", DownloadFailureReason.SustainedLowSpeed);
-
-        Assert.True(tracker.ShouldAvoid("BmclApiMojang", "slow.example"));
     }
 
     [Fact]
@@ -1109,6 +1213,8 @@ public sealed class MinecraftDownloadRetryTests
             httpClient,
             limiter: new ImportConcurrencyLimiter(),
             logger: logger,
+            addressPolicy: new DownloadAddressPolicy((_, _) =>
+                Task.FromResult(new[] { IPAddress.Parse("8.8.8.8") })),
             retryOptions: options ?? new DownloadRetryOptions
             {
                 MaxAttemptsPerSource = 4,
@@ -1239,7 +1345,7 @@ public sealed class MinecraftDownloadRetryTests
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
-    private sealed class SustainedLowSpeedStream : Stream
+    private sealed class StableLowSpeedStream : Stream
     {
         private int reads;
 
@@ -1257,14 +1363,14 @@ public sealed class MinecraftDownloadRetryTests
         {
             if (reads++ == 0)
             {
-                buffer.Span[0] = (byte)'x';
+                buffer.Span[0] = (byte)'{';
                 return 1;
             }
 
             if (reads == 2)
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
-                buffer.Span[0] = (byte)'x';
+                buffer.Span[0] = (byte)'}';
                 return 1;
             }
 

@@ -241,7 +241,13 @@ internal sealed partial class LoaderInstallerArtifactService
 
                 if (archiveEntries.TryGetValue(library.Artifact.RelativePath, out var entry))
                 {
-                    await CopyEmbeddedLibraryAsync(entry, destinationPath, library.Artifact, cancellationToken, operationContext).ConfigureAwait(false);
+                    await CopyEmbeddedLibraryAsync(
+                        entry,
+                        destinationPath,
+                        library.Artifact,
+                        minecraftDirectory,
+                        cancellationToken,
+                        operationContext).ConfigureAwait(false);
                     continue;
                 }
 
@@ -250,7 +256,7 @@ internal sealed partial class LoaderInstallerArtifactService
                     category: DownloadConcurrencyCategory.Runtime);
                 await executor.DownloadFileAsync(library.Artifact.Url, downloadSourcePreference, library.Artifact.ResourceCategory,
                     destinationPath, library.Artifact.Sha1, library.Artifact.Size, cancellationToken,
-                    options: CreateDownloadOptions(library.Artifact, operationContext),
+                    options: CreateDownloadOptions(library.Artifact, operationContext, minecraftDirectory),
                     speedMeter: speedMeter)
                     .ConfigureAwait(false);
             }
@@ -261,13 +267,20 @@ internal sealed partial class LoaderInstallerArtifactService
         ZipArchiveEntry entry,
         string destinationPath,
         ManagedLibraryArtifact artifact,
+        string minecraftDirectory,
         CancellationToken cancellationToken,
         MinecraftDownloadOperationContext? operationContext)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        var librariesRoot = Path.Combine(minecraftDirectory, "libraries");
+        MinecraftPathGuard.EnsureSafeDirectory(
+            Path.GetDirectoryName(destinationPath)!,
+            librariesRoot,
+            "Forge library directory");
+        MinecraftPathGuard.EnsureSafeFileDestination(destinationPath, librariesRoot, "Forge library");
         var temporaryPath = $"{destinationPath}.{Guid.NewGuid():N}.download";
         try
         {
+            MinecraftPathGuard.EnsureNoReparsePoints(librariesRoot, temporaryPath, "Forge library temporary file");
             await using (var source = entry.Open())
             await using (var destination = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None,
                              128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan))
@@ -276,6 +289,8 @@ internal sealed partial class LoaderInstallerArtifactService
             }
             await EnsureValidAsync(temporaryPath, artifact.Sha1, artifact.Size, "Embedded Forge library", cancellationToken)
                 .ConfigureAwait(false);
+            MinecraftPathGuard.EnsureSafeFileDestination(destinationPath, librariesRoot, "Forge library");
+            MinecraftPathGuard.EnsureNoReparsePoints(librariesRoot, temporaryPath, "Forge library temporary file");
             File.Move(temporaryPath, destinationPath, overwrite: true);
             MarkVerified(destinationPath, artifact, operationContext);
         }
@@ -301,11 +316,15 @@ internal sealed partial class LoaderInstallerArtifactService
 
     private static DownloadFileOptions? CreateDownloadOptions(
         ManagedLibraryArtifact artifact,
-        MinecraftDownloadOperationContext? operationContext)
+        MinecraftDownloadOperationContext? operationContext,
+        string minecraftDirectory)
     {
         return operationContext is not null && MinecraftFileIntegrity.IsSha1(artifact.Sha1)
-            ? new DownloadFileOptions(DownloadPersistenceMode.TaskScopedResumable, operationContext)
-            : null;
+            ? new DownloadFileOptions(
+                DownloadPersistenceMode.TaskScopedResumable,
+                operationContext,
+                Path.Combine(minecraftDirectory, "libraries"))
+            : new DownloadFileOptions(ManagedRoot: Path.Combine(minecraftDirectory, "libraries"));
     }
 
     private static MinecraftVerifiedFileLease? AcquireCurrentOperationVerificationLease(
@@ -598,7 +617,11 @@ internal sealed partial class LoaderInstallerArtifactService
         if (!IsSafeRelativePath(relativePath))
             throw new InvalidDataException($"Unsafe Forge library path: {relativePath}");
         var root = Path.Combine(minecraftDirectory, "libraries");
-        return MinecraftPathGuard.EnsureWithin(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)), root, "Forge library");
+        var path = MinecraftPathGuard.EnsureWithin(
+            Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)),
+            root,
+            "Forge library");
+        return MinecraftPathGuard.EnsureSafeFileDestination(path, root, "Forge library");
     }
 
     private static bool IsSafeRelativePath(string relativePath) => !string.IsNullOrWhiteSpace(relativePath)

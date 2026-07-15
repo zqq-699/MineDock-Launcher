@@ -146,6 +146,20 @@ public sealed partial class LaunchService
         }
     }
 
+    private async Task ObserveGameExitAfterCancellationCleanupFailureAsync(
+        Task<LaunchExitResult> exitTask,
+        LaunchDiagnosticContext context)
+    {
+        try
+        {
+            await LogGameExitAsync(exitTask, context).ConfigureAwait(false);
+        }
+        catch
+        {
+            // LogGameExitAsync 已记录监控失败；此处消费异常，避免后台任务产生未观察异常。
+        }
+    }
+
     private void LogLaunchFailureReport(
         LogLevel level,
         string message,

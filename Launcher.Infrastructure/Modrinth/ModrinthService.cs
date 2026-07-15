@@ -20,10 +20,12 @@
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Launcher.Application.Services;
 using Launcher.Domain.Models;
 using Launcher.Infrastructure.Minecraft;
+using Launcher.Infrastructure.Modpacks;
 using Launcher.Infrastructure.Modrinth.Dto;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -45,11 +47,40 @@ public sealed class ModrinthService : IModrinthService
     private const string QuiltStandardLibraryTitle = "QFAPI / QSL";
     private readonly HttpClient httpClient;
     private readonly ILogger<ModrinthService> logger;
+    private readonly ISettingsService? settingsService;
+    private readonly IDownloadSpeedLimitState? downloadSpeedLimitState;
+    private readonly IImportConcurrencyLimiter limiter;
+    private readonly DownloadAddressPolicy? addressPolicy;
+    private readonly DownloadRetryOptions? retryOptions;
 
     public ModrinthService(HttpClient? httpClient = null, ILogger<ModrinthService>? logger = null)
+        : this(
+            httpClient ?? MinecraftHttpClientFactory.CreateTransportClient(),
+            logger,
+            settingsService: null,
+            downloadSpeedLimitState: null,
+            limiter: null,
+            addressPolicy: null,
+            retryOptions: null)
     {
-        this.httpClient = httpClient ?? new HttpClient();
+    }
+
+    internal ModrinthService(
+        HttpClient httpClient,
+        ILogger<ModrinthService>? logger,
+        ISettingsService? settingsService,
+        IDownloadSpeedLimitState? downloadSpeedLimitState,
+        IImportConcurrencyLimiter? limiter,
+        DownloadAddressPolicy? addressPolicy = null,
+        DownloadRetryOptions? retryOptions = null)
+    {
+        this.httpClient = httpClient;
         this.logger = logger ?? NullLogger<ModrinthService>.Instance;
+        this.settingsService = settingsService;
+        this.downloadSpeedLimitState = downloadSpeedLimitState;
+        this.limiter = limiter ?? ImportConcurrencyLimiter.Shared;
+        this.addressPolicy = addressPolicy;
+        this.retryOptions = retryOptions;
         if (!this.httpClient.DefaultRequestHeaders.UserAgent.Any())
             this.httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("BHL/0.1 (BlockHelm-Launcher)");
     }
@@ -280,23 +311,40 @@ public sealed class ModrinthService : IModrinthService
 
         var file = version.Files.FirstOrDefault(f => f.IsPrimary) ?? version.Files[0];
         var modsDirectory = Path.Combine(instance.InstanceDirectory, "mods");
-        Directory.CreateDirectory(modsDirectory);
-        var target = Path.Combine(modsDirectory, file.FileName);
+        var fileName = ValidateFileName(file.FileName);
+        var target = MinecraftPathGuard.EnsureSafeFileDestination(
+            Path.Combine(modsDirectory, fileName),
+            modsDirectory,
+            "Modrinth mod file");
+        var integrity = CreateIntegrityExpectation(file);
+        var settings = settingsService is null
+            ? null
+            : await settingsService.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var executor = new MinecraftDownloadRequestExecutor(
+            httpClient,
+            logger,
+            DownloadBandwidthLimiter.Create(
+                settings?.DownloadSpeedLimitMbPerSecond ?? 0,
+            downloadSpeedLimitState),
+            limiter,
+            DownloadConcurrencyCategory.Modpack,
+            retryOptions: retryOptions,
+            addressPolicy: addressPolicy);
 
         progress?.Report(new LauncherProgress(ModProgressStages.DownloadingFile, $"{projectTitle} {version.VersionNumber}"));
-        using var response = await httpClient.GetAsync(
-            file.Url,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        await DownloadResponseThrottler.ApplyAsync(
-            response,
-            bandwidthLimiter: null,
-            cancellationToken,
-            speedMeter: SpeedMeterProgress.TryGet(progress)).ConfigureAwait(false);
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        await using var destination = File.Create(target);
-        await stream.CopyToAsync(destination, cancellationToken);
+        await executor.DownloadFileAsync(
+                file.Url,
+                settings?.DownloadSourcePreference ?? DownloadSourcePreference.Auto,
+                "ThirdParty",
+                target,
+                integrity,
+                cancellationToken,
+                options: new DownloadFileOptions(
+                    DownloadPersistenceMode.TaskScopedResumable,
+                    OperationContext: null,
+                    ManagedRoot: modsDirectory),
+                speedMeter: SpeedMeterProgress.TryGet(progress))
+            .ConfigureAwait(false);
         logger.LogInformation(
             "Modrinth project installed. ProjectId={ProjectId} VersionId={VersionId} VersionNumber={VersionNumber} FileName={FileName} Target={Target}",
             projectId,
@@ -306,4 +354,41 @@ public sealed class ModrinthService : IModrinthService
             target);
         return target;
     }
+
+    private static string ValidateFileName(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName)
+            || fileName is "." or ".."
+            || !string.Equals(Path.GetFileName(fileName), fileName, StringComparison.Ordinal)
+            || fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+            || fileName.Contains(Path.DirectorySeparatorChar)
+            || fileName.Contains(Path.AltDirectorySeparatorChar))
+        {
+            throw new InvalidDataException("Modrinth returned an unsafe file name.");
+        }
+        return fileName;
+    }
+
+    private static DownloadIntegrityExpectation CreateIntegrityExpectation(ModrinthFile file)
+    {
+        if (file.Size is null or < 0)
+            throw new InvalidDataException("Modrinth returned an invalid file size.");
+        if (file.Hashes is null || !IsHexHash(file.Hashes.Sha512, 128))
+            throw new InvalidDataException("Modrinth returned no valid SHA-512 for the selected file.");
+
+        var hashes = new List<(HashAlgorithmName Algorithm, string Value)>
+        {
+            (HashAlgorithmName.SHA512, file.Hashes.Sha512)
+        };
+        if (!string.IsNullOrWhiteSpace(file.Hashes.Sha1))
+        {
+            if (!IsHexHash(file.Hashes.Sha1, 40))
+                throw new InvalidDataException("Modrinth returned an invalid SHA-1 for the selected file.");
+            hashes.Add((HashAlgorithmName.SHA1, file.Hashes.Sha1));
+        }
+        return new DownloadIntegrityExpectation(file.Size.Value, hashes);
+    }
+
+    private static bool IsHexHash(string? value, int length) =>
+        value is not null && value.Length == length && value.All(Uri.IsHexDigit);
 }

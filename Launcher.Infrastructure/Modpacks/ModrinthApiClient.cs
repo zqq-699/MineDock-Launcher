@@ -22,6 +22,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Launcher.Application.Services;
+using Launcher.Infrastructure.Minecraft;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -41,7 +42,7 @@ public sealed class ModrinthApiClient
         IImportConcurrencyLimiter? limiter = null,
         ILogger<ModrinthApiClient>? logger = null)
     {
-        this.httpClient = httpClient ?? new HttpClient();
+        this.httpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         this.limiter = limiter ?? ImportConcurrencyLimiter.Shared;
         this.logger = logger ?? NullLogger<ModrinthApiClient>.Instance;
     }

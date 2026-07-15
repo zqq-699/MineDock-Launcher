@@ -65,7 +65,10 @@ internal sealed class ResourceProjectStorage
             return await InstallWorldAsync(version, instance, progress, cancellationToken).ConfigureAwait(false);
 
         var installDirectory = ResolveInstallDirectory(instance, version.Kind);
-        Directory.CreateDirectory(installDirectory);
+        MinecraftPathGuard.EnsureSafeDirectory(
+            installDirectory,
+            installDirectory,
+            "Resource project install directory");
         return await DownloadCoreAsync(version, installDirectory, progress, cancellationToken).ConfigureAwait(false);
     }
 
@@ -83,7 +86,10 @@ internal sealed class ResourceProjectStorage
     {
         if (string.IsNullOrWhiteSpace(targetDirectory))
             throw new InvalidOperationException("The target download directory is empty.");
-        Directory.CreateDirectory(targetDirectory);
+        MinecraftPathGuard.EnsureSafeDirectory(
+            targetDirectory,
+            targetDirectory,
+            "Resource project download directory");
         return await DownloadCoreAsync(version, targetDirectory, progress, cancellationToken).ConfigureAwait(false);
     }
 
@@ -129,6 +135,10 @@ internal sealed class ResourceProjectStorage
         CancellationToken cancellationToken)
     {
         var target = Path.Combine(targetDirectory, ResolveFileName(version));
+        MinecraftPathGuard.EnsureSafeFileDestination(
+            target,
+            targetDirectory,
+            "Resource project file");
         var expectation = ResolveIntegrityExpectation(version);
         var urls = new[] { version.PrimaryDownloadUrl }
             .Concat(version.FallbackDownloadUrls)
@@ -154,6 +164,14 @@ internal sealed class ResourceProjectStorage
                     progress,
                     speedMeter,
                     cancellationToken).ConfigureAwait(false);
+                MinecraftPathGuard.EnsureSafeFileDestination(
+                    target,
+                    targetDirectory,
+                    "Resource project file");
+                MinecraftPathGuard.EnsureNoReparsePoints(
+                    targetDirectory,
+                    tempPath,
+                    "Resource project temporary file");
                 File.Move(tempPath, target, overwrite: true);
                 return target;
             }
@@ -179,7 +197,7 @@ internal sealed class ResourceProjectStorage
             }
             finally
             {
-                TryDeleteTemporaryFile(tempPath, version.VersionId);
+                TryDeleteTemporaryFile(tempPath, targetDirectory, version.VersionId);
             }
         }
 
@@ -266,6 +284,7 @@ internal sealed class ResourceProjectStorage
                         [(ToHashAlgorithmName(hash.Algorithm), Convert.ToHexString(hash.Value))]),
                     cancellationToken,
                     reportAttemptProgress: CreateProgressReporter(version, progress),
+                    options: new DownloadFileOptions(ManagedRoot: Path.GetDirectoryName(tempPath)),
                     speedMeter: speedMeter).ConfigureAwait(false);
             }
             else
@@ -279,6 +298,7 @@ internal sealed class ResourceProjectStorage
                     expectedSize: expectation.FileSize,
                     cancellationToken,
                     reportAttemptProgress: CreateProgressReporter(version, progress),
+                    options: new DownloadFileOptions(ManagedRoot: Path.GetDirectoryName(tempPath)),
                     speedMeter: speedMeter).ConfigureAwait(false);
             }
         }
@@ -308,6 +328,10 @@ internal sealed class ResourceProjectStorage
 
         if (expectation.Hash is null || expectation.Hash.Algorithm is not ResourceFileHashAlgorithm.Md5)
             return;
+        MinecraftPathGuard.EnsureNoReparsePoints(
+            Path.GetDirectoryName(tempPath)!,
+            tempPath,
+            "Resource project verification file");
         await using var source = File.OpenRead(tempPath);
         var actual = expectation.Hash.Algorithm switch
         {
@@ -422,14 +446,18 @@ internal sealed class ResourceProjectStorage
         return new ResourceProjectIntegrityException(version.VersionId, reason, algorithm);
     }
 
-    private void TryDeleteTemporaryFile(string path, string versionId)
+    private void TryDeleteTemporaryFile(string path, string managedRoot, string versionId)
     {
         try
         {
+            MinecraftPathGuard.EnsureNoReparsePoints(
+                managedRoot,
+                path,
+                "Resource project cleanup file");
             if (File.Exists(path))
                 File.Delete(path);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             logger.LogWarning(
                 exception,

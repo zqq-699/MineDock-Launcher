@@ -124,7 +124,7 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
         var handler = new StubHandler(request => Json(request.RequestUri!.AbsolutePath switch
         {
             "/v2/projects" => """[{"id":"dep","slug":"library","project_type":"mod","title":"Library","description":"","downloads":1,"game_versions":["1.20.1"],"loaders":["fabric"]}]""",
-            _ => """[{"id":"v1","name":"Main 1.0","version_number":"1.0","version_type":"release","date_published":"2024-01-01T00:00:00Z","downloads":1,"game_versions":["1.20.1"],"loaders":["fabric"],"dependencies":[{"project_id":"dep","version_id":"dep-v1","dependency_type":"required"}],"files":[{"filename":"main.jar","url":"https://download/main.jar","primary":true}]}]"""
+            _ => """[{"id":"v1","name":"Main 1.0","version_number":"1.0","version_type":"release","date_published":"2024-01-01T00:00:00Z","downloads":1,"game_versions":["1.20.1"],"loaders":["fabric"],"dependencies":[{"project_id":"dep","version_id":"dep-v1","dependency_type":"required"}],"files":[{"filename":"main.jar","url":"https://download.test/main.jar","primary":true}]}]"""
         }));
         var service = CreateService(handler);
 
@@ -148,7 +148,7 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
         const string sha512 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         const string sha1 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
         var handler = new StubHandler(_ => Json(
-            $$$"""[{"id":"v1","name":"Main","version_number":"1","version_type":"release","files":[{"filename":"main.jar","url":"https://download/main.jar","primary":true,"size":123,"hashes":{"sha512":"{{{sha512}}}","sha1":"{{{sha1}}}"}}]}]"""));
+            $$$"""[{"id":"v1","name":"Main","version_number":"1","version_type":"release","files":[{"filename":"main.jar","url":"https://download.test/main.jar","primary":true,"size":123,"hashes":{"sha512":"{{{sha512}}}","sha1":"{{{sha1}}}"}}]}]"""));
         var service = CreateService(handler);
 
         var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
@@ -172,7 +172,7 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
         const string sha1 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
         const string md5 = "cccccccccccccccccccccccccccccccc";
         var handler = new StubHandler(_ => Json(
-            $$$"""{"data":[{"id":7,"displayName":"Pack","fileName":"pack.zip","downloadUrl":"https://download/pack.zip","fileLength":456,"hashes":[{"value":"{{{sha1}}}","algo":1},{"value":"{{{md5}}}","algo":2}]}],"pagination":{"totalCount":1}}"""));
+            $$$"""{"data":[{"id":7,"displayName":"Pack","fileName":"pack.zip","downloadUrl":"https://download.test/pack.zip","fileLength":456,"hashes":[{"value":"{{{sha1}}}","algo":1},{"value":"{{{md5}}}","algo":2}]}],"pagination":{"totalCount":1}}"""));
         var service = CreateService(handler, "key");
 
         var result = await service.GetProjectVersionsAsync(new ResourceProjectVersionsRequest
@@ -201,8 +201,8 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
         {
             VersionId = "v1",
             FileName = "mod.jar",
-            PrimaryDownloadUrl = "https://download/missing.jar",
-            FallbackDownloadUrls = ["https://download/fallback.jar"],
+            PrimaryDownloadUrl = "https://download.test/missing.jar",
+            FallbackDownloadUrls = ["https://download.test/fallback.jar"],
             ExpectedFileSize = Encoding.UTF8.GetByteCount("fallback"),
             FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "fallback")]
         }, TempRoot);
@@ -222,7 +222,7 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
         {
             VersionId = "v1",
             FileName = "mod.jar",
-            PrimaryDownloadUrl = "https://download/mod.jar",
+            PrimaryDownloadUrl = "https://download.test/mod.jar",
             ExpectedFileSize = Encoding.UTF8.GetByteCount("jar"),
             FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "jar")]
         }, instance);
@@ -246,8 +246,8 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
         {
             VersionId = "v1",
             FileName = "mod.jar",
-            PrimaryDownloadUrl = "https://download/primary.jar",
-            FallbackDownloadUrls = ["https://download/fallback.jar"],
+            PrimaryDownloadUrl = "https://download.test/primary.jar",
+            FallbackDownloadUrls = ["https://download.test/fallback.jar"],
             ExpectedFileSize = Encoding.UTF8.GetByteCount("expected"),
             FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "expected")]
         }, TempRoot);
@@ -273,7 +273,7 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
             {
                 VersionId = "v1",
                 FileName = "mod.jar",
-                PrimaryDownloadUrl = "https://download/mod.jar",
+                PrimaryDownloadUrl = "https://download.test/mod.jar",
                 ExpectedFileSize = Encoding.UTF8.GetByteCount("modified"),
                 FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "expected")]
             }, TempRoot));
@@ -299,7 +299,7 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
                 Kind = ResourceProjectKind.ResourcePack,
                 VersionId = "v1",
                 FileName = "pack.zip",
-                PrimaryDownloadUrl = "https://download/pack.zip",
+                PrimaryDownloadUrl = "https://download.test/pack.zip",
                 ExpectedFileSize = 4
             }, TempRoot));
 
@@ -321,7 +321,7 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
             {
                 VersionId = "v1",
                 FileName = "mod.jar",
-                PrimaryDownloadUrl = "https://download/mod.jar",
+                PrimaryDownloadUrl = "https://download.test/mod.jar",
                 ExpectedFileSize = 3,
                 FileHashes = md5Only ? [CreateHash(ResourceFileHashAlgorithm.Md5, "jar")] : []
             }, TempRoot));
@@ -343,7 +343,7 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
             Kind = ResourceProjectKind.ResourcePack,
             VersionId = "v1",
             FileName = "pack.zip",
-            PrimaryDownloadUrl = "https://download/pack.zip",
+            PrimaryDownloadUrl = "https://download.test/pack.zip",
             ExpectedFileSize = 4
         }, TempRoot);
 
@@ -362,7 +362,7 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
                 Kind = ResourceProjectKind.ResourcePack,
                 VersionId = "v1",
                 FileName = "pack.zip",
-                PrimaryDownloadUrl = "https://download/pack.zip",
+                PrimaryDownloadUrl = "https://download.test/pack.zip",
                 FileHashes = [new ResourceFileHash(ResourceFileHashAlgorithm.Sha1, "not-a-hash")]
             }, TempRoot));
 
@@ -385,8 +385,8 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
             Kind = ResourceProjectKind.ResourcePack,
             VersionId = "v1",
             FileName = "pack.zip",
-            PrimaryDownloadUrl = "https://download/pack.zip",
-            FallbackDownloadUrls = ["https://download/fallback.zip"]
+            PrimaryDownloadUrl = "https://download.test/pack.zip",
+            FallbackDownloadUrls = ["https://download.test/fallback.zip"]
         }, TempRoot, cancellation.Token);
         await stream.BlockingReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
@@ -412,7 +412,7 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
                 Kind = ResourceProjectKind.ResourcePack,
                 VersionId = "v1",
                 FileName = "pack.zip",
-                PrimaryDownloadUrl = "https://download/pack.zip"
+                PrimaryDownloadUrl = "https://download.test/pack.zip"
             }, TempRoot));
 
         Assert.False(File.Exists(Path.Combine(TempRoot, "pack.zip")));
@@ -433,8 +433,8 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
             Kind = ResourceProjectKind.ResourcePack,
             VersionId = "v1",
             FileName = "pack.zip",
-            PrimaryDownloadUrl = "https://download/primary.zip",
-            FallbackDownloadUrls = ["https://download/fallback.zip"],
+            PrimaryDownloadUrl = "https://download.test/primary.zip",
+            FallbackDownloadUrls = ["https://download.test/fallback.zip"],
             ExpectedFileSize = Encoding.UTF8.GetByteCount("fallback"),
             FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "fallback")]
         }, TempRoot);
@@ -504,11 +504,57 @@ public sealed class ResourceCatalogServiceTests : TestTempDirectory
                 Kind = ResourceProjectKind.ResourcePack,
                 VersionId = "v1",
                 FileName = "pack.zip",
-                PrimaryDownloadUrl = "https://download/pack.zip",
+                PrimaryDownloadUrl = "https://download.test/pack.zip",
                 ExpectedFileSize = 4
             }, downloadDirectory));
 
         Assert.False(File.Exists(Path.Combine(downloadDirectory, "pack.zip")));
+    }
+
+    [Fact]
+    public async Task ModInstallRejectsModsReparsePointBeforeNetworkOrExternalWriteWhenSupported()
+    {
+        var instanceDirectory = Path.Combine(TempRoot, "instance-with-linked-mods");
+        var modsDirectory = Path.Combine(instanceDirectory, "mods");
+        var externalDirectory = Path.Combine(TempRoot, "external-mods");
+        Directory.CreateDirectory(instanceDirectory);
+        Directory.CreateDirectory(externalDirectory);
+        var externalFile = Path.Combine(externalDirectory, "mod.jar");
+        await File.WriteAllTextAsync(externalFile, "external-original");
+        try
+        {
+            Directory.CreateSymbolicLink(modsDirectory, externalDirectory);
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        var handler = new StubHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("replacement") });
+        var service = CreateService(handler);
+        try
+        {
+            await Assert.ThrowsAsync<InvalidDataException>(() => service.InstallProjectVersionAsync(
+                new ResourceProjectVersion
+                {
+                    Kind = ResourceProjectKind.Mod,
+                    VersionId = "v1",
+                    FileName = "mod.jar",
+                    PrimaryDownloadUrl = "https://download.test/mod.jar",
+                    ExpectedFileSize = Encoding.UTF8.GetByteCount("replacement"),
+                    FileHashes = [CreateHash(ResourceFileHashAlgorithm.Sha512, "replacement")]
+                },
+                new GameInstance { Id = "instance", InstanceDirectory = instanceDirectory }));
+
+            Assert.Empty(handler.Requests);
+            Assert.Equal("external-original", await File.ReadAllTextAsync(externalFile));
+        }
+        finally
+        {
+            if (Directory.Exists(modsDirectory))
+                Directory.Delete(modsDirectory, recursive: false);
+        }
     }
 
     private static ResourceFileHash CreateHash(ResourceFileHashAlgorithm algorithm, string content)

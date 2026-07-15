@@ -41,6 +41,7 @@ public sealed partial class LaunchService : ILaunchService
     private readonly ILaunchCrashMonitor crashMonitor;
     private readonly IGameWindowReadinessWaiter gameWindowReadinessWaiter;
     private readonly ILaunchCommandRunner commandRunner;
+    private readonly ILaunchProcessTerminator launchProcessTerminator;
     private readonly IJavaRuntimeSelectionService? javaRuntimeSelectionService;
     private readonly IJavaRuntimeProvisioningService? javaRuntimeProvisioningService;
     private readonly IGameLanguageService? gameLanguageService;
@@ -114,7 +115,8 @@ public sealed partial class LaunchService : ILaunchService
         IGameLanguageService? gameLanguageService = null,
         ILogger<LaunchService>? logger = null,
         IAuthlibInjectorProvisioningService? authlibInjectorProvisioningService = null,
-        IGameWindowReadinessWaiter? gameWindowReadinessWaiter = null)
+        IGameWindowReadinessWaiter? gameWindowReadinessWaiter = null,
+        ILaunchProcessTerminator? launchProcessTerminator = null)
         : this(
             accountSessionService,
             new LegacyManagedVersionRepairAdapter(versionRepairService),
@@ -128,7 +130,8 @@ public sealed partial class LaunchService : ILaunchService
             gameLanguageService,
             logger,
             authlibInjectorProvisioningService,
-            gameWindowReadinessWaiter)
+            gameWindowReadinessWaiter,
+            launchProcessTerminator)
     {
     }
 
@@ -145,7 +148,8 @@ public sealed partial class LaunchService : ILaunchService
         IGameLanguageService? gameLanguageService = null,
         ILogger<LaunchService>? logger = null,
         IAuthlibInjectorProvisioningService? authlibInjectorProvisioningService = null,
-        IGameWindowReadinessWaiter? gameWindowReadinessWaiter = null)
+        IGameWindowReadinessWaiter? gameWindowReadinessWaiter = null,
+        ILaunchProcessTerminator? launchProcessTerminator = null)
     {
         this.accountSessionService = accountSessionService;
         this.gameFileIntegrityService = gameFileIntegrityService;
@@ -153,6 +157,7 @@ public sealed partial class LaunchService : ILaunchService
         this.crashMonitor = crashMonitor;
         this.gameWindowReadinessWaiter = gameWindowReadinessWaiter ?? new GameWindowReadinessWaiter();
         this.commandRunner = commandRunner ?? new LaunchCommandRunner();
+        this.launchProcessTerminator = launchProcessTerminator ?? new LaunchProcessTerminator();
         this.javaRuntimeSelectionService = javaRuntimeSelectionService;
         this.javaRuntimeProvisioningService = javaRuntimeProvisioningService;
         this.gameLanguageService = gameLanguageService;
@@ -204,6 +209,7 @@ public sealed partial class LaunchService : ILaunchService
         var versionName = resolvedSettings.VersionName;
         var memoryMb = resolvedSettings.MemoryMb;
         System.Diagnostics.Process? process = null;
+        ILaunchCrashMonitorSession? crashMonitorSession = null;
         JavaRuntimeInfo? selectedJavaRuntime = null;
         LaunchDiagnosticContext diagnosticContext = CreateDiagnosticContext(
             instance,
@@ -256,6 +262,7 @@ public sealed partial class LaunchService : ILaunchService
                     cancellationToken)
                 .ConfigureAwait(false);
             process = startedProcess.Process;
+            crashMonitorSession = startedProcess.CrashMonitorSession;
 
             var readiness = await gameWindowReadinessWaiter
                 .WaitAsync(process, cancellationToken)
@@ -294,6 +301,40 @@ public sealed partial class LaunchService : ILaunchService
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            if (process is not null && crashMonitorSession is not null)
+            {
+                var canceledProcess = process;
+                try
+                {
+                    await launchProcessTerminator.TerminateAsync(canceledProcess).ConfigureAwait(false);
+                    await crashMonitorSession.CompleteCanceledStartupAsync(canceledProcess).ConfigureAwait(false);
+                    canceledProcess.Dispose();
+                    process = null;
+                }
+                catch (Exception terminationException)
+                {
+                    logger.LogError(
+                        terminationException,
+                        "Failed to terminate Minecraft after launch cancellation. InstanceId={InstanceId} VersionName={VersionName}",
+                        diagnosticContext.InstanceId,
+                        diagnosticContext.VersionName);
+                    var monitorSession = crashMonitorSession.CreateGameLaunchSession(canceledProcess, diagnosticContext);
+                    _ = ObserveGameExitAfterCancellationCleanupFailureAsync(
+                        monitorSession.ExitTask,
+                        diagnosticContext);
+                    var report = await WriteFailureDiagnosticAsync(
+                        diagnosticContext,
+                        "launch_cancellation_cleanup_failed",
+                        "Failed to terminate the Minecraft process after launch cancellation.",
+                        terminationException,
+                        canceledProcess.StartInfo,
+                        failureDiagnosticCollector,
+                        launchAttemptStartedAt,
+                        CancellationToken.None).ConfigureAwait(false);
+                    throw new LaunchFailedException(report, terminationException);
+                }
+            }
+
             logger.LogInformation(
                 "Game launch canceled. InstanceId={InstanceId} InstanceName={InstanceName} VersionName={VersionName} JavaPath={JavaPath} JavaVersion={JavaVersion} JavaSource={JavaSource}",
                 diagnosticContext.InstanceId,

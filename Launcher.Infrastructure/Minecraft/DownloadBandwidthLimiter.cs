@@ -91,12 +91,6 @@ internal sealed class DownloadBandwidthLimiter
             sharedBudgetState.Throttle(bytesRead, bytesPerSecond);
     }
 
-    public bool IsLimitedBelow(double bytesPerSecond)
-    {
-        var configured = ResolveBytesPerSecond();
-        return configured > 0 && configured < bytesPerSecond;
-    }
-
     private double ResolveBytesPerSecond()
     {
         var limitMbPerSecond = downloadSpeedLimitState?.DownloadSpeedLimitMbPerSecond
@@ -155,9 +149,6 @@ internal static class DownloadResponseThrottler
         IImportConcurrencyLease? completionLease = null,
         TimeSpan? bodyIdleTimeout = null,
         TimeSpan? firstByteTimeout = null,
-        TimeSpan? sustainedLowSpeedWindow = null,
-        long sustainedLowSpeedBytesPerSecond = 0,
-        long lowSpeedMinimumFileBytes = long.MaxValue,
         Action<long>? reportBodyBytes = null,
         SpeedMeter? speedMeter = null)
     {
@@ -174,17 +165,11 @@ internal static class DownloadResponseThrottler
 
         var originalContent = response.Content;
         var originalStream = await originalContent.ReadAsStreamAsync(cancellationToken);
-        var enableLowSpeed = originalContent.Headers.ContentLength >= lowSpeedMinimumFileBytes
-            && sustainedLowSpeedWindow.HasValue
-            && sustainedLowSpeedBytesPerSecond > 0
-            && (bandwidthLimiter is null || !bandwidthLimiter.IsLimitedBelow(sustainedLowSpeedBytesPerSecond));
         Stream networkStream = bodyIdleTimeout is { } idleTimeout
             ? new IdleTimeoutReadStream(
                 originalStream,
                 firstByteTimeout ?? idleTimeout,
                 idleTimeout,
-                enableLowSpeed ? sustainedLowSpeedWindow : null,
-                sustainedLowSpeedBytesPerSecond,
                 cancellationToken)
             : originalStream;
         if (speedMeter is not null || reportBodyBytes is not null)
@@ -281,26 +266,18 @@ internal static class DownloadResponseThrottler
         private readonly Stream innerStream;
         private readonly TimeSpan firstByteTimeout;
         private readonly TimeSpan idleTimeout;
-        private readonly TimeSpan? sustainedLowSpeedWindow;
-        private readonly long sustainedLowSpeedBytesPerSecond;
         private readonly CancellationToken operationCancellationToken;
         private bool hasReadFirstByte;
-        private long sampledBytes;
-        private DateTimeOffset? sampleStartedAt;
 
         public IdleTimeoutReadStream(
             Stream innerStream,
             TimeSpan firstByteTimeout,
             TimeSpan idleTimeout,
-            TimeSpan? sustainedLowSpeedWindow,
-            long sustainedLowSpeedBytesPerSecond,
             CancellationToken operationCancellationToken)
         {
             this.innerStream = innerStream;
             this.firstByteTimeout = firstByteTimeout;
             this.idleTimeout = idleTimeout;
-            this.sustainedLowSpeedWindow = sustainedLowSpeedWindow;
-            this.sustainedLowSpeedBytesPerSecond = sustainedLowSpeedBytesPerSecond;
             this.operationCancellationToken = operationCancellationToken;
         }
 
@@ -332,10 +309,7 @@ internal static class DownloadResponseThrottler
             {
                 var read = await innerStream.ReadAsync(buffer, timeout.Token).ConfigureAwait(false);
                 if (read > 0)
-                {
                     hasReadFirstByte = true;
-                    ObserveNetworkSpeed(read);
-                }
                 return read;
             }
             catch (OperationCanceledException exception)
@@ -347,25 +321,6 @@ internal static class DownloadResponseThrottler
                     $"The response body produced no data for {timeoutWindow}.",
                     exception);
             }
-        }
-
-        private void ObserveNetworkSpeed(int bytesRead)
-        {
-            if (!sustainedLowSpeedWindow.HasValue)
-                return;
-            sampleStartedAt ??= DateTimeOffset.UtcNow;
-            sampledBytes += bytesRead;
-            var elapsed = DateTimeOffset.UtcNow - sampleStartedAt.Value;
-            if (elapsed < sustainedLowSpeedWindow.Value)
-                return;
-            if (sampledBytes / Math.Max(elapsed.TotalSeconds, 0.001) < sustainedLowSpeedBytesPerSecond)
-            {
-                throw new DownloadTimeoutException(
-                    DownloadFailureReason.SustainedLowSpeed,
-                    "The response body sustained an unsafe low network throughput.");
-            }
-            sampledBytes = 0;
-            sampleStartedAt = DateTimeOffset.UtcNow;
         }
 
         public override Task<int> ReadAsync(

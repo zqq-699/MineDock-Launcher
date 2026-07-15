@@ -82,8 +82,8 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
                 metadata.Size > 0 ? metadata.Size : null,
                 cancellationToken,
                 options: operationContext is not null && MinecraftFileIntegrity.IsSha1(metadata.GetSha1())
-                    ? new DownloadFileOptions(DownloadPersistenceMode.TaskScopedResumable, operationContext)
-                    : null,
+                    ? new DownloadFileOptions(DownloadPersistenceMode.TaskScopedResumable, operationContext, path.Assets)
+                    : new DownloadFileOptions(ManagedRoot: path.Assets),
                 speedMeter: speedMeter).ConfigureAwait(false);
         }
 
@@ -113,7 +113,8 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
                             Path.Combine(path.GetAssetLegacyPath(assetIndex.Id), item.Name),
                             path.Assets,
                             "Virtual asset"),
-                        item.Hash));
+                        item.Hash,
+                        path.Assets));
                 }
                 if (assetIndex.MapToResources)
                 {
@@ -122,7 +123,8 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
                             Path.Combine(path.Resource, item.Name),
                             path.Resource,
                             "Legacy resource"),
-                        item.Hash));
+                        item.Hash,
+                        path.Resource));
                 }
 
                 yield return new GameFile(item.Name)
@@ -142,7 +144,10 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
         }
     }
 
-    private sealed class AtomicAssetCopyTask(string destinationPath, string expectedSha1) : IUpdateTask
+    private sealed class AtomicAssetCopyTask(
+        string destinationPath,
+        string expectedSha1,
+        string managedRoot) : IUpdateTask
     {
         public async ValueTask Execute(GameFile file, CancellationToken cancellationToken)
         {
@@ -153,7 +158,8 @@ internal sealed class SafeAssetFileExtractor : IFileExtractor
                 file.Path,
                 destinationPath,
                 expectedSha1,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken,
+                managedRoot).ConfigureAwait(false);
         }
     }
 }

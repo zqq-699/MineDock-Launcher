@@ -15,4 +15,5 @@ internal enum DownloadPersistenceMode
 
 internal sealed record DownloadFileOptions(
     DownloadPersistenceMode PersistenceMode = DownloadPersistenceMode.TaskScopedResumable,
-    MinecraftDownloadOperationContext? OperationContext = null);
+    MinecraftDownloadOperationContext? OperationContext = null,
+    string? ManagedRoot = null);

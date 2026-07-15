@@ -36,6 +36,10 @@ private static async Task<JsonObject> ReadVersionJsonAsync(
         CancellationToken cancellationToken)
     {
         var jsonPath = Path.Combine(versionDirectory, $"{versionName}.json");
+        MinecraftPathGuard.EnsureSafeFileDestination(
+            jsonPath,
+            versionDirectory,
+            "Managed version metadata");
         if (!File.Exists(jsonPath))
             throw new InstanceRepairException($"Version metadata is missing for {versionName}.");
 
@@ -52,6 +56,10 @@ private static async Task<JsonObject> ReadVersionJsonAsync(
         CancellationToken cancellationToken)
     {
         var jsonPath = Path.Combine(versionDirectory, $"{versionName}.json");
+        MinecraftPathGuard.EnsureSafeFileDestination(
+            jsonPath,
+            versionDirectory,
+            "Managed version metadata");
         return File.WriteAllTextAsync(
             jsonPath,
             versionJson.ToJsonString(JsonOptions),

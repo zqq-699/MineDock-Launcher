@@ -117,7 +117,13 @@ internal sealed class ManagedVersionRepairDownloadBatch
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(download.DestinationPath)!);
+            var managedRoot = Path.GetFullPath(download.ManagedRoot
+                ?? Path.GetDirectoryName(download.DestinationPath)
+                ?? throw new InvalidOperationException("Download destination has no managed root."));
+            MinecraftPathGuard.EnsureSafeDirectory(
+                Path.GetDirectoryName(download.DestinationPath)!,
+                managedRoot,
+                "Managed repair directory");
             var executor = new MinecraftDownloadRequestExecutor(
                 httpClient,
                 logger,
@@ -155,13 +161,20 @@ internal sealed class ManagedVersionRepairDownloadBatch
     private static RepairDownloadRequest EnsureCompatibleDuplicate(IGrouping<string, RepairDownloadRequest> group)
     {
         var first = group.First();
+        var firstManagedRoot = ResolveManagedRoot(first);
         if (group.Any(download => !string.Equals(download.ExpectedSha1, first.ExpectedSha1, StringComparison.OrdinalIgnoreCase)
             || download.ExpectedSize != first.ExpectedSize
-            || download.PersistenceMode != first.PersistenceMode))
+            || download.PersistenceMode != first.PersistenceMode
+            || !PathComparer.Equals(ResolveManagedRoot(download), firstManagedRoot)))
         {
             throw new InvalidDataException("Conflicting download identities resolved to the same destination path.");
         }
         return first;
+
+        static string ResolveManagedRoot(RepairDownloadRequest download) => Path.GetFullPath(
+            download.ManagedRoot
+            ?? Path.GetDirectoryName(download.DestinationPath)
+            ?? throw new InvalidOperationException("Download destination has no managed root."));
     }
 
     private static DownloadFileOptions? CreateDownloadOptions(
@@ -169,24 +182,23 @@ internal sealed class ManagedVersionRepairDownloadBatch
         ConcurrentDictionary<string, MinecraftDownloadOperationContext> operationContexts,
         MinecraftDownloadOperationContext? sharedOperationContext)
     {
-        if (!MinecraftFileIntegrity.IsSha1(download.ExpectedSha1))
-            return null;
-
         var context = sharedOperationContext;
-        if (context is null && download.PersistenceMode is DownloadPersistenceMode.LightweightAtomic)
+        var managedRoot = Path.GetFullPath(download.ManagedRoot
+            ?? context?.ManagedRoot
+            ?? Path.GetDirectoryName(download.DestinationPath)
+            ?? throw new InvalidOperationException("Download destination has no managed root."));
+        if (context is null
+            && MinecraftFileIntegrity.IsSha1(download.ExpectedSha1)
+            && download.PersistenceMode is DownloadPersistenceMode.LightweightAtomic)
         {
-            var managedRoot = Path.GetFullPath(download.ManagedRoot
-                ?? Path.GetDirectoryName(download.DestinationPath)
-                ?? throw new InvalidOperationException("Download destination has no managed root."));
             context = operationContexts.GetOrAdd(managedRoot, static root => new MinecraftDownloadOperationContext(root));
         }
 
-        if (context is null)
-            return null;
-
-        if (download.PersistenceMode is DownloadPersistenceMode.LightweightAtomic)
+        if (context is not null
+            && MinecraftFileIntegrity.IsSha1(download.ExpectedSha1)
+            && download.PersistenceMode is DownloadPersistenceMode.LightweightAtomic)
             context.RegisterAsset(download.DestinationPath, download.ExpectedSha1!, download.ExpectedSize);
-        return new DownloadFileOptions(download.PersistenceMode, context);
+        return new DownloadFileOptions(download.PersistenceMode, context, managedRoot);
     }
 
     private static InstanceRepairException CreateDownloadException(

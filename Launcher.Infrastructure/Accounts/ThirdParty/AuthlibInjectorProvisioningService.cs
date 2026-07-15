@@ -23,7 +23,7 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
 {
     private static readonly Uri LatestArtifactUri = new("https://authlib-injector.yushi.moe/artifact/latest.json");
     private const long MaximumArtifactBytes = 16 * 1024 * 1024;
-    private readonly HttpClient httpClient;
+    private readonly MinecraftDownloadTransport transport;
     private readonly string cacheDirectory;
     private readonly ILogger<AuthlibInjectorProvisioningService> logger;
     private readonly SemaphoreSlim provisioningLock = new(1, 1);
@@ -32,7 +32,7 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
         LauncherPathProvider pathProvider,
         ILogger<AuthlibInjectorProvisioningService>? logger = null)
         : this(
-            new HttpClient { Timeout = TimeSpan.FromSeconds(20) },
+            MinecraftHttpClientFactory.CreateTransportClient(),
             Path.Combine(pathProvider.DefaultDataDirectory, "cache", "authlib-injector"),
             logger)
     {
@@ -41,11 +41,19 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
     internal AuthlibInjectorProvisioningService(
         HttpClient httpClient,
         string cacheDirectory,
-        ILogger<AuthlibInjectorProvisioningService>? logger = null)
+        ILogger<AuthlibInjectorProvisioningService>? logger = null,
+        DownloadAddressPolicy? addressPolicy = null)
     {
-        this.httpClient = httpClient;
         this.cacheDirectory = Path.GetFullPath(cacheDirectory);
         this.logger = logger ?? NullLogger<AuthlibInjectorProvisioningService>.Instance;
+        var resolvedAddressPolicy = addressPolicy
+            ?? (MinecraftHttpClientFactory.IsTransportClient(httpClient)
+                ? new DownloadAddressPolicy()
+                : DownloadAddressPolicy.CreateForInjectedTransport());
+        transport = new MinecraftDownloadTransport(
+            httpClient,
+            new DownloadRetryOptions { ResponseHeadersTimeout = TimeSpan.FromSeconds(20) },
+            resolvedAddressPolicy);
     }
 
     public Task<AuthlibInjectorArtifact> EnsureAvailableAsync(CancellationToken cancellationToken = default) =>
@@ -58,7 +66,10 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
         await provisioningLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            Directory.CreateDirectory(cacheDirectory);
+            MinecraftPathGuard.EnsureSafeDirectory(
+                cacheDirectory,
+                cacheDirectory,
+                "Authlib-injector cache directory");
             try
             {
                 var latest = await GetLatestArtifactAsync(cancellationToken).ConfigureAwait(false);
@@ -88,8 +99,10 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
 
     private async Task<ArtifactMetadata> GetLatestArtifactAsync(CancellationToken cancellationToken)
     {
-        using var response = await httpClient.GetAsync(LatestArtifactUri, cancellationToken).ConfigureAwait(false);
-        EnsureHttpsResponse(response);
+        using var response = (await transport.SendAsync(
+            LatestArtifactUri.AbsoluteUri,
+            cancellationToken,
+            isThirdParty: false).ConfigureAwait(false)).Response;
         response.EnsureSuccessStatusCode();
         var metadata = await response.Content.ReadFromJsonAsync<ArtifactMetadata>(cancellationToken: cancellationToken)
             .ConfigureAwait(false)
@@ -103,6 +116,10 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
         CancellationToken cancellationToken)
     {
         var path = GetArtifactPath(metadata);
+        MinecraftPathGuard.EnsureSafeFileDestination(
+            path,
+            cacheDirectory,
+            "Authlib-injector cached artifact");
         if (!File.Exists(path))
             return null;
         if (!await HashMatchesAsync(path, metadata.Checksums.Sha256, cancellationToken).ConfigureAwait(false))
@@ -124,11 +141,18 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
         var temporaryPath = destination + $".{Guid.NewGuid():N}.tmp";
         try
         {
-            using var response = await httpClient.GetAsync(
-                metadata.DownloadUrl,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken).ConfigureAwait(false);
-            EnsureHttpsResponse(response);
+            MinecraftPathGuard.EnsureSafeFileDestination(
+                destination,
+                cacheDirectory,
+                "Authlib-injector artifact");
+            MinecraftPathGuard.EnsureNoReparsePoints(
+                cacheDirectory,
+                temporaryPath,
+                "Authlib-injector temporary artifact");
+            using var response = (await transport.SendAsync(
+                metadata.DownloadUrl.AbsoluteUri,
+                cancellationToken,
+                isThirdParty: true).ConfigureAwait(false)).Response;
             response.EnsureSuccessStatusCode();
             if (response.Content.Headers.ContentLength is > MaximumArtifactBytes)
                 throw new InvalidDataException("The authlib-injector artifact is too large.");
@@ -139,6 +163,14 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
                 cancellationToken,
                 speedMeter: SpeedMeterProgress.TryGet(progress)).ConfigureAwait(false);
 
+            MinecraftPathGuard.EnsureSafeFileDestination(
+                destination,
+                cacheDirectory,
+                "Authlib-injector artifact");
+            MinecraftPathGuard.EnsureNoReparsePoints(
+                cacheDirectory,
+                temporaryPath,
+                "Authlib-injector temporary artifact");
             await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
             await using (var target = new FileStream(
                 temporaryPath,
@@ -165,6 +197,14 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
 
             if (!await HashMatchesAsync(temporaryPath, metadata.Checksums.Sha256, cancellationToken).ConfigureAwait(false))
                 throw new InvalidDataException("The authlib-injector SHA-256 checksum does not match.");
+            MinecraftPathGuard.EnsureSafeFileDestination(
+                destination,
+                cacheDirectory,
+                "Authlib-injector artifact");
+            MinecraftPathGuard.EnsureNoReparsePoints(
+                cacheDirectory,
+                temporaryPath,
+                "Authlib-injector temporary artifact");
             File.Move(temporaryPath, destination, overwrite: true);
             await SaveManifestAsync(destination, metadata, cancellationToken).ConfigureAwait(false);
             logger.LogInformation(
@@ -186,12 +226,20 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
         {
             try
             {
+                MinecraftPathGuard.EnsureSafeFileDestination(
+                    manifestPath,
+                    cacheDirectory,
+                    "Authlib-injector cache manifest");
                 var metadata = JsonSerializer.Deserialize<ArtifactMetadata>(
                     await File.ReadAllTextAsync(manifestPath, cancellationToken).ConfigureAwait(false));
                 if (metadata is null)
                     continue;
                 ValidateMetadata(metadata);
                 var path = manifestPath[..^".manifest.json".Length];
+                MinecraftPathGuard.EnsureSafeFileDestination(
+                    path,
+                    cacheDirectory,
+                    "Authlib-injector cached artifact");
                 if (File.Exists(path))
                     candidates.Add((metadata, path));
             }
@@ -224,10 +272,26 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
         var temporaryPath = manifestPath + $".{Guid.NewGuid():N}.tmp";
         try
         {
+            MinecraftPathGuard.EnsureSafeFileDestination(
+                manifestPath,
+                cacheDirectory,
+                "Authlib-injector cache manifest");
+            MinecraftPathGuard.EnsureNoReparsePoints(
+                cacheDirectory,
+                temporaryPath,
+                "Authlib-injector temporary manifest");
             await File.WriteAllTextAsync(
                 temporaryPath,
                 JsonSerializer.Serialize(metadata),
                 cancellationToken).ConfigureAwait(false);
+            MinecraftPathGuard.EnsureSafeFileDestination(
+                manifestPath,
+                cacheDirectory,
+                "Authlib-injector cache manifest");
+            MinecraftPathGuard.EnsureNoReparsePoints(
+                cacheDirectory,
+                temporaryPath,
+                "Authlib-injector temporary manifest");
             File.Move(temporaryPath, manifestPath, overwrite: true);
         }
         finally
@@ -253,6 +317,7 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
             || !metadata.DownloadUrl.IsAbsoluteUri
             || !string.Equals(metadata.DownloadUrl.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
             || metadata.Checksums is null
+            || string.IsNullOrWhiteSpace(metadata.Checksums.Sha256)
             || metadata.Checksums.Sha256.Length != 64
             || !metadata.Checksums.Sha256.All(Uri.IsHexDigit))
         {
@@ -279,27 +344,25 @@ internal sealed class AuthlibInjectorProvisioningService : IAuthlibInjectorProvi
     private static AuthlibInjectorArtifact ToArtifact(string path, ArtifactMetadata metadata) =>
         new(path, metadata.Version, metadata.BuildNumber);
 
-    private static void TryDelete(string path)
+    private void TryDelete(string path)
     {
         try
         {
+            MinecraftPathGuard.EnsureNoReparsePoints(
+                cacheDirectory,
+                path,
+                "Authlib-injector cache cleanup");
             if (File.Exists(path))
                 File.Delete(path);
+        }
+        catch (InvalidDataException)
+        {
         }
         catch (IOException)
         {
         }
         catch (UnauthorizedAccessException)
         {
-        }
-    }
-
-    private static void EnsureHttpsResponse(HttpResponseMessage response)
-    {
-        if (response.RequestMessage?.RequestUri is { } finalUri
-            && !string.Equals(finalUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException("The authlib-injector download redirected to an insecure address.");
         }
     }
 

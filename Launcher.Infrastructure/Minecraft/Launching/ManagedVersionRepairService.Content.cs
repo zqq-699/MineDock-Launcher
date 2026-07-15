@@ -40,6 +40,7 @@ private async Task EnsureVersionJarAsync(
         CancellationToken cancellationToken)
     {
         var jarPath = Path.Combine(versionDirectory, $"{versionName}.jar");
+        MinecraftPathGuard.EnsureSafeFileDestination(jarPath, versionDirectory, "Managed version client");
         var jarStatus = await MinecraftFileIntegrity.EvaluateAsync(
             jarPath,
             resolvedVersion.ClientJarSha1,
@@ -72,7 +73,8 @@ private async Task EnsureVersionJarAsync(
                     resolvedVersion.LocalJarPath,
                     jarPath,
                     resolvedVersion.ClientJarSha1,
-                    cancellationToken).ConfigureAwait(false);
+                    cancellationToken,
+                    managedRoot: versionDirectory).ConfigureAwait(false);
                 return;
             }
 
@@ -82,7 +84,8 @@ private async Task EnsureVersionJarAsync(
                     resolvedVersion.LocalJarPath,
                     jarPath,
                     expectedSha1: null,
-                    cancellationToken).ConfigureAwait(false);
+                    cancellationToken,
+                    managedRoot: versionDirectory).ConfigureAwait(false);
                 return;
             }
         }
@@ -97,7 +100,8 @@ private async Task EnsureVersionJarAsync(
                     LibraryName: null,
                     ArtifactPath: $"{versionName}.jar",
                     ExpectedSha1: resolvedVersion.ClientJarSha1,
-                    ExpectedSize: resolvedVersion.ClientJarSize),
+                    ExpectedSize: resolvedVersion.ClientJarSize,
+                    ManagedRoot: versionDirectory),
                 cancellationToken).ConfigureAwait(false);
             return;
         }
@@ -132,6 +136,7 @@ private async Task EnsureVersionJarAsync(
                     Path.Combine(librariesRoot, artifact.RelativePath.Replace('/', Path.DirectorySeparatorChar)),
                     librariesRoot,
                     "Managed library");
+                MinecraftPathGuard.EnsureSafeFileDestination(destinationPath, librariesRoot, "Managed library");
                 var status = await MinecraftFileIntegrity.EvaluateAsync(
                     destinationPath,
                     artifact.Sha1,
@@ -155,7 +160,8 @@ private async Task EnsureVersionJarAsync(
                     artifact.LibraryName,
                     artifact.RelativePath,
                     artifact.Sha1,
-                    artifact.Size));
+                    artifact.Size,
+                    ManagedRoot: librariesRoot));
             }
         }
 
@@ -186,6 +192,7 @@ private async Task EnsureVersionJarAsync(
             Path.Combine(assetIndexesRoot, $"{assetIndexId}.json"),
             assetIndexesRoot,
             "Asset index");
+        MinecraftPathGuard.EnsureSafeFileDestination(indexPath, assetIndexesRoot, "Asset index");
         var indexStatus = await MinecraftFileIntegrity.EvaluateAsync(
             indexPath,
             GetStringProperty(assetIndex, "sha1"),
@@ -206,10 +213,12 @@ private async Task EnsureVersionJarAsync(
                     LibraryName: null,
                     ArtifactPath: $"assets/indexes/{assetIndexId}.json",
                     ExpectedSha1: GetStringProperty(assetIndex, "sha1"),
-                    ExpectedSize: GetLongProperty(assetIndex, "size")),
+                    ExpectedSize: GetLongProperty(assetIndex, "size"),
+                    ManagedRoot: assetIndexesRoot),
                 cancellationToken).ConfigureAwait(false);
         }
 
+        MinecraftPathGuard.EnsureSafeFileDestination(indexPath, assetIndexesRoot, "Asset index");
         await using var indexStream = File.OpenRead(indexPath);
         var indexNode = await JsonNode.ParseAsync(indexStream, cancellationToken: cancellationToken)
             ?? throw new InstanceRepairException($"Asset index {assetIndexId} is empty.");
@@ -232,6 +241,7 @@ private async Task EnsureVersionJarAsync(
                     Path.Combine(assetObjectsRoot, requirement.Hash[..2], requirement.Hash),
                     assetObjectsRoot,
                     "Asset object");
+                MinecraftPathGuard.EnsureSafeFileDestination(objectPath, assetObjectsRoot, "Asset object");
                 var expectedSize = GetLongProperty(requirement.Asset, "size");
                 var objectStatus = await MinecraftFileIntegrity.EvaluateAsync(
                     objectPath,
@@ -258,7 +268,7 @@ private async Task EnsureVersionJarAsync(
                     ExpectedSha1: requirement.Hash,
                     ExpectedSize: expectedSize,
                     PersistenceMode: DownloadPersistenceMode.LightweightAtomic,
-                    ManagedRoot: minecraftDirectory));
+                    ManagedRoot: assetObjectsRoot));
             }).ConfigureAwait(false);
 
         await downloadBatch.DownloadAllAsync(downloads, cancellationToken).ConfigureAwait(false);
@@ -290,6 +300,10 @@ private async Task EnsureVersionJarAsync(
             Path.Combine(logConfigsRoot, id),
             logConfigsRoot,
             "Logging configuration");
+        MinecraftPathGuard.EnsureSafeFileDestination(
+            logConfigPath,
+            logConfigsRoot,
+            "Logging configuration");
         var loggingStatus = await MinecraftFileIntegrity.EvaluateAsync(
             logConfigPath,
             GetStringProperty(loggingFile, "sha1"),
@@ -311,7 +325,8 @@ private async Task EnsureVersionJarAsync(
                 LibraryName: null,
                 ArtifactPath: id,
                 ExpectedSha1: GetStringProperty(loggingFile, "sha1"),
-                ExpectedSize: GetLongProperty(loggingFile, "size")),
+                ExpectedSize: GetLongProperty(loggingFile, "size"),
+                ManagedRoot: logConfigsRoot),
             cancellationToken).ConfigureAwait(false);
     }
 

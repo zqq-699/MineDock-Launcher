@@ -31,11 +31,19 @@ internal static class MinecraftDownloadFileWriter
 {
     private const int DownloadBufferSize = 81920;
 
-    public static void PrepareDestination(string destinationPath, string? expectedSha1)
+    public static void PrepareDestination(string destinationPath, string? expectedSha1, string? managedRoot = null)
     {
         ValidateExpectedSha1(expectedSha1);
-        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)
-            ?? throw new InvalidOperationException($"Download destination has no parent directory: {destinationPath}"));
+        var parent = Path.GetDirectoryName(destinationPath)
+            ?? throw new InvalidOperationException($"Download destination has no parent directory: {destinationPath}");
+        if (string.IsNullOrWhiteSpace(managedRoot))
+        {
+            Directory.CreateDirectory(parent);
+            return;
+        }
+        MinecraftPathGuard.EnsureSafeFileDestination(destinationPath, managedRoot, "Managed download");
+        MinecraftPathGuard.EnsureSafeDirectory(parent, managedRoot, "Managed download directory");
+        MinecraftPathGuard.EnsureSafeFileDestination(destinationPath, managedRoot, "Managed download");
     }
 
     /// <summary>
@@ -48,7 +56,8 @@ internal static class MinecraftDownloadFileWriter
         long? expectedSize,
         int attemptNumber,
         Action<int, long, long?>? reportAttemptProgress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? managedRoot = null)
     {
         // 临时文件与目标位于同一目录，最终 Move 不跨卷且失败前不会破坏已有文件。
         var tempPath = Path.Combine(
@@ -56,8 +65,17 @@ internal static class MinecraftDownloadFileWriter
             $".{Path.GetFileName(destinationPath)}.{Guid.NewGuid():N}.tmp");
         var committed = false;
 
+        void EnsureSafe()
+        {
+            if (string.IsNullOrWhiteSpace(managedRoot))
+                return;
+            MinecraftPathGuard.EnsureSafeFileDestination(destinationPath, managedRoot, "Managed download");
+            MinecraftPathGuard.EnsureNoReparsePoints(managedRoot, tempPath, "Managed download temporary file");
+        }
+
         try
         {
+            EnsureSafe();
             await using var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
             await using var destination = OpenTempFile(tempPath);
             using var sha1 = string.IsNullOrWhiteSpace(expectedSha1)
@@ -89,13 +107,15 @@ internal static class MinecraftDownloadFileWriter
             await FlushAndCloseAsync(destination, tempPath, cancellationToken).ConfigureAwait(false);
             ValidateLength(response, expectedSize, totalRead);
             ValidateHash(destinationPath, expectedSha1, sha1);
+            EnsureSafe();
             Commit(tempPath, destinationPath);
             committed = true;
         }
+
         finally
         {
             if (!committed)
-                TryDeleteTempFile(tempPath);
+                TryDeleteTempFile(tempPath, managedRoot);
         }
     }
 
@@ -240,12 +260,17 @@ internal static class MinecraftDownloadFileWriter
         }
     }
 
-    private static void TryDeleteTempFile(string tempPath)
+    private static void TryDeleteTempFile(string tempPath, string? managedRoot)
     {
         try
         {
+            if (!string.IsNullOrWhiteSpace(managedRoot))
+                MinecraftPathGuard.EnsureNoReparsePoints(managedRoot, tempPath, "Managed download cleanup");
             if (File.Exists(tempPath))
                 File.Delete(tempPath);
+        }
+        catch (InvalidDataException)
+        {
         }
         catch (IOException)
         {

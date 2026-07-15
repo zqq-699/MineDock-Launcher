@@ -528,7 +528,8 @@ internal sealed record RequiredGameFile(
     string RecoveryMethod,
     string Reason,
     GameFileRepairFailureReason? ForcedFailureReason = null,
-    string? Sha256 = null);
+    string? Sha256 = null,
+    string? ManagedRoot = null);
 
 internal sealed record GameFileValidationReport(
     int MissingCount,
@@ -573,7 +574,8 @@ internal sealed class RequiredGameFileManifestBuilder
                 null,
                 true,
                 "LoaderInstallerSandbox",
-                "Resolved version metadata chain"));
+                "Resolved version metadata chain",
+                ManagedRoot: Path.GetDirectoryName(metadataPath)));
         }
         AddClientJar(files, versionDirectory, request.VersionName, versionJson);
         AddLibraries(files, request.MinecraftDirectory, versionJson);
@@ -594,6 +596,10 @@ internal sealed class RequiredGameFileManifestBuilder
             return;
 
         var manifestPath = LoaderArtifactManifestStore.GetPath(versionDirectory);
+        MinecraftPathGuard.EnsureSafeFileDestination(
+            manifestPath,
+            versionDirectory,
+            "Managed loader manifest");
         if (!loaderContributors.TryGetValue(identity.LoaderKind, out var contributor))
         {
             Add(files, new RequiredGameFile(
@@ -605,7 +611,8 @@ internal sealed class RequiredGameFileManifestBuilder
                 true,
                 "Unavailable",
                 $"No artifact manifest contributor is registered for {identity.LoaderKind}.",
-                GameFileRepairFailureReason.MetadataIncomplete));
+                GameFileRepairFailureReason.MetadataIncomplete,
+                ManagedRoot: versionDirectory));
             return;
         }
 
@@ -625,7 +632,8 @@ internal sealed class RequiredGameFileManifestBuilder
                 true,
                 "LoaderInstallerSandbox",
                 contribution.Error ?? "Loader artifact manifest is invalid.",
-                GameFileRepairFailureReason.MetadataIncomplete));
+                GameFileRepairFailureReason.MetadataIncomplete,
+                ManagedRoot: versionDirectory));
             logger.LogWarning(
                 "Loader artifact manifest is unavailable. VersionName={VersionName} Loader={Loader} Reason={Reason}",
                 request.VersionName,
@@ -642,7 +650,8 @@ internal sealed class RequiredGameFileManifestBuilder
             null,
             true,
             "LoaderInstallerSandbox",
-            "Loader artifact manifest"));
+            "Loader artifact manifest",
+            ManagedRoot: versionDirectory));
         foreach (var artifact in contribution.Manifest.Artifacts)
         {
             Add(files, new RequiredGameFile(
@@ -660,7 +669,8 @@ internal sealed class RequiredGameFileManifestBuilder
                 true,
                 "LoaderInstallerSandbox",
                 artifact.RelativePath,
-                Sha256: artifact.Sha256));
+                Sha256: artifact.Sha256,
+                ManagedRoot: request.MinecraftDirectory));
         }
     }
 
@@ -671,6 +681,10 @@ internal sealed class RequiredGameFileManifestBuilder
         CancellationToken cancellationToken)
     {
         var currentPath = Path.Combine(versionDirectory, $"{versionName}.json");
+        MinecraftPathGuard.EnsureSafeFileDestination(
+            currentPath,
+            versionDirectory,
+            "Managed version metadata");
         var current = await ReadJsonAsync(currentPath, cancellationToken).ConfigureAwait(false);
         var chain = new Stack<JsonObject>();
         var metadataPaths = new List<string> { currentPath };
@@ -682,6 +696,10 @@ internal sealed class RequiredGameFileManifestBuilder
             if (!visited.Add(parentName))
                 throw new InvalidDataException($"Version inheritance cycle detected at {parentName}.");
             var parentPath = Path.Combine(minecraftDirectory, "versions", parentName, $"{parentName}.json");
+            MinecraftPathGuard.EnsureSafeFileDestination(
+                parentPath,
+                Path.Combine(minecraftDirectory, "versions"),
+                "Inherited version metadata");
             if (!File.Exists(parentPath))
                 throw new InvalidDataException($"Inherited version metadata is missing: {parentName}.");
             var parent = await ReadJsonAsync(parentPath, cancellationToken).ConfigureAwait(false);
@@ -716,7 +734,8 @@ internal sealed class RequiredGameFileManifestBuilder
             GetLong(client?["size"]),
             true,
             string.IsNullOrWhiteSpace(GetString(client?["url"])) ? "Unavailable" : "DirectDownload",
-            "Final version client jar"));
+            "Final version client jar",
+            ManagedRoot: versionDirectory));
     }
 
     private static void AddLibraries(IDictionary<string, RequiredGameFile> files, string minecraftDirectory, JsonObject versionJson)
@@ -742,7 +761,8 @@ internal sealed class RequiredGameFileManifestBuilder
                     artifact.Size,
                     true,
                     string.IsNullOrWhiteSpace(artifact.Url) ? "Unavailable" : "DirectDownload",
-                    artifact.LibraryName ?? artifact.RelativePath));
+                    artifact.LibraryName ?? artifact.RelativePath,
+                    ManagedRoot: librariesRoot));
             }
         }
     }
@@ -763,7 +783,8 @@ internal sealed class RequiredGameFileManifestBuilder
             throw new InvalidDataException("Asset index id is invalid.");
         var indexesRoot = Path.Combine(minecraftDirectory, "assets", "indexes");
         var indexPath = MinecraftPathGuard.EnsureWithin(Path.Combine(indexesRoot, $"{id}.json"), indexesRoot, "Asset index");
-        Add(files, new RequiredGameFile(indexPath, "AssetIndex", GetString(assetIndex["url"]), GetString(assetIndex["sha1"]), GetLong(assetIndex["size"]), true, "DirectDownload", "Version asset index"));
+        MinecraftPathGuard.EnsureSafeFileDestination(indexPath, indexesRoot, "Asset index");
+        Add(files, new RequiredGameFile(indexPath, "AssetIndex", GetString(assetIndex["url"]), GetString(assetIndex["sha1"]), GetLong(assetIndex["size"]), true, "DirectDownload", "Version asset index", ManagedRoot: indexesRoot));
         if (!File.Exists(indexPath))
             return;
 
@@ -788,7 +809,7 @@ internal sealed class RequiredGameFileManifestBuilder
             if (hash is null || !MinecraftFileIntegrity.IsSha1(hash))
                 continue;
             var target = MinecraftPathGuard.EnsureWithin(Path.Combine(objectsRoot, hash[..2], hash), objectsRoot, "Asset object");
-            Add(files, new RequiredGameFile(target, "AssetObject", $"https://resources.download.minecraft.net/{hash[..2]}/{hash}", hash, GetLong(asset["size"]), true, "DirectDownload", objectEntry.Key));
+            Add(files, new RequiredGameFile(target, "AssetObject", $"https://resources.download.minecraft.net/{hash[..2]}/{hash}", hash, GetLong(asset["size"]), true, "DirectDownload", objectEntry.Key, ManagedRoot: objectsRoot));
         }
     }
 
@@ -808,7 +829,8 @@ internal sealed class RequiredGameFileManifestBuilder
             GetLong(logging["size"]),
             true,
             "DirectDownload",
-            "Client logging configuration"));
+            "Client logging configuration",
+            ManagedRoot: root));
     }
 
     private static void Add(IDictionary<string, RequiredGameFile> files, RequiredGameFile file)
@@ -856,6 +878,13 @@ internal static class GameFileManifestValidator
         foreach (var file in manifest.Files.Where(file => file.Required))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!string.IsNullOrWhiteSpace(file.ManagedRoot))
+            {
+                MinecraftPathGuard.EnsureSafeFileDestination(
+                    file.TargetPath,
+                    file.ManagedRoot,
+                    $"Required {file.Category} file");
+            }
             if (file.ForcedFailureReason is { } forcedReason)
             {
                 if (forcedReason == GameFileRepairFailureReason.MetadataIncomplete)

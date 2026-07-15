@@ -60,7 +60,10 @@ internal sealed class DownloadSourceRoutingHttpMessageHandler : DelegatingHandle
             bandwidthLimiter,
             limiter,
             category,
-            retryOptions);
+            retryOptions,
+            addressPolicy: innerHandler is RoutingDownloadHttpMessageHandler
+                ? new DownloadAddressPolicy()
+                : DownloadAddressPolicy.CreateForInjectedTransport());
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(

@@ -48,12 +48,12 @@ internal sealed class DownloadHostHealthTracker
     internal static bool AffectsHealth(DownloadFailureReason reason, System.Net.HttpStatusCode? statusCode = null) => reason is
         DownloadFailureReason.Dns or DownloadFailureReason.Network or DownloadFailureReason.ResponseHeadersTimeout
         or DownloadFailureReason.FirstByteTimeout or DownloadFailureReason.BodyIdleTimeout
-        or DownloadFailureReason.SustainedLowSpeed or DownloadFailureReason.BodyInterrupted
+        or DownloadFailureReason.BodyInterrupted
         || (reason is DownloadFailureReason.HttpStatus && statusCode is { } code && (int)code is >= 500 and <= 599);
 
     private HostState CreateFailureState(DownloadFailureReason reason, int failures, DateTimeOffset avoidUntil)
     {
-        if (reason is DownloadFailureReason.SustainedLowSpeed || failures >= 3)
+        if (failures >= 3)
             avoidUntil = DateTimeOffset.UtcNow + cooldown;
         return new HostState(failures, avoidUntil);
     }

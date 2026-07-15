@@ -98,7 +98,8 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
                         confinedSourcePath,
                         destinationPath,
                         trustedExpectation?.Sha1 ?? seededSha1,
-                        cancellationToken).ConfigureAwait(false);
+                        cancellationToken,
+                        destinationRoot).ConfigureAwait(false);
                     MarkVerified(destinationPath, trustedExpectation, operationContext);
                     continue;
                 }
@@ -109,7 +110,8 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
                         confinedSourcePath,
                         destinationPath,
                         plannedExpectation.Sha1,
-                        cancellationToken).ConfigureAwait(false);
+                        cancellationToken,
+                        destinationRoot).ConfigureAwait(false);
                     MarkVerified(destinationPath, plannedExpectation, operationContext);
                     continue;
                 }
@@ -126,7 +128,8 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
                         confinedSourcePath,
                         destinationPath,
                         expectation.Sha1,
-                        cancellationToken).ConfigureAwait(false);
+                        cancellationToken,
+                        destinationRoot).ConfigureAwait(false);
                     if (result.Disposition == SharedFilePublishDisposition.Replaced)
                     {
                         logger.LogInformation(
@@ -142,7 +145,8 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
                         confinedSourcePath,
                         destinationPath,
                         expectedSha1: null,
-                        cancellationToken: cancellationToken).ConfigureAwait(false);
+                        cancellationToken: cancellationToken,
+                        managedRoot: destinationRoot).ConfigureAwait(false);
                 }
             }
         }
@@ -645,7 +649,8 @@ internal sealed class LoaderInstallerPrerequisiteSeeder
                 sourcePath,
                 destinationPath,
                 expectedSha1,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken,
+                destinationGameDirectory).ConfigureAwait(false);
         }
         catch (InvalidDataException) when (!string.IsNullOrWhiteSpace(expectedSha1))
         {

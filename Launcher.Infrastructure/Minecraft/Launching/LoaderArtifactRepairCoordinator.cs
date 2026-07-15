@@ -47,12 +47,22 @@ internal sealed class LoaderArtifactRepairCoordinator
         GameFileLoaderIdentity identity,
         CancellationToken cancellationToken)
     {
+        var versionJsonPath = Path.Combine(versionDirectory, $"{versionName}.json");
+        MinecraftPathGuard.EnsureSafeFileDestination(
+            versionJsonPath,
+            versionDirectory,
+            "Managed version metadata");
         if (!await IsVersionJsonValidAsync(versionDirectory, versionName, cancellationToken).ConfigureAwait(false))
             return true;
 
         if (identity.LoaderKind is not (LoaderKind.Forge or LoaderKind.NeoForge))
             return false;
 
+        var manifestPath = LoaderArtifactManifestStore.GetPath(versionDirectory);
+        MinecraftPathGuard.EnsureSafeFileDestination(
+            manifestPath,
+            versionDirectory,
+            "Managed loader manifest");
         var readResult = await LoaderArtifactManifestStore.ReadAsync(versionDirectory, identity, cancellationToken)
             .ConfigureAwait(false);
         if (!readResult.IsValid)
@@ -61,6 +71,7 @@ internal sealed class LoaderArtifactRepairCoordinator
         foreach (var artifact in readResult.Manifest!.Artifacts)
         {
             var path = LoaderArtifactManifestStore.ResolveManagedPath(minecraftDirectory, artifact.RelativePath);
+            MinecraftPathGuard.EnsureSafeFileDestination(path, minecraftDirectory, "Managed loader artifact");
             var status = await MinecraftFileIntegrity.EvaluateAsync(
                     path,
                     artifact.Sha1,
@@ -229,18 +240,22 @@ internal sealed class LoaderArtifactRepairCoordinator
                 cancellationToken)
             .ConfigureAwait(false);
 
-        Directory.CreateDirectory(versionDirectory);
+        var versionRoot = Path.GetDirectoryName(Path.GetFullPath(versionDirectory))
+            ?? throw new InvalidDataException("Managed version directory has no parent.");
+        MinecraftPathGuard.EnsureSafeDirectory(versionDirectory, versionRoot, "Managed version directory");
         var rollback = new LoaderPublicationRollback(
             Path.Combine(sandboxMinecraftDirectory, ".publish-rollback"));
         try
         {
             var sourceJson = Path.Combine(sandboxVersionDirectory, $"{sandboxVersionName}.json");
             var targetJson = Path.Combine(versionDirectory, $"{versionName}.json");
+            MinecraftPathGuard.EnsureSafeFileDestination(targetJson, versionDirectory, "Managed version metadata");
             if (!await IsJsonFileValidAsync(targetJson, cancellationToken).ConfigureAwait(false))
-                await PublishTrustedReplacementAsync(sourceJson, targetJson, rollback, cancellationToken).ConfigureAwait(false);
+                await PublishTrustedReplacementAsync(sourceJson, targetJson, rollback, cancellationToken, versionDirectory).ConfigureAwait(false);
 
             var sourceJar = Path.Combine(sandboxVersionDirectory, $"{sandboxVersionName}.jar");
             var targetJar = Path.Combine(versionDirectory, $"{versionName}.jar");
+            MinecraftPathGuard.EnsureSafeFileDestination(targetJar, versionDirectory, "Managed version client");
             if (File.Exists(sourceJar))
             {
                 var sourceSha1 = AtomicSharedFilePublisher.ComputeSha1(sourceJar);
@@ -258,7 +273,8 @@ internal sealed class LoaderArtifactRepairCoordinator
                             sourceJar,
                             targetJar,
                             rollback,
-                            cancellationToken)
+                            cancellationToken,
+                            versionDirectory)
                         .ConfigureAwait(false);
                 }
             }
@@ -278,6 +294,10 @@ internal sealed class LoaderArtifactRepairCoordinator
                 var destination = LoaderArtifactManifestStore.ResolveManagedPath(
                     minecraftDirectory,
                     artifact.RelativePath);
+                MinecraftPathGuard.EnsureSafeFileDestination(
+                    destination,
+                    minecraftDirectory,
+                    "Managed loader artifact");
                 var sourceStatus = await MinecraftFileIntegrity.EvaluateAsync(
                         source,
                         artifact.Sha1,
@@ -301,15 +321,16 @@ internal sealed class LoaderArtifactRepairCoordinator
                         source,
                         destination,
                         rollback,
-                        cancellationToken)
+                        cancellationToken,
+                        minecraftDirectory)
                     .ConfigureAwait(false);
             }
 
             var sourceManifest = LoaderArtifactManifestStore.GetPath(sandboxVersionDirectory);
             var targetManifest = LoaderArtifactManifestStore.GetPath(versionDirectory);
-            await PublishTrustedReplacementAsync(sourceManifest, targetManifest, rollback, cancellationToken)
+            await PublishTrustedReplacementAsync(sourceManifest, targetManifest, rollback, cancellationToken, versionDirectory)
                 .ConfigureAwait(false);
-            await RemoveLegacyLoaderMetadataAsync(targetJson, identity.LoaderKind, rollback, cancellationToken)
+            await RemoveLegacyLoaderMetadataAsync(targetJson, identity.LoaderKind, rollback, cancellationToken, versionDirectory)
                 .ConfigureAwait(false);
             rollback.Commit();
         }
@@ -338,7 +359,8 @@ internal sealed class LoaderArtifactRepairCoordinator
         string versionJsonPath,
         LoaderKind loaderKind,
         LoaderPublicationRollback rollback,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string managedRoot)
     {
         var legacyKey = loaderKind switch
         {
@@ -363,7 +385,8 @@ internal sealed class LoaderArtifactRepairCoordinator
         }
         if (versionJson["launcher"] is not JsonObject launcher || !launcher.Remove(legacyKey))
             return;
-        rollback.Prepare(versionJsonPath);
+        MinecraftPathGuard.EnsureSafeFileDestination(versionJsonPath, managedRoot, "Managed version metadata");
+        rollback.Prepare(versionJsonPath, managedRoot);
         await AtomicJsonFileWriter.WriteAsync(
                 versionJsonPath,
                 versionJson,
@@ -376,11 +399,17 @@ internal sealed class LoaderArtifactRepairCoordinator
         string source,
         string destination,
         LoaderPublicationRollback rollback,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string managedRoot)
     {
         var sha1 = AtomicSharedFilePublisher.ComputeSha1(source);
-        rollback.Prepare(destination);
-        await AtomicSharedFilePublisher.PublishVerifiedReplacementAsync(source, destination, sha1, cancellationToken)
+        rollback.Prepare(destination, managedRoot);
+        await AtomicSharedFilePublisher.PublishVerifiedReplacementAsync(
+                source,
+                destination,
+                sha1,
+                cancellationToken,
+                managedRoot)
             .ConfigureAwait(false);
     }
 
@@ -391,14 +420,16 @@ internal sealed class LoaderArtifactRepairCoordinator
         private bool committed;
         private bool rolledBack;
 
-        public void Prepare(string destinationPath)
+        public void Prepare(string destinationPath, string? managedRoot = null)
         {
             var destination = Path.GetFullPath(destinationPath);
+            if (!string.IsNullOrWhiteSpace(managedRoot))
+                MinecraftPathGuard.EnsureSafeFileDestination(destination, managedRoot, "Managed publication destination");
             if (snapshots.ContainsKey(destination))
                 return;
             if (!File.Exists(destination))
             {
-                snapshots[destination] = new PublicationSnapshot(destination, BackupPath: null);
+                snapshots[destination] = new PublicationSnapshot(destination, BackupPath: null, managedRoot);
                 return;
             }
             if ((File.GetAttributes(destination) & FileAttributes.ReparsePoint) != 0)
@@ -406,7 +437,7 @@ internal sealed class LoaderArtifactRepairCoordinator
             Directory.CreateDirectory(backupDirectory);
             var backup = Path.Combine(backupDirectory, $"{snapshots.Count:D4}-{Guid.NewGuid():N}.bak");
             File.Copy(destination, backup, overwrite: false);
-            snapshots[destination] = new PublicationSnapshot(destination, backup);
+            snapshots[destination] = new PublicationSnapshot(destination, backup, managedRoot);
         }
 
         public void Commit() => committed = true;
@@ -420,6 +451,11 @@ internal sealed class LoaderArtifactRepairCoordinator
             {
                 try
                 {
+                    if (!string.IsNullOrWhiteSpace(snapshot.ManagedRoot))
+                        MinecraftPathGuard.EnsureSafeFileDestination(
+                            snapshot.DestinationPath,
+                            snapshot.ManagedRoot,
+                            "Managed publication rollback destination");
                     if (snapshot.BackupPath is null)
                     {
                         File.Delete(snapshot.DestinationPath);
@@ -445,7 +481,10 @@ internal sealed class LoaderArtifactRepairCoordinator
             LoaderVersionDirectoryTransaction.TryDeleteDirectory(backupDirectory);
         }
 
-        private sealed record PublicationSnapshot(string DestinationPath, string? BackupPath);
+        private sealed record PublicationSnapshot(
+            string DestinationPath,
+            string? BackupPath,
+            string? ManagedRoot);
     }
 
     private static Task<bool> IsVersionJsonValidAsync(

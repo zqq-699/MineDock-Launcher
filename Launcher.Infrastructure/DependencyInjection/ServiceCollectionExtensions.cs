@@ -33,6 +33,7 @@ using Launcher.Infrastructure.Persistence;
 using Launcher.Infrastructure.Resources;
 using Launcher.Infrastructure.Updates;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Launcher.Infrastructure.DependencyInjection;
 
@@ -94,7 +95,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IModpackWorkspaceCleanupService, ModpackWorkspaceCleanupService>();
         services.AddSingleton<ILocalResourcePackService, LocalResourcePackService>();
         services.AddSingleton<ILocalShaderPackService, LocalShaderPackService>();
-        services.AddSingleton<IModrinthService, ModrinthService>();
+        services.AddSingleton<IModrinthService>(serviceProvider => new ModrinthService(
+            MinecraftHttpClientFactory.CreateTransportClient(),
+            serviceProvider.GetService<ILogger<ModrinthService>>(),
+            serviceProvider.GetService<ISettingsService>(),
+            serviceProvider.GetService<IDownloadSpeedLimitState>(),
+            serviceProvider.GetService<IImportConcurrencyLimiter>()));
         services.AddSingleton<IResourceCatalogService, ResourceCatalogService>();
         services.AddSingleton<IResourceProjectInstallationService, ResourceProjectInstallationService>();
         services.AddSingleton<ILauncherUpdateService, RemoteManifestLauncherUpdateService>();

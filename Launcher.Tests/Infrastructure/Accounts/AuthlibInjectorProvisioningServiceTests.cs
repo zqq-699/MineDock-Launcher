@@ -8,6 +8,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Launcher.Infrastructure.Accounts.ThirdParty;
+using Launcher.Infrastructure.Minecraft;
 
 namespace Launcher.Tests.Infrastructure.Accounts;
 
@@ -77,6 +78,52 @@ public sealed class AuthlibInjectorProvisioningServiceTests : TestTempDirectory
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.EnsureAvailableAsync());
         Assert.Empty(Directory.EnumerateFiles(Path.Combine(TempRoot, "authlib"), "*.jar"));
+    }
+
+    [Fact]
+    public async Task RejectsPrivateArtifactAddressBeforeArtifactRequest()
+    {
+        var artifactRequests = 0;
+        var service = new AuthlibInjectorProvisioningService(
+            new HttpClient(new StubHttpMessageHandler(request =>
+            {
+                if (request.RequestUri!.AbsolutePath.EndsWith("latest.json", StringComparison.Ordinal))
+                    return Task.FromResult(Json(Metadata(new string('0', 64))));
+                artifactRequests++;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+            })),
+            Path.Combine(TempRoot, "authlib"),
+            logger: null,
+            addressPolicy: new DownloadAddressPolicy((_, _) =>
+                Task.FromResult(new[] { IPAddress.Parse("10.0.0.8") })));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.EnsureAvailableAsync());
+
+        Assert.Equal(0, artifactRequests);
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(TempRoot, "authlib"), "*.jar"));
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("{\"sha256\":null}")]
+    public async Task RejectsNullChecksumMetadataBeforeArtifactRequest(string checksumsJson)
+    {
+        var artifactRequests = 0;
+        var metadata =
+            $"{{\"build_number\":55,\"version\":\"1.2.7\",\"download_url\":\"https://download.example.test/authlib-injector.jar\",\"checksums\":{checksumsJson}}}";
+        var service = new AuthlibInjectorProvisioningService(
+            new HttpClient(new StubHttpMessageHandler(request =>
+            {
+                if (request.RequestUri!.AbsolutePath.EndsWith("latest.json", StringComparison.Ordinal))
+                    return Task.FromResult(Json(metadata));
+                artifactRequests++;
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+            })),
+            Path.Combine(TempRoot, "authlib"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.EnsureAvailableAsync());
+
+        Assert.Equal(0, artifactRequests);
     }
 
     private static string Metadata(string hash) =>

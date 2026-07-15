@@ -31,9 +31,6 @@ internal sealed record DownloadRetryOptions
     public TimeSpan ResponseHeadersTimeout { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan FirstByteTimeout { get; init; } = TimeSpan.FromSeconds(10);
     public TimeSpan BodyIdleTimeout { get; init; } = TimeSpan.FromSeconds(12);
-    public TimeSpan SustainedLowSpeedWindow { get; init; } = TimeSpan.FromSeconds(10);
-    public long SustainedLowSpeedBytesPerSecond { get; init; } = 512 * 1024;
-    public long LowSpeedMinimumFileBytes { get; init; } = 4 * 1024 * 1024;
     public TimeSpan MaximumRetryAfter { get; init; } = TimeSpan.FromSeconds(60);
     public TimeSpan MaximumRetryDelay { get; init; } = TimeSpan.FromSeconds(30);
     public int MaxRedirects { get; init; } = 10;
@@ -53,7 +50,6 @@ internal enum DownloadFailureReason
     ResponseHeadersTimeout,
     FirstByteTimeout,
     BodyIdleTimeout,
-    SustainedLowSpeed,
     BodyInterrupted,
     HttpStatus,
     InvalidRedirect,

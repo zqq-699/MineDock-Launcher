@@ -49,7 +49,7 @@ public sealed class LocalModpackPackageService : IModpackPackageService
     {
         this.logger = logger ?? NullLogger<LocalModpackPackageService>.Instance;
         var resolvedLimiter = limiter ?? ImportConcurrencyLimiter.Shared;
-        var resolvedHttpClient = httpClient ?? new HttpClient();
+        var resolvedHttpClient = httpClient ?? MinecraftHttpClientFactory.CreateTransportClient();
         var resolvedApiClient = curseForgeApiClient ?? new CurseForgeApiClient(resolvedHttpClient, resolvedLimiter);
         var resolvedApiKeyResolver = curseForgeApiKeyResolver
             ?? new CurseForgeApiKeyResolver(pathProvider, settingsService);

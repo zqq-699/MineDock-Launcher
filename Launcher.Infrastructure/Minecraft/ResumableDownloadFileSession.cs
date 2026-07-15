@@ -25,6 +25,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
     private readonly DownloadIntegrityExpectation integrity;
     private readonly DownloadPersistenceMode persistenceMode;
     private readonly MinecraftDownloadOperationContext? operationContext;
+    private readonly string? managedRoot;
     private readonly PartFileCapacityManager.CapacityLease? capacityLease;
     private readonly IDisposable? assetLock;
     private string? sourceCandidateKey;
@@ -39,6 +40,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         DownloadIntegrityExpectation integrity,
         DownloadPersistenceMode persistenceMode,
         MinecraftDownloadOperationContext? operationContext,
+        string? managedRoot,
         PartFileCapacityManager.CapacityLease? capacityLease,
         IDisposable? assetLock)
     {
@@ -47,6 +49,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         this.integrity = integrity;
         this.persistenceMode = persistenceMode;
         this.operationContext = operationContext;
+        this.managedRoot = managedRoot;
         this.capacityLease = capacityLease;
         this.assetLock = assetLock;
     }
@@ -76,9 +79,32 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(integrity);
         options ??= new DownloadFileOptions();
         var normalizedDestination = Path.GetFullPath(destinationPath);
+        var managedRoot = options.ManagedRoot ?? options.OperationContext?.ManagedRoot;
+        if (!string.IsNullOrWhiteSpace(managedRoot))
+        {
+            managedRoot = Path.GetFullPath(managedRoot);
+            MinecraftPathGuard.EnsureSafeFileDestination(
+                normalizedDestination,
+                managedRoot,
+                "Managed download");
+        }
         var destinationDirectory = Path.GetDirectoryName(normalizedDestination)
             ?? throw new InvalidOperationException("Download destination has no parent directory.");
-        Directory.CreateDirectory(destinationDirectory);
+        if (managedRoot is null)
+        {
+            Directory.CreateDirectory(destinationDirectory);
+        }
+        else
+        {
+            MinecraftPathGuard.EnsureSafeDirectory(
+                destinationDirectory,
+                managedRoot,
+                "Managed download directory");
+            MinecraftPathGuard.EnsureSafeFileDestination(
+                normalizedDestination,
+                managedRoot,
+                "Managed download");
+        }
 
         IDisposable? assetLock = null;
         PartFileCapacityManager.CapacityLease? capacityLease = null;
@@ -103,11 +129,14 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                     options.OperationContext?.MarkVerified(normalizedDestination, integrity);
                     return new ResumableDownloadFileSession(
                         normalizedDestination, string.Empty, integrity, options.PersistenceMode,
-                        options.OperationContext, null, assetLock) { IsComplete = true };
+                        options.OperationContext, managedRoot, null, assetLock) { IsComplete = true };
                 }
             }
 
-            DeleteAbandonedTemporaryFiles(destinationDirectory, Path.GetFileName(normalizedDestination));
+            DeleteAbandonedTemporaryFiles(
+                destinationDirectory,
+                Path.GetFileName(normalizedDestination),
+                managedRoot);
             var temporaryPath = Path.Combine(
                 destinationDirectory,
                 $".{Path.GetFileName(normalizedDestination)}.bhl-pending-{Guid.NewGuid():N}.tmp");
@@ -116,7 +145,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
 
             return new ResumableDownloadFileSession(
                 normalizedDestination, temporaryPath, integrity, options.PersistenceMode,
-                options.OperationContext, capacityLease, assetLock);
+                options.OperationContext, managedRoot, capacityLease, assetLock);
         }
         catch
         {
@@ -192,6 +221,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
                 await AppendExistingTemporaryToHashAsync(hashers.Values, cancellationToken).ConfigureAwait(false);
 
             await using var source = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            EnsureManagedDestinationIsSafe();
             await using var destination = new FileStream(
                 temporaryPath,
                 resumed ? FileMode.Append : FileMode.Create,
@@ -308,6 +338,7 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         try
         {
             using var publishLock = AcquireFinalPublishLock(destinationPath, cancellationToken);
+            EnsureManagedDestinationIsSafe();
             if (File.Exists(destinationPath)
                 && integrity.VerifyFile(destinationPath, cancellationToken))
             {
@@ -327,6 +358,14 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         }
     }
 
+    private void EnsureManagedDestinationIsSafe()
+    {
+        if (managedRoot is null)
+            return;
+        MinecraftPathGuard.EnsureSafeFileDestination(destinationPath, managedRoot, "Managed download");
+        MinecraftPathGuard.EnsureNoReparsePoints(managedRoot, temporaryPath, "Managed download temporary file");
+    }
+
     private long GetTemporaryLength() => File.Exists(temporaryPath) ? new FileInfo(temporaryPath).Length : 0;
     private void DeleteTemporary()
     {
@@ -334,19 +373,29 @@ internal sealed class ResumableDownloadFileSession : IAsyncDisposable
         {
             if (string.IsNullOrEmpty(temporaryPath) || !File.Exists(temporaryPath))
                 return;
+            if (managedRoot is not null)
+                MinecraftPathGuard.EnsureNoReparsePoints(managedRoot, temporaryPath, "Managed download cleanup");
             File.Delete(temporaryPath);
             capacityLease?.DiscardRetainedBytes();
         }
+        catch (InvalidDataException) { }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
     }
-    private static void DeleteAbandonedTemporaryFiles(string directory, string destinationFileName)
+    private static void DeleteAbandonedTemporaryFiles(
+        string directory,
+        string destinationFileName,
+        string? managedRoot)
     {
+        if (managedRoot is not null)
+            MinecraftPathGuard.EnsureNoReparsePoints(managedRoot, directory, "Managed download cleanup directory");
         var pattern = $".{destinationFileName}.bhl-pending-*.tmp";
         foreach (var candidate in Directory.EnumerateFiles(directory, pattern, SearchOption.TopDirectoryOnly))
         {
             try
             {
+                if (managedRoot is not null)
+                    MinecraftPathGuard.EnsureNoReparsePoints(managedRoot, candidate, "Managed download cleanup file");
                 using var lease = new FileStream(candidate, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
                 lease.Close();
                 File.Delete(candidate);

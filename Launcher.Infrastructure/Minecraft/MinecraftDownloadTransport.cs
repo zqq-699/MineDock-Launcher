@@ -60,9 +60,9 @@ internal sealed class MinecraftDownloadTransport
 
         for (var redirectCount = 0; ; redirectCount++)
         {
-            await addressPolicy.ValidateAsync(currentUri, isThirdParty, cancellationToken).ConfigureAwait(false);
+            var endpoint = await addressPolicy.ValidateAsync(currentUri, isThirdParty, cancellationToken).ConfigureAwait(false);
             var response = await SendSingleAsync(
-                currentUri,
+                endpoint,
                 timeout.Token,
                 cancellationToken,
                 configureRequest,
@@ -96,7 +96,8 @@ internal sealed class MinecraftDownloadTransport
                 throw InvalidRedirect("The HTTP redirect target was invalid.", exception);
             }
 
-            if (nextUri.Scheme is not ("http" or "https") || !visited.Add(nextUri.AbsoluteUri))
+            if (!string.Equals(nextUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+                || !visited.Add(nextUri.AbsoluteUri))
             {
                 response.Dispose();
                 throw InvalidRedirect("The HTTP redirect target was unsupported or formed a loop.");
@@ -109,7 +110,7 @@ internal sealed class MinecraftDownloadTransport
     }
 
     private async Task<HttpResponseMessage> SendSingleAsync(
-        Uri uri,
+        ValidatedDownloadEndpoint endpoint,
         CancellationToken timeoutToken,
         CancellationToken callerToken,
         Action<HttpRequestMessage>? configureRequest,
@@ -117,8 +118,21 @@ internal sealed class MinecraftDownloadTransport
     {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            using var request = new HttpRequestMessage(HttpMethod.Get, endpoint.Uri);
             configureRequest?.Invoke(request);
+            if (request.RequestUri != endpoint.Uri)
+            {
+                throw new DownloadAttemptException(
+                    DownloadFailureDisposition.Abort,
+                    DownloadFailureReason.UnsafeAddress,
+                    "The validated download request URI was changed before it was sent.");
+            }
+            if (endpoint.RequiresDirectConnection)
+            {
+                request.Options.Set(
+                    DownloadConnectionRequestOptions.ValidatedAddresses,
+                    endpoint.Addresses.ToArray());
+            }
             sensitiveHeaders?.ApplyIfAllowed(request);
             return await httpClient.SendAsync(
                 request,

@@ -85,4 +85,19 @@ internal sealed class ModrinthFile
 
     [JsonPropertyName("primary")]
     public bool IsPrimary { get; set; }
+
+    [JsonPropertyName("size")]
+    public long? Size { get; set; }
+
+    [JsonPropertyName("hashes")]
+    public ModrinthFileHashes Hashes { get; set; } = new();
+}
+
+internal sealed class ModrinthFileHashes
+{
+    [JsonPropertyName("sha1")]
+    public string Sha1 { get; set; } = string.Empty;
+
+    [JsonPropertyName("sha512")]
+    public string Sha512 { get; set; } = string.Empty;
 }

@@ -102,44 +102,114 @@ public sealed class LaunchServiceTests : TestTempDirectory
         }
         finally
         {
-            if (launchedProcess is { HasExited: false })
-                launchedProcess.Kill(entireProcessTree: true);
+            TryKillProcess(launchedProcess);
         }
     }
 
     [Fact]
-    public async Task CancelingWindowWaitDoesNotReportCompletion()
+    public async Task CancelingWindowWaitTerminatesProcessTreeWithoutReportingCompletion()
     {
         var waiter = new ControlledWindowReadinessWaiter();
+        var terminator = new RecordingProcessTerminator();
+        var childPidPath = Path.Combine(TempRoot, "launch-child.pid");
+        var childScriptPath = Path.Combine(TempRoot, "launch-child.ps1");
+        Directory.CreateDirectory(TempRoot);
+        await File.WriteAllTextAsync(
+            childScriptPath,
+            "param([string]$PidPath)\n"
+            + "$child = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\\ping.exe') "
+            + "-ArgumentList @('127.0.0.1','-n','30') -WindowStyle Hidden -PassThru\n"
+            + "[IO.File]::WriteAllText($PidPath, [string]$child.Id)\n"
+            + "Wait-Process -Id $child.Id\n");
         Process? launchedProcess = null;
+        int? childProcessId = null;
         var launcher = new FakeLauncherFactory
         {
-            BuildProcess = (_, _) => launchedProcess = CreateCommandProcess("/c ping 127.0.0.1 -n 30 >nul")
+            BuildProcess = (_, _) => launchedProcess = CreateProcessWithLongRunningChild(
+                childScriptPath,
+                childPidPath)
         };
-        var service = CreateService(launcher: launcher, windowReadinessWaiter: waiter);
+        var service = CreateService(
+            launcher: launcher,
+            crashMonitor: new LaunchCrashMonitor(),
+            windowReadinessWaiter: waiter,
+            processTerminator: terminator);
         var settings = CreateSettings();
         settings.DefaultCheckFilesBeforeLaunch = false;
         var reports = new List<LauncherProgress>();
         using var cancellation = new CancellationTokenSource();
+        var instance = CreateInstance(settings.MinecraftDirectory, "Canceled Window Wait");
 
         try
         {
             var launchTask = service.LaunchAsync(
-                CreateInstance(settings.MinecraftDirectory, "Canceled Window Wait"),
+                instance,
                 CreateAccount(),
                 settings,
                 new InlineProgress(reports),
                 cancellationToken: cancellation.Token);
 
             await waiter.WaitUntilCalledAsync();
+            childProcessId = await WaitForChildProcessIdAsync(childPidPath);
             cancellation.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => launchTask);
             Assert.DoesNotContain(reports, report => report.Percent == 100);
+            Assert.True(terminator.ObservedExitedProcess);
+            Assert.True(await WaitForProcessExitAsync(childProcessId.Value));
+            Assert.Empty(Directory.Exists(Path.Combine(
+                    instance.InstanceDirectory,
+                    LauncherApplicationIdentity.StorageDirectoryName,
+                    "logs"))
+                ? Directory.EnumerateFiles(
+                    Path.Combine(instance.InstanceDirectory, LauncherApplicationIdentity.StorageDirectoryName, "logs"),
+                    "launch-output-*.log")
+                : []);
         }
         finally
         {
-            if (launchedProcess is { HasExited: false })
-                launchedProcess.Kill(entireProcessTree: true);
+            TryKillProcess(launchedProcess);
+            TryKillProcess(childProcessId);
+        }
+    }
+
+    [Fact]
+    public async Task TerminationFailureIsReportedAsLaunchFailureAndKeepsCrashMonitoring()
+    {
+        var waiter = new ControlledWindowReadinessWaiter();
+        var crashMonitor = new RecordingCrashMonitor();
+        Process? launchedProcess = null;
+        var launcher = new FakeLauncherFactory
+        {
+            BuildProcess = (_, _) => launchedProcess = CreateCommandProcess("/c ping 127.0.0.1 -n 30 >nul")
+        };
+        var service = CreateService(
+            launcher: launcher,
+            crashMonitor: crashMonitor,
+            windowReadinessWaiter: waiter,
+            processTerminator: new FailingProcessTerminator());
+        var settings = CreateSettings();
+        settings.DefaultCheckFilesBeforeLaunch = false;
+        using var cancellation = new CancellationTokenSource();
+
+        try
+        {
+            var launchTask = service.LaunchAsync(
+                CreateInstance(settings.MinecraftDirectory, "Failed Cancellation Cleanup"),
+                CreateAccount(),
+                settings,
+                progress: null,
+                cancellationToken: cancellation.Token);
+
+            await waiter.WaitUntilCalledAsync();
+            cancellation.Cancel();
+            var exception = await Assert.ThrowsAsync<LaunchFailedException>(() => launchTask);
+
+            Assert.Contains("terminate", exception.Report.FailureSummary, StringComparison.OrdinalIgnoreCase);
+            Assert.True(crashMonitor.MonitorSession.GameSessionCreated);
+        }
+        finally
+        {
+            TryKillProcess(launchedProcess);
         }
     }
 
@@ -352,7 +422,8 @@ public sealed class LaunchServiceTests : TestTempDirectory
         IJavaRuntimeProvisioningService? javaProvisioning = null,
         ILaunchAccountSessionService? accountSession = null,
         IAuthlibInjectorProvisioningService? authlibInjector = null,
-        IGameWindowReadinessWaiter? windowReadinessWaiter = null)
+        IGameWindowReadinessWaiter? windowReadinessWaiter = null,
+        ILaunchProcessTerminator? processTerminator = null)
     {
         var resolvedAccountSession = accountSession ?? new FakeAccountSession();
         var resolvedLauncher = launcher ?? new FakeLauncherFactory();
@@ -367,7 +438,8 @@ public sealed class LaunchServiceTests : TestTempDirectory
                 javaRuntimeSelectionService: javaSelection,
                 javaRuntimeProvisioningService: javaProvisioning,
                 authlibInjectorProvisioningService: authlibInjector,
-                gameWindowReadinessWaiter: resolvedWindowWaiter)
+                gameWindowReadinessWaiter: resolvedWindowWaiter,
+                launchProcessTerminator: processTerminator)
             : new LaunchService(
                 resolvedAccountSession,
                 repair ?? new FakeRepairService(),
@@ -376,7 +448,8 @@ public sealed class LaunchServiceTests : TestTempDirectory
                 javaRuntimeSelectionService: javaSelection,
                 javaRuntimeProvisioningService: javaProvisioning,
                 authlibInjectorProvisioningService: authlibInjector,
-                gameWindowReadinessWaiter: resolvedWindowWaiter);
+                gameWindowReadinessWaiter: resolvedWindowWaiter,
+                launchProcessTerminator: processTerminator);
     }
 
     private LauncherSettings CreateSettings() => new()
@@ -413,6 +486,99 @@ public sealed class LaunchServiceTests : TestTempDirectory
             UseShellExecute = false
         }
     };
+
+    private static Process CreateProcessWithLongRunningChild(string scriptPath, string childPidPath)
+    {
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = Path.Combine(
+                    Environment.SystemDirectory,
+                    "WindowsPowerShell",
+                    "v1.0",
+                    "powershell.exe"),
+                CreateNoWindow = true,
+                UseShellExecute = false
+            }
+        };
+        process.StartInfo.ArgumentList.Add("-NoProfile");
+        process.StartInfo.ArgumentList.Add("-NonInteractive");
+        process.StartInfo.ArgumentList.Add("-ExecutionPolicy");
+        process.StartInfo.ArgumentList.Add("Bypass");
+        process.StartInfo.ArgumentList.Add("-File");
+        process.StartInfo.ArgumentList.Add(scriptPath);
+        process.StartInfo.ArgumentList.Add("-PidPath");
+        process.StartInfo.ArgumentList.Add(childPidPath);
+        return process;
+    }
+
+    private static async Task<int> WaitForChildProcessIdAsync(string path)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try
+        {
+            while (true)
+            {
+                if (File.Exists(path)
+                    && int.TryParse(await File.ReadAllTextAsync(path, timeout.Token), out var processId))
+                {
+                    return processId;
+                }
+
+                await Task.Delay(50, timeout.Token);
+            }
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            throw new TimeoutException("The launch test child process did not publish its process id.");
+        }
+    }
+
+    private static async Task<bool> WaitForProcessExitAsync(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            if (process.HasExited)
+                return true;
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            return process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return true;
+        }
+    }
+
+    private static void TryKillProcess(Process? process)
+    {
+        if (process is null)
+            return;
+
+        try
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    private static void TryKillProcess(int? processId)
+    {
+        if (processId is null)
+            return;
+        try
+        {
+            using var process = Process.GetProcessById(processId.Value);
+            TryKillProcess(process);
+        }
+        catch (ArgumentException)
+        {
+        }
+    }
 
     private sealed class FakeAccountSession(LaunchAccountSession? session = null) : ILaunchAccountSessionService
     {
@@ -540,8 +706,59 @@ public sealed class LaunchServiceTests : TestTempDirectory
                 Process process,
                 LaunchDiagnosticContext context,
                 CancellationToken cancellationToken) => throw new InvalidOperationException("The fake process did not exit during startup.");
+            public Task CompleteCanceledStartupAsync(Process process) => Task.CompletedTask;
             public GameLaunchSession CreateGameLaunchSession(Process process, LaunchDiagnosticContext context) =>
                 new(context.InstanceId, context.InstanceName, Task.FromResult(LaunchExitResult.Success));
+        }
+    }
+
+    private sealed class RecordingProcessTerminator : ILaunchProcessTerminator
+    {
+        private readonly LaunchProcessTerminator inner = new();
+
+        public bool ObservedExitedProcess { get; private set; }
+
+        public async Task TerminateAsync(Process process)
+        {
+            await inner.TerminateAsync(process);
+            ObservedExitedProcess = process.HasExited;
+        }
+    }
+
+    private sealed class FailingProcessTerminator : ILaunchProcessTerminator
+    {
+        public Task TerminateAsync(Process process) =>
+            Task.FromException(new IOException("Injected process-tree termination failure."));
+    }
+
+    private sealed class RecordingCrashMonitor : ILaunchCrashMonitor
+    {
+        public Session MonitorSession { get; } = new();
+
+        public ILaunchCrashMonitorSession CreateSession(
+            string minecraftDirectory,
+            string instanceDirectory,
+            string versionName) => MonitorSession;
+
+        internal sealed class Session : ILaunchCrashMonitorSession
+        {
+            public bool GameSessionCreated { get; private set; }
+
+            public void Configure(Process process) { }
+            public void BeginMonitoring(Process process, LaunchDiagnosticContext context) { }
+            public Task<LaunchCrashMonitorResult> CreateStartupExitResultAsync(
+                Process process,
+                LaunchDiagnosticContext context,
+                CancellationToken cancellationToken) => throw new InvalidOperationException();
+            public Task CompleteCanceledStartupAsync(Process process) => Task.CompletedTask;
+            public GameLaunchSession CreateGameLaunchSession(Process process, LaunchDiagnosticContext context)
+            {
+                GameSessionCreated = true;
+                return new GameLaunchSession(
+                    context.InstanceId,
+                    context.InstanceName,
+                    Task.FromResult(LaunchExitResult.Success));
+            }
         }
     }
 
